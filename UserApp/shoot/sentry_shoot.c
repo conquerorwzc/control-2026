@@ -21,7 +21,7 @@ static Shoot_Upload_Data_s shoot_feedback_data; // 来自cmd的发射控制信�
 // dwt定时,计算冷却用
 static float hibernate_time = 0, dead_time = 0;
 
-void ShootInit() {
+__weak void ShootInit() {
   // 左摩擦轮
   Motor_Init_Config_s friction_config = {.fdcan_init_config =
                                          {
@@ -117,7 +117,7 @@ void ShootInit() {
 }
 
 /* 机器人发射机构控制核心任务 */
-void ShootTask() {
+__weak void ShootTask() {
   // 从cmd获取控制数据
   SubGetMessage(shoot_sub, &shoot_cmd_recv);
   //拨弹盘位置初始化

@@ -39,10 +39,15 @@ static referee_info_t* referee_data; // 用于获取裁判系统的数据
 static Vision_Recv_s *vision_recv_data;  // 视觉接收数据指针,初始化时返回
 // static Vision_Send_s vision_send_data;  // 视觉发送数据
 
-static Publisher_t *gimbal_cmd_pub;             // 云台控制消息发布者
-static Subscriber_t *gimbal_feed_sub;           // 云台反馈信息订阅者
+// static Publisher_t *gimbal_cmd_pub;             // 云台控制消息发布者
+// static Subscriber_t *gimbal_feed_sub;           // 云台反馈信息订阅者
 static Gimbal_Ctrl_Cmd_s gimbal_cmd_send;       // 传递给云台的控制信息
 static Gimbal_Upload_Data_s gimbal_fetch_data;  // 从云台获取的反馈信息
+
+static Publisher_t *sentry_gimbal_cmd_pub;             // 云台控制消息发布者
+static Subscriber_t *sentry_gimbal_feed_sub;           // 云台反馈信息订阅者
+static Sentry_Gimbal_Ctrl_Cmd_s sentry_gimbal_cmd_send;       // 传递给云台的控制信息
+static Sentry_Gimbal_Upload_Data_s sentry_gimbal_fetch_data;  // 从云台获取的反馈信息
 
 static Publisher_t *shoot_cmd_pub;            // 发射控制消息发布者
 static Subscriber_t *shoot_feed_sub;          // 发射反馈信息订阅者
@@ -61,9 +66,13 @@ void RobotCMDInit() {
   *rc_data_last = *rc_data;//记录上一次遥控器的状态
   referee_data = RefereeInit(&huart1); // 裁判系统初始化
   // vision_recv_data = VisionInit(&huart1);  // 视觉通信串口
+  //
+  // gimbal_cmd_pub = PubRegister("gimbal_cmd", sizeof(Gimbal_Ctrl_Cmd_s));
+  // gimbal_feed_sub = SubRegister("gimbal_feed", sizeof(Gimbal_Upload_Data_s));
 
-  gimbal_cmd_pub = PubRegister("gimbal_cmd", sizeof(Gimbal_Ctrl_Cmd_s));
-  gimbal_feed_sub = SubRegister("gimbal_feed", sizeof(Gimbal_Upload_Data_s));
+  sentry_gimbal_cmd_pub = PubRegister("sentry_gimbal_cmd", sizeof(Sentry_Gimbal_Ctrl_Cmd_s));
+  sentry_gimbal_feed_sub = SubRegister("sentry_gimbal_feed", sizeof(Sentry_Gimbal_Upload_Data_s));
+
   shoot_cmd_pub = PubRegister("shoot_cmd", sizeof(Shoot_Ctrl_Cmd_s));
   shoot_feed_sub = SubRegister("shoot_feed", sizeof(Shoot_Upload_Data_s));
 
@@ -322,7 +331,8 @@ void RobotCMDTask() {
   chassis_fetch_data = *(Chassis_Upload_Data_s *)CANCommGet(cmd_can_comm);
 #endif  // GIMBAL_BOARD
   SubGetMessage(shoot_feed_sub, &shoot_fetch_data);
-  SubGetMessage(gimbal_feed_sub, &gimbal_fetch_data);
+  // SubGetMessage(gimbal_feed_sub, &gimbal_fetch_data);
+  SubGetMessage(sentry_gimbal_feed_sub, &sentry_gimbal_fetch_data);
 
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
   CalcOffsetAngle();
@@ -348,5 +358,6 @@ void RobotCMDTask() {
   CANCommSend(cmd_can_comm, (void *)&chassis_cmd_send);
 #endif  // GIMBAL_BOARD
   PubPushMessage(shoot_cmd_pub, (void *)&shoot_cmd_send);
-  PubPushMessage(gimbal_cmd_pub, (void *)&gimbal_cmd_send);
+  //PubPushMessage(gimbal_cmd_pub, (void *)&gimbal_cmd_send);
+  PubPushMessage(sentry_gimbal_cmd_pub, (void *)&sentry_gimbal_cmd_send);
 }

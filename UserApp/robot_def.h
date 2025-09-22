@@ -162,12 +162,15 @@ typedef struct
 
 typedef struct
 { // 云台角度控制
-  float yaw;
-  float pitch;
+  float main_yaw;
+  float right_yaw;
+  float right_pitch;
+  float left_yaw;
+  float left_pitch;
   float chassis_rotate_wz;
 
   gimbal_mode_e gimbal_mode;
-} Gimbal_Ctrl_Cmd_s;
+} Sentry_Gimbal_Ctrl_Cmd_s;
 
 // cmd发布的发射控制数据,由shoot订阅
 typedef struct
@@ -209,6 +212,16 @@ typedef struct
     attitude_t gimbal_imu_data;
     uint16_t yaw_motor_single_round_angle;
 } Gimbal_Upload_Data_s;
+
+typedef struct
+{
+  attitude_t gimbal_imu_data;
+  float mian_yaw_motor_single_round_angle;
+  float right_yaw_motor_angle;
+  float right_pitch_motor_angle;
+  float left_yaw_motor_angle;
+  float left_pitch_motor_angle;
+} Sentry_Gimbal_Upload_Data_s;
 
 typedef struct
 {

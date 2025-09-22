@@ -59,7 +59,7 @@ void SentryGimbalInit()
   // RIGHT_YAW
   Motor_Init_Config_s right_yaw_config = {
     .fdcan_init_config = {
-      .can_handle = &hfdcan2,
+      .can_handle = &hfdcan3,
       .tx_id = 4,
   },
   .controller_param_init_config = {
@@ -91,10 +91,10 @@ void SentryGimbalInit()
   },
   .motor_type = GM6020};
 
-  // RIGHT_YAW
+  // LEFT_YAW
   Motor_Init_Config_s left_yaw_config = {
     .fdcan_init_config = {
-      .can_handle = &hfdcan3,
+      .can_handle = &hfdcan2,
       .tx_id = 4,
   },
   .controller_param_init_config = {
@@ -200,14 +200,14 @@ void SentryGimbalInit()
     right_yaw_motor=DJIMotorInit(&right_yaw_config);
     right_pitch_motor = DJIMotorInit(&right_pitch_config);
     left_yaw_motor = DJIMotorInit(&left_yaw_config);
-    left_yaw_motor = DJIMotorInit(&left_pitch_config);
+    left_pitch_motor = DJIMotorInit(&left_pitch_config);
 
-    sentry_gimbal_pub = PubRegister("gimbal_feed", sizeof(Gimbal_Upload_Data_s));
-    sentry_gimbal_sub = SubRegister("gimbal_cmd", sizeof(Sentry_Gimbal_Ctrl_Cmd_s));
+    sentry_gimbal_pub = PubRegister("sentry_gimbal_feed", sizeof(Sentry_Gimbal_Upload_Data_s));
+    sentry_gimbal_sub = SubRegister("sentry_gimbal_cmd", sizeof(Sentry_Gimbal_Ctrl_Cmd_s));
 }
 
 /* 机器人云台控制核心任务,后续考虑只保留IMU控制,不再需要电机的反馈 */
-void Sentry_GimbalTask()
+void SentryGimbalTask()
 {
     // 获取云台控制数据
     // 后续增加未收到数据的处理
@@ -283,9 +283,9 @@ void Sentry_GimbalTask()
     sentry_gimbal_feedback_data.gimbal_imu_data = *gimba_IMU_data;
     sentry_gimbal_feedback_data.mian_yaw_motor_single_round_angle = main_yaw_motor->measure.angle_single_round;
     sentry_gimbal_feedback_data.right_yaw_motor_angle = right_yaw_motor->measure.total_angle;
-    sentry_gimbal_feedback_data.right_pitch_motor_angle = right_yaw_motor->measure.total_angle;
-    sentry_gimbal_feedback_data.left_yaw_motor_angle = right_yaw_motor->measure.total_angle;
-    sentry_gimbal_feedback_data.left_pitch_motor_angle = right_yaw_motor->measure.total_angle;
+    sentry_gimbal_feedback_data.right_pitch_motor_angle = right_pitch_motor->measure.total_angle;
+    sentry_gimbal_feedback_data.left_yaw_motor_angle = left_yaw_motor->measure.total_angle;
+    sentry_gimbal_feedback_data.left_pitch_motor_angle = left_pitch_motor->measure.total_angle;
 
     // 推送消息
     PubPushMessage(sentry_gimbal_pub, (void *)&sentry_gimbal_feedback_data);

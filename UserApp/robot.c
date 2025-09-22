@@ -15,6 +15,7 @@
 
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
 #include "gimbal.h"
+#include "sentry_gimbal.h"
 #include "shoot.h"
 #include "robot_cmd.h"
 #endif
@@ -31,7 +32,7 @@ void RobotInit()
 
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
      RobotCMDInit();
-     GimbalInit();
+     SentryGimbalInit();
      ShootInit();
 #endif
 
@@ -49,7 +50,7 @@ void RobotTask()
 {
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
      RobotCMDTask();
-      GimbalTask();
+      SentryGimbalTask();
       ShootTask();
 #endif
 
