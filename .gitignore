@@ -1,0 +1,98 @@
+# Prerequisites
+*.d
+
+# Object files
+*.o
+*.ko
+*.obj
+*.elf
+
+# Linker output
+*.ilk
+*.map
+*.exp
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Libraries
+*.la
+*.lo
+
+# Shared objects (inc. Windows DLLs)
+*.dll
+*.so
+*.so.*
+*.dylib
+
+# Executables
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# Kernel Module Compile Results
+*.mod*
+*.cmd
+.tmp_versions/
+modules.order
+Module.symvers
+Mkfile.old
+dkms.conf
+build
+
+# Keil Project Files to Ignore
+
+# Keil build output directories
+*/DebugConfig/
+*/ReleaseConfig/
+*/RTE/
+*/OBJ/
+*/Objects/
+*/Listings/
+
+# Keil generated files
+*.bak
+*.Bak
+*.crf
+*.htm
+*.build_log.htm
+*.dep
+*.iex
+*.i
+*_2i
+*.l2p
+*.fed
+*.lst
+*.lnp
+*.axf
+*.hex
+*.bin
+*.map
+*.orig
+*.sct
+*.scvd
+*.dbg*
+
+# Keil project user-specific files
+*.uvoptx
+*.uvguix.*
+*.uvgui.*
+*.uvprojx.bak
+
+Debug/
+
+# J-Link files
+JLinkLog.txt
+*.jlink
+
+# cmake build directory
+cmake-build-debug-stm32/
