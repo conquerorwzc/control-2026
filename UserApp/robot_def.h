@@ -160,6 +160,15 @@ typedef struct
     gimbal_mode_e gimbal_mode;
 } Gimbal_Ctrl_Cmd_s;
 
+typedef struct
+{ // 云台角度控制
+  float yaw;
+  float pitch;
+  float chassis_rotate_wz;
+
+  gimbal_mode_e gimbal_mode;
+} Gimbal_Ctrl_Cmd_s;
+
 // cmd发布的发射控制数据,由shoot订阅
 typedef struct
 {

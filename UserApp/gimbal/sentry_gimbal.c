@@ -59,8 +59,8 @@ void SentryGimbalInit()
   // RIGHT_YAW
   Motor_Init_Config_s right_yaw_config = {
     .fdcan_init_config = {
-      .can_handle = &hfdcan1,
-      .tx_id = 2,
+      .can_handle = &hfdcan2,
+      .tx_id = 4,
   },
   .controller_param_init_config = {
       .angle_PID = {
@@ -94,8 +94,8 @@ void SentryGimbalInit()
   // RIGHT_YAW
   Motor_Init_Config_s left_yaw_config = {
     .fdcan_init_config = {
-      .can_handle = &hfdcan1,
-      .tx_id = 2,
+      .can_handle = &hfdcan3,
+      .tx_id = 4,
   },
   .controller_param_init_config = {
       .angle_PID = {
@@ -129,7 +129,7 @@ void SentryGimbalInit()
     // RIGHT_PITCH
     Motor_Init_Config_s right_pitch_config = {
       .fdcan_init_config = {
-        .can_handle = &hfdcan1,
+        .can_handle = &hfdcan3,
         .tx_id = 2,
     },
     .controller_param_init_config = {
@@ -164,7 +164,7 @@ void SentryGimbalInit()
   // LEFT_PITCH
   Motor_Init_Config_s left_pitch_config = {
     .fdcan_init_config = {
-      .can_handle = &hfdcan1,
+      .can_handle = &hfdcan2,
       .tx_id = 2,
   },
   .controller_param_init_config = {
