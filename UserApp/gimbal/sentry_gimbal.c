@@ -102,19 +102,19 @@ void SentryGimbalInit()
         .Kp = 0, // 8
         .Ki = 0,
         .Kd = 0,
-        .DeadBand = 0,
+        .DeadBand = 0.1,
         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-        .IntegralLimit = 0,
+        .IntegralLimit = 5,
 
-        .MaxOut = 0,
+        .MaxOut = 20,
     },
     .speed_PID = {
-        .Kp = 0 , // 50
-        .Ki = 0, // 200
-        .Kd = 0,
+        .Kp = 200, // 50
+        .Ki = 4.5, // 200
+        .Kd = 35,
         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-        .IntegralLimit = 12000,
-        .MaxOut = 25000,
+        .IntegralLimit = 3000,
+        .MaxOut = 16000,
     },
 },
 .controller_setting_init_config = {
@@ -174,17 +174,17 @@ void SentryGimbalInit()
         .Kd = 0,
         .DeadBand = 0,
         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-        .IntegralLimit = 0,
+        .IntegralLimit = 5,
 
-        .MaxOut = 0,
+        .MaxOut = 20,
     },
     .speed_PID = {
-        .Kp = 0 , // 50
-        .Ki = 0, // 200
-        .Kd = 0,
+        .Kp = 200, // 50
+        .Ki = 4.5, // 200
+        .Kd = 50,
         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-        .IntegralLimit = 12000,
-        .MaxOut = 25000,
+        .IntegralLimit = 3000.0,
+        .MaxOut = 16000.0,
     },
 },
 .controller_setting_init_config = {
@@ -231,7 +231,7 @@ void SentryGimbalTask()
         DJIMotorEnable(right_yaw_motor);
         DJIMotorEnable(right_pitch_motor);
         DJIMotorEnable(left_yaw_motor);
-        DJIMotorEnable(left_yaw_motor);
+        DJIMotorEnable(left_pitch_motor);
         DJIMotorChangeFeed(main_yaw_motor, ANGLE_LOOP, OTHER_FEED);
         DJIMotorChangeFeed(main_yaw_motor, ANGLE_LOOP, OTHER_FEED);
         DJIMotorChangeFeed(right_yaw_motor, ANGLE_LOOP, MOTOR_FEED);

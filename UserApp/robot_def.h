@@ -31,6 +31,13 @@
 #define PITCH_HORIZON_ECD 3494      // 云台处于水平位置时编码器值,若对云台有机械改动需要修改
 #define PITCH_MAX_ANGLE 26           // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
 #define PITCH_MIN_ANGLE -35           // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define LEFT_PITCH_MAX_ANGLE   -1     // 左侧云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define LEFT_PITCH_MIN_ANGLE   -55     // 左侧云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define LEFT_PITCH_HORIZON_ECD -34    // 左侧云台竖直方向初始默认角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define LEFT_YAW_MAX_ANGLE  100        // 左侧云台水平方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define LEFT_YAW_MIN_ANGLE  -7        // 左侧云台水平方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define LEFT_YAW_HORIZON_ECD 5  // 左侧云台处于水平位置时编码器值,若对云台有机械改动需要修改
+#define RIGHT_PITCH_HORIZON_ECD 0
 // 发射参数
 #define ONE_BULLET_DELTA_ANGLE (36*45)    // 发射一发弹丸拨盘转动的距离,由机械设计图纸给出
 #define REDUCTION_RATIO_LOADER 36.0f // 2006拨盘电机的减速比,英雄需要修改为3508的19.0f
