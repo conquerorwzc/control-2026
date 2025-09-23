@@ -50,8 +50,8 @@ void RobotTask()
 {
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
      RobotCMDTask();
-      SentryGimbalTask();
-      ShootTask();
+     SentryGimbalTask();
+     ShootTask();
 #endif
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)

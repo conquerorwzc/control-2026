@@ -63,27 +63,30 @@ static uint8_t sender_enable_flag[9] = {0};
  * @param motor 电机实例指针
  * @param config 电机CAN初始化配置
  */
+/**
+ * @brief 根据电调/拨码开关上的ID,根据说明书的默认id分配方式计算发送ID和接收ID,
+ *        并对电机进行分组以便处理多电机控制命令
+ */
 static void MotorSenderGrouping(DJIMotorInstance* motor, CAN_Init_Config_s* config) {
   // 修改：参数类型
   uint8_t motor_id = config->tx_id - 1; // 下标从零开始,先减一方便赋值
   uint8_t motor_send_num;
-  uint8_t motor_grouping=0;
+  uint8_t motor_grouping;
 
   switch (motor->motor_type) {
     case M2006:
     case M3508:
-      if (motor_id < 4) {
+      if (motor_id < 4) // 根据ID分组
+      {
         motor_send_num = motor_id;
-        // 修改：增加FDCAN3支持，分组6-8对应FDCAN3
-        if (config->can_handle == &hfdcan1) motor_grouping = 1;
-        else if (config->can_handle == &hfdcan2) motor_grouping = 4;
-        else if (config->can_handle == &hfdcan3) motor_grouping = 7;
+        motor_grouping = config->can_handle == &hfdcan1 ? 1 :
+                        (config->can_handle == &hfdcan2 ? 4 : 7); // 修改：can_handle → fdcan_handle
       } else {
         motor_send_num = motor_id - 4;
-        if (config->can_handle == &hfdcan1) motor_grouping = 0;
-        else if (config->can_handle == &hfdcan2) motor_grouping = 3;
-        else if (config->can_handle == &hfdcan3) motor_grouping = 6;
+        motor_grouping = config->can_handle == &hfdcan1 ? 0 :
+                        (config->can_handle == &hfdcan2 ? 3 : 6);
       }
+
       // 计算接收id并设置分组发送id
       config->rx_id = 0x200 + motor_id + 1; // 把ID+1,进行分组设置
       sender_enable_flag[motor_grouping] = 1; // 设置发送标志位,防止发送空帧
@@ -96,10 +99,8 @@ static void MotorSenderGrouping(DJIMotorInstance* motor, CAN_Init_Config_s* conf
             dji_motor_instance[i]->motor_can_instance->rx_id == config->rx_id) {
           LOGERROR(
               "[dji_motor] ID crash. Check in debug mode, add dji_motor_instance to watch to get more information.");
-          uint16_t fdcan_bus = 0;
-          if (config->can_handle == &hfdcan1) fdcan_bus = 1;
-          else if (config->can_handle == &hfdcan2) fdcan_bus = 2;
-          else if (config->can_handle == &hfdcan3) fdcan_bus = 3;
+          uint16_t fdcan_bus = config->can_handle == &hfdcan1 ? 1 :
+                              (config->can_handle == &hfdcan2 ? 2 : 3); // 修改：变量名
           while (1) // 6020的id 1-4和2006/3508的id 5-8会发生冲突(若有注册,即1!5,2!6,3!7,4!8) (1!5!,LTC! (((不是)
             LOGERROR("[dji_motor] id [%d], fdcan_bus [%d]", config->rx_id, fdcan_bus);
         }
@@ -109,16 +110,14 @@ static void MotorSenderGrouping(DJIMotorInstance* motor, CAN_Init_Config_s* conf
     case GM6020:
       if (motor_id < 4) {
         motor_send_num = motor_id;
-        // 修改：增加FDCAN3支持
-        if (config->can_handle == &hfdcan1) motor_grouping = 0;
-        else if (config->can_handle == &hfdcan2) motor_grouping = 3;
-        else if (config->can_handle == &hfdcan3) motor_grouping = 6;
+        motor_grouping = config->can_handle == &hfdcan1 ? 0 :
+                        (config->can_handle == &hfdcan2 ? 3 : 6);
       } else {
         motor_send_num = motor_id - 4;
-        if (config->can_handle == &hfdcan1) motor_grouping = 2;
-        else if (config->can_handle == &hfdcan2) motor_grouping = 5;
-        else if (config->can_handle == &hfdcan3) motor_grouping = 8;
+        motor_grouping = config->can_handle == &hfdcan1 ? 2 :
+                        (config->can_handle == &hfdcan2 ? 5 : 8);
       }
+
       config->rx_id = 0x204 + motor_id + 1; // 把ID+1,进行分组设置
       sender_enable_flag[motor_grouping] = 1; // 只要有电机注册到这个分组,置为1;在发送函数中会通过此标志判断是否有电机注册
       motor->message_num = motor_send_num;
@@ -129,10 +128,8 @@ static void MotorSenderGrouping(DJIMotorInstance* motor, CAN_Init_Config_s* conf
             dji_motor_instance[i]->motor_can_instance->rx_id == config->rx_id) {
           LOGERROR(
               "[dji_motor] ID crash. Check in debug mode, add dji_motor_instance to watch to get more information.");
-          uint16_t fdcan_bus = 0;
-          if (config->can_handle == &hfdcan1) fdcan_bus = 1;
-          else if (config->can_handle == &hfdcan2) fdcan_bus = 2;
-          else if (config->can_handle == &hfdcan3) fdcan_bus = 3;
+          uint16_t fdcan_bus = config->can_handle == &hfdcan1 ? 1 :
+                              (config->can_handle == &hfdcan2 ? 2 : 3);
           while (1) // 6020的id 1-4和2006/3508的id 5-8会发生冲突(若有注册,即1!5,2!6,3!7,4!8) (1!5!,LTC! (((不是)
             LOGERROR("[dji_motor] id [%d], fdcan_bus [%d]", config->rx_id, fdcan_bus);
         }
@@ -144,7 +141,6 @@ static void MotorSenderGrouping(DJIMotorInstance* motor, CAN_Init_Config_s* conf
         LOGERROR("[dji_motor]You must not register other motors using the API of DJI motor."); // 其他电机不应该在这里注册
   }
 }
-
 
 /**
  * @todo  是否可以简化多圈角度的计算？
@@ -187,7 +183,8 @@ static void DecodeDJIMotor(CANInstance* _instance) {
  */
 static void DJIMotorLostCallback(void* motor_ptr) {
   DJIMotorInstance* motor = (DJIMotorInstance*)motor_ptr;
-  uint16_t can_bus = motor->motor_can_instance->can_handle == &hfdcan1 ? 1 : 2; // 修改：变量名
+  uint16_t can_bus = motor->motor_can_instance->can_handle == &hfdcan1 ? 1 :
+                    (motor->motor_can_instance->can_handle == &hfdcan2 ? 2 : 3); // 修改：变量名
   LOGWARNING("[dji_motor] Motor lost, fdcan bus [%d] , id [%d]", can_bus, motor->motor_can_instance->tx_id);
 }
 
