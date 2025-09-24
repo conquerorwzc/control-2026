@@ -26,7 +26,7 @@ void SentryGimbalInit()
         },
         .controller_param_init_config = {
             .angle_PID = {
-                .Kp = 0.3, // 8
+                .Kp = 1, // 8
                 .Ki = 0,
                 .Kd = 0,
                 .DeadBand = 0.1,
@@ -64,22 +64,22 @@ void SentryGimbalInit()
   },
   .controller_param_init_config = {
       .angle_PID = {
-        .Kp = 0, // 8
+        .Kp = 1, // 8
         .Ki = 0,
         .Kd = 0,
-        .DeadBand = 0,
+        .DeadBand = 0.1,
         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-        .IntegralLimit = 0,
+        .IntegralLimit = 5,
 
-        .MaxOut = 0,
+        .MaxOut = 30,
     },
     .speed_PID = {
-        .Kp = 0 , // 50
-        .Ki = 0, // 200
+        .Kp = 1000 , // 50
+        .Ki = 50, // 200
         .Kd = 0,
         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-        .IntegralLimit = 12000,
-        .MaxOut = 25000,
+        .IntegralLimit = 7000,
+        .MaxOut = 28000,
     },
 },
 .controller_setting_init_config = {
@@ -99,22 +99,22 @@ void SentryGimbalInit()
   },
   .controller_param_init_config = {
       .angle_PID = {
-        .Kp = 0, // 8
+        .Kp = 1, // 8
         .Ki = 0,
         .Kd = 0,
         .DeadBand = 0.1,
         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
         .IntegralLimit = 5,
 
-        .MaxOut = 20,
+        .MaxOut = 30,
     },
     .speed_PID = {
-        .Kp = 200, // 50
-        .Ki = 4.5, // 200
-        .Kd = 35,
+        .Kp = 1000, // 50
+        .Ki = 50, // 200
+        .Kd = 0,
         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-        .IntegralLimit = 3000,
-        .MaxOut = 16000,
+        .IntegralLimit = 7000,
+        .MaxOut = 28000,
     },
 },
 .controller_setting_init_config = {
@@ -134,22 +134,22 @@ void SentryGimbalInit()
     },
     .controller_param_init_config = {
         .angle_PID = {
-          .Kp = 0, // 8
+          .Kp = 1.2, // 8
           .Ki = 0,
           .Kd = 0,
           .DeadBand = 0,
           .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-          .IntegralLimit = 0,
+          .IntegralLimit =5,
 
-          .MaxOut = 0,
+          .MaxOut = 30,
       },
       .speed_PID = {
-          .Kp = 0 , // 50
-          .Ki = 0, // 200
+          .Kp = 2000 , // 50
+          .Ki = 100, // 200
           .Kd = 0,
           .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-          .IntegralLimit = 12000,
-          .MaxOut = 25000,
+          .IntegralLimit = 7000,
+          .MaxOut = 28000,
       },
   },
   .controller_setting_init_config = {
@@ -169,22 +169,22 @@ void SentryGimbalInit()
   },
   .controller_param_init_config = {
       .angle_PID = {
-        .Kp = 0, // 8
+        .Kp = 1.2, // 8
         .Ki = 0,
         .Kd = 0,
         .DeadBand = 0,
         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
         .IntegralLimit = 5,
 
-        .MaxOut = 20,
+        .MaxOut = 30,
     },
     .speed_PID = {
-        .Kp = 200, // 50
-        .Ki = 4.5, // 200
-        .Kd = 50,
+        .Kp = 2000, // 50
+        .Ki = 100, // 200
+        .Kd = 0,
         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-        .IntegralLimit = 3000.0,
-        .MaxOut = 16000.0,
+        .IntegralLimit = 7000.0,
+        .MaxOut = 28000,
     },
 },
 .controller_setting_init_config = {
@@ -244,7 +244,7 @@ void SentryGimbalTask()
         DJIMotorChangeFeed(left_pitch_motor, SPEED_LOOP, MOTOR_FEED);
         DJMotorPIDCal(main_yaw_motor, sentry_gimbal_cmd_recv.main_yaw); // mian_yaw和pitch会在robot_cmd中处理好多圈和单圈
         DJMotorPIDCal(right_yaw_motor, sentry_gimbal_cmd_recv.right_yaw);
-        DJMotorPIDCal(right_pitch_motor, sentry_gimbal_cmd_recv.right_yaw);
+        DJMotorPIDCal(right_pitch_motor, sentry_gimbal_cmd_recv.right_pitch);
         DJMotorPIDCal(left_yaw_motor, sentry_gimbal_cmd_recv.left_yaw);
         DJMotorPIDCal(left_pitch_motor, sentry_gimbal_cmd_recv.left_pitch);
         break;
@@ -267,7 +267,7 @@ void SentryGimbalTask()
         DJIMotorChangeFeed(left_pitch_motor, SPEED_LOOP, MOTOR_FEED);
         DJMotorPIDCal(main_yaw_motor, sentry_gimbal_cmd_recv.main_yaw); // mian_yaw和pitch会在robot_cmd中处理好多圈和单圈
         DJMotorPIDCal(right_yaw_motor, sentry_gimbal_cmd_recv.right_yaw);
-        DJMotorPIDCal(right_pitch_motor, sentry_gimbal_cmd_recv.right_yaw);
+        DJMotorPIDCal(right_pitch_motor, sentry_gimbal_cmd_recv.right_pitch);
         DJMotorPIDCal(left_yaw_motor, sentry_gimbal_cmd_recv.left_yaw);
         DJMotorPIDCal(left_pitch_motor, sentry_gimbal_cmd_recv.left_pitch);
         break;

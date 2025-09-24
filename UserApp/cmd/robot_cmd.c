@@ -97,8 +97,10 @@ void RobotCMDInit() {
 #endif  // GIMBAL_BOARD
   gimbal_cmd_send.pitch = 0;
   chassis_cmd_send.max_power=80;
-  // sentry_gimbal_cmd_send.left_pitch=LEFT_PITCH_HORIZON_ECD;
-  // sentry_gimbal_cmd_send.left_yaw=LEFT_YAW_HORIZON_ECD;
+  sentry_gimbal_cmd_send.left_pitch=LEFT_PITCH_HORIZON_ECD;
+  sentry_gimbal_cmd_send.left_yaw=LEFT_YAW_HORIZON_ECD;
+  sentry_gimbal_cmd_send.right_yaw=RIGHT_YAW_HORIZON_ECD;
+  sentry_gimbal_cmd_send.right_pitch=RIGHT_PITCH_HORIZON_ECD;
   robot_state = ROBOT_READY;  // 启动时机器人进入工作模式,后续加入所有应用初始化完成之后再进入
 }
 
@@ -185,10 +187,10 @@ static void RemoteControlSet() {
       (vision_recv_data->target_state == NO_TARGET)) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
     gimbal_cmd_send.yaw -= 0.005f * (float)rc_data[TEMP].rc.rocker_r_;
     gimbal_cmd_send.pitch += 0.002f * (float)rc_data[TEMP].rc.rocker_r1;
-    sentry_gimbal_cmd_send.left_yaw -= 0.005f * (float)rc_data[TEMP].rc.rocker_r_;
-    // sentry_gimbal_cmd_send.right_yaw -= 0.005f * (float)rc_data[TEMP].rc.rocker_r_;
+    sentry_gimbal_cmd_send.left_yaw += 0.005f * (float)rc_data[TEMP].rc.rocker_r_;
+    sentry_gimbal_cmd_send.right_yaw -= 0.005f * (float)rc_data[TEMP].rc.rocker_r_;
     sentry_gimbal_cmd_send.left_pitch += 0.002f * (float)rc_data[TEMP].rc.rocker_r1;
-    // sentry_gimbal_cmd_send.right_pitch += 0.002f * (float)rc_data[TEMP].rc.rocker_r1;
+    sentry_gimbal_cmd_send.right_pitch -= 0.002f * (float)rc_data[TEMP].rc.rocker_r1;
   }
   // 云台PITCH轴软件限位
   if (gimbal_cmd_send.pitch > PITCH_MAX_ANGLE) {
@@ -196,17 +198,30 @@ static void RemoteControlSet() {
   } else if (gimbal_cmd_send.pitch < PITCH_MIN_ANGLE) {
     gimbal_cmd_send.pitch = PITCH_MIN_ANGLE;
   }
-
+//左云台限位,pitch
   if (sentry_gimbal_cmd_send.left_pitch>LEFT_PITCH_MAX_ANGLE) {
     sentry_gimbal_cmd_send.left_pitch=LEFT_PITCH_MAX_ANGLE;
   }else if (sentry_gimbal_cmd_send.left_pitch<LEFT_PITCH_MIN_ANGLE) {
     sentry_gimbal_cmd_send.left_pitch=LEFT_PITCH_MIN_ANGLE;
   }
-
+//左云台限位，yaw
   if (sentry_gimbal_cmd_send.left_yaw>LEFT_YAW_MAX_ANGLE) {
     sentry_gimbal_cmd_send.left_yaw=LEFT_YAW_MAX_ANGLE;
   }else if (sentry_gimbal_cmd_send.left_yaw<LEFT_YAW_MIN_ANGLE) {
     sentry_gimbal_cmd_send.left_yaw=LEFT_YAW_MIN_ANGLE;
+  }
+
+  //右云台限位，pitch
+  if (sentry_gimbal_cmd_send.right_pitch>RIGHT_PITCH_MAX_ANGLE) {
+    sentry_gimbal_cmd_send.right_pitch=RIGHT_PITCH_MAX_ANGLE;
+  }else if (sentry_gimbal_cmd_send.right_pitch<RIGHT_PITCH_MIN_ANGLE) {
+    sentry_gimbal_cmd_send.right_pitch=RIGHT_PITCH_MIN_ANGLE;
+  }
+  //右云台限位，yaw
+  if (sentry_gimbal_cmd_send.right_yaw>RIGHT_YAW_MAX_ANGLE) {
+    sentry_gimbal_cmd_send.right_yaw=RIGHT_YAW_MAX_ANGLE;
+  }else if (sentry_gimbal_cmd_send.right_yaw<RIGHT_YAW_MIN_ANGLE) {
+    sentry_gimbal_cmd_send.right_yaw=RIGHT_YAW_MIN_ANGLE;
   }
   // 底盘参数,系数需要调整
   chassis_cmd_send.vx = 30.0f * (float)rc_data[TEMP].rc.rocker_l_;  // _水平方向
@@ -325,6 +340,7 @@ static void EmergencyHandler() {
     shoot_cmd_send.shoot_mode = SHOOT_OFF;
     shoot_cmd_send.friction_mode = FRICTION_OFF;
     shoot_cmd_send.load_mode = LOAD_STOP;
+    sentry_gimbal_cmd_send.gimbal_mode=GIMBAL_ZERO_FORCE;
     LOGERROR("[CMD] emergency stop!");
   } else {
     robot_state = ROBOT_READY;

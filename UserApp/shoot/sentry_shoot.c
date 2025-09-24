@@ -19,10 +19,15 @@ static Shoot_Upload_Data_s shoot_feedback_data; // 来自cmd的发射控制信�
 //波弹盘位置初始化标志
 // static uint8_t loader_position_init=0;
 
+// 拨盘电机的设定角度
+static float left_loader_setangle = 0, right_loader_setangle = 0;
 // dwt定时,计算冷却用
-static float hibernate_time = 0, dead_time = 0;
+static float left_hibernate_time = 0, left_dead_time = 0;
+static float right_hibernate_time = 0, right_dead_time = 0;
+//根据flag来确定拨盘电机是否接收控制指令
+static uint8_t left_loader_flag=0,right_loader_flag=0;
 
- void Sentry_ShootInit() {
+ void SentryShootInit() {
   // 第一组左摩擦轮
   Motor_Init_Config_s friction_config = {.fdcan_init_config =
                                          {
@@ -33,7 +38,7 @@ static float hibernate_time = 0, dead_time = 0;
                                              .speed_PID =
                                              {
                                                  .Kp = 20, // 20
-                                                 .Ki = 1, // 1
+                                                 .Ki = 0, // 1
                                                  .Kd = 0,
                                                  .Improve = PID_Integral_Limit,
                                                  .IntegralLimit = 10000,
@@ -67,12 +72,12 @@ static float hibernate_time = 0, dead_time = 0;
   left_friction_r = DJIMotorInit(&friction_config);
    //右云台左摩擦轮，改fdcan，txid和方向就行
    friction_config.fdcan_init_config.can_handle=&hfdcan3;
-   friction_config.fdcan_init_config.tx_id = 2;
+   friction_config.fdcan_init_config.tx_id = 1;
    friction_config.controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE;
    right_friction_l = DJIMotorInit(&friction_config);
    //右云台右摩擦轮，改fdcan，txid和方向就行
    friction_config.fdcan_init_config.can_handle=&hfdcan3;
-   friction_config.fdcan_init_config.tx_id = 1;
+   friction_config.fdcan_init_config.tx_id = 2;
    friction_config.controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL;
    right_friction_r = DJIMotorInit(&friction_config);
 
@@ -89,15 +94,15 @@ static float hibernate_time = 0, dead_time = 0;
           .angle_PID =
           {
               // 如果启用位置环来控制发弹,需要较大的I值保证输出力矩的线性度否则出现接近拨出的力矩大幅下降
-              .Kp = 60, // 10
+              .Kp = 0.6, // 10
               .Ki = 0,
               .Kd = 0,
-              .MaxOut = 20000,
+              .MaxOut = 3000,
           },
           .speed_PID =
           {
-              .Kp = 1, // 1.5
-              .Ki = 0.1, // 0.2
+              .Kp = 50, // 1.5
+              .Ki = 1, // 0.2
               .Kd = 0,
               .Improve = PID_Integral_Limit | PID_ErrorHandle,
               .IntegralLimit = 5000,
@@ -135,7 +140,7 @@ static float hibernate_time = 0, dead_time = 0;
 }
 
 /* 机器人发射机构控制核心任务 */
-void Sentry_ShootTask() {
+void SentryShootTask() {
   // 从cmd获取控制数据
   SubGetMessage(shoot_sub, &shoot_cmd_recv);
   //拨弹盘位置初始化
@@ -158,66 +163,133 @@ void Sentry_ShootTask() {
     DJIMotorStop(left_friction_l);
     DJIMotorStop(left_friction_r);
     DJIMotorStop(left_loader);
+    DJIMotorStop(right_friction_l);
+    DJIMotorStop(right_friction_r);
+    DJIMotorStop(right_loader);
+
   } else // 恢复运行
   {
     DJIMotorEnable(left_friction_l);
     DJIMotorEnable(left_friction_r);
     DJIMotorEnable(left_loader);
+    DJIMotorEnable(right_friction_l);
+    DJIMotorEnable(right_friction_r);
+    DJIMotorEnable(right_loader);
+    DJMotorPIDCal(right_loader, right_loader_setangle);
+    DJMotorPIDCal(left_loader, left_loader_setangle);
   }
   // // 如果上一次触发单发或3发指令的时间加上不应期仍然大于当前时间(尚未休眠完毕),直接返回即可
   // // 单发模式主要提供给能量机关激活使用(以及英雄的射击大部分处于单发)
-  if (hibernate_time + dead_time > DWT_GetTimeline_ms()) return;
+  if (left_hibernate_time + left_dead_time > DWT_GetTimeline_ms())
+    left_loader_flag=0;
+  else
+    left_loader_flag=1;
 
+   if (right_hibernate_time + right_dead_time > DWT_GetTimeline_ms())
+     right_loader_flag=0;
+   else
+     right_loader_flag=1;
+
+   //左卡弹检测
   if (left_loader->motor_controller.speed_PID.ERRORHandler.ERRORType == PID_MOTOR_BLOCKED_ERROR) {
     left_loader->motor_controller.speed_PID.ERRORHandler.ERRORType = PID_ERROR_NONE; //清空标志位
     shoot_cmd_recv.load_mode = LOAD_REVERSE;
   }
+  //右卡弹检测
+   if (right_loader->motor_controller.speed_PID.ERRORHandler.ERRORType == PID_MOTOR_BLOCKED_ERROR) {
+     right_loader->motor_controller.speed_PID.ERRORHandler.ERRORType = PID_ERROR_NONE; //清空标志位
+     shoot_cmd_recv.load_mode = LOAD_REVERSE;
+   }
 
+if (left_loader_flag==1) {
   // 若不在休眠状态,根据robotCMD传来的控制模式进行拨盘电机参考值设定和模式切换
   switch (shoot_cmd_recv.load_mode) {
     // 停止拨盘
     case LOAD_STOP:
-      DJIMotorOuterLoop(left_loader, SPEED_LOOP); // 切换到速度环
-      DJMotorPIDCal(left_loader, 0); // 同时设定参考值为0,这样停止的速度最快
+      DJIMotorOuterLoop(left_loader, ANGLE_LOOP);
+      left_loader_setangle=left_loader->measure.total_angle; // 同时设定参考值为0,这样停止的速度最快
       break;
-    // 单发模式,根据鼠标按下的时间,触发一次之后需要进入不响应输入的状态(否则按下的时间内可能多次进入,导致多次发射)
+      // 单发模式,根据鼠标按下的时间,触发一次之后需要进入不响应输入的状态(否则按下的时间内可能多次进入,导致多次发射)
     case LOAD_1_BULLET: // 激活能量机关/干扰对方用,英雄用.
       DJIMotorOuterLoop(left_loader, ANGLE_LOOP); // 切换到角度环
-      DJMotorPIDCal(left_loader, left_loader->measure.total_angle + ONE_BULLET_DELTA_ANGLE); // 控制量增加一发弹丸的角度
-      hibernate_time = DWT_GetTimeline_ms(); // 记录触发指令的时间
-      dead_time = 250; // 完成1发弹丸发射的时间
+      left_loader_setangle=left_loader->measure.total_angle - ONE_BULLET_DELTA_ANGLE; // 控制量增加一发弹丸的角度
+      left_hibernate_time = DWT_GetTimeline_ms(); // 记录触发指令的时间
+      left_dead_time = 150; // 完成1发弹丸发射的时间
       break;
-    // 连发模式,对速度闭环,射频后续修改为可变,目前固定为1Hz
+      // 连发模式,对速度闭环,射频后续修改为可变,目前固定为1Hz
     case LOAD_BURSTFIRE:
       DJIMotorOuterLoop(left_loader, ANGLE_LOOP); // 切换到角度环
-      DJMotorPIDCal(left_loader, left_loader->measure.total_angle + ONE_BULLET_DELTA_ANGLE); // 控制量增加一发弹丸的角度
-      hibernate_time = DWT_GetTimeline_ms(); // 记录触发指令的时间
-      dead_time = 100; // 弹频
+      left_loader_setangle=left_loader->measure.total_angle - ONE_BULLET_DELTA_ANGLE; // 控制量增加一发弹丸的角度
+      left_hibernate_time = DWT_GetTimeline_ms(); // 记录触发指令的时间
+      left_dead_time = 150; // 弹频
       // x颗/秒换算成速度: 已知一圈的载弹量,由此计算出1s需要转的角度,注意换算角速度(DJIMotor的速度单位是angle per
       // second)
       break;
-    // 拨盘反转,对速度闭环,后续增加卡弹检测(通过裁判系统剩余热量反馈和电机电流)
-    // 也有可能需要从switch-case中独立出来
+      // 拨盘反转,对速度闭环,后续增加卡弹检测(通过裁判系统剩余热量反馈和电机电流)
+      // 也有可能需要从switch-case中独立出来
     case LOAD_REVERSE:
       DJIMotorOuterLoop(left_loader, ANGLE_LOOP); // 切换到角度环
-      DJMotorPIDCal(left_loader, left_loader->measure.total_angle - 360); // 控制量增加一发弹丸的角度
-      hibernate_time = DWT_GetTimeline_ms(); // 记录触发指令的时间
-      dead_time = 1000;
+      left_loader_setangle=left_loader->measure.total_angle - 360; // 控制量增加一发弹丸的角度
+      left_hibernate_time = DWT_GetTimeline_ms(); // 记录触发指令的时间
+      left_dead_time = 1000;
       // ...
       break;
     default:
       while (1); // 未知模式,停止运行,检查指针越界,内存溢出等问题
   }
+}
+
+   if (right_loader_flag==1) {
+     // 若不在休眠状态,根据robotCMD传来的控制模式进行拨盘电机参考值设定和模式切换
+     switch (shoot_cmd_recv.load_mode) {
+       // 停止拨盘
+       case LOAD_STOP:
+         DJIMotorOuterLoop(right_loader, ANGLE_LOOP);
+         right_loader_setangle=right_loader->measure.total_angle; // 同时设定参考值为0,这样停止的速度最快
+         break;
+         // 单发模式,根据鼠标按下的时间,触发一次之后需要进入不响应输入的状态(否则按下的时间内可能多次进入,导致多次发射)
+       case LOAD_1_BULLET: // 激活能量机关/干扰对方用,英雄用.
+         DJIMotorOuterLoop(right_loader, ANGLE_LOOP); // 切换到角度环
+         right_loader_setangle=right_loader->measure.total_angle - ONE_BULLET_DELTA_ANGLE; // 控制量增加一发弹丸的角度
+         right_hibernate_time = DWT_GetTimeline_ms(); // 记录触发指令的时间
+         right_dead_time = 150; // 完成1发弹丸发射的时间
+         break;
+         // 连发模式,对速度闭环,射频后续修改为可变,目前固定为1Hz
+       case LOAD_BURSTFIRE:
+         DJIMotorOuterLoop(right_loader, ANGLE_LOOP); // 切换到角度环
+         right_loader_setangle=right_loader->measure.total_angle - ONE_BULLET_DELTA_ANGLE; // 控制量增加一发弹丸的角度
+         right_hibernate_time = DWT_GetTimeline_ms(); // 记录触发指令的时间
+         right_dead_time = 150; // 弹频
+         // x颗/秒换算成速度: 已知一圈的载弹量,由此计算出1s需要转的角度,注意换算角速度(DJIMotor的速度单位是angle per
+         // second)
+         break;
+         // 拨盘反转,对速度闭环,后续增加卡弹检测(通过裁判系统剩余热量反馈和电机电流)
+         // 也有可能需要从switch-case中独立出来
+       case LOAD_REVERSE:
+         DJIMotorOuterLoop(right_loader, ANGLE_LOOP); // 切换到角度环
+         right_loader_setangle=right_loader->measure.total_angle - 360; // 控制量增加一发弹丸的角度
+         left_hibernate_time = DWT_GetTimeline_ms(); // 记录触发指令的时间
+         left_dead_time = 1000;
+         // ...
+         break;
+       default:
+         while (1); // 未知模式,停止运行,检查指针越界,内存溢出等问题
+     }
+   }
   // 确定是否开启摩擦轮,后续可能修改为键鼠模式下始终开启摩擦轮(上场时建议一直开启)
   if (shoot_cmd_recv.friction_mode == FRICTION_ON) {
     // 根据收到的弹速设置设定摩擦轮电机参考值,需实测后填入
-    DJMotorPIDCal(left_friction_l, 20000);
-    DJMotorPIDCal(left_friction_r, 20000);
+    DJMotorPIDCal(left_friction_l, 200);
+    DJMotorPIDCal(left_friction_r, 200);
+    DJMotorPIDCal(right_friction_l, 200);
+    DJMotorPIDCal(right_friction_r, 200);
     // 切换到角度环
   } else // 关闭摩擦轮
   {
     DJMotorPIDCal(left_friction_l, 0);
     DJMotorPIDCal(left_friction_r, 0);
+    DJMotorPIDCal(right_friction_l, 0);
+    DJMotorPIDCal(right_friction_r, 0);
   }
 
   // 反馈数据,目前暂时没有要设定的反馈数据,后续可能增加应用离线监测以及卡弹反馈
