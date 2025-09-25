@@ -46,11 +46,6 @@ static Vision_Recv_s *vision_recv_data;  // 视觉接收数据指针,初始化�
 static Gimbal_Ctrl_Cmd_s gimbal_cmd_send;       // 传递给云台的控制信息
 static Gimbal_Upload_Data_s gimbal_fetch_data;  // 从云台获取的反馈信息
 
-static Publisher_t *sentry_gimbal_cmd_pub;             // 云台控制消息发布者
-static Subscriber_t *sentry_gimbal_feed_sub;           // 云台反馈信息订阅者
-static Sentry_Gimbal_Ctrl_Cmd_s sentry_gimbal_cmd_send;       // 传递给云台的控制信息
-static Sentry_Gimbal_Upload_Data_s sentry_gimbal_fetch_data;  // 从云台获取的反馈信息
-
 static Publisher_t *shoot_cmd_pub;            // 发射控制消息发布者
 static Subscriber_t *shoot_feed_sub;          // 发射反馈信息订阅者
 static Shoot_Ctrl_Cmd_s shoot_cmd_send;       // 传递给发射的控制信息
@@ -72,8 +67,6 @@ void RobotCMDInit() {
   // gimbal_cmd_pub = PubRegister("gimbal_cmd", sizeof(Gimbal_Ctrl_Cmd_s));
   // gimbal_feed_sub = SubRegister("gimbal_feed", sizeof(Gimbal_Upload_Data_s));
 
-  sentry_gimbal_cmd_pub = PubRegister("sentry_gimbal_cmd", sizeof(Sentry_Gimbal_Ctrl_Cmd_s));
-  sentry_gimbal_feed_sub = SubRegister("sentry_gimbal_feed", sizeof(Sentry_Gimbal_Upload_Data_s));
 
   shoot_cmd_pub = PubRegister("shoot_cmd", sizeof(Shoot_Ctrl_Cmd_s));
   shoot_feed_sub = SubRegister("shoot_feed", sizeof(Shoot_Upload_Data_s));
@@ -96,11 +89,8 @@ void RobotCMDInit() {
   cmd_can_comm = CANCommInit(&comm_conf);
 #endif  // GIMBAL_BOARD
   gimbal_cmd_send.pitch = 0;
-  chassis_cmd_send.max_power=80;
-  sentry_gimbal_cmd_send.left_pitch=LEFT_PITCH_HORIZON_ECD;
-  sentry_gimbal_cmd_send.left_yaw=LEFT_YAW_HORIZON_ECD;
-  sentry_gimbal_cmd_send.right_yaw=RIGHT_YAW_HORIZON_ECD;
-  sentry_gimbal_cmd_send.right_pitch=RIGHT_PITCH_HORIZON_ECD;
+  // sentry_gimbal_cmd_send.left_pitch=LEFT_PITCH_HORIZON_ECD;
+  // sentry_gimbal_cmd_send.left_yaw=LEFT_YAW_HORIZON_ECD;
   robot_state = ROBOT_READY;  // 启动时机器人进入工作模式,后续加入所有应用初始化完成之后再进入
 }
 
@@ -162,8 +152,6 @@ static void RemoteControlSet() {
     shoot_cmd_send.friction_mode = FRICTION_ON;
     shoot_cmd_send.load_mode = LOAD_STOP;
 
-    sentry_gimbal_cmd_send.gimbal_mode = GIMBAL_FREE_MODE;
-
     // 待添加,视觉会发来和目标的误差,同样将其转化为total angle的增量进行控制
     // ...
 
@@ -187,10 +175,6 @@ static void RemoteControlSet() {
       (vision_recv_data->target_state == NO_TARGET)) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
     gimbal_cmd_send.yaw -= 0.005f * (float)rc_data[TEMP].rc.rocker_r_;
     gimbal_cmd_send.pitch += 0.002f * (float)rc_data[TEMP].rc.rocker_r1;
-    sentry_gimbal_cmd_send.left_yaw += 0.005f * (float)rc_data[TEMP].rc.rocker_r_;
-    sentry_gimbal_cmd_send.right_yaw -= 0.005f * (float)rc_data[TEMP].rc.rocker_r_;
-    sentry_gimbal_cmd_send.left_pitch += 0.002f * (float)rc_data[TEMP].rc.rocker_r1;
-    sentry_gimbal_cmd_send.right_pitch -= 0.002f * (float)rc_data[TEMP].rc.rocker_r1;
   }
   // 云台PITCH轴软件限位
   if (gimbal_cmd_send.pitch > PITCH_MAX_ANGLE) {
@@ -198,31 +182,7 @@ static void RemoteControlSet() {
   } else if (gimbal_cmd_send.pitch < PITCH_MIN_ANGLE) {
     gimbal_cmd_send.pitch = PITCH_MIN_ANGLE;
   }
-//左云台限位,pitch
-  if (sentry_gimbal_cmd_send.left_pitch>LEFT_PITCH_MAX_ANGLE) {
-    sentry_gimbal_cmd_send.left_pitch=LEFT_PITCH_MAX_ANGLE;
-  }else if (sentry_gimbal_cmd_send.left_pitch<LEFT_PITCH_MIN_ANGLE) {
-    sentry_gimbal_cmd_send.left_pitch=LEFT_PITCH_MIN_ANGLE;
-  }
-//左云台限位，yaw
-  if (sentry_gimbal_cmd_send.left_yaw>LEFT_YAW_MAX_ANGLE) {
-    sentry_gimbal_cmd_send.left_yaw=LEFT_YAW_MAX_ANGLE;
-  }else if (sentry_gimbal_cmd_send.left_yaw<LEFT_YAW_MIN_ANGLE) {
-    sentry_gimbal_cmd_send.left_yaw=LEFT_YAW_MIN_ANGLE;
-  }
 
-  //右云台限位，pitch
-  if (sentry_gimbal_cmd_send.right_pitch>RIGHT_PITCH_MAX_ANGLE) {
-    sentry_gimbal_cmd_send.right_pitch=RIGHT_PITCH_MAX_ANGLE;
-  }else if (sentry_gimbal_cmd_send.right_pitch<RIGHT_PITCH_MIN_ANGLE) {
-    sentry_gimbal_cmd_send.right_pitch=RIGHT_PITCH_MIN_ANGLE;
-  }
-  //右云台限位，yaw
-  if (sentry_gimbal_cmd_send.right_yaw>RIGHT_YAW_MAX_ANGLE) {
-    sentry_gimbal_cmd_send.right_yaw=RIGHT_YAW_MAX_ANGLE;
-  }else if (sentry_gimbal_cmd_send.right_yaw<RIGHT_YAW_MIN_ANGLE) {
-    sentry_gimbal_cmd_send.right_yaw=RIGHT_YAW_MIN_ANGLE;
-  }
   // 底盘参数,系数需要调整
   chassis_cmd_send.vx = 30.0f * (float)rc_data[TEMP].rc.rocker_l_;  // _水平方向
   chassis_cmd_send.vy = 30.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 1数值方向
@@ -340,7 +300,6 @@ static void EmergencyHandler() {
     shoot_cmd_send.shoot_mode = SHOOT_OFF;
     shoot_cmd_send.friction_mode = FRICTION_OFF;
     shoot_cmd_send.load_mode = LOAD_STOP;
-    sentry_gimbal_cmd_send.gimbal_mode=GIMBAL_ZERO_FORCE;
     LOGERROR("[CMD] emergency stop!");
   } else {
     robot_state = ROBOT_READY;
@@ -371,7 +330,6 @@ void RobotCMDTask() {
 #endif  // GIMBAL_BOARD
   SubGetMessage(shoot_feed_sub, &shoot_fetch_data);
   // SubGetMessage(gimbal_feed_sub, &gimbal_fetch_data);
-  SubGetMessage(sentry_gimbal_feed_sub, &sentry_gimbal_fetch_data);
 
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
   CalcOffsetAngle();
@@ -398,5 +356,4 @@ void RobotCMDTask() {
 #endif  // GIMBAL_BOARD
   PubPushMessage(shoot_cmd_pub, (void *)&shoot_cmd_send);
   //PubPushMessage(gimbal_cmd_pub, (void *)&gimbal_cmd_send);
-  PubPushMessage(sentry_gimbal_cmd_pub, (void *)&sentry_gimbal_cmd_send);
 }

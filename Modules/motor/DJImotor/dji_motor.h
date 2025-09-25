@@ -21,7 +21,7 @@
 #include "stdint.h"
 #include "daemon.h"
 
-#define DJI_MOTOR_CNT 16
+#define DJI_MOTOR_CNT 12
 
 /* 滤波系数设置为1的时候即关闭滤波 */
 #define SPEED_SMOOTH_COEF 0.85f      // 最好大于0.85
@@ -117,13 +117,13 @@ void DJIMotorOuterLoop(DJIMotorInstance* motor, Closeloop_Type_e outer_loop);
  * @param motor 电机实例指针
  * @param ref 电机控制参考值
  */
-void DJMotorPIDCal(DJIMotorInstance* motor, float ref);
+void DJIMotorPIDCal(DJIMotorInstance* motor, float ref);
 
 /**
  * @brief 通过CAN总线发送电机控制命令
  *        遍历所有已注册的电机，将控制输出打包到对应的CAN发送缓冲区中，
  *        然后按组发送CAN帧
  */
-void DJMotorCANSend();
+void DJIMotorTask();
 
 #endif // !DJI_MOTOR_H

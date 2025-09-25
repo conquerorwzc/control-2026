@@ -29,21 +29,21 @@ link_directories(${CMAKE_SOURCE_DIR}/Middlewares/ST/ARM/DSP/Lib)
 
 # Generic compiler settings for optimization and basic link lib
 add_compile_options(-pipe ${MCU_FLAGS} -Wall -Werror -fmessage-length=0 # basic options
-                    -ffunction-sections -fdata-sections -fno-common # optimize options
-                    )
+        -ffunction-sections -fdata-sections -fno-common # optimize options
+)
 add_link_options(-pipe ${MCU_FLAGS} -T${LINKER_SCRIPT} -Wl,--no-warn-rwx-segments # close RWX warning
-                 -lm -lc # lib options
-                 -Wl,--gc-sections -flto -specs=nano.specs# optimize options
-                 -Wl,-Map=${PROJECT_BINARY_DIR}/${PROJECT_NAME}.map -Wl,--cref -Wl,--print-memory-usage # map options
-                 ) # if your executable is too large , try option '-s' to strip symbols
+        -lm -lc # lib options
+        -Wl,--gc-sections -flto -specs=nano.specs# optimize options
+        -Wl,-Map=${PROJECT_BINARY_DIR}/${PROJECT_NAME}.map -Wl,--cref -Wl,--print-memory-usage # map options
+) # if your executable is too large , try option '-s' to strip symbols
 
 # add_compile_definitions() works for compile stage
 # while add_definitions() works for both compile and link stage
 add_definitions(
-    -DUSE_HAL_DRIVER
-    -DSTM32H723xx
-    -DARM_MATH_CM7
-    ) # need -D<macro> to define macro
+        -DUSE_HAL_DRIVER
+        -DSTM32H723xx
+        -DARM_MATH_CM7
+) # need -D<macro> to define macro
 
 # add inc
 # 递归包含头文件的函数
@@ -51,14 +51,14 @@ function(include_sub_directories_recursively root_dir)
     if (IS_DIRECTORY ${root_dir})               # 当前路径是一个目录吗，是的话就加入到包含目录
         message("include dir: " ${root_dir})
         include_directories(${root_dir})
-    endif()
+    endif ()
 
     file(GLOB ALL_SUB RELATIVE ${root_dir} ${root_dir}/*) # 获得当前目录下的所有文件，让如ALL_SUB列表中
-    foreach(sub ${ALL_SUB})
+    foreach (sub ${ALL_SUB})
         if (IS_DIRECTORY ${root_dir}/${sub})
             include_sub_directories_recursively(${root_dir}/${sub}) # 对子目录递归调用，包含
-        endif()
-    endforeach()
+        endif ()
+    endforeach ()
 endfunction()
 include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/Core)
 include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/Drivers)
@@ -66,25 +66,23 @@ include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/Middlewares)
 include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/Bsp)
 include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/Modules)
 include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/UserApp)
-include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/USB_DEVICE)
 
 # add source, only surfix .c
 file(GLOB_RECURSE SOURCES
-    "Core/*.c"
-    "Drivers/*.c"
-    "Middlewares/*.c"
-    "Bsp/*.c"
-    "Modules/*.c"
-    "UserApp/*.c"
-    "USB_DEVICE/*.c"
-    )
+        "Core/*.c"
+        "Drivers/*.c"
+        "Middlewares/*.c"
+        "Bsp/*.c"
+        "Modules/*.c"
+        "UserApp/*.c"
+)
 
 # 汇编文件路径
 # ENABLE_LANGUAGE(ASM)
 set(ASM_SOURCES
-    Core/Startup/startup_stm32h723vgtx.s
-    Middlewares/Third_Party/SEGGER/RTT/SEGGER_RTT_ASM_ARMv7M.s
-    )
+        Core/Startup/startup_stm32h723vgtx.s
+        Middlewares/Third_Party/SEGGER/RTT/SEGGER_RTT_ASM_ARMv7M.s
+)
 set_source_files_properties(${ASM_SOURCES} PROPERTIES COMPILE_FLAGS "-x assembler-with-cpp")
 
 # Build types
@@ -104,13 +102,13 @@ else ()
 endif ()
 
 # build binary and hex file
-add_executable(${PROJECT_NAME}.elf  ${SOURCES} ${ASM_SOURCES} ${LINKER_SCRIPT})
+add_executable(${PROJECT_NAME}.elf ${SOURCES} ${ASM_SOURCES} ${LINKER_SCRIPT})
 target_link_libraries(${PROJECT_NAME}.elf ${DSP_NAME} m) # link DSP lib and math lib
 
 add_custom_command(
-    TARGET ${PROJECT_NAME}.elf POST_BUILD
-    COMMAND ${CMAKE_OBJCOPY} -Oihex $<TARGET_FILE:${PROJECT_NAME}.elf> ${PROJECT_BINARY_DIR}/${PROJECT_NAME}.hex
-    COMMAND ${CMAKE_OBJCOPY} -Obinary $<TARGET_FILE:${PROJECT_NAME}.elf> ${PROJECT_BINARY_DIR}/${PROJECT_NAME}.bin
-    COMMENT "Building hex & bin file...\nEXCUTABLE SIZE:"
-    COMMAND ${SIZE} ${PROJECT_NAME}.elf
-  )
+        TARGET ${PROJECT_NAME}.elf POST_BUILD
+        COMMAND ${CMAKE_OBJCOPY} -Oihex $<TARGET_FILE:${PROJECT_NAME}.elf> ${PROJECT_BINARY_DIR}/${PROJECT_NAME}.hex
+        COMMAND ${CMAKE_OBJCOPY} -Obinary $<TARGET_FILE:${PROJECT_NAME}.elf> ${PROJECT_BINARY_DIR}/${PROJECT_NAME}.bin
+        COMMENT "Building hex & bin file...\nEXCUTABLE SIZE:"
+        COMMAND ${SIZE} ${PROJECT_NAME}.elf
+)
