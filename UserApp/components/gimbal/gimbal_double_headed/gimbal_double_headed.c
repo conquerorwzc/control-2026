@@ -1,6 +1,6 @@
 #if defined(GIMBAL_DOUBLE_HEADED)
 
-#include "gimbal.h"
+#include "gimbal_double_headed.h"
 
 void GimbalInit(void) {
   // 初始化双头云台

@@ -1,6 +1,6 @@
 #if defined(GIMBAL_STANDARD)
 
-#include "gimbal.h"
+#include "gimbal_standard.h"
 
 void GimbalInit(void) {
   // 初始化标准云台
