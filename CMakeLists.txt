@@ -45,6 +45,8 @@ add_definitions(
         -DARM_MATH_CM7
 ) # need -D<macro> to define macro
 
+set(ROBOT_TYPE "infantry_wheel_legged")
+
 # add inc
 # 递归包含头文件的函数
 function(include_sub_directories_recursively root_dir)
@@ -60,22 +62,26 @@ function(include_sub_directories_recursively root_dir)
         endif ()
     endforeach ()
 endfunction()
-include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/Core)
 include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/Drivers)
 include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/Middlewares)
+include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/Core)
 include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/Bsp)
 include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/Modules)
-include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/UserApp)
+include_directories(${CMAKE_SOURCE_DIR}/UserApp)
 
 # add source, only surfix .c
 file(GLOB_RECURSE SOURCES
-        "Core/*.c"
         "Drivers/*.c"
         "Middlewares/*.c"
+        "Core/*.c"
         "Bsp/*.c"
         "Modules/*.c"
-        "UserApp/*.c"
+        "UserApp/os_task.c"
+        "UserApp/MotorDriver.cpp"
 )
+
+# 使用宏替换硬编码的路径
+include(${CMAKE_SOURCE_DIR}/UserApp/robot/${ROBOT_TYPE}/CMakeLists.txt)
 
 # 汇编文件路径
 # ENABLE_LANGUAGE(ASM)
