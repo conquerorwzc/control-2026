@@ -77,7 +77,6 @@ file(GLOB_RECURSE SOURCES
         "Bsp/*.c"
         "Modules/*.c"
         "UserApp/os_task.c"
-        "UserApp/MotorDriver.cpp"
 )
 
 # 使用宏替换硬编码的路径

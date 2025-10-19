@@ -28,7 +28,6 @@
 #include "tim.h"
 #include "usart.h"
 #include "usb_device.h"
-#include "userTask"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -108,9 +107,7 @@ int main(void) {
   MX_TIM12_Init();
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
-  // OSTaskInit();  // 唯一的初始化函数
-  extern void mainTask(void);
-  mainTask();
+  OSTaskInit();  // 唯一的初始化函数
   LOGINFO("[main] SystemInit() and OSTaskInit() done");
   /* USER CODE END 2 */
 
