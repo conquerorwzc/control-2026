@@ -26,7 +26,7 @@ static float angle;
 static void CalcOffsetAngle() {
   angle = robot->gimbal->yaw_motor->measure.angle_single_round;
 
-#if 0//YAW_CHASSIS_ALIGN_ECD > 4096  // 如果大于180度
+#if YAW_CHASSIS_ALIGN_ECD > 4096  // 如果大于180度
   if (angle > YAW_ALIGN_ANGLE && angle <= 180.0f + YAW_ALIGN_ANGLE)
     chassis_ctrl_cmd->offset_angle = angle - YAW_ALIGN_ANGLE;
   else if (angle > 180.0f + YAW_ALIGN_ANGLE)
@@ -120,14 +120,15 @@ static void RemoteControlSet() {
   switch (robot->robot_mode) {
     case ROBOT_CHASSIS_ROTATE:
       chassis_ctrl_cmd->wz =
-          (-5.0f) * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如，则在底盘任务中计算旋转分量
+          (-25.0f) * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如，则在底盘任务中计算旋转分量
       break;
     case ROBOT_CHASSIS_FREE:
       chassis_ctrl_cmd->wz = 0;
       break;
       // 跟随模式(前馈+PID)
     case ROBOT_CHASSIS_FOLLOW:
-      chassis_ctrl_cmd->wz =  (12.0f) * (float)rc_data[TEMP].rc.rocker_r_ + PIDCalculate(&robot->chassis_follow_PID, chassis_ctrl_cmd->offset_angle, 0);
+      chassis_ctrl_cmd->wz = (20.0f) * (float)rc_data[TEMP].rc.rocker_r_ +
+                             PIDCalculate(&robot->chassis_follow_PID, chassis_ctrl_cmd->offset_angle, 0);
       break;
     default:
       break;
@@ -252,7 +253,7 @@ static void EmergencyHandler() {
 
 void RobotInit() {
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
-  robot->rc_data = RemoteControlInit(&huart3);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
+  robot->rc_data = RemoteControlInit(&huart5);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
 
   rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
   *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态

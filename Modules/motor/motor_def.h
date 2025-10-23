@@ -51,7 +51,6 @@ typedef enum { MOTOR_DIRECTION_NORMAL = 0, MOTOR_DIRECTION_REVERSE = 1 } Motor_R
 
 /* 反馈量正反标志 */
 typedef enum { FEEDBACK_DIRECTION_NORMAL = 0, FEEDBACK_DIRECTION_REVERSE = 1 } Feedback_Reverse_Flag_e;
-
 typedef enum {
   MOTOR_STOP = 0,
   MOTOR_ENALBED = 1,
@@ -81,7 +80,8 @@ typedef struct {
   PIDInstance speed_PID;
   PIDInstance angle_PID;
 
-  float set_ref;  // 将会作为每个环的输入和输出顺次通过串级闭环
+  float pid_ref;         // 将会作为每个环的输入和输出顺次通过串级闭环
+  int16_t final_output;  // pid计算最后的输出，或者说最内环pid计算的输出
 } Motor_Controller_s;
 
 /* 电机类型枚举 */
@@ -92,6 +92,9 @@ typedef enum {
   M2006,
   LK9025,
   HT04,
+  J4310,
+  J8009P,
+  H6215,
 } Motor_Type_e;
 
 /**
@@ -116,7 +119,7 @@ typedef struct {
   Motor_Controller_Init_s controller_param_init_config;
   Motor_Control_Setting_s controller_setting_init_config;
   Motor_Type_e motor_type;
-  CAN_Init_Config_s fdcan_init_config;
+  CAN_Init_Config_s can_init_config;
 } Motor_Init_Config_s;
 
 #endif  // !MOTOR_DEF_H

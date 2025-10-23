@@ -124,10 +124,10 @@ static void PowerControl() {
  *
  */
 static void LimitChassisOutput() {
-  DJIMotorPIDCal(chassis->wheel_motor[0], vt_lf);
-  DJIMotorPIDCal(chassis->wheel_motor[1], vt_rf);
-  DJIMotorPIDCal(chassis->wheel_motor[2], vt_lb);
-  DJIMotorPIDCal(chassis->wheel_motor[3], vt_rb);
+  DJIMotorSetPIDRef(chassis->wheel_motor[0], vt_lf);
+  DJIMotorSetPIDRef(chassis->wheel_motor[1], vt_rf);
+  DJIMotorSetPIDRef(chassis->wheel_motor[2], vt_lb);
+  DJIMotorSetPIDRef(chassis->wheel_motor[3], vt_rb);
   PowerControl();
 }
 

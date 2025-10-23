@@ -24,7 +24,7 @@ GimbalInstance* GimbalInit(Gimbal_Init_Config_s* gimbal_init_config) {
   gimbal_instance->gimbal_IMU_data = INS_Init();  // IMU先初始化,获取姿态数据指针赋给yaw电机的其他数据来源
 
   // YAW CAN配置
-  gimbal_init_config->yaw_motor_config.can_init_config.can_handle = &hcan1;
+  gimbal_init_config->yaw_motor_config.can_init_config.can_handle = &hfdcan1;
   gimbal_init_config->yaw_motor_config.can_init_config.tx_id = 2;
 
   // YAW控制器参数配置
@@ -41,7 +41,7 @@ GimbalInstance* GimbalInit(Gimbal_Init_Config_s* gimbal_init_config) {
   gimbal_init_config->yaw_motor_config.controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE;
 
   // PITCH CAN配置
-  gimbal_init_config->pitch_motor_config.can_init_config.can_handle = &hcan2;
+  gimbal_init_config->pitch_motor_config.can_init_config.can_handle = &hfdcan2;
   gimbal_init_config->pitch_motor_config.can_init_config.tx_id = 1;
 
   // PITCH控制器参数配置
@@ -76,8 +76,8 @@ void GimbalTask() {
   } else {
     DJIMotorEnable(gimbal->yaw_motor);
     DJIMotorEnable(gimbal->pitch_motor);
-    DJIMotorPIDCal(gimbal->yaw_motor, gimbal_ctrl_cmd->yaw);  // yaw和pitch会在robot_cmd中处理好多圈和单圈
-    DJIMotorPIDCal(gimbal->pitch_motor, gimbal_ctrl_cmd->pitch);
+    DJIMotorSetPIDRef(gimbal->yaw_motor, gimbal_ctrl_cmd->yaw);  // yaw和pitch会在robot_cmd中处理好多圈和单圈
+    DJIMotorSetPIDRef(gimbal->pitch_motor, gimbal_ctrl_cmd->pitch);
   }
 
   // 在合适的地方添加pitch重力补偿前馈力矩

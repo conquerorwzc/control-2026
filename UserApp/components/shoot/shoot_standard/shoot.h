@@ -4,7 +4,7 @@
 
 #define SHOOT_CNT_MAX 2
 
-#define FRICTION_NUM 2
+#define FRICTION_NUM 2 // todo: 该参数应当从robot传入
 
 // 发射模式设置
 typedef enum {

@@ -316,7 +316,7 @@ static PID_Init_Config_s chassis_follow_PID_config = {
 
 static SuperCap_Init_Config_s super_cap_config = {
     .can_config = {
-        .can_handle = &hcan2,
+        .can_handle = &hfdcan2,
         .tx_id = 0x302,  // 超级电容默认接收id
         .rx_id = 0x301,  // 超级电容默认发送id,注意tx和rx在其他人看来是反的
     }};

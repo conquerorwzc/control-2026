@@ -88,9 +88,9 @@ DMMotorInstance* DMMotorInit(Motor_Init_Config_s* config) {
   motor->motor_controller.other_angle_feedback_ptr = config->controller_param_init_config.other_angle_feedback_ptr;
   motor->motor_controller.other_speed_feedback_ptr = config->controller_param_init_config.other_speed_feedback_ptr;
 
-  config->fdcan_init_config.can_module_callback = DMMotorDecode;
-  config->fdcan_init_config.id = motor;
-  motor->motor_can_instance = CANRegister(&config->fdcan_init_config);
+  config->can_init_config.can_module_callback = DMMotorDecode;
+  config->can_init_config.id = motor;
+  motor->motor_can_instance = CANRegister(&config->can_init_config);
 
   Daemon_Init_Config_s conf = {
       .callback = DMMotorLostCallback,

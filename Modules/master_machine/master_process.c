@@ -12,25 +12,44 @@
 #include "seasky_protocol.h"
 #include "daemon.h"
 #include "bsp_log.h"
-#include "robot_def.h"
+#include "srm_protocol.h"
+#include "ins_task.h"
 
-static Vision_Recv_s recv_data;
-static Vision_Send_s send_data;
-static DaemonInstance *vision_daemon_instance;
+// static Vision_Recv_s recv_data;
+// static Vision_Send_s send_data;
+// static DaemonInstance *vision_daemon_instance;
 
-void VisionSetFlag(Enemy_Color_e enemy_color, Work_Mode_e work_mode, Bullet_Speed_e bullet_speed)
-{
-    send_data.enemy_color = enemy_color;
-    send_data.work_mode = work_mode;
-    send_data.bullet_speed = bullet_speed;
+static  Vision_Receive_s recv_data;//接收数据
+static  Vision_Send_s send_data;//发送数据
+
+//打包，注册
+static  Message receive;
+static  Message send;
+void InitParam(void) {
+
+  #define RIGISTER_ID(data, id, packet) \
+  data.ptr_list[id] = &(packet);      \
+  data.size_list[id] = sizeof(packet);
+
+  RIGISTER_ID(receive, 1, recv_data.gimbal_receive);
+  RIGISTER_ID(receive, 2, recv_data.shoot_receive);
+
+  RIGISTER_ID(send, 1, send_data.gimbal_send);
+  RIGISTER_ID(send, 2, send_data.shoot_send);
 }
 
-void VisionSetAltitude(float yaw, float pitch, float roll)
-{
-    send_data.yaw = yaw;
-    send_data.pitch = pitch;
-    send_data.roll = roll;
-}
+// void UpdateGimbalAttitude(Vision_Send_s *vision_send) {
+//   attitude_t current_attitude;
+//
+//   if (INS_GetAttitude(&current_attitude)) {
+//     vision_send->gimbal_send.yaw=current_attitude.Yaw;
+//     vision_send->gimbal_send.pitch=current_attitude.Pitch;
+//     vision_send->gimbal_send.roll=current_attitude.Roll;
+//     vision_send->gimbal_send.mode=0;
+//     vision_send->gimbal_send.color=1;
+//     vision_send->shoot_send.bullet_speed=15;
+//   }
+// }
 
 /**
  * @brief 离线回调函数,将在daemon.c中被daemon task调用
@@ -39,14 +58,14 @@ void VisionSetAltitude(float yaw, float pitch, float roll)
  *
  * @param id vision_usart_instance的地址,此处没用.
  */
-static void VisionOfflineCallback(void *id)
-{
-#ifdef VISION_USE_UART
-    USARTServiceInit(vision_usart_instance);
-#endif // !VISION_USE_UART
-    LOGWARNING("[vision] vision offline, restart communication.");
-}
-
+// static void VisionOfflineCallback(void *id)
+// {
+// #ifdef VISION_USE_UART
+//     USARTServiceInit(vision_usart_instance);
+// #endif // !VISION_USE_UART
+//     LOGWARNING("[vision] vision offline, restart communication.");
+// }
+//
 #ifdef VISION_USE_UART
 
 #include "bsp_usart.h"
@@ -113,22 +132,23 @@ void VisionSend()
 #ifdef VISION_USE_VCP
 
 #include "bsp_usb.h"
+
 static uint8_t *vis_recv_buff;
 
 static void DecodeVision(uint16_t recv_len)
 {
-    uint16_t flag_register;
-    get_protocol_info(vis_recv_buff, &flag_register, (uint8_t *)&recv_data.pitch);
+    // uint16_t flag_register;
+    get_srm_protocol_info(vis_recv_buff, &receive);
     // TODO: code to resolve flag_register;
 }
 
 /* 视觉通信初始化 */
-Vision_Recv_s *VisionInit(UART_HandleTypeDef *_handle)
+Vision_Receive_s *VisionInit(UART_HandleTypeDef *_handle)
 {
     UNUSED(_handle); // 仅为了消除警告
     USB_Init_Config_s conf = {.rx_cbk = DecodeVision};
     vis_recv_buff = USBInit(conf);
-
+    InitParam();
     // 为master process注册daemon,用于判断视觉通信是否离线
     Daemon_Init_Config_s daemon_conf = {
         .callback = VisionOfflineCallback, // 离线时调用的回调函数,会重启串口接收
@@ -142,14 +162,17 @@ Vision_Recv_s *VisionInit(UART_HandleTypeDef *_handle)
 
 void VisionSend()
 {
-    static uint16_t flag_register;
-    static uint8_t send_buff[VISION_SEND_SIZE];
-    static uint16_t tx_len;
-    // TODO: code to set flag_register
-    flag_register = 30 << 8 | 0b00000001;
-    // 将数据转化为seasky协议的数据包
-    get_protocol_send_data(0x02, flag_register, &send_data.yaw, 3, send_buff, &tx_len);
+  static uint8_t send_buff[256];
+  static uint16_t tx_len;
+  UpdateGimbalAttitude(&send_data);
+  // 使用新添加的打包函数打包发送数据
+  srm_protocol_pack_send_data(&send, send_buff, &tx_len);
+
+  // 发送数据
+  if(tx_len > 0) {
     USBTransmit(send_buff, tx_len);
+  }
 }
+
 
 #endif // VISION_USE_VCP

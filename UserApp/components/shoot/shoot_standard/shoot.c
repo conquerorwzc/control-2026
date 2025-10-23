@@ -28,7 +28,7 @@ ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
   reduction_ratio_loader = shoot_init_config->shoot_param.reduction_ratio_loader;
 
   for (int i = 0; i < FRICTION_NUM; i++) {
-    shoot_init_config->friction_motor_config[i].can_init_config.can_handle = &hcan2;
+    shoot_init_config->friction_motor_config[i].can_init_config.can_handle = &hfdcan2;
     shoot_init_config->friction_motor_config[i].controller_setting_init_config.angle_feedback_source = MOTOR_FEED;
     shoot_init_config->friction_motor_config[i].controller_setting_init_config.speed_feedback_source = MOTOR_FEED;
     shoot_init_config->friction_motor_config[i].controller_setting_init_config.outer_loop_type = SPEED_LOOP;
@@ -42,7 +42,7 @@ ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
   shoot_init_config->friction_motor_config[1].controller_setting_init_config.motor_reverse_flag =
       MOTOR_DIRECTION_NORMAL;
 
-  shoot_init_config->loader_motor_config.can_init_config.can_handle = &hcan2;
+  shoot_init_config->loader_motor_config.can_init_config.can_handle = &hfdcan2;
   shoot_init_config->loader_motor_config.can_init_config.tx_id = 3;
   shoot_init_config->loader_motor_config.controller_setting_init_config.angle_feedback_source = MOTOR_FEED;
   shoot_init_config->loader_motor_config.controller_setting_init_config.speed_feedback_source = MOTOR_FEED;
@@ -72,8 +72,8 @@ void ShootTask() {
       for (int j = 0; j < FRICTION_NUM; j++) DJIMotorEnable(shoot[i]->friction_motor[j]);
       DJIMotorEnable(shoot[i]->loader_motor);
 
-      for (int j = 0; j < FRICTION_NUM; j++) DJIMotorPIDCal(shoot[i]->friction_motor[j], friction_set);
-      DJIMotorPIDCal(shoot[i]->loader_motor, loader_set);
+      for (int j = 0; j < FRICTION_NUM; j++) DJIMotorSetPIDRef(shoot[i]->friction_motor[j], friction_set);
+      DJIMotorSetPIDRef(shoot[i]->loader_motor, loader_set);
     }
     // 如果上一次触发单发或3发指令的时间加上不应期仍然大于当前时间(尚未休眠完毕),直接返回即可
     if (hibernate_time + dead_time > DWT_GetTimeline_ms()) continue;

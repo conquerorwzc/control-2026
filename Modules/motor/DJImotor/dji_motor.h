@@ -17,28 +17,28 @@
 
 #include "bsp_fdcan.h"
 #include "controller.h"
+#include "daemon.h"
 #include "motor_def.h"
 #include "stdint.h"
-#include "daemon.h"
 
 #define DJI_MOTOR_CNT 12
 
 /* 滤波系数设置为1的时候即关闭滤波 */
-#define SPEED_SMOOTH_COEF 0.85f      // 最好大于0.85
-#define CURRENT_SMOOTH_COEF 0.9f     // 必须大于0.9
-#define ECD_ANGLE_COEF_DJI 0.043945f // (360/8192),将编码器值转化为角度制
+#define SPEED_SMOOTH_COEF 0.85f       // 最好大于0.85
+#define CURRENT_SMOOTH_COEF 0.9f      // 必须大于0.9
+#define ECD_ANGLE_COEF_DJI 0.043945f  // (360/8192),将编码器值转化为角度制
 
 /* DJI电机CAN反馈信息*/
 typedef struct {
-  uint16_t last_ecd; // 上一次读取的编码器值
-  uint16_t ecd; // 0-8191,刻度总共有8192格
-  float angle_single_round; // 单圈角度
-  float speed_aps; // 角速度,单位为:度/秒
-  int16_t real_current; // 实际电流
-  uint8_t temperature; // 温度 Celsius
+  uint16_t last_ecd;         // 上一次读取的编码器值
+  uint16_t ecd;              // 0-8191,刻度总共有8192格
+  float angle_single_round;  // 单圈角度
+  float speed_aps;           // 角速度,单位为:度/秒
+  int16_t real_current;      // 实际电流
+  uint8_t temperature;       // 温度 Celsius
 
-  float total_angle; // 总角度,注意方向
-  int32_t total_round; // 总圈数,注意方向
+  float total_angle;    // 总角度,注意方向
+  int32_t total_round;  // 总圈数,注意方向
 } DJI_Motor_Measure_s;
 
 /**
@@ -46,17 +46,17 @@ typedef struct {
  *
  */
 typedef struct {
-  DJI_Motor_Measure_s measure; // 电机测量值
-  Motor_Control_Setting_s motor_settings; // 电机设置
-  Motor_Controller_s motor_controller; // 电机控制器
+  DJI_Motor_Measure_s measure;             // 电机测量值
+  Motor_Control_Setting_s motor_settings;  // 电机设置
+  Motor_Controller_s motor_controller;     // 电机控制器
 
-  CANInstance* motor_can_instance; // 电机CAN实例
+  CANInstance* motor_can_instance;  // 电机CAN实例
   // 分组发送设置
   uint8_t sender_group;
   uint8_t message_num;
 
-  Motor_Type_e motor_type; // 电机类型
-  Motor_Working_Type_e stop_flag; // 启停标志
+  Motor_Type_e motor_type;         // 电机类型
+  Motor_Working_Type_e stop_flag;  // 启停标志
 
   DaemonInstance* daemon;
   uint32_t feed_cnt;
@@ -117,7 +117,7 @@ void DJIMotorOuterLoop(DJIMotorInstance* motor, Closeloop_Type_e outer_loop);
  * @param motor 电机实例指针
  * @param ref 电机控制参考值
  */
-void DJIMotorPIDCal(DJIMotorInstance* motor, float ref);
+void DJIMotorSetPIDRef(DJIMotorInstance* motor, float ref);
 
 /**
  * @brief 通过CAN总线发送电机控制命令
@@ -126,4 +126,4 @@ void DJIMotorPIDCal(DJIMotorInstance* motor, float ref);
  */
 void DJIMotorTask();
 
-#endif // !DJI_MOTOR_H
+#endif  // !DJI_MOTOR_H

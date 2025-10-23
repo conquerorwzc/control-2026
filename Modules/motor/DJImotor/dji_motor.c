@@ -206,12 +206,12 @@ DJIMotorInstance* DJIMotorInit(Motor_Init_Config_s* config) {
   // 后续增加电机前馈控制器(速度和电流)
 
   // 电机分组,因为至多4个电机可以共用一帧FDCAN控制报文
-  MotorSenderGrouping(instance, &config->fdcan_init_config);  // 修改：参数名
+  MotorSenderGrouping(instance, &config->can_init_config);  // 修改：参数名
 
   // 注册电机到FDCAN总线
-  config->fdcan_init_config.can_module_callback = DecodeDJIMotor;          // set callback  // 修改：变量名
-  config->fdcan_init_config.id = instance;                                 // set id,eq to address(it is identity)
-  instance->motor_can_instance = CANRegister(&config->fdcan_init_config);  // 修改：函数名和变量名
+  config->can_init_config.can_module_callback = DecodeDJIMotor;          // set callback  // 修改：变量名
+  config->can_init_config.id = instance;                                 // set id,eq to address(it is identity)
+  instance->motor_can_instance = CANRegister(&config->can_init_config);  // 修改：函数名和变量名
 
   // 注册守护线程
   Daemon_Init_Config_s daemon_config = {
@@ -275,7 +275,7 @@ void DJIMotorOuterLoop(DJIMotorInstance* motor, Closeloop_Type_e outer_loop) {
  */
 void DJIMotorSetPIDRef(DJIMotorInstance* motor, float pid_ref) {
   // 直接保存一次指针引用从而减小访存的开销,同样可以提高可读性
-  motor->motor_controller.set_ref = pid_ref;
+  motor->motor_controller.pid_ref = pid_ref;
   Motor_Control_Setting_s* motor_setting;  // 电机控制参数
   Motor_Controller_s* motor_controller;    // 电机控制器
   DJI_Motor_Measure_s* measure;            // 电机测量值
@@ -318,7 +318,7 @@ void DJIMotorSetPIDRef(DJIMotorInstance* motor, float pid_ref) {
   if (motor_setting->feedback_reverse_flag == FEEDBACK_DIRECTION_REVERSE) pid_ref *= -1;
 
   // 获取最终输出
-  motor->motor_controller.set_ref = (int16_t)pid_ref;
+  motor->motor_controller.pid_ref = (int16_t)pid_ref;
 }
 
 /**
