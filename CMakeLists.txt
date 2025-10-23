@@ -23,6 +23,8 @@ set(CMAKE_BUILD_TYPE ${buildType}) # Debug Release RelWithDebInfo MinSizeRel
 set(BOARD_TYPE "stm32-h7")
 set(ROBOT_TYPE "infantry_wheel_legged")
 
+#if (${BOARD_TYPE} STREQUAL "stm32-f4")
+
 include(${CMAKE_SOURCE_DIR}/Hardware/${BOARD_TYPE}/CMakeLists.txt)
 
 # Generic compiler settings for optimization and basic link lib
