@@ -21,12 +21,6 @@ project(control-2026-h7 C ASM)
 # 选择构建类型
 set(CMAKE_BUILD_TYPE ${buildType}) # Debug Release RelWithDebInfo MinSizeRel
 
-# board specific settings, arch/fpu/instruction
-set(MCU_FLAGS -mcpu=cortex-m7 -mthumb -mthumb-interwork -mfloat-abi=hard -mfpu=fpv5-sp-d16)
-set(LINKER_SCRIPT "${CMAKE_SOURCE_DIR}/STM32H723VGTX_FLASH.ld") # 指定链接脚本
-set(DSP_NAME "libCMSISDSP.a") # 指定DSP库名称
-link_directories(${CMAKE_SOURCE_DIR}/Middlewares/ST/ARM/DSP/Lib)
-
 # Generic compiler settings for optimization and basic link lib
 add_compile_options(-pipe ${MCU_FLAGS} -Wall -Werror -fmessage-length=0 # basic options
         -ffunction-sections -fdata-sections -fno-common # optimize options
@@ -37,17 +31,10 @@ add_link_options(-pipe ${MCU_FLAGS} -T${LINKER_SCRIPT} -Wl,--no-warn-rwx-segment
         -Wl,-Map=${PROJECT_BINARY_DIR}/${PROJECT_NAME}.map -Wl,--cref -Wl,--print-memory-usage # map options
 ) # if your executable is too large , try option '-s' to strip symbols
 
-# add_compile_definitions() works for compile stage
-# while add_definitions() works for both compile and link stage
-add_definitions(
-        -DUSE_HAL_DRIVER
-        -DSTM32H723xx
-        -DARM_MATH_CM7
-) # need -D<macro> to define macro
 
 set(ROBOT_TYPE "infantry_wheel_legged")
+set(BOARD_TYPE "stm32_h7")
 
-# add inc
 # 递归包含头文件的函数
 function(include_sub_directories_recursively root_dir)
     if (IS_DIRECTORY ${root_dir})               # 当前路径是一个目录吗，是的话就加入到包含目录
@@ -62,33 +49,18 @@ function(include_sub_directories_recursively root_dir)
         endif ()
     endforeach ()
 endfunction()
-include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/Drivers)
-include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/Middlewares)
-include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/Core)
-include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/Bsp)
+include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/Hardware/${BOARD_TYPE})
 include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/Modules)
 include_directories(${CMAKE_SOURCE_DIR}/UserApp)
 
-# add source, only surfix .c
 file(GLOB_RECURSE SOURCES
-        "Drivers/*.c"
-        "Middlewares/*.c"
-        "Core/*.c"
-        "Bsp/*.c"
+        "Hardware/${BOARD_TYPE}/*.c"
         "Modules/*.c"
-        "UserApp/os_task.c"
+        "UserApp/*.c"
 )
 
-# 使用宏替换硬编码的路径
+include(${CMAKE_SOURCE_DIR}/Hardware/${BOARD_TYPE}/CMakeLists.txt)
 include(${CMAKE_SOURCE_DIR}/UserApp/robot/${ROBOT_TYPE}/CMakeLists.txt)
-
-# 汇编文件路径
-# ENABLE_LANGUAGE(ASM)
-set(ASM_SOURCES
-        Core/Startup/startup_stm32h723vgtx.s
-        Middlewares/Third_Party/SEGGER/RTT/SEGGER_RTT_ASM_ARMv7M.s
-)
-set_source_files_properties(${ASM_SOURCES} PROPERTIES COMPILE_FLAGS "-x assembler-with-cpp")
 
 # Build types
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Release")
