@@ -88,8 +88,6 @@ build
 *.uvgui.*
 *.uvprojx.bak
 
-Debug/
-
 # J-Link files
 JLinkLog.txt
 *.jlink
