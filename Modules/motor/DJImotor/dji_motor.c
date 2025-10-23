@@ -11,10 +11,10 @@ static uint8_t idx = 0;  // register idx,是该文件的全局电机索引,在�
 static DJIMotorInstance* dji_motor_instance[DJI_MOTOR_CNT] = {NULL};  // 会在control任务中遍历该指针数组进行pid计算
 
 /**
- * @brief 由于DJI电机发送以四个一组的形式进行,故对其进行特殊处理,用6个(2fdcan*3group)fdcan_instance专门负责发送
+ * @brief 由于DJI电机发送以四个一组的形式进行,故对其进行特殊处理,用6个(2fdcan*3group)can_instance专门负责发送
  *        该变量将在 DJIMotorControl() 中使用,分组在 MotorSenderGrouping()中进行
  *
- * @note  因为只用于发送,所以不需要在bsp_fdcan中注册
+ * @note  因为只用于发送,所以不需要在bsp_can中注册
  *
  * C610(m2006)/C620(m3508):0x1ff,0x200;
  * GM6020:0x1ff,0x2ff
@@ -22,7 +22,7 @@ static DJIMotorInstance* dji_motor_instance[DJI_MOTOR_CNT] = {NULL};  // 会在c
  * fdcan1: [0]:0x1FF,[1]:0x200,[2]:0x2FF
  * fdcan2: [3]:0x1FF,[4]:0x200,[5]:0x2FF
  */
-#define FDCAN_INSTANCE_INIT(fdcan_handle, tx_id)                               \
+#define can_instance_INIT(fdcan_handle, tx_id)                               \
   {.can_handle = (fdcan_handle),                                               \
    .txconf = (FDCAN_TxHeaderTypeDef){.Identifier = (tx_id),                    \
                                      .IdType = FDCAN_STANDARD_ID,              \
@@ -36,11 +36,11 @@ static DJIMotorInstance* dji_motor_instance[DJI_MOTOR_CNT] = {NULL};  // 会在c
    .tx_buff = {0}}
 
 static CANInstance sender_assignment[9] = {
-    [0] = FDCAN_INSTANCE_INIT(&hfdcan1, 0x1FF), [1] = FDCAN_INSTANCE_INIT(&hfdcan1, 0x200),
-    [2] = FDCAN_INSTANCE_INIT(&hfdcan1, 0x2FF), [3] = FDCAN_INSTANCE_INIT(&hfdcan2, 0x1FF),
-    [4] = FDCAN_INSTANCE_INIT(&hfdcan2, 0x200), [5] = FDCAN_INSTANCE_INIT(&hfdcan2, 0x2FF),
-    [6] = FDCAN_INSTANCE_INIT(&hfdcan3, 0x1FF), [7] = FDCAN_INSTANCE_INIT(&hfdcan3, 0x200),
-    [8] = FDCAN_INSTANCE_INIT(&hfdcan3, 0x2FF),
+    [0] = can_instance_INIT(&hfdcan1, 0x1FF), [1] = can_instance_INIT(&hfdcan1, 0x200),
+    [2] = can_instance_INIT(&hfdcan1, 0x2FF), [3] = can_instance_INIT(&hfdcan2, 0x1FF),
+    [4] = can_instance_INIT(&hfdcan2, 0x200), [5] = can_instance_INIT(&hfdcan2, 0x2FF),
+    [6] = can_instance_INIT(&hfdcan3, 0x1FF), [7] = can_instance_INIT(&hfdcan3, 0x200),
+    [8] = can_instance_INIT(&hfdcan3, 0x2FF),
 };
 
 /**
@@ -136,7 +136,7 @@ static void MotorSenderGrouping(DJIMotorInstance* motor, CAN_Init_Config_s* conf
 
 /**
  * @todo  是否可以简化多圈角度的计算？
- * @brief 根据返回的fdcan_instance对反馈报文进行解析
+ * @brief 根据返回的can_instance对反馈报文进行解析
  *
  * @param _instance 收到数据的instance,通过遍历与所有电机进行对比以选择正确的实例
  */

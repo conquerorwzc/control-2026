@@ -1,4 +1,3 @@
-#THIS FILE IS AUTO GENERATED FROM THE TEMPLATE! DO NOT CHANGE!
 cmake_minimum_required(VERSION 3.16)
 # 指定编译平台/架构与语言标准, 推荐指定Ninja为构建工具,可以加快编译速度(相比make)
 set(CMAKE_SYSTEM_NAME Generic)
@@ -16,10 +15,15 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # 指定工程名称和语言类型
-project(control-2026-h7 C ASM)
+project(control-2026 C ASM)
 
 # 选择构建类型
 set(CMAKE_BUILD_TYPE ${buildType}) # Debug Release RelWithDebInfo MinSizeRel
+
+set(BOARD_TYPE "stm32-h7")
+set(ROBOT_TYPE "infantry_wheel_legged")
+
+include(${CMAKE_SOURCE_DIR}/Hardware/${BOARD_TYPE}/CMakeLists.txt)
 
 # Generic compiler settings for optimization and basic link lib
 add_compile_options(-pipe ${MCU_FLAGS} -Wall -Werror -fmessage-length=0 # basic options
@@ -30,10 +34,6 @@ add_link_options(-pipe ${MCU_FLAGS} -T${LINKER_SCRIPT} -Wl,--no-warn-rwx-segment
         -Wl,--gc-sections -flto -specs=nano.specs# optimize options
         -Wl,-Map=${PROJECT_BINARY_DIR}/${PROJECT_NAME}.map -Wl,--cref -Wl,--print-memory-usage # map options
 ) # if your executable is too large , try option '-s' to strip symbols
-
-
-set(ROBOT_TYPE "infantry_wheel_legged")
-set(BOARD_TYPE "stm32_h7")
 
 # 递归包含头文件的函数
 function(include_sub_directories_recursively root_dir)
@@ -56,10 +56,9 @@ include_directories(${CMAKE_SOURCE_DIR}/UserApp)
 file(GLOB_RECURSE SOURCES
         "Hardware/${BOARD_TYPE}/*.c"
         "Modules/*.c"
-        "UserApp/*.c"
+        "UserApp/os_task.c"
 )
 
-include(${CMAKE_SOURCE_DIR}/Hardware/${BOARD_TYPE}/CMakeLists.txt)
 include(${CMAKE_SOURCE_DIR}/UserApp/robot/${ROBOT_TYPE}/CMakeLists.txt)
 
 # Build types
@@ -77,6 +76,8 @@ else ()
     add_compile_options(-Og -g -gdwarf-2)
     add_definitions(-DESC_DEBUG) # ESC Debug
 endif ()
+
+set_source_files_properties(${ASM_SOURCES} PROPERTIES COMPILE_FLAGS "-x assembler-with-cpp")
 
 # build binary and hex file
 add_executable(${PROJECT_NAME}.elf ${SOURCES} ${ASM_SOURCES} ${LINKER_SCRIPT})

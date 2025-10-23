@@ -24,7 +24,7 @@ GimbalInstance* GimbalInit(Gimbal_Init_Config_s* gimbal_init_config) {
   gimbal_instance->gimbal_IMU_data = INS_Init();  // IMU先初始化,获取姿态数据指针赋给yaw电机的其他数据来源
 
   // YAW CAN配置
-  gimbal_init_config->yaw_motor_config.can_init_config.can_handle = &hcan1;
+  gimbal_init_config->yaw_motor_config.can_init_config.can_handle = &hfdcan1;
   gimbal_init_config->yaw_motor_config.can_init_config.tx_id = 1;
 
   // YAW控制器参数配置
@@ -41,7 +41,7 @@ GimbalInstance* GimbalInit(Gimbal_Init_Config_s* gimbal_init_config) {
   gimbal_init_config->yaw_motor_config.controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE;
 
   // PITCH CAN配置
-  gimbal_init_config->pitch_motor_config.can_init_config.can_handle = &hcan2;
+  gimbal_init_config->pitch_motor_config.can_init_config.can_handle = &hfdcan2;
   gimbal_init_config->pitch_motor_config.can_init_config.tx_id = 1;
 
   // PITCH控制器参数配置

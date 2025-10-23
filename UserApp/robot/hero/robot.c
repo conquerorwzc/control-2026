@@ -242,7 +242,7 @@ static void EmergencyHandler() {
 
 void RobotInit() {
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
-  robot->rc_data = RemoteControlInit(&huart3);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
+  robot->rc_data = RemoteControlInit(&huart1);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
 
   rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
   *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
@@ -264,7 +264,7 @@ void RobotInit() {
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
-  
+
   rc_data = robot->rc_data;
 }
 

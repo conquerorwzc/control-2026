@@ -9,7 +9,6 @@ set(ASM_SOURCES
         ${CMAKE_CURRENT_LIST_DIR}/Startup/startup_stm32h723vgtx.s
         ${CMAKE_CURRENT_LIST_DIR}/Middlewares/Third_Party/SEGGER/RTT/SEGGER_RTT_ASM_ARMv7M.s
 )
-set_source_files_properties(${ASM_SOURCES} PROPERTIES COMPILE_FLAGS "-x assembler-with-cpp")
 
 # add_compile_definitions() works for compile stage
 # while add_definitions() works for both compile and link stage

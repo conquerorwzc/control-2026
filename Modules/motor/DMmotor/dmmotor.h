@@ -2,7 +2,7 @@
 #define DMMOTOR_H
 #include <stdint.h>
 
-#include "bsp_fdcan.h"
+#include "bsp_can.h"
 #include "controller.h"
 #include "daemon.h"
 #include "motor_def.h"

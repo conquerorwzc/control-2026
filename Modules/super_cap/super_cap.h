@@ -8,7 +8,7 @@
 #ifndef SUPER_CAP_H
 #define SUPER_CAP_H
 
-#include "bsp_fdcan.h"
+#include "bsp_can.h"
 
 #pragma pack(1)
 typedef struct

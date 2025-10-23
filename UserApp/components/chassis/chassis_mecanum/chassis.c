@@ -146,7 +146,7 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   ChassisInstance* chassis_instance = (ChassisInstance*)zmalloc(sizeof(ChassisInstance));
 
   for (int i = 0; i < 4; i++) {
-    chassis_init_config->wheel_motor_config[i].can_init_config.can_handle = &hcan1;
+    chassis_init_config->wheel_motor_config[i].can_init_config.can_handle = &hfdcan1;
     chassis_init_config->wheel_motor_config[i].controller_setting_init_config.angle_feedback_source = MOTOR_FEED;
     chassis_init_config->wheel_motor_config[i].controller_setting_init_config.speed_feedback_source = MOTOR_FEED;
     chassis_init_config->wheel_motor_config[i].controller_setting_init_config.outer_loop_type = SPEED_LOOP;
@@ -169,7 +169,7 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   chassis_init_config->wheel_motor_config[3].controller_setting_init_config.motor_reverse_flag =
       MOTOR_DIRECTION_REVERSE;
 
-  static Chassis_Param_s chassis_param;  // 声明为静态局部变量
+  static Chassis_Param_s chassis_param;                // 声明为静态局部变量
   chassis_param = chassis_init_config->chassis_param;  // 在运行时赋值
 
   float half_wheel_base = chassis_param.wheel_base / 2.0f;
