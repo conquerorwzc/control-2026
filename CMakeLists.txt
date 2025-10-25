@@ -25,7 +25,7 @@ set(ROBOT_TYPE "infantry_wheel_legged")
 
 #if (${BOARD_TYPE} STREQUAL "stm32-f4")
 
-include(${CMAKE_SOURCE_DIR}/Hardware/${BOARD_TYPE}/CMakeLists.txt)
+include(${CMAKE_SOURCE_DIR}/Hardware/${BOARD_TYPE}/${BOARD_TYPE}.cmake)
 
 # Generic compiler settings for optimization and basic link lib
 add_compile_options(-pipe ${MCU_FLAGS} -Wall -Werror -fmessage-length=0 # basic options
@@ -33,7 +33,7 @@ add_compile_options(-pipe ${MCU_FLAGS} -Wall -Werror -fmessage-length=0 # basic 
 )
 add_link_options(-pipe ${MCU_FLAGS} -T${LINKER_SCRIPT} -Wl,--no-warn-rwx-segments # close RWX warning
         -lm -lc # lib options
-        -Wl,--gc-sections -flto -specs=nano.specs# optimize options
+        -Wl,--gc-sections -flto -specs=nano.specs # optimize options
         -Wl,-Map=${PROJECT_BINARY_DIR}/${PROJECT_NAME}.map -Wl,--cref -Wl,--print-memory-usage # map options
 ) # if your executable is too large , try option '-s' to strip symbols
 
@@ -61,7 +61,7 @@ file(GLOB_RECURSE SOURCES
         "UserApp/os_task.c"
 )
 
-include(${CMAKE_SOURCE_DIR}/UserApp/robot/${ROBOT_TYPE}/CMakeLists.txt)
+include(${CMAKE_SOURCE_DIR}/UserApp/robot/${ROBOT_TYPE}/robot.cmake)
 
 # Build types
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Release")

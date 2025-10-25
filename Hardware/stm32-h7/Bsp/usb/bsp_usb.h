@@ -10,10 +10,10 @@
  *
  */
 #pragma once
-#include "usb_device.h"
+#include "../../USB_DEVICE/App/usb_device.h"
+#include "../../USB_DEVICE/App/usbd_desc.h"
+#include "../../USB_DEVICE/Target/usbd_conf.h"
 #include "usbd_cdc.h"
-#include "usbd_conf.h"
-#include "usbd_desc.h"
 #include "usbd_cdc_if.h"
 typedef struct
 {

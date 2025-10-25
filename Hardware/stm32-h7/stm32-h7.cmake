@@ -16,4 +16,5 @@ add_definitions(
         -DUSE_HAL_DRIVER
         -DSTM32H723xx
         -DARM_MATH_CM7
+        -D__FPU_PRESENT=1U
 ) # need -D<macro> to define macro

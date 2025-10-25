@@ -22,7 +22,7 @@ static DJIMotorInstance* dji_motor_instance[DJI_MOTOR_CNT] = {NULL};  // 会在c
  * fdcan1: [0]:0x1FF,[1]:0x200,[2]:0x2FF
  * fdcan2: [3]:0x1FF,[4]:0x200,[5]:0x2FF
  */
-#define can_instance_INIT(fdcan_handle, tx_id)                               \
+#define can_instance_INIT(fdcan_handle, tx_id)                                 \
   {.can_handle = (fdcan_handle),                                               \
    .txconf = (FDCAN_TxHeaderTypeDef){.Identifier = (tx_id),                    \
                                      .IdType = FDCAN_STANDARD_ID,              \
@@ -178,7 +178,7 @@ static void DJIMotorLostCallback(void* motor_ptr) {
   uint16_t can_bus = motor->motor_can_instance->can_handle == &hfdcan1
                          ? 1
                          : (motor->motor_can_instance->can_handle == &hfdcan2 ? 2 : 3);  // 修改：变量名
-  LOGWARNING("[dji_motor] Motor lost, fdcan bus [%d] , id [%d]", can_bus, motor->motor_can_instance->tx_id);
+  LOGWARNING("[dji_motor] Motor lost, can bus [%d] , id [%d]", can_bus, motor->motor_can_instance->tx_id);
 }
 
 /**

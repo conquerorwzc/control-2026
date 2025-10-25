@@ -1,7 +1,7 @@
 #include "srm_protocol.h"
 
+#include "../../Hardware/stm32-h7/USB_DEVICE/App/usbd_cdc_if.h"
 #include "memory.h"
-#include "usbd_cdc_if.h"
 
 int vision_data_ready_to_send;
 short receive_size;

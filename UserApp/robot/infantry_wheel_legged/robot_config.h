@@ -88,82 +88,23 @@ static Chassis_Init_Config_s chassis_init_config = {
                         },
                 },
             .motor_type = M3508,
-        },
-    .wheel_motor_config[1] =
-        {
-            .controller_param_init_config =
+            .can_init_config.can_handle = &hfdcan1,
+            .controller_setting_init_config =
                 {
-                    .speed_PID =
-                        {
-                            .Kp = 2.0f,
-                            .Ki = 0.0f,
-                            .Kd = 0.0f,
-                            .IntegralLimit = 3000.0f,
-                            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                            .MaxOut = 12000.0f,
-                        },
-                    .current_PID =
-                        {
-                            .Kp = 0.5f,
-                            .Ki = 0.0f,
-                            .Kd = 0.0f,
-                            .IntegralLimit = 3000.0f,
-                            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                            .MaxOut = 15000.0f,
-                        },
+                    .angle_feedback_source = MOTOR_FEED,
+                    .speed_feedback_source = MOTOR_FEED,
+                    .outer_loop_type = SPEED_LOOP,
+                    .close_loop_type = SPEED_LOOP,
+                    .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
                 },
-            .motor_type = M3508,
         },
-    .wheel_motor_config[2] =
-        {
-            .controller_param_init_config =
-                {
-                    .speed_PID =
-                        {
-                            .Kp = 2.0f,
-                            .Ki = 0.0f,
-                            .Kd = 0.0f,
-                            .IntegralLimit = 3000.0f,
-                            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                            .MaxOut = 12000.0f,
-                        },
-                    .current_PID =
-                        {
-                            .Kp = 0.5f,
-                            .Ki = 0.0f,
-                            .Kd = 0.0f,
-                            .IntegralLimit = 3000.0f,
-                            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                            .MaxOut = 15000.0f,
-                        },
-                },
-            .motor_type = M3508,
-        },
-    .wheel_motor_config[3] =
-        {
-            .controller_param_init_config =
-                {
-                    .speed_PID =
-                        {
-                            .Kp = 2.0f,
-                            .Ki = 0.0f,
-                            .Kd = 0.0f,
-                            .IntegralLimit = 3000.0f,
-                            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                            .MaxOut = 12000.0f,
-                        },
-                    .current_PID =
-                        {
-                            .Kp = 0.5f,
-                            .Ki = 0.0f,
-                            .Kd = 0.0f,
-                            .IntegralLimit = 3000.0f,
-                            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                            .MaxOut = 15000.0f,
-                        },
-                },
-            .motor_type = M3508,
-        },
+    .wheel_motor_config[0].can_init_config.tx_id = 1,
+    .wheel_motor_config[1] = chassis_init_config.wheel_motor_config[0],
+    .wheel_motor_config[1].can_init_config.tx_id = 4,
+    .wheel_motor_config[2] = chassis_init_config.wheel_motor_config[0],
+    .wheel_motor_config[2].can_init_config.tx_id = 2,
+    .wheel_motor_config[3] = chassis_init_config.wheel_motor_config[0],
+    .wheel_motor_config[3].can_init_config.tx_id = 3,
 };
 
 static Gimbal_Init_Config_s gimbal_init_config = {
@@ -252,31 +193,8 @@ static Shoot_Init_Config_s shoot_init_config = {
                 },
             .motor_type = M3508,
         },
-    .friction_motor_config[1] =
-        {
-            .controller_param_init_config =
-                {
-                    .speed_PID =
-                        {
-                            .Kp = 20.0f,
-                            .Ki = 1.0f,
-                            .Kd = 0.0f,
-                            .Improve = PID_Integral_Limit,
-                            .IntegralLimit = 10000.0f,
-                            .MaxOut = 15000.0f,
-                        },
-                    .current_PID =
-                        {
-                            .Kp = 0.7f,
-                            .Ki = 0.1f,
-                            .Kd = 0.0f,
-                            .Improve = PID_Integral_Limit,
-                            .IntegralLimit = 10000.0f,
-                            .MaxOut = 15000.0f,
-                        },
-                },
-            .motor_type = M3508,
-        },
+    .friction_motor_config[1] = shoot_init_config.friction_motor_config[0],
+
     .loader_motor_config =
         {
             .controller_param_init_config =

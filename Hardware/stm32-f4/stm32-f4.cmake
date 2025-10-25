@@ -1,7 +1,7 @@
 # board specific settings, arch/fpu/instruction
 set(MCU_FLAGS -mcpu=cortex-m4 -mthumb -mthumb-interwork -mfloat-abi=hard -mfpu=fpv4-sp-d16)
 set(LINKER_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/STM32F407IGHX_FLASH.ld") # 指定链接脚本
-set(DSP_NAME "libarm_cortexM4lf_math.a") # 指定DSP库名称
+set(DSP_NAME "libCMSISDSP.a") # 指定DSP库名称
 link_directories(${CMAKE_CURRENT_LIST_DIR}/Middlewares/ST/ARM/DSP/Lib)
 
 # 汇编文件路径
@@ -16,4 +16,5 @@ add_definitions(
         -DUSE_HAL_DRIVER
         -DSTM32F407xx
         -DARM_MATH_CM4
+        -D__FPU_PRESENT=1U
 ) # need -D<macro> to define macro

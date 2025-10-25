@@ -13,12 +13,10 @@
 #ifndef _USER_LIB_H
 #define _USER_LIB_H
 
-#include "stdint.h"
-#include "main.h"
-#include "cmsis_os.h"
-#include "stm32h7xx.h"
 #include "arm_math.h"
-
+#include "cmsis_os.h"
+#include "main.h"
+#include "stdint.h"
 
 #ifndef user_malloc
 #ifdef _CMSIS_OS_H
@@ -55,31 +53,24 @@ void MatInit(mat *m, uint8_t row, uint8_t col);
 #endif
 
 #define VAL_LIMIT(val, min, max) \
-    do                           \
-    {                            \
-        if ((val) <= (min))      \
-        {                        \
-            (val) = (min);       \
-        }                        \
-        else if ((val) >= (max)) \
-        {                        \
-            (val) = (max);       \
-        }                        \
-    } while (0)
+  do {                           \
+    if ((val) <= (min)) {        \
+      (val) = (min);             \
+    } else if ((val) >= (max)) { \
+      (val) = (max);             \
+    }                            \
+  } while (0)
 
-#define ANGLE_LIMIT_360(val, angle)     \
-    do                                  \
-    {                                   \
-        (val) = (angle) - (int)(angle); \
-        (val) += (int)(angle) % 360;    \
-    } while (0)
+#define ANGLE_LIMIT_360(val, angle) \
+  do {                              \
+    (val) = (angle) - (int)(angle); \
+    (val) += (int)(angle) % 360;    \
+  } while (0)
 
 #define ANGLE_LIMIT_360_TO_180(val) \
-    do                              \
-    {                               \
-        if ((val) > 180)            \
-            (val) -= 360;           \
-    } while (0)
+  do {                              \
+    if ((val) > 180) (val) -= 360;  \
+  } while (0)
 
 #define VAL_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define VAL_MAX(a, b) ((a) > (b) ? (a) : (b))
