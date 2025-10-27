@@ -23,10 +23,6 @@ GimbalInstance* GimbalInit(Gimbal_Init_Config_s* gimbal_init_config) {
   GimbalInstance* gimbal_instance = (GimbalInstance*)zmalloc(sizeof(GimbalInstance));
   gimbal_instance->gimbal_IMU_data = INS_Init();  // IMU先初始化,获取姿态数据指针赋给yaw电机的其他数据来源
 
-  // YAW CAN配置
-  gimbal_init_config->yaw_motor_config.can_init_config.can_handle = &hfdcan1;
-  gimbal_init_config->yaw_motor_config.can_init_config.tx_id = 2;
-
   // YAW控制器参数配置
   gimbal_init_config->yaw_motor_config.controller_param_init_config.other_angle_feedback_ptr =
       &gimbal_instance->gimbal_IMU_data->YawTotalAngle;
@@ -38,11 +34,6 @@ GimbalInstance* GimbalInit(Gimbal_Init_Config_s* gimbal_init_config) {
   gimbal_init_config->yaw_motor_config.controller_setting_init_config.speed_feedback_source = OTHER_FEED;
   gimbal_init_config->yaw_motor_config.controller_setting_init_config.outer_loop_type = ANGLE_LOOP;
   gimbal_init_config->yaw_motor_config.controller_setting_init_config.close_loop_type = SPEED_LOOP | ANGLE_LOOP;
-  gimbal_init_config->yaw_motor_config.controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE;
-
-  // PITCH CAN配置
-  gimbal_init_config->pitch_motor_config.can_init_config.can_handle = &hfdcan2;
-  gimbal_init_config->pitch_motor_config.can_init_config.tx_id = 1;
 
   // PITCH控制器参数配置
   gimbal_init_config->pitch_motor_config.controller_param_init_config.other_angle_feedback_ptr =
@@ -56,7 +47,6 @@ GimbalInstance* GimbalInit(Gimbal_Init_Config_s* gimbal_init_config) {
   gimbal_init_config->pitch_motor_config.controller_setting_init_config.speed_feedback_source = OTHER_FEED;
   gimbal_init_config->pitch_motor_config.controller_setting_init_config.outer_loop_type = ANGLE_LOOP;
   gimbal_init_config->pitch_motor_config.controller_setting_init_config.close_loop_type = SPEED_LOOP | ANGLE_LOOP;
-  gimbal_init_config->pitch_motor_config.controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL;
 
   gimbal_instance->yaw_motor = DJIMotorInit(&gimbal_init_config->yaw_motor_config);
   gimbal_instance->pitch_motor = DJIMotorInit(&gimbal_init_config->pitch_motor_config);

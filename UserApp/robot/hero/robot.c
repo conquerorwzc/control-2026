@@ -24,9 +24,8 @@ static float angle;
  *
  */
 static void CalcOffsetAngle() {
-  angle = (robot->gimbal->yaw_motor->measure.angle_single_round +
-           robot->gimbal->yaw_motor->measure.total_round % 2 * 360.0f) /
-          2.0f;                   // 从云台获取的当前yaw电机单圈角度
+  angle = robot->gimbal->yaw_motor->measure.angle_single_round;
+
 #if YAW_CHASSIS_ALIGN_ECD > 4096  // 如果大于180度
   if (angle > YAW_ALIGN_ANGLE && angle <= 180.0f + YAW_ALIGN_ANGLE)
     chassis_ctrl_cmd->offset_angle = angle - YAW_ALIGN_ANGLE;
@@ -51,6 +50,7 @@ static void CalcOffsetAngle() {
 static void RemoteControlSet() {
   // 右[中]，云台
   if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_ON;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_ON;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       robot->robot_mode = ROBOT_CHASSIS_ROTATE;
@@ -59,6 +59,7 @@ static void RemoteControlSet() {
   }
   // 右[上]，超电，保持底盘跟随云台
   else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_ON;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_ON;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       robot->robot_mode = ROBOT_CHASSIS_ROTATE;
@@ -68,6 +69,7 @@ static void RemoteControlSet() {
   // 左[中],云台启动，摩擦轮启动，拨弹盘启动，准备射击
   if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
     shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_ON;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
@@ -76,6 +78,7 @@ static void RemoteControlSet() {
   } else if (switch_is_up(rc_data[TEMP].rc.switch_left))  // 开火，发射，根据时间判断单发或者连发
   {
     shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_ON;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
@@ -94,7 +97,7 @@ static void RemoteControlSet() {
     gimbal_ctrl_cmd->pitch += 0.002f * (float)rc_data[TEMP].rc.rocker_r1;
   }
 
-  // 云台PITCH轴软件限位
+  // 云台PITCH轴软件限位 todo:没在云台有点不好
   if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
     gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
   } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
@@ -104,24 +107,28 @@ static void RemoteControlSet() {
   // 底盘参数,系数需要调整
   static float sin_theta, cos_theta;
   static float chassis_vx, chassis_vy;
+
   cos_theta = arm_cos_f32(chassis_ctrl_cmd->offset_angle * DEGREE_2_RAD);
   sin_theta = arm_sin_f32(chassis_ctrl_cmd->offset_angle * DEGREE_2_RAD);
 
   chassis_vx = 30.0f * (float)rc_data[TEMP].rc.rocker_l_;  // _水平方向
   chassis_vy = 30.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 竖直方向
 
-  chassis_ctrl_cmd->vx = chassis_vx * sin_theta + chassis_vy * cos_theta;
+  chassis_ctrl_cmd->vx = chassis_vx * cos_theta - chassis_vy * sin_theta;
   chassis_ctrl_cmd->vy = chassis_vx * sin_theta + chassis_vy * cos_theta;
 
   switch (robot->robot_mode) {
     case ROBOT_CHASSIS_ROTATE:
       chassis_ctrl_cmd->wz =
-          (-50.0f) * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如，则在底盘任务中计算旋转分量
+          (-25.0f) * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如，则在底盘任务中计算旋转分量
+      break;
     case ROBOT_CHASSIS_FREE:
       chassis_ctrl_cmd->wz = 0;
       break;
+      // 跟随模式(前馈+PID)
     case ROBOT_CHASSIS_FOLLOW:
-      chassis_ctrl_cmd->wz = PIDCalculate(&robot->chassis_follow_PID, chassis_ctrl_cmd->offset_angle, 0);
+      chassis_ctrl_cmd->wz = (20.0f) * (float)rc_data[TEMP].rc.rocker_r_ +
+                             PIDCalculate(&robot->chassis_follow_PID, chassis_ctrl_cmd->offset_angle, 0);
       break;
     default:
       break;
@@ -130,8 +137,11 @@ static void RemoteControlSet() {
 
   // 射频控制,固定每秒1发,后续可以根据左侧拨轮的值大小切换射频,
   shoot_ctrl_cmd->shoot_rate = 8;
+
+  *rc_data_last = *rc_data;
 }
 
+#if 0
 /**
  * @brief 输入为键鼠时模式和控制量设置
  *
@@ -205,6 +215,7 @@ static void MouseKeySet() {
       break;
   }
 }
+#endif
 
 /**
  * @brief  紧急停止,包括遥控器左上侧拨轮打满/重要模块离线/双板通信失效等
@@ -242,7 +253,12 @@ static void EmergencyHandler() {
 
 void RobotInit() {
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
-  robot->rc_data = RemoteControlInit(&huart1);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
+
+#ifdef STM32F407xx
+  robot->rc_data = RemoteControlInit(&huart6);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
+#elifdef STM32H723XX
+  robot->rc_data = RemoteControlInit(&huart5);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
+#endif
 
   rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
   *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
@@ -272,12 +288,8 @@ void RobotInit() {
 void RobotCMDTask() {
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
   CalcOffsetAngle();
-  // 根据遥控器左侧开关,确定当前使用的控制模式为遥控器调试还是键鼠
-  if (switch_is_down(rc_data[TEMP].rc.switch_left))  // 遥控器左侧开关状态为[下],遥控器控制
-    RemoteControlSet();
-  else if (switch_is_up(rc_data[TEMP].rc.switch_left))  // 遥控器左侧开关状态为[上],键盘控制
-    MouseKeySet();
-
+  RemoteControlSet();
+  // MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
 

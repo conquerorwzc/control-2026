@@ -319,7 +319,7 @@
   #include "core_cm7.h"
   #define ARM_MATH_DSP
 #elif defined (ARM_MATH_CM4)
-#include "core_cm4.h"
+  #include "core_cm4.h"
   #define ARM_MATH_DSP
 #elif defined (ARM_MATH_CM3)
   #include "core_cm3.h"

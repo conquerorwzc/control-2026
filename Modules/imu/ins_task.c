@@ -13,12 +13,13 @@
  ******************************************************************************
  */
 #include "ins_task.h"
-#include "controller.h"
+
 #include "QuaternionEKF.h"
+#include "controller.h"
+#include "main.h"
 #include "spi.h"
 #include "tim.h"
 #include "user_lib.h"
-#include "general_def.h"
 // #include "master_process.h" TODO: 待完善
 
 static INS_t INS;
@@ -33,18 +34,17 @@ const float zb[3] = {0, 0, 1};
 // 用于获取两次采样之间的时间间隔
 static uint32_t INS_DWT_Count = 0;
 static float dt = 0, t = 0;
-static float RefTemp = 40; // 恒温设定温度
+static float RefTemp = 40;  // 恒温设定温度
 
-static void IMU_Temperature_Ctrl(void)
-{
+static void IMU_Temperature_Ctrl(void) {
   float pid_ref = PIDCalculate(&bmi088_device->heat_pid, bmi088_data.temperature, RefTemp);
-  PWMSetDutyRatio(bmi088_device->heat_pwm,float_constrain(float_rounding(pid_ref), 0, UINT32_MAX));
+  PWMSetDutyRatio(bmi088_device->heat_pwm, float_constrain(float_rounding(pid_ref), 0, UINT32_MAX));
 }
 
 static void InitQuaternion(float* init_q4) {
   float acc_init[3] = {0};
-  float gravity_norm[3] = {0, 0, 1}; // 导航系重力加速度矢量,归一化后为(0,0,1)
-  float axis_rot[3] = {0}; // 旋转轴
+  float gravity_norm[3] = {0, 0, 1};  // 导航系重力加速度矢量,归一化后为(0,0,1)
+  float axis_rot[3] = {0};            // 旋转轴
   // 读取100次加速度计数据,取平均值作为初始值
   for (uint8_t i = 0; i < 100; ++i) {
     BMI088Acquire(bmi088_device, &bmi088_data);
@@ -53,16 +53,14 @@ static void InitQuaternion(float* init_q4) {
     acc_init[Z] += bmi088_data.acc[Z];
     DWT_Delay(0.001);
   }
-  for (uint8_t i = 0; i < 3; ++i)
-    acc_init[i] /= 100;
+  for (uint8_t i = 0; i < 3; ++i) acc_init[i] /= 100;
   Norm3d(acc_init);
   // 计算原始加速度矢量和导航系重力加速度矢量的夹角
   float angle = acosf(Dot3d(acc_init, gravity_norm));
   Cross3d(acc_init, gravity_norm, axis_rot);
   Norm3d(axis_rot);
   init_q4[0] = cosf(angle / 2.0f);
-  for (uint8_t i = 0; i < 2; ++i)
-    init_q4[i + 1] = axis_rot[i] * sinf(angle / 2.0f); // 轴角公式,第三轴为0(没有z轴分量)
+  for (uint8_t i = 0; i < 2; ++i) init_q4[i + 1] = axis_rot[i] * sinf(angle / 2.0f);  // 轴角公式,第三轴为0(没有z轴分量)
 }
 
 /**
@@ -78,8 +76,7 @@ static void IMU_Param_Correction(IMU_Param_t* param, float gyro[3], float accel[
   static float c_11, c_12, c_13, c_21, c_22, c_23, c_31, c_32, c_33;
   float cosPitch, cosYaw, cosRoll, sinPitch, sinYaw, sinRoll;
 
-  if (fabsf(param->Yaw - lastYawOffset) > 0.001f ||
-      fabsf(param->Pitch - lastPitchOffset) > 0.001f ||
+  if (fabsf(param->Yaw - lastYawOffset) > 0.001f || fabsf(param->Pitch - lastPitchOffset) > 0.001f ||
       fabsf(param->Roll - lastRollOffset) > 0.001f || param->flag) {
     cosYaw = arm_cos_f32(param->Yaw / 57.295779513f);
     cosPitch = arm_cos_f32(param->Pitch / 57.295779513f);
@@ -101,32 +98,18 @@ static void IMU_Param_Correction(IMU_Param_t* param, float gyro[3], float accel[
     param->flag = 0;
   }
   float gyro_temp[3];
-  for (uint8_t i = 0; i < 3; ++i)
-    gyro_temp[i] = gyro[i] * param->scale[i];
+  for (uint8_t i = 0; i < 3; ++i) gyro_temp[i] = gyro[i] * param->scale[i];
 
-  gyro[X] = c_11 * gyro_temp[X] +
-            c_12 * gyro_temp[Y] +
-            c_13 * gyro_temp[Z];
-  gyro[Y] = c_21 * gyro_temp[X] +
-            c_22 * gyro_temp[Y] +
-            c_23 * gyro_temp[Z];
-  gyro[Z] = c_31 * gyro_temp[X] +
-            c_32 * gyro_temp[Y] +
-            c_33 * gyro_temp[Z];
+  gyro[X] = c_11 * gyro_temp[X] + c_12 * gyro_temp[Y] + c_13 * gyro_temp[Z];
+  gyro[Y] = c_21 * gyro_temp[X] + c_22 * gyro_temp[Y] + c_23 * gyro_temp[Z];
+  gyro[Z] = c_31 * gyro_temp[X] + c_32 * gyro_temp[Y] + c_33 * gyro_temp[Z];
 
   float accel_temp[3];
-  for (uint8_t i = 0; i < 3; ++i)
-    accel_temp[i] = accel[i];
+  for (uint8_t i = 0; i < 3; ++i) accel_temp[i] = accel[i];
 
-  accel[X] = c_11 * accel_temp[X] +
-             c_12 * accel_temp[Y] +
-             c_13 * accel_temp[Z];
-  accel[Y] = c_21 * accel_temp[X] +
-             c_22 * accel_temp[Y] +
-             c_23 * accel_temp[Z];
-  accel[Z] = c_31 * accel_temp[X] +
-             c_32 * accel_temp[Y] +
-             c_33 * accel_temp[Z];
+  accel[X] = c_11 * accel_temp[X] + c_12 * accel_temp[Y] + c_13 * accel_temp[Z];
+  accel[Y] = c_21 * accel_temp[X] + c_22 * accel_temp[Y] + c_23 * accel_temp[Z];
+  accel[Z] = c_31 * accel_temp[X] + c_32 * accel_temp[Y] + c_33 * accel_temp[Z];
 
   lastYawOffset = param->Yaw;
   lastPitchOffset = param->Pitch;
@@ -139,27 +122,28 @@ attitude_t* INS_Init(void) {
   else
     return (attitude_t*)&INS.Gyro;
 
-  // 初始化BMI088
+#ifdef STM32F407xx
   BMI088_Init_Config_s bmi088_config = {
-      .spi_acc_config = {.spi_handle = &hspi2,
-                         .cs_pin = ACC_CS_Pin,
-                         .GPIOx = ACC_CS_GPIO_Port},
-      .spi_gyro_config = {.spi_handle = &hspi2,
-                          .cs_pin = GYRO_CS_Pin,
-                          .GPIOx = GYRO_CS_GPIO_Port},
-      .heat_pwm_config = {.htim = &htim3,
-                          .channel = TIM_CHANNEL_4},
-      .heat_pid_config = {.MaxOut = 2000,
-                          .IntegralLimit = 300,
-                          .DeadBand = 0,
-                          .Kp = 1000,
-                          .Ki = 20,
-                          .Kd = 0,
-                          .Improve = 0x01},
+      .spi_acc_config = {.spi_handle = &hspi1, .cs_pin = ACC_CS_Pin, .GPIOx = ACC_CS_GPIO_Port},
+      .spi_gyro_config = {.spi_handle = &hspi1, .cs_pin = GYRO_CS_Pin, .GPIOx = GYRO_CS_GPIO_Port},
+      .heat_pwm_config = {.htim = &htim10, .channel = TIM_CHANNEL_1},
+      .heat_pid_config =
+          {.MaxOut = 2000, .IntegralLimit = 300, .DeadBand = 0, .Kp = 1000, .Ki = 20, .Kd = 0, .Improve = 0x01},
       .work_mode = BMI088_BLOCK_PERIODIC_MODE,
       .cali_mode = BMI088_LOAD_PRE_CALI_MODE,
   };
-
+#elifdef STM32H723xx
+  // 初始化BMI088
+  BMI088_Init_Config_s bmi088_config = {
+      .spi_acc_config = {.spi_handle = &hspi2, .cs_pin = ACC_CS_Pin, .GPIOx = ACC_CS_GPIO_Port},
+      .spi_gyro_config = {.spi_handle = &hspi2, .cs_pin = GYRO_CS_Pin, .GPIOx = GYRO_CS_GPIO_Port},
+      .heat_pwm_config = {.htim = &htim3, .channel = TIM_CHANNEL_4},
+      .heat_pid_config =
+          {.MaxOut = 2000, .IntegralLimit = 300, .DeadBand = 0, .Kp = 1000, .Ki = 20, .Kd = 0, .Improve = 0x01},
+      .work_mode = BMI088_BLOCK_PERIODIC_MODE,
+      .cali_mode = BMI088_LOAD_PRE_CALI_MODE,
+  };
+#endif
   // 注册BMI088设备
   bmi088_device = BMI088Register(&bmi088_config);
 
@@ -175,10 +159,10 @@ attitude_t* INS_Init(void) {
   InitQuaternion(init_quaternion);
   IMU_QuaternionEKF_Init(init_quaternion, 10, 0.001, 1000000, 1, 0);
 
- // noise of accel is relatively big and of high freq,thus lpf is used
+  // noise of accel is relatively big and of high freq,thus lpf is used
   INS.AccelLPF = 0.0085;
   DWT_GetDeltaT(&INS_DWT_Count);
-  return (attitude_t*)&INS.Gyro; // @todo: 这里偷懒了,不要这样做! 修改INT_t结构体可能会导致异常,待修复.
+  return (attitude_t*)&INS.Gyro;  // @todo: 这里偷懒了,不要这样做! 修改INT_t结构体可能会导致异常,待修复.
 }
 
 /* 注意以1kHz的频率运行此任务 */
@@ -219,12 +203,12 @@ void INS_Task(void) {
     // 将重力从导航坐标系n转换到机体系b,随后根据加速度计数据计算运动加速度
     float gravity_b[3];
     EarthFrameToBodyFrame(gravity, gravity_b, INS.q);
-    for (uint8_t i = 0; i < 3; ++i) // 同样过一个低通滤波
+    for (uint8_t i = 0; i < 3; ++i)  // 同样过一个低通滤波
     {
-      INS.MotionAccel_b[i] = (INS.Accel[i] - gravity_b[i]) * dt / (INS.AccelLPF + dt) + INS.MotionAccel_b[i] * INS.
-                             AccelLPF / (INS.AccelLPF + dt);
+      INS.MotionAccel_b[i] = (INS.Accel[i] - gravity_b[i]) * dt / (INS.AccelLPF + dt) +
+                             INS.MotionAccel_b[i] * INS.AccelLPF / (INS.AccelLPF + dt);
     }
-    BodyFrameToEarthFrame(INS.MotionAccel_b, INS.MotionAccel_n, INS.q); // 转换回导航系n
+    BodyFrameToEarthFrame(INS.MotionAccel_b, INS.MotionAccel_n, INS.q);  // 转换回导航系n
 
     INS.Yaw = QEKF_INS.Yaw;
     INS.Pitch = QEKF_INS.Pitch;
@@ -252,16 +236,13 @@ void INS_Task(void) {
  * @param[3]       quaternion
  */
 void BodyFrameToEarthFrame(const float* vecBF, float* vecEF, float* q) {
-  vecEF[0] = 2.0f * ((0.5f - q[2] * q[2] - q[3] * q[3]) * vecBF[0] +
-                     (q[1] * q[2] - q[0] * q[3]) * vecBF[1] +
+  vecEF[0] = 2.0f * ((0.5f - q[2] * q[2] - q[3] * q[3]) * vecBF[0] + (q[1] * q[2] - q[0] * q[3]) * vecBF[1] +
                      (q[1] * q[3] + q[0] * q[2]) * vecBF[2]);
 
-  vecEF[1] = 2.0f * ((q[1] * q[2] + q[0] * q[3]) * vecBF[0] +
-                     (0.5f - q[1] * q[1] - q[3] * q[3]) * vecBF[1] +
+  vecEF[1] = 2.0f * ((q[1] * q[2] + q[0] * q[3]) * vecBF[0] + (0.5f - q[1] * q[1] - q[3] * q[3]) * vecBF[1] +
                      (q[2] * q[3] - q[0] * q[1]) * vecBF[2]);
 
-  vecEF[2] = 2.0f * ((q[1] * q[3] - q[0] * q[2]) * vecBF[0] +
-                     (q[2] * q[3] + q[0] * q[1]) * vecBF[1] +
+  vecEF[2] = 2.0f * ((q[1] * q[3] - q[0] * q[2]) * vecBF[0] + (q[2] * q[3] + q[0] * q[1]) * vecBF[1] +
                      (0.5f - q[1] * q[1] - q[2] * q[2]) * vecBF[2]);
 }
 
@@ -272,22 +253,22 @@ void BodyFrameToEarthFrame(const float* vecBF, float* vecEF, float* q) {
  * @param[3]       quaternion
  */
 void EarthFrameToBodyFrame(const float* vecEF, float* vecBF, float* q) {
-  vecBF[0] = 2.0f * ((0.5f - q[2] * q[2] - q[3] * q[3]) * vecEF[0] +
-                     (q[1] * q[2] + q[0] * q[3]) * vecEF[1] +
+  vecBF[0] = 2.0f * ((0.5f - q[2] * q[2] - q[3] * q[3]) * vecEF[0] + (q[1] * q[2] + q[0] * q[3]) * vecEF[1] +
                      (q[1] * q[3] - q[0] * q[2]) * vecEF[2]);
 
-  vecBF[1] = 2.0f * ((q[1] * q[2] - q[0] * q[3]) * vecEF[0] +
-                     (0.5f - q[1] * q[1] - q[3] * q[3]) * vecEF[1] +
+  vecBF[1] = 2.0f * ((q[1] * q[2] - q[0] * q[3]) * vecEF[0] + (0.5f - q[1] * q[1] - q[3] * q[3]) * vecEF[1] +
                      (q[2] * q[3] + q[0] * q[1]) * vecEF[2]);
 
-  vecBF[2] = 2.0f * ((q[1] * q[3] + q[0] * q[2]) * vecEF[0] +
-                     (q[2] * q[3] - q[0] * q[1]) * vecEF[1] +
+  vecBF[2] = 2.0f * ((q[1] * q[3] + q[0] * q[2]) * vecEF[0] + (q[2] * q[3] - q[0] * q[1]) * vecEF[1] +
                      (0.5f - q[1] * q[1] - q[2] * q[2]) * vecEF[2]);
 }
 
-//------------------------------------functions below are not used in this demo-------------------------------------------------
-//----------------------------------you can read them for learning or programming-----------------------------------------------
-//----------------------------------they could also be helpful for further design-----------------------------------------------
+//------------------------------------functions below are not used in this
+// demo-------------------------------------------------
+//----------------------------------you can read them for learning or
+// programming-----------------------------------------------
+//----------------------------------they could also be helpful for further
+// design-----------------------------------------------
 
 /**
  * @brief        Update quaternion

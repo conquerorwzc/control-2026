@@ -21,6 +21,7 @@
 #include "cmsis_os.h"
 #include "dma.h"
 #include "fdcan.h"
+#include "i2c.h"
 #include "memorymap.h"
 #include "spi.h"
 #include "tim.h"
@@ -107,8 +108,10 @@ int main(void)
   MX_USART1_UART_Init();
   MX_TIM12_Init();
   MX_SPI1_Init();
+  MX_I2C2_Init();
   /* USER CODE BEGIN 2 */
-
+  OSTaskInit();
+  LOGINFO("[main] SystemInit() and OSInit() done");
   /* USER CODE END 2 */
 
   /* Call init function for freertos objects (in cmsis_os2.c) */
@@ -121,8 +124,7 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {
+  while (1) {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

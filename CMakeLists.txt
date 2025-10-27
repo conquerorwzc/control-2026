@@ -49,7 +49,9 @@ function(include_sub_directories_recursively root_dir)
         endif ()
     endforeach ()
 endfunction()
+
 include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/Hardware/${MCU_TYPE})
+include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/Bsp)
 include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/Modules)
 include_directories(${CMAKE_SOURCE_DIR}/UserApp)
 

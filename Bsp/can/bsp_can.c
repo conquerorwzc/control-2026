@@ -32,7 +32,7 @@ static uint8_t idx;  // 全局CAN实例索引,每次有新的模块注册会自�
  * @param _instance can instance owned by specific module
  */
 static void CANAddFilter(CANInstance *_instance) {
-#ifdef FDCAN
+#ifdef STM32H723xx
   static uint8_t can1_filter_idx = 0, can2_filter_idx = 0, can3_filter_idx = 0;
   // 检查是否超出过滤器设定数量上限
   if (can1_filter_idx > hfdcan1.Init.StdFiltersNbr || can2_filter_idx > hfdcan2.Init.StdFiltersNbr ||
@@ -70,7 +70,7 @@ static void CANAddFilter(CANInstance *_instance) {
 
   HAL_FDCAN_ConfigFilter(_instance->can_handle, &fdcan_filter_conf);
 
-#else
+#elifdef STM32F407xx
   CAN_FilterTypeDef can_filter_conf;
   static uint8_t can1_filter_idx = 0, can2_filter_idx = 14;  // 0-13给can1用,14-27给can2用
 
@@ -101,7 +101,7 @@ static void CANAddFilter(CANInstance *_instance) {
  *
  */
 void CANServiceInit() {
-#ifdef FDCAN
+#ifdef STM32H723xx
   // 可能不需要这么多中断
   uint32_t FDCAN_RXActiveITs = FDCAN_IT_RX_FIFO0_NEW_MESSAGE | FDCAN_IT_RX_FIFO0_FULL | FDCAN_IT_RX_FIFO0_WATERMARK |
                                FDCAN_IT_RX_FIFO0_MESSAGE_LOST | FDCAN_IT_RX_FIFO1_NEW_MESSAGE | FDCAN_IT_RX_FIFO1_FULL |
@@ -127,7 +127,7 @@ void CANServiceInit() {
   HAL_FDCAN_Start(&hfdcan3);
   HAL_FDCAN_ActivateNotification(&hfdcan3, FDCAN_RXActiveITs, 0);
 
-#else
+#elifdef STM32F407xx
   HAL_CAN_Start(&hcan1);
   HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING);
   HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO1_MSG_PENDING);
@@ -161,7 +161,7 @@ CANInstance *CANRegister(CAN_Init_Config_s *config) {
   CANInstance *instance = (CANInstance *)malloc(sizeof(CANInstance));  // 分配空间
   memset(instance, 0, sizeof(CANInstance));                            // 分配的空间未必是0,所以要先清空
                                                                        // 进行发送报文的配置
-#ifdef FDCAN
+#ifdef STM32H723xx
   instance->txconf.Identifier = config->tx_id;                   // 发送id
   instance->txconf.IdType = FDCAN_STANDARD_ID;                   // 使用标准id,扩展id则使用CAN_ID_EXT(目前没有需求)
   instance->txconf.TxFrameType = FDCAN_DATA_FRAME,               // 发送数据帧
@@ -171,7 +171,7 @@ CANInstance *CANRegister(CAN_Init_Config_s *config) {
       instance->txconf.FDFormat = FDCAN_CLASSIC_CAN,             // 使用经典CAN格式
       instance->txconf.TxEventFifoControl = FDCAN_NO_TX_EVENTS,  // 不需要，禁用事件FIFO
       instance->txconf.MessageMarker = 0;                        // 不使用消息标记
-#else
+#elifdef STM32F407xx
   instance->txconf.StdId = config->tx_id;  // 发送id
   instance->txconf.IDE = CAN_ID_STD;       // 使用标准id,扩展id则使用CAN_ID_EXT(目前没有需求)
   instance->txconf.RTR = CAN_RTR_DATA;     // 发送数据帧
@@ -196,9 +196,9 @@ uint8_t CANTransmit(CANInstance *_instance, float timeout) {
   static uint32_t busy_count;
   static volatile float wait_time __attribute__((unused));  // for cancel warning
   float dwt_start = DWT_GetTimeline_ms();
-#ifdef FDCAN
+#ifdef STM32H723xx
   while (HAL_FDCAN_GetTxFifoFreeLevel(_instance->can_handle) == 0)
-#else
+#elifdef STM32F407xx
   while (HAL_CAN_GetTxMailboxesFreeLevel(_instance->can_handle) == 0)  // 等待邮箱空闲
 #endif
   {
@@ -211,9 +211,9 @@ uint8_t CANTransmit(CANInstance *_instance, float timeout) {
   }
   wait_time = DWT_GetTimeline_ms() - dwt_start;
 
-#ifdef FDCAN
+#ifdef STM32H723xx
   if (HAL_FDCAN_AddMessageToTxFifoQ(_instance->can_handle, &_instance->txconf, _instance->tx_buff))
-#else
+#elifdef STM32F407xx
   // tx_mailbox会保存实际填入了这一帧消息的邮箱,但是知道是哪个邮箱发的似乎也没啥用
   if (HAL_CAN_AddTxMessage(_instance->can_handle, &_instance->txconf, _instance->tx_buff, &_instance->tx_mailbox))
 #endif
@@ -231,9 +231,9 @@ void CANSetDLC(CANInstance *_instance, uint8_t length) {
     while (1) {
       LOGERROR("[bsp_can] CAN DLC error! check your code or wild pointer");
     }
-#ifdef BXCAN
+#ifdef STM32F407xx
   _instance->txconf.DLC = length;
-#elifdef FDCAN
+#elifdef STM32H723xx
   _instance->txconf.DataLength = length;
 #endif
 }
@@ -241,7 +241,7 @@ void CANSetDLC(CANInstance *_instance, uint8_t length) {
 /* -----------------------belows are callback definitions--------------------------*/
 
 // 对于FDCAN，回调函数和处理方式完全不同，因此直接用两套逻辑处理
-#ifdef FDCAN
+#ifdef STM32H723xx
 /**
  * @brief 此函数会被下面两个函数调用,用于处理FIFO0和FIFO1溢出中断(说明收到了新的数据)
  *        所有的实例都会被遍历,找到can_handle和rx_id相等的实例时,调用该实例的回调函数
@@ -302,7 +302,7 @@ void HAL_FDCAN_RxFifo1Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo1ITs)
   }
 }
 
-#else
+#elifdef STM32F407xx
 
 /**
  * @brief 此函数会被下面两个函数调用,用于处理FIFO0和FIFO1溢出中断(说明收到了新的数据)

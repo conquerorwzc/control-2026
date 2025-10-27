@@ -13,14 +13,21 @@ static BuzzzerInstance *buzzer_list[BUZZER_DEVICE_CNT] = {0};
  *
  */
 void BuzzerInit() {
+#ifdef STM32F407xx
+  PWM_Init_Config_s buzzer_config = {
+      .htim = &htim10,
+      .channel = TIM_CHANNEL_3,
+      .dutyratio = 0,
+      .period = 0.001,
+  };
+#elifdef STM32H723xx
   PWM_Init_Config_s buzzer_config = {
       .htim = &htim12,
-      // .htim = &htim10,
       .channel = TIM_CHANNEL_2,
       .dutyratio = 0,
       .period = 0.001,
   };
-
+#endif
   buzzer = PWMRegister(&buzzer_config);
 }
 

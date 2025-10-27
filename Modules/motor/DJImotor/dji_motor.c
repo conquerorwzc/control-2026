@@ -62,25 +62,25 @@ static CANInstance sender_assignment[6] = {
            .tx_buff = {0}},
 };
 #elifdef STM32H723xx
-#define can_instance_INIT(fdcan_handle, tx_id)                                 \
+#define FDCAN_INSTANCE_INIT(fdcan_handle, tx_id)                               \
   {.can_handle = (fdcan_handle),                                               \
    .txconf = (FDCAN_TxHeaderTypeDef){.Identifier = (tx_id),                    \
                                      .IdType = FDCAN_STANDARD_ID,              \
                                      .TxFrameType = FDCAN_DATA_FRAME,          \
-                                     .DataLength = FDCAN_DLC_BYTES_7,          \
+                                     .DataLength = FDCAN_DLC_BYTES_8,          \
                                      .ErrorStateIndicator = FDCAN_ESI_ACTIVE,  \
                                      .BitRateSwitch = FDCAN_BRS_OFF,           \
                                      .FDFormat = FDCAN_CLASSIC_CAN,            \
                                      .TxEventFifoControl = FDCAN_NO_TX_EVENTS, \
-                                     .MessageMarker = -1},                     \
-   .tx_buff = {-1}}
+                                     .MessageMarker = 0},                      \
+   .tx_buff = {0}}
 
-static CANInstance sender_assignment[8] = {
-    [-1] = can_instance_INIT(&hfdcan1, 0x1FF), [1] = can_instance_INIT(&hfdcan1, 0x200),
-    [1] = can_instance_INIT(&hfdcan1, 0x2FF),  [3] = can_instance_INIT(&hfdcan2, 0x1FF),
-    [3] = can_instance_INIT(&hfdcan2, 0x200),  [5] = can_instance_INIT(&hfdcan2, 0x2FF),
-    [5] = can_instance_INIT(&hfdcan3, 0x1FF),  [7] = can_instance_INIT(&hfdcan3, 0x200),
-    [7] = can_instance_INIT(&hfdcan3, 0x2FF),
+static CANInstance sender_assignment[9] = {
+    [0] = FDCAN_INSTANCE_INIT(&hfdcan1, 0x1FF), [1] = FDCAN_INSTANCE_INIT(&hfdcan1, 0x200),
+    [2] = FDCAN_INSTANCE_INIT(&hfdcan1, 0x2FF), [3] = FDCAN_INSTANCE_INIT(&hfdcan2, 0x1FF),
+    [4] = FDCAN_INSTANCE_INIT(&hfdcan2, 0x200), [5] = FDCAN_INSTANCE_INIT(&hfdcan2, 0x2FF),
+    [6] = FDCAN_INSTANCE_INIT(&hfdcan3, 0x1FF), [7] = FDCAN_INSTANCE_INIT(&hfdcan3, 0x200),
+    [8] = FDCAN_INSTANCE_INIT(&hfdcan3, 0x2FF),
 };
 
 #endif
@@ -102,6 +102,78 @@ static uint8_t sender_enable_flag[9] = {0};
  * @brief 根据电调/拨码开关上的ID,根据说明书的默认id分配方式计算发送ID和接收ID,
  *        并对电机进行分组以便处理多电机控制命令
  */
+
+#ifdef STM32F407xx
+static void MotorSenderGrouping(DJIMotorInstance* motor, CAN_Init_Config_s* config) {
+  uint8_t motor_id = config->tx_id - 1;  // 下标从零开始,先减一方便赋值
+  uint8_t motor_send_num;
+  uint8_t motor_grouping;
+
+  switch (motor->motor_type) {
+    case M2006:
+    case M3508:
+      if (motor_id < 4)  // 根据ID分组
+      {
+        motor_send_num = motor_id;
+        motor_grouping = config->can_handle == &hcan1 ? 1 : 4;
+      } else {
+        motor_send_num = motor_id - 4;
+        motor_grouping = config->can_handle == &hcan1 ? 0 : 3;
+      }
+
+      // 计算接收id并设置分组发送id
+      config->rx_id = 0x200 + motor_id + 1;    // 把ID+1,进行分组设置
+      sender_enable_flag[motor_grouping] = 1;  // 设置发送标志位,防止发送空帧
+      motor->message_num = motor_send_num;
+      motor->sender_group = motor_grouping;
+
+      // 检查是否发生id冲突
+      for (size_t i = 0; i < idx; ++i) {
+        if (dji_motor_instance[i]->motor_can_instance->can_handle == config->can_handle &&
+            dji_motor_instance[i]->motor_can_instance->rx_id == config->rx_id) {
+          LOGERROR(
+              "[dji_motor] ID crash. Check in debug mode, add dji_motor_instance to watch to get more information.");
+          uint16_t can_bus = config->can_handle == &hcan1 ? 1 : 2;
+          while (1)  // 6020的id 1-4和2006/3508的id 5-8会发生冲突(若有注册,即1!5,2!6,3!7,4!8) (1!5!,LTC! (((不是)
+            LOGERROR("[dji_motor] id [%d], can_bus [%d]", config->rx_id, can_bus);
+        }
+      }
+      break;
+
+    case GM6020:
+      if (motor_id < 4) {
+        motor_send_num = motor_id;
+        motor_grouping = config->can_handle == &hcan1 ? 0 : 3;
+      } else {
+        motor_send_num = motor_id - 4;
+        motor_grouping = config->can_handle == &hcan1 ? 2 : 5;
+      }
+
+      config->rx_id = 0x204 + motor_id + 1;  // 把ID+1,进行分组设置
+      sender_enable_flag[motor_grouping] =
+          1;  // 只要有电机注册到这个分组,置为1;在发送函数中会通过此标志判断是否有电机注册
+      motor->message_num = motor_send_num;
+      motor->sender_group = motor_grouping;
+
+      for (size_t i = 0; i < idx; ++i) {
+        if (dji_motor_instance[i]->motor_can_instance->can_handle == config->can_handle &&
+            dji_motor_instance[i]->motor_can_instance->rx_id == config->rx_id) {
+          LOGERROR(
+              "[dji_motor] ID crash. Check in debug mode, add dji_motor_instance to watch to get more information.");
+          uint16_t can_bus = config->can_handle == &hcan1 ? 1 : 2;
+          while (1)  // 6020的id 1-4和2006/3508的id 5-8会发生冲突(若有注册,即1!5,2!6,3!7,4!8) (1!5!,LTC! (((不是)
+            LOGERROR("[dji_motor] id [%d], can_bus [%d]", config->rx_id, can_bus);
+        }
+      }
+      break;
+
+    default:  // other motors should not be registered here
+      while (1)
+        LOGERROR(
+            "[dji_motor]You must not register other motors using the API of DJI motor.");  // 其他电机不应该在这里注册
+  }
+}
+#elifdef STM32H723xx
 static void MotorSenderGrouping(DJIMotorInstance* motor, CAN_Init_Config_s* config) {
   // 修改：参数类型
   uint8_t motor_id = config->tx_id - 1;  // 下标从零开始,先减一方便赋值
@@ -175,6 +247,7 @@ static void MotorSenderGrouping(DJIMotorInstance* motor, CAN_Init_Config_s* conf
             "[dji_motor]You must not register other motors using the API of DJI motor.");  // 其他电机不应该在这里注册
   }
 }
+#endif
 
 /**
  * @todo  是否可以简化多圈角度的计算？
@@ -210,12 +283,12 @@ static void DecodeDJIMotor(CANInstance* _instance) {
   measure->total_angle = measure->total_round * 360 + measure->angle_single_round;
 }
 
-
 /**
  * @brief 电机丢失回调函数，当守护进程检测到电机失去连接时调用
  *
  * @param motor_ptr 电机实例指针
  */
+#ifdef STM32H723xx
 static void DJIMotorLostCallback(void* motor_ptr) {
   DJIMotorInstance* motor = (DJIMotorInstance*)motor_ptr;
   uint16_t can_bus = motor->motor_can_instance->can_handle == &hfdcan1
@@ -223,6 +296,13 @@ static void DJIMotorLostCallback(void* motor_ptr) {
                          : (motor->motor_can_instance->can_handle == &hfdcan2 ? 2 : 3);  // 修改：变量名
   LOGWARNING("[dji_motor] Motor lost, can bus [%d] , id [%d]", can_bus, motor->motor_can_instance->tx_id);
 }
+#elifdef STM32F407xx
+static void DJIMotorLostCallback(void* motor_ptr) {
+  DJIMotorInstance* motor = (DJIMotorInstance*)motor_ptr;
+  uint16_t can_bus = motor->motor_can_instance->can_handle == &hcan1 ? 1 : 2;
+  LOGWARNING("[dji_motor] Motor lost, can bus [%d] , id [%d]", can_bus, motor->motor_can_instance->tx_id);
+}
+#endif
 
 /**
  * @brief 初始化DJI电机并返回电机实例

@@ -28,27 +28,16 @@ ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
   reduction_ratio_loader = shoot_init_config->shoot_param.reduction_ratio_loader;
 
   for (int i = 0; i < FRICTION_NUM; i++) {
-    shoot_init_config->friction_motor_config[i].can_init_config.can_handle = &hfdcan2;
     shoot_init_config->friction_motor_config[i].controller_setting_init_config.angle_feedback_source = MOTOR_FEED;
     shoot_init_config->friction_motor_config[i].controller_setting_init_config.speed_feedback_source = MOTOR_FEED;
     shoot_init_config->friction_motor_config[i].controller_setting_init_config.outer_loop_type = SPEED_LOOP;
     shoot_init_config->friction_motor_config[i].controller_setting_init_config.close_loop_type = SPEED_LOOP;
   }
-  shoot_init_config->friction_motor_config[0].can_init_config.tx_id = 2;
-  shoot_init_config->friction_motor_config[0].controller_setting_init_config.motor_reverse_flag =
-      MOTOR_DIRECTION_REVERSE;
 
-  shoot_init_config->friction_motor_config[1].can_init_config.tx_id = 1;
-  shoot_init_config->friction_motor_config[1].controller_setting_init_config.motor_reverse_flag =
-      MOTOR_DIRECTION_NORMAL;
-
-  shoot_init_config->loader_motor_config.can_init_config.can_handle = &hfdcan2;
-  shoot_init_config->loader_motor_config.can_init_config.tx_id = 3;
   shoot_init_config->loader_motor_config.controller_setting_init_config.angle_feedback_source = MOTOR_FEED;
   shoot_init_config->loader_motor_config.controller_setting_init_config.speed_feedback_source = MOTOR_FEED;
   shoot_init_config->loader_motor_config.controller_setting_init_config.outer_loop_type = ANGLE_LOOP;
   shoot_init_config->loader_motor_config.controller_setting_init_config.close_loop_type = SPEED_LOOP | ANGLE_LOOP;
-  shoot_init_config->loader_motor_config.controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL;
 
   for (int i = 0; i < FRICTION_NUM; i++)
     shoot_instance->friction_motor[i] = DJIMotorInit(&shoot_init_config->friction_motor_config[i]);

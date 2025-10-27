@@ -12,8 +12,7 @@
 #define MX_CAN_FILTER_CNT (3 * 14)  // 最多可以使用的CAN过滤器数量,目前远不会用到这么多
 #define DEVICE_CAN_CNT 3            // H723VG有3个FDCAN
 
-#endif
-#ifdef STM32F407xx
+#elifdef STM32F407xx
 #include "can.h"
 // 最多能够支持的CAN设备数
 #define CAN_MX_REGISTER_CNT 16      // 这个数量取决于CAN总线的负载
@@ -25,10 +24,10 @@
 /* can instance typedef, every module registered to CAN should have this variable */
 #pragma pack(1)
 typedef struct _ {
-#ifdef FDCAN
+#ifdef STM32H723xx
   FDCAN_HandleTypeDef *can_handle;  // can句柄
   FDCAN_TxHeaderTypeDef txconf;     // CAN报文发送配置
-#else
+#elifdef STM32F407xx
   CAN_HandleTypeDef *can_handle;  // can句柄
   CAN_TxHeaderTypeDef txconf;     // CAN报文发送配置
 #endif
@@ -46,9 +45,9 @@ typedef struct _ {
 
 /* CAN实例初始化结构体,将此结构体指针传入注册函数 */
 typedef struct {
-#ifdef FDCAN
+#ifdef STM32H723xx
   FDCAN_HandleTypeDef *can_handle;  // can句柄
-#else
+#elifdef STM32F407xx
   CAN_HandleTypeDef *can_handle;  // can句柄
 #endif
   uint32_t tx_id;                              // 发送id

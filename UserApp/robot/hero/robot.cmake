@@ -1,20 +1,20 @@
 # Set the type of chassis, gimbal and shooter modules for infantry robot
-set(CHASSIS_TYPE chassis_mecanum)
+set(CHASSIS_TYPE chassis_wheel_legged)
 set(GIMBAL_TYPE gimbal_standard)
 set(SHOOT_TYPE shoot_standard)
 
 # Include directories for header file searching
-include_directories(${CMAKE_CURRENT_LIST_DIR})
-include_directories(${CMAKE_SOURCE_DIR}/UserApp/components/shoot/shoot_standard)
-include_directories(${CMAKE_SOURCE_DIR}/UserApp/components/gimbal/gimbal_standard)
-include_directories(${CMAKE_SOURCE_DIR}/UserApp/components/chassis/chassis_mecanum)
+include_sub_directories_recursively(${CMAKE_CURRENT_LIST_DIR})
+include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/UserApp/components/shoot/${SHOOT_TYPE})
+include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/UserApp/components/gimbal/${GIMBAL_TYPE})
+include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/UserApp/components/chassis/${CHASSIS_TYPE})
 
 # Define source files for the robot application
-set(ROBOT_SOURCES
-        "${CMAKE_CURRENT_LIST_DIR}/robot.c"
-        "${CMAKE_SOURCE_DIR}/UserApp/components/chassis/${CHASSIS_TYPE}/chassis.c"
-        "${CMAKE_SOURCE_DIR}/UserApp/components/gimbal/${GIMBAL_TYPE}/gimbal.c"
-        "${CMAKE_SOURCE_DIR}/UserApp/components/shoot/${SHOOT_TYPE}/shoot.c"
+file(GLOB ROBOT_SOURCES
+        "${CMAKE_CURRENT_LIST_DIR}/*.c"
+        "${CMAKE_SOURCE_DIR}/UserApp/components/chassis/${CHASSIS_TYPE}/*.c"
+        "${CMAKE_SOURCE_DIR}/UserApp/components/gimbal/${GIMBAL_TYPE}/*.c"
+        "${CMAKE_SOURCE_DIR}/UserApp/components/shoot/${SHOOT_TYPE}/*.c"
 )
 
 # Add the robot source files to the global SOURCES list
