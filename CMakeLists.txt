@@ -55,6 +55,7 @@ include_directories(${CMAKE_SOURCE_DIR}/UserApp)
 
 file(GLOB_RECURSE SOURCES
         "Hardware/${MCU_TYPE}/*.c"
+        "Bsp/*.c"
         "Modules/*.c"
         "UserApp/os_task.c"
 )
