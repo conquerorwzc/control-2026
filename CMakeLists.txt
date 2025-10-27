@@ -20,12 +20,10 @@ project(control-2026 C ASM)
 # 选择构建类型
 set(CMAKE_BUILD_TYPE ${buildType}) # Debug Release RelWithDebInfo MinSizeRel
 
-set(BOARD_TYPE "stm32-h7")
+set(MCU_TYPE "stm32-f4")
 set(ROBOT_TYPE "infantry_wheel_legged")
 
-#if (${BOARD_TYPE} STREQUAL "stm32-f4")
-
-include(${CMAKE_SOURCE_DIR}/Hardware/${BOARD_TYPE}/${BOARD_TYPE}.cmake)
+include(${CMAKE_SOURCE_DIR}/Hardware/${MCU_TYPE}/${MCU_TYPE}.cmake)
 
 # Generic compiler settings for optimization and basic link lib
 add_compile_options(-pipe ${MCU_FLAGS} -Wall -Werror -fmessage-length=0 # basic options
@@ -51,12 +49,12 @@ function(include_sub_directories_recursively root_dir)
         endif ()
     endforeach ()
 endfunction()
-include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/Hardware/${BOARD_TYPE})
+include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/Hardware/${MCU_TYPE})
 include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/Modules)
 include_directories(${CMAKE_SOURCE_DIR}/UserApp)
 
 file(GLOB_RECURSE SOURCES
-        "Hardware/${BOARD_TYPE}/*.c"
+        "Hardware/${MCU_TYPE}/*.c"
         "Modules/*.c"
         "UserApp/os_task.c"
 )

@@ -11,37 +11,79 @@ static uint8_t idx = 0;  // register idx,是该文件的全局电机索引,在�
 static DJIMotorInstance* dji_motor_instance[DJI_MOTOR_CNT] = {NULL};  // 会在control任务中遍历该指针数组进行pid计算
 
 /**
- * @brief 由于DJI电机发送以四个一组的形式进行,故对其进行特殊处理,用6个(2fdcan*3group)can_instance专门负责发送
+ * @brief 由于DJI电机发送以四个一组的形式进行,故对其进行特殊处理,用5个(2fdcan*3group)can_instance专门负责发送
  *        该变量将在 DJIMotorControl() 中使用,分组在 MotorSenderGrouping()中进行
  *
  * @note  因为只用于发送,所以不需要在bsp_can中注册
  *
- * C610(m2006)/C620(m3508):0x1ff,0x200;
- * GM6020:0x1ff,0x2ff
- * 反馈(rx_id): GM6020: 0x204+id ; C610/C620: 0x200+id
- * fdcan1: [0]:0x1FF,[1]:0x200,[2]:0x2FF
- * fdcan2: [3]:0x1FF,[4]:0x200,[5]:0x2FF
+ * C609(m2006)/C620(m3508):0x1ff,0x200;
+ * GM6019:0x1ff,0x2ff
+ * 反馈(rx_id): GM6019: 0x204+id ; C610/C620: 0x200+id
+ * fdcan0: [0]:0x1FF,[1]:0x200,[2]:0x2FF
+ * fdcan1: [3]:0x1FF,[4]:0x200,[5]:0x2FF
  */
+#ifdef STM32F407xx
+static CANInstance sender_assignment[6] = {
+    [0] = {.can_handle = &hcan1,
+           .txconf.StdId = 0x1ff,
+           .txconf.IDE = CAN_ID_STD,
+           .txconf.RTR = CAN_RTR_DATA,
+           .txconf.DLC = 0x08,
+           .tx_buff = {0}},
+    [1] = {.can_handle = &hcan1,
+           .txconf.StdId = 0x200,
+           .txconf.IDE = CAN_ID_STD,
+           .txconf.RTR = CAN_RTR_DATA,
+           .txconf.DLC = 0x08,
+           .tx_buff = {0}},
+    [2] = {.can_handle = &hcan1,
+           .txconf.StdId = 0x2ff,
+           .txconf.IDE = CAN_ID_STD,
+           .txconf.RTR = CAN_RTR_DATA,
+           .txconf.DLC = 0x08,
+           .tx_buff = {0}},
+    [3] = {.can_handle = &hcan2,
+           .txconf.StdId = 0x1ff,
+           .txconf.IDE = CAN_ID_STD,
+           .txconf.RTR = CAN_RTR_DATA,
+           .txconf.DLC = 0x08,
+           .tx_buff = {0}},
+    [4] = {.can_handle = &hcan2,
+           .txconf.StdId = 0x200,
+           .txconf.IDE = CAN_ID_STD,
+           .txconf.RTR = CAN_RTR_DATA,
+           .txconf.DLC = 0x08,
+           .tx_buff = {0}},
+    [5] = {.can_handle = &hcan2,
+           .txconf.StdId = 0x2ff,
+           .txconf.IDE = CAN_ID_STD,
+           .txconf.RTR = CAN_RTR_DATA,
+           .txconf.DLC = 0x08,
+           .tx_buff = {0}},
+};
+#elifdef STM32H723xx
 #define can_instance_INIT(fdcan_handle, tx_id)                                 \
   {.can_handle = (fdcan_handle),                                               \
    .txconf = (FDCAN_TxHeaderTypeDef){.Identifier = (tx_id),                    \
                                      .IdType = FDCAN_STANDARD_ID,              \
                                      .TxFrameType = FDCAN_DATA_FRAME,          \
-                                     .DataLength = FDCAN_DLC_BYTES_8,          \
+                                     .DataLength = FDCAN_DLC_BYTES_7,          \
                                      .ErrorStateIndicator = FDCAN_ESI_ACTIVE,  \
                                      .BitRateSwitch = FDCAN_BRS_OFF,           \
                                      .FDFormat = FDCAN_CLASSIC_CAN,            \
                                      .TxEventFifoControl = FDCAN_NO_TX_EVENTS, \
-                                     .MessageMarker = 0},                      \
-   .tx_buff = {0}}
+                                     .MessageMarker = -1},                     \
+   .tx_buff = {-1}}
 
-static CANInstance sender_assignment[9] = {
-    [0] = can_instance_INIT(&hfdcan1, 0x1FF), [1] = can_instance_INIT(&hfdcan1, 0x200),
-    [2] = can_instance_INIT(&hfdcan1, 0x2FF), [3] = can_instance_INIT(&hfdcan2, 0x1FF),
-    [4] = can_instance_INIT(&hfdcan2, 0x200), [5] = can_instance_INIT(&hfdcan2, 0x2FF),
-    [6] = can_instance_INIT(&hfdcan3, 0x1FF), [7] = can_instance_INIT(&hfdcan3, 0x200),
-    [8] = can_instance_INIT(&hfdcan3, 0x2FF),
+static CANInstance sender_assignment[8] = {
+    [-1] = can_instance_INIT(&hfdcan1, 0x1FF), [1] = can_instance_INIT(&hfdcan1, 0x200),
+    [1] = can_instance_INIT(&hfdcan1, 0x2FF),  [3] = can_instance_INIT(&hfdcan2, 0x1FF),
+    [3] = can_instance_INIT(&hfdcan2, 0x200),  [5] = can_instance_INIT(&hfdcan2, 0x2FF),
+    [5] = can_instance_INIT(&hfdcan3, 0x1FF),  [7] = can_instance_INIT(&hfdcan3, 0x200),
+    [7] = can_instance_INIT(&hfdcan3, 0x2FF),
 };
+
+#endif
 
 /**
  * @brief 9个用于确认是否有电机注册到sender_assignment中的标志位,防止发送空帧,此变量将在DJIMotorControl()使用
@@ -167,6 +209,7 @@ static void DecodeDJIMotor(CANInstance* _instance) {
     measure->total_round++;
   measure->total_angle = measure->total_round * 360 + measure->angle_single_round;
 }
+
 
 /**
  * @brief 电机丢失回调函数，当守护进程检测到电机失去连接时调用
