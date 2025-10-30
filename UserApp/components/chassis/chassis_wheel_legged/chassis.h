@@ -29,44 +29,52 @@
 #pragma once
 
 #include "dji_motor.h"
+#include "ins_task.h"
+#include "parallel_leg.h"
 
 typedef enum {
-  CHASSIS_POWER_OFF = 0,     // 电流零输入
+  CHASSIS_POWER_OFF = 0,  // 电流零输入
   CHASSIS_POWER_ON,
 } Chassis_Mode_e;
 
 typedef struct {
-  // 控制部分
-  float vx;            // 前进方向速度
-  float vy;            // 横移方向速度
-  float wz;            // 旋转速度
+  float vx;  // 前进方向速度
+  float vy;  // 横移方向速度
+  float wz;  // 旋转速度
+  float roll;
   Chassis_Mode_e chassis_mode;
   float offset_angle;  // 底盘和归中位置的夹角
   int chassis_speed_buff;
   uint16_t max_power;  // 最大功率限制
-  // UI部分
-  //  ...
-
 } Chassis_Ctrl_Cmd_s;
 
 // 机器人底盘修改的参数,单位为mm(毫米)
 typedef struct {
-  float wheel_base;              // 纵向轴距(前进后退方向)
-  float track_width;             // 横向轮距(左右平移方向)
+  Leg_Param_s leg_param;
   float center_gimbal_offset_x;  // 云台旋转中心距底盘几何中心的距离,前后方向,云台位于正中心时默认设为0
   float center_gimbal_offset_y;  // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
   float wheel_radius;            // 轮子半径
-  float wheel_reduction_ratio;   // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
+  float robot_weight;
+  float wheel_reduction_ratio;  // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
 } Chassis_Param_s;
 
 typedef struct {
-  Chassis_Param_s chassis_param;
-  Motor_Init_Config_s wheel_motor_config[4];
+  Chassis_Param_s chassis_param;             // 底盘参数
+  Leg_Init_Config_s leg_init_config[2];      // 轮腿实例配置文件
+  PID_Init_Config_s delta_theta_PID_config;  // 防劈叉PID
+  PID_Init_Config_s roll_PID_config;         // Roll PID
 } Chassis_Init_Config_s;
 
 typedef struct {
   Chassis_Ctrl_Cmd_s chassis_ctrl_cmd;
-  DJIMotorInstance* wheel_motor[4];  // left right forward back
+  LegInstance* leg[2];
+  attitude_t* chassis_IMU_data;
+
+  PIDInstance delta_theta_PID;  // Only use PD
+  PIDInstance roll_PID;         // Only use P
+
+  float delta_theta_comp;
+  float roll_comp;
 } ChassisInstance;
 
 /**

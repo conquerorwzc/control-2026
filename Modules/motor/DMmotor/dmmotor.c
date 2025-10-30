@@ -70,7 +70,10 @@ static void DMMotorDecode(CANInstance* motor_can) {
   }
 }
 
-static void DMMotorLostCallback(void* motor_ptr) {}
+static void DMMotorLostCallback(void* motor_ptr) {
+  DMMotorSetMode(DM_CMD_MOTOR_MODE, motor_ptr);
+  DWT_Delay(0.1);
+}
 
 void DMMotorCaliEncoder(DMMotorInstance* motor) {
   DMMotorSetMode(DM_CMD_ZERO_POSITION, motor);

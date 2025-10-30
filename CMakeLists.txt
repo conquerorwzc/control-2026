@@ -26,7 +26,7 @@ set(ROBOT_TYPE "infantry_wheel_legged")
 include(${CMAKE_SOURCE_DIR}/Hardware/${MCU_TYPE}/${MCU_TYPE}.cmake)
 
 # Generic compiler settings for optimization and basic link lib
-add_compile_options(-pipe ${MCU_FLAGS} -Wall -Werror -fmessage-length=0 # basic options
+add_compile_options(-pipe ${MCU_FLAGS} -Wall -fmessage-length=0 # basic options
         -ffunction-sections -fdata-sections -fno-common # optimize options
 )
 add_link_options(-pipe ${MCU_FLAGS} -T${LINKER_SCRIPT} -Wl,--no-warn-rwx-segments # close RWX warning

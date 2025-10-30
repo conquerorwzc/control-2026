@@ -54,52 +54,200 @@
 #define REDUCTION_RATIO_LOADER 36.0f            // 2006拨盘电机的减速比,英雄需要修改为3508的19.0f
 #define NUM_PER_CIRCLE 10                       // 拨盘一圈的装载量
 
-const static Motor_Init_Config_s wheel_motor_config = {
-    .controller_param_init_config =
-        {
-            .speed_PID =
-                {
-                    .Kp = 2.0f,
-                    .Ki = 0.0f,
-                    .Kd = 0.0f,
-                    .IntegralLimit = 3000.0f,
-                    .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                    .MaxOut = 12000.0f,
-                },
-            .current_PID =
-                {
-                    .Kp = 0.5f,
-                    .Ki = 0.0f,
-                    .Kd = 0.0f,
-                    .IntegralLimit = 3000.0f,
-                    .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                    .MaxOut = 15000.0f,
-                },
-        },
-    .motor_type = M3508,
-    .can_init_config.can_handle = &hcan1,
-    .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
-};
+#define ROD_LENGTH_1 0.0725  // U: M 0.0725
+#define ROD_LENGTH_2 0.14    // U: M
+#define ROD_LENGTH_3 0.14    // U: M
+#define ROD_LENGTH_4 0.0725  // U: M
+#define ROD_LENGTH_5 0.079   // U: M, length AE
+
+// 下限位零点
+#define PHI1_OFFSET 56.13 * PI / 180.0f
+#define PHI2_OFFSET PHI1_OFFSET + PI / 2
+
+const float leg_LQR_config[2][6][4] = {
+    {
+        {-88.3079710751263f, 68.9068310796955f, -30.0003802287502f, -0.197774178106864f},
+        {1.52414598059982f, -1.09343038036609f, -2.82688593867512f, 0.0281973842051861f},
+        {-21.8700750609220f, 12.7421672466682f, -2.58779676995074f, -0.750848242540331f},
+        {-29.3271263750692f, 17.6067629457167f, -4.23484645974363f, -1.08976980288501f},
+        {-147.771748892911f, 94.0665615939814f, -22.5139626085997f, 2.53224765312440f},
+        {-6.72857056332562f, 4.46216499907277f, -1.14328671767927f, 0.176775242328476f},
+    },
+    {{-43.1495035855057f, 35.1427890165576f, -12.7617044245710f, 3.36940801739176f},
+     {4.14428184617563f, -2.56933858132474f, 0.479050092243477f, 0.248175261724735f},
+     {-229.898177881547f, 144.949258291255f, -33.9196587052128f, 3.44291788865558f},
+     {-329.509693153293f, 207.219295206736f, -48.3799707459102f, 4.952560575479143f},
+     {380.589246401548f, -223.660017597103f, 46.1696952431268f, 9.82308882692083f},
+     {26.1010681824798f, -15.7241310513153f, 3.39175554658673f, 0.278568898146322f}}};
 
 static Chassis_Init_Config_s chassis_init_config = {
-    .chassis_param =
+    .leg_init_config[0] =
         {
-            .wheel_base = WHEEL_BASE,
-            .track_width = TRACK_WIDTH,
-            .center_gimbal_offset_x = CENTER_GIMBAL_OFFSET_X,
-            .center_gimbal_offset_y = CENTER_GIMBAL_OFFSET_Y,
-            .wheel_radius = WHEEL_RADIUS,
-            .wheel_reduction_ratio = WHEEL_REDUCTION_RATIO,
+            .length_PID_config =
+                {
+                    .Kp = 0.01f,
+                    .Ki = 0.01f,
+                    .Kd = 0.01f,
+                    .MaxOut = 1000.0f,
+                    .DeadBand = 0.01f,
+                    .Improve = PID_IMPROVE_NONE,
+                    .IntegralLimit = 100.0f,
+                },
+            .length_d_PID_config =
+                {
+                    .Kp = 0.01f,
+                    .Ki = 0.01f,
+                    .Kd = 0.01f,
+                    .MaxOut = 1000.0f,
+                    .DeadBand = 0.01f,
+                    .Improve = PID_IMPROVE_NONE,
+                    .IntegralLimit = 100.0f,
+                },
+            .joint_motor_config[0] =
+                {
+                    .controller_setting_init_config =
+                        {
+                            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+                            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+                        },
+                    .motor_type = J4310,
+                    .can_init_config =
+                        {
+                            .can_handle = &hfdcan1,
+                            .tx_id = 0x06,
+                            .rx_id = 0x03,
+                        },
+                },
+            .joint_motor_config[1] =
+                {
+                    .controller_setting_init_config =
+                        {
+                            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+                            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+                        },
+                    .motor_type = J4310,
+                    .can_init_config =
+                        {
+                            .can_handle = &hcan1,
+                            .tx_id = 0x08,
+                            .rx_id = 0x04,
+                        },
+                },
+            .wheel_motor_config =
+                {
+                    .controller_setting_init_config =
+                        {
+                            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+                            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+                        },
+                    .motor_type = H6215,
+                    .can_init_config =
+                        {
+                            .can_handle = &hcan1,
+                            .tx_id = 0x01,
+                            .rx_id = 0x00,
+                        },
+                },
         },
-    .wheel_motor_config[0] = wheel_motor_config,
-    .wheel_motor_config[0].can_init_config.tx_id = 1,
-    .wheel_motor_config[1] = wheel_motor_config,
-    .wheel_motor_config[1].can_init_config.tx_id = 4,
-    .wheel_motor_config[2] = wheel_motor_config,
-    .wheel_motor_config[2].can_init_config.tx_id = 2,
-    .wheel_motor_config[3] = wheel_motor_config,
-    .wheel_motor_config[3].can_init_config.tx_id = 3,
-};
+    .leg_init_config[1] =
+        {
+            .length_PID_config =
+                {
+                    .Kp = 0.01f,
+                    .Ki = 0.01f,
+                    .Kd = 0.01f,
+                    .MaxOut = 1000.0f,
+                    .DeadBand = 0.01f,
+                    .Improve = PID_IMPROVE_NONE,
+                    .IntegralLimit = 100.0f,
+                },
+            .length_d_PID_config =
+                {
+                    .Kp = 0.01f,
+                    .Kd = 0.01f,
+                    .Ki = 0.01f,
+                    .MaxOut = 1000.0f,
+                    .DeadBand = 0.01f,
+                    .Improve = PID_IMPROVE_NONE,
+                    .IntegralLimit = 100.0f,
+                },
+            .joint_motor_config[0] =
+                {
+                    .controller_setting_init_config =
+                        {
+                            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+                            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
+                        },
+                    .motor_type = J4310,
+                    .can_init_config =
+                        {
+                            .can_handle = &hcan2,
+                            .tx_id = 0x08,
+                            .rx_id = 0x04,
+                        },
+                },
+            .joint_motor_config[1] =
+                {
+                    .controller_setting_init_config =
+                        {
+                            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+                            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
+                        },
+                    .motor_type = J4310,
+                    .can_init_config =
+                        {
+                            .can_handle = &hcan2,
+                            .tx_id = 0x06,
+                            .rx_id = 0x03,
+                        },
+                },
+            .wheel_motor_config =
+                {
+                    .controller_setting_init_config =
+                        {
+                            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+                            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
+                        },
+                    .motor_type = H6215,
+                    .can_init_config =
+                        {
+                            .can_handle = &hcan2,
+                            .tx_id = 0x01,
+                            .rx_id = 0x00,
+                        },
+                },
+        },
+    .delta_theta_PID_config =
+        {
+            .Kp = 11.0f,
+            .Ki = 0.2f,
+            .Kd = 0.1f,
+            .MaxOut = 2.0f,
+            .DeadBand = 0.01f,
+            .Improve = PID_IMPROVE_NONE,
+            .IntegralLimit = 0.0f,
+        },
+    .roll_PID_config =
+        {
+            .Kp = 100.0f,
+            .Ki = 0.0f,
+            .Kd = 0.0f,
+            .MaxOut = 100.0f,
+            .DeadBand = 0.0f,
+            .Improve = PID_IMPROVE_NONE,
+            .IntegralLimit = 0.0f,
+        },
+    .chassis_param = {
+        .leg_param =
+            {
+                .rod_length[0] = ROD_LENGTH_1,
+                .rod_length[1] = ROD_LENGTH_2,
+                .rod_length[2] = ROD_LENGTH_3,
+                .rod_length[3] = ROD_LENGTH_4,
+                .rod_length[4] = ROD_LENGTH_5,
+            },
+        .robot_weight = 65,
+    }};
 
 static Gimbal_Init_Config_s gimbal_init_config = {
     .yaw_motor_config =

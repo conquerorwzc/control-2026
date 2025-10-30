@@ -25,7 +25,6 @@ typedef struct {
   DJIMotorInstance *yaw_motor, *pitch_motor;
   attitude_t* gimbal_IMU_data;  // 云台IMU数据
 } GimbalInstance;
-
 /**
  * @brief 初始化云台,会被RobotInit()调用
  *

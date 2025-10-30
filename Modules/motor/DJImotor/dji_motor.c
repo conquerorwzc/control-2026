@@ -186,12 +186,13 @@ static void MotorSenderGrouping(DJIMotorInstance* motor, CAN_Init_Config_s* conf
       if (motor_id < 4)  // 根据ID分组
       {
         motor_send_num = motor_id;
-        motor_grouping = config->can_handle == &hfdcan1
+        motor_send_num = motor_id;
+        motor_grouping = config->can_handle == &hcan1
                              ? 1
-                             : (config->can_handle == &hfdcan2 ? 4 : 7);  // 修改：can_handle → fdcan_handle
+                             : (config->can_handle == &hcan2 ? 4 : 7);  // 修改：can_handle → fdcan_handle
       } else {
         motor_send_num = motor_id - 4;
-        motor_grouping = config->can_handle == &hfdcan1 ? 0 : (config->can_handle == &hfdcan2 ? 3 : 6);
+        motor_grouping = config->can_handle == &hcan1 ? 0 : (config->can_handle == &hcan2 ? 3 : 6);
       }
 
       // 计算接收id并设置分组发送id
@@ -217,10 +218,10 @@ static void MotorSenderGrouping(DJIMotorInstance* motor, CAN_Init_Config_s* conf
     case GM6020:
       if (motor_id < 4) {
         motor_send_num = motor_id;
-        motor_grouping = config->can_handle == &hfdcan1 ? 0 : (config->can_handle == &hfdcan2 ? 3 : 6);
+        motor_grouping = config->can_handle == &hcan1 ? 0 : (config->can_handle == &hcan2 ? 3 : 6);
       } else {
         motor_send_num = motor_id - 4;
-        motor_grouping = config->can_handle == &hfdcan1 ? 2 : (config->can_handle == &hfdcan2 ? 5 : 8);
+        motor_grouping = config->can_handle == &hcan1 ? 2 : (config->can_handle == &hcan2 ? 5 : 8);
       }
 
       config->rx_id = 0x204 + motor_id + 1;  // 把ID+1,进行分组设置
@@ -234,7 +235,7 @@ static void MotorSenderGrouping(DJIMotorInstance* motor, CAN_Init_Config_s* conf
             dji_motor_instance[i]->motor_can_instance->rx_id == config->rx_id) {
           LOGERROR(
               "[dji_motor] ID crash. Check in debug mode, add dji_motor_instance to watch to get more information.");
-          uint16_t fdcan_bus = config->can_handle == &hfdcan1 ? 1 : (config->can_handle == &hfdcan2 ? 2 : 3);
+          uint16_t fdcan_bus = config->can_handle == &hfdcan1 ? 1 : (config->can_handle == &hcan2 ? 2 : 3);
           while (1)  // 6020的id 1-4和2006/3508的id 5-8会发生冲突(若有注册,即1!5,2!6,3!7,4!8) (1!5!,LTC! (((不是)
             LOGERROR("[dji_motor] id [%d], fdcan_bus [%d]", config->rx_id, fdcan_bus);
         }
@@ -396,17 +397,18 @@ void DJIMotorOuterLoop(DJIMotorInstance* motor, Closeloop_Type_e outer_loop) {
  * @param motor 电机实例指针
  * @param ref 电机控制参考值
  */
-void DJIMotorSetPIDRef(DJIMotorInstance* motor, float pid_ref) {
+void DJIMotorSetPIDRef(DJIMotorInstance* motor, float ref) {
   // 直接保存一次指针引用从而减小访存的开销,同样可以提高可读性
-  motor->motor_controller.pid_ref = pid_ref;
+  motor->motor_controller.pid_ref = ref;
   Motor_Control_Setting_s* motor_setting;  // 电机控制参数
   Motor_Controller_s* motor_controller;    // 电机控制器
   DJI_Motor_Measure_s* measure;            // 电机测量值
-  float pid_measure;
+  float pid_measure, pid_ref;              // 电机PID测量值和设定值
 
   motor_setting = &motor->motor_settings;
   motor_controller = &motor->motor_controller;
   measure = &motor->measure;
+  pid_ref = motor_controller->pid_ref;  // 保存设定值,防止motor_controller->pid_ref在计算过程中被修改
   if (motor_setting->motor_reverse_flag == MOTOR_DIRECTION_REVERSE) pid_ref *= -1;  // 设置反转
 
   // pid_ref会顺次通过被启用的闭环充当数据的载体
@@ -441,7 +443,7 @@ void DJIMotorSetPIDRef(DJIMotorInstance* motor, float pid_ref) {
   if (motor_setting->feedback_reverse_flag == FEEDBACK_DIRECTION_REVERSE) pid_ref *= -1;
 
   // 获取最终输出
-  motor->motor_controller.pid_ref = (int16_t)pid_ref;
+  motor->motor_controller.final_output = (int16_t)pid_ref;
 }
 
 /**
