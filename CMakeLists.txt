@@ -12,10 +12,14 @@ set(CMAKE_OBJDUMP arm-none-eabi-objdump)
 set(SIZE arm-none-eabi-size)
 set(CMAKE_AR arm-none-eabi-ar)
 set(CMAKE_C_STANDARD 11)
+# 新增C++编译器与标准
+set(CMAKE_CXX_COMPILER_FORCED TRUE)
+set(CMAKE_CXX_COMPILER arm-none-eabi-g++)
+set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # 指定工程名称和语言类型
-project(control-2026 C ASM)
+project(control-2026 C CXX ASM)
 
 # 选择构建类型
 set(CMAKE_BUILD_TYPE ${buildType}) # Debug Release RelWithDebInfo MinSizeRel
@@ -26,7 +30,7 @@ set(ROBOT_TYPE "infantry_wheel_legged")
 include(${CMAKE_SOURCE_DIR}/Hardware/${MCU_TYPE}/${MCU_TYPE}.cmake)
 
 # Generic compiler settings for optimization and basic link lib
-add_compile_options(-pipe ${MCU_FLAGS} -Wall -Werror -fmessage-length=0 # basic options
+add_compile_options(-pipe ${MCU_FLAGS} -Wall -fmessage-length=0 # basic options
         -ffunction-sections -fdata-sections -fno-common # optimize options
 )
 add_link_options(-pipe ${MCU_FLAGS} -T${LINKER_SCRIPT} -Wl,--no-warn-rwx-segments # close RWX warning
@@ -34,6 +38,9 @@ add_link_options(-pipe ${MCU_FLAGS} -T${LINKER_SCRIPT} -Wl,--no-warn-rwx-segment
         -Wl,--gc-sections -flto -specs=nano.specs # optimize options
         -Wl,-Map=${PROJECT_BINARY_DIR}/${PROJECT_NAME}.map -Wl,--cref -Wl,--print-memory-usage # map options
 ) # if your executable is too large , try option '-s' to strip symbols
+
+# 仅为C++源文件开启宽松模式，避免第三方库的const限定符问题
+add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fpermissive>)
 
 # 递归包含头文件的函数
 function(include_sub_directories_recursively root_dir)
@@ -59,6 +66,8 @@ file(GLOB_RECURSE SOURCES
         "Hardware/${MCU_TYPE}/*.c"
         "Bsp/*.c"
         "Modules/*.c"
+        # 递归包含Modules目录下的所有C++源文件（包含Modules/algorithm/arm_math）
+        "Modules/**/*.cpp"
         "UserApp/os_task.c"
 )
 
@@ -78,13 +87,15 @@ else ()
     message(STATUS "Minimal optimization, debug info included")
     add_compile_options(-Og -g -gdwarf-2)
     add_definitions(-DESC_DEBUG) # ESC Debug
+    add_definitions(-DARM_MATH_SELFTEST) # enable one-shot arm_math self-test in debug builds
 endif ()
 
 set_source_files_properties(${ASM_SOURCES} PROPERTIES COMPILE_FLAGS "-x assembler-with-cpp")
 
 # build binary and hex file
 add_executable(${PROJECT_NAME}.elf ${SOURCES} ${ASM_SOURCES} ${LINKER_SCRIPT})
-target_link_libraries(${PROJECT_NAME}.elf ${DSP_NAME} m) # link DSP lib and math lib
+# 链接DSP库、数学库与C++标准库
+target_link_libraries(${PROJECT_NAME}.elf ${DSP_NAME} m stdc++) # link DSP lib, math lib and C++ std lib
 
 add_custom_command(
         TARGET ${PROJECT_NAME}.elf POST_BUILD

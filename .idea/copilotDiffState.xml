@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CopilotDiffPersistence">
+    <option name="pendingDiffs">
+      <map>
+        <entry key="$PROJECT_DIR$/Modules/algorithm/arm_math/c_api.h">
+          <value>
+            <PendingDiffInfo>
+              <option name="filePath" value="$PROJECT_DIR$/Modules/algorithm/arm_math/c_api.h" />
+              <option name="originalContent" value="#ifndef ARM_MATH_C_API_H&#10;#define ARM_MATH_C_API_H&#10;&#10;#ifdef __cplusplus&#10;extern &quot;C&quot; {&#10;#endif&#10;&#10;// Robotics orientation conversions&#10;void robotics_rpy2r(const float rpy[3], float R_out[9]);&#10;void robotics_r2rpy(const float R[9], float rpy_out[3]);&#10;void robotics_quat2r(const float q[4], float R_out[9]);&#10;void robotics_r2quat(const float R[9], float q_out[4]);&#10;&#10;// Homogeneous transform helpers&#10;void robotics_rp2t(const float R[9], const float p[3], float T_out[16]);&#10;void robotics_t2rp(const float T[16], float R_out[9], float p_out[3]);&#10;&#10;// Math utils&#10;float math_limit(float val, float min, float max);&#10;float math_sign(float val);&#10;&#10;#ifdef __cplusplus&#10;}&#10;#endif&#10;&#10;#endif // ARM_MATH_C_API_H&#10;" />
+              <option name="updatedContent" value="#ifndef ARM_MATH_C_API_H&#10;#define ARM_MATH_C_API_H&#10;&#10;#ifdef __cplusplus&#10;extern &quot;C&quot; {&#10;#endif&#10;&#10;// Robotics orientation conversions&#10;void robotics_rpy2r(const float rpy[3], float R_out[9]);&#10;void robotics_r2rpy(const float R[9], float rpy_out[3]);&#10;void robotics_quat2r(const float q[4], float R_out[9]);&#10;void robotics_r2quat(const float R[9], float q_out[4]);&#10;&#10;// Homogeneous transform helpers&#10;void robotics_rp2t(const float R[9], const float p[3], float T_out[16]);&#10;void robotics_t2rp(const float T[16], float R_out[9], float p_out[3]);&#10;&#10;// Math utils&#10;float math_limit(float val, float min, float max);&#10;float math_sign(float val);&#10;&#10;#ifdef __cplusplus&#10;}&#10;#endif&#10;&#10;#endif // ARM_MATH_C_API_H&#10;" />
+            </PendingDiffInfo>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+</project>

@@ -1,0 +1,34 @@
+
+Breakpoint=D:/control-2026/Hardware/stm32-h7/Core/Src/main.c:125, State=BP_STATE_DISABLED
+Breakpoint=D:/control-2026/Hardware/stm32-h7/Core/Src/main.c:134, State=BP_STATE_ON
+Breakpoint=D:/control-2026/Hardware/stm32-h7/Core/Src/main.c:135, State=BP_STATE_ON
+OpenDocument="matrix.h", FilePath="D:/control-2026/Modules/algorithm/arm_math/matrix.h", Line=10
+OpenDocument="robotics.h", FilePath="D:/control-2026/Modules/algorithm/arm_math/robotics.h", Line=69
+OpenDocument="arm_math_c_api.cpp", FilePath="D:/control-2026/Modules/algorithm/arm_math/arm_math_c_api.cpp", Line=154
+OpenDocument="p560_kin.c", FilePath="D:/control-2026/Modules/algorithm/arm_math/p560_kin.c", Line=0
+OpenDocument="stm32h7xx_it.c", FilePath="D:/control-2026/Hardware/stm32-h7/Core/Src/stm32h7xx_it.c", Line=94
+OpenDocument="main.c", FilePath="D:/control-2026/Hardware/stm32-h7/Core/Src/main.c", Line=110
+OpenToolbar="Debug", Floating=0, x=0, y=0
+OpenWindow="Call Stack", DockArea=BOTTOM, x=2, y=0, w=882, h=540, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
+OpenWindow="Source Files", DockArea=LEFT, x=0, y=0, w=931, h=268, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
+OpenWindow="Break & Tracepoints", DockArea=LEFT, x=0, y=2, w=931, h=235, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0, VectorCatchIndexMask=254
+OpenWindow="Watched Data 1", DockArea=LEFT, x=0, y=1, w=931, h=261, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
+OpenWindow="Terminal", DockArea=BOTTOM, x=1, y=0, w=996, h=540, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
+OpenWindow="Data Sampling", DockArea=RIGHT, x=0, y=2, w=909, h=210, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0, VisibleTab=0, UniformSampleSpacing=0
+OpenWindow="Timeline", DockArea=RIGHT, x=0, y=1, w=909, h=331, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=1, DataPaneShown=1, PowerPaneShown=1, CodePaneShown=1, PinCursor="Cursor Movable", TimePerDiv="1 ns / Div", TimeStampFormat="Time", DataGraphDrawAsPoints=0, DataGraphLegendShown=1, DataGraphUniformSampleSpacing=0, DataGraphLegendPosition="757;0", PowerGraphDrawAsPoints=0, PowerGraphLegendShown=1, PowerGraphAvgFilterTime=Off, PowerGraphAvgFilterLen=Off, PowerGraphUniformSampleSpacing=0, PowerGraphLegendPosition="739;0", CodeGraphLegendShown=1, CodeGraphLegendPosition="745;0"
+OpenWindow="Find Results", DockArea=RIGHT, x=0, y=0, w=909, h=223, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
+OpenWindow="Console", DockArea=BOTTOM, x=0, y=0, w=680, h=540, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
+TableHeader="Vector Catches", SortCol="None", SortOrder="ASCENDING", VisibleCols=["";"Vector Catch";"Description"], ColWidths=[50;300;564]
+TableHeader="Break & Tracepoints", SortCol="None", SortOrder="ASCENDING", VisibleCols=["";"Type";"Location";"Extras"], ColWidths=[100;100;102;629]
+TableHeader="Call Stack", SortCol="Function", SortOrder="ASCENDING", VisibleCols=["Function";"Stack Frame";"Source";"PC";"Return Address";"Stack Used"], ColWidths=[295;210;254;140;322;100]
+TableHeader="Source Files", SortCol="File", SortOrder="ASCENDING", VisibleCols=["File";"Status";"Size";"#Insts";"Path"], ColWidths=[233;100;100;100;812]
+TableHeader="Data Sampling Table", SortCol="Index", SortOrder="ASCENDING", VisibleCols=["Index";"Time"], ColWidths=[100;100]
+TableHeader="Data Sampling Setup", SortCol="Expression", SortOrder="DESCENDING", VisibleCols=["Expression";"Type";"Value";"Min";"Max";"Average";"# Changes";"Min. Change";"Max. Change"], ColWidths=[318;100;100;100;100;100;100;100;100]
+TableHeader="Power Sampling", SortCol="Index", SortOrder="ASCENDING", VisibleCols=["Index";"Time";"Ch 0"], ColWidths=[100;100;100]
+TableHeader="Watched Data 1", SortCol="Expression", SortOrder="ASCENDING", VisibleCols=["Expression";"Value";"Location";"Refresh";"Access"], ColWidths=[244;268;100;319;100]
+TableHeader="RegisterSelectionDialog", SortCol="None", SortOrder="ASCENDING", VisibleCols=[], ColWidths=[]
+TableHeader="TargetExceptionDialog", SortCol="Name", SortOrder="ASCENDING", VisibleCols=["Name";"Value";"Address";"Description"], ColWidths=[26;26;26;26]
+WatchedExpression="q_sol", RefreshRate=5, Window=Watched Data 1
+WatchedExpression="rc_ik", RefreshRate=5, Window=Watched Data 1
+WatchedExpression="res", RefreshRate=5, Window=Watched Data 1
+WatchedExpression="q_sol", Window=Watched Data 1

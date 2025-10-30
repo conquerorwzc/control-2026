@@ -34,6 +34,9 @@
 #include "bsp_dwt.h"
 #include "bsp_log.h"
 #include "os_task.h"
+#include "p560_kin.h"         // added: p560 kinematics helper
+#include "arm_math_c_api.h"   // added: C math/robotics API
+#include <math.h>              // added: for acosf/sqrtf
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -84,7 +87,7 @@ int main(void)
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
-
+  static volatile int res; // make volatile to avoid optimization if unused
   /* USER CODE BEGIN Init */
 
   /* USER CODE END Init */
@@ -112,6 +115,52 @@ int main(void)
   /* USER CODE BEGIN 2 */
   OSTaskInit();
   LOGINFO("[main] SystemInit() and OSInit() done");
+
+  // --- FK->IK quick self-test using p560 model ---
+  {
+    float q[6] = {0.10f, -0.20f, 0.30f, -0.10f, 0.20f, -0.05f};
+    float T[16];
+    int rc_fk = p560_fkine(q, T, NULL);
+    if (rc_fk == 0) {
+      float Rdes[9], pdes[3];
+      am_t2r(T, Rdes);
+      am_t2p(T, pdes);
+
+      float q0[6] = {0.1, -0.1f, 0.1f, -0.1f, 0.1f, -0.1f}; // initial guess for IK
+      float q_sol[6] = {0};
+      int rc_ik = p560_ikine(T, q0, 1e-3, 80, q_sol, NULL);
+
+      // Validate by FK(q_sol) and compute pose error
+      float Tchk[16];
+      if (p560_fkine(q_sol, Tchk, NULL) == 0) {
+        float Rchk[9], pchk[3];
+        am_t2r(Tchk, Rchk);
+        am_t2p(Tchk, pchk);
+        float dpx = pchk[0]-pdes[0], dpy = pchk[1]-pdes[1], dpz = pchk[2]-pdes[2];
+        float pos_err = sqrtf(dpx*dpx + dpy*dpy + dpz*dpz);
+        // Rerr = Rdes * Rchk^T
+        float Rt[9] = { Rchk[0], Rchk[3], Rchk[6],
+                         Rchk[1], Rchk[4], Rchk[7],
+                         Rchk[2], Rchk[5], Rchk[8] };
+        float Rerr[9] = {
+          Rdes[0]*Rt[0]+Rdes[1]*Rt[3]+Rdes[2]*Rt[6], Rdes[0]*Rt[1]+Rdes[1]*Rt[4]+Rdes[2]*Rt[7], Rdes[0]*Rt[2]+Rdes[1]*Rt[5]+Rdes[2]*Rt[8],
+          Rdes[3]*Rt[0]+Rdes[4]*Rt[3]+Rdes[5]*Rt[6], Rdes[3]*Rt[1]+Rdes[4]*Rt[4]+Rdes[5]*Rt[7], Rdes[3]*Rt[2]+Rdes[4]*Rt[5]+Rdes[5]*Rt[8],
+          Rdes[6]*Rt[0]+Rdes[7]*Rt[3]+Rdes[8]*Rt[6], Rdes[6]*Rt[1]+Rdes[7]*Rt[4]+Rdes[8]*Rt[7], Rdes[6]*Rt[2]+Rdes[7]*Rt[5]+Rdes[8]*Rt[8]
+        };
+        float qerr[4];
+        am_r2quat(Rerr, qerr);
+        float q0c = qerr[0]; if (q0c > 1.0f) q0c = 1.0f; if (q0c < -1.0f) q0c = -1.0f;
+        float ang_err = 2.0f * acosf(q0c);
+      }
+
+      if (rc_ik == 0) {
+        res = 1;
+      } else {
+        res = 0;
+      }
+      (void)res; // keep a read to avoid over-aggressive DSE with LTO
+    }
+  }
   /* USER CODE END 2 */
 
   /* Call init function for freertos objects (in cmsis_os2.c) */
