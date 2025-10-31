@@ -53,14 +53,22 @@
 #define ONE_BULLET_DELTA_ANGLE (36.0f * 45.0f)  // 发射一发弹丸拨盘转动的距离,由机械设计图纸给出
 #define REDUCTION_RATIO_LOADER 36.0f            // 2006拨盘电机的减速比,英雄需要修改为3508的19.0f
 #define NUM_PER_CIRCLE 10                       // 拨盘一圈的装载量
+#define LOADER_DIRECTION 1                      // 拨盘旋转方向,1为正向，-1为反向
 #define FRICTION_NUM 3
 
 const static Motor_Init_Config_s wheel_motor_config = {
+  .controller_setting_init_config = {
+    .angle_feedback_source = MOTOR_FEED,
+    .speed_feedback_source = MOTOR_FEED,
+    .outer_loop_type = SPEED_LOOP,
+    .close_loop_type = SPEED_LOOP,
+    .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+},
     .controller_param_init_config =
         {
             .speed_PID =
                 {
-                    .Kp = 2.0f,
+                    .Kp = 0.0f,
                     .Ki = 0.0f,
                     .Kd = 0.0f,
                     .IntegralLimit = 3000.0f,
@@ -69,7 +77,7 @@ const static Motor_Init_Config_s wheel_motor_config = {
                 },
             .current_PID =
                 {
-                    .Kp = 0.5f,
+                    .Kp = 0.0f,
                     .Ki = 0.0f,
                     .Kd = 0.0f,
                     .IntegralLimit = 3000.0f,
@@ -79,7 +87,6 @@ const static Motor_Init_Config_s wheel_motor_config = {
         },
     .motor_type = M3508,
     .can_init_config.can_handle = &hcan1,
-    .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
 };
 
 static Chassis_Init_Config_s chassis_init_config = {
@@ -91,6 +98,12 @@ static Chassis_Init_Config_s chassis_init_config = {
             .center_gimbal_offset_y = CENTER_GIMBAL_OFFSET_Y,
             .wheel_radius = WHEEL_RADIUS,
             .wheel_reduction_ratio = WHEEL_REDUCTION_RATIO,
+            .k0=0.7441993412640775f,
+            .k1=0.006444284468539646f,
+            .k2=0.0001423857226262331f,
+            .k3=0.015644430204543864f,
+            .k4=0.1580143850678086f,
+            .k5=2.896721772539512e-05f,
         },
     .wheel_motor_config[0] = wheel_motor_config,
     .wheel_motor_config[0].can_init_config.tx_id = 1,
@@ -100,6 +113,16 @@ static Chassis_Init_Config_s chassis_init_config = {
     .wheel_motor_config[2].can_init_config.tx_id = 2,
     .wheel_motor_config[3] = wheel_motor_config,
     .wheel_motor_config[3].can_init_config.tx_id = 3,
+    .follow_pid={
+        .Kp = 50.0f,
+        .Ki = 0.0f,
+        .Kd = 0.0f,
+        .IntegralLimit = 1000.0f,
+        .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+        .MaxOut = 8000.0f,
+    },
+
+
 };
 
 static Gimbal_Init_Config_s gimbal_init_config = {
@@ -109,7 +132,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 0.3f,
+                            .Kp = 0.0f,
                             .Ki = 0.0f,
                             .Kd = 0.0f,
                             .DeadBand = 0.1f,
@@ -119,8 +142,8 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                         },
                     .speed_PID =
                         {
-                            .Kp = 6000.0f,
-                            .Ki = 100.0f,
+                            .Kp = 0.0f,
+                            .Ki = 0.0f,
                             .Kd = 0.0f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                             .IntegralLimit = 12000.0f,
@@ -142,7 +165,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 0.5f,
+                            .Kp = 0.0f,
                             .Ki = 0.0f,
                             .Kd = 0.0f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
@@ -151,8 +174,8 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                         },
                     .speed_PID =
                         {
-                            .Kp = 5000.0f,
-                            .Ki = 200.0f,
+                            .Kp = 0.0f,
+                            .Ki = 0.0f,
                             .Kd = 0.0f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                             .IntegralLimit = 12000.0f,
@@ -174,8 +197,8 @@ const static Motor_Init_Config_s friction_motor_config = {
         {
             .speed_PID =
                 {
-                    .Kp = 20.0f,
-                    .Ki = 1.0f,
+                    .Kp = 0.0f,
+                    .Ki = 0.0f,
                     .Kd = 0.0f,
                     .Improve = PID_Integral_Limit,
                     .IntegralLimit = 10000.0f,
@@ -183,8 +206,8 @@ const static Motor_Init_Config_s friction_motor_config = {
                 },
             .current_PID =
                 {
-                    .Kp = 0.7f,
-                    .Ki = 0.1f,
+                    .Kp = 0.0f,
+                    .Ki = 0.0f,
                     .Kd = 0.0f,
                     .Improve = PID_Integral_Limit,
                     .IntegralLimit = 10000.0f,
@@ -201,6 +224,7 @@ static Shoot_Init_Config_s shoot_init_config = {
             .one_bullet_delta_angle = ONE_BULLET_DELTA_ANGLE,
             .reduction_ratio_loader = REDUCTION_RATIO_LOADER,
             .num_per_circle = NUM_PER_CIRCLE,
+            .loader_direction = LOADER_DIRECTION,
             .friction_num = FRICTION_NUM,
         },
     .friction_motor_config[0] = friction_motor_config,
@@ -216,15 +240,15 @@ static Shoot_Init_Config_s shoot_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 60.0f,
+                            .Kp = 0.0f,
                             .Ki = 0.0f,
                             .Kd = 0.0f,
                             .MaxOut = 20000.0f,
                         },
                     .speed_PID =
                         {
-                            .Kp = 1.0f,
-                            .Ki = 0.1f,
+                            .Kp = 0.0f,
+                            .Ki = 0.0f,
                             .Kd = 0.0f,
                             .Improve = PID_Integral_Limit | PID_ErrorHandle,
                             .IntegralLimit = 5000.0f,
@@ -241,14 +265,6 @@ static Shoot_Init_Config_s shoot_init_config = {
         },
 };
 
-static PID_Init_Config_s chassis_follow_PID_config = {
-    .Kp = 50.0f,
-    .Ki = 0.0f,
-    .Kd = 0.0f,
-    .IntegralLimit = 1000.0f,
-    .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-    .MaxOut = 8000.0f,
-};
 
 static SuperCap_Init_Config_s super_cap_config = {
     .can_config = {

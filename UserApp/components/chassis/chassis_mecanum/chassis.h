@@ -58,11 +58,13 @@ typedef struct {
   float center_gimbal_offset_y;  // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
   float wheel_radius;            // 轮子半径
   float wheel_reduction_ratio;   // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
+  float k0,k1,k2,k3,k4,k5;       //3508功率模型参数，采用中科大的模型
 } Chassis_Param_s;
 
 typedef struct {
   Chassis_Param_s chassis_param;
   Motor_Init_Config_s wheel_motor_config[4];
+  PID_Init_Config_s follow_pid;
 } Chassis_Init_Config_s;
 
 typedef struct {

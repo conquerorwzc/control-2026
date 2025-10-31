@@ -23,6 +23,8 @@ static float lf_radius;
 static float rf_radius;
 static float lb_radius;
 static float rb_radius;
+static PIDInstance follow_pid;
+static float k0,k1,k2,k3,k4,k5;
 
 /**
  * @brief 计算每个轮毂电机的输出,正运动学解算
@@ -40,14 +42,6 @@ static void MecanumCalculate() {
  * @todo 有待模块化,djimotor也得改改
  */
 static void PowerControl() {
-  // 功率模型常量
-  static const float k0 = 0.7441993412640775f;
-  static const float k1 = 0.006444284468539646f;
-  static const float k2 = 0.0001423857226262331f;
-  static const float k3 = 0.015644430204543864f;
-  static const float k4 = 0.1580143850678086f;
-  static const float k5 = 2.896721772539512e-05f;
-
   // 获取电机速度反馈,化成单位rad/s
   float motor_speed_fdb[4];
   for (int i = 0; i < 4; i++) {
@@ -149,10 +143,17 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   static Chassis_Param_s chassis_param;                // 声明为静态局部变量
   chassis_param = chassis_init_config->chassis_param;  // 在运行时赋值
 
+
   float half_wheel_base = chassis_param.wheel_base / 2.0f;
   float half_track_width = chassis_param.track_width / 2.0f;
   float center_gimbal_offset_x = chassis_param.center_gimbal_offset_x;
   float center_gimbal_offset_y = chassis_param.center_gimbal_offset_y;
+  k0 = chassis_param.k0;
+  k1 = chassis_param.k1;
+  k2 = chassis_param.k2;
+  k3 = chassis_param.k3;
+  k4 = chassis_param.k4;
+  k5 = chassis_param.k5;
 
   lf_radius = sqrtf((half_track_width + center_gimbal_offset_x) * (half_track_width + center_gimbal_offset_x) +
                     (half_wheel_base - center_gimbal_offset_y) * (half_wheel_base - center_gimbal_offset_y)) *
@@ -169,7 +170,7 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   rb_radius = sqrtf((half_track_width - center_gimbal_offset_x) * (half_track_width - center_gimbal_offset_x) +
                     (half_wheel_base + center_gimbal_offset_y) * (half_wheel_base + center_gimbal_offset_y)) *
               DEGREE_2_RAD;
-
+  PIDInit(&follow_pid,&chassis_init_config->follow_pid);
   for (int i = 0; i < 4; i++) {
     chassis_instance->wheel_motor[i] = DJIMotorInit(&chassis_init_config->wheel_motor_config[i]);
   }
@@ -187,6 +188,19 @@ void ChassisTask() {
   } else {
     // 正常工作
     for (int i = 0; i < 4; i++) DJIMotorEnable(chassis->wheel_motor[i]);
+  }
+  // 根据控制模式设定旋转速度
+  switch (chassis_ctrl_cmd->chassis_mode)
+  {
+    case CHASSIS_FOLLOW: // 跟随云台,不单独设置pid,以误差角度平方为速度输出
+      // chassis_cmd_recv.wz = -2.0f * chassis_cmd_recv.offset_angle * abs(chassis_cmd_recv.offset_angle);
+      chassis_ctrl_cmd->wz+=PIDCalculate(&follow_pid,chassis_ctrl_cmd->offset_angle,0);
+      break;
+    case CHASSIS_ROTATE: // 自旋,同时保持全向机动;当前wz维持定值,后续增加不规则的变速策略
+      // chassis_cmd_recv.wz = 4000;
+      break;
+    default:
+      break;
   }
   static float sin_theta, cos_theta;
   cos_theta = arm_cos_f32(chassis->chassis_ctrl_cmd.offset_angle  * DEGREE_2_RAD);

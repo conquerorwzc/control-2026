@@ -2,7 +2,7 @@
 
 #include "dji_motor.h"
 
-#define SHOOT_CNT_MAX 2
+#define SHOOT_CNT_MAX 1
 
 // 发射模式设置
 typedef enum {

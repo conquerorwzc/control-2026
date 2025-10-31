@@ -15,7 +15,7 @@ static float loader_direction;//实际上应该修改loader_config就可以了�
 
 static float loader_set = 0;
 static float friction_set = 0;
-static int frictin_num[SHOOT_CNT_MAX] = {0};//用于动态初始化每个实例的摩擦轮电机数量，类似于idx的用法
+static int frictin_num[SHOOT_CNT_MAX] ;//用于动态初始化每个实例的摩擦轮电机数量，类似于idx的用法
 
 // 波弹盘位置初始化标志
 //  static uint8_t loader_position_init=0;
@@ -23,7 +23,8 @@ static int frictin_num[SHOOT_CNT_MAX] = {0};//用于动态初始化每个实例�
 static float hibernate_time = 0, dead_time = 0;
 
 ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
-  ShootInstance* shoot_instance = (ShootInstance*)zmalloc(sizeof(ShootInstance));
+  size_t size = sizeof(ShootInstance) + shoot_init_config->shoot_param.friction_num * sizeof(DJIMotorInstance*);
+  ShootInstance* shoot_instance = (ShootInstance*)zmalloc(sizeof(size));
 
   one_bullet_delta_angle = shoot_init_config->shoot_param.one_bullet_delta_angle;
   reduction_ratio_loader = shoot_init_config->shoot_param.reduction_ratio_loader;
@@ -37,7 +38,7 @@ ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
 
   for (int i = 0; i < shoot_init_config->shoot_param.friction_num; i++) {
     shoot_instance->friction_motor[i] = DJIMotorInit(&shoot_init_config->friction_motor_config[i]);
-    frictin_num[i]++;;
+    frictin_num[idx]++;;
   }
   shoot_instance->loader_motor = DJIMotorInit(&shoot_init_config->loader_motor_config);
 
