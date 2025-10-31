@@ -17,6 +17,7 @@ static ChassisInstance* chassis;
 static Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd;  // 声明但不初始化
 
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
+static float chassis_vx, chassis_vy;     // 将云台系的速度投影到底盘
 static float vt_lf, vt_rf, vt_lb, vt_rb;  // 底盘速度解算后的临时输出,待进行限幅
 static float lf_radius;
 static float rf_radius;
@@ -28,10 +29,10 @@ static float rb_radius;
  *        用宏进行预替换减小开销,运动解算具体过程参考教程
  */
 static void MecanumCalculate() {
-  vt_lf = -chassis_ctrl_cmd->vx - chassis_ctrl_cmd->vy - chassis_ctrl_cmd->wz * lf_radius;
-  vt_rf = -chassis_ctrl_cmd->vx + chassis_ctrl_cmd->vy - chassis_ctrl_cmd->wz * rf_radius;
-  vt_lb = chassis_ctrl_cmd->vx - chassis_ctrl_cmd->vy - chassis_ctrl_cmd->wz * lb_radius;
-  vt_rb = chassis_ctrl_cmd->vx + chassis_ctrl_cmd->vy - chassis_ctrl_cmd->wz * rb_radius;
+  vt_lf = -chassis_vx - chassis_vy- chassis_ctrl_cmd->wz * lf_radius;
+  vt_rf = -chassis_vx + chassis_vy - chassis_ctrl_cmd->wz * rf_radius;
+  vt_lb = chassis_vx - chassis_vy - chassis_ctrl_cmd->wz * lb_radius;
+  vt_rb = chassis_vx + chassis_vy - chassis_ctrl_cmd->wz * rb_radius;
 }
 
 /**
@@ -115,7 +116,7 @@ static void PowerControl() {
     }
   }
   for (int i = 0; i < 4; i++) {
-    // chassis->wheel_motor[i]->motor_controller.final_output = (int16_t)(motor_current_list[i]);
+    chassis->wheel_motor[i]->motor_controller.final_output = (int16_t)(motor_current_list[i]);
   }
 }
 
@@ -187,7 +188,11 @@ void ChassisTask() {
     // 正常工作
     for (int i = 0; i < 4; i++) DJIMotorEnable(chassis->wheel_motor[i]);
   }
-
+  static float sin_theta, cos_theta;
+  cos_theta = arm_cos_f32(chassis->chassis_ctrl_cmd.offset_angle  * DEGREE_2_RAD);
+  sin_theta = arm_sin_f32(chassis->chassis_ctrl_cmd.offset_angle * DEGREE_2_RAD);
+  chassis_vx = chassis->chassis_ctrl_cmd.vx * cos_theta -chassis->chassis_ctrl_cmd.vy * sin_theta;
+  chassis_vy = chassis->chassis_ctrl_cmd.vx * sin_theta + chassis->chassis_ctrl_cmd.vy * cos_theta;
   // 根据电机的反馈速度和IMU(如果有)计算真实速度
   EstimateSpeed();
 

@@ -53,6 +53,7 @@
 #define ONE_BULLET_DELTA_ANGLE (36.0f * 45.0f)  // 发射一发弹丸拨盘转动的距离,由机械设计图纸给出
 #define REDUCTION_RATIO_LOADER 36.0f            // 2006拨盘电机的减速比,英雄需要修改为3508的19.0f
 #define NUM_PER_CIRCLE 10                       // 拨盘一圈的装载量
+#define FRICTION_NUM 3
 
 const static Motor_Init_Config_s wheel_motor_config = {
     .controller_param_init_config =
@@ -200,6 +201,7 @@ static Shoot_Init_Config_s shoot_init_config = {
             .one_bullet_delta_angle = ONE_BULLET_DELTA_ANGLE,
             .reduction_ratio_loader = REDUCTION_RATIO_LOADER,
             .num_per_circle = NUM_PER_CIRCLE,
+            .friction_num = FRICTION_NUM,
         },
     .friction_motor_config[0] = friction_motor_config,
     .friction_motor_config[0].can_init_config.tx_id = 2,

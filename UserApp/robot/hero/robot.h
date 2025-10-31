@@ -10,9 +10,7 @@
 
 typedef enum {
   ROBOT_POWER_OFF = 0,
-  ROBOT_CHASSIS_ROTATE,
-  ROBOT_CHASSIS_FOLLOW,
-  ROBOT_CHASSIS_FREE,
+  ROBOT_POWER_ON ,
 } Robot_Mode_e;
 
 typedef struct {

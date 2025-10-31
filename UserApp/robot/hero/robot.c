@@ -53,7 +53,7 @@ static void RemoteControlSet() {
     chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_ON;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_ON;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
-      robot->robot_mode = ROBOT_CHASSIS_ROTATE;
+      robot->robot_mode = ROBOT_CHASSIS_ROTATE ;
     } else
       robot->robot_mode = ROBOT_CHASSIS_FOLLOW;
   }
@@ -85,7 +85,7 @@ static void RemoteControlSet() {
     if (switch_is_mid(rc_data_last[TEMP].rc.switch_left)) {
       trigger_time = DWT_GetTimeline_s();
     }
-    if (DWT_GetTimeline_s() - trigger_time > 2.0f) {
+    if (DWT_GetTimeline_s() - trigger_time > 1.0f) {
       shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
     } else {
       shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
@@ -228,7 +228,7 @@ static void EmergencyHandler() {
   // 两switch都在下断电
   if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)))  // 全部失能
   {
-    robot->robot_mode = ROBOT_POWER_OFF;
+    robot->robot_mode = ROBOT_POWER_ON;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
     chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
     shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;

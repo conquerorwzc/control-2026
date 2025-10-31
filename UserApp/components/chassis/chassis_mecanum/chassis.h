@@ -31,8 +31,9 @@
 #include "dji_motor.h"
 
 typedef enum {
-  CHASSIS_POWER_OFF = 0,     // 电流零输入
-  CHASSIS_POWER_ON,
+  CHASSIS_POWER_OFF = 0,    // 电流零输入
+  CHASSIS_ROTATE,            // 小陀螺模式
+  CHASSIS_FOLLOW,            // 跟随模式，底盘叠加角度环控制
 } Chassis_Mode_e;
 
 typedef struct {
