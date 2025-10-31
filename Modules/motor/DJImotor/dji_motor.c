@@ -289,7 +289,7 @@ static void DecodeDJIMotor(CANInstance* _instance) {
  *
  * @param motor_ptr 电机实例指针
  */
-#ifdef STM32H723xx
+#ifdef STM32H7
 static void DJIMotorLostCallback(void* motor_ptr) {
   DJIMotorInstance* motor = (DJIMotorInstance*)motor_ptr;
   uint16_t can_bus = motor->motor_can_instance->can_handle == &hfdcan1

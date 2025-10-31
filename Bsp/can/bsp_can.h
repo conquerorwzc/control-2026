@@ -45,7 +45,7 @@ typedef struct _ {
 
 /* CAN实例初始化结构体,将此结构体指针传入注册函数 */
 typedef struct {
-#ifdef STM32H723xx
+#ifdef STM32H7
   FDCAN_HandleTypeDef *can_handle;  // can句柄
 #elifdef STM32F407xx
   CAN_HandleTypeDef *can_handle;  // can句柄

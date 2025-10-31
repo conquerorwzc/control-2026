@@ -3,6 +3,7 @@
  * @file    parallel_leg.h
  * @author  Enhao Zhang
  * @date    2025/8/8
+ * @copyright Copyright (c) SHU SRM 2026 all rights reserved
  * @brief   None
  ******************************************************************************
  * @attention

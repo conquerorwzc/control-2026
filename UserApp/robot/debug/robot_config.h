@@ -27,7 +27,8 @@ static Motor_Init_Config_s wheel_motor_config = {
                     .MaxOut = 15000.0f,
                 },
         },
-    .motor_type = M3508,
+    .motor_type = M2006,
     .can_init_config.can_handle = &hcan1,
-    .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+    .can_init_config.tx_id = 3,
+    .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
 };

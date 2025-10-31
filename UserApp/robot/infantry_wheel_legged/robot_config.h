@@ -113,7 +113,7 @@ static Chassis_Init_Config_s chassis_init_config = {
                     .motor_type = J4310,
                     .can_init_config =
                         {
-                            .can_handle = &hfdcan1,
+                            .can_handle = &hcan1,
                             .tx_id = 0x06,
                             .rx_id = 0x03,
                         },

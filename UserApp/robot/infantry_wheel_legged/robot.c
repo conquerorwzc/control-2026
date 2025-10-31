@@ -64,7 +64,7 @@ static void RemoteControlSet() {
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       robot->robot_mode = ROBOT_CHASSIS_ROTATE;
     } else
-      robot->robot_mode = ROBOT_CHASSIS_FOLLOW;
+      robot->robot_mode = ROBOT_CHASSIS_FREE;
   }
   // 左[中],云台启动，摩擦轮启动，拨弹盘启动，准备射击
   if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
@@ -105,31 +105,29 @@ static void RemoteControlSet() {
   }
 
   // 底盘参数,系数需要调整
-  static float sin_theta, cos_theta;
   static float chassis_vx, chassis_vy;
-
-  cos_theta = arm_cos_f32(chassis_ctrl_cmd->offset_angle * DEGREE_2_RAD);
-  sin_theta = arm_sin_f32(chassis_ctrl_cmd->offset_angle * DEGREE_2_RAD);
-
-  chassis_vx = 30.0f * (float)rc_data[TEMP].rc.rocker_l_;  // _水平方向
-  chassis_vy = 30.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 竖直方向
-
-  chassis_ctrl_cmd->vx = chassis_vx * cos_theta - chassis_vy * sin_theta;
-  chassis_ctrl_cmd->vy = chassis_vx * sin_theta + chassis_vy * cos_theta;
 
   switch (robot->robot_mode) {
     case ROBOT_CHASSIS_ROTATE:
       chassis_ctrl_cmd->wz =
           (-25.0f) * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如，则在底盘任务中计算旋转分量
       break;
+    case ROBOT_CHASSIS_FOLLOW:
+      chassis_vx = 30.0f * (float)rc_data[TEMP].rc.rocker_l_;  // _水平方向
+      chassis_vy = 30.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 竖直方向
+      chassis_ctrl_cmd->vx = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
+      chassis_ctrl_cmd->wz =
+          (20.0f) * (float)rc_data[TEMP].rc.rocker_r_ +  // todo: 这里前馈的实现对轮腿全向移动回中没有效果
+          PIDCalculate(&robot->chassis_follow_PID,
+                       PI / 2.0f - atan2f(chassis_vy, chassis_vx) + chassis_ctrl_cmd->offset_angle, 0);
+      break;
     case ROBOT_CHASSIS_FREE:
-      chassis_ctrl_cmd->wz = 0;
+      chassis_ctrl_cmd->vx = (30.0f) * (float)rc_data[TEMP].rc.rocker_r1;
+      chassis_ctrl_cmd->wz = (20.0f) * (float)rc_data[TEMP].rc.rocker_r_;
+      chassis_ctrl_cmd->leg_length_d = (float)rc_data[TEMP].rc.rocker_l1;
+      chassis_ctrl_cmd->roll = (float)rc_data[TEMP].rc.rocker_l_;
       break;
       // 跟随模式(前馈+PID)
-    case ROBOT_CHASSIS_FOLLOW:
-      chassis_ctrl_cmd->wz = (20.0f) * (float)rc_data[TEMP].rc.rocker_r_ +
-                             PIDCalculate(&robot->chassis_follow_PID, chassis_ctrl_cmd->offset_angle, 0);
-      break;
     default:
       break;
   }
@@ -218,7 +216,7 @@ static void MouseKeySet() {
 #endif
 
 /**
- * @brief  紧急停止,包括遥控器左上侧拨轮打满/重要模块离线/双板通信失效等
+ * @brief  紧急停止,包括遥控器右拨杆往下/重要模块离线/双板通信失效等
  *         停止的阈值'300'待修改成合适的值,或改为开关控制.
  *
  * @todo   后续修改为遥控器离线则电机停止(关闭遥控器急停),通过给遥控器模块添加daemon实现
@@ -263,9 +261,9 @@ void RobotCMDTask() {
 void RobotInit() {
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
 
-#ifdef STM32F407xx
+#ifdef STM32F4
   robot->rc_data = RemoteControlInit(&huart6);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
-#elifdef STM32H723XX
+#elifdef STM32H7
   robot->rc_data = RemoteControlInit(&huart5);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
 #endif
 

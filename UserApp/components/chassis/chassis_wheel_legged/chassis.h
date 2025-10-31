@@ -1,9 +1,8 @@
 /**
 ******************************************************************************
 * @file    chassis.h
-* @author  NeoZeng
-* @author  Annotation and Modification By SRM-Control 2026
-* @date    2025/10/10
+* @author  Enhao Zhang
+* @date    2025/8/8
 * @copyright Copyright (c) SHU SRM 2026 all rights reserved
 * @brief   Mecanum Chassis Module
 ******************************************************************************
@@ -39,9 +38,9 @@ typedef enum {
 
 typedef struct {
   float vx;  // 前进方向速度
-  float vy;  // 横移方向速度
   float wz;  // 旋转速度
   float roll;
+  float leg_length_d;
   Chassis_Mode_e chassis_mode;
   float offset_angle;  // 底盘和归中位置的夹角
   int chassis_speed_buff;

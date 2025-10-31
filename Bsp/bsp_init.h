@@ -15,7 +15,7 @@
 void BSPInit() {
 #ifdef STM32F407xx
   DWT_Init(168);
-#elifdef STM32H723xx
+#elifdef STM32H7
   DWT_Init(480);
 #endif
   BSPLogInit();
