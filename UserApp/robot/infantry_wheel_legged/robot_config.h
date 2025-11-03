@@ -81,6 +81,7 @@ const float leg_LQR_config[2][6][4] = {
      {380.589246401548f, -223.660017597103f, 46.1696952431268f, 9.82308882692083f},
      {26.1010681824798f, -15.7241310513153f, 3.39175554658673f, 0.278568898146322f}}};
 
+// todo: dmmotor只对j4310做了适配
 static Motor_Init_Config_s joint_motor_config = {
     .controller_param_init_config =
         {
@@ -161,9 +162,12 @@ static Chassis_Init_Config_s chassis_init_config = {
                     .rod_length[2] = ROD_LENGTH_3,
                     .rod_length[3] = ROD_LENGTH_4,
                     .rod_length[4] = ROD_LENGTH_5,
+                    .joint_motor_zero_offset[0] = PHI1_OFFSET,
+                    .joint_motor_zero_offset[1] = PHI2_OFFSET,
                 },
             .robot_weight = ROBOT_WEIGHT,
         },
+
     .leg_init_config[0] = leg_init_config,
     .leg_init_config[0] =
         {
@@ -220,8 +224,8 @@ static Chassis_Init_Config_s chassis_init_config = {
                 {
                     .controller_setting_init_config =
                         {
-                            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
-                            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+                            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+                            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
                         },
                     .motor_type = H6215,
                     .can_init_config =
@@ -235,8 +239,8 @@ static Chassis_Init_Config_s chassis_init_config = {
                 {
                     .controller_setting_init_config =
                         {
-                            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
-                            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+                            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+                            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
                         },
                     .motor_type = H6215,
                     .can_init_config =
@@ -254,8 +258,8 @@ static Chassis_Init_Config_s chassis_init_config = {
                             .close_loop_type = CURRENT_LOOP | SPEED_LOOP | ANGLE_LOOP,
                             .angle_feedback_source = MOTOR_FEED,
                             .speed_feedback_source = MOTOR_FEED,
-                            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
-                            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+                            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+                            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
                         },
                     .motor_type = H6215,
                     .can_init_config =

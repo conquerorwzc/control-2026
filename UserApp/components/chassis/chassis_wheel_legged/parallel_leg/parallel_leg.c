@@ -112,13 +112,13 @@ static void VirtualModelUpdate(LegInstance* leg) {
 static void StateVarUpdate(LegInstance* leg, const attitude_t* imu_data) {
   Virtual_Model_t* vm = &leg->virtual_model;
   float last_x_d = leg->state_var.x_d;
-  leg->state_var.x_d = leg->wheel_motor->measure.velocity;              // Todo: 直接读电机转速还是微分？
+  leg->state_var.x_d = leg->wheel_motor->measure.velocity;
   leg->state_var.x += ((leg->state_var.x_d + last_x_d) / 2) * leg->dt;  // 梯形积分
   leg->state_var.phi = imu_data->Pitch;
-  leg->state_var.phi_d = imu_data->Gyro[0];  // Todo: 不确定是不是Gyro[1];
+  leg->state_var.phi_d = imu_data->Gyro[0];  // Todo: IMU应当有可在上层配置的旋转矩阵
   leg->state_var.theta = PI / 2.0f - vm->phi - imu_data->Pitch;
-  leg->state_var.theta_d = -vm->phi_d - imu_data->Gyro[0];  // Todo: 不确定是不是Gyro[1]
-  // Todo:速度观测有个变量alpha暂时没处理
+  leg->state_var.theta_d = -vm->phi_d - imu_data->Gyro[0];
+  // Todo:速度观测需要用的变量alpha暂时没处理
 }
 
 /**
@@ -154,32 +154,33 @@ LegInstance* LegInit(Leg_Init_Config_s* config) {
   LegInstance* leg_instance = (LegInstance*)zmalloc(sizeof(LegInstance));
   Real_Model_t* rm = &leg_instance->real_model;
   Virtual_Model_t* vm = &leg_instance->virtual_model;
-
+  // 初始化腿长PID todo: 双环PID能用一个PID实例表示的，写得shit
   PIDInit(&leg_instance->virtual_model.length_PID, &config->length_PID_config);
   PIDInit(&leg_instance->virtual_model.length_d_PID, &config->length_d_PID_config);
-
+  // 初始化腿部电机
   leg_instance->joint_motor[0] = DMMotorInit(&config->joint_motor_config[0]);
   leg_instance->joint_motor[1] = DMMotorInit(&config->joint_motor_config[1]);
   leg_instance->wheel_motor = DMMotorInit(&config->wheel_motor_config);
-
   // 初始化连杆长度参数
   rm->l1 = config->leg_param.rod_length[0];
   rm->l2 = config->leg_param.rod_length[1];
   rm->l3 = config->leg_param.rod_length[2];
   rm->l4 = config->leg_param.rod_length[3];
   rm->l5 = config->leg_param.rod_length[4];
-
+  // 初始化电机零点较腿部坐标系x轴偏移量
   joint_motor_zero_offset[0] = config->leg_param.joint_motor_zero_offset[0];
   joint_motor_zero_offset[1] = config->leg_param.joint_motor_zero_offset[1];
-
+  // 初始化LQR_K矩阵拟合系数
   memcpy(LQR_K_Coefficient, config->LQR_K_Coefficient, sizeof(LQR_K_Coefficient));
-
   // 初始化导数相关变量
   vm->last_phi_d = 0.0f;
   vm->last_length_d = 0.0f;
+  // 初始化各更新标志
   leg_instance->update_flag.is_initialized = 0;
   leg_instance->update_flag.is_grounded = 1;
+  // 初始化DWT计数器
   DWT_GetDeltaT(&leg_instance->DWT_CNT);
+
   return leg_instance;
 }
 
@@ -191,15 +192,21 @@ LegInstance* LegInit(Leg_Init_Config_s* config) {
  * @note    包括更新真实模型、虚拟模型、状态变量，计算LQR增益和控制力矩
  */
 void LegCtrlUpdate(LegInstance* leg, const attitude_t* imu_data) {
+  // 获取时间间隔，用于状态量计算
   leg->dt = DWT_GetDeltaT(&leg->DWT_CNT);
+  // 五连杆物理建模参数更新
   RealModelUpdate(leg);
+  // VMC简化模型参数更新
   VirtualModelUpdate(leg);
+  // 状态变量更新
   StateVarUpdate(leg, imu_data);
+  // 根据腿长计算LQR_K矩阵
   for (int i = 0; i < 2; i++) {
     for (int j = 0; j < 6; j++) {
       leg->LQR_K[i][j] = LQR_K_Calc(&LQR_K_Coefficient[i][j][0], leg->virtual_model.length);
     }
   }
+  // 状态变量矩阵与LQR_K矩阵相乘得到控制力矩, T为轮毂电机转矩，Tp为VMC模型髋关节电机转矩
   leg->real_model.T = (leg->LQR_K[0][0] * leg->state_var.theta + leg->LQR_K[0][1] * leg->state_var.theta_d +
                        leg->LQR_K[0][2] * leg->state_var.x + leg->LQR_K[0][3] * leg->state_var.x_d +
                        leg->LQR_K[0][4] * leg->state_var.phi + leg->LQR_K[0][5] * leg->state_var.phi_d);
@@ -207,7 +214,6 @@ void LegCtrlUpdate(LegInstance* leg, const attitude_t* imu_data) {
                            leg->LQR_K[1][2] * leg->state_var.x + leg->LQR_K[1][3] * leg->state_var.x_d +
                            leg->LQR_K[1][4] * leg->state_var.phi + leg->LQR_K[1][5] * leg->state_var.phi_d);
   // 腿长双环PID
-
   leg->leg_ctrl_cmd.length_d_ref =
       PIDCalculate(&leg->virtual_model.length_PID, leg->virtual_model.length, leg->leg_ctrl_cmd.length_ref);
   leg->virtual_model.F =
@@ -215,9 +221,9 @@ void LegCtrlUpdate(LegInstance* leg, const attitude_t* imu_data) {
 }
 
 void JointTorqueUpdate(LegInstance* leg) {
+  // 简化代码量, 空间换时间, 减少指针引用
   Real_Model_t* rm = &leg->real_model;
   Virtual_Model_t* vm = &leg->virtual_model;
-
   // 计算雅可比矩阵元素
   leg->J[0][0] = (rm->l1 * msin(vm->phi - rm->phi4) * msin(rm->phi1 - rm->phi2)) / msin(rm->phi4 - rm->phi2);
   leg->J[0][1] =
@@ -225,7 +231,7 @@ void JointTorqueUpdate(LegInstance* leg) {
   leg->J[1][0] = (rm->l4 * msin(vm->phi - rm->phi2) * msin(rm->phi4 - rm->phi3)) / msin(rm->phi4 - rm->phi2);
   leg->J[1][1] =
       (rm->l4 * mcos(vm->phi - rm->phi2) * msin(rm->phi4 - rm->phi3)) / (vm->length * msin(rm->phi4 - rm->phi2));
-
+  // VMC模型腿部虚拟转矩与推力, 转换为关节电机实际输出转矩
   rm->Tp_1 = leg->J[0][0] * vm->F + leg->J[0][1] * vm->Tp;
   rm->Tp_2 = leg->J[1][0] * vm->F + leg->J[1][1] * vm->Tp;
 }

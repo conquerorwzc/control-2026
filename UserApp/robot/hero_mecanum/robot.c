@@ -50,7 +50,7 @@ static void CalcOffsetAngle() {
 static void RemoteControlSet() {
   // 右[中]，云台
   if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_ON;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       robot->robot_mode = ROBOT_CHASSIS_ROTATE;
@@ -59,7 +59,7 @@ static void RemoteControlSet() {
   }
   // 右[上]，超电，保持底盘跟随云台
   else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_ON;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       robot->robot_mode = ROBOT_CHASSIS_ROTATE;
@@ -69,7 +69,7 @@ static void RemoteControlSet() {
   // 左[中],云台启动，摩擦轮启动，拨弹盘启动，准备射击
   if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
     shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_ON;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
@@ -78,7 +78,7 @@ static void RemoteControlSet() {
   } else if (switch_is_up(rc_data[TEMP].rc.switch_left))  // 开火，发射，根据时间判断单发或者连发
   {
     shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_ON;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;

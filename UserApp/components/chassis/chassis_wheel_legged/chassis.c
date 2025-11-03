@@ -40,6 +40,21 @@ static void ChassisCtrlUpdate() {
     JointTorqueUpdate(leg[i]);
   }
 }
+
+static void ChassisRecovery() {
+  LegInstance* leg[2] = {chassis->leg[0], chassis->leg[1]};
+  for (int i = 0; i < 2; i++) {
+    DMMotorOuterLoop(leg[i]->joint_motor[0], ANGLE_LOOP);
+    DMMotorOuterLoop(leg[i]->joint_motor[1], ANGLE_LOOP);
+    DMMotorPIDCal(leg[i]->joint_motor[0], 0);
+    DMMotorPIDCal(leg[i]->joint_motor[1], 0);
+    DMMotorPIDCal(leg[i]->wheel_motor, 0);
+    LegCtrlUpdate(leg[i], chassis->chassis_IMU_data);
+    leg[i]->real_model.T += (float)(1 - 2 * i) * chassis->chassis_ctrl_cmd.wz;
+    leg[i]->real_model.Tp_1 = leg[i]->joint_motor[0]->motor_controller.final_output;
+    leg[i]->real_model.Tp_2 = leg[i]->joint_motor[1]->motor_controller.final_output;
+  }
+}
 /**
  * @brief 功率模型
  * @todo 有待模块化,djimotor也得改改
@@ -130,12 +145,13 @@ static void PowerControl() {
  *
  */
 static void LimitChassisOutput() {
+  LegInstance* leg[2] = {chassis->leg[0], chassis->leg[1]};
   for (int i = 0; i < 2; i++) {
-    VAL_LIMIT(chassis->leg[i]->real_model.Tp_1, -3.0f, 3.0f);
-    VAL_LIMIT(chassis->leg[i]->real_model.Tp_2, -3.0f, 3.0f);
-    VAL_LIMIT(chassis->leg[i]->real_model.T, -1.0f, 1.0f);
-    // DMMotorSetRef(leg[i]->joint_motor[1], leg[i]->real_model.Tp_1);
-    // DMMotorSetRef(leg[i]->joint_motor[0], leg[i]->real_model.Tp_2);
+    VAL_LIMIT(leg[i]->real_model.Tp_1, -3.0f, 3.0f);
+    VAL_LIMIT(leg[i]->real_model.Tp_2, -3.0f, 3.0f);
+    VAL_LIMIT(leg[i]->real_model.T, -1.0f, 1.0f);
+    // DMMotorSetRef(leg[i]->joint_motor[0], leg[i]->real_model.Tp_1);
+    // DMMotorSetRef(leg[i]->joint_motor[1], leg[i]->real_model.Tp_2);
     // DMMotorSetRef(leg[i]->wheel_motor, leg[i]->real_model.T);
   }
   // PowerControl();
@@ -189,27 +205,19 @@ void ChassisTask() {
     }
   }
 
+  // 根据电机的反馈速度和IMU(如果有)计算真实速度
+  EstimateSpeed();
+
   switch (chassis->chassis_ctrl_cmd.chassis_mode) {
     case CHASSIS_RECOVERY:
-      for (int i = 0; i < 2; i++) {
-        DMMotorOuterLoop(chassis->leg[i]->joint_motor[0], ANGLE_LOOP);
-        DMMotorOuterLoop(chassis->leg[i]->joint_motor[1], ANGLE_LOOP);
-      }
+      ChassisRecovery();
       break;
     case CHASSIS_ON:
-      for (int i = 0; i < 2; i++) {
-        DMMotorOuterLoop(chassis->leg[i]->joint_motor[0], CURRENT_LOOP);
-        DMMotorOuterLoop(chassis->leg[i]->joint_motor[1], CURRENT_LOOP);
-      }
+      ChassisCtrlUpdate();
       break;
     default:
       break;
   }
-
-  // 根据电机的反馈速度和IMU(如果有)计算真实速度
-  EstimateSpeed();
-
-  ChassisCtrlUpdate();
 
   // 功率控制与输出限幅
   LimitChassisOutput();

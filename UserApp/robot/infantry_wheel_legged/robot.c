@@ -18,6 +18,7 @@ static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 static float trigger_time = 0;  // 触发时间
 static float angle;
 
+#define robot_lost_control abs(robot->chassis->chassis_IMU_data->Pitch) > PI / 6.0f
 /**
  * @brief 根据gimbal app传回的当前电机角度计算和零位的误差
  *        单圈绝对角度的范围是0~360,说明文档中有图示
@@ -42,7 +43,6 @@ static void CalcOffsetAngle() {
     chassis_ctrl_cmd->offset_angle = angle - YAW_ALIGN_ANGLE + 360.0f;
 #endif
 }
-
 /**
  * @brief 控制输入为遥控器(调试时)的模式和控制量设置
  *
@@ -50,7 +50,7 @@ static void CalcOffsetAngle() {
 static void RemoteControlSet() {
   // 右[中]，云台
   if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_ON;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       robot->robot_mode = ROBOT_CHASSIS_ROTATE;
@@ -59,7 +59,7 @@ static void RemoteControlSet() {
   }
   // 右[上]，超电，保持底盘跟随云台
   else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_ON;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       robot->robot_mode = ROBOT_CHASSIS_ROTATE;
@@ -69,7 +69,7 @@ static void RemoteControlSet() {
   // 左[中],云台启动，摩擦轮启动，拨弹盘启动，准备射击
   if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
     shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_ON;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
@@ -78,7 +78,7 @@ static void RemoteControlSet() {
   } else if (switch_is_up(rc_data[TEMP].rc.switch_left))  // 开火，发射，根据时间判断单发或者连发
   {
     shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_ON;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
@@ -104,30 +104,29 @@ static void RemoteControlSet() {
     gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
   }
 
-  // Coordinate Transform: Gimbal 2 Chassis
-  static float gimbal_vx, gimbal_vy;
-  static float chassis_vx, chassis_wz_rotate, chassis_wz_heading;
-
-  gimbal_vx = 30.0f * (float)rc_data[TEMP].rc.rocker_l_;
-  gimbal_vy = 30.0f * (float)rc_data[TEMP].rc.rocker_l1;
-
-  chassis_vx = sqrtf(gimbal_vx * gimbal_vx + gimbal_vy * gimbal_vy);
-  chassis_wz_rotate = -25.0f * (float)rc_data[TEMP].rc.dial;
+  // // Coordinate Transform: Gimbal 2 Chassis
+  // static float gimbal_vx, gimbal_vy;
+  // static float chassis_vx, chassis_wz_rotate, chassis_wz_heading;
+  //
+  // gimbal_vx = 30.0f * (float)rc_data[TEMP].rc.rocker_l_;
+  // gimbal_vy = 30.0f * (float)rc_data[TEMP].rc.rocker_l1;
+  //
+  // chassis_vx = sqrtf(gimbal_vx * gimbal_vx + gimbal_vy * gimbal_vy);
+  // chassis_wz_rotate = -25.0f * (float)rc_data[TEMP].rc.dial;
 
   switch (robot->robot_mode) {
     case ROBOT_CHASSIS_ROTATE:
-      chassis_ctrl_cmd->vx = chassis_vx;
       chassis_ctrl_cmd->wz = TRACK_WIDTH / 2.0f * (-25.0f) *
                              (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如，则在底盘任务中计算旋转分量
       break;
     case ROBOT_CHASSIS_FOLLOW:
-      chassis_vx = 30.0f * (float)rc_data[TEMP].rc.rocker_l_;  // _水平方向
-      chassis_vy = 30.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 竖直方向
-      chassis_ctrl_cmd->vx = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
-      chassis_ctrl_cmd->wz =
-          (20.0f) * (float)rc_data[TEMP].rc.rocker_r_ +  // todo: 这里前馈的实现对轮腿全向移动回中没有效果
-          PIDCalculate(&robot->chassis_follow_PID,
-                       PI / 2.0f - atan2f(chassis_vy, chassis_vx) + chassis_ctrl_cmd->offset_angle, 0);
+      // chassis_vx = 30.0f * (float)rc_data[TEMP].rc.rocker_l_;  // _水平方向
+      // chassis_vy = 30.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 竖直方向
+      // chassis_ctrl_cmd->vx = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
+      // chassis_ctrl_cmd->wz =
+      //     (20.0f) * (float)rc_data[TEMP].rc.rocker_r_ +  // todo: 这里前馈的实现对轮腿全向移动回中没有效果
+      //     PIDCalculate(&robot->chassis_follow_PID,
+      //                  PI / 2.0f - atan2f(chassis_vy, chassis_vx) + chassis_ctrl_cmd->offset_angle, 0);
       break;
     case ROBOT_CHASSIS_FREE:
       chassis_ctrl_cmd->vx = (30.0f) * (float)rc_data[TEMP].rc.rocker_r1;
@@ -230,7 +229,7 @@ static void MouseKeySet() {
  *
  */
 static void EmergencyHandler() {
-  if (abs(robot->chassis->chassis_IMU_data->Pitch) > PI / 6.0f) {
+  if (robot_lost_control) {
     robot->chassis->chassis_ctrl_cmd.chassis_mode = CHASSIS_RECOVERY;  // todo:因该写成elif比较安全
   }
   // 两switch都在下断电
