@@ -112,8 +112,8 @@ static void VirtualModelUpdate(LegInstance* leg) {
 static void StateVarUpdate(LegInstance* leg, const attitude_t* imu_data) {
   Virtual_Model_t* vm = &leg->virtual_model;
   float last_x_d = leg->state_var.x_d;
-  leg->state_var.x_d = leg->wheel_motor->measure.velocity;  // Todo: 直接读电机转速还是微分？
-  leg->state_var.x = leg->state_var.x + ((leg->state_var.x_d + last_x_d) / 2) * leg->dt;  // 梯形积分
+  leg->state_var.x_d = leg->wheel_motor->measure.velocity;              // Todo: 直接读电机转速还是微分？
+  leg->state_var.x += ((leg->state_var.x_d + last_x_d) / 2) * leg->dt;  // 梯形积分
   leg->state_var.phi = imu_data->Pitch;
   leg->state_var.phi_d = imu_data->Gyro[0];  // Todo: 不确定是不是Gyro[1];
   leg->state_var.theta = PI / 2.0f - vm->phi - imu_data->Pitch;
@@ -230,4 +230,4 @@ void JointTorqueUpdate(LegInstance* leg) {
   rm->Tp_2 = leg->J[1][0] * vm->F + leg->J[1][1] * vm->Tp;
 }
 
-// Todo: 雅可比和x，x_d的更新没做
+// Todo: x，x_d的更新没做

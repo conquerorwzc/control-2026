@@ -26,12 +26,14 @@ static void ChassisCtrlUpdate() {
 
   for (int i = 0; i < 2; i++) {
     LegCtrlUpdate(leg[i], chassis->chassis_IMU_data);
-    float leg_force_ff = 9.8f * robot_weight / 2.0f / leg[i]->state_var.theta;
+    float leg_force_ff = 9.8f * robot_weight / 2.0f / mcos(leg[i]->state_var.theta);
     leg[i]->virtual_model.F += leg_force_ff + (float)(1 - 2 * i) * chassis->roll_comp;
     VAL_LIMIT(leg[i]->virtual_model.F, -100.0f, 100.0f);
   }
+
   chassis->delta_theta_comp =
       PIDCalculate(&chassis->delta_theta_PID, leg[0]->state_var.theta - leg[1]->state_var.theta, 0);
+
   for (int i = 0; i < 2; i++) {
     leg[i]->virtual_model.Tp += (float)(1 - 2 * i) * chassis->delta_theta_comp;
     leg[i]->real_model.T += (float)(1 - 2 * i) * chassis->chassis_ctrl_cmd.wz;
@@ -185,6 +187,23 @@ void ChassisTask() {
       DMMotorEnable(chassis->leg[i]->joint_motor[1]);
       DMMotorEnable(chassis->leg[i]->wheel_motor);
     }
+  }
+
+  switch (chassis->chassis_ctrl_cmd.chassis_mode) {
+    case CHASSIS_RECOVERY:
+      for (int i = 0; i < 2; i++) {
+        DMMotorOuterLoop(chassis->leg[i]->joint_motor[0], ANGLE_LOOP);
+        DMMotorOuterLoop(chassis->leg[i]->joint_motor[1], ANGLE_LOOP);
+      }
+      break;
+    case CHASSIS_ON:
+      for (int i = 0; i < 2; i++) {
+        DMMotorOuterLoop(chassis->leg[i]->joint_motor[0], CURRENT_LOOP);
+        DMMotorOuterLoop(chassis->leg[i]->joint_motor[1], CURRENT_LOOP);
+      }
+      break;
+    default:
+      break;
   }
 
   // 根据电机的反馈速度和IMU(如果有)计算真实速度

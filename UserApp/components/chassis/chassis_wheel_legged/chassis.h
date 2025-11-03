@@ -33,15 +33,16 @@
 
 typedef enum {
   CHASSIS_POWER_OFF = 0,  // 电流零输入
-  CHASSIS_POWER_ON,
+  CHASSIS_RECOVERY,       // 一阶倒立摆
+  CHASSIS_ON,             // 二阶倒立摆
 } Chassis_Mode_e;
 
 typedef struct {
+  Chassis_Mode_e chassis_mode;
   float vx;  // 前进方向速度
   float wz;  // 旋转速度
   float roll;
   float leg_length_d;
-  Chassis_Mode_e chassis_mode;
   float offset_angle;  // 底盘和归中位置的夹角
   int chassis_speed_buff;
   uint16_t max_power;  // 最大功率限制

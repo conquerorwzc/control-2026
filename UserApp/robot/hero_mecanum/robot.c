@@ -51,7 +51,7 @@ static void RemoteControlSet() {
   // 右[中]，云台
   if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
     chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_ON;
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_ON;
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       robot->robot_mode = ROBOT_CHASSIS_ROTATE;
     } else
@@ -60,7 +60,7 @@ static void RemoteControlSet() {
   // 右[上]，超电，保持底盘跟随云台
   else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
     chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_ON;
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_ON;
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       robot->robot_mode = ROBOT_CHASSIS_ROTATE;
     } else
@@ -70,7 +70,7 @@ static void RemoteControlSet() {
   if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
     shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
     chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_ON;
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_ON;
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
     // 待添加,视觉会发来和目标的误差,同样将其转化为total angle的增量进行控制
@@ -79,7 +79,7 @@ static void RemoteControlSet() {
   {
     shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
     chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_ON;
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_ON;
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
     if (switch_is_mid(rc_data_last[TEMP].rc.switch_left)) {
@@ -92,7 +92,7 @@ static void RemoteControlSet() {
     }
   }
   // 云台使能,或视觉未识别到目标,纯遥控器拨杆控制
-  if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_POWER_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
+  if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
     gimbal_ctrl_cmd->yaw -= -0.005f * (float)rc_data[TEMP].rc.rocker_r_;
     gimbal_ctrl_cmd->pitch += 0.002f * (float)rc_data[TEMP].rc.rocker_r1;
   }
@@ -254,9 +254,9 @@ static void EmergencyHandler() {
 void RobotInit() {
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
 
-#ifdef STM32F407xx
+#ifdef STM32F4
   robot->rc_data = RemoteControlInit(&huart6);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
-#elifdef STM32H723XX
+#elifdef STM32H7
   robot->rc_data = RemoteControlInit(&huart5);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
 #endif
 

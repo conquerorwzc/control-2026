@@ -51,7 +51,7 @@ static void RemoteControlSet() {
   // 右[中]，云台
   if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
     chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_ON;
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_ON;
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       robot->robot_mode = ROBOT_CHASSIS_ROTATE;
     } else
@@ -60,7 +60,7 @@ static void RemoteControlSet() {
   // 右[上]，超电，保持底盘跟随云台
   else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
     chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_ON;
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_ON;
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       robot->robot_mode = ROBOT_CHASSIS_ROTATE;
     } else
@@ -70,7 +70,7 @@ static void RemoteControlSet() {
   if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
     shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
     chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_ON;
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_ON;
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
     // 待添加,视觉会发来和目标的误差,同样将其转化为total angle的增量进行控制
@@ -79,7 +79,7 @@ static void RemoteControlSet() {
   {
     shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
     chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_ON;
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_ON;
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
     if (switch_is_mid(rc_data_last[TEMP].rc.switch_left)) {
@@ -92,7 +92,7 @@ static void RemoteControlSet() {
     }
   }
   // 云台使能,或视觉未识别到目标,纯遥控器拨杆控制
-  if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_POWER_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
+  if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
     gimbal_ctrl_cmd->yaw -= -0.005f * (float)rc_data[TEMP].rc.rocker_r_;
     gimbal_ctrl_cmd->pitch += 0.002f * (float)rc_data[TEMP].rc.rocker_r1;
   }
@@ -104,13 +104,21 @@ static void RemoteControlSet() {
     gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
   }
 
-  // 底盘参数,系数需要调整
-  static float chassis_vx, chassis_vy;
+  // Coordinate Transform: Gimbal 2 Chassis
+  static float gimbal_vx, gimbal_vy;
+  static float chassis_vx, chassis_wz_rotate, chassis_wz_heading;
+
+  gimbal_vx = 30.0f * (float)rc_data[TEMP].rc.rocker_l_;
+  gimbal_vy = 30.0f * (float)rc_data[TEMP].rc.rocker_l1;
+
+  chassis_vx = sqrtf(gimbal_vx * gimbal_vx + gimbal_vy * gimbal_vy);
+  chassis_wz_rotate = -25.0f * (float)rc_data[TEMP].rc.dial;
 
   switch (robot->robot_mode) {
     case ROBOT_CHASSIS_ROTATE:
-      chassis_ctrl_cmd->wz =
-          (-25.0f) * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如，则在底盘任务中计算旋转分量
+      chassis_ctrl_cmd->vx = chassis_vx;
+      chassis_ctrl_cmd->wz = TRACK_WIDTH / 2.0f * (-25.0f) *
+                             (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如，则在底盘任务中计算旋转分量
       break;
     case ROBOT_CHASSIS_FOLLOW:
       chassis_vx = 30.0f * (float)rc_data[TEMP].rc.rocker_l_;  // _水平方向
@@ -127,7 +135,6 @@ static void RemoteControlSet() {
       chassis_ctrl_cmd->leg_length_d = (float)rc_data[TEMP].rc.rocker_l1;
       chassis_ctrl_cmd->roll = (float)rc_data[TEMP].rc.rocker_l_;
       break;
-      // 跟随模式(前馈+PID)
     default:
       break;
   }
@@ -223,6 +230,9 @@ static void MouseKeySet() {
  *
  */
 static void EmergencyHandler() {
+  if (abs(robot->chassis->chassis_IMU_data->Pitch) > PI / 6.0f) {
+    robot->chassis->chassis_ctrl_cmd.chassis_mode = CHASSIS_RECOVERY;  // todo:因该写成elif比较安全
+  }
   // 两switch都在下断电
   if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)))  // 全部失能
   {
