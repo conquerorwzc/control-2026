@@ -50,7 +50,6 @@ typedef struct {
 
 // 机器人底盘修改的参数,单位为mm(毫米)
 typedef struct {
-  Leg_Param_s leg_param;
   float center_gimbal_offset_x;  // 云台旋转中心距底盘几何中心的距离,前后方向,云台位于正中心时默认设为0
   float center_gimbal_offset_y;  // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
   float wheel_radius;            // 轮子半径

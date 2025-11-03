@@ -41,6 +41,10 @@ static void ChassisCtrlUpdate() {
   }
 }
 
+/**
+ * @brief 倒地自启
+ * @todo 没测过
+ */
 static void ChassisRecovery() {
   LegInstance* leg[2] = {chassis->leg[0], chassis->leg[1]};
   for (int i = 0; i < 2; i++) {
@@ -55,6 +59,7 @@ static void ChassisRecovery() {
     leg[i]->real_model.Tp_2 = leg[i]->joint_motor[1]->motor_controller.final_output;
   }
 }
+
 /**
  * @brief 功率模型
  * @todo 有待模块化,djimotor也得改改
@@ -213,7 +218,7 @@ void ChassisTask() {
       ChassisRecovery();
       break;
     case CHASSIS_ON:
-      ChassisCtrlUpdate();
+      // ChassisCtrlUpdate();
       break;
     default:
       break;

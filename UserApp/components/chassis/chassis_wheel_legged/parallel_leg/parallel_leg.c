@@ -16,6 +16,8 @@
 #include "bsp_dwt.h"
 #include "user_lib.h"
 
+// todo: LegInstance应当以static形式在内部保存指针，内部态函数调用内部实例进行数据操作
+
 // static float LQR_K[2][6];
 // = {{-2.1954f, -0.2044f, -0.8826f, -1.3245f, 1.2784f, 0.1112f},
 // {2.5538f, 0.2718f, 1.5728f, 2.2893f, 12.1973f, 0.4578f}};
@@ -180,6 +182,11 @@ LegInstance* LegInit(Leg_Init_Config_s* config) {
   leg_instance->update_flag.is_grounded = 1;
   // 初始化DWT计数器
   DWT_GetDeltaT(&leg_instance->DWT_CNT);
+
+  if (config->leg_mode == LEG_CALI_MODE) {
+    DMMotorCaliEncoder(leg_instance->joint_motor[0]);
+    DMMotorCaliEncoder(leg_instance->joint_motor[1]);
+  }
 
   return leg_instance;
 }

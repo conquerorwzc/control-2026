@@ -75,6 +75,11 @@ typedef struct {
   float joint_motor_zero_offset[2];
 } Leg_Param_s;
 
+typedef enum {
+  LEG_PRE_CALI_MODE = 0,
+  LEG_CALI_MODE,
+} Leg_Mode_e;
+
 typedef struct {
   Leg_Param_s leg_param;
   float LQR_K_Coefficient[2][6][4];  // [2腿][6状态变量][4多项式系数]
@@ -82,6 +87,7 @@ typedef struct {
   PID_Init_Config_s length_d_PID_config;
   Motor_Init_Config_s joint_motor_config[2];
   Motor_Init_Config_s wheel_motor_config;
+  Leg_Mode_e leg_mode;
 } Leg_Init_Config_s;
 
 typedef struct {

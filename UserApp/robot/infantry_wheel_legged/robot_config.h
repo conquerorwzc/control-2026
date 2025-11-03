@@ -127,6 +127,16 @@ static Motor_Init_Config_s joint_motor_config = {
 };
 
 static Leg_Init_Config_s leg_init_config = {
+    .leg_param =
+        {
+            .rod_length[0] = ROD_LENGTH_1,
+            .rod_length[1] = ROD_LENGTH_2,
+            .rod_length[2] = ROD_LENGTH_3,
+            .rod_length[3] = ROD_LENGTH_4,
+            .rod_length[4] = ROD_LENGTH_5,
+            .joint_motor_zero_offset[0] = PHI1_OFFSET,
+            .joint_motor_zero_offset[1] = PHI2_OFFSET,
+        },
     .length_PID_config =
         {
             .Kp = 0.01f,
@@ -150,21 +160,13 @@ static Leg_Init_Config_s leg_init_config = {
     .joint_motor_config[0] = joint_motor_config,
     .joint_motor_config[1] = joint_motor_config,
     .wheel_motor_config.motor_type = H6215,
+    .leg_mode = LEG_PRE_CALI_MODE,
 };
 
 static Chassis_Init_Config_s chassis_init_config = {
     .chassis_param =
         {
-            .leg_param =
-                {
-                    .rod_length[0] = ROD_LENGTH_1,
-                    .rod_length[1] = ROD_LENGTH_2,
-                    .rod_length[2] = ROD_LENGTH_3,
-                    .rod_length[3] = ROD_LENGTH_4,
-                    .rod_length[4] = ROD_LENGTH_5,
-                    .joint_motor_zero_offset[0] = PHI1_OFFSET,
-                    .joint_motor_zero_offset[1] = PHI2_OFFSET,
-                },
+
             .robot_weight = ROBOT_WEIGHT,
         },
 
