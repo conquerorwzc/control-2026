@@ -18,6 +18,10 @@ static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 static float trigger_time = 0;  // 触发时间
 static float angle;
 
+FRICTION_NUM
+
+// static  DJIMotorInstance* debug_motor;
+
 /**
  * @brief 根据gimbal app传回的当前电机角度计算和零位的误差
  *        单圈绝对角度的范围是0~360,说明文档中有图示
@@ -242,7 +246,7 @@ void RobotInit() {
 
   // robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
 
-  robot->super_cap = SuperCapInit(&super_cap_config);
+  // robot->super_cap = SuperCapInit(&super_cap_config);
 
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
   robot->gimbal = GimbalInit(&gimbal_init_config);
@@ -255,7 +259,7 @@ void RobotInit() {
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
-  //shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
+  shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;
 }
 
@@ -270,12 +274,19 @@ void RobotCMDTask() {
 
 void RobotTask() {
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
-  RobotCMDTask();
-  GimbalTask();
-  //ShootTask();
+   RobotCMDTask();
+   GimbalTask();
+  ShootTask();
 #endif
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   ChassisTask();
 #endif
+
+  // 正确的赋值方式 - 直接赋值指针值
+  //robot->shoot->friction_motor[1];
+
+
 }
+
+

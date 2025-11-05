@@ -15,7 +15,7 @@
 
 static ChassisInstance* chassis;
 static Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd;  // 声明但不初始化
-
+static Chassis_Param_s chassis_param;          // 声明为静态局部变量
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
 static float chassis_vx, chassis_vy;     // 将云台系的速度投影到底盘
 static float vt_lf, vt_rf, vt_lb, vt_rb;  // 底盘速度解算后的临时输出,待进行限幅
@@ -140,7 +140,7 @@ static void EstimateSpeed() {
 ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   ChassisInstance* chassis_instance = (ChassisInstance*)zmalloc(sizeof(ChassisInstance));
 
-  static Chassis_Param_s chassis_param;                // 声明为静态局部变量
+
   chassis_param = chassis_init_config->chassis_param;  // 在运行时赋值
 
 
