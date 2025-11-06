@@ -176,17 +176,16 @@ static void EstimateSpeed() {
 
 ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   ChassisInstance* chassis_instance = (ChassisInstance*)zmalloc(sizeof(ChassisInstance));
-  chassis = (ChassisInstance*)zmalloc(sizeof(ChassisInstance));
 
-  chassis->leg[0] = LegInit(&chassis_init_config->leg_init_config[0]);
-  chassis->leg[1] = LegInit(&chassis_init_config->leg_init_config[1]);
+  chassis_instance->leg[0] = LegInit(&chassis_init_config->leg_init_config[0]);
+  chassis_instance->leg[1] = LegInit(&chassis_init_config->leg_init_config[1]);
 
   robot_weight = chassis_init_config->chassis_param.robot_weight;
 
-  PIDInit(&chassis->delta_theta_PID, &chassis_init_config->delta_theta_PID_config);
-  PIDInit(&chassis->roll_PID, &chassis_init_config->roll_PID_config);
+  PIDInit(&chassis_instance->delta_theta_PID, &chassis_init_config->delta_theta_PID_config);
+  PIDInit(&chassis_instance->roll_PID, &chassis_init_config->roll_PID_config);
 
-  chassis->chassis_IMU_data = INS_Init();
+  chassis_instance->chassis_IMU_data = INS_Init();
 
   chassis = chassis_instance;
   chassis_ctrl_cmd = &chassis->chassis_ctrl_cmd;  // 在运行时初始化指针

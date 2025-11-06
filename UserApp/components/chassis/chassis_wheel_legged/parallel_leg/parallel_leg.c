@@ -146,6 +146,23 @@ static float LQR_K_Calc(const float* coe, float len) {
 //   }
 // }
 
+void JointTorqueUpdate(LegInstance* leg) {
+  // 简化代码量, 空间换时间, 减少指针引用
+  Real_Model_t* rm = &leg->real_model;
+  Virtual_Model_t* vm = &leg->virtual_model;
+  // 计算雅可比矩阵元素
+  leg->J[0][0] = (rm->l1 * msin(vm->phi - rm->phi4) * msin(rm->phi1 - rm->phi2)) / msin(rm->phi4 - rm->phi2);
+  leg->J[0][1] =
+      (rm->l1 * mcos(vm->phi - rm->phi4) * msin(rm->phi1 - rm->phi2)) / (vm->length * msin(rm->phi4 - rm->phi2));
+  leg->J[1][0] = (rm->l4 * msin(vm->phi - rm->phi2) * msin(rm->phi4 - rm->phi3)) / msin(rm->phi4 - rm->phi2);
+  leg->J[1][1] =
+      (rm->l4 * mcos(vm->phi - rm->phi2) * msin(rm->phi4 - rm->phi3)) / (vm->length * msin(rm->phi4 - rm->phi2));
+  // VMC模型腿部虚拟转矩与推力, 转换为关节电机实际输出转矩
+  rm->Tp_1 = leg->J[0][0] * vm->F + leg->J[0][1] * vm->Tp;
+  rm->Tp_2 = leg->J[1][0] * vm->F + leg->J[1][1] * vm->Tp;
+}
+
+// Todo: x，x_d的更新没做
 /**
  * @brief 初始化腿部结构体，设置连杆长度参数并初始化相关变量
  *
@@ -233,21 +250,3 @@ void LegCtrlUpdate(LegInstance* leg, const attitude_t* imu_data) {
   leg->virtual_model.F =
       PIDCalculate(&leg->virtual_model.length_PID, leg->virtual_model.length, leg->leg_ctrl_cmd.length_ref);
 }
-
-void JointTorqueUpdate(LegInstance* leg) {
-  // 简化代码量, 空间换时间, 减少指针引用
-  Real_Model_t* rm = &leg->real_model;
-  Virtual_Model_t* vm = &leg->virtual_model;
-  // 计算雅可比矩阵元素
-  leg->J[0][0] = (rm->l1 * msin(vm->phi - rm->phi4) * msin(rm->phi1 - rm->phi2)) / msin(rm->phi4 - rm->phi2);
-  leg->J[0][1] =
-      (rm->l1 * mcos(vm->phi - rm->phi4) * msin(rm->phi1 - rm->phi2)) / (vm->length * msin(rm->phi4 - rm->phi2));
-  leg->J[1][0] = (rm->l4 * msin(vm->phi - rm->phi2) * msin(rm->phi4 - rm->phi3)) / msin(rm->phi4 - rm->phi2);
-  leg->J[1][1] =
-      (rm->l4 * mcos(vm->phi - rm->phi2) * msin(rm->phi4 - rm->phi3)) / (vm->length * msin(rm->phi4 - rm->phi2));
-  // VMC模型腿部虚拟转矩与推力, 转换为关节电机实际输出转矩
-  rm->Tp_1 = leg->J[0][0] * vm->F + leg->J[0][1] * vm->Tp;
-  rm->Tp_2 = leg->J[1][0] * vm->F + leg->J[1][1] * vm->Tp;
-}
-
-// Todo: x，x_d的更新没做

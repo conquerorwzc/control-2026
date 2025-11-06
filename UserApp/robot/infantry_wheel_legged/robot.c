@@ -18,6 +18,21 @@ static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 static float trigger_time = 0;  // 触发时间
 static float angle;
 
+static GPIO_Init_Config_s gpio_init_config_l = {
+    .GPIO_Pin = POWER_24V_L_Pin,
+    .GPIOx = POWER_24V_L_GPIO_Port,
+    .pin_state = GPIO_PIN_SET,
+};
+
+static GPIO_Init_Config_s gpio_init_config_r = {
+    .GPIO_Pin = POWER_24V_R_Pin,
+    .GPIOx = POWER_24V_R_GPIO_Port,
+    .pin_state = GPIO_PIN_SET,
+};
+
+static GPIOInstance *gpio_l;
+static GPIOInstance *gpio_r;
+
 #define robot_lost_control abs(robot->chassis->chassis_IMU_data->Pitch) > PI / 6.0f
 /**
  * @brief 根据gimbal app传回的当前电机角度计算和零位的误差
@@ -50,7 +65,8 @@ static void CalcOffsetAngle() {
 static void RemoteControlSet() {
   // 右[中]，云台
   if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
+    // chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_RECOVERY;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       robot->robot_mode = ROBOT_CHASSIS_ROTATE;
@@ -59,7 +75,8 @@ static void RemoteControlSet() {
   }
   // 右[上]，超电，保持底盘跟随云台
   else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
+    // chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_RECOVERY;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       robot->robot_mode = ROBOT_CHASSIS_ROTATE;
@@ -69,7 +86,8 @@ static void RemoteControlSet() {
   // 左[中],云台启动，摩擦轮启动，拨弹盘启动，准备射击
   if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
     shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
+    // chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_RECOVERY;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
@@ -78,7 +96,8 @@ static void RemoteControlSet() {
   } else if (switch_is_up(rc_data[TEMP].rc.switch_left))  // 开火，发射，根据时间判断单发或者连发
   {
     shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
+    // chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_RECOVERY;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
@@ -269,6 +288,11 @@ void RobotCMDTask() {
 
 void RobotInit() {
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
+
+  gpio_l = GPIORegister(&gpio_init_config_l);
+  gpio_r = GPIORegister(&gpio_init_config_r);
+  GPIOSet(gpio_l);
+  GPIOSet(gpio_r);
 
 #ifdef STM32F4
   robot->rc_data = RemoteControlInit(&huart6);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个

@@ -120,8 +120,8 @@
               .rod_length[2] = 0.14,                                                                                   \
               .rod_length[3] = 0.0725,                                                                                 \
               .rod_length[4] = 0.079,                                                                                  \
-              .joint_motor_zero_offset[0] = 56.13 * PI / 180.0f,                                                       \
-              .joint_motor_zero_offset[1] = 56.13 * PI / 180.0f + PI / 2,                                              \
+              .joint_motor_zero_offset[0] = 26.14 * DEGREE_2_RAD + PI,                                                 \
+              .joint_motor_zero_offset[1] = -26.14 * DEGREE_2_RAD,                                                     \
           },                                                                                                           \
       .LQR_K_Coefficient = {{{-88.3079710751263f, 68.9068310796955f, -30.0003802287502f, -0.197774178106864f},         \
                              {1.52414598059982f, -1.09343038036609f, -2.82688593867512f, 0.0281973842051861f},         \
@@ -174,7 +174,7 @@
                       .rx_id = wheel_rx,                                                                               \
                   },                                                                                                   \
           },                                                                                                           \
-      .leg_cali_mode = LEG_PRE_CALI_MODE,                                                                              \
+      .leg_cali_mode = LEG_CALI_MODE,                                                                                  \
   }
 
 static Chassis_Init_Config_s chassis_init_config = {
@@ -183,6 +183,7 @@ static Chassis_Init_Config_s chassis_init_config = {
             .robot_weight = 4.1f,  // 机器人重量,单位为kg(千克)
         },
 
+    // 通过设置电机输出/反馈方向，来使腿部控制镜像对称
     .leg_init_config[0] = LEG_INIT_CONFIG(MOTOR_DIRECTION_NORMAL, FEEDBACK_DIRECTION_NORMAL, &hcan1, 0x06, 0x03, &hcan1,
                                           0x08, 0x04, &hcan1, 0x01, 0x00),
 
@@ -234,7 +235,6 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                             .IntegralLimit = 12000.0f,
                             .MaxOut = 25000.0f,
                         },
-
                 },
             .motor_type = GM6020,
             .can_init_config =
