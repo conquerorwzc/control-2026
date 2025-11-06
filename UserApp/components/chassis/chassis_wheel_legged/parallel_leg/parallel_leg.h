@@ -66,11 +66,6 @@ typedef struct {
 } State_Var_t;
 
 typedef struct {
-  float x_ref, x_d_ref;
-  float length_ref, length_d_ref;
-} Leg_Ctrl_Cmd_t;
-
-typedef struct {
   float rod_length[5];
   float joint_motor_zero_offset[2];
 } Leg_Param_s;
@@ -78,16 +73,21 @@ typedef struct {
 typedef enum {
   LEG_PRE_CALI_MODE = 0,
   LEG_CALI_MODE,
-} Leg_Mode_e;
+} Leg_Cali_Mode_e;
 
 typedef struct {
+  float x_ref, x_d_ref;
+  float length_ref, length_d_ref;
+} Leg_Ctrl_Cmd_t;
+
+typedef struct {
+  Leg_Cali_Mode_e leg_cali_mode;
   Leg_Param_s leg_param;
   float LQR_K_Coefficient[2][6][4];  // [2腿][6状态变量][4多项式系数]
   PID_Init_Config_s length_PID_config;
   PID_Init_Config_s length_d_PID_config;
   Motor_Init_Config_s joint_motor_config[2];
   Motor_Init_Config_s wheel_motor_config;
-  Leg_Mode_e leg_mode;
 } Leg_Init_Config_s;
 
 typedef struct {

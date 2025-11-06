@@ -54,6 +54,7 @@ static void ChassisRecovery() {
     DMMotorPIDCal(leg[i]->joint_motor[1], 0);
     DMMotorPIDCal(leg[i]->wheel_motor, 0);
     LegCtrlUpdate(leg[i], chassis->chassis_IMU_data);
+
     leg[i]->real_model.T += (float)(1 - 2 * i) * chassis->chassis_ctrl_cmd.wz;
     leg[i]->real_model.Tp_1 = leg[i]->joint_motor[0]->motor_controller.final_output;
     leg[i]->real_model.Tp_2 = leg[i]->joint_motor[1]->motor_controller.final_output;
@@ -218,7 +219,7 @@ void ChassisTask() {
       ChassisRecovery();
       break;
     case CHASSIS_ON:
-      // ChassisCtrlUpdate();
+      ChassisCtrlUpdate();
       break;
     default:
       break;

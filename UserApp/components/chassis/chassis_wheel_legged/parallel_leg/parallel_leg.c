@@ -183,7 +183,7 @@ LegInstance* LegInit(Leg_Init_Config_s* config) {
   // 初始化DWT计数器
   DWT_GetDeltaT(&leg_instance->DWT_CNT);
 
-  if (config->leg_mode == LEG_CALI_MODE) {
+  if (config->leg_cali_mode == LEG_CALI_MODE) {
     DMMotorCaliEncoder(leg_instance->joint_motor[0]);
     DMMotorCaliEncoder(leg_instance->joint_motor[1]);
   }
@@ -214,17 +214,24 @@ void LegCtrlUpdate(LegInstance* leg, const attitude_t* imu_data) {
     }
   }
   // 状态变量矩阵与LQR_K矩阵相乘得到控制力矩, T为轮毂电机转矩，Tp为VMC模型髋关节电机转矩
-  leg->real_model.T = (leg->LQR_K[0][0] * leg->state_var.theta + leg->LQR_K[0][1] * leg->state_var.theta_d +
-                       leg->LQR_K[0][2] * leg->state_var.x + leg->LQR_K[0][3] * leg->state_var.x_d +
-                       leg->LQR_K[0][4] * leg->state_var.phi + leg->LQR_K[0][5] * leg->state_var.phi_d);
-  leg->virtual_model.Tp = (leg->LQR_K[1][0] * leg->state_var.theta + leg->LQR_K[1][1] * leg->state_var.theta_d +
-                           leg->LQR_K[1][2] * leg->state_var.x + leg->LQR_K[1][3] * leg->state_var.x_d +
-                           leg->LQR_K[1][4] * leg->state_var.phi + leg->LQR_K[1][5] * leg->state_var.phi_d);
+  leg->real_model.T = leg->LQR_K[0][0] * (leg->state_var.theta - 0.0f) +
+                      leg->LQR_K[0][1] * (leg->state_var.theta_d - 0.0f) +
+                      leg->LQR_K[0][2] * (leg->state_var.x - leg->leg_ctrl_cmd.x_ref) +
+                      leg->LQR_K[0][3] * (leg->state_var.x_d - leg->leg_ctrl_cmd.x_d_ref) +
+                      leg->LQR_K[0][4] * (leg->state_var.phi - 0.0f) + leg->LQR_K[0][5] * (leg->state_var.phi_d - 0.0f);
+
+  leg->virtual_model.Tp =
+      leg->LQR_K[1][0] * (leg->state_var.theta - 0.0f) + leg->LQR_K[1][1] * (leg->state_var.theta_d - 0.0f) +
+      leg->LQR_K[1][2] * (leg->state_var.x - leg->leg_ctrl_cmd.x_ref) +
+      leg->LQR_K[1][3] * (leg->state_var.x_d - leg->leg_ctrl_cmd.x_d_ref) +
+      leg->LQR_K[1][4] * (leg->state_var.phi - 0.0f) + leg->LQR_K[1][5] * (leg->state_var.phi_d - 0.0f);
   // 腿长双环PID
-  leg->leg_ctrl_cmd.length_d_ref =
-      PIDCalculate(&leg->virtual_model.length_PID, leg->virtual_model.length, leg->leg_ctrl_cmd.length_ref);
+  // leg->leg_ctrl_cmd.length_d_ref =
+  // PIDCalculate(&leg->virtual_model.length_PID, leg->virtual_model.length, leg->leg_ctrl_cmd.length_ref);
+  // leg->virtual_model.F =
+  //     PIDCalculate(&leg->virtual_model.length_d_PID, leg->virtual_model.length_d, leg->leg_ctrl_cmd.length_d_ref);
   leg->virtual_model.F =
-      PIDCalculate(&leg->virtual_model.length_d_PID, leg->virtual_model.length_d, leg->leg_ctrl_cmd.length_d_ref);
+      PIDCalculate(&leg->virtual_model.length_PID, leg->virtual_model.length, leg->leg_ctrl_cmd.length_ref);
 }
 
 void JointTorqueUpdate(LegInstance* leg) {

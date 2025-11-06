@@ -53,229 +53,145 @@
 #define REDUCTION_RATIO_LOADER 36.0f            // 2006拨盘电机的减速比,英雄需要修改为3508的19.0f
 #define NUM_PER_CIRCLE 10                       // 拨盘一圈的装载量
 
-#define ROD_LENGTH_1 0.0725  // U: M 0.0725
-#define ROD_LENGTH_2 0.14    // U: M
-#define ROD_LENGTH_3 0.14    // U: M
-#define ROD_LENGTH_4 0.0725  // U: M
-#define ROD_LENGTH_5 0.079   // U: M, length AE
-
-#define ROBOT_WEIGHT 13.0f  // 疑似一半重量
-
-// 下限位零点
-#define PHI1_OFFSET 56.13 * PI / 180.0f
-#define PHI2_OFFSET PHI1_OFFSET + PI / 2
-
-const float leg_LQR_config[2][6][4] = {
-    {
-        {-88.3079710751263f, 68.9068310796955f, -30.0003802287502f, -0.197774178106864f},
-        {1.52414598059982f, -1.09343038036609f, -2.82688593867512f, 0.0281973842051861f},
-        {-21.8700750609220f, 12.7421672466682f, -2.58779676995074f, -0.750848242540331f},
-        {-29.3271263750692f, 17.6067629457167f, -4.23484645974363f, -1.08976980288501f},
-        {-147.771748892911f, 94.0665615939814f, -22.5139626085997f, 2.53224765312440f},
-        {-6.72857056332562f, 4.46216499907277f, -1.14328671767927f, 0.176775242328476f},
-    },
-    {{-43.1495035855057f, 35.1427890165576f, -12.7617044245710f, 3.36940801739176f},
-     {4.14428184617563f, -2.56933858132474f, 0.479050092243477f, 0.248175261724735f},
-     {-229.898177881547f, 144.949258291255f, -33.9196587052128f, 3.44291788865558f},
-     {-329.509693153293f, 207.219295206736f, -48.3799707459102f, 4.952560575479143f},
-     {380.589246401548f, -223.660017597103f, 46.1696952431268f, 9.82308882692083f},
-     {26.1010681824798f, -15.7241310513153f, 3.39175554658673f, 0.278568898146322f}}};
-
 // todo: dmmotor只对j4310做了适配
-static Motor_Init_Config_s joint_motor_config = {
-    .controller_param_init_config =
-        {
-            .angle_PID =
-                {
-                    .Kp = 0.01f,
-                    .Ki = 0.01f,
-                    .Kd = 0.01f,
-                    .MaxOut = 1000.0f,
-                    .DeadBand = 0.01f,
-                    .Improve = PID_IMPROVE_NONE,
-                    .IntegralLimit = 100.0f,
-                },
-            .speed_PID =
-                {
-                    .Kp = 0.01f,
-                    .Ki = 0.01f,
-                    .Kd = 0.01f,
-                    .MaxOut = 1000.0f,
-                    .DeadBand = 0.01f,
-                    .Improve = PID_IMPROVE_NONE,
-                    .IntegralLimit = 100.0f,
-                },
-            .current_PID =
-                {
-                    .Kp = 6000.0f,
-                    .Ki = 100.0f,
-                    .Kd = 0.0f,
-                    .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                    .IntegralLimit = 12000.0f,
-                    .MaxOut = 25000.0f,
-                },
-        },
-    .controller_setting_init_config =
-        {
-            .outer_loop_type = ANGLE_LOOP,
-            .close_loop_type = CURRENT_LOOP | SPEED_LOOP | ANGLE_LOOP,
-            .angle_feedback_source = MOTOR_FEED,
-            .speed_feedback_source = MOTOR_FEED,
+#define JOINT_MOTOR_CONFIG(motor_reverse, feedback_reverse, can, tx, rx)                                       \
+  {                                                                                                            \
+      .controller_param_init_config =                                                                          \
+          {                                                                                                    \
+              .angle_PID =                                                                                     \
+                  {                                                                                            \
+                      .Kp = 0.01f,                                                                             \
+                      .Ki = 0.01f,                                                                             \
+                      .Kd = 0.01f,                                                                             \
+                      .MaxOut = 1000.0f,                                                                       \
+                      .DeadBand = 0.01f,                                                                       \
+                      .Improve = PID_IMPROVE_NONE,                                                             \
+                      .IntegralLimit = 100.0f,                                                                 \
+                  },                                                                                           \
+              .speed_PID =                                                                                     \
+                  {                                                                                            \
+                      .Kp = 0.01f,                                                                             \
+                      .Ki = 0.01f,                                                                             \
+                      .Kd = 0.01f,                                                                             \
+                      .MaxOut = 1000.0f,                                                                       \
+                      .DeadBand = 0.01f,                                                                       \
+                      .Improve = PID_IMPROVE_NONE,                                                             \
+                      .IntegralLimit = 100.0f,                                                                 \
+                  },                                                                                           \
+              .current_PID =                                                                                   \
+                  {                                                                                            \
+                      .Kp = 6000.0f,                                                                           \
+                      .Ki = 100.0f,                                                                            \
+                      .Kd = 0.0f,                                                                              \
+                      .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
+                      .IntegralLimit = 12000.0f,                                                               \
+                      .MaxOut = 25000.0f,                                                                      \
+                  },                                                                                           \
+          },                                                                                                   \
+      .controller_setting_init_config =                                                                        \
+          {                                                                                                    \
+              .outer_loop_type = ANGLE_LOOP,                                                                   \
+              .close_loop_type = CURRENT_LOOP | SPEED_LOOP | ANGLE_LOOP,                                       \
+              .angle_feedback_source = MOTOR_FEED,                                                             \
+              .speed_feedback_source = MOTOR_FEED,                                                             \
+          },                                                                                                   \
+      .motor_type = J4310,                                                                                     \
+      .controller_setting_init_config =                                                                        \
+          {                                                                                                    \
+              .motor_reverse_flag = motor_reverse,                                                             \
+              .feedback_reverse_flag = feedback_reverse,                                                       \
+          },                                                                                                   \
+      .can_init_config =                                                                                       \
+          {                                                                                                    \
+              .can_handle = can,                                                                               \
+              .tx_id = tx,                                                                                     \
+              .rx_id = rx,                                                                                     \
+          },                                                                                                   \
+  }
 
-        },
-    .motor_type = J4310,
-};
-
-static Leg_Init_Config_s leg_init_config = {
-    .leg_param =
-        {
-            .rod_length[0] = ROD_LENGTH_1,
-            .rod_length[1] = ROD_LENGTH_2,
-            .rod_length[2] = ROD_LENGTH_3,
-            .rod_length[3] = ROD_LENGTH_4,
-            .rod_length[4] = ROD_LENGTH_5,
-            .joint_motor_zero_offset[0] = PHI1_OFFSET,
-            .joint_motor_zero_offset[1] = PHI2_OFFSET,
-        },
-    .length_PID_config =
-        {
-            .Kp = 0.01f,
-            .Ki = 0.01f,
-            .Kd = 0.01f,
-            .MaxOut = 1000.0f,
-            .DeadBand = 0.01f,
-            .Improve = PID_IMPROVE_NONE,
-            .IntegralLimit = 100.0f,
-        },
-    .length_d_PID_config =
-        {
-            .Kp = 0.01f,
-            .Ki = 0.01f,
-            .Kd = 0.01f,
-            .MaxOut = 1000.0f,
-            .DeadBand = 0.01f,
-            .Improve = PID_IMPROVE_NONE,
-            .IntegralLimit = 100.0f,
-        },
-    .joint_motor_config[0] = joint_motor_config,
-    .joint_motor_config[1] = joint_motor_config,
-    .wheel_motor_config.motor_type = H6215,
-    .leg_mode = LEG_PRE_CALI_MODE,
-};
+#define LEG_INIT_CONFIG(motor_reverse, feedback_reverse, joint_can_0, joint_tx_0, joint_rx_0, joint_can_1, joint_tx_1, \
+                        joint_rx_1, wheel_can, wheel_tx, wheel_rx)                                                     \
+  {                                                                                                                    \
+      /* 腿部五连杆长度, 单位是M */                                                                                    \
+      .leg_param =                                                                                                     \
+          {                                                                                                            \
+              .rod_length[0] = 0.0725,                                                                                 \
+              .rod_length[1] = 0.14,                                                                                   \
+              .rod_length[2] = 0.14,                                                                                   \
+              .rod_length[3] = 0.0725,                                                                                 \
+              .rod_length[4] = 0.079,                                                                                  \
+              .joint_motor_zero_offset[0] = 56.13 * PI / 180.0f,                                                       \
+              .joint_motor_zero_offset[1] = 56.13 * PI / 180.0f + PI / 2,                                              \
+          },                                                                                                           \
+      .LQR_K_Coefficient = {{{-88.3079710751263f, 68.9068310796955f, -30.0003802287502f, -0.197774178106864f},         \
+                             {1.52414598059982f, -1.09343038036609f, -2.82688593867512f, 0.0281973842051861f},         \
+                             {-21.8700750609220f, 12.7421672466682f, -2.58779676995074f, -0.750848242540331f},         \
+                             {-29.3271263750692f, 17.6067629457167f, -4.23484645974363f, -1.08976980288501f},          \
+                             {-147.771748892911f, 94.0665615939814f, -22.5139626085997f, 2.53224765312440f},           \
+                             {-6.72857056332562f, 4.46216499907277f, -1.14328671767927f, 0.176775242328476f}},         \
+                            {{-43.1495035855057f, 35.1427890165576f, -12.7617044245710f, 3.36940801739176f},           \
+                             {4.14428184617563f, -2.56933858132474f, 0.479050092243477f, 0.248175261724735f},          \
+                             {-229.898177881547f, 144.949258291255f, -33.9196587052128f, 3.44291788865558f},           \
+                             {-329.509693153293f, 207.219295206736f, -48.3799707459102f, 4.952560575479143f},          \
+                             {380.589246401548f, -223.660017597103f, 46.1696952431268f, 9.82308882692083f},            \
+                             {26.1010681824798f, -15.7241310513153f, 3.39175554658673f, 0.278568898146322f}}},         \
+      .length_PID_config =                                                                                             \
+          {                                                                                                            \
+              .Kp = 350.0f,                                                                                            \
+              .Ki = 0.0f,                                                                                              \
+              .Kd = 3000.0f,                                                                                           \
+              .MaxOut = 90.0f,                                                                                         \
+              .DeadBand = 0.01f,                                                                                       \
+              .Improve = PID_IMPROVE_NONE,                                                                             \
+              .IntegralLimit = 0.0f,                                                                                   \
+          },                                                                                                           \
+      .length_PID_config =                                                                                             \
+          {                                                                                                            \
+              .Kp = 10.0f,                                                                                             \
+              .Ki = 0.0f,                                                                                              \
+              .Kd = 0.0f,                                                                                              \
+              .MaxOut = 90.0f,                                                                                         \
+              .DeadBand = 0.01f,                                                                                       \
+              .Improve = PID_IMPROVE_NONE,                                                                             \
+              .IntegralLimit = 0.0f,                                                                                   \
+          },                                                                                                           \
+      .joint_motor_config[0] =                                                                                         \
+          JOINT_MOTOR_CONFIG(motor_reverse, feedback_reverse, joint_can_0, joint_tx_0, joint_rx_0),                    \
+      .joint_motor_config[1] =                                                                                         \
+          JOINT_MOTOR_CONFIG(motor_reverse, feedback_reverse, joint_can_1, joint_tx_1, joint_rx_1),                    \
+      .wheel_motor_config =                                                                                            \
+          {                                                                                                            \
+              .controller_setting_init_config =                                                                        \
+                  {                                                                                                    \
+                      .motor_reverse_flag = motor_reverse,                                                             \
+                      .feedback_reverse_flag = feedback_reverse,                                                       \
+                  },                                                                                                   \
+              .motor_type = H6215,                                                                                     \
+              .can_init_config =                                                                                       \
+                  {                                                                                                    \
+                      .can_handle = wheel_can,                                                                         \
+                      .tx_id = wheel_tx,                                                                               \
+                      .rx_id = wheel_rx,                                                                               \
+                  },                                                                                                   \
+          },                                                                                                           \
+      .leg_cali_mode = LEG_PRE_CALI_MODE,                                                                              \
+  }
 
 static Chassis_Init_Config_s chassis_init_config = {
     .chassis_param =
         {
-
-            .robot_weight = ROBOT_WEIGHT,
+            .robot_weight = 4.1f,  // 机器人重量,单位为kg(千克)
         },
 
-    .leg_init_config[0] = leg_init_config,
-    .leg_init_config[0] =
-        {
-            .joint_motor_config[0] =
-                {
-                    .controller_setting_init_config =
-                        {
-                            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
-                            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
-                        },
-                    .can_init_config =
-                        {
-                            .can_handle = &hcan1,
-                            .tx_id = 0x06,
-                            .rx_id = 0x03,
-                        },
-                },
-            .joint_motor_config[1] =
-                {
-                    .controller_setting_init_config =
-                        {
-                            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
-                            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
-                        },
-                    .motor_type = H6215,
-                    .can_init_config =
-                        {
-                            .can_handle = &hcan1,
-                            .tx_id = 0x08,
-                            .rx_id = 0x04,
-                        },
-                },
-            .wheel_motor_config =
-                {
-                    .controller_setting_init_config =
-                        {
-                            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
-                            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
-                        },
-                    .motor_type = H6215,
-                    .can_init_config =
-                        {
-                            .can_handle = &hcan1,
-                            .tx_id = 0x01,
-                            .rx_id = 0x00,
-                        },
-                },
-        },
+    .leg_init_config[0] = LEG_INIT_CONFIG(MOTOR_DIRECTION_NORMAL, FEEDBACK_DIRECTION_NORMAL, &hcan1, 0x06, 0x03, &hcan1,
+                                          0x08, 0x04, &hcan1, 0x01, 0x00),
 
-    .leg_init_config[1] = leg_init_config,
-    .leg_init_config[1] =
-        {
-            .joint_motor_config[0] =
-                {
-                    .controller_setting_init_config =
-                        {
-                            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
-                            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
-                        },
-                    .motor_type = H6215,
-                    .can_init_config =
-                        {
-                            .can_handle = &hcan2,
-                            .tx_id = 0x08,
-                            .rx_id = 0x04,
-                        },
-                },
-            .joint_motor_config[1] =
-                {
-                    .controller_setting_init_config =
-                        {
-                            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
-                            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
-                        },
-                    .motor_type = H6215,
-                    .can_init_config =
-                        {
-                            .can_handle = &hcan2,
-                            .tx_id = 0x06,
-                            .rx_id = 0x03,
-                        },
-                },
-            .wheel_motor_config =
-                {
-                    .controller_setting_init_config =
-                        {
-                            .outer_loop_type = ANGLE_LOOP,
-                            .close_loop_type = CURRENT_LOOP | SPEED_LOOP | ANGLE_LOOP,
-                            .angle_feedback_source = MOTOR_FEED,
-                            .speed_feedback_source = MOTOR_FEED,
-                            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
-                            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
-                        },
-                    .motor_type = H6215,
-                    .can_init_config =
-                        {
-                            .can_handle = &hcan2,
-                            .tx_id = 0x01,
-                            .rx_id = 0x00,
-                        },
-                },
-        },
+    .leg_init_config[1] = LEG_INIT_CONFIG(MOTOR_DIRECTION_REVERSE, FEEDBACK_DIRECTION_REVERSE, &hcan2, 0x06, 0x03,
+                                          &hcan2, 0x08, 0x04, &hcan2, 0x01, 0x00),
     .delta_theta_PID_config =
         {
-            .Kp = 11.0f,
-            .Ki = 0.2f,
+            .Kp = 10.0f,
+            .Ki = 0.0f,
             .Kd = 0.1f,
             .MaxOut = 2.0f,
             .DeadBand = 0.01f,
@@ -323,8 +239,9 @@ static Gimbal_Init_Config_s gimbal_init_config = {
             .motor_type = GM6020,
             .can_init_config =
                 {
-                    .can_handle = &hcan1,
-                    .tx_id = 2,
+                    .can_handle = &hcan2,
+                    // .tx_id = 2,
+                    .tx_id = 0x104,
                 },
             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
         },
@@ -355,37 +272,41 @@ static Gimbal_Init_Config_s gimbal_init_config = {
             .can_init_config =
                 {
                     .can_handle = &hcan2,
-                    .tx_id = 1,
+                    // .tx_id = 1,
+                    .tx_id = 0x105,
                 },
             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
         },
 };
 
-const static Motor_Init_Config_s friction_motor_config = {
-    .controller_param_init_config =
-        {
-            .speed_PID =
-                {
-                    .Kp = 20.0f,
-                    .Ki = 1.0f,
-                    .Kd = 0.0f,
-                    .Improve = PID_Integral_Limit,
-                    .IntegralLimit = 10000.0f,
-                    .MaxOut = 15000.0f,
-                },
-            .current_PID =
-                {
-                    .Kp = 0.7f,
-                    .Ki = 0.1f,
-                    .Kd = 0.0f,
-                    .Improve = PID_Integral_Limit,
-                    .IntegralLimit = 10000.0f,
-                    .MaxOut = 15000.0f,
-                },
-        },
-    .motor_type = M3508,
-    .can_init_config.can_handle = &hcan2,
-};
+#define FRICTION_MOTOR_CONFIG(id, reverse_flag)                          \
+  {                                                                      \
+      .controller_param_init_config =                                    \
+          {                                                              \
+              .speed_PID =                                               \
+                  {                                                      \
+                      .Kp = 20.0f,                                       \
+                      .Ki = 1.0f,                                        \
+                      .Kd = 0.0f,                                        \
+                      .Improve = PID_Integral_Limit,                     \
+                      .IntegralLimit = 10000.0f,                         \
+                      .MaxOut = 15000.0f,                                \
+                  },                                                     \
+              .current_PID =                                             \
+                  {                                                      \
+                      .Kp = 0.7f,                                        \
+                      .Ki = 0.1f,                                        \
+                      .Kd = 0.0f,                                        \
+                      .Improve = PID_Integral_Limit,                     \
+                      .IntegralLimit = 10000.0f,                         \
+                      .MaxOut = 15000.0f,                                \
+                  },                                                     \
+          },                                                             \
+      .motor_type = M3508,                                               \
+      .can_init_config.can_handle = &hcan3,                              \
+      .can_init_config.tx_id = id,                                       \
+      .controller_setting_init_config.motor_reverse_flag = reverse_flag, \
+  }
 
 static Shoot_Init_Config_s shoot_init_config = {
     .shoot_param =
@@ -394,13 +315,8 @@ static Shoot_Init_Config_s shoot_init_config = {
             .reduction_ratio_loader = REDUCTION_RATIO_LOADER,
             .num_per_circle = NUM_PER_CIRCLE,
         },
-    .friction_motor_config[0] = friction_motor_config,
-    .friction_motor_config[0].can_init_config.tx_id = 2,
-    .friction_motor_config[0].controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
-    .friction_motor_config[1] = friction_motor_config,
-    .friction_motor_config[1].can_init_config.tx_id = 1,
-    .friction_motor_config[1].controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
-
+    .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(2, MOTOR_DIRECTION_REVERSE),
+    .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(1, MOTOR_DIRECTION_NORMAL),
     .loader_motor_config =
         {
             .controller_param_init_config =
@@ -425,7 +341,7 @@ static Shoot_Init_Config_s shoot_init_config = {
             .motor_type = M2006,
             .can_init_config =
                 {
-                    .can_handle = &hcan2,
+                    .can_handle = &hcan3,
                     .tx_id = 3,
                 },
             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
@@ -443,7 +359,7 @@ static PID_Init_Config_s chassis_follow_PID_config = {
 
 static SuperCap_Init_Config_s super_cap_config = {
     .can_config = {
-        .can_handle = &hcan2,
+        .can_handle = &hcan3,
         .tx_id = 0x302,  // 超级电容默认接收id
         .rx_id = 0x301,  // 超级电容默认发送id,注意tx和rx在其他人看来是反的
     }};
