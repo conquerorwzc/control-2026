@@ -54,8 +54,8 @@ static void ChassisRecovery() {
     DMMotorPIDCal(leg[i]->joint_motor[1], 0.3);
     DMMotorSetRef(leg[i]->wheel_motor, 0);
 
-    if (abs((leg[i]->joint_motor[0]->measure.position - (-0.3f))) <= 0.05f &&
-        abs(leg[i]->joint_motor[1]->measure.position - (0.3f)) <= 0.05f) {
+    if (abs((leg[i]->joint_motor[0]->measure.position - (-0.1f))) <= 0.05f &&
+        abs(leg[i]->joint_motor[1]->measure.position - (0.1f)) <= 0.05f) {
       LegCtrlUpdate(leg[i], chassis->chassis_IMU_data);
       leg[i]->real_model.T += (float)(1 - 2 * i) * chassis->chassis_ctrl_cmd.wz;
 
@@ -72,86 +72,7 @@ static void ChassisRecovery() {
  * @brief 功率模型
  * @todo 有待模块化,djimotor也得改改
  */
-static void PowerControl() {
-  // 功率模型常量
-  static const float k0 = 0.7441993412640775f;
-  static const float k1 = 0.006444284468539646f;
-  static const float k2 = 0.0001423857226262331f;
-  static const float k3 = 0.015644430204543864f;
-  static const float k4 = 0.1580143850678086f;
-  static const float k5 = 2.896721772539512e-05f;
-
-  // 获取电机速度反馈,化成单位rad/s
-  float motor_speed_fdb[2];
-  for (int i = 0; i < 2; i++) {
-    motor_speed_fdb[i] = (float)chassis->leg[i]->wheel_motor->measure.velocity / 6.f;
-  }
-
-  // 获取当前电机参考电流，统一位单位为A
-  float motor_current_list[2];
-  for (int i = 0; i < 2; i++) {
-    motor_current_list[i] = (float)chassis->leg[i]->wheel_motor->motor_controller.final_output;
-  }
-
-  float initial_give_power[2] = {0.0f};  // 每个电机的初始估计功率
-  float initial_total_power = 0.0f;      // 估计初始总功率
-
-  // 计算每个电机的功率贡献
-  for (int i = 0; i < 2; i++) {
-    initial_give_power[i] =
-        k0 + k1 * motor_current_list[i] / (16384.0f / 20.0f) + k2 * motor_speed_fdb[i] * (2.0f * PI / 60.0f) +
-        k3 * motor_current_list[i] / (16384.0f / 20.0f) * motor_speed_fdb[i] * (2.0f * PI / 60.0f) +
-        k4 * motor_current_list[i] / (16384.0f / 20.0f) * motor_current_list[i] / (16384.0f / 20.0f) +
-        k5 * motor_speed_fdb[i] * (2.0f * PI / 60.0f) * motor_speed_fdb[i] * (2.0f * PI / 60.0f);
-
-    // 只累加正向功率
-    if (initial_give_power[i] > 0) {
-      initial_total_power += initial_give_power[i];
-    }
-  }
-  // 功率超限时进行动态调整
-  if (initial_total_power > (float)chassis_ctrl_cmd->max_power) {
-    float power_scale = (float)chassis_ctrl_cmd->max_power / initial_total_power;  // 削减功率比例
-    float scaled_give_power[2];
-    // 计算缩放后的功率目标
-    for (int i = 0; i < 2; i++) {
-      scaled_give_power[i] = initial_give_power[i] * power_scale;
-    }
-
-    // 重新计算每个电机的电流参考值
-    for (int i = 0; i < 2; i++) {
-      // 二次方程系数计算，参数
-      float a = k4 / (16384.0f / 20.0f) / (16384.0f / 20.0f);
-      float b = k1 / (16384.0f / 20.0f) + k3 * motor_speed_fdb[i] * (2.0f * PI / 60.0f) / (16384.0f / 20.0f);
-      float c = k2 * motor_speed_fdb[i] * (2.0f * PI / 60.0f) +
-                k5 * motor_speed_fdb[i] * (2.0f * PI / 60.0f) * motor_speed_fdb[i] * (2.0f * PI / 60.0f) -
-                scaled_give_power[i] + k0;
-      float discriminant = b * b - 4 * a * c;  // 判别式
-      if (discriminant >= 0) {
-        float sqrt_disc = sqrtf(discriminant);
-        float temp1 = (-b + sqrt_disc) / (2 * a);
-        float temp2 = (-b - sqrt_disc) / (2 * a);
-
-        // 选择最接近当前电流的解
-        if (motor_current_list[i] > 0) {
-          motor_current_list[i] = (fabsf(temp1 - motor_current_list[i]) < fabsf(temp2 - motor_current_list[i]))
-                                      ? fminf(16000.f, temp1)
-                                      : fminf(16000.f, temp2);
-        } else {
-          motor_current_list[i] = (fabsf(temp1 - motor_current_list[i]) < fabsf(temp2 - motor_current_list[i]))
-                                      ? fmaxf(-16000.f, temp1)
-                                      : fmaxf(-16000.f, temp2);
-        }
-      } else {
-        // 无解时归零
-        motor_current_list[i] = 0.0f;
-      }
-    }
-  }
-  for (int i = 0; i < 2; i++) {
-    chassis->leg[i]->wheel_motor->motor_controller.final_output = (int16_t)(motor_current_list[i]);
-  }
-}
+static void PowerControl() {}
 
 /**
  * @brief 预测电机功率并进行限制
@@ -162,7 +83,7 @@ static void LimitChassisOutput() {
   for (int i = 0; i < 2; i++) {
     VAL_LIMIT(leg[i]->real_model.Tp_1, -3.0f, 3.0f);
     VAL_LIMIT(leg[i]->real_model.Tp_2, -3.0f, 3.0f);
-    VAL_LIMIT(leg[i]->real_model.T, -1.0f, 1.0f);
+    // VAL_LIMIT(leg[i]->real_model.T, -1.0f, 1.0f);
     DMMotorSetRef(leg[i]->joint_motor[0], leg[i]->real_model.Tp_1);
     DMMotorSetRef(leg[i]->joint_motor[1], leg[i]->real_model.Tp_2);
     // DMMotorSetRef(leg[i]->wheel_motor, leg[i]->real_model.T);

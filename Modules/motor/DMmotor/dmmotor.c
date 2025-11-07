@@ -105,12 +105,15 @@ DMMotorInstance* DMMotorInit(Motor_Init_Config_s* config) {
 
   DMMotorEnable(motor);
   DMMotorSetMode(DM_CMD_MOTOR_MODE, motor);
-  DWT_Delay(0.3);
+  DWT_Delay(0.2);
   dm_motor_instance[idx++] = motor;
   return motor;
 }
 
-void DMMotorSetRef(DMMotorInstance* motor, float ref) { motor->motor_controller.final_output = ref; }
+void DMMotorSetRef(DMMotorInstance* motor, float ref) {
+  if (motor->motor_settings.motor_reverse_flag == MOTOR_DIRECTION_REVERSE) ref *= -1;  // 设置反转
+  motor->motor_controller.final_output = ref;
+}
 
 void DMMotorEnable(DMMotorInstance* motor) { motor->stop_flag = MOTOR_ENALBED; }
 
@@ -133,8 +136,8 @@ void DMMotorPIDCal(DMMotorInstance* motor, float ref) {
   motor_controller = &motor->motor_controller;
   measure = &motor->measure;
   pid_ref = motor_controller->pid_ref;  // 保存设定值,防止motor_controller->pid_ref在计算过程中被修改
-  if (motor_setting->motor_reverse_flag == MOTOR_DIRECTION_REVERSE) pid_ref *= -1;  // 设置反转
 
+  // if (motor_setting->motor_reverse_flag == MOTOR_DIRECTION_REVERSE) pid_ref *= -1;  // 设置反转
   // pid_ref会顺次通过被启用的闭环充当数据的载体
   // 计算位置环,只有启用位置环且外层闭环为位置时会计算速度环输出
   if ((motor_setting->close_loop_type & ANGLE_LOOP) && motor_setting->outer_loop_type == ANGLE_LOOP) {
@@ -165,7 +168,7 @@ void DMMotorPIDCal(DMMotorInstance* motor, float ref) {
   }
 
   // 获取最终输出
-  motor->motor_controller.final_output = (int16_t)pid_ref;
+  motor->motor_controller.final_output = pid_ref;
 }
 
 //@Todo: 目前只实现了力控，更多位控PID等请自行添加

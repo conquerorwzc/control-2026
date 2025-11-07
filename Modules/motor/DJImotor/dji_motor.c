@@ -441,7 +441,7 @@ void DJIMotorSetPIDRef(DJIMotorInstance* motor, float ref) {
   }
 
   // 获取最终输出
-  motor->motor_controller.final_output = (int16_t)pid_ref;
+  motor->motor_controller.final_output = pid_ref;
 }
 
 /**

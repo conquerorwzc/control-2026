@@ -60,29 +60,29 @@
           {                                                              \
               .angle_PID =                                               \
                   {                                                      \
-                      .Kp = 1.00f,                                       \
-                      .Ki = 0.00f,                                       \
+                      .Kp = 12.0f,                                       \
+                      .Ki = 0.10f,                                       \
                       .Kd = 0.00f,                                       \
-                      .MaxOut = 10.0f,                                   \
+                      .MaxOut = 8.0f,                                    \
                       .DeadBand = 0.01f,                                 \
                       .Improve = PID_IMPROVE_NONE,                       \
-                      .IntegralLimit = 100.0f,                           \
+                      .IntegralLimit = 1.5f,                             \
                   },                                                     \
               .speed_PID =                                               \
                   {                                                      \
                       .Kp = 0.50f,                                       \
-                      .Ki = 0.00f,                                       \
+                      .Ki = 0.10f,                                       \
                       .Kd = 0.00f,                                       \
-                      .MaxOut = 5.0f,                                    \
+                      .MaxOut = 8.0f,                                    \
                       .DeadBand = 0.01f,                                 \
                       .Improve = PID_IMPROVE_NONE,                       \
-                      .IntegralLimit = 100.0f,                           \
+                      .IntegralLimit = 1.5f,                             \
                   },                                                     \
           },                                                             \
       .controller_setting_init_config =                                  \
           {                                                              \
               .outer_loop_type = ANGLE_LOOP,                             \
-              .close_loop_type = ANGLE_LOOP,                             \
+              .close_loop_type = ANGLE_LOOP | SPEED_LOOP,                \
               .angle_feedback_source = MOTOR_FEED,                       \
               .speed_feedback_source = MOTOR_FEED,                       \
               .motor_reverse_flag = motor_reverse,                       \
