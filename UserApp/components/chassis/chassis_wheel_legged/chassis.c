@@ -50,15 +50,12 @@ static void ChassisRecovery() {
   for (int i = 0; i < 2; i++) {
     DMMotorOuterLoop(leg[i]->joint_motor[0], ANGLE_LOOP);
     DMMotorOuterLoop(leg[i]->joint_motor[1], ANGLE_LOOP);
-    DMMotorPIDCal(leg[i]->joint_motor[0], 0.3);
+    DMMotorPIDCal(leg[i]->joint_motor[0], -0.3);
     DMMotorPIDCal(leg[i]->joint_motor[1], 0.3);
     DMMotorSetRef(leg[i]->wheel_motor, 0);
 
-    // 检查 position 是否在 0.25 和 0.35 之间
-    if (leg[i]->joint_motor[0]->measure.position >= 0.25f && leg[i]->joint_motor[0]->measure.position <= 0.35f &&
-        leg[i]->joint_motor[1]->measure.position >= 0.25f && leg[i]->joint_motor[1]->measure.position <= 0.35f) {
-      // 只有当 position 在指定范围内时才执行以下代码
-
+    if (abs((leg[i]->joint_motor[0]->measure.position - (-0.3f))) <= 0.05f &&
+        abs(leg[i]->joint_motor[1]->measure.position - (0.3f)) <= 0.05f) {
       LegCtrlUpdate(leg[i], chassis->chassis_IMU_data);
       leg[i]->real_model.T += (float)(1 - 2 * i) * chassis->chassis_ctrl_cmd.wz;
 
@@ -171,7 +168,7 @@ static void LimitChassisOutput() {
     // DMMotorSetRef(leg[i]->wheel_motor, leg[i]->real_model.T);
     // DMMotorSetRef(leg[i]->joint_motor[0], 0);
     // DMMotorSetRef(leg[i]->joint_motor[1], 0);
-    // DMMotorSetRef(leg[i]->wheel_motor, 0);
+    DMMotorSetRef(leg[i]->wheel_motor, 0);
   }
   // PowerControl();
 }

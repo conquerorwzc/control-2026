@@ -26,9 +26,11 @@ static float angle;
  *
  */
 static void CalcOffsetAngle() {
-  angle = ((uint16_t)robot->gimbal->yaw_motor->measure.angle_single_round +(uint16_t) robot->gimbal->yaw_motor->measure.total_round %2 * 360.0f)/2.0f;
+  angle = ((uint16_t)robot->gimbal->yaw_motor->measure.angle_single_round +
+           (uint16_t)robot->gimbal->yaw_motor->measure.total_round % 2 * 360.0f) /
+          2.0f;
 
-  if (angle > YAW_ALIGN_ANGLE )
+  if (angle > YAW_ALIGN_ANGLE)
     chassis_ctrl_cmd->offset_angle = angle - YAW_ALIGN_ANGLE;
   else if (angle <= YAW_ALIGN_ANGLE && angle >= YAW_ALIGN_ANGLE - 180.0f)
     chassis_ctrl_cmd->offset_angle = angle - YAW_ALIGN_ANGLE;
@@ -43,24 +45,24 @@ static void CalcOffsetAngle() {
 static void RemoteControlSet() {
   // 右[中]，云台
   if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_ON;
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
-      chassis_ctrl_cmd->chassis_mode= CHASSIS_ROTATE ;
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
     } else
       chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
   }
   // 右[上]，超电，保持底盘跟随云台
   else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_ON;
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
-      chassis_ctrl_cmd->chassis_mode= CHASSIS_ROTATE ;
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
     } else
       chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
   }
   // 左[中],云台启动，摩擦轮启动，拨弹盘启动，准备射击
   if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
     shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_ON;
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
     // 待添加,视觉会发来和目标的误差,同样将其转化为total angle的增量进行控制
@@ -68,7 +70,7 @@ static void RemoteControlSet() {
   } else if (switch_is_up(rc_data[TEMP].rc.switch_left))  // 开火，发射，根据时间判断单发或者连发
   {
     shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_ON;
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
     if (switch_is_mid(rc_data_last[TEMP].rc.switch_left)) {
@@ -81,7 +83,7 @@ static void RemoteControlSet() {
     }
   }
   // 云台使能,或视觉未识别到目标,纯遥控器拨杆控制
-  if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_POWER_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
+  if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
     gimbal_ctrl_cmd->yaw -= -0.003f * (float)rc_data[TEMP].rc.rocker_r_;
     gimbal_ctrl_cmd->pitch += 0.0006f * (float)rc_data[TEMP].rc.rocker_r1;
   }
@@ -97,10 +99,14 @@ static void RemoteControlSet() {
   chassis_ctrl_cmd->vx = 60.0f * (float)rc_data[TEMP].rc.rocker_l_;  // _水平方向
   chassis_ctrl_cmd->vy = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 1数值方向
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
-    chassis_ctrl_cmd->wz =25.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
+    chassis_ctrl_cmd->wz =
+        25.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
   }
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
-    chassis_ctrl_cmd->wz =(25.0f) * (float)rc_data[TEMP].rc.rocker_r_;  //主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
+    chassis_ctrl_cmd->wz =
+        (25.0f) *
+        (float)rc_data[TEMP]
+            .rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
   }
   // 发射参数
 
@@ -246,7 +252,7 @@ void RobotInit() {
 
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
-  chassis_ctrl_cmd->max_power=80;//随便给一个初始功率，后面应该要从裁判系统获取
+  chassis_ctrl_cmd->max_power = 80;  // 随便给一个初始功率，后面应该要从裁判系统获取
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;
@@ -263,19 +269,15 @@ void RobotCMDTask() {
 
 void RobotTask() {
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
-   RobotCMDTask();
-   GimbalTask();
-   ShootTask();
+  RobotCMDTask();
+  GimbalTask();
+  ShootTask();
 #endif
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
-   ChassisTask();
+  ChassisTask();
 #endif
 
   // 正确的赋值方式 - 直接赋值指针值
-  //robot->shoot->friction_motor[1];
-
-
+  // robot->shoot->friction_motor[1];
 }
-
-

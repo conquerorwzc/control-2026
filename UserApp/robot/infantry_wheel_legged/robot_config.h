@@ -175,8 +175,8 @@ static Chassis_Init_Config_s chassis_init_config = {
     .leg_init_config[0] = LEG_INIT_CONFIG(MOTOR_DIRECTION_NORMAL, FEEDBACK_DIRECTION_NORMAL, &hcan1, 0x06, 0x03, &hcan1,
                                           0x08, 0x04, &hcan1, 0x01, 0x00),
 
-    .leg_init_config[1] = LEG_INIT_CONFIG(MOTOR_DIRECTION_REVERSE, FEEDBACK_DIRECTION_REVERSE, &hcan2, 0x06, 0x03,
-                                          &hcan2, 0x08, 0x04, &hcan2, 0x01, 0x00),
+    .leg_init_config[1] = LEG_INIT_CONFIG(MOTOR_DIRECTION_REVERSE, FEEDBACK_DIRECTION_REVERSE, &hcan2, 0x08, 0x04,
+                                          &hcan2, 0x06, 0x03, &hcan2, 0x01, 0x00),
     .delta_theta_PID_config =
         {
             .Kp = 10.0f,
