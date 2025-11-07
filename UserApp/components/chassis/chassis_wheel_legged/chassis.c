@@ -50,12 +50,22 @@ static void ChassisRecovery() {
   for (int i = 0; i < 2; i++) {
     DMMotorOuterLoop(leg[i]->joint_motor[0], ANGLE_LOOP);
     DMMotorOuterLoop(leg[i]->joint_motor[1], ANGLE_LOOP);
-    DMMotorPIDCal(leg[i]->joint_motor[0], 0);
-    DMMotorPIDCal(leg[i]->joint_motor[1], 0);
-    DMMotorPIDCal(leg[i]->wheel_motor, 0);
-    LegCtrlUpdate(leg[i], chassis->chassis_IMU_data);
+    DMMotorPIDCal(leg[i]->joint_motor[0], 0.3);
+    DMMotorPIDCal(leg[i]->joint_motor[1], 0.3);
+    DMMotorSetRef(leg[i]->wheel_motor, 0);
 
-    leg[i]->real_model.T += (float)(1 - 2 * i) * chassis->chassis_ctrl_cmd.wz;
+    // 检查 position 是否在 0.25 和 0.35 之间
+    if (leg[i]->joint_motor[0]->measure.position >= 0.25f && leg[i]->joint_motor[0]->measure.position <= 0.35f &&
+        leg[i]->joint_motor[1]->measure.position >= 0.25f && leg[i]->joint_motor[1]->measure.position <= 0.35f) {
+      // 只有当 position 在指定范围内时才执行以下代码
+
+      LegCtrlUpdate(leg[i], chassis->chassis_IMU_data);
+      leg[i]->real_model.T += (float)(1 - 2 * i) * chassis->chassis_ctrl_cmd.wz;
+
+    } else {
+      // 当 position 不在指定范围时，只执行 wheel_motor 的 PID 控制
+      DMMotorPIDCal(leg[i]->wheel_motor, 0);
+    }
     leg[i]->real_model.Tp_1 = leg[i]->joint_motor[0]->motor_controller.final_output;
     leg[i]->real_model.Tp_2 = leg[i]->joint_motor[1]->motor_controller.final_output;
   }
@@ -156,9 +166,12 @@ static void LimitChassisOutput() {
     VAL_LIMIT(leg[i]->real_model.Tp_1, -3.0f, 3.0f);
     VAL_LIMIT(leg[i]->real_model.Tp_2, -3.0f, 3.0f);
     VAL_LIMIT(leg[i]->real_model.T, -1.0f, 1.0f);
-    // DMMotorSetRef(leg[i]->joint_motor[0], leg[i]->real_model.Tp_1);
-    // DMMotorSetRef(leg[i]->joint_motor[1], leg[i]->real_model.Tp_2);
+    DMMotorSetRef(leg[i]->joint_motor[0], leg[i]->real_model.Tp_1);
+    DMMotorSetRef(leg[i]->joint_motor[1], leg[i]->real_model.Tp_2);
     // DMMotorSetRef(leg[i]->wheel_motor, leg[i]->real_model.T);
+    // DMMotorSetRef(leg[i]->joint_motor[0], 0);
+    // DMMotorSetRef(leg[i]->joint_motor[1], 0);
+    // DMMotorSetRef(leg[i]->wheel_motor, 0);
   }
   // PowerControl();
 }

@@ -8,9 +8,9 @@
 #define hcan2 hfdcan2
 #define hcan3 hfdcan3
 
-#define CAN_MX_REGISTER_CNT 16      // 这个数量取决于CAN总线的负载
-#define MX_CAN_FILTER_CNT (3 * 14)  // 最多可以使用的CAN过滤器数量,目前远不会用到这么多
-#define DEVICE_CAN_CNT 3            // H723VG有3个FDCAN
+#define CAN_MX_REGISTER_CNT 16        // 这个数量取决于CAN总线的负载
+#define MX_FDCAN_FILTER_CNT (3 * 28)  // H7系列FDCAN每个实例最多28个标准ID过滤器
+#define DEVICE_CAN_CNT 3              // H723VG有3个FDCAN
 
 #elifdef STM32F407xx
 #include "can.h"
@@ -33,8 +33,8 @@ typedef struct _ {
 #endif
   uint32_t tx_id;       // 发送id
   uint32_t tx_mailbox;  // CAN消息填入的邮箱号
-  uint8_t tx_buff[8];   // 发送缓存,发送消息长度可以通过CANSetDLC()设定,最大为8
-  uint8_t rx_buff[8];   // 接收缓存,最大消息长度为8
+  uint8_t tx_buff[64];   // 发送缓存,发送消息长度可以通过CANSetDLC()设定,最大为8
+  uint8_t rx_buff[64];   // 接收缓存,最大消息长度为8
   uint32_t rx_id;       // 接收id
   uint8_t rx_len;       // 接收长度,可能为0-8
   // 接收的回调函数,用于解析接收到的数据

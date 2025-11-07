@@ -34,13 +34,6 @@ static uint8_t idx;  // 全局CAN实例索引,每次有新的模块注册会自�
 static void CANAddFilter(CANInstance *_instance) {
 #ifdef STM32H723xx
   static uint8_t can1_filter_idx = 0, can2_filter_idx = 0, can3_filter_idx = 0;
-  // 检查是否超出过滤器设定数量上限
-  if (can1_filter_idx > hfdcan1.Init.StdFiltersNbr || can2_filter_idx > hfdcan2.Init.StdFiltersNbr ||
-      can3_filter_idx > hfdcan3.Init.StdFiltersNbr) {
-    while (1) {
-      // 报错
-    }
-  }
   uint8_t *filter_idx_p;
 
   if (_instance->can_handle == &hfdcan1) {
@@ -56,17 +49,15 @@ static void CANAddFilter(CANInstance *_instance) {
   }
 
   FDCAN_FilterTypeDef fdcan_filter_conf;
+  fdcan_filter_conf.IdType = FDCAN_STANDARD_ID;
   fdcan_filter_conf.FilterIndex = (*filter_idx_p)++;
-  // 使用单个ID模式
-  fdcan_filter_conf.FilterType = FDCAN_FILTER_DUAL;
+  fdcan_filter_conf.FilterType = FDCAN_FILTER_MASK;
+
   fdcan_filter_conf.FilterConfig =
       (_instance->tx_id & 1) ? FDCAN_FILTER_TO_RXFIFO0
                              : FDCAN_FILTER_TO_RXFIFO1;  // 奇数id的模块会被分配到FIFO0,偶数id的模块会被分配到FIFO1
   fdcan_filter_conf.FilterID1 = _instance->rx_id;
-  fdcan_filter_conf.FilterID2 = _instance->rx_id;
-  fdcan_filter_conf.IdType = FDCAN_STANDARD_ID;
-  fdcan_filter_conf.IsCalibrationMsg = 0;
-  // fdcan_filter_conf.RxBufferIndex=0;
+  fdcan_filter_conf.FilterID2 = 0x7FF;
 
   HAL_FDCAN_ConfigFilter(_instance->can_handle, &fdcan_filter_conf);
 
@@ -102,30 +93,20 @@ static void CANAddFilter(CANInstance *_instance) {
  */
 void CANServiceInit() {
 #ifdef STM32H723xx
-  // 可能不需要这么多中断
-  uint32_t FDCAN_RXActiveITs = FDCAN_IT_RX_FIFO0_NEW_MESSAGE | FDCAN_IT_RX_FIFO0_FULL | FDCAN_IT_RX_FIFO0_WATERMARK |
-                               FDCAN_IT_RX_FIFO0_MESSAGE_LOST | FDCAN_IT_RX_FIFO1_NEW_MESSAGE | FDCAN_IT_RX_FIFO1_FULL |
-                               FDCAN_IT_RX_FIFO1_WATERMARK | FDCAN_IT_RX_FIFO1_MESSAGE_LOST;
-
-  // HAL_FDCAN_ConfigClockCalibration()
-  HAL_FDCAN_ConfigRxFifoOverwrite(&hfdcan1, FDCAN_RX_FIFO0, FDCAN_RX_FIFO_OVERWRITE);
-  HAL_FDCAN_ConfigRxFifoOverwrite(&hfdcan1, FDCAN_RX_FIFO1, FDCAN_RX_FIFO_OVERWRITE);
-  HAL_FDCAN_ConfigGlobalFilter(&hfdcan1, FDCAN_REJECT, FDCAN_REJECT, FDCAN_REJECT_REMOTE,
-                               FDCAN_REJECT_REMOTE);  // 全局过滤器设置
+  // 启动FDCAN1
   HAL_FDCAN_Start(&hfdcan1);
-  HAL_FDCAN_ActivateNotification(&hfdcan1, FDCAN_RXActiveITs, 0);
+  HAL_FDCAN_ActivateNotification(&hfdcan1, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0);
+  HAL_FDCAN_ActivateNotification(&hfdcan1, FDCAN_IT_RX_FIFO1_NEW_MESSAGE, 0);
 
-  HAL_FDCAN_ConfigRxFifoOverwrite(&hfdcan2, FDCAN_RX_FIFO0, FDCAN_RX_FIFO_OVERWRITE);
-  HAL_FDCAN_ConfigRxFifoOverwrite(&hfdcan2, FDCAN_RX_FIFO1, FDCAN_RX_FIFO_OVERWRITE);
-  HAL_FDCAN_ConfigGlobalFilter(&hfdcan2, FDCAN_REJECT, FDCAN_REJECT, FDCAN_REJECT_REMOTE, FDCAN_REJECT_REMOTE);
+  // 启动FDCAN2
   HAL_FDCAN_Start(&hfdcan2);
-  HAL_FDCAN_ActivateNotification(&hfdcan2, FDCAN_RXActiveITs, 0);
+  HAL_FDCAN_ActivateNotification(&hfdcan2, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0);
+  HAL_FDCAN_ActivateNotification(&hfdcan2, FDCAN_IT_RX_FIFO1_NEW_MESSAGE, 0);
 
-  HAL_FDCAN_ConfigRxFifoOverwrite(&hfdcan3, FDCAN_RX_FIFO0, FDCAN_RX_FIFO_OVERWRITE);
-  HAL_FDCAN_ConfigRxFifoOverwrite(&hfdcan3, FDCAN_RX_FIFO1, FDCAN_RX_FIFO_OVERWRITE);
-  HAL_FDCAN_ConfigGlobalFilter(&hfdcan3, FDCAN_REJECT, FDCAN_REJECT, FDCAN_REJECT_REMOTE, FDCAN_REJECT_REMOTE);
+  // 启动FDCAN3 (如果存在)
   HAL_FDCAN_Start(&hfdcan3);
-  HAL_FDCAN_ActivateNotification(&hfdcan3, FDCAN_RXActiveITs, 0);
+  HAL_FDCAN_ActivateNotification(&hfdcan3, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0);
+  HAL_FDCAN_ActivateNotification(&hfdcan3, FDCAN_IT_RX_FIFO1_NEW_MESSAGE, 0);
 
 #elifdef STM32F407xx
   HAL_CAN_Start(&hcan1);
@@ -212,7 +193,7 @@ uint8_t CANTransmit(CANInstance *_instance, float timeout) {
   wait_time = DWT_GetTimeline_ms() - dwt_start;
 
 #ifdef STM32H723xx
-  if (HAL_FDCAN_AddMessageToTxFifoQ(_instance->can_handle, &_instance->txconf, _instance->tx_buff))
+  if (HAL_FDCAN_AddMessageToTxFifoQ(_instance->can_handle, &_instance->txconf, _instance->tx_buff) != HAL_OK)
 #elifdef STM32F407xx
   // tx_mailbox会保存实际填入了这一帧消息的邮箱,但是知道是哪个邮箱发的似乎也没啥用
   if (HAL_CAN_AddTxMessage(_instance->can_handle, &_instance->txconf, _instance->tx_buff, &_instance->tx_mailbox))
@@ -227,14 +208,79 @@ uint8_t CANTransmit(CANInstance *_instance, float timeout) {
 
 void CANSetDLC(CANInstance *_instance, uint8_t length) {
   // 发送长度错误!检查调用参数是否出错,或出现野指针/越界访问
+#ifdef STM32F407xx
   if (length > 8 || length == 0)  // 安全检查
     while (1) {
       LOGERROR("[bsp_can] CAN DLC error! check your code or wild pointer");
     }
-#ifdef STM32F407xx
+  if (length > 8 || length == 0)  // 安全检查
+    while (1) {
+      LOGERROR("[bsp_can] CAN DLC error! check your code or wild pointer");
+    }
   _instance->txconf.DLC = length;
 #elifdef STM32H723xx
-  _instance->txconf.DataLength = length;
+  // 根据长度设置对应的DLC值
+  uint32_t dlc_value;
+
+  if (length <= 8) {
+    // 经典CAN模式下的DLC映射
+    switch (length) {
+      case 0:
+        dlc_value = FDCAN_DLC_BYTES_0;
+        break;
+      case 1:
+        dlc_value = FDCAN_DLC_BYTES_1;
+        break;
+      case 2:
+        dlc_value = FDCAN_DLC_BYTES_2;
+        break;
+      case 3:
+        dlc_value = FDCAN_DLC_BYTES_3;
+        break;
+      case 4:
+        dlc_value = FDCAN_DLC_BYTES_4;
+        break;
+      case 5:
+        dlc_value = FDCAN_DLC_BYTES_5;
+        break;
+      case 6:
+        dlc_value = FDCAN_DLC_BYTES_6;
+        break;
+      case 7:
+        dlc_value = FDCAN_DLC_BYTES_7;
+        break;
+      case 8:
+        dlc_value = FDCAN_DLC_BYTES_8;
+        break;
+      default:
+        while (1) LOGERROR("[bsp_fdcan] FDCAN DLC error! Invalid length for classic CAN");
+    }
+  } else if (length <= 64) {
+    // CAN FD模式下的DLC映射
+    if (length <= 12)
+      dlc_value = FDCAN_DLC_BYTES_12;
+    else if (length <= 16)
+      dlc_value = FDCAN_DLC_BYTES_16;
+    else if (length <= 20)
+      dlc_value = FDCAN_DLC_BYTES_20;
+    else if (length <= 24)
+      dlc_value = FDCAN_DLC_BYTES_24;
+    else if (length <= 32)
+      dlc_value = FDCAN_DLC_BYTES_32;
+    else if (length <= 48)
+      dlc_value = FDCAN_DLC_BYTES_48;
+    else
+      dlc_value = FDCAN_DLC_BYTES_64;
+
+    // 需要切换到CAN FD模式
+    _instance->txconf.FDFormat = FDCAN_FD_CAN;
+    _instance->txconf.BitRateSwitch = FDCAN_BRS_ON;
+  } else {
+    while (1) LOGERROR("[bsp_fdcan] FDCAN DLC error! Maximum length is 64 bytes");
+  }
+
+  _instance->txconf.DataLength = dlc_value;
+
 #endif
 }
 
@@ -250,29 +296,76 @@ void CANSetDLC(CANInstance *_instance, uint8_t length) {
  * @param fifox passed to HAL_CAN_GetRxMessage() to get mesg from a specific fifo
  */
 static void FDCANFIFOxCallback(FDCAN_HandleTypeDef *_hfdcan, uint32_t fifox) {
-  static FDCAN_RxHeaderTypeDef rxconf;  // 同上
-  static uint16_t DataLength = 0;
-  static uint8_t fdcan_rx_buff[8];
-  while (HAL_FDCAN_GetRxFifoFillLevel(_hfdcan, fifox))  // FIFO不为空,有可能在其他中断时有多帧数据进入
+  FDCAN_RxHeaderTypeDef rxconf;
+  uint8_t fdcan_rx_buff[64];
+  while (HAL_FDCAN_GetRxFifoFillLevel(_hfdcan, fifox))  // FIFO不为空
   {
-    HAL_FDCAN_GetRxMessage(_hfdcan, fifox, &rxconf, fdcan_rx_buff);  // 从FIFO中获取数据
-    // 解析数据长度，@Todo 此处在用新版本重新生成后可能得修改，DataLength可能不需要右移，具体情况具体看	！
-    if (((rxconf.DataLength >> 16) & 0xF) >= 0 && ((rxconf.DataLength >> 16) & 0xF) <= 8) {
-      DataLength = (rxconf.DataLength >> 16) & 0xF;  // 保存接收到的数据长度
-    } else {
-      DataLength = 0;
-    }
-    if (rxconf.RxFrameType == FDCAN_DATA_FRAME && rxconf.IdType == FDCAN_STANDARD_ID) {
+    if (HAL_FDCAN_GetRxMessage(_hfdcan, fifox, &rxconf, fdcan_rx_buff) == HAL_OK) {
       for (size_t i = 0; i < idx; ++i) {
-        // 两者相等说明这是要找的实例
+        // 找到对应的实例
         if (_hfdcan == can_instance[i]->can_handle && rxconf.Identifier == can_instance[i]->rx_id) {
-          if (can_instance[i]->can_module_callback != NULL)  // 回调函数不为空就调用
-          {
-            can_instance[i]->rx_len = DataLength;                                      // 保存接收到的数据长度
-            memcpy(can_instance[i]->rx_buff, fdcan_rx_buff, can_instance[i]->rx_len);  // 消息拷贝到对应实例
-            can_instance[i]->can_module_callback(can_instance[i]);                     // 触发回调进行数据解析和处理
+          // 回调函数不为空就调用
+          if (can_instance[i]->can_module_callback != NULL) {
+            // 根据DLC值计算实际数据长度
+            uint8_t rx_length = 0;
+            switch (rxconf.DataLength) {
+              case FDCAN_DLC_BYTES_0:
+                rx_length = 0;
+                break;
+              case FDCAN_DLC_BYTES_1:
+                rx_length = 1;
+                break;
+              case FDCAN_DLC_BYTES_2:
+                rx_length = 2;
+                break;
+              case FDCAN_DLC_BYTES_3:
+                rx_length = 3;
+                break;
+              case FDCAN_DLC_BYTES_4:
+                rx_length = 4;
+                break;
+              case FDCAN_DLC_BYTES_5:
+                rx_length = 5;
+                break;
+              case FDCAN_DLC_BYTES_6:
+                rx_length = 6;
+                break;
+              case FDCAN_DLC_BYTES_7:
+                rx_length = 7;
+                break;
+              case FDCAN_DLC_BYTES_8:
+                rx_length = 8;
+                break;
+              case FDCAN_DLC_BYTES_12:
+                rx_length = 12;
+                break;
+              case FDCAN_DLC_BYTES_16:
+                rx_length = 16;
+                break;
+              case FDCAN_DLC_BYTES_20:
+                rx_length = 20;
+                break;
+              case FDCAN_DLC_BYTES_24:
+                rx_length = 24;
+                break;
+              case FDCAN_DLC_BYTES_32:
+                rx_length = 32;
+                break;
+              case FDCAN_DLC_BYTES_48:
+                rx_length = 48;
+                break;
+              case FDCAN_DLC_BYTES_64:
+                rx_length = 64;
+                break;
+              default:
+                rx_length = 8;
+                break;
+            }
+            can_instance[i]->rx_len = rx_length;                         // 保存接收到的数据长度
+            memcpy(can_instance[i]->rx_buff, fdcan_rx_buff, rx_length);  // 消息拷贝到对应实例
+            can_instance[i]->can_module_callback(can_instance[i]);       // 触发回调进行数据解析和处理
           }
-          return;
+          break;
         }
       }
     }
@@ -280,25 +373,13 @@ static void FDCANFIFOxCallback(FDCAN_HandleTypeDef *_hfdcan, uint32_t fifox) {
 }
 
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs) {
-  /* 检查Rx FIFO 0中是否有消息丢失 */
-  if ((RxFifo0ITs & FDCAN_IT_RX_FIFO0_MESSAGE_LOST) != 0) {
-    // 报错
-  }
-  /* 检查是否有新消息写入Rx FIFO 0或到达一定阈值 */
-  if ((RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) || (RxFifo0ITs & FDCAN_IT_RX_FIFO0_FULL) ||
-      (RxFifo0ITs & FDCAN_IT_RX_FIFO0_WATERMARK)) {
-    FDCANFIFOxCallback(hfdcan, FDCAN_RX_FIFO0);  // 调用我们自己写的函数来处理消息
+  if ((RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) != 0) {
+    FDCANFIFOxCallback(hfdcan, FDCAN_RX_FIFO0);
   }
 }
 void HAL_FDCAN_RxFifo1Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo1ITs) {
-  /* 检查Rx FIFO 1中是否有消息丢失 */
-  if ((RxFifo1ITs & FDCAN_IT_RX_FIFO1_MESSAGE_LOST) != 0) {
-    // 报错
-  }
-  /* 检查是否有新消息写入Rx FIFO 1或到达一定阈值 */
-  if ((RxFifo1ITs & FDCAN_IT_RX_FIFO1_NEW_MESSAGE) || (RxFifo1ITs & FDCAN_IT_RX_FIFO1_FULL) ||
-      (RxFifo1ITs & FDCAN_IT_RX_FIFO1_WATERMARK)) {
-    FDCANFIFOxCallback(hfdcan, FDCAN_RX_FIFO1);  // 调用我们自己写的函数来处理消息
+  if ((RxFifo1ITs & FDCAN_IT_RX_FIFO1_NEW_MESSAGE) != 0) {
+    FDCANFIFOxCallback(hfdcan, FDCAN_RX_FIFO1);
   }
 }
 

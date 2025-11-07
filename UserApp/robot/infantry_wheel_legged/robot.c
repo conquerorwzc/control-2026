@@ -280,7 +280,7 @@ static void EmergencyHandler() {
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
 void RobotCMDTask() {
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
-  CalcOffsetAngle();
+  // CalcOffsetAngle();
   RemoteControlSet();
   // MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
@@ -293,6 +293,7 @@ void RobotInit() {
   gpio_r = GPIORegister(&gpio_init_config_r);
   GPIOSet(gpio_l);
   GPIOSet(gpio_r);
+  DWT_Delay(0.5);
 
 #ifdef STM32F4
   robot->rc_data = RemoteControlInit(&huart6);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
@@ -305,11 +306,11 @@ void RobotInit() {
 
   // robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
 
-  robot->super_cap = SuperCapInit(&super_cap_config);
+  // robot->super_cap = SuperCapInit(&super_cap_config);
 
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
-  robot->gimbal = GimbalInit(&gimbal_init_config);
-  robot->shoot = ShootInit(&shoot_init_config);
+  // robot->gimbal = GimbalInit(&gimbal_init_config);
+  // robot->shoot = ShootInit(&shoot_init_config);
 #endif
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   robot->chassis = ChassisInit(&chassis_init_config);
@@ -327,8 +328,8 @@ void RobotInit() {
 void RobotTask() {
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
   RobotCMDTask();
-  GimbalTask();
-  ShootTask();
+  // GimbalTask();
+  // ShootTask();
 #endif
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)

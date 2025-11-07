@@ -77,14 +77,15 @@ static void DMMotorLostCallback(void* motor_ptr) {
 
 void DMMotorCaliEncoder(DMMotorInstance* motor) {
   DMMotorSetMode(DM_CMD_ZERO_POSITION, motor);
-  DWT_Delay(0.1);
+  DWT_Delay(0.3);
 }
 
 DMMotorInstance* DMMotorInit(Motor_Init_Config_s* config) {
   DMMotorInstance* motor = (DMMotorInstance*)malloc(sizeof(DMMotorInstance));
   memset(motor, 0, sizeof(DMMotorInstance));
-
+  motor->motor_type = config->motor_type;
   motor->motor_settings = config->controller_setting_init_config;
+
   PIDInit(&motor->motor_controller.current_PID, &config->controller_param_init_config.current_PID);
   PIDInit(&motor->motor_controller.speed_PID, &config->controller_param_init_config.speed_PID);
   PIDInit(&motor->motor_controller.angle_PID, &config->controller_param_init_config.angle_PID);
@@ -104,9 +105,7 @@ DMMotorInstance* DMMotorInit(Motor_Init_Config_s* config) {
 
   DMMotorEnable(motor);
   DMMotorSetMode(DM_CMD_MOTOR_MODE, motor);
-  DWT_Delay(0.1);
-  // DMMotorCaliEncoder(motor);
-  // DWT_Delay(0.1);
+  DWT_Delay(0.3);
   dm_motor_instance[idx++] = motor;
   return motor;
 }

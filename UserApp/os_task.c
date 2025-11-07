@@ -85,6 +85,7 @@ __attribute__((noreturn)) void StartMOTORTASK(void const *argument) {
   static float motor_dt;
   static float motor_start;
   LOGINFO("[freeRTOS] MOTOR Task Start");
+  DMMotorTaskInit();
   for (;;) {
     motor_start = DWT_GetTimeline_ms();
     MotorControlTask();

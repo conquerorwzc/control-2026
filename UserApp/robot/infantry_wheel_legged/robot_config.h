@@ -54,59 +54,47 @@
 #define NUM_PER_CIRCLE 10                       // 拨盘一圈的装载量
 
 // todo: dmmotor只对j4310做了适配
-#define JOINT_MOTOR_CONFIG(motor_reverse, feedback_reverse, can, tx, rx)                                       \
-  {                                                                                                            \
-      .controller_param_init_config =                                                                          \
-          {                                                                                                    \
-              .angle_PID =                                                                                     \
-                  {                                                                                            \
-                      .Kp = 0.01f,                                                                             \
-                      .Ki = 0.01f,                                                                             \
-                      .Kd = 0.01f,                                                                             \
-                      .MaxOut = 1000.0f,                                                                       \
-                      .DeadBand = 0.01f,                                                                       \
-                      .Improve = PID_IMPROVE_NONE,                                                             \
-                      .IntegralLimit = 100.0f,                                                                 \
-                  },                                                                                           \
-              .speed_PID =                                                                                     \
-                  {                                                                                            \
-                      .Kp = 0.01f,                                                                             \
-                      .Ki = 0.01f,                                                                             \
-                      .Kd = 0.01f,                                                                             \
-                      .MaxOut = 1000.0f,                                                                       \
-                      .DeadBand = 0.01f,                                                                       \
-                      .Improve = PID_IMPROVE_NONE,                                                             \
-                      .IntegralLimit = 100.0f,                                                                 \
-                  },                                                                                           \
-              .current_PID =                                                                                   \
-                  {                                                                                            \
-                      .Kp = 6000.0f,                                                                           \
-                      .Ki = 100.0f,                                                                            \
-                      .Kd = 0.0f,                                                                              \
-                      .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
-                      .IntegralLimit = 12000.0f,                                                               \
-                      .MaxOut = 25000.0f,                                                                      \
-                  },                                                                                           \
-          },                                                                                                   \
-      .controller_setting_init_config =                                                                        \
-          {                                                                                                    \
-              .outer_loop_type = ANGLE_LOOP,                                                                   \
-              .close_loop_type = CURRENT_LOOP | SPEED_LOOP | ANGLE_LOOP,                                       \
-              .angle_feedback_source = MOTOR_FEED,                                                             \
-              .speed_feedback_source = MOTOR_FEED,                                                             \
-          },                                                                                                   \
-      .motor_type = J4310,                                                                                     \
-      .controller_setting_init_config =                                                                        \
-          {                                                                                                    \
-              .motor_reverse_flag = motor_reverse,                                                             \
-              .feedback_reverse_flag = feedback_reverse,                                                       \
-          },                                                                                                   \
-      .can_init_config =                                                                                       \
-          {                                                                                                    \
-              .can_handle = can,                                                                               \
-              .tx_id = tx,                                                                                     \
-              .rx_id = rx,                                                                                     \
-          },                                                                                                   \
+#define JOINT_MOTOR_CONFIG(motor_reverse, feedback_reverse, can, tx, rx) \
+  {                                                                      \
+      .controller_param_init_config =                                    \
+          {                                                              \
+              .angle_PID =                                               \
+                  {                                                      \
+                      .Kp = 1.00f,                                       \
+                      .Ki = 0.00f,                                       \
+                      .Kd = 0.00f,                                       \
+                      .MaxOut = 10.0f,                                   \
+                      .DeadBand = 0.01f,                                 \
+                      .Improve = PID_IMPROVE_NONE,                       \
+                      .IntegralLimit = 100.0f,                           \
+                  },                                                     \
+              .speed_PID =                                               \
+                  {                                                      \
+                      .Kp = 0.50f,                                       \
+                      .Ki = 0.00f,                                       \
+                      .Kd = 0.00f,                                       \
+                      .MaxOut = 5.0f,                                    \
+                      .DeadBand = 0.01f,                                 \
+                      .Improve = PID_IMPROVE_NONE,                       \
+                      .IntegralLimit = 100.0f,                           \
+                  },                                                     \
+          },                                                             \
+      .controller_setting_init_config =                                  \
+          {                                                              \
+              .outer_loop_type = ANGLE_LOOP,                             \
+              .close_loop_type = ANGLE_LOOP,                             \
+              .angle_feedback_source = MOTOR_FEED,                       \
+              .speed_feedback_source = MOTOR_FEED,                       \
+              .motor_reverse_flag = motor_reverse,                       \
+              .feedback_reverse_flag = feedback_reverse,                 \
+          },                                                             \
+      .motor_type = J4310,                                               \
+      .can_init_config =                                                 \
+          {                                                              \
+              .can_handle = can,                                         \
+              .tx_id = tx,                                               \
+              .rx_id = rx,                                               \
+          },                                                             \
   }
 
 #define LEG_INIT_CONFIG(motor_reverse, feedback_reverse, joint_can_0, joint_tx_0, joint_rx_0, joint_can_1, joint_tx_1, \
@@ -174,7 +162,7 @@
                       .rx_id = wheel_rx,                                                                               \
                   },                                                                                                   \
           },                                                                                                           \
-      .leg_cali_mode = LEG_CALI_MODE,                                                                                  \
+      .leg_cali_mode = LEG_PRE_CALI_MODE,                                                                              \
   }
 
 static Chassis_Init_Config_s chassis_init_config = {

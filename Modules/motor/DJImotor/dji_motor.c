@@ -440,8 +440,6 @@ void DJIMotorSetPIDRef(DJIMotorInstance* motor, float ref) {
     pid_ref = PIDCalculate(&motor_controller->current_PID, measure->real_current, pid_ref);
   }
 
-  if (motor_setting->feedback_reverse_flag == FEEDBACK_DIRECTION_REVERSE) pid_ref *= -1;
-
   // 获取最终输出
   motor->motor_controller.final_output = (int16_t)pid_ref;
 }

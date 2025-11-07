@@ -15,4 +15,4 @@ void RobotInit() {
   motor_instance = DJIMotorInit(&wheel_motor_config);
 }
 
-void RobotTask() { DJIMotorSetPIDRef(motor_instance, 800.0f); }
+void RobotTask() { DJIMotorSetPIDRef(motor_instance, 400.0f); }
