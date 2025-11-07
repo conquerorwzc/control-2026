@@ -2,15 +2,14 @@
 
 #include "dji_motor.h"
 
-#define SHOOT_CNT_MAX 2
-
-#define FRICTION_NUM 2 // todo: 该参数应当从robot传入
+#define SHOOT_CNT_MAX 1
 
 // 发射模式设置
 typedef enum {
   SHOOT_OFF = 0,
   SHOOT_ON,
 } Shoot_Mode_e;
+
 
 typedef enum {
   FRICTION_OFF = 0,  // 摩擦轮关闭
@@ -37,8 +36,10 @@ typedef enum {
 // 机器人底盘修改的参数,单位为mm(毫米)
 typedef struct {
   float one_bullet_delta_angle;  // 发射一发弹丸拨盘转动的距离,由机械设计图纸给出
-  float reduction_ratio_loader;  // 2006拨盘电机的减速比,英雄需要修改为3508的19.0f
-  float num_per_circle;          // 拨盘一圈的装载量
+  float reduction_ratio_loader;  // 2006拨盘电机的减速比,英雄拨弹盘的3508减速比为100
+  float num_per_circle;          // 拨盘一圈的装  载量
+  int loader_direction;          //拨弹盘方向
+  int friction_num;              //摩擦轮数量
 } Shoot_Param_s;
 
 // cmd发布的发射控制数据,由shoot订阅
@@ -52,15 +53,15 @@ typedef struct {
 } Shoot_Ctrl_Cmd_s;
 
 typedef struct {
-  Motor_Init_Config_s friction_motor_config[FRICTION_NUM];
   Motor_Init_Config_s loader_motor_config;
   Shoot_Param_s shoot_param;
+  Motor_Init_Config_s friction_motor_config[FRICTION_NUM];
 } Shoot_Init_Config_s;
 
 typedef struct {
   Shoot_Ctrl_Cmd_s shoot_ctrl_cmd;
-  DJIMotorInstance* friction_motor[FRICTION_NUM];
   DJIMotorInstance* loader_motor;  // 拨盘电机
+  DJIMotorInstance* friction_motor[FRICTION_NUM];
 } ShootInstance;
 
 /**

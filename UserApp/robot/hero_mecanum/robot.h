@@ -10,9 +10,7 @@
 
 typedef enum {
   ROBOT_POWER_OFF = 0,
-  ROBOT_CHASSIS_ROTATE,
-  ROBOT_CHASSIS_FOLLOW,
-  ROBOT_CHASSIS_FREE,
+  ROBOT_POWER_ON ,
 } Robot_Mode_e;
 
 typedef struct {
@@ -26,8 +24,8 @@ typedef struct {
   GimbalInstance* gimbal;
   ShootInstance* shoot;
 
-  PIDInstance chassis_follow_PID;
 } RobotInstance;
+
 
 /**
  * @brief 机器人初始化,请在开启rtos之前调用.这也是唯一需要放入main函数的函数
