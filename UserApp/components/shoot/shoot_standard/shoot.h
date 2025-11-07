@@ -55,13 +55,13 @@ typedef struct {
 typedef struct {
   Motor_Init_Config_s loader_motor_config;
   Shoot_Param_s shoot_param;
-  Motor_Init_Config_s friction_motor_config[];
+  Motor_Init_Config_s friction_motor_config[FRICTION_NUM];
 } Shoot_Init_Config_s;
 
 typedef struct {
   Shoot_Ctrl_Cmd_s shoot_ctrl_cmd;
   DJIMotorInstance* loader_motor;  // 拨盘电机
-  DJIMotorInstance* friction_motor[];
+  DJIMotorInstance* friction_motor[FRICTION_NUM];
 } ShootInstance;
 
 /**

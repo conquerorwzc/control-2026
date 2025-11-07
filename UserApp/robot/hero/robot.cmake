@@ -2,7 +2,6 @@
 set(CHASSIS_TYPE chassis_mecanum)
 set(GIMBAL_TYPE gimbal_standard)
 set(SHOOT_TYPE shoot_standard)
-
 add_compile_definitions(FRICTION_NUM=3)
 
 # Include directories for header file searching

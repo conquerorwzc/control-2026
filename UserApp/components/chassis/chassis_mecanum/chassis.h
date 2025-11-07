@@ -50,15 +50,24 @@ typedef struct {
 
 } Chassis_Ctrl_Cmd_s;
 
+typedef struct {
+  float k0;
+  float k1;
+  float k2;
+  float k3;
+  float k4;
+  float k5;
+}Power_Param_3508_s ;
+
 // 机器人底盘修改的参数,单位为mm(毫米)
 typedef struct {
-  float wheel_base;              // 纵向轴距(前进后退方向)
-  float track_width;             // 横向轮距(左右平移方向)
-  float center_gimbal_offset_x;  // 云台旋转中心距底盘几何中心的距离,前后方向,云台位于正中心时默认设为0
-  float center_gimbal_offset_y;  // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
-  float wheel_radius;            // 轮子半径
-  float wheel_reduction_ratio;   // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
-  float k0,k1,k2,k3,k4,k5;       //3508功率模型参数，采用中科大的模型
+  float wheel_base;                     // 纵向轴距(前进后退方向)
+  float track_width;                    // 横向轮距(左右平移方向)
+  float center_gimbal_offset_x;         // 云台旋转中心距底盘几何中心的距离,前后方向,云台位于正中心时默认设为0
+  float center_gimbal_offset_y;         // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
+  float wheel_radius;                   // 轮子半径
+  float wheel_reduction_ratio;          // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
+  Power_Param_3508_s power_param;       //3508功率模型参数，采用中科大的模型
 } Chassis_Param_s;
 
 typedef struct {

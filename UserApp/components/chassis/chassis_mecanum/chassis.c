@@ -24,17 +24,17 @@ static float rf_radius;
 static float lb_radius;
 static float rb_radius;
 static PIDInstance follow_pid;
-static float k0,k1,k2,k3,k4,k5;
+static float k0,k1,k2,k3,k4,k5;       //中科大的功率模型
 
 /**
  * @brief 计算每个轮毂电机的输出,正运动学解算
  *        用宏进行预替换减小开销,运动解算具体过程参考教程
  */
 static void MecanumCalculate() {
-  vt_lf = -chassis_vx - chassis_vy- chassis_ctrl_cmd->wz * lf_radius;
-  vt_rf = -chassis_vx + chassis_vy - chassis_ctrl_cmd->wz * rf_radius;
-  vt_lb = chassis_vx - chassis_vy - chassis_ctrl_cmd->wz * lb_radius;
-  vt_rb = chassis_vx + chassis_vy - chassis_ctrl_cmd->wz * rb_radius;
+  vt_lf = -chassis_vx - chassis_vy - chassis_ctrl_cmd->wz * lf_radius;
+  vt_rf = -chassis_vx + chassis_vy - chassis_ctrl_cmd->wz  * rf_radius;
+  vt_lb = chassis_vx - chassis_vy - chassis_ctrl_cmd->wz  * lb_radius;
+  vt_rb = chassis_vx + chassis_vy - chassis_ctrl_cmd->wz  * rb_radius;
 }
 
 /**
@@ -148,12 +148,12 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   float half_track_width = chassis_param.track_width / 2.0f;
   float center_gimbal_offset_x = chassis_param.center_gimbal_offset_x;
   float center_gimbal_offset_y = chassis_param.center_gimbal_offset_y;
-  k0 = chassis_param.k0;
-  k1 = chassis_param.k1;
-  k2 = chassis_param.k2;
-  k3 = chassis_param.k3;
-  k4 = chassis_param.k4;
-  k5 = chassis_param.k5;
+  k0 = chassis_param.power_param.k0;
+  k1 = chassis_param.power_param.k1;
+  k2 = chassis_param.power_param.k2;
+  k3 = chassis_param.power_param.k3;
+  k4 = chassis_param.power_param.k4;
+  k5 = chassis_param.power_param.k5;
 
   lf_radius = sqrtf((half_track_width + center_gimbal_offset_x) * (half_track_width + center_gimbal_offset_x) +
                     (half_wheel_base - center_gimbal_offset_y) * (half_wheel_base - center_gimbal_offset_y)) *
@@ -193,7 +193,6 @@ void ChassisTask() {
   switch (chassis_ctrl_cmd->chassis_mode)
   {
     case CHASSIS_FOLLOW: // 跟随云台,不单独设置pid,以误差角度平方为速度输出
-      // chassis_cmd_recv.wz = -2.0f * chassis_cmd_recv.offset_angle * abs(chassis_cmd_recv.offset_angle);
       chassis_ctrl_cmd->wz+=PIDCalculate(&follow_pid,chassis_ctrl_cmd->offset_angle,0);
       break;
     case CHASSIS_ROTATE: // 自旋,同时保持全向机动;当前wz维持定值,后续增加不规则的变速策略
@@ -202,11 +201,13 @@ void ChassisTask() {
     default:
       break;
   }
+  // 根据云台和底盘的角度offset将控制量映射到底盘坐标系上
+  // 底盘逆时针旋转为角度正方向;云台命令的方向以云台指向的方向为x,采用右手系(x指向正北时y在正东)
   static float sin_theta, cos_theta;
-  cos_theta = arm_cos_f32(chassis->chassis_ctrl_cmd.offset_angle  * DEGREE_2_RAD);
-  sin_theta = arm_sin_f32(chassis->chassis_ctrl_cmd.offset_angle * DEGREE_2_RAD);
-  chassis_vx = chassis->chassis_ctrl_cmd.vx * cos_theta -chassis->chassis_ctrl_cmd.vy * sin_theta;
-  chassis_vy = chassis->chassis_ctrl_cmd.vx * sin_theta + chassis->chassis_ctrl_cmd.vy * cos_theta;
+  cos_theta = arm_cos_f32(chassis_ctrl_cmd->offset_angle * DEGREE_2_RAD);
+  sin_theta = arm_sin_f32(chassis_ctrl_cmd->offset_angle * DEGREE_2_RAD);
+  chassis_vx = chassis_ctrl_cmd->vx * cos_theta -chassis_ctrl_cmd->vy * sin_theta;
+  chassis_vy = chassis_ctrl_cmd->vx * sin_theta + chassis_ctrl_cmd->vy * cos_theta;
   // 根据电机的反馈速度和IMU(如果有)计算真实速度
   EstimateSpeed();
 
