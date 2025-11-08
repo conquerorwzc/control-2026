@@ -165,9 +165,9 @@ static void LimitChassisOutput() {
     VAL_LIMIT(leg[i]->real_model.T, -1.0f, 1.0f);
     DMMotorSetRef(leg[i]->joint_motor[0], leg[i]->real_model.Tp_1);
     DMMotorSetRef(leg[i]->joint_motor[1], leg[i]->real_model.Tp_2);
-    // DMMotorSetRef(leg[i]->wheel_motor, leg[i]->real_model.T);
     // DMMotorSetRef(leg[i]->joint_motor[0], 0);
     // DMMotorSetRef(leg[i]->joint_motor[1], 0);
+    // DMMotorSetRef(leg[i]->wheel_motor, leg[i]->real_model.T);
     DMMotorSetRef(leg[i]->wheel_motor, 0);
   }
   // PowerControl();

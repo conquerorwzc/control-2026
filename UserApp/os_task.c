@@ -85,7 +85,6 @@ __attribute__((noreturn)) void StartMOTORTASK(void const *argument) {
   static float motor_dt;
   static float motor_start;
   LOGINFO("[freeRTOS] MOTOR Task Start");
-  DMMotorTaskInit();
   for (;;) {
     motor_start = DWT_GetTimeline_ms();
     MotorControlTask();
@@ -115,6 +114,7 @@ __attribute__((noreturn)) void StartROBOTTASK(void const *argument) {
   static float robot_dt;
   static float robot_start;
   RobotInit();
+  DMMotorTaskInit();
   LOGINFO("[freeRTOS] ROBOT core Task Start");
   // 200Hz-500Hz,若有额外的控制任务如平衡步兵可能需要提升至1kHz
   for (;;) {
