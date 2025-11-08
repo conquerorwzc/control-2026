@@ -143,15 +143,15 @@ CANInstance *CANRegister(CAN_Init_Config_s *config) {
   memset(instance, 0, sizeof(CANInstance));                            // 分配的空间未必是0,所以要先清空
                                                                        // 进行发送报文的配置
 #ifdef STM32H723xx
-  instance->txconf.Identifier = config->tx_id;                   // 发送id
-  instance->txconf.IdType = FDCAN_STANDARD_ID;                   // 使用标准id,扩展id则使用CAN_ID_EXT(目前没有需求)
-  instance->txconf.TxFrameType = FDCAN_DATA_FRAME,               // 发送数据帧
-      instance->txconf.DataLength = FDCAN_DLC_BYTES_8,           // 数据长度为8字节
-      instance->txconf.ErrorStateIndicator = FDCAN_ESI_ACTIVE,   // 兼容CAN2.0,错误状态指示器设为主动
-      instance->txconf.BitRateSwitch = FDCAN_BRS_OFF,            // 兼容CAN2.0禁用位速率切换
-      instance->txconf.FDFormat = FDCAN_CLASSIC_CAN,             // 使用经典CAN格式
-      instance->txconf.TxEventFifoControl = FDCAN_NO_TX_EVENTS,  // 不需要，禁用事件FIFO
-      instance->txconf.MessageMarker = 0;                        // 不使用消息标记
+  instance->txconf.Identifier = config->tx_id;               // 发送id
+  instance->txconf.IdType = FDCAN_STANDARD_ID;               // 使用标准id,扩展id则使用CAN_ID_EXT(目前没有需求)
+  instance->txconf.TxFrameType = FDCAN_DATA_FRAME;           // 发送数据帧
+  instance->txconf.DataLength = FDCAN_DLC_BYTES_8;           // 数据长度为8字节
+  instance->txconf.ErrorStateIndicator = FDCAN_ESI_ACTIVE;   // 兼容CAN2.0,错误状态指示器设为主动
+  instance->txconf.BitRateSwitch = FDCAN_BRS_OFF;            // 兼容CAN2.0禁用位速率切换
+  instance->txconf.FDFormat = FDCAN_CLASSIC_CAN;             // 使用经典CAN格式
+  instance->txconf.TxEventFifoControl = FDCAN_NO_TX_EVENTS;  // 不需要，禁用事件FIFO
+  instance->txconf.MessageMarker = 0;                        // 不使用消息标记
 #elifdef STM32F407xx
   instance->txconf.StdId = config->tx_id;  // 发送id
   instance->txconf.IDE = CAN_ID_STD;       // 使用标准id,扩展id则使用CAN_ID_EXT(目前没有需求)
