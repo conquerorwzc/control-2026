@@ -14,6 +14,7 @@
 #include "parallel_leg.h"
 
 #include "bsp_dwt.h"
+#include "general_def.h"
 #include "user_lib.h"
 
 // todo: LegInstance应当以static形式在内部保存指针，内部态函数调用内部实例进行数据操作
@@ -24,8 +25,8 @@
 
 // robot param
 static float joint_motor_zero_offset[2];
-// intermediate variables
 static float LQR_K_Coefficient[2][6][4];
+// intermediate variables
 static float A0, B0, C0;
 static float A1;
 
@@ -114,11 +115,11 @@ static void VirtualModelUpdate(LegInstance* leg) {
 static void StateVarUpdate(LegInstance* leg, const attitude_t* imu_data) {
   Virtual_Model_t* vm = &leg->virtual_model;
   float last_x_d = leg->state_var.x_d;
-  leg->state_var.x_d = leg->wheel_motor->measure.velocity;
+  leg->state_var.x_d = leg->state_var.x_d;
   leg->state_var.x += ((leg->state_var.x_d + last_x_d) / 2) * leg->dt;  // 梯形积分
-  leg->state_var.phi = imu_data->Pitch;
+  leg->state_var.phi = DEGREE_2_RAD * imu_data->Pitch;
   leg->state_var.phi_d = imu_data->Gyro[0];  // Todo: IMU应当有可在上层配置的旋转矩阵
-  leg->state_var.theta = PI / 2.0f - vm->phi - imu_data->Pitch;
+  leg->state_var.theta = PI / 2.0f - vm->phi - DEGREE_2_RAD * imu_data->Pitch;
   leg->state_var.theta_d = -vm->phi_d - imu_data->Gyro[0];
   // Todo:速度观测需要用的变量alpha暂时没处理
 }
@@ -224,24 +225,29 @@ void LegCtrlUpdate(LegInstance* leg, const attitude_t* imu_data) {
   VirtualModelUpdate(leg);
   // 状态变量更新
   StateVarUpdate(leg, imu_data);
-  // 根据腿长计算LQR_K矩阵
+  // 根据腿长计算LQR_K矩阵, i->腿编号, j->状态变量编号
   for (int i = 0; i < 2; i++) {
     for (int j = 0; j < 6; j++) {
       leg->LQR_K[i][j] = LQR_K_Calc(&LQR_K_Coefficient[i][j][0], leg->virtual_model.length);
+      // todo:离地检测，除K21 K22以外全部置零
     }
   }
+  float last_x_d_ref = leg->leg_ctrl_cmd.x_d_ref;
+  leg->leg_ctrl_cmd.x_ref += ((leg->leg_ctrl_cmd.x_d_ref + last_x_d_ref) / 2) * leg->dt;  // 梯形积分
+
   // 状态变量矩阵与LQR_K矩阵相乘得到控制力矩, T为轮毂电机转矩，Tp为VMC模型髋关节电机转矩
-  leg->real_model.T = leg->LQR_K[0][0] * (leg->state_var.theta - 0.0f) +
-                      leg->LQR_K[0][1] * (leg->state_var.theta_d - 0.0f) +
-                      leg->LQR_K[0][2] * (leg->state_var.x - leg->leg_ctrl_cmd.x_ref) +
-                      leg->LQR_K[0][3] * (leg->state_var.x_d - leg->leg_ctrl_cmd.x_d_ref) +
-                      leg->LQR_K[0][4] * (leg->state_var.phi - 0.0f) + leg->LQR_K[0][5] * (leg->state_var.phi_d - 0.0f);
+  leg->real_model.T =
+      1 * leg->LQR_K[0][0] * (leg->state_var.theta - 0.0f) + 1 * leg->LQR_K[0][1] * (leg->state_var.theta_d - 0.0f) +
+      1 * leg->LQR_K[0][2] * (leg->state_var.x - leg->leg_ctrl_cmd.x_ref) +
+      1 * leg->LQR_K[0][3] * (leg->state_var.x_d - leg->leg_ctrl_cmd.x_d_ref) +
+      1 * leg->LQR_K[0][4] * (leg->state_var.phi - 0.0f) + 1 * leg->LQR_K[0][5] * (leg->state_var.phi_d - 0.0f);
 
   leg->virtual_model.Tp =
       leg->LQR_K[1][0] * (leg->state_var.theta - 0.0f) + leg->LQR_K[1][1] * (leg->state_var.theta_d - 0.0f) +
       leg->LQR_K[1][2] * (leg->state_var.x - leg->leg_ctrl_cmd.x_ref) +
       leg->LQR_K[1][3] * (leg->state_var.x_d - leg->leg_ctrl_cmd.x_d_ref) +
       leg->LQR_K[1][4] * (leg->state_var.phi - 0.0f) + leg->LQR_K[1][5] * (leg->state_var.phi_d - 0.0f);
+
   // 腿长双环PID
   // leg->leg_ctrl_cmd.length_d_ref =
   // PIDCalculate(&leg->virtual_model.length_PID, leg->virtual_model.length, leg->leg_ctrl_cmd.length_ref);

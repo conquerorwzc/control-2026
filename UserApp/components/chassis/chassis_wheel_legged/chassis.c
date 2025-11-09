@@ -13,14 +13,14 @@
 #include "user_lib.h"
 
 static ChassisInstance* chassis;
+static LegInstance* leg[2];
 static Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd;  // 声明但不初始化
 
 // robot param
 static float robot_weight;
+static float wheel_radius;
 
 static void ChassisCtrlUpdate() {
-  LegInstance* leg[2] = {chassis->leg[0], chassis->leg[1]};
-
   chassis->roll_comp =
       PIDCalculate(&chassis->roll_PID, chassis->chassis_IMU_data->Gyro[1], chassis->chassis_ctrl_cmd.roll);
 
@@ -46,25 +46,22 @@ static void ChassisCtrlUpdate() {
  * @todo 没测过
  */
 static void ChassisRecovery() {
-  LegInstance* leg[2] = {chassis->leg[0], chassis->leg[1]};
   for (int i = 0; i < 2; i++) {
     DMMotorOuterLoop(leg[i]->joint_motor[0], ANGLE_LOOP);
     DMMotorOuterLoop(leg[i]->joint_motor[1], ANGLE_LOOP);
-    DMMotorPIDCal(leg[i]->joint_motor[0], -0.3);
-    DMMotorPIDCal(leg[i]->joint_motor[1], 0.3);
-    DMMotorSetRef(leg[i]->wheel_motor, 0);
+    DMMotorPIDCal(leg[i]->joint_motor[0], -0.1);
+    DMMotorPIDCal(leg[i]->joint_motor[1], 0.1);
+    leg[i]->real_model.Tp_1 = leg[i]->joint_motor[0]->motor_controller.final_output;
+    leg[i]->real_model.Tp_2 = leg[i]->joint_motor[1]->motor_controller.final_output;
 
     if (abs((leg[i]->joint_motor[0]->measure.position - (-0.1f))) <= 0.05f &&
         abs(leg[i]->joint_motor[1]->measure.position - (0.1f)) <= 0.05f) {
+      leg[i]->leg_ctrl_cmd.x_d_ref = chassis_ctrl_cmd->vx;
       LegCtrlUpdate(leg[i], chassis->chassis_IMU_data);
       leg[i]->real_model.T += (float)(1 - 2 * i) * chassis->chassis_ctrl_cmd.wz;
-
     } else {
-      // 当 position 不在指定范围时，只执行 wheel_motor 的 PID 控制
-      DMMotorPIDCal(leg[i]->wheel_motor, 0);
+      leg[i]->real_model.T = 0;
     }
-    leg[i]->real_model.Tp_1 = leg[i]->joint_motor[0]->motor_controller.final_output;
-    leg[i]->real_model.Tp_2 = leg[i]->joint_motor[1]->motor_controller.final_output;
   }
 }
 
@@ -79,17 +76,16 @@ static void PowerControl() {}
  *
  */
 static void LimitChassisOutput() {
-  LegInstance* leg[2] = {chassis->leg[0], chassis->leg[1]};
   for (int i = 0; i < 2; i++) {
     VAL_LIMIT(leg[i]->real_model.Tp_1, -3.0f, 3.0f);
     VAL_LIMIT(leg[i]->real_model.Tp_2, -3.0f, 3.0f);
-    // VAL_LIMIT(leg[i]->real_model.T, -1.0f, 1.0f);
+    VAL_LIMIT(leg[i]->real_model.T, -1.0f, 1.0f);
     DMMotorSetRef(leg[i]->joint_motor[0], leg[i]->real_model.Tp_1);
     DMMotorSetRef(leg[i]->joint_motor[1], leg[i]->real_model.Tp_2);
     // DMMotorSetRef(leg[i]->joint_motor[0], 0);
     // DMMotorSetRef(leg[i]->joint_motor[1], 0);
-    // DMMotorSetRef(leg[i]->wheel_motor, leg[i]->real_model.T);
-    DMMotorSetRef(leg[i]->wheel_motor, 0);
+    DMMotorSetRef(leg[i]->wheel_motor, leg[i]->real_model.T);
+    // DMMotorSetRef(leg[i]->wheel_motor, 0);
   }
   // PowerControl();
 }
@@ -100,9 +96,10 @@ static void LimitChassisOutput() {
  *
  */
 static void EstimateSpeed() {
-  // 根据电机速度和陀螺仪的角速度进行解算,还可以利用加速度计判断是否打滑(如果有)
-  // chassis_feedback_data.vx vy wz =
-  // DJIMotor得改otherfeed
+  for (int i = 0; i < 2; i++) {
+    leg[i]->state_var.x_d =
+        (leg[0]->wheel_motor->measure.velocity + leg[1]->wheel_motor->measure.velocity) * wheel_radius / 2;
+  }
 }
 
 ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
@@ -112,6 +109,7 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   chassis_instance->leg[1] = LegInit(&chassis_init_config->leg_init_config[1]);
 
   robot_weight = chassis_init_config->chassis_param.robot_weight;
+  wheel_radius = chassis_init_config->chassis_param.wheel_radius;
 
   PIDInit(&chassis_instance->delta_theta_PID, &chassis_init_config->delta_theta_PID_config);
   PIDInit(&chassis_instance->roll_PID, &chassis_init_config->roll_PID_config);
@@ -119,6 +117,8 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   chassis_instance->chassis_IMU_data = INS_Init();
 
   chassis = chassis_instance;
+  leg[0] = chassis->leg[0];
+  leg[1] = chassis->leg[1];
   chassis_ctrl_cmd = &chassis->chassis_ctrl_cmd;  // 在运行时初始化指针
   return chassis_instance;
 }

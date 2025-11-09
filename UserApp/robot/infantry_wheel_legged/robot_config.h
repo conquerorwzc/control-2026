@@ -61,12 +61,12 @@
               .angle_PID =                                               \
                   {                                                      \
                       .Kp = 12.0f,                                       \
-                      .Ki = 0.10f,                                       \
+                      .Ki = 0.00f,                                       \
                       .Kd = 0.00f,                                       \
                       .MaxOut = 8.0f,                                    \
                       .DeadBand = 0.01f,                                 \
-                      .Improve = PID_IMPROVE_NONE,                       \
-                      .IntegralLimit = 1.5f,                             \
+                      .Improve = PID_Integral_Limit,                     \
+                      .IntegralLimit = 0.0f,                             \
                   },                                                     \
               .speed_PID =                                               \
                   {                                                      \
@@ -75,8 +75,8 @@
                       .Kd = 0.00f,                                       \
                       .MaxOut = 8.0f,                                    \
                       .DeadBand = 0.01f,                                 \
-                      .Improve = PID_IMPROVE_NONE,                       \
-                      .IntegralLimit = 1.5f,                             \
+                      .Improve = PID_Integral_Limit,                     \
+                      .IntegralLimit = 0.5f,                             \
                   },                                                     \
           },                                                             \
       .controller_setting_init_config =                                  \
@@ -169,6 +169,7 @@ static Chassis_Init_Config_s chassis_init_config = {
     .chassis_param =
         {
             .robot_weight = 4.1f,  // 机器人重量,单位为kg(千克)
+            .wheel_radius = 0.0603f,
         },
 
     // 通过设置电机输出/反馈方向，来使腿部控制镜像对称

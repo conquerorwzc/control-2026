@@ -96,6 +96,7 @@ DMMotorInstance* DMMotorInit(Motor_Init_Config_s* config) {
   config->can_init_config.id = motor;
   motor->motor_can_instance = CANRegister(&config->can_init_config);
 
+  // todo: 有shit，开了之后有时候电机控不了
   Daemon_Init_Config_s conf = {
       .callback = DMMotorLostCallback,
       .owner_id = motor,
