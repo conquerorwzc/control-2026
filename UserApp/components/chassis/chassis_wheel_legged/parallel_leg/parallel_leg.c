@@ -24,6 +24,7 @@
 // {2.5538f, 0.2718f, 1.5728f, 2.2893f, 12.1973f, 0.4578f}};
 
 // robot param
+static float rod_length[5];
 static float joint_motor_zero_offset[2];
 static float LQR_K_Coefficient[2][6][4];
 // intermediate variables
@@ -45,23 +46,23 @@ static void RealModelUpdate(LegInstance* leg) {
   rm->phi4_d = leg->joint_motor[1]->measure.velocity;
 
   // Calculate joint B\D coordinates
-  rm->xb = rm->l1 * mcos(rm->phi1);
-  rm->yb = rm->l1 * msin(rm->phi1);
-  rm->xd = rm->l5 + rm->l4 * mcos(rm->phi4);
-  rm->yd = rm->l4 * msin(rm->phi4);
+  rm->xb = rod_length[0] * mcos(rm->phi1);
+  rm->yb = rod_length[0] * msin(rm->phi1);
+  rm->xd = rod_length[4] + rod_length[3] * mcos(rm->phi4);
+  rm->yd = rod_length[3] * msin(rm->phi4);
 
   // Calculate intermediate variables
-  A0 = 2.0f * rm->l2 * (rm->xd - rm->xb);
-  B0 = 2.0f * rm->l2 * (rm->yd - rm->yb);
-  C0 =
-      rm->l2 * rm->l2 + (rm->xb - rm->xd) * (rm->xb - rm->xd) + (rm->yb - rm->yd) * (rm->yb - rm->yd) - rm->l3 * rm->l3;
+  A0 = 2.0f * rod_length[1] * (rm->xd - rm->xb);
+  B0 = 2.0f * rod_length[1] * (rm->yd - rm->yb);
+  C0 = rod_length[1] * rod_length[1] + (rm->xb - rm->xd) * (rm->xb - rm->xd) + (rm->yb - rm->yd) * (rm->yb - rm->yd) -
+       rod_length[2] * rod_length[2];
 
   // Calculate joint angle phi2
   rm->phi2 = 2 * atan2f((B0 + sqrtf(A0 * A0 + B0 * B0 - C0 * C0)), (A0 + C0));
-  rm->phi3 = atan2f(rm->yb - rm->yd + rm->l2 * msin(rm->phi2), rm->xb - rm->xd + rm->l2 * mcos(rm->phi2));
+  rm->phi3 = atan2f(rm->yb - rm->yd + rod_length[1] * msin(rm->phi2), rm->xb - rm->xd + rod_length[1] * mcos(rm->phi2));
   // Calculate C coordinates
-  rm->xc = rm->xb + rm->l2 * mcos(rm->phi2);
-  rm->yc = rm->yb + rm->l2 * msin(rm->phi2);
+  rm->xc = rm->xb + rod_length[1] * mcos(rm->phi2);
+  rm->yc = rm->yb + rod_length[1] * msin(rm->phi2);
 }
 
 /**
@@ -75,21 +76,22 @@ static void VirtualModelUpdate(LegInstance* leg) {
   Virtual_Model_t* vm = &leg->virtual_model;
 
   // Calculate leg length & angle & theta
-  vm->length = sqrtf((rm->xc - rm->l5 / 2.0f) * (rm->xc - rm->l5 / 2.0f) + rm->yc * rm->yc);
-  vm->phi = atan2f(rm->yc, rm->xc - rm->l5 / 2.0f);
+  vm->length = sqrtf((rm->xc - rod_length[4] / 2.0f) * (rm->xc - rod_length[4] / 2.0f) + rm->yc * rm->yc);
+  vm->phi = atan2f(rm->yc, rm->xc - rod_length[4] / 2.0f);
 
   // Calculate A1, xB_dot, yB_dot
-  A1 = (rm->l1 * rm->phi1_d * msin(rm->phi1 - rm->phi3) + rm->l4 * rm->phi4_d * msin(rm->phi3 - rm->phi4)) /
+  A1 = (rod_length[0] * rm->phi1_d * msin(rm->phi1 - rm->phi3) +
+        rod_length[3] * rm->phi4_d * msin(rm->phi3 - rm->phi4)) /
        msin(rm->phi3 - rm->phi2);
-  rm->xb_d = -rm->l1 * rm->phi1_d * msin(rm->phi1);
-  rm->yb_d = rm->l1 * rm->phi1_d * mcos(rm->phi1);
+  rm->xb_d = -rod_length[0] * rm->phi1_d * msin(rm->phi1);
+  rm->yb_d = rod_length[0] * rm->phi1_d * mcos(rm->phi1);
 
   // Calculate length_d, phi_d
   vm->length_d =
-      (rm->yc * (rm->yb_d + A1 * mcos(rm->phi2)) + (rm->xc - rm->l5 / 2.0f) * (rm->xb_d - A1 * msin(rm->phi2))) /
+      (rm->yc * (rm->yb_d + A1 * mcos(rm->phi2)) + (rm->xc - rod_length[4] / 2.0f) * (rm->xb_d - A1 * msin(rm->phi2))) /
       vm->length;
   vm->phi_d =
-      ((rm->xc - rm->l5 / 2.0f) * (rm->yb_d + A1 * mcos(rm->phi2)) - rm->yc * (rm->xb_d - A1 * msin(rm->phi2))) /
+      ((rm->xc - rod_length[4] / 2.0f) * (rm->yb_d + A1 * mcos(rm->phi2)) - rm->yc * (rm->xb_d - A1 * msin(rm->phi2))) /
       (vm->length * vm->length);
 
   if (!leg->update_flag.is_initialized) {
@@ -141,9 +143,9 @@ static float LQR_K_Calc(const float* coe, float len) {
 //   + 6.0f;
 //   //腿部机构的力+轮子重力，这里忽略了轮子质量*驱动轮竖直方向运动加速度
 //   if (vm->FN < 5.0f) {
-//     leg->update_flag.is_grounded = 0; //离地了
+//     leg->update_flag.is_off_ground = 1; //离地了
 //   } else {
-//     leg->update_flag.is_grounded = 1; //接地了
+//     leg->update_flag.is_off_ground = 0; //接地了
 //   }
 // }
 
@@ -152,12 +154,12 @@ void JointTorqueUpdate(LegInstance* leg) {
   Real_Model_t* rm = &leg->real_model;
   Virtual_Model_t* vm = &leg->virtual_model;
   // 计算雅可比矩阵元素
-  leg->J[0][0] = (rm->l1 * msin(vm->phi - rm->phi4) * msin(rm->phi1 - rm->phi2)) / msin(rm->phi4 - rm->phi2);
+  leg->J[0][0] = (rod_length[0] * msin(vm->phi - rm->phi4) * msin(rm->phi1 - rm->phi2)) / msin(rm->phi4 - rm->phi2);
   leg->J[0][1] =
-      (rm->l1 * mcos(vm->phi - rm->phi4) * msin(rm->phi1 - rm->phi2)) / (vm->length * msin(rm->phi4 - rm->phi2));
-  leg->J[1][0] = (rm->l4 * msin(vm->phi - rm->phi2) * msin(rm->phi4 - rm->phi3)) / msin(rm->phi4 - rm->phi2);
+      (rod_length[0] * mcos(vm->phi - rm->phi4) * msin(rm->phi1 - rm->phi2)) / (vm->length * msin(rm->phi4 - rm->phi2));
+  leg->J[1][0] = (rod_length[3] * msin(vm->phi - rm->phi2) * msin(rm->phi4 - rm->phi3)) / msin(rm->phi4 - rm->phi2);
   leg->J[1][1] =
-      (rm->l4 * mcos(vm->phi - rm->phi2) * msin(rm->phi4 - rm->phi3)) / (vm->length * msin(rm->phi4 - rm->phi2));
+      (rod_length[3] * mcos(vm->phi - rm->phi2) * msin(rm->phi4 - rm->phi3)) / (vm->length * msin(rm->phi4 - rm->phi2));
   // VMC模型腿部虚拟转矩与推力, 转换为关节电机实际输出转矩
   rm->Tp_1 = leg->J[0][0] * vm->F + leg->J[0][1] * vm->Tp;
   rm->Tp_2 = leg->J[1][0] * vm->F + leg->J[1][1] * vm->Tp;
@@ -172,21 +174,19 @@ void JointTorqueUpdate(LegInstance* leg) {
  */
 LegInstance* LegInit(Leg_Init_Config_s* config) {
   LegInstance* leg_instance = (LegInstance*)zmalloc(sizeof(LegInstance));
-  Real_Model_t* rm = &leg_instance->real_model;
   Virtual_Model_t* vm = &leg_instance->virtual_model;
   // 初始化腿长PID todo: 双环PID能用一个PID实例表示的，写得shit
   PIDInit(&leg_instance->virtual_model.length_PID, &config->length_PID_config);
   PIDInit(&leg_instance->virtual_model.length_d_PID, &config->length_d_PID_config);
+  PIDInit(&leg_instance->state_var.phi_PID, &config->phi_PID_config);
   // 初始化腿部电机
   leg_instance->joint_motor[0] = DMMotorInit(&config->joint_motor_config[0]);
   leg_instance->joint_motor[1] = DMMotorInit(&config->joint_motor_config[1]);
   leg_instance->wheel_motor = DMMotorInit(&config->wheel_motor_config);
   // 初始化连杆长度参数
-  rm->l1 = config->leg_param.rod_length[0];
-  rm->l2 = config->leg_param.rod_length[1];
-  rm->l3 = config->leg_param.rod_length[2];
-  rm->l4 = config->leg_param.rod_length[3];
-  rm->l5 = config->leg_param.rod_length[4];
+  for (int i = 0; i < 5; i++) {
+    rod_length[i] = config->leg_param.rod_length[i];
+  }
   // 初始化电机零点较腿部坐标系x轴偏移量
   joint_motor_zero_offset[0] = config->leg_param.joint_motor_zero_offset[0];
   joint_motor_zero_offset[1] = config->leg_param.joint_motor_zero_offset[1];
@@ -197,7 +197,7 @@ LegInstance* LegInit(Leg_Init_Config_s* config) {
   vm->last_length_d = 0.0f;
   // 初始化各更新标志
   leg_instance->update_flag.is_initialized = 0;
-  leg_instance->update_flag.is_grounded = 1;
+  leg_instance->update_flag.is_off_ground = 0;
   // 初始化DWT计数器
   DWT_GetDeltaT(&leg_instance->DWT_CNT);
 
@@ -236,14 +236,19 @@ void LegCtrlUpdate(LegInstance* leg, const attitude_t* imu_data) {
   leg->leg_ctrl_cmd.x_ref += ((leg->leg_ctrl_cmd.x_d_ref + last_x_d_ref) / 2) * leg->dt;  // 梯形积分
 
   // 状态变量矩阵与LQR_K矩阵相乘得到控制力矩, T为轮毂电机转矩，Tp为VMC模型髋关节电机转矩
+  static float phi_PID_output;
   leg->real_model.T =
-      1 * leg->LQR_K[0][0] * (leg->state_var.theta - 0.0f) + 1 * leg->LQR_K[0][1] * (leg->state_var.theta_d - 0.0f) +
+      // leg->update_flag.is_off_ground ? 0.0f :
+      -1 * leg->LQR_K[0][0] * (leg->state_var.theta - 0.0f) + -1 * leg->LQR_K[0][1] * (leg->state_var.theta_d - 0.0f) +
       1 * leg->LQR_K[0][2] * (leg->state_var.x - leg->leg_ctrl_cmd.x_ref) +
       1 * leg->LQR_K[0][3] * (leg->state_var.x_d - leg->leg_ctrl_cmd.x_d_ref) +
-      1 * leg->LQR_K[0][4] * (leg->state_var.phi - 0.0f) + 1 * leg->LQR_K[0][5] * (leg->state_var.phi_d - 0.0f);
+      -1 * leg->LQR_K[0][4] * (leg->state_var.phi - 0.0f) + -1.5 * leg->LQR_K[0][5] * (leg->state_var.phi_d - 0.0f);
+
+  // leg->real_model.T -= PIDCalculate(&leg->state_var.phi_PID, leg->state_var.phi, 0);
 
   leg->virtual_model.Tp =
       leg->LQR_K[1][0] * (leg->state_var.theta - 0.0f) + leg->LQR_K[1][1] * (leg->state_var.theta_d - 0.0f) +
+      // leg->update_flag.is_off_ground? 0.0f:
       leg->LQR_K[1][2] * (leg->state_var.x - leg->leg_ctrl_cmd.x_ref) +
       leg->LQR_K[1][3] * (leg->state_var.x_d - leg->leg_ctrl_cmd.x_d_ref) +
       leg->LQR_K[1][4] * (leg->state_var.phi - 0.0f) + leg->LQR_K[1][5] * (leg->state_var.phi_d - 0.0f);

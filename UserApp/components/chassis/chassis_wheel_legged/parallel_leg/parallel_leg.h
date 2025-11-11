@@ -29,9 +29,12 @@
 #include "dmmotor.h"
 #include "ins_task.h"
 
+typedef enum {
+  LEG_PRE_CALI_MODE = 0,
+  LEG_CALI_MODE,
+} Leg_Cali_Mode_e;
+
 typedef struct {
-  // Connecting rods length
-  float l1, l2, l3, l4, l5;
   // Joint coordinates
   float xb, yb;
   float xb_d, yb_d;
@@ -60,6 +63,7 @@ typedef struct {
 } Virtual_Model_t;
 
 typedef struct {
+  PIDInstance phi_PID;
   float x, x_d;
   float theta, theta_d;
   float phi, phi_d;
@@ -70,11 +74,6 @@ typedef struct {
   float joint_motor_zero_offset[2];
 } Leg_Param_s;
 
-typedef enum {
-  LEG_PRE_CALI_MODE = 0,
-  LEG_CALI_MODE,
-} Leg_Cali_Mode_e;
-
 typedef struct {
   float x_ref, x_d_ref;
   float length_ref, length_d_ref;
@@ -84,6 +83,7 @@ typedef struct {
   Leg_Cali_Mode_e leg_cali_mode;
   Leg_Param_s leg_param;
   float LQR_K_Coefficient[2][6][4];  // [2腿][6状态变量][4多项式系数]
+  PID_Init_Config_s phi_PID_config;
   PID_Init_Config_s length_PID_config;
   PID_Init_Config_s length_d_PID_config;
   Motor_Init_Config_s joint_motor_config[2];
@@ -91,6 +91,8 @@ typedef struct {
 } Leg_Init_Config_s;
 
 typedef struct {
+  Leg_Ctrl_Cmd_t leg_ctrl_cmd;
+
   DMMotorInstance* joint_motor[2];
   DMMotorInstance* wheel_motor;
 
@@ -103,11 +105,9 @@ typedef struct {
   uint32_t DWT_CNT;
   float dt;
 
-  Leg_Ctrl_Cmd_t leg_ctrl_cmd;
-
   struct {
     uint8_t is_initialized : 1;
-    uint8_t is_grounded : 1;
+    uint8_t is_off_ground : 1;
   } update_flag;
 } LegInstance;
 

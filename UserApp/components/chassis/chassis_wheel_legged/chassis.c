@@ -49,18 +49,19 @@ static void ChassisRecovery() {
   for (int i = 0; i < 2; i++) {
     DMMotorOuterLoop(leg[i]->joint_motor[0], ANGLE_LOOP);
     DMMotorOuterLoop(leg[i]->joint_motor[1], ANGLE_LOOP);
-    DMMotorPIDCal(leg[i]->joint_motor[0], -0.1);
-    DMMotorPIDCal(leg[i]->joint_motor[1], 0.1);
+    DMMotorPIDCal(leg[i]->joint_motor[0], 0.1);
+    DMMotorPIDCal(leg[i]->joint_motor[1], -0.1);
     leg[i]->real_model.Tp_1 = leg[i]->joint_motor[0]->motor_controller.final_output;
     leg[i]->real_model.Tp_2 = leg[i]->joint_motor[1]->motor_controller.final_output;
 
-    if (abs((leg[i]->joint_motor[0]->measure.position - (-0.1f))) <= 0.05f &&
-        abs(leg[i]->joint_motor[1]->measure.position - (0.1f)) <= 0.05f) {
+    if (abs((leg[i]->joint_motor[0]->measure.position - (0.1f))) <= 0.05f &&
+        abs(leg[i]->joint_motor[1]->measure.position - (-0.1f)) <= 0.05f) {
       leg[i]->leg_ctrl_cmd.x_d_ref = chassis_ctrl_cmd->vx;
       LegCtrlUpdate(leg[i], chassis->chassis_IMU_data);
       leg[i]->real_model.T += (float)(1 - 2 * i) * chassis->chassis_ctrl_cmd.wz;
     } else {
-      leg[i]->real_model.T = 0;
+      LegCtrlUpdate(leg[i], chassis->chassis_IMU_data);
+      // leg[i]->real_model.T = 0;
     }
   }
 }
