@@ -25,6 +25,7 @@
 #include "robot.h"
 // bsp
 #include "bsp_init.h"
+#include "dmmotor.h"
 
 osThreadId insTaskHandle;
 osThreadId motorTaskHandle;
