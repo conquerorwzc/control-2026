@@ -27,9 +27,7 @@ static float angle;
  */
 static void CalcOffsetAngle() {
   angle = ((uint16_t)robot->gimbal->yaw_motor->measure.angle_single_round +
-           (uint16_t)robot->gimbal->yaw_motor->measure.total_round % 2 * 360.0f) /
-          2.0f;
-
+           (uint16_t)robot->gimbal->yaw_motor->measure.total_round % 2 * 360.0f) / 2.0f;
   if (angle > YAW_ALIGN_ANGLE)
     chassis_ctrl_cmd->offset_angle = angle - YAW_ALIGN_ANGLE;
   else if (angle <= YAW_ALIGN_ANGLE && angle >= YAW_ALIGN_ANGLE - 180.0f)
