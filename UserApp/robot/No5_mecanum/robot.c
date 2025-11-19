@@ -28,21 +28,12 @@ static void CalcOffsetAngle() {
   // 别名angle提高可读性,不然太长了不好看,虽然基本不会动这个函数
   static float angle;
   angle = robot->gimbal->yaw_motor->measure.angle_single_round;  // 从云台获取的当前yaw电机单圈角度
-#if YAW_ECD_GREATER_THAN_4096  // 如果大于180度
-  if (angle > YAW_ALIGN_ANGLE && angle <= 180.0f + YAW_ALIGN_ANGLE)
-    chassis_ctrl_cmd->offset_angle = angle - YAW_ALIGN_ANGLE;
-  else if (angle > 180.0f + YAW_ALIGN_ANGLE)
-    chassis_ctrl_cmd->offset_angle = angle - YAW_ALIGN_ANGLE - 360.0f;
-  else
-    chassis_ctrl_cmd->offset_angle = angle - YAW_ALIGN_ANGLE;
-#else  // 小于180度
   if (angle > YAW_ALIGN_ANGLE)
     chassis_ctrl_cmd->offset_angle = angle - YAW_ALIGN_ANGLE;
   else if (angle <= YAW_ALIGN_ANGLE && angle >= YAW_ALIGN_ANGLE - 180.0f)
     chassis_ctrl_cmd->offset_angle = angle - YAW_ALIGN_ANGLE;
   else
     chassis_ctrl_cmd->offset_angle = angle - YAW_ALIGN_ANGLE + 360.0f;
-#endif
 }
 /**
  * @brief 控制输入为遥控器(调试时)的模式和控制量设置
@@ -111,7 +102,7 @@ static void RemoteControlSet() {
   }
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
     chassis_ctrl_cmd->wz =
-        (-5.0f) *
+        (25.0f) *
         (float)rc_data[TEMP]
             .rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
   }
