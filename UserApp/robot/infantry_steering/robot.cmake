@@ -1,5 +1,5 @@
 # Set the type of chassis, gimbal and shooter modules for infantry wheel legged
-set(CHASSIS_TYPE chassis_wheel_legged)
+set(CHASSIS_TYPE chassis_steering)
 set(GIMBAL_TYPE gimbal_standard)
 set(SHOOT_TYPE shoot_standard)
 add_compile_definitions(FRICTION_NUM=2)
