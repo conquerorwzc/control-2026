@@ -225,7 +225,7 @@ static Shoot_Init_Config_s shoot_init_config = {
                             .Kp = 45.0f,
                             .Ki = 0.0f,
                             .Kd = 0.1f,
-                            .MaxOut = 50000.0f,
+                            .MaxOut = 30000.0f,
                         },
                     .speed_PID =
                         {
@@ -234,7 +234,7 @@ static Shoot_Init_Config_s shoot_init_config = {
                             .Kd = 0.0f,
                             .Improve = PID_Integral_Limit | PID_ErrorHandle,
                             .IntegralLimit = 5000.0f,
-                            .MaxOut = 10000.0f,
+                            .MaxOut = 6000.0f,
                         },
                 },
             .motor_type = M2006, //拨盘电机为M2006
