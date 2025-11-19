@@ -16,7 +16,6 @@ static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 
 /* Intermediate variables calculated by private functions */
 static float trigger_time = 0;  // 触发时间
-static float angle;
 
 // static  DJIMotorInstance* debug_motor;
 
@@ -26,23 +25,33 @@ static float angle;
  *
  */
 static void CalcOffsetAngle() {
-  angle = ((uint16_t)robot->gimbal->yaw_motor->measure.angle_single_round +
-           (uint16_t)robot->gimbal->yaw_motor->measure.total_round % 2 * 360.0f) / 2.0f;
+  // 别名angle提高可读性,不然太长了不好看,虽然基本不会动这个函数
+  static float angle;
+  angle = robot->gimbal->yaw_motor->measure.angle_single_round;  // 从云台获取的当前yaw电机单圈角度
+#if YAW_ECD_GREATER_THAN_4096  // 如果大于180度
+  if (angle > YAW_ALIGN_ANGLE && angle <= 180.0f + YAW_ALIGN_ANGLE)
+    chassis_ctrl_cmd->offset_angle = angle - YAW_ALIGN_ANGLE;
+  else if (angle > 180.0f + YAW_ALIGN_ANGLE)
+    chassis_ctrl_cmd->offset_angle = angle - YAW_ALIGN_ANGLE - 360.0f;
+  else
+    chassis_ctrl_cmd->offset_angle = angle - YAW_ALIGN_ANGLE;
+#else  // 小于180度
   if (angle > YAW_ALIGN_ANGLE)
     chassis_ctrl_cmd->offset_angle = angle - YAW_ALIGN_ANGLE;
   else if (angle <= YAW_ALIGN_ANGLE && angle >= YAW_ALIGN_ANGLE - 180.0f)
     chassis_ctrl_cmd->offset_angle = angle - YAW_ALIGN_ANGLE;
   else
     chassis_ctrl_cmd->offset_angle = angle - YAW_ALIGN_ANGLE + 360.0f;
+#endif
 }
-
 /**
  * @brief 控制输入为遥控器(调试时)的模式和控制量设置
  *
  */
 static void RemoteControlSet() {
   // 右[中]，云台
-  if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
+  if (switch_is_mid(rc_data[TEMP].rc.switch_right))
+  {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
@@ -82,8 +91,8 @@ static void RemoteControlSet() {
   }
   // 云台使能,或视觉未识别到目标,纯遥控器拨杆控制
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
-    gimbal_ctrl_cmd->yaw -= -0.003f * (float)rc_data[TEMP].rc.rocker_r_;
-    gimbal_ctrl_cmd->pitch += 0.0006f * (float)rc_data[TEMP].rc.rocker_r1;
+    gimbal_ctrl_cmd->yaw -= -0.0008f * (float)rc_data[TEMP].rc.rocker_r_;
+    gimbal_ctrl_cmd->pitch += 0.0002f * (float)rc_data[TEMP].rc.rocker_r1;
   }
 
   // 云台PITCH轴软件限位 todo:没在云台有点不好
@@ -98,11 +107,11 @@ static void RemoteControlSet() {
   chassis_ctrl_cmd->vy = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 1数值方向
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
     chassis_ctrl_cmd->wz =
-        25.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
+        -5.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
   }
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
     chassis_ctrl_cmd->wz =
-        (25.0f) *
+        (-5.0f) *
         (float)rc_data[TEMP]
             .rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
   }

@@ -23,6 +23,8 @@
 #include "motor_task.h"
 // #include "referee_task.h"
 #include "robot.h"
+// module
+#include "dmmotor.h"
 // bsp
 #include "bsp_init.h"
 
@@ -113,6 +115,7 @@ __attribute__((noreturn)) void StartDAEMONTASK(void const *argument) {
 __attribute__((noreturn)) void StartROBOTTASK(void const *argument) {
   static float robot_dt;
   static float robot_start;
+
   RobotInit();
   DMMotorTaskInit();
   LOGINFO("[freeRTOS] ROBOT core Task Start");
