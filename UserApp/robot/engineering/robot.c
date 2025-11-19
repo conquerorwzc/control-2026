@@ -3,32 +3,30 @@
 #include "general_def.h"
 #include "robot_config.h"
 #include "user_lib.h"
-
+#include "cmsis_os.h"
+#include "stdlib.h"
+#include "string.h"
 static RobotInstance *robot;
 
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
-static Gimbal_Ctrl_Cmd_s *gimbal_ctrl_cmd;
-static Shoot_Ctrl_Cmd_s *shoot_ctrl_cmd;
+static Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd; // 【新增】龙门架控制命令指针
 
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 
 /* Intermediate variables calculated by private functions */
-static float trigger_time = 0;  // 触发时间
 static float angle;
 
-// static  DJIMotorInstance* debug_motor;
-
+extern Gantry_Init_Config_s gantry_init_config;
 
 /**
  * @brief 控制输入为遥控器(调试时)的模式和控制量设置
  *
  */
 static void RemoteControlSet() {
-  // 右[中]，云台
+  // 右[中]
   if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
     } else
@@ -36,47 +34,25 @@ static void RemoteControlSet() {
   }
   // 右[上]，超电，保持底盘跟随云台
   else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
-    } else
+    } else{
       chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
-  }
-  // 左[中],云台启动，摩擦轮启动，拨弹盘启动，准备射击
-  if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
-    shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-    shoot_ctrl_cmd->friction_mode = FRICTION_ON;
-    shoot_ctrl_cmd->load_mode = LOAD_STOP;
-    // 待添加,视觉会发来和目标的误差,同样将其转化为total angle的增量进行控制
-    // ...
-  } else if (switch_is_up(rc_data[TEMP].rc.switch_left))  // 开火，发射，根据时间判断单发或者连发
-  {
-    shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-    shoot_ctrl_cmd->friction_mode = FRICTION_ON;
-    shoot_ctrl_cmd->load_mode = LOAD_STOP;
-    if (switch_is_mid(rc_data_last[TEMP].rc.switch_left)) {
-      trigger_time = DWT_GetTimeline_s();
-    }
-    if (DWT_GetTimeline_s() - trigger_time > 1.0f) {
-      shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
-    } else {
-      shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
     }
   }
-  // // 云台使能,或视觉未识别到目标,纯遥控器拨杆控制
-  // if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
-  //   gimbal_ctrl_cmd->yaw -= -0.003f * (float)rc_data[TEMP].rc.rocker_r_;
-  //   gimbal_ctrl_cmd->pitch += 0.0006f * (float)rc_data[TEMP].rc.rocker_r1;
-  // }
-  //
-  // // 云台PITCH轴软件限位 todo:没在云台有点不好
-  // if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
-  //   gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
-  // } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
-  //   gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
-  // }
+  // 右[下] 在 EmergencyHandler 中处理断电
+
+  // 龙门架模式设置 (利用左侧开关)
+  if (gantry_ctrl_cmd != NULL) {
+    if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
+      // 左[中]：遥控器控制龙门架
+      gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_CONTROL_REMOTE;
+    } else if (switch_is_up(rc_data[TEMP].rc.switch_left)) {
+      // 左[上]：龙门架锁死 (方便操作底盘时保持机械臂位置)
+      gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_LOCK;
+    }
+    // 左[下] 在 EmergencyHandler 中处理断电
+  }
 
   // 底盘参数,系数需要调整
   chassis_ctrl_cmd->vx = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 水平方向
@@ -85,14 +61,6 @@ static void RemoteControlSet() {
     chassis_ctrl_cmd->wz =
         -25.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
   }
-  // if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
-  //   chassis_ctrl_cmd->wz =(25.0f) *(float)rc_data[TEMP].rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
-  // }
-  // 发射参数
-
-  // 射频控制,固定每秒1发,后续可以根据左侧拨轮的值大小切换射频,
-  shoot_ctrl_cmd->shoot_rate = 8;
-
   *rc_data_last = *rc_data;
 }
 
@@ -183,25 +151,28 @@ static void EmergencyHandler() {
   // 两switch都在下断电
   if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)))  // 全部失能
   {
-    robot->robot_mode = ROBOT_POWER_ON;
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
+    robot->robot_mode = ROBOT_POWER_OFF;
     chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
-    shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
-    shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
-    shoot_ctrl_cmd->load_mode = LOAD_STOP;
+    if (gantry_ctrl_cmd != NULL) {
+      gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_POWER_OFF; // 【新增】龙门架断电
+    }
     LOGERROR("[CMD] emergency stop!");
   } else {
+    // 恢复正常运行，如果龙门架模式是断电，则恢复到遥控模式
+    if (gantry_ctrl_cmd != NULL && gantry_ctrl_cmd->Gantry_mode == GANTRY_MODE_POWER_OFF) {
+      gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_CONTROL_REMOTE;
+    }
     LOGINFO("[CMD] reinstate, robot ready");
   }
-  if (switch_is_down(rc_data[TEMP].rc.switch_right))  // 底盘失能
+  if (switch_is_down(rc_data[TEMP].rc.switch_right))  // 右下，底盘失能
   {
     chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
   }
-  if (switch_is_down(rc_data[TEMP].rc.switch_left))  // 发射失能
+  if (switch_is_down(rc_data[TEMP].rc.switch_left))  // 左下，龙门架锁死
   {
-    shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
-    shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
-    shoot_ctrl_cmd->load_mode = LOAD_STOP;
+    if (gantry_ctrl_cmd != NULL) {
+      gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_LOCK;
+    }
   }
   // 遥控器右侧开关为[上],恢复正常运行
 }
@@ -217,15 +188,8 @@ void RobotInit() {
 
   rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
   *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
+  robot->gantry = GantryInit(&gantry_init_config);
 
-  // robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
-
-  // robot->super_cap = SuperCapInit(&super_cap_config);
-
-#if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
-  robot->gimbal = GimbalInit(&gimbal_init_config);
-  robot->shoot = ShootInit(&shoot_init_config);
-#endif
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   robot->chassis = ChassisInit(&chassis_init_config);
 #endif
@@ -233,8 +197,11 @@ void RobotInit() {
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   chassis_ctrl_cmd->max_power = 80;  // 随便给一个初始功率，后面应该要从裁判系统获取
-  gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
-  shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
+
+  // 【新增】龙门架控制命令指针
+  if (robot->gantry != NULL) {
+    gantry_ctrl_cmd = &robot->gantry->Gantry_ctrl_cmd;
+  }
   rc_data = robot->rc_data;
 }
 
@@ -249,14 +216,11 @@ void RobotCMDTask() {
 void RobotTask() {
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
   RobotCMDTask();
-  // GimbalTask();
-  // ShootTask();
 #endif
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   ChassisTask();
 #endif
-
   // 正确的赋值方式 - 直接赋值指针值
   // robot->shoot->friction_motor[1];
 }

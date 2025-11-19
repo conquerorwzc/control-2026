@@ -1,8 +1,7 @@
 #pragma once
 
 #include "chassis.h"
-#include "gimbal.h"
-#include "shoot.h"
+#include "gantry.h"
 #include "remote_control.h"
 // #include "rm_referee.h"
 #include "super_cap.h"
@@ -21,8 +20,9 @@ typedef struct {
 
   SuperCapInstance* super_cap;
   ChassisInstance* chassis;
-  GimbalInstance* gimbal;
-  ShootInstance* shoot;
+  GantryInstance* gantry;
+  //GimbalInstance* gimbal;
+  //ShootInstance* shoot;
 
 } RobotInstance;
 
