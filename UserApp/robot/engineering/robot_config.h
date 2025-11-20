@@ -116,148 +116,48 @@ static Chassis_Init_Config_s chassis_init_config = {
 
 };
 
-static Gimbal_Init_Config_s gimbal_init_config = {
-    .yaw_motor_config =
+static Grab_Init_Config_s   grab_init_config_s = {
+    .Grab_motor_config =
         {
             .controller_param_init_config =
                 {
                     .angle_PID =
                         {
-                            .Kp = -1.5f,
-                            .Ki = 0.0f,
-                            .Kd = -0.08f,
-                            .DeadBand = 0.1f,
-                            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                            .IntegralLimit = 5.0f,
-                            .MaxOut = 22.0f,
+                            .Kp = 1.00f,
+                            .Ki = 0.00f,
+                            .Kd = 0.00f,
+                            .MaxOut = 10.0f,
+                            .DeadBand = 0.01f,
+                            .Improve = PID_IMPROVE_NONE,
+                            .IntegralLimit = 100.0f,
                         },
                     .speed_PID =
                         {
-                            .Kp = 5500.0f,
-                            .Ki = 70.0f,
-                            .Kd = 0.0f,
-                            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                            .IntegralLimit = 12000.0f,
-                            .MaxOut = 26000.0f,
+                            .Kp = 0.50f,
+                            .Ki = 0.00f,
+                            .Kd = 0.00f,
+                            .MaxOut = 5.0f,
+                            .DeadBand = 0.01f,
+                            .Improve = PID_IMPROVE_NONE,
+                            .IntegralLimit = 100.0f,
                         },
-
                 },
-            .motor_type = GM6020,
+            .controller_setting_init_config =
+                {
+                    .outer_loop_type = ANGLE_LOOP,
+                    .close_loop_type = ANGLE_LOOP,
+                    .angle_feedback_source = MOTOR_FEED,
+                    .speed_feedback_source = MOTOR_FEED,
+                    .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+                    .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+                },
+            .motor_type = J4310,
             .can_init_config =
                 {
                     .can_handle = &hcan1,
-                    .tx_id = 2,
+                    .tx_id =  0x01,
+                    .rx_id =  0x00,
                 },
-            .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
-        },
-    .pitch_motor_config =
-        {
-            .controller_param_init_config =
-                {
-                    .angle_PID =
-                        {
-                            .Kp = 0.8f,
-                            .Ki = 0.0f,
-                            .Kd = 0.0f,
-                            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                            .IntegralLimit = 5.0f,
-                            .MaxOut = 25.0f,
-                        },
-                    .speed_PID =
-                        {
-                            .Kp = 20000.0f,
-                            .Ki = 120.0f,
-                            .Kd = 0.0f,
-                            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                            .IntegralLimit = 12000.0f,
-                            .MaxOut = 26000.0f,
-                        },
-                },
-            .motor_type = GM6020,
-            .can_init_config =
-                {
-                    .can_handle = &hcan2,
-                    .tx_id = 1,
-                },
-            .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
-        },
-};
-
-#define FRICTION_MOTOR_CONFIG(handle, id, direction) \
-  ((Motor_Init_Config_s){                            \
-      .controller_param_init_config =                \
-          {                                          \
-              .speed_PID =                           \
-                  {                                  \
-                      .Kp = 0.5f,                    \
-                      .Ki = 0.0f,                    \
-                      .Kd = 0.0f,                    \
-                      .Improve = PID_Integral_Limit, \
-                      .IntegralLimit = 10000.0f,     \
-                      .MaxOut = 15000.0f,            \
-                  },                                 \
-          },                                         \
-      .controller_setting_init_config =              \
-          {                                          \
-              .angle_feedback_source = MOTOR_FEED,   \
-              .speed_feedback_source = MOTOR_FEED,   \
-              .outer_loop_type = SPEED_LOOP,         \
-              .close_loop_type = SPEED_LOOP,         \
-              .motor_reverse_flag = direction,       \
-          },                                         \
-      .motor_type = M3508,                           \
-      .can_init_config =                             \
-          {                                          \
-              .can_handle = handle,                  \
-              .tx_id = id,                           \
-          },                                         \
-  })
-
-static Shoot_Init_Config_s shoot_init_config = {
-    .shoot_param =
-        {
-            .one_bullet_delta_angle = 60.0f,   // 发射一发弹丸拨盘转动的距离,由机械设计图纸给出
-            .reduction_ratio_loader = 100.0f,  // 3508拨盘电机的减速比,英雄
-            .num_per_circle = 6,               // 拨盘一圈的装载量
-            .loader_direction = -1,            // 拨盘旋转方向,1为正向，-1为反向
-            .friction_num = 3,                 // 摩擦轮数量
-        },
-    .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan2, 1, MOTOR_DIRECTION_NORMAL),
-    .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan2, 2, MOTOR_DIRECTION_REVERSE),
-    .friction_motor_config[2] = FRICTION_MOTOR_CONFIG(&hcan2, 4, MOTOR_DIRECTION_NORMAL),
-
-    .loader_motor_config =
-        {
-            .controller_param_init_config =
-                {
-                    .angle_PID =
-                        {
-                            .Kp = 30.0f,
-                            .Ki = 0.0f,
-                            .Kd = 0.0f,
-                            .MaxOut = 50000.0f,
-                        },
-                    .speed_PID =
-                        {
-                            .Kp = 2.0f,
-                            .Ki = 0.4f,
-                            .Kd = 0.0f,
-                            .Improve = PID_Integral_Limit | PID_ErrorHandle,
-                            .IntegralLimit = 7000.0f,
-                            .MaxOut = 16000.0f,
-                        },
-                },
-            .motor_type = M3508,
-            .can_init_config =
-                {
-                    .can_handle = &hcan2,
-                    .tx_id = 3,
-                },
-            .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
-            .controller_setting_init_config.angle_feedback_source = MOTOR_FEED,
-            .controller_setting_init_config.speed_feedback_source = MOTOR_FEED,
-            .controller_setting_init_config.outer_loop_type = ANGLE_LOOP,
-            .controller_setting_init_config.close_loop_type = SPEED_LOOP | ANGLE_LOOP,
         },
 };
 

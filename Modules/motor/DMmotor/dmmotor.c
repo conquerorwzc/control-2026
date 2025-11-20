@@ -70,9 +70,10 @@ static void DMMotorDecode(CANInstance* motor_can) {
   }
 }
 
+// todo: 会跟控制抢，有概率控不了电机
 static void DMMotorLostCallback(void* motor_ptr) {
-  DMMotorSetMode(DM_CMD_MOTOR_MODE, motor_ptr);
-  DWT_Delay(0.1);
+  // DMMotorSetMode(DM_CMD_MOTOR_MODE, motor_ptr);
+  // DWT_Delay(0.1);
 }
 
 void DMMotorCaliEncoder(DMMotorInstance* motor) {
@@ -96,6 +97,7 @@ DMMotorInstance* DMMotorInit(Motor_Init_Config_s* config) {
   config->can_init_config.id = motor;
   motor->motor_can_instance = CANRegister(&config->can_init_config);
 
+  // todo: 有shit，开了之后有时候电机控不了
   Daemon_Init_Config_s conf = {
       .callback = DMMotorLostCallback,
       .owner_id = motor,
@@ -105,7 +107,7 @@ DMMotorInstance* DMMotorInit(Motor_Init_Config_s* config) {
 
   DMMotorEnable(motor);
   DMMotorSetMode(DM_CMD_MOTOR_MODE, motor);
-  DWT_Delay(0.3);
+  DWT_Delay(0.1);
   dm_motor_instance[idx++] = motor;
   return motor;
 }
@@ -133,7 +135,6 @@ void DMMotorPIDCal(DMMotorInstance* motor, float ref) {
   motor_controller = &motor->motor_controller;
   measure = &motor->measure;
   pid_ref = motor_controller->pid_ref;  // 保存设定值,防止motor_controller->pid_ref在计算过程中被修改
-  if (motor_setting->motor_reverse_flag == MOTOR_DIRECTION_REVERSE) pid_ref *= -1;  // 设置反转
 
   // pid_ref会顺次通过被启用的闭环充当数据的载体
   // 计算位置环,只有启用位置环且外层闭环为位置时会计算速度环输出
@@ -165,11 +166,11 @@ void DMMotorPIDCal(DMMotorInstance* motor, float ref) {
   }
 
   // 获取最终输出
-  motor->motor_controller.final_output = (int16_t)pid_ref;
+  motor->motor_controller.final_output = pid_ref;
 }
 
 //@Todo: 目前只实现了力控，更多位控PID等请自行添加
-void DMMotorTask(void const* argument) {
+__attribute__((noreturn)) void DMMotorTask(void const* argument) {
   float set;
   DMMotorInstance* motor = (DMMotorInstance*)argument;
   Motor_Control_Setting_s* setting = &motor->motor_settings;
@@ -179,7 +180,6 @@ void DMMotorTask(void const* argument) {
     set = motor->motor_controller.final_output;
 
     if (setting->motor_reverse_flag == MOTOR_DIRECTION_REVERSE) set *= -1;
-
     LIMIT_MIN_MAX(set, DM_T_MIN, DM_T_MAX);
     motor_send_mailbox.position_des = float_to_uint(0, DM_P_MIN, DM_P_MAX, 16);
     motor_send_mailbox.velocity_des = float_to_uint(0, DM_V_MIN, DM_V_MAX, 12);
@@ -202,7 +202,7 @@ void DMMotorTask(void const* argument) {
 
     CANTransmit(motor->motor_can_instance, 1);
 
-    osDelay(2);
+    osDelay(1);
   }
 }
 
@@ -214,7 +214,7 @@ void DMMotorTaskInit() {
     char dm_id_buff[2] = {0};
     __itoa(i, dm_id_buff, 10);
     strcat(dm_task_name, dm_id_buff);
-    osThreadDef(dm_task_name, DMMotorTask, osPriorityNormal, 0, 128);
+    osThreadDef(dm_task_name, DMMotorTask, osPriorityNormal, 0, 64);
     dm_task_handle[i] = osThreadCreate(osThread(dm_task_name), dm_motor_instance[i]);
   }
 }
