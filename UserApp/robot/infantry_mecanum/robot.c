@@ -16,7 +16,7 @@ static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 
 /* Intermediate variables calculated by private functions */
 static float trigger_time = 0;  // 触发时间
-
+static float angle;
 // static  DJIMotorInstance* debug_motor;
 
 /**
@@ -25,9 +25,9 @@ static float trigger_time = 0;  // 触发时间
  *
  */
 static void CalcOffsetAngle() {
-  // 别名angle提高可读性,不然太长了不好看,虽然基本不会动这个函数
-  static float angle;
-  angle = robot->gimbal->yaw_motor->measure.angle_single_round;  // 从云台获取的当前yaw电机单圈角度
+  angle = ((uint16_t)robot->gimbal->yaw_motor->measure.angle_single_round +
+           (uint16_t)robot->gimbal->yaw_motor->measure.total_round % 2 * 360.0f) /
+          2.0f;
   if (angle > YAW_ALIGN_ANGLE)
     chassis_ctrl_cmd->offset_angle = angle - YAW_ALIGN_ANGLE;
   else if (angle <= YAW_ALIGN_ANGLE && angle >= YAW_ALIGN_ANGLE - 180.0f)
@@ -98,11 +98,11 @@ static void RemoteControlSet() {
   chassis_ctrl_cmd->vy = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 1数值方向
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
     chassis_ctrl_cmd->wz =
-        -5.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
+        5.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
   }
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
     chassis_ctrl_cmd->wz =
-        (-5.0f) *
+        (5.0f) *
         (float)rc_data[TEMP]
             .rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
   }
