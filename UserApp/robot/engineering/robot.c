@@ -25,14 +25,14 @@ extern Gantry_Init_Config_s gantry_init_config;
  *
  */
 static void RemoteControlSet() {
-  // 右[中]
+  // 右侧拨杆控制底盘模式
   if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
     } else
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
   }
-  // 右[上]，超电，保持底盘跟随云台
+  // 右[上]，保持底盘跟随云台
   else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
@@ -40,26 +40,31 @@ static void RemoteControlSet() {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
     }
   }
-  // 右[下] 在 EmergencyHandler 中处理断电
-
-  // 龙门架模式设置 (利用左侧开关)
-  if (gantry_ctrl_cmd != NULL) {
-    if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
-      // 左[中]：遥控器控制龙门架
-      gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_CONTROL_REMOTE;
-    } else if (switch_is_up(rc_data[TEMP].rc.switch_left)) {
-      // 左[上]：龙门架锁死 (方便操作底盘时保持机械臂位置)
-      gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_LOCK;
-    }
-    // 左[下] 在 EmergencyHandler 中处理断电
+  // 右[下] 控制底盘断电，但不触发整机紧急停止
+  else if (switch_is_down(rc_data[TEMP].rc.switch_right)) {
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
   }
 
-  // 底盘参数,系数需要调整
-  chassis_ctrl_cmd->vx = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 水平方向
-  chassis_ctrl_cmd->vy = 60.0f * (float)rc_data[TEMP].rc.rocker_l_;  // 竖直方向
+  // 左侧拨杆控制龙门架模式
+  if (gantry_ctrl_cmd != NULL) {
+    if (switch_is_up(rc_data[TEMP].rc.switch_left)) {
+      // 左[上]：遥控器控制龙门架
+      gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_CONTROL_REMOTE;
+    } else if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
+      // 左[中]：龙门架锁死
+      gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_LOCK;
+    } else if (switch_is_down(rc_data[TEMP].rc.switch_left)) {
+      // 左[下]：龙门架断电
+      gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_POWER_OFF;
+    }
+  }
+
+  // 底盘运动控制（使用左侧摇杆）
+  chassis_ctrl_cmd->vx = 60.0f * (float)rc_data[TEMP].rc.rocker_l_;  // 水平方向
+  chassis_ctrl_cmd->vy = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 竖直方向
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
     chassis_ctrl_cmd->wz =
-        -25.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
+        -25.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量
   }
   *rc_data_last = *rc_data;
 }
@@ -148,33 +153,21 @@ static void MouseKeySet() {
  *
  */
 static void EmergencyHandler() {
-  // 两switch都在下断电
-  if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)))  // 全部失能
-  {
-    robot->robot_mode = ROBOT_POWER_OFF;
+  // 简化紧急停止逻辑 - 只有右侧拨杆控制紧急停止
+  // 避免与左侧拨杆控制龙门架的逻辑冲突
+  if (switch_is_down(rc_data[TEMP].rc.switch_right)) {
+    // 右侧拨杆DOWN时底盘断电
     chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
-    if (gantry_ctrl_cmd != NULL) {
-      gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_POWER_OFF; // 【新增】龙门架断电
-    }
-    LOGERROR("[CMD] emergency stop!");
+    LOGINFO("[CMD] chassis power off");
   } else {
-    // 恢复正常运行，如果龙门架模式是断电，则恢复到遥控模式
-    if (gantry_ctrl_cmd != NULL && gantry_ctrl_cmd->Gantry_mode == GANTRY_MODE_POWER_OFF) {
-      gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_CONTROL_REMOTE;
-    }
-    LOGINFO("[CMD] reinstate, robot ready");
-  }
-  if (switch_is_down(rc_data[TEMP].rc.switch_right))  // 右下，底盘失能
-  {
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
-  }
-  if (switch_is_down(rc_data[TEMP].rc.switch_left))  // 左下，龙门架锁死
-  {
-    if (gantry_ctrl_cmd != NULL) {
-      gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_LOCK;
+    // 右侧拨杆非DOWN时恢复底盘
+    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_POWER_OFF) {
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW; // 默认恢复为跟随模式
+      LOGINFO("[CMD] chassis power on");
     }
   }
-  // 遥控器右侧开关为[上],恢复正常运行
+  
+  // 左侧拨杆完全由RemoteControlSet函数控制，不在这里干预
 }
 
 void RobotInit() {
@@ -188,7 +181,7 @@ void RobotInit() {
 
   rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
   *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
-  robot->gantry = GantryInit(&gantry_init_config);
+  robot->gantry = GantryInit(&gantry_init_config, robot->rc_data);
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   robot->chassis = ChassisInit(&chassis_init_config);
@@ -221,6 +214,9 @@ void RobotTask() {
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   ChassisTask();
 #endif
-  // 正确的赋值方式 - 直接赋值指针值
-  // robot->shoot->friction_motor[1];
+
+  // 新增: 龙门架控制逻辑 (GantryTask)
+#if defined(ONE_BOARD) // 假设龙门架逻辑运行在主控板
+  GantryTask();
+#endif
 }

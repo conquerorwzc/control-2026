@@ -15,7 +15,6 @@ typedef enum
 
 /// @brief 龙门架电机控制单元
 typedef struct {
-    float target_ecd;            // 目标机械角度
     DJIMotorInstance* motor;     // 电机实例
 } GantryMotorUnit_t;
 
@@ -62,7 +61,8 @@ typedef struct {
     const Key_t *keyboard;    // 键盘按键
 } GantryInstance;
 
-GantryInstance* GantryInit(Gantry_Init_Config_s* init_config);
+GantryInstance* GantryInit(Gantry_Init_Config_s* init_config, const RC_ctrl_t* rc_data);
 void StartGantryTask(void const *argument);
+void GantryTask(void);
 
 #endif //GANTRY_H

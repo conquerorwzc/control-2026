@@ -21,8 +21,6 @@ typedef struct {
   SuperCapInstance* super_cap;
   ChassisInstance* chassis;
   GantryInstance* gantry;
-  //GimbalInstance* gimbal;
-  //ShootInstance* shoot;
 
 } RobotInstance;
 
