@@ -28,12 +28,14 @@ static void CalcOffsetAngle() {
   angle = ((uint16_t)robot->gimbal->yaw_motor->measure.angle_single_round +
            (uint16_t)robot->gimbal->yaw_motor->measure.total_round % 2 * 360.0f) /
           2.0f;
-  if (angle > YAW_ALIGN_ANGLE)
-    chassis_ctrl_cmd->offset_angle = angle - YAW_ALIGN_ANGLE;
-  else if (angle <= YAW_ALIGN_ANGLE && angle >= YAW_ALIGN_ANGLE - 180.0f)
-    chassis_ctrl_cmd->offset_angle = angle - YAW_ALIGN_ANGLE;
-  else
-    chassis_ctrl_cmd->offset_angle = angle - YAW_ALIGN_ANGLE + 360.0f;
+  float delta =YAW_ALIGN_ANGLE - angle;
+  chassis_ctrl_cmd->offset_angle = delta;
+
+  if (chassis_ctrl_cmd->offset_angle > 180.0f) {
+    chassis_ctrl_cmd->offset_angle -= 360.0f;
+  } else if (chassis_ctrl_cmd->offset_angle <= -180.0f) {
+    chassis_ctrl_cmd->offset_angle += 360.0f;
+  }
 }
 /**
  * @brief 控制输入为遥控器(调试时)的模式和控制量设置
