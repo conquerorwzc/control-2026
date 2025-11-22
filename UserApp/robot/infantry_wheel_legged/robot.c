@@ -135,10 +135,12 @@ static void RemoteControlSet() {
 
   switch (robot->robot_mode) {
     case ROBOT_CHASSIS_ROTATE:
-      chassis_ctrl_cmd->wz = TRACK_WIDTH / 2.0f * (-25.0f) *
+      chassis_ctrl_cmd->wz = TRACK_WIDTH / 2.0f * (0.0001) *
                              (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如，则在底盘任务中计算旋转分量
       break;
     case ROBOT_CHASSIS_FOLLOW:
+      chassis_ctrl_cmd->wz = TRACK_WIDTH / 2.0f * (0.0001) *
+                             (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如，则在底盘任务中计算旋转分量
       // chassis_vx = 30.0f * (float)rc_data[TEMP].rc.rocker_l_;  // _水平方向
       // chassis_vy = 30.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 竖直方向
       // chassis_ctrl_cmd->vx = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
@@ -148,8 +150,8 @@ static void RemoteControlSet() {
       //                  PI / 2.0f - atan2f(chassis_vy, chassis_vx) + chassis_ctrl_cmd->offset_angle, 0);
       break;
     case ROBOT_CHASSIS_FREE:
-      chassis_ctrl_cmd->vx = (30.0f) * (float)rc_data[TEMP].rc.rocker_r1;
-      chassis_ctrl_cmd->wz = (20.0f) * (float)rc_data[TEMP].rc.rocker_r_;
+      chassis_ctrl_cmd->vx = (0.0005f) * (float)rc_data[TEMP].rc.rocker_r1;
+      chassis_ctrl_cmd->wz = (0.0002f) * (float)rc_data[TEMP].rc.rocker_r_;
       chassis_ctrl_cmd->leg_length_d = (float)rc_data[TEMP].rc.rocker_l1;
       chassis_ctrl_cmd->roll = (float)rc_data[TEMP].rc.rocker_l_;
       break;
@@ -251,8 +253,9 @@ static void EmergencyHandler() {
   if (robot_lost_control) {
     robot->chassis->chassis_ctrl_cmd.chassis_mode = CHASSIS_RECOVERY;  // todo:因该写成elif比较安全
   }
-  // 两switch都在下断电
-  if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)))  // 全部失能
+  // 两switch都在下或者遥控器断连，断电
+  if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)) |
+      switch_is_off(rc_data[TEMP].rc.switch_right))  // 全部失能
   {
     robot->robot_mode = ROBOT_POWER_OFF;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;

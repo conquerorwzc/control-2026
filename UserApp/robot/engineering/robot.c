@@ -12,7 +12,7 @@ static Grab_Ctrl_Cmd_s *grab_ctrl_cmd;
 
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
-
+static float temp;
 /* Intermediate variables calculated by private functions */
 // static float trigger_time = 0;  // 触发时间
 // static float angle;
@@ -22,6 +22,7 @@ static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 /* Private function declarations */
 static void RemoteControlSet(void);
 static void EmergencyHandler(void);
+
 /* function declarations */
 void RobotInit();
 void RobotCMDTask();
@@ -94,7 +95,12 @@ static void RemoteControlSet() {
   // 右[中]，云台
   if (switch_is_mid(rc_data[TEMP].rc.switch_right))
   {
-    grab_ctrl_cmd->r1=(float)rc_data[TEMP].rc.rocker_l1;
+    // temp=(float)0.01*rc_data[TEMP].rc.rocker_r1;
+    // grab_ctrl_cmd->r1=LIMIT_MIN_MAX(temp,-12.5,12.5);
+    // temp=(float)0.01*rc_data[TEMP].rc.rocker_r_;
+    // grab_ctrl_cmd->r2=LIMIT_MIN_MAX(temp,-12.5,12.5);
+    temp=(float)0.01*rc_data[TEMP].rc.dial;
+    grab_ctrl_cmd->r3=LIMIT_MIN_MAX(temp,-12.5,12.5);
   }
 
   // // 右[上]，超电，保持底盘跟随云台

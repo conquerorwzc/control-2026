@@ -271,7 +271,7 @@ static void DecodeDJIMotor(CANInstance* _instance) {
   measure->ecd = ((uint16_t)rxbuff[0]) << 8 | rxbuff[1];
   measure->angle_single_round = ECD_ANGLE_COEF_DJI * (float)measure->ecd;
   measure->speed_aps = (1.0f - SPEED_SMOOTH_COEF) * measure->speed_aps +
-                       RPM_2_ANGLE_PER_SEC * SPEED_SMOOTH_COEF * (float)((int16_t)(rxbuff[2] << 8 | rxbuff[3]));
+                       RPM_2_RAD_PER_SEC * SPEED_SMOOTH_COEF * (float)((int16_t)(rxbuff[2] << 8 | rxbuff[3]));
   measure->real_current = (1.0f - CURRENT_SMOOTH_COEF) * measure->real_current +
                           CURRENT_SMOOTH_COEF * (float)((int16_t)(rxbuff[4] << 8 | rxbuff[5]));
   measure->temperature = rxbuff[6];
@@ -441,7 +441,7 @@ void DJIMotorSetPIDRef(DJIMotorInstance* motor, float ref) {
   }
 
   // 获取最终输出
-  motor->motor_controller.final_output = (int16_t)pid_ref;
+  motor->motor_controller.final_output = pid_ref;
 }
 
 /**

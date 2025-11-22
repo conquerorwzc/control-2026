@@ -41,7 +41,10 @@ static void DMMotorDecode(CANInstance* motor_can) {
   DaemonReload(motor->daemon);
   motor->dt = DWT_GetDeltaT(&motor->feed_cnt);
 
+  // 先保存当前位置作为上一次位置
   measure->last_position = measure->position;
+  
+  // 然后更新当前位置
   tmp = (uint16_t)((rxbuff[1] << 8) | rxbuff[2]);
   measure->position = uint_to_float(tmp, DM_P_MIN, DM_P_MAX, 16);
 
@@ -56,10 +59,10 @@ static void DMMotorDecode(CANInstance* motor_can) {
 
   // 多圈角度计算,前提是假设两次采样间电机转过的角度小于12.5弧度
   // DM电机的position范围是-12.5到12.5弧度，跳变点在12.5和-12.5之间
-  if (measure->position - measure->last_position > 12.5f)  // 从负值(-12.5)变成正值(12.5)，电机正向旋转过边界
-    measure->total_round++;
-  else if (measure->position - measure->last_position < -12.5f)  // 从正值(12.5)变成负值(-12.5)，电机反向旋转过边界
+  if (measure->position - measure->last_position > 12.5f)  // 从负值(-12.5)变成正值(12.5)，电机逆向旋转过边界
     measure->total_round--;
+  else if (measure->position - measure->last_position < -12.5f)  // 从正值(12.5)变成负值(-12.5)，电机正向旋转过边界
+    measure->total_round++;
   measure->total_angle = measure->total_round * 2.0f * 12.5f + measure->position;
 
   if (motor_setting->feedback_reverse_flag == FEEDBACK_DIRECTION_REVERSE) {

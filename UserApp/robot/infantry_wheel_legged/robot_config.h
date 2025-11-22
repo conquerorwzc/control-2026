@@ -60,29 +60,29 @@
           {                                                              \
               .angle_PID =                                               \
                   {                                                      \
-                      .Kp = 1.00f,                                       \
+                      .Kp = 12.0f,                                       \
                       .Ki = 0.00f,                                       \
                       .Kd = 0.00f,                                       \
-                      .MaxOut = 10.0f,                                   \
+                      .MaxOut = 8.0f,                                    \
                       .DeadBand = 0.01f,                                 \
-                      .Improve = PID_IMPROVE_NONE,                       \
-                      .IntegralLimit = 100.0f,                           \
+                      .Improve = PID_Integral_Limit,                     \
+                      .IntegralLimit = 0.0f,                             \
                   },                                                     \
               .speed_PID =                                               \
                   {                                                      \
                       .Kp = 0.50f,                                       \
-                      .Ki = 0.00f,                                       \
+                      .Ki = 0.10f,                                       \
                       .Kd = 0.00f,                                       \
-                      .MaxOut = 5.0f,                                    \
+                      .MaxOut = 8.0f,                                    \
                       .DeadBand = 0.01f,                                 \
-                      .Improve = PID_IMPROVE_NONE,                       \
-                      .IntegralLimit = 100.0f,                           \
+                      .Improve = PID_Integral_Limit,                     \
+                      .IntegralLimit = 0.5f,                             \
                   },                                                     \
           },                                                             \
       .controller_setting_init_config =                                  \
           {                                                              \
               .outer_loop_type = ANGLE_LOOP,                             \
-              .close_loop_type = ANGLE_LOOP,                             \
+              .close_loop_type = ANGLE_LOOP | SPEED_LOOP,                \
               .angle_feedback_source = MOTOR_FEED,                       \
               .speed_feedback_source = MOTOR_FEED,                       \
               .motor_reverse_flag = motor_reverse,                       \
@@ -143,6 +143,16 @@
               .Improve = PID_IMPROVE_NONE,                                                                             \
               .IntegralLimit = 0.0f,                                                                                   \
           },                                                                                                           \
+      .phi_PID_config =                                                                                                \
+          {                                                                                                            \
+              .Kp = 1.0f,                                                                                              \
+              .Ki = 0.1f,                                                                                              \
+              .Kd = 0.0f,                                                                                              \
+              .MaxOut = 0.4f,                                                                                          \
+              .DeadBand = 0.005f,                                                                                      \
+              .Improve = PID_Integral_Limit,                                                                           \
+              .IntegralLimit = 0.2f,                                                                                   \
+          },                                                                                                           \
       .joint_motor_config[0] =                                                                                         \
           JOINT_MOTOR_CONFIG(motor_reverse, feedback_reverse, joint_can_0, joint_tx_0, joint_rx_0),                    \
       .joint_motor_config[1] =                                                                                         \
@@ -169,14 +179,15 @@ static Chassis_Init_Config_s chassis_init_config = {
     .chassis_param =
         {
             .robot_weight = 4.1f,  // 机器人重量,单位为kg(千克)
+            .wheel_radius = 0.0603f,
         },
 
     // 通过设置电机输出/反馈方向，来使腿部控制镜像对称
-    .leg_init_config[0] = LEG_INIT_CONFIG(MOTOR_DIRECTION_NORMAL, FEEDBACK_DIRECTION_NORMAL, &hcan1, 0x06, 0x03, &hcan1,
-                                          0x08, 0x04, &hcan1, 0x01, 0x00),
+    .leg_init_config[0] = LEG_INIT_CONFIG(MOTOR_DIRECTION_REVERSE, FEEDBACK_DIRECTION_REVERSE, &hcan1, 0x06, 0x03,
+                                          &hcan1, 0x08, 0x04, &hcan1, 0x01, 0x00),
 
-    .leg_init_config[1] = LEG_INIT_CONFIG(MOTOR_DIRECTION_REVERSE, FEEDBACK_DIRECTION_REVERSE, &hcan2, 0x08, 0x04,
-                                          &hcan2, 0x06, 0x03, &hcan2, 0x01, 0x00),
+    .leg_init_config[1] = LEG_INIT_CONFIG(MOTOR_DIRECTION_NORMAL, MOTOR_DIRECTION_NORMAL, &hcan2, 0x08, 0x04, &hcan2,
+                                          0x06, 0x03, &hcan2, 0x01, 0x00),
     .delta_theta_PID_config =
         {
             .Kp = 10.0f,
