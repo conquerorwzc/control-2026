@@ -11,6 +11,11 @@
 
 #include "dji_motor.h"
 #define DEG2R(x) ((x)*PI /180.0f)
+#define LF 0//数组内表示电机位置
+#define LB 1
+#define RB 2
+#define RF 3
+#define MAX_WHEEL_SPEED 1000.0f
 //底盘模式
 // typedef enum {
 //   CHASSIS_VECTOR_FOLLOW_GIMBAL_YAW,   //底盘跟随云台

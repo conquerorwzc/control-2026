@@ -84,13 +84,21 @@
 .tx_id = id, \
 }, \
 .controller_param_init_config = { \
-.speed_PID = { \
-.Kp = 0.5, \
+.angle_PID = { \
+.Kp = 50, \
 .Ki = 0, \
+.Kd = 0.1, \
+.IntegralLimit = 6000, \
+.Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
+.MaxOut = 1920, \
+}, \
+.speed_PID = { \
+.Kp = 8, \
+.Ki = 20, \
 .Kd = 0, \
 .IntegralLimit = 6000, \
 .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
-.MaxOut = 15000, \
+.MaxOut = 24000, \
 }, \
 .current_PID = { \
 .Kp = 0, \
@@ -135,6 +143,10 @@ static Chassis_Init_Config_s chassis_init_config = {
     .wheel_motor_config[1] = WHEEL_MOTOR_CONFIG(&hcan1,4),
     .wheel_motor_config[2] = WHEEL_MOTOR_CONFIG(&hcan1,2),
     .wheel_motor_config[3] = WHEEL_MOTOR_CONFIG(&hcan1,3),
+    .rudder_motor_config[0]=RUDDER_MOTOR_CONFIG(&hcan2,1),
+  .rudder_motor_config[1]=RUDDER_MOTOR_CONFIG(&hcan2,2),
+  .rudder_motor_config[2]=RUDDER_MOTOR_CONFIG(&hcan2,3),
+  .rudder_motor_config[3]=RUDDER_MOTOR_CONFIG(&hcan2,4),
     //跟随PID
      // .follow_pid={
      //     .Kp = -80.0f,

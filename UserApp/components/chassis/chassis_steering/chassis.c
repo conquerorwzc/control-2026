@@ -22,9 +22,12 @@ static Chassis_Param_s chassis_param;          // 声明为静态局部变量
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
 static float chassis_vx, chassis_vy;     // 将云台系的速度投影到底盘
 static float vt_lf, vt_rf, vt_lb, vt_rb;  // 底盘速度解算后的临时输出,待进行限幅
+static float vt[4]={0};
 static float st_lf,st_rf,st_lb,st_rb;
+static float total_st_rf=0;
 // 添加变量来存储上一次的角度值
-static float last_st_lf = 0.0f, last_st_rf = 0.0f, last_st_lb = 0.0f, last_st_rb = 0.0f;
+//static float last_st_lf = 0.0f, last_st_rf = 0.0f, last_st_lb = 0.0f, last_st_rb = 0.0f;
+static float err_st_rf=0;
 static float lf_radius;
 static float rf_radius;
 static float lb_radius;
@@ -41,68 +44,120 @@ static float NormalizeAngle(float angle) {
     return angle;
 }
 
+// 函数用于将角度转换为连续的绝对角度，使用劣弧控制（最短路径），未实现防打舵
+static float AngleToContinuousMinorArc(float target_angle, float current_angle) {
+    // 计算最短角度差
+    float diff = target_angle - current_angle;
+    
+    // 将差值标准化到 [-180, 180] 以确保始终采用劣弧
+    while (diff > 180.0f) diff -= 360.0f;
+    while (diff < -180.0f) diff += 360.0f;
+    
+    // 返回使用最短路径的连续控制目标绝对角度
+    return current_angle + diff;
+}
+
+// 函数用于将角度转换为最优角度，带方向控制（必要时反转）和转劣弧
+static float AngleToOptimalAngle(float target_angle, float current_angle, int8_t* direction) {
+    // 计算最短角度差
+    float diff = target_angle - current_angle;
+    
+    // 将差值标准化到 [-180, 180]
+    while (diff > 180.0f) diff -= 360.0f;
+    while (diff < -180.0f) diff += 360.0f;
+    
+    // 最优角：必要时反转而不是打舵
+    // 当误差大于90度或小于-90度时
+    if (diff > 90.0f) {
+        // 如果误差大于90度，则反转方向更有效
+        *direction = -1;//这里没有用motor库里的反转标志
+        // 通过180度调整目标（反向）
+        return current_angle + (diff - 180.0f);
+    } else if (diff < -90.0f) {
+        // 如果误差小于-90度，则反转方向更有效
+        *direction = -1;
+        // 通过180度调整目标（反向）
+        return current_angle + (diff + 180.0f);
+    } else {
+        // 正常情况，直接前往目标（最短路径）
+        *direction = 1;
+        return current_angle + diff;
+    }
+}
+//6020安装角度补偿
 static void RudderOffset() {
   st_lf-=(float)chassis->rudder_offset[0]*ECD_ANGLE_COEF_DJI;
   st_rf-=(float)chassis->rudder_offset[1]*ECD_ANGLE_COEF_DJI;
   st_lb-=(float)chassis->rudder_offset[2]*ECD_ANGLE_COEF_DJI;
   st_rb-=(float)chassis->rudder_offset[3]*ECD_ANGLE_COEF_DJI;
-  
-  // 限制角度
-  st_lf = NormalizeAngle(st_lf);
-  st_rf = NormalizeAngle(st_rf);
-  st_lb = NormalizeAngle(st_lb);
-  st_rb = NormalizeAngle(st_rb);
+}
+//轮限幅
+static void WheelLimit() {
+  uint8_t i =0;
+  float temp, max_vector= 0;
+
+  for (i = 0; i < 4; i++)
+  {
+    temp = fabsf(vt[i]);
+    if (max_vector < temp)
+    {
+      max_vector = temp;
+    }
+  }
+  if (max_vector > MAX_WHEEL_SPEED)
+  {
+    float vector_rate = 0;
+    vector_rate = MAX_WHEEL_SPEED / max_vector;
+    for (i = 0; i < 4; i++)
+    {
+      vt[i] *= vector_rate;
+    }
+  }
 }
 
+// 添加静态变量用于存储前一个角度以实现连续跟踪
+static float last_st_lf = 0.0f, last_st_rf = 0.0f, last_st_lb = 0.0f, last_st_rb = 0.0f;
+// 添加变量用于存储每个电机的方向标志
+static int8_t dir_lf = 1, dir_rf = 1, dir_lb = 1, dir_rb = 1;
+
 static void SteeringCalculate() {
-  vt_lf = sqrtf(powf(chassis_ctrl_cmd->vy + chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), 2) + powf(chassis_ctrl_cmd->vx + chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2));
-  vt_lb = sqrtf(powf(chassis_ctrl_cmd->vy - chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), 2) + powf(chassis_ctrl_cmd->vx + chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2));
-  vt_rb = sqrtf(powf(chassis_ctrl_cmd->vy - chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), 2) + powf(chassis_ctrl_cmd->vx - chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2));
-  vt_rf = sqrtf(powf(chassis_ctrl_cmd->vy + chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), 2) + powf(chassis_ctrl_cmd->vx - chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2));
+  vt_lf = sqrtf(powf(chassis_ctrl_cmd->vy + chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), 2) + powf(chassis_ctrl_cmd->vx + chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2))/60;//lf
+  vt_lb = sqrtf(powf(chassis_ctrl_cmd->vy - chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), 2) + powf(chassis_ctrl_cmd->vx + chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2))/60;// lb
+  vt_rb = sqrtf(powf(chassis_ctrl_cmd->vy - chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), 2) + powf(chassis_ctrl_cmd->vx - chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2))/60;// rb
+  vt_rf = sqrtf(powf(chassis_ctrl_cmd->vy + chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), 2) + powf(chassis_ctrl_cmd->vx - chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2))/60;// rf
   st_lf=RAD_2_DEGREE * atan2f(chassis_ctrl_cmd->vy + chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), chassis_ctrl_cmd->vx + chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)));
   st_lb=RAD_2_DEGREE * atan2f(chassis_ctrl_cmd->vy - chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), chassis_ctrl_cmd->vx + chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)));
   st_rb=RAD_2_DEGREE * atan2f(chassis_ctrl_cmd->vy - chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), chassis_ctrl_cmd->vx - chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)));
   st_rf=RAD_2_DEGREE * atan2f(chassis_ctrl_cmd->vy + chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), chassis_ctrl_cmd->vx - chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)));
-  RudderOffset();
+  RudderOffset();//补偿6020的偏置
+
+  // // 转换为带方向控制的最优角度
+  st_lf = AngleToOptimalAngle(st_lf, last_st_lf, &dir_lf);
+  st_rf = AngleToOptimalAngle(st_rf, last_st_rf, &dir_rf);
+  st_lb = AngleToOptimalAngle(st_lb, last_st_lb, &dir_lb);
+  st_rb = AngleToOptimalAngle(st_rb, last_st_rb, &dir_rb);
   
-  // 处理角度跳变问题，确保舵轮转动最短路径
-  float delta;
-  
-  // 处理左前舵轮
-  delta = st_lf - last_st_lf;
-  if (delta > 180) {
-      st_lf -= 360;
-  } else if (delta < -180) {
-      st_lf += 360;
-  }
+   //将方向应用于速度命令
+   // vt_lf *= dir_lf;
+   // vt_rf *= dir_rf;
+   // vt_lb *= dir_lb;
+   // vt_rb *= dir_rb;
+  vt[LF]=vt_lf*dir_lf;
+  vt[RF]=vt_rf*dir_rf;
+  vt[LB]=vt_lb*dir_lb;
+  vt[RB]=vt_rb*dir_rb;
+  WheelLimit();
+  // 更新前一个角度
   last_st_lf = st_lf;
-  
-  // 处理右前舵轮
-  delta = st_rf - last_st_rf;
-  if (delta > 180) {
-      st_rf -= 360;
-  } else if (delta < -180) {
-      st_rf += 360;
-  }
   last_st_rf = st_rf;
-  
-  // 处理左后舵轮
-  delta = st_lb - last_st_lb;
-  if (delta > 180) {
-      st_lb -= 360;
-  } else if (delta < -180) {
-      st_lb += 360;
-  }
   last_st_lb = st_lb;
-  
-  // 处理右后舵轮
-  delta = st_rb - last_st_rb;
-  if (delta > 180) {
-      st_rb -= 360;
-  } else if (delta < -180) {
-      st_rb += 360;
-  }
   last_st_rb = st_rb;
+
+  // 限制角度
+  // st_lf = NormalizeAngle(st_lf);
+  // st_rf = NormalizeAngle(st_rf);
+  // st_lb = NormalizeAngle(st_lb);
+  // st_rb = NormalizeAngle(st_rb);
 }
 /**
  * @brief 功率模型
@@ -186,10 +241,10 @@ static void SteeringCalculate() {
  *
  */
 static void LimitChassisOutput() {
-  DJIMotorSetPIDRef(chassis->wheel_motor[0], vt_lf);
-  DJIMotorSetPIDRef(chassis->wheel_motor[1], vt_rf);
-  DJIMotorSetPIDRef(chassis->wheel_motor[2], vt_lb);
-  DJIMotorSetPIDRef(chassis->wheel_motor[3], vt_rb);
+  DJIMotorSetPIDRef(chassis->wheel_motor[0], vt[LF]);
+  DJIMotorSetPIDRef(chassis->wheel_motor[1], vt[RF]);
+  DJIMotorSetPIDRef(chassis->wheel_motor[2], vt[LB]);
+  DJIMotorSetPIDRef(chassis->wheel_motor[3], vt[RB]);
   DJIMotorSetPIDRef(chassis->rudder_motor[0], st_lf);
   DJIMotorSetPIDRef(chassis->rudder_motor[1], st_rf);
   DJIMotorSetPIDRef(chassis->rudder_motor[2], st_lb);
@@ -253,7 +308,7 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
     chassis_init_config->rudder_motor_config[i].controller_setting_init_config.angle_feedback_source = MOTOR_FEED;
     chassis_init_config->rudder_motor_config[i].controller_setting_init_config.speed_feedback_source = MOTOR_FEED;
     chassis_init_config->rudder_motor_config[i].controller_setting_init_config.outer_loop_type = ANGLE_LOOP;
-    chassis_init_config->rudder_motor_config[i].controller_setting_init_config.close_loop_type = ANGLE_LOOP;
+    chassis_init_config->rudder_motor_config[i].controller_setting_init_config.close_loop_type = SPEED_LOOP | ANGLE_LOOP;
     chassis_instance->rudder_motor[i] = DJIMotorInit(&chassis_init_config->rudder_motor_config[i]);
     
     // // 如果是GM6020电机，则设置零位偏移,改这个没用
@@ -262,7 +317,9 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
     //   chassis_instance->rudder_offset[i] = chassis_param.rudder_motor_offset[i];
     // }
   }
-
+  for (int i = 0; i < 4; i++) {
+    chassis_instance->rudder_offset[i]=chassis_init_config->chassis_param.rudder_motor_offset[i];
+  }
   chassis = chassis_instance;
   chassis_ctrl_cmd = &chassis->chassis_ctrl_cmd;  // 在运行时初始化指针
   return chassis_instance;
