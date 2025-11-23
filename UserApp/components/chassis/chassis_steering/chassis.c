@@ -113,7 +113,7 @@ static void WheelLimit() {
       vt[i] *= vector_rate;
     }
   }
-}
+}//
 
 // 添加静态变量用于存储前一个角度以实现连续跟踪
 static float last_st_lf = 0.0f, last_st_rf = 0.0f, last_st_lb = 0.0f, last_st_rb = 0.0f;
