@@ -84,7 +84,7 @@ static void RemoteControlSet() {
   }
   // 云台使能,或视觉未识别到目标,纯遥控器拨杆控制
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
-    gimbal_ctrl_cmd->yaw -= -0.0008f * (float)rc_data[TEMP].rc.rocker_r_;
+    gimbal_ctrl_cmd->yaw -= -0.0016f * (float)rc_data[TEMP].rc.rocker_r_;
     gimbal_ctrl_cmd->pitch += 0.0003f * (float)rc_data[TEMP].rc.rocker_r1;
   }
 
@@ -97,14 +97,14 @@ static void RemoteControlSet() {
 
   // 底盘参数,系数需要调整
   chassis_ctrl_cmd->vx = 60.0f * (float)rc_data[TEMP].rc.rocker_l_;  // _水平方向
-  chassis_ctrl_cmd->vy = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 1数值方向
+  chassis_ctrl_cmd->vy = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 1竖直方向
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
     chassis_ctrl_cmd->wz =
         5.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
   }
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
     chassis_ctrl_cmd->wz =
-        (5.0f) *
+        (15.0f) *
         (float)rc_data[TEMP]
             .rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
   }
