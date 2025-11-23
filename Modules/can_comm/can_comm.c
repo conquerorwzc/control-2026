@@ -132,3 +132,66 @@ uint8_t CANCommIsOnline(CANCommInstance *instance)
 {
     return DaemonIsOnline(instance->comm_daemon);
 }
+
+void can_transmit(can_comm_data_t* can_comm_data)
+{
+  if (can_comm_data == NULL)
+    return;
+  if (can_comm_data->can_handle == NULL)
+    return;
+
+  uint32_t send_mail_box;
+  HAL_CAN_AddTxMessage(can_comm_data->can_handle, &can_comm_data->transmit_message, can_comm_data->data, &send_mail_box);
+}
+
+can_comm_queue_t *can_comm_queue_init()
+{
+  can_comm_queue_t *comm_queue = malloc(sizeof(can_comm_queue_t));
+  //�����ÿ�
+  memset(comm_queue, 0, sizeof(can_comm_queue_t));
+  //��ֵ��������
+  comm_queue->capacity = CAN_COMM_QUEUE_CAPACITY;
+  //��ʼ����ͷβָ��
+  comm_queue->head = comm_queue->tail = 0;
+  return comm_queue;
+}
+
+bool can_comm_queue_push(can_comm_queue_t *comm_queue, const can_comm_data_t *can_comm_data)
+{
+  //�ж϶����Ƿ�����
+  if ((comm_queue->tail + 1) % comm_queue->capacity == comm_queue->head)
+  {
+    //����ʧ�ܲ�����
+    return false;
+  }
+  comm_queue->tail = (++comm_queue->tail) % comm_queue->capacity;
+  //βָ�������������
+  memcpy(comm_queue->can_comm_data + comm_queue->tail, can_comm_data, sizeof(can_comm_data_t));
+  //������������
+  return true;
+
+}
+
+can_comm_data_t *can_comm_queue_pop(can_comm_queue_t *comm_queue)
+{
+  //�ж��Ƿ�ӿ�
+  if (comm_queue->head == comm_queue->tail)
+  {
+    //�ӿշ��ؿ�ָ��
+    return NULL;
+  }
+  //����ͷָ�룬����ͷָ�����
+  comm_queue->head = (++comm_queue->head) % comm_queue->capacity;
+  return comm_queue->can_comm_data + comm_queue->head;
+}
+
+int can_comm_queue_size(can_comm_queue_t *comm_queue)
+{
+  return (comm_queue->tail - comm_queue->head + comm_queue->capacity) % comm_queue->capacity;
+}
+
+
+bool can_comm_queue_is_empty(can_comm_queue_t *comm_queue)
+{
+  return (can_comm_queue_size(comm_queue) == 0);//NULL
+}
