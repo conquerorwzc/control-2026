@@ -114,7 +114,7 @@ __attribute__((noreturn)) void StartROBOTTASK(void const *argument) {
   static float robot_dt;
   static float robot_start;
   RobotInit();
-  DMMotorTaskInit();
+  //DMMotorTaskInit();//飞镖没有达妙电机我先注释掉20251121hjh
   LOGINFO("[freeRTOS] ROBOT core Task Start");
   // 200Hz-500Hz,若有额外的控制任务如平衡步兵可能需要提升至1kHz
   for (;;) {
