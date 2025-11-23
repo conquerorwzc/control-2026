@@ -87,7 +87,11 @@ endif ()
 set_source_files_properties(${ASM_SOURCES} PROPERTIES COMPILE_FLAGS "-x assembler-with-cpp")
 
 # build binary and hex file
-add_executable(${PROJECT_NAME}.elf ${SOURCES} ${ASM_SOURCES} ${LINKER_SCRIPT})
+add_executable(${PROJECT_NAME}.elf ${SOURCES} ${ASM_SOURCES} ${LINKER_SCRIPT}
+        Modules/master_machine/navigator.c
+        Modules/master_machine/navigator.h
+        Modules/algorithm/crc_navigator/crc_func.cpp
+        Modules/algorithm/crc_navigator/crc_func.h)
 target_link_libraries(${PROJECT_NAME}.elf ${DSP_NAME} m) # link DSP lib and math lib
 
 add_custom_command(

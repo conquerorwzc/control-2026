@@ -13,6 +13,7 @@
 #include "daemon.h"
 #include "bsp_log.h"
 #include "srm_protocol.h"
+#include "navigator.h"
 #include "ins_task.h"
 
 // static Vision_Recv_s recv_data;
@@ -25,6 +26,9 @@ static  Vision_Send_s send_data;//发送数据
 //打包，注册
 static  Message receive;
 static  Message send;
+
+uint8_t custom_data[] = {0x40, 0x50, 0x60, 0x70};
+uint16_t packed_length;
 void InitParam(void) {
 
   #define RIGISTER_ID(data, id, packet) \
@@ -36,6 +40,11 @@ void InitParam(void) {
 
   RIGISTER_ID(send, 1, send_data.gimbal_send);
   RIGISTER_ID(send, 2, send_data.shoot_send);
+}
+
+void navigator_send(){
+  uint8_t *packed_data = protocol_pack(0x0302, custom_data, sizeof(custom_data), &packed_length);
+  HAL_UART_Transmit(&huart2, packed_data, packed_length, HAL_MAX_DELAY);
 }
 
 // void UpdateGimbalAttitude(Vision_Send_s *vision_send) {
