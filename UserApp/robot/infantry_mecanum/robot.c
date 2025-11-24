@@ -37,6 +37,7 @@ static void CalcOffsetAngle() {
     chassis_ctrl_cmd->offset_angle += 360.0f;
   }
 }
+#if defined(RC_CONTROL)
 /**
  * @brief 控制输入为遥控器(调试时)的模式和控制量设置
  *
@@ -67,7 +68,8 @@ static void RemoteControlSet() {
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
     // 待添加,视觉会发来和目标的误差,同样将其转化为total angle的增量进行控制
     // ...
-  } else if (switch_is_up(rc_data[TEMP].rc.switch_left))  // 开火，发射，根据时间判断单发或者连发
+  }
+  else if (switch_is_up(rc_data[TEMP].rc.switch_left))  // 开火，发射，根据时间判断单发或者连发
   {
     shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
@@ -115,19 +117,22 @@ static void RemoteControlSet() {
 
   *rc_data_last = *rc_data;
 }
-
-#if 0
+#endif
+#if defined(MOUSE_CONTROL)
 /**
  * @brief 输入为键鼠时模式和控制量设置
  *
  */
 static void MouseKeySet() {
-  chassis_ctrl_cmd->vx = rc_data[TEMP].key[KEY_PRESS].w * 300 - rc_data[TEMP].key[KEY_PRESS].s * 300;  // 系数待测
-  chassis_ctrl_cmd->vy = rc_data[TEMP].key[KEY_PRESS].s * 300 - rc_data[TEMP].key[KEY_PRESS].d * 300;
-
-  gimbal_ctrl_cmd->yaw += (float)rc_data[TEMP].mouse.x / 660 * 10;  // 系数待测
-  gimbal_ctrl_cmd->pitch += (float)rc_data[TEMP].mouse.y / 660 * 10;
-
+  chassis_ctrl_cmd->vx = (float)(rc_data[TEMP].key[KEY_PRESS].w - rc_data[TEMP].key[KEY_PRESS].s) *
+                         (float) chassis_ctrl_cmd->chassis_speed_buff;
+  chassis_ctrl_cmd->vy = (float)(rc_data[TEMP].key[KEY_PRESS].d - rc_data[TEMP].key[KEY_PRESS].a) *
+                         (float) chassis_ctrl_cmd->chassis_speed_buff;
+if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
+  {
+  gimbal_ctrl_cmd->yaw += (float)rc_data[TEMP].mouse.x * 0.015f;  // 横向灵敏度调节
+  gimbal_ctrl_cmd->pitch -= (float)rc_data[TEMP].mouse.y * 0.01f; // 纵向灵敏度调节 (负号反转Y轴)
+  }
   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Z] % 3)  // Z键设置弹速
   {
     case 0:
@@ -179,6 +184,15 @@ static void MouseKeySet() {
       chassis_ctrl_cmd->chassis_speed_buff = 100;
       break;
   }
+  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Q]%2) //新增Q自旋开启
+  {
+    case 0:
+      chassis_ctrl_cmd-> chassis_mode = CHASSIS_FOLLOW ;
+      break;
+    default:
+      chassis_ctrl_cmd-> chassis_mode = CHASSIS_ROTATE ;
+      break;
+  }
   switch (rc_data[TEMP].key[KEY_PRESS].shift)  // 待添加 按shift允许超功率 消耗缓冲能量
   {
     case 1:
@@ -189,6 +203,7 @@ static void MouseKeySet() {
 
       break;
   }
+  shoot_ctrl_cmd->shoot_rate = 8;// 射频控制,固定每秒1发,后续可以根据左侧拨轮的值大小切换射频,
 }
 #endif
 
@@ -201,6 +216,7 @@ static void MouseKeySet() {
  */
 static void EmergencyHandler() {
   // 两switch都在下断电
+#if defined(RC_CONTROL)
   if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)))  // 全部失能
   {
     robot->robot_mode = ROBOT_POWER_ON;
@@ -224,6 +240,39 @@ static void EmergencyHandler() {
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
   }
   // 遥控器右侧开关为[上],恢复正常运行
+#endif
+#if defined(MOUSE_CONTROL)
+  if (!rc_data[TEMP].key_count[KEY_PRESS][Key_B] % 2)  // 全部失能
+  {
+    robot->robot_mode = ROBOT_POWER_ON;
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
+    shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
+    shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
+    shoot_ctrl_cmd->load_mode = LOAD_STOP;
+    LOGERROR("[CMD] emergency stop!");
+  } else {
+    LOGINFO("[CMD] reinstate, robot ready");
+  }
+  if (!rc_data[TEMP].key_count[KEY_PRESS][Key_V] % 2)  // 底盘失能
+  {
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
+  }
+  else
+  {
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+  }
+  if (!rc_data[TEMP].key_count[KEY_PRESS][Key_X] % 2)  // 发射失能
+  {
+    shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
+    shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
+    shoot_ctrl_cmd->load_mode = LOAD_STOP;
+  }
+  else
+  {
+    shoot_ctrl_cmd->shoot_mode= SHOOT_ON;
+  }
+#endif
 }
 
 void RobotInit() {
@@ -262,8 +311,12 @@ void RobotInit() {
 void RobotCMDTask() {
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
   CalcOffsetAngle();
+#if defined(RC_CONTROL)
   RemoteControlSet();
-  // MouseKeySet();
+#endif
+#if defined(MOUSE_CONTROL)
+  MouseKeySet();
+#endif
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
 
