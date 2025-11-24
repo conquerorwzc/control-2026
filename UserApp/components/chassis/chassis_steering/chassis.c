@@ -22,7 +22,7 @@ static Chassis_Param_s chassis_param;          // 声明为静态局部变量
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
 static float chassis_vx, chassis_vy;     // 将云台系的速度投影到底盘
 static float vt_lf, vt_rf, vt_lb, vt_rb;  // 底盘速度解算后的临时输出,待进行限幅
-static float vt[4]={0};
+static float vt[4]={0};//限幅后的数据
 static float st_lf,st_rf,st_lb,st_rb;
 static float total_st_rf=0;
 // 添加变量来存储上一次的角度值
@@ -44,7 +44,7 @@ static float NormalizeAngle(float angle) {
     return angle;
 }
 
-// 函数用于将角度转换为连续的绝对角度，使用劣弧控制（最短路径），未实现防打舵
+// 函数用于将角度转换为连续的绝对角度，使用劣弧控制（最短路径），未实现防打舵，弃用
 static float AngleToContinuousMinorArc(float target_angle, float current_angle) {
     // 计算最短角度差
     float diff = target_angle - current_angle;
@@ -86,10 +86,10 @@ static float AngleToOptimalAngle(float target_angle, float current_angle, int8_t
 }
 //6020安装角度补偿
 static void RudderOffset() {
-  st_lf-=(float)chassis->rudder_offset[0]*ECD_ANGLE_COEF_DJI;
-  st_rf-=(float)chassis->rudder_offset[1]*ECD_ANGLE_COEF_DJI;
-  st_lb-=(float)chassis->rudder_offset[2]*ECD_ANGLE_COEF_DJI;
-  st_rb-=(float)chassis->rudder_offset[3]*ECD_ANGLE_COEF_DJI;
+  st_lf-=(float)chassis->rudder_offset[LF]*ECD_ANGLE_COEF_DJI;
+  st_rf-=(float)chassis->rudder_offset[RF]*ECD_ANGLE_COEF_DJI;
+  st_lb-=(float)chassis->rudder_offset[LB]*ECD_ANGLE_COEF_DJI;
+  st_rb-=(float)chassis->rudder_offset[RB]*ECD_ANGLE_COEF_DJI;
 }
 //轮限幅
 static void WheelLimit() {
@@ -241,14 +241,14 @@ static void SteeringCalculate() {
  *
  */
 static void LimitChassisOutput() {
-  DJIMotorSetPIDRef(chassis->wheel_motor[0], vt[LF]);
-  DJIMotorSetPIDRef(chassis->wheel_motor[1], vt[RF]);
-  DJIMotorSetPIDRef(chassis->wheel_motor[2], vt[LB]);
-  DJIMotorSetPIDRef(chassis->wheel_motor[3], vt[RB]);
-  DJIMotorSetPIDRef(chassis->rudder_motor[0], st_lf);
-  DJIMotorSetPIDRef(chassis->rudder_motor[1], st_rf);
-  DJIMotorSetPIDRef(chassis->rudder_motor[2], st_lb);
-  DJIMotorSetPIDRef(chassis->rudder_motor[3], st_rb);
+  //DJIMotorSetPIDRef(chassis->wheel_motor[0], vt[LF]);
+  //DJIMotorSetPIDRef(chassis->wheel_motor[1], vt[RF]);
+  //DJIMotorSetPIDRef(chassis->wheel_motor[2], vt[LB]);
+  //DJIMotorSetPIDRef(chassis->wheel_motor[3], vt[RB]);
+  DJIMotorSetPIDRef(chassis->rudder_motor[LF], st_lf);
+  DJIMotorSetPIDRef(chassis->rudder_motor[LB], st_lb);
+  DJIMotorSetPIDRef(chassis->rudder_motor[RF], st_rf);
+  DJIMotorSetPIDRef(chassis->rudder_motor[RB], st_rb);
   //PowerControl();
 }
 

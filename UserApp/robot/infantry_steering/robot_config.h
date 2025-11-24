@@ -27,8 +27,6 @@
 #define VISION_USE_VCP  // 使用虚拟串口发送视觉数据
 // #define VISION_USE_UART // 使用串口发送视觉数据
 
-
-
 // 云台参数
 #define YAW_CHASSIS_ALIGN_ECD 5326
 #define PITCH_HORIZON_ECD 5748  // 云台处于水平位置时编码器值,若对云台有机械改动需要修改
@@ -36,127 +34,137 @@
 #define PITCH_MIN_ANGLE -15.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
 
 // 私有宏,自动将编码器转换成角度值
-#define YAW_ALIGN_ANGLE 296.5 //hero的计算比较特殊，直接从读出来
+#define YAW_ALIGN_ANGLE 296.5                                         // hero的计算比较特殊，直接从读出来
 #define PTICH_HORIZON_ANGLE (PITCH_HORIZON_ECD * ECD_ANGLE_COEF_DJI)  // pitch水平时电机的角度,0-360
 #define GYRO2GIMBAL_DIR_YAW 1    // 陀螺仪数据相较于云台的yaw的方向,1为相同,-1为相反
 #define GYRO2GIMBAL_DIR_PITCH 1  // 陀螺仪数据相较于云台的pitch的方向,1为相同,-1为相反
 #define GYRO2GIMBAL_DIR_ROLL 1   // 陀螺仪数据相较于云台的roll的方向,1为相同,-1为相反
 
-//轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
 // 轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
-#define WHEEL_MOTOR_CONFIG(handle, id) \
-((Motor_Init_Config_s) { \
-    .can_init_config = { \
-        .can_handle = handle, \
-        .tx_id = id, \
-    }, \
-    .controller_param_init_config = { \
-        .speed_PID = { \
-            .Kp = 0.5, \
-            .Ki = 0, \
-            .Kd = 0, \
-            .IntegralLimit = 6000, \
-            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
-            .MaxOut = 15000, \
-        }, \
-        .current_PID = { \
-            .Kp = 0, \
-            .Ki = 0, \
-            .Kd = 0, \
-            .IntegralLimit = 3000, \
-            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
-            .MaxOut = 15000, \
-        }, \
-    }, \
-    .controller_setting_init_config = { \
-        .angle_feedback_source = MOTOR_FEED, \
-        .speed_feedback_source = MOTOR_FEED, \
-        .outer_loop_type = SPEED_LOOP, \
-        .close_loop_type = SPEED_LOOP, \
-        .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,\
-    }, \
-    .motor_type = M3508, \
-})
-#define RUDDER_MOTOR_CONFIG(handle, id) \
-((Motor_Init_Config_s) { \
-.can_init_config = { \
-.can_handle = handle, \
-.tx_id = id, \
-}, \
-.controller_param_init_config = { \
-.angle_PID = { \
-.Kp = 50, \
-.Ki = 0, \
-.Kd = 0.1, \
-.IntegralLimit = 6000, \
-.Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
-.MaxOut = 1920, \
-}, \
-.speed_PID = { \
-.Kp = 8, \
-.Ki = 20, \
-.Kd = 0, \
-.IntegralLimit = 6000, \
-.Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
-.MaxOut = 24000, \
-}, \
-.current_PID = { \
-.Kp = 0, \
-.Ki = 0, \
-.Kd = 0, \
-.IntegralLimit = 3000, \
-.Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
-.MaxOut = 15000, \
-}, \
-}, \
-.controller_setting_init_config = { \
-.angle_feedback_source = MOTOR_FEED, \
-.speed_feedback_source = MOTOR_FEED, \
-.outer_loop_type = SPEED_LOOP, \
-.close_loop_type = SPEED_LOOP, \
-.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,\
-}, \
-.motor_type = GM6020, \
-})
+//  轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
+#define WHEEL_MOTOR_CONFIG(handle, id)                                                                         \
+  ((Motor_Init_Config_s){                                                                                      \
+      .can_init_config =                                                                                       \
+          {                                                                                                    \
+              .can_handle = handle,                                                                            \
+              .tx_id = id,                                                                                     \
+          },                                                                                                   \
+      .controller_param_init_config =                                                                          \
+          {                                                                                                    \
+              .speed_PID =                                                                                     \
+                  {                                                                                            \
+                      .Kp = 0.5,                                                                               \
+                      .Ki = 0,                                                                                 \
+                      .Kd = 0,                                                                                 \
+                      .IntegralLimit = 6000,                                                                   \
+                      .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
+                      .MaxOut = 15000,                                                                         \
+                  },                                                                                           \
+              .current_PID =                                                                                   \
+                  {                                                                                            \
+                      .Kp = 0,                                                                                 \
+                      .Ki = 0,                                                                                 \
+                      .Kd = 0,                                                                                 \
+                      .IntegralLimit = 3000,                                                                   \
+                      .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
+                      .MaxOut = 15000,                                                                         \
+                  },                                                                                           \
+          },                                                                                                   \
+      .controller_setting_init_config =                                                                        \
+          {                                                                                                    \
+              .angle_feedback_source = MOTOR_FEED,                                                             \
+              .speed_feedback_source = MOTOR_FEED,                                                             \
+              .outer_loop_type = SPEED_LOOP,                                                                   \
+              .close_loop_type = SPEED_LOOP,                                                                   \
+              .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,                                                   \
+          },                                                                                                   \
+      .motor_type = M3508,                                                                                     \
+  })
+#define RUDDER_MOTOR_CONFIG(handle, id)                                                                        \
+  ((Motor_Init_Config_s){                                                                                      \
+      .can_init_config =                                                                                       \
+          {                                                                                                    \
+              .can_handle = handle,                                                                            \
+              .tx_id = id,                                                                                     \
+          },                                                                                                   \
+      .controller_param_init_config =                                                                          \
+          {                                                                                                    \
+              .angle_PID =                                                                                     \
+                  {                                                                                            \
+                      .Kp = 50,                                                                                \
+                      .Ki = 0,                                                                                 \
+                      .Kd = 0.1,                                                                               \
+                      .IntegralLimit = 960,                                                                  \
+                      .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
+                      .MaxOut = 1920,                                                                          \
+                  },                                                                                           \
+              .speed_PID =                                                                                     \
+                  {                                                                                            \
+                      .Kp = 8,                                                                                 \
+                      .Ki = 20,                                                                                \
+                      .Kd = 0,                                                                                 \
+                      .IntegralLimit = 12000,                                                                   \
+                      .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
+                      .MaxOut = 24000,                                                                         \
+                  },                                                                                           \
+              .current_PID =                                                                                   \
+                  {                                                                                            \
+                      .Kp = 0,                                                                                 \
+                      .Ki = 0,                                                                                 \
+                      .Kd = 0,                                                                                 \
+                      .IntegralLimit = 3000,                                                                   \
+                      .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
+                      .MaxOut = 15000,                                                                         \
+                  },                                                                                           \
+          },                                                                                                   \
+      .controller_setting_init_config =                                                                        \
+          {                                                                                                    \
+              .angle_feedback_source = MOTOR_FEED,                                                             \
+              .speed_feedback_source = MOTOR_FEED,                                                             \
+              .outer_loop_type = SPEED_LOOP,                                                                   \
+              .close_loop_type = SPEED_LOOP,                                                                   \
+              .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,                                                   \
+          },                                                                                                   \
+      .motor_type = GM6020,                                                                                    \
+  })
 
 static Chassis_Init_Config_s chassis_init_config = {
     .chassis_param =
         {
             // 机器人底盘修改的参数,单位为mm(毫米)
-            .wheel_base = 350.0f,              // 纵向轴距(前进后退方向)
-            .track_width = 300.0f,             // 横向轮距(左右平移方向)
-            .center_gimbal_offset_x = 0.0f,    // 云台旋转中心距底盘几何中心的距离,前后方向,云台位于正中心时默认设为0
-            .center_gimbal_offset_y = 0.0f,    // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
-            .wheel_radius = 60.0f,             // 轮子半径
+            .wheel_base = 350.0f,            // 纵向轴距(前进后退方向)
+            .track_width = 300.0f,           // 横向轮距(左右平移方向)
+            .center_gimbal_offset_x = 0.0f,  // 云台旋转中心距底盘几何中心的距离,前后方向,云台位于正中心时默认设为0
+            .center_gimbal_offset_y = 0.0f,  // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
+            .wheel_radius = 60.0f,           // 轮子半径
             .wheel_reduction_ratio = 19.0f,  // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
-            //3508功率模型参数
-            .power_param.k0=0.7441993412640775f,
-            .power_param.k1=0.006444284468539646f,
-            .power_param.k2=0.0001423857226262331f,
-            .power_param.k3=0.015644430204543864f,
-            .power_param.k4=0.1580143850678086f,
-            .power_param.k5=2.896721772539512e-05f,
+                                             // 3508功率模型参数
+            .power_param.k0 = 0.7441993412640775f,
+            .power_param.k1 = 0.006444284468539646f,
+            .power_param.k2 = 0.0001423857226262331f,
+            .power_param.k3 = 0.015644430204543864f,
+            .power_param.k4 = 0.1580143850678086f,
+            .power_param.k5 = 2.896721772539512e-05f,
             // 6020舵机电机零位偏移值，用于校准安装后的零偏
-            .rudder_motor_offset = {6844, 3388, 3443, 13}  // 根据实际安装情况设置每个舵机的零偏值
+            .rudder_motor_offset = {8892, 1361,2019, 5436}  // 根据实际安装情况设置每个舵机的零偏值
         },
-    .wheel_motor_config[0] = WHEEL_MOTOR_CONFIG(&hcan1,1),
-    .wheel_motor_config[1] = WHEEL_MOTOR_CONFIG(&hcan1,4),
-    .wheel_motor_config[2] = WHEEL_MOTOR_CONFIG(&hcan1,2),
-    .wheel_motor_config[3] = WHEEL_MOTOR_CONFIG(&hcan1,3),
-    .rudder_motor_config[0]=RUDDER_MOTOR_CONFIG(&hcan2,1),
-  .rudder_motor_config[1]=RUDDER_MOTOR_CONFIG(&hcan2,2),
-  .rudder_motor_config[2]=RUDDER_MOTOR_CONFIG(&hcan2,3),
-  .rudder_motor_config[3]=RUDDER_MOTOR_CONFIG(&hcan2,4),
-    //跟随PID
-     // .follow_pid={
-     //     .Kp = -80.0f,
-     //     .Ki = 0.0f,
-     //     .Kd = 0.0f,
-     //     .IntegralLimit = 1000.0f,
-     //     .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-     //     .MaxOut = 10000.0f,
-     // },
-
+     .wheel_motor_config[0] = WHEEL_MOTOR_CONFIG(&hcan1, 1),
+     .wheel_motor_config[1] = WHEEL_MOTOR_CONFIG(&hcan1, 4),
+     .wheel_motor_config[2] = WHEEL_MOTOR_CONFIG(&hcan1, 2),
+     .wheel_motor_config[3] = WHEEL_MOTOR_CONFIG(&hcan1, 3),
+    .rudder_motor_config[0] = RUDDER_MOTOR_CONFIG(&hcan2, 1),
+    .rudder_motor_config[3] = RUDDER_MOTOR_CONFIG(&hcan2, 2),
+    .rudder_motor_config[1] = RUDDER_MOTOR_CONFIG(&hcan2, 3),
+    .rudder_motor_config[2] = RUDDER_MOTOR_CONFIG(&hcan2, 4),
+    // 跟随PID
+    // .follow_pid={
+    //     .Kp = -80.0f,
+    //     .Ki = 0.0f,
+    //     .Kd = 0.0f,
+    //     .IntegralLimit = 1000.0f,
+    //     .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+    //     .MaxOut = 10000.0f,
+    // },
 
 };
 
@@ -299,8 +307,6 @@ static Chassis_Init_Config_s chassis_init_config = {
 //             .controller_setting_init_config.close_loop_type = SPEED_LOOP | ANGLE_LOOP,
 //         },
 // };
-
-
 
 // static SuperCap_Init_Config_s super_cap_config = {
 //     .can_config = {
