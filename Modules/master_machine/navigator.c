@@ -2,7 +2,7 @@
 // Created by ASUS on 2025/11/23.
 //
 #include "navigator.h"
-
+#include "crc_func.h"
 // 帧头相关
 #define PROTOCOL_SOF         0x5A
 #define PROTOCOL_HEADER_LEN  4
@@ -15,8 +15,6 @@
 #define BUFFER_MAX_SIZE      128
 
 static uint8_t internal_tx_buffer[BUFFER_MAX_SIZE];
-
-static uint8_t custom_data[] = {0x40, 0x50, 0x60, 0x70};
 
 static uint8_t* protocol_packed(const uint8_t* data_ptr, uint32_t time_stamp, uint8_t data_len, uint8_t data_id, uint8_t* tx_buff, uint16_t* tx_buff_len)
 {
@@ -67,18 +65,37 @@ uint8_t *protocol_pack(uint32_t time_stamp, const uint8_t *data, uint8_t data_le
   return protocol_packed(data, time_stamp, data_len, data_id, internal_tx_buffer, packed_length);
 }
 
-HAL_StatusTypeDef protocol_send(UART_HandleTypeDef* huart, uint32_t time_stamp, const uint8_t* data_ptr, uint8_t data_len, uint8_t data_id, uint32_t timeout) {
+uint8_t protocol_send(UART_HandleTypeDef* huart, uint32_t time_stamp, const uint8_t* data_ptr, uint8_t data_len, uint8_t data_id, uint32_t timeout) {
   if (huart == NULL) {
-    return HAL_ERROR; // 无效的句柄
+    return 0;
   }
 
   uint16_t packed_length = 0;
+  uint8_t local_buffer[BUFFER_MAX_SIZE];  // 使用局部缓冲区
 
-  // 1. 调用打包函数
-  uint8_t *packed_data = protocol_pack(time_stamp, data_ptr, data_len, data_id, &packed_length);
+  // 1. 打包到局部缓冲区
+  uint8_t *packed_data = protocol_packed(data_ptr, time_stamp, data_len, data_id, local_buffer, &packed_length);
 
   // 2. 检查打包是否成功
   if (packed_data == NULL || packed_length == 0) {
-    return HAL_ERROR; // 打包失败
+    return 0;
   }
+
+  // 3. 使用DMA传输局部缓冲区
+  HAL_StatusTypeDef hal_status = HAL_UART_Transmit_DMA(huart, packed_data, packed_length);
+  if (hal_status != HAL_OK) {
+    return 0;
+  }
+
+  // 4. 等待DMA传输完成
+  uint32_t start_tick = HAL_GetTick();
+  while (huart->gState == HAL_UART_STATE_BUSY_TX) {
+    if ((HAL_GetTick() - start_tick) > timeout) {
+      HAL_UART_DMAStop(huart);
+      return 0;
+    }
+    osDelay(1);
+  }
+
+  return 1;
 }

@@ -18,10 +18,13 @@ void RobotInit() {
 
 void RobotTask() {
   uint8_t custom_data[] = {0x40, 0x50, 0x60, 0x70}; //随便给的测试数据，牢恩你改一下啦
-  uint32_t system_tick=0x151A;  //随便给的值，时间戳后面再说啦
+  uint32_t system_tick=0xAAAA;  //随便给的值，时间戳后面再说啦
   uint8_t data_id=0x01;
+  // uint8_t simple_data = 0xBB; // 只发送一个字节
+  // uint32_t system_tick = 0x12345678;
+  // uint8_t data_id = 0x91;
   DJIMotorSetPIDRef(motor_instance, 400.0f);
-  HAL_StatusTypeDef status = protocol_send(
+  uint8_t status = protocol_send(
                                   &huart1,         // UART句柄
                                   system_tick, // 时间戳
                                   custom_data,       // 数据指针
@@ -29,8 +32,9 @@ void RobotTask() {
                                   data_id,           // 数据段ID
                                   HAL_MAX_DELAY
                               );
-  if (status != HAL_OK)
+  if (!status)
   {
 
   }
+  osDelay(100);
 }

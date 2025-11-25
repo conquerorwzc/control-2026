@@ -42,10 +42,10 @@ void InitParam(void) {
   RIGISTER_ID(send, 2, send_data.shoot_send);
 }
 
-void navigator_send(){
-  uint8_t *packed_data = protocol_pack(0x0302, custom_data, sizeof(custom_data), &packed_length);
-  HAL_UART_Transmit(&huart2, packed_data, packed_length, HAL_MAX_DELAY);
-}
+// void navigator_send(){
+//   uint8_t *packed_data = protocol_pack(0x0302, custom_data, sizeof(custom_data), &packed_length);
+//   HAL_UART_Transmit(&huart1, packed_data, packed_length, HAL_MAX_DELAY);
+// }
 
 // void UpdateGimbalAttitude(Vision_Send_s *vision_send) {
 //   attitude_t current_attitude;
