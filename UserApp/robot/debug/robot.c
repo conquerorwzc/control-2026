@@ -4,6 +4,7 @@
 #include "general_def.h"
 #include "robot_config.h"
 #include "user_lib.h"
+#include "navigator.h"
 
 static DJIMotorInstance* motor_instance;
 
@@ -15,4 +16,21 @@ void RobotInit() {
   motor_instance = DJIMotorInit(&wheel_motor_config);
 }
 
-void RobotTask() { DJIMotorSetPIDRef(motor_instance, 400.0f); }
+void RobotTask() {
+  uint8_t custom_data[] = {0x40, 0x50, 0x60, 0x70}; //随便给的测试数据，牢恩你改一下啦
+  uint32_t system_tick=0x151A;  //随便给的值，时间戳后面再说啦
+  uint8_t data_id=0x01;
+  DJIMotorSetPIDRef(motor_instance, 400.0f);
+  HAL_StatusTypeDef status = protocol_send(
+                                  &huart1,         // UART句柄
+                                  system_tick, // 时间戳
+                                  custom_data,       // 数据指针
+                                  sizeof(custom_data), // 数据长度
+                                  data_id,           // 数据段ID
+                                  HAL_MAX_DELAY
+                              );
+  if (status != HAL_OK)
+  {
+
+  }
+}

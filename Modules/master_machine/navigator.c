@@ -3,63 +3,82 @@
 //
 #include "navigator.h"
 
-#define BUFFER_MAX_SIZE 128
+// 帧头相关
+#define PROTOCOL_SOF         0x5A
+#define PROTOCOL_HEADER_LEN  4
+#define PROTOCOL_CRC8_INIT   0xFF
 
-#define START_CODE 0XA5
+// 帧尾相关
+#define PROTOCOL_CRC16_INIT  0xFFFF
+
+// 缓冲区最大尺寸
+#define BUFFER_MAX_SIZE      128
 
 static uint8_t internal_tx_buffer[BUFFER_MAX_SIZE];
 
 static uint8_t custom_data[] = {0x40, 0x50, 0x60, 0x70};
 
-void protocol_packed(uint8_t *data, uint32_t time_stamp, uint8_t data_len, uint8_t data_id, uint8_t *tx_buff, uint16_t *tx_buff_length) {
-
-
-  if (tx_buff == NULL || tx_buff_length == NULL) {
-    return;
+static uint8_t* protocol_packed(const uint8_t* data_ptr, uint32_t time_stamp, uint8_t data_len, uint8_t data_id, uint8_t* tx_buff, uint16_t* tx_buff_len)
+{
+  // 1. 参数有效性检查
+  if (tx_buff == NULL || tx_buff_len == NULL) {
+    return NULL;
   }
 
-  // 帧结构: 帧头(4) + 时间戳(4) + 数据段 + CRC16(2)
-  uint16_t total_len = 4 + 4 + data_len + 2;
-
-  if (total_len > BUFFER_MAX_SIZE) {
-    *tx_buff_length = 0; // 缓冲区不足，返回长度为0
-    return;
+  // 2. 计算总帧长并检查缓冲区是否足够
+  uint16_t total_frame_len = PROTOCOL_HEADER_LEN + 4 + data_len + 2;
+  if (total_frame_len > BUFFER_MAX_SIZE) {
+    *tx_buff_len = 0;
+    return NULL;
   }
 
-  tx_buff[0] = 0xA5;              // sof
-  tx_buff[1] = data_len;              // len (数据段长度)
-  tx_buff[2] = data_id;               // id (数据段ID)
+  // 3. 填充帧头
+  uint16_t current_index = 0;
+  tx_buff[current_index++] = PROTOCOL_SOF;                  // sof
+  tx_buff[current_index++] = data_len;                      // len
+  tx_buff[current_index++] = data_id;                       // id
+  tx_buff[current_index++] = get_CRC8_check_sum(&tx_buff[0], 3, PROTOCOL_CRC8_INIT); // crc
 
+  // 4. 填充时间戳 (小端模式)
+  tx_buff[current_index++] = (time_stamp >> 0)  & 0xFF;
+  tx_buff[current_index++] = (time_stamp >> 8)  & 0xFF;
+  tx_buff[current_index++] = (time_stamp >> 16) & 0xFF;
+  tx_buff[current_index++] = (time_stamp >> 24) & 0xFF;
 
-  uint8_t crc8 = get_CRC8_check_sum(&tx_buff[0], 3, 0xFF);
-  tx_buff[3] = crc8;                  // crc
-
-
-  tx_buff[4] = (time_stamp >> 0)  & 0xFF;
-  tx_buff[5] = (time_stamp >> 8)  & 0xFF;
-  tx_buff[6] = (time_stamp >> 16) & 0xFF;
-  tx_buff[7] = (time_stamp >> 24) & 0xFF;
-
-  if (data != NULL && data_len > 0) {
-    memcpy(&tx_buff[8], data, data_len); // 数据从索引8开始
+  // 5. 填充数据段
+  if (data_ptr != NULL && data_len > 0) {
+    memcpy(&tx_buff[current_index], data_ptr, data_len);
+    current_index += data_len;
   }
 
-  uint16_t crc16 = get_CRC16_check_sum(&tx_buff[0], total_len - 2, 0xFFFF);
+  // 6. 计算并填充帧尾CRC16
+  uint16_t checksum_len = PROTOCOL_HEADER_LEN + 4 + data_len;
+  uint16_t frame_crc16 = get_CRC16_check_sum(&tx_buff[0], checksum_len, PROTOCOL_CRC16_INIT);
+  tx_buff[current_index++] = frame_crc16 & 0xFF;
+  tx_buff[current_index++] = (frame_crc16 >> 8) & 0xFF;
 
-  // 将CRC16按小端序存入缓冲区的末尾
-  tx_buff[total_len - 2] = crc16 & 0xFF;
-  tx_buff[total_len - 1] = (crc16 >> 8) & 0xFF;
-
-  // 6. 设置返回的长度
-  *tx_buff_length = total_len;
-
-  return;
+  // 7. 设置最终帧长并返回
+  *tx_buff_len = total_frame_len;
+  return tx_buff;
 }
 
-uint8_t *protocol_pack(uint32_t time_stamp, uint8_t *data, uint8_t data_len, uint8_t data_id, uint16_t *packed_length) {
+uint8_t *protocol_pack(uint32_t time_stamp, const uint8_t *data, uint8_t data_len, uint8_t data_id, uint16_t *packed_length) {
   // 调用核心打包函数，使用静态的 internal_tx_buffer
-  protocol_packed(data, time_stamp, data_len, data_id, internal_tx_buffer, packed_length);
+  return protocol_packed(data, time_stamp, data_len, data_id, internal_tx_buffer, packed_length);
+}
 
-  // 返回静态缓冲区的地址
-  return internal_tx_buffer;
+HAL_StatusTypeDef protocol_send(UART_HandleTypeDef* huart, uint32_t time_stamp, const uint8_t* data_ptr, uint8_t data_len, uint8_t data_id, uint32_t timeout) {
+  if (huart == NULL) {
+    return HAL_ERROR; // 无效的句柄
+  }
+
+  uint16_t packed_length = 0;
+
+  // 1. 调用打包函数
+  uint8_t *packed_data = protocol_pack(time_stamp, data_ptr, data_len, data_id, &packed_length);
+
+  // 2. 检查打包是否成功
+  if (packed_data == NULL || packed_length == 0) {
+    return HAL_ERROR; // 打包失败
+  }
 }
