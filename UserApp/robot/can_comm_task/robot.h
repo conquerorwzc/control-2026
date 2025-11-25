@@ -12,7 +12,6 @@
 #define ROBOT_H
 #include "can_comm.h"
 #include "bsp_can.h"
-
 //#define DEVICE_ROLE_TX 1 // 发送板：定义为1
 #define DEVICE_ROLE_TX 0 // 接收板：注释上一行，定义为0
 
@@ -22,10 +21,14 @@
     #define DEVICE_ROLE_STR "RX"
 #endif
 
+// 声明全局变量
+extern CANCommInstance* can_comm_instance;
+extern bool init_finish;
+
 //can通信任务初始化时间 单位ms
 #define CAN_COMM_TASK_INIT_TIME 100
 //can通信任务运行时间间隔 单位ms
-#define CAN_COMM_TASK_TIME 1
+#define CAN_COMM_TASK_TIME 50 //1
 //云台can设备
 #define GIMBAL_CAN hcan1
 //双板can通信设备
@@ -36,7 +39,7 @@
 #define SHOOT_FLAGS_CAN hcan1
 //发送云台pitch轴的相对角和绝对角can通信
 #define PitchAngle_CAN hcan1
-
+/*
 typedef enum
 {
   CAN_GIMBAL_AND_TRIGGER = 0x1FF,
@@ -67,15 +70,9 @@ typedef struct
   can_comm_queue_t *can_comm_queue;
 
 }can_comm_task_t;
-
+*/
 void RobotInit();
 
 extern void RobotTask();
-
-void can_comm_board(uint8_t ui_flag, uint8_t fric_flag, int16_t chassis_vx, int16_t chassis_vy,int16_t pitch_abs, uint8_t chassis_behaviour, uint8_t cap_flag);
-
-//extern void can_comm_shoot_flags(uint16_t fric0,uint16_t fric1,uint16_t trigger,uint16_t bullet_round);
-
-extern bool can_comm_task_init_finish(void);
 
 #endif // !CAN_COMM_TASK_H
