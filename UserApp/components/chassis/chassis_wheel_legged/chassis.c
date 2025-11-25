@@ -21,22 +21,21 @@ static float robot_weight;
 static float wheel_radius;
 
 static void ChassisCtrlUpdate() {
-  chassis->roll_comp =
-      PIDCalculate(&chassis->roll_PID, chassis->chassis_IMU_data->Gyro[1], chassis->chassis_ctrl_cmd.roll);
+  // chassis->roll_comp =
+  // PIDCalculate(&chassis->roll_PID, chassis->chassis_IMU_data->Gyro[1], chassis->chassis_ctrl_cmd.roll);
 
   for (int i = 0; i < 2; i++) {
     LegCtrlUpdate(leg[i], chassis->chassis_IMU_data);
     float leg_force_ff = 9.8f * robot_weight / 2.0f / mcos(leg[i]->state_var.theta);
-    leg[i]->virtual_model.F += leg_force_ff + (float)(1 - 2 * i) * chassis->roll_comp;
+    leg[i]->virtual_model.F += leg_force_ff;  //+ (float)(1 - 2 * i) * chassis->roll_comp;
     VAL_LIMIT(leg[i]->virtual_model.F, -100.0f, 100.0f);
   }
 
-  chassis->delta_theta_comp =
-      PIDCalculate(&chassis->delta_theta_PID, leg[0]->state_var.theta - leg[1]->state_var.theta, 0);
+  // chassis->delta_theta_comp =
+  //     PIDCalculate(&chassis->delta_theta_PID, leg[0]->state_var.theta - leg[1]->state_var.theta, 0);
 
   for (int i = 0; i < 2; i++) {
-    leg[i]->virtual_model.Tp += (float)(1 - 2 * i) * chassis->delta_theta_comp;
-    leg[i]->real_model.T += (float)(1 - 2 * i) * chassis->chassis_ctrl_cmd.wz;
+    // leg[i]->virtual_model.Tp += (float)(1 - 2 * i) * chassis->delta_theta_comp;
     JointTorqueUpdate(leg[i]);
   }
 }
@@ -49,16 +48,15 @@ static void ChassisRecovery() {
   for (int i = 0; i < 2; i++) {
     DMMotorOuterLoop(leg[i]->joint_motor[0], ANGLE_LOOP);
     DMMotorOuterLoop(leg[i]->joint_motor[1], ANGLE_LOOP);
-    DMMotorPIDCal(leg[i]->joint_motor[0], 0.1);
-    DMMotorPIDCal(leg[i]->joint_motor[1], -0.1);
+    DMMotorPIDCal(leg[i]->joint_motor[0], -0.1);
+    DMMotorPIDCal(leg[i]->joint_motor[1], 0.1);
     leg[i]->real_model.Tp_1 = leg[i]->joint_motor[0]->motor_controller.final_output;
     leg[i]->real_model.Tp_2 = leg[i]->joint_motor[1]->motor_controller.final_output;
 
-    if (abs((leg[i]->joint_motor[0]->measure.position - (0.1f))) <= 0.05f &&
-        abs(leg[i]->joint_motor[1]->measure.position - (-0.1f)) <= 0.05f) {
-      leg[i]->leg_ctrl_cmd.x_d_ref = chassis_ctrl_cmd->vx;
+    if (abs((leg[i]->joint_motor[0]->measure.position - (-0.1f))) <= 0.05f &&
+        abs(leg[i]->joint_motor[1]->measure.position - (0.1f)) <= 0.05f) {
+      leg[i]->leg_ctrl_cmd.x_d_ref = chassis_ctrl_cmd->vx + (float)(1 - 2 * i) * chassis->chassis_ctrl_cmd.wz;
       LegCtrlUpdate(leg[i], chassis->chassis_IMU_data);
-      leg[i]->real_model.T += (float)(1 - 2 * i) * chassis->chassis_ctrl_cmd.wz;
     } else {
       LegCtrlUpdate(leg[i], chassis->chassis_IMU_data);
       // leg[i]->real_model.T = 0;

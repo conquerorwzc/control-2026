@@ -75,19 +75,19 @@ static void RemoteControlSet() {
   }
   // 右[上]，超电，保持底盘跟随云台
   else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
-    // chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_RECOVERY;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
+    // chassis_ctrl_cmd->chassis_mode = CHASSIS_RECOVERY;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       robot->robot_mode = ROBOT_CHASSIS_ROTATE;
     } else
-      robot->robot_mode = ROBOT_CHASSIS_FREE;
+      robot->robot_mode = ROBOT_CHASSIS_FOLLOW;
   }
   // 左[中],云台启动，摩擦轮启动，拨弹盘启动，准备射击
   if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
     shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
-    // chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_RECOVERY;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
+    // chassis_ctrl_cmd->chassis_mode = CHASSIS_RECOVERY;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
@@ -135,12 +135,12 @@ static void RemoteControlSet() {
 
   switch (robot->robot_mode) {
     case ROBOT_CHASSIS_ROTATE:
-      chassis_ctrl_cmd->wz = TRACK_WIDTH / 2.0f * (0.0001) *
-                             (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如，则在底盘任务中计算旋转分量
+      // chassis_ctrl_cmd->wz = TRACK_WIDTH / 2.0f * (0.0001) *
+      //                        (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如，则在底盘任务中计算旋转分量
       break;
     case ROBOT_CHASSIS_FOLLOW:
-      chassis_ctrl_cmd->wz = TRACK_WIDTH / 2.0f * (0.0001) *
-                             (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如，则在底盘任务中计算旋转分量
+      // chassis_ctrl_cmd->wz = TRACK_WIDTH / 2.0f * (0.0001) *
+      //                        (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如，则在底盘任务中计算旋转分量
       // chassis_vx = 30.0f * (float)rc_data[TEMP].rc.rocker_l_;  // _水平方向
       // chassis_vy = 30.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 竖直方向
       // chassis_ctrl_cmd->vx = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
@@ -150,10 +150,10 @@ static void RemoteControlSet() {
       //                  PI / 2.0f - atan2f(chassis_vy, chassis_vx) + chassis_ctrl_cmd->offset_angle, 0);
       break;
     case ROBOT_CHASSIS_FREE:
-      chassis_ctrl_cmd->vx = (0.0005f) * (float)rc_data[TEMP].rc.rocker_r1;
-      chassis_ctrl_cmd->wz = (0.0002f) * (float)rc_data[TEMP].rc.rocker_r_;
-      chassis_ctrl_cmd->leg_length_d = (float)rc_data[TEMP].rc.rocker_l1;
-      chassis_ctrl_cmd->roll = (float)rc_data[TEMP].rc.rocker_l_;
+      chassis_ctrl_cmd->vx = -(0.001f) * (float)rc_data[TEMP].rc.rocker_r1;
+      chassis_ctrl_cmd->wz = -(0.0002f) * (float)rc_data[TEMP].rc.rocker_r_;
+      // chassis_ctrl_cmd->leg_length_d = (float)rc_data[TEMP].rc.rocker_l1;
+      // chassis_ctrl_cmd->roll = (float)rc_data[TEMP].rc.rocker_l_;
       break;
     default:
       break;
@@ -251,7 +251,7 @@ static void MouseKeySet() {
  */
 static void EmergencyHandler() {
   if (robot_lost_control) {
-    robot->chassis->chassis_ctrl_cmd.chassis_mode = CHASSIS_RECOVERY;  // todo:因该写成elif比较安全
+    // robot->chassis->chassis_ctrl_cmd.chassis_mode = CHASSIS_RECOVERY;  // todo:因该写成elif比较安全
   }
   // 两switch都在下或者遥控器断连，断电
   if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)) |

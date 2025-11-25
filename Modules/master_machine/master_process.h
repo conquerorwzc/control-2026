@@ -4,7 +4,7 @@
 #include "bsp_usart.h"
 #include "seasky_protocol.h"
 
-#define VISION_RECV_SIZE 18u // 当前为固定值,36字节
+#define VISION_RECV_SIZE 18u  // 当前为固定值,36字节
 #define VISION_SEND_SIZE 36u
 
 #pragma pack(1)
@@ -35,19 +35,16 @@
 //   BASE = 8
 // } Target_Type_e;
 
-typedef struct
-{
+typedef struct {
   float yaw;
   float pitch;
 } Gimbal_Receive_s;
 
-typedef struct
-{
+typedef struct {
   int fire_flag;
 } Shoot_Receive_s;
 
-typedef struct
-{
+typedef struct {
   Gimbal_Receive_s gimbal_receive;
   Shoot_Receive_s shoot_receive;
 
@@ -59,18 +56,17 @@ typedef struct {
   float roll;
   int mode;
   int color;
-}Gimbal_Send_s;
+} Gimbal_Send_s;
 
 typedef struct {
   float bullet_speed;
-}Shoot_Send_s;
-
-typedef struct
-{
+} Shoot_Send_s;
+#pragma pack(1)
+typedef struct {
   Gimbal_Send_s gimbal_send;
   Shoot_Send_s shoot_send;
 } Vision_Send_s;
-
+#pragma pack()
 // typedef enum
 // {
 //   COLOR_NONE = 0,
@@ -105,7 +101,6 @@ typedef struct
 //   float pitch;
 //   float roll;
 // } Vision_Send_s;
-
 
 #pragma pack()
 
@@ -143,4 +138,4 @@ void InitParam(void);
 
 void VisionSend();
 
-#endif // !MASTER_PROCESS_H
+#endif  // !MASTER_PROCESS_H

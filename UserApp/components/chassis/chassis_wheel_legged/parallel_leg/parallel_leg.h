@@ -57,6 +57,7 @@ typedef struct {
   // Leg position
   float length, length_d, length_dd, last_length_d;
   float phi, phi_d, phi_dd, last_phi_d;
+  float alpha;
   // Leg force & torque
   float F, FN;
   float Tp;

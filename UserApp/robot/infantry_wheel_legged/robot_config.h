@@ -135,6 +135,16 @@
           },                                                                                                           \
       .length_PID_config =                                                                                             \
           {                                                                                                            \
+              .Kp = 350.0f,                                                                                            \
+              .Ki = 0.0f,                                                                                              \
+              .Kd = 30.0f,                                                                                             \
+              .MaxOut = 90.0f,                                                                                         \
+              .DeadBand = 0.01f,                                                                                       \
+              .Improve = PID_IMPROVE_NONE,                                                                             \
+              .IntegralLimit = 0.0f,                                                                                   \
+          },                                                                                                           \
+      .length_d_PID_config =                                                                                           \
+          {                                                                                                            \
               .Kp = 10.0f,                                                                                             \
               .Ki = 0.0f,                                                                                              \
               .Kd = 0.0f,                                                                                              \
@@ -183,11 +193,11 @@ static Chassis_Init_Config_s chassis_init_config = {
         },
 
     // 通过设置电机输出/反馈方向，来使腿部控制镜像对称
-    .leg_init_config[0] = LEG_INIT_CONFIG(MOTOR_DIRECTION_REVERSE, FEEDBACK_DIRECTION_REVERSE, &hcan1, 0x06, 0x03,
-                                          &hcan1, 0x08, 0x04, &hcan1, 0x01, 0x00),
+    .leg_init_config[0] = LEG_INIT_CONFIG(MOTOR_DIRECTION_NORMAL, MOTOR_DIRECTION_NORMAL, &hcan1, 0x06, 0x03, &hcan1,
+                                          0x08, 0x04, &hcan1, 0x01, 0x00),
 
-    .leg_init_config[1] = LEG_INIT_CONFIG(MOTOR_DIRECTION_NORMAL, MOTOR_DIRECTION_NORMAL, &hcan2, 0x08, 0x04, &hcan2,
-                                          0x06, 0x03, &hcan2, 0x01, 0x00),
+    .leg_init_config[1] = LEG_INIT_CONFIG(MOTOR_DIRECTION_REVERSE, FEEDBACK_DIRECTION_REVERSE, &hcan2, 0x08, 0x04,
+                                          &hcan2, 0x06, 0x03, &hcan2, 0x01, 0x00),
     .delta_theta_PID_config =
         {
             .Kp = 10.0f,
