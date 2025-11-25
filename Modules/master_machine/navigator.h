@@ -11,7 +11,7 @@
 
 // void protocol_packed(uint8_t *data, uint16_t cmd_id, uint8_t data_len, uint8_t *tx_buff, uint16_t *tx_buff_length);
 
-uint8_t *protocol_pack(uint16_t cmd_id, uint8_t *data, uint8_t data_len, uint16_t *packed_length);
+uint8_t *protocol_pack(uint32_t time_stamp, uint8_t *data, uint8_t data_len, uint8_t data_id, uint16_t *packed_length);
 
 
 #endif  // CONTROL_2026_NAVIGATOR_H
