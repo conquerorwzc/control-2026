@@ -105,7 +105,7 @@ uint8_t protocol_send(UART_HandleTypeDef* huart, uint32_t time_stamp, const uint
  * @param data 数据值
  * @return 发送成功返回1，失败返回0
  */
-uint8_t send_debug_data(UART_HandleTypeDef* huart, const char* name, uint8_t type, float data)
+static uint8_t send_debug_data(UART_HandleTypeDef* huart, const char* name, uint8_t type, float data)
 {
     if (huart == NULL || name == NULL) return 0;
 
@@ -130,7 +130,7 @@ uint8_t send_debug_data(UART_HandleTypeDef* huart, const char* name, uint8_t typ
  * @param state_info 状态信息结构体指针
  * @return 发送成功返回1，失败返回0
  */
-uint8_t send_robot_state_info(UART_HandleTypeDef* huart, const robot_state_info_t* state_info)
+static uint8_t send_robot_state_info(UART_HandleTypeDef* huart, const robot_state_info_t* state_info)
 {
     if (huart == NULL || state_info == NULL) return 0;
 
@@ -147,7 +147,7 @@ uint8_t send_robot_state_info(UART_HandleTypeDef* huart, const robot_state_info_
  * @param event_data 事件数据结构体指针
  * @return 发送成功返回1，失败返回0
  */
-uint8_t send_event_data(UART_HandleTypeDef* huart, const event_data_t* event_data)
+static uint8_t send_event_data(UART_HandleTypeDef* huart, const event_data_t* event_data)
 {
     if (huart == NULL || event_data == NULL) return 0;
 
@@ -164,7 +164,7 @@ uint8_t send_event_data(UART_HandleTypeDef* huart, const event_data_t* event_dat
  * @param robot_hp 血量数据结构体指针
  * @return 发送成功返回1，失败返回0
  */
-uint8_t send_all_robot_hp(UART_HandleTypeDef* huart, const all_robot_hp_t* robot_hp)
+static uint8_t send_all_robot_hp(UART_HandleTypeDef* huart, const all_robot_hp_t* robot_hp)
 {
     if (huart == NULL || robot_hp == NULL) return 0;
 
@@ -181,7 +181,7 @@ uint8_t send_all_robot_hp(UART_HandleTypeDef* huart, const all_robot_hp_t* robot
  * @param game_status 游戏状态结构体指针
  * @return 发送成功返回1，失败返回0
  */
-uint8_t send_game_status(UART_HandleTypeDef* huart, const game_status_t* game_status)
+static uint8_t send_game_status(UART_HandleTypeDef* huart, const game_status_t* game_status)
 {
     if (huart == NULL||game_status==NULL) return 0;
 
@@ -200,7 +200,7 @@ uint8_t send_game_status(UART_HandleTypeDef* huart, const game_status_t* game_st
  * @param wz z轴角速度
  * @return 发送成功返回1，失败返回0
  */
-uint8_t send_robot_motion(UART_HandleTypeDef* huart, const robot_motion_t* motion)
+static uint8_t send_robot_motion(UART_HandleTypeDef* huart, const robot_motion_t* motion)
 {
     if (huart == NULL||motion==NULL) return 0;
 
@@ -218,7 +218,7 @@ uint8_t send_robot_motion(UART_HandleTypeDef* huart, const robot_motion_t* motio
  * @param position 位置数据结构体指针
  * @return 发送成功返回1，失败返回0
  */
-uint8_t send_ground_robot_position(UART_HandleTypeDef* huart, const ground_robot_position_t* position)
+static uint8_t send_ground_robot_position(UART_HandleTypeDef* huart, const ground_robot_position_t* position)
 {
     if (huart == NULL || position == NULL) return 0;
 
@@ -235,7 +235,7 @@ uint8_t send_ground_robot_position(UART_HandleTypeDef* huart, const ground_robot
  * @param rfid_status RFID状态结构体指针
  * @return 发送成功返回1，失败返回0
  */
-uint8_t send_rfid_status(UART_HandleTypeDef* huart, const rfid_status_t* rfid_status)
+static uint8_t send_rfid_status(UART_HandleTypeDef* huart, const rfid_status_t* rfid_status)
 {
     if (huart == NULL || rfid_status == NULL) return 0;
 
@@ -252,7 +252,7 @@ uint8_t send_rfid_status(UART_HandleTypeDef* huart, const rfid_status_t* rfid_st
  * @param robot_status 机器人状态结构体指针
  * @return 发送成功返回1，失败返回0
  */
-uint8_t send_robot_status(UART_HandleTypeDef* huart, const robot_status_t* robot_status)
+static uint8_t send_robot_status(UART_HandleTypeDef* huart, const robot_status_t* robot_status)
 {
     if (huart == NULL || robot_status == NULL) return 0;
 
@@ -268,7 +268,7 @@ uint8_t send_robot_status(UART_HandleTypeDef* huart, const robot_status_t* robot
  * @param huart UART句柄
  * @param joint_state 关节状态结构体指针
  */
-uint8_t send_joint_state(UART_HandleTypeDef* huart, const joint_state_t* joint_state)
+static  uint8_t send_joint_state(UART_HandleTypeDef* huart, const joint_state_t* joint_state)
 {
     if (huart == NULL||joint_state==NULL) return 0;
 
@@ -280,9 +280,19 @@ uint8_t send_joint_state(UART_HandleTypeDef* huart, const joint_state_t* joint_s
 }
 
 void updata_senddata(void) {
-
+  send_data.game_status.game_progress=10;
+  send_data.game_status.stage_remain_time=0xBA;
 }
 
 void navigator_send(USARTInstance *instance) {
-
+  updata_senddata();
+  // send_all_robot_hp(instance->usart_handle,&send_data.all_robot_hp);
+  // send_event_data(instance->usart_handle,&send_data.event_data);
+  send_game_status(instance->usart_handle,&send_data.game_status);
+  // send_ground_robot_position(instance->usart_handle,&send_data.ground_robot_position);
+  // send_joint_state(instance->usart_handle,&send_data.joint_state);
+  // send_rfid_status(instance->usart_handle,&send_data.rfid_status);
+  // send_robot_motion(instance->usart_handle,&send_data.robot_motion);
+  // send_robot_state_info(instance->usart_handle,&send_data.state_info);
+  // send_robot_status(instance->usart_handle,&send_data.robot_status);
 }

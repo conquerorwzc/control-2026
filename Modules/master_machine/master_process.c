@@ -16,7 +16,7 @@
 #include "srm_protocol.h"
 #include "navigator.h"
 #include "ins_task.h"
-#define VISION_USE_UART
+#define VISION_USE_USB
 
 
 #ifdef VISION_USE_USB
@@ -46,23 +46,18 @@ void InitParam(void) {
   RIGISTER_ID(send, 2, send_data.shoot_send);
 }
 
-// void navigator_send(){
-//   uint8_t *packed_data = protocol_pack(0x0302, custom_data, sizeof(custom_data), &packed_length);
-//   HAL_UART_Transmit(&huart1, packed_data, packed_length, HAL_MAX_DELAY);
-// }
+void UpdateGimbalAttitude(Vision_Send_s *vision_send) {
+  attitude_t* current_attitude;
 
-// void UpdateGimbalAttitude(Vision_Send_s *vision_send) {
-//   attitude_t current_attitude;
-//
-//   if (INS_GetAttitude(&current_attitude)) {
-//     vision_send->gimbal_send.yaw=current_attitude.Yaw;
-//     vision_send->gimbal_send.pitch=current_attitude.Pitch;
-//     vision_send->gimbal_send.roll=current_attitude.Roll;
-//     vision_send->gimbal_send.mode=0;
-//     vision_send->gimbal_send.color=1;
-//     vision_send->shoot_send.bullet_speed=15;
-//   }
-// }
+  current_attitude=INS_Init();
+  vision_send->gimbal_send.yaw=current_attitude->Yaw;
+  vision_send->gimbal_send.pitch=current_attitude->Pitch;
+  vision_send->gimbal_send.roll=current_attitude->Roll;
+  vision_send->gimbal_send.mode=0;
+  vision_send->gimbal_send.color=1;
+  vision_send->shoot_send.bullet_speed=15;
+
+}
 
 /**
  * @brief 离线回调函数,将在daemon.c中被daemon task调用
