@@ -76,7 +76,7 @@ void ShootTask() {// 遍历实例去控制，目前只有shoot这个写法，因
         loader_set = shoot->loader_motor->measure.total_angle +
                      one_bullet_delta_angle * reduction_ratio_loader * loader_direction;  // 控制量增加一发弹丸的角度
         hibernate_time = DWT_GetTimeline_ms();                                            // 记录触发指令的时间
-        dead_time = 500;                                                                  // 完成1发弹丸发射的时间
+        dead_time = 75;                                                                  // 完成1发弹丸发射的时间
         break;
         // 连发模式,对位置闭环,射频根据dead_time改变；原版是速度闭环，可能会更柔和一些？
       case LOAD_BURSTFIRE:
@@ -84,7 +84,7 @@ void ShootTask() {// 遍历实例去控制，目前只有shoot这个写法，因
         loader_set = shoot->loader_motor->measure.total_angle +
                      one_bullet_delta_angle * reduction_ratio_loader * loader_direction;  // 控制量增加一发弹丸的角度
         hibernate_time = DWT_GetTimeline_ms();                                            // 记录触发指令的时间
-        dead_time = 500;                                                                  // 弹频
+        dead_time = 75;                                                                  // 弹频
         break;
         // 拨盘反转,对速度闭环,后续增加卡弹检测(通过裁判系统剩余热量反馈和电机电流)
         // 也有可能需要从switch-case中独立出来
@@ -105,16 +105,16 @@ void ShootTask() {// 遍历实例去控制，目前只有shoot这个写法，因
       // 根据收到的弹速设置设定摩擦轮电机参考值,需实测后填入
       switch (shoot_ctrl_cmd->bullet_speed) {
         case SMALL_AMU_15:
-          friction_set = 20000;
+          friction_set = 40000;
           break;
         case SMALL_AMU_18:
-          friction_set = 20000;
+          friction_set = 40000;
           break;
         case SMALL_AMU_30:
-          friction_set = 20000;
+          friction_set = 40000;
           break;
         default:  // 当前为了调试设定的默认值4000,因为还没有加入裁判系统无法读取弹速.
-          friction_set = 20000;
+          friction_set = 40000;
           break;
       }
     } else  // 关闭摩擦轮
