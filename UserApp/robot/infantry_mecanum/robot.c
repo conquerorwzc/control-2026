@@ -25,9 +25,7 @@ static float angle;
  *
  */
 static void CalcOffsetAngle() {
-  angle = ((uint16_t)robot->gimbal->yaw_motor->measure.angle_single_round +
-           (uint16_t)robot->gimbal->yaw_motor->measure.total_round % 2 * 360.0f) /
-          2.0f;
+  angle = (uint16_t)robot->gimbal->yaw_motor->measure.angle_single_round;
   float delta =YAW_ALIGN_ANGLE - angle;
   chassis_ctrl_cmd->offset_angle = delta;
 
@@ -105,10 +103,7 @@ static void RemoteControlSet() {
         5.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
   }
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
-    chassis_ctrl_cmd->wz =
-        (15.0f) *
-        (float)rc_data[TEMP]
-            .rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
+    chassis_ctrl_cmd->wz =(15.0f) *(float)rc_data[TEMP].rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
   }
   // 发射参数
 
@@ -242,7 +237,7 @@ static void EmergencyHandler() {
   // 遥控器右侧开关为[上],恢复正常运行
 #endif
 #if defined(MOUSE_CONTROL)
-  if (!rc_data[TEMP].key_count[KEY_PRESS][Key_B] % 2)  // 全部失能
+  if (!rc_data[TEMP].key_count[KEY_PRESS][Key_B] % 2)  // B全部失能
   {
     robot->robot_mode = ROBOT_POWER_ON;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
@@ -254,7 +249,7 @@ static void EmergencyHandler() {
   } else {
     LOGINFO("[CMD] reinstate, robot ready");
   }
-  if (!rc_data[TEMP].key_count[KEY_PRESS][Key_V] % 2)  // 底盘失能
+  if (!rc_data[TEMP].key_count[KEY_PRESS][Key_V] % 2)  // V底盘失能
   {
     chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
   }
@@ -262,7 +257,7 @@ static void EmergencyHandler() {
   {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
   }
-  if (!rc_data[TEMP].key_count[KEY_PRESS][Key_X] % 2)  // 发射失能
+  if (!rc_data[TEMP].key_count[KEY_PRESS][Key_X] % 2)  // X发射失能
   {
     shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
     shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
