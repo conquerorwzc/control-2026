@@ -6,7 +6,9 @@
 #include "crc_func.h"
 #include "bsp_dwt.h"
 
-send_data_t send_data;
+static navigator_send_t send_data;
+static USARTInstance *navigator_usart_instance ;
+static navigator_recv_t recv_data;
 // 缓冲区最大尺寸
 #define BUFFER_MAX_SIZE    256
 static uint8_t internal_tx_buffer[BUFFER_MAX_SIZE];
@@ -187,7 +189,7 @@ static uint8_t send_game_status(UART_HandleTypeDef* huart, const game_status_t* 
 
     uint32_t timestamp = HAL_GetTick();
     return protocol_send(huart, timestamp,
-                        (uint8_t*)&game_status,
+                        (uint8_t*)game_status,
                         sizeof(game_status_t),
                         PKT_ID_GAME_STATUS, 10);
 }
@@ -207,7 +209,7 @@ static uint8_t send_robot_motion(UART_HandleTypeDef* huart, const robot_motion_t
 
     uint32_t timestamp = HAL_GetTick();
     return protocol_send(huart, timestamp,
-                        (uint8_t*)&motion,
+                        (uint8_t*)motion,
                         sizeof(robot_motion_t),
                         PKT_ID_ROBOT_MOTION, 10);
 }
@@ -274,7 +276,7 @@ static  uint8_t send_joint_state(UART_HandleTypeDef* huart, const joint_state_t*
 
     uint32_t timestamp = HAL_GetTick();
     return protocol_send(huart, timestamp,
-                        (uint8_t*)&joint_state,
+                        (uint8_t*)joint_state,
                         sizeof(joint_state_t),
                         PKT_ID_JOINT_STATE, 10);
 }
@@ -284,15 +286,30 @@ void updata_senddata(void) {
   send_data.game_status.stage_remain_time=0xBA;
 }
 
-void navigator_send(USARTInstance *instance) {
+void navigator_send(UART_HandleTypeDef *instance) {
   updata_senddata();
   // send_all_robot_hp(instance->usart_handle,&send_data.all_robot_hp);
   // send_event_data(instance->usart_handle,&send_data.event_data);
-  send_game_status(instance->usart_handle,&send_data.game_status);
+  send_game_status(instance,&send_data.game_status);
   // send_ground_robot_position(instance->usart_handle,&send_data.ground_robot_position);
   // send_joint_state(instance->usart_handle,&send_data.joint_state);
   // send_rfid_status(instance->usart_handle,&send_data.rfid_status);
   // send_robot_motion(instance->usart_handle,&send_data.robot_motion);
   // send_robot_state_info(instance->usart_handle,&send_data.state_info);
   // send_robot_status(instance->usart_handle,&send_data.robot_status);
+}
+
+static void DecodeNavigator() {
+  
+}
+
+navigator_recv_t* navigator_init(UART_HandleTypeDef *usart_handle) {
+  USART_Init_Config_s conf;
+  conf.module_callback = DecodeNavigator;
+  conf.recv_buff_size = NAVIGATOR_RECV_SIZE;
+  conf.usart_handle =usart_handle;
+  navigator_usart_instance = USARTRegister(&conf);
+
+
+  return &recv_data;
 }

@@ -24,17 +24,6 @@ void RobotTask() {
   // uint32_t system_tick = 0x12345678;
   // uint8_t data_id = 0x91;
   DJIMotorSetPIDRef(motor_instance, 400.0f);
-  uint8_t status = protocol_send(
-                                  &huart1,         // UART句柄
-                                  system_tick, // 时间戳
-                                  custom_data,       // 数据指针
-                                  sizeof(custom_data), // 数据长度
-                                  data_id,           // 数据段ID
-                                  HAL_MAX_DELAY
-                              );
-  if (!status)
-  {
-
-  }
+  navigator_send(&huart1);
   osDelay(100);
 }

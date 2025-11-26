@@ -14,11 +14,12 @@
 #include "cmsis_os.h"
 
 // 协议帧头定义
-#define PROTOCOL_SOF              0xA5
+#define PROTOCOL_SOF              0x5A
 #define PROTOCOL_HEADER_LEN       4
 #define PROTOCOL_CRC8_INIT        0xFF
 #define PROTOCOL_CRC16_INIT       0xFFFF
 #define BUFFER_MAX_SIZE           256
+#define NAVIGATOR_RECV_SIZE       64
 
 // 数据包ID定义 (根据文档中的Header字段)
 // RoboMaster C型开发板发送的数据包
@@ -72,7 +73,7 @@ typedef struct {
 } robot_state_info_t;
 
 // 事件数据包 (裁判系统区域占领信息)
-typedef struct {
+typedef  struct {
     uint32_t time_stamp;                    // 时间戳
     uint8_t supply_station_front;           // 己方补给站前补血点占领状态
     uint8_t supply_station_internal;        // 己方补给站内部补血点占领状态
@@ -110,7 +111,7 @@ typedef struct {
 typedef struct {
     uint8_t game_progress;          // 游戏阶段
     uint16_t stage_remain_time;     // 阶段剩余时间(秒)
-} game_status_t;
+} __attribute__((packed)) game_status_t;
 
 // 机器人运动数据
 typedef struct {
@@ -188,7 +189,7 @@ typedef struct {
   rfid_status_t rfid_status;
   robot_status_t robot_status;
   joint_state_t joint_state;
-} send_data_t;
+} navigator_send_t;
 
 // ========== MiniPC发送的数据包 ==========
 
@@ -220,11 +221,11 @@ typedef struct {
         uint8_t fire;
         uint8_t fric_on;
     } shoot;
-} robot_cmd_t;
+} navigator_recv_t;
 
 // ========== 新增需求数据包 (待完成) ==========
 // 根据实际需求添加新的数据包结构体
-
+void navigator_send(UART_HandleTypeDef *instance);
 
 
 #pragma pack(pop)
