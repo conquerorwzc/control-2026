@@ -14,7 +14,7 @@ RC_ctrl_t controller;     // 自定义控制器数据
 GantryInstance gantry;    // 龙门架实例
 
 // 初始化位置
-static uint16_t init_lift_ecd[2], init_stretch_ecd[2], init_sidesway_ecd;// 电机刚上电时的位置
+static float init_lift_ecd[2], init_stretch_ecd[2], init_sidesway_ecd;// 电机刚上电时的位置
 static float last_gantry_x;
 
 extern RC_ctrl_t controller;     // 自定义控制器数据
@@ -50,8 +50,11 @@ void StartGantryTask(void const *argument)
 static void Gantry_Run(GantryInstance *gantry)
 {
     Gantry_Control(gantry);            // 根据相应控制模式控制龙门架
-    Gantry_Limit(gantry);              // 电控限位
-    Gantry_Position_Calculate(gantry); // 根据位置矢量解算出电机转动的圈数
+    // 只有在非断电模式下才进行电控限位和位置计算，防止断电时PID计算
+    if (gantry->Gantry_ctrl_cmd.Gantry_mode != GANTRY_MODE_POWER_OFF) {
+        Gantry_Limit(gantry);              // 电控限位
+        Gantry_Position_Calculate(gantry); // 根据位置矢量解算出电机转动的圈数
+    }
     Gantry_Can_Cmd(gantry);            // 使用pid计算结果控制电机转动
     // 【新增】调用电机模块的发送函数，将电流值发送给电机
     DJIMotorTask();
@@ -98,9 +101,18 @@ GantryInstance* GantryInit(Gantry_Init_Config_s* init_config, const RC_ctrl_t* r
     // 等电机数据出现代表电机已经正常工作
     for (int i = 0; i < 2; i++)
     {
+        // 等待抬升电机数据
         int timeout = 0;
-        while ((gantry_instance->lift_motor[i].motor == NULL ||
-               gantry_instance->lift_motor[i].motor->measure.ecd == 0) && timeout < 100)
+        while (gantry_instance->lift_motor[i].motor == NULL ||
+               gantry_instance->lift_motor[i].motor->measure.ecd == 0 )
+        {            osDelay(10);
+            timeout++;
+        }
+        
+        // 等待前伸电机数据
+        timeout = 0;
+        while (gantry_instance->stretch_motor[i].motor == NULL ||
+               gantry_instance->stretch_motor[i].motor->measure.ecd == 0 )
         {            osDelay(10);
             timeout++;
         }
@@ -117,14 +129,13 @@ GantryInstance* GantryInit(Gantry_Init_Config_s* init_config, const RC_ctrl_t* r
             init_stretch_ecd[i] = gantry_instance->stretch_motor[i].motor->measure.total_angle;
         }
     }
-    if (gantry_instance->sidesway_motor.motor != NULL) {
-        init_sidesway_ecd = gantry_instance->sidesway_motor.motor->measure.total_angle;
-    }
+    // if (gantry_instance->sidesway_motor.motor != NULL) {
+    //     init_sidesway_ecd = gantry_instance->sidesway_motor.motor->measure.total_angle;
+    // }
 
     // 切换到遥控器控制模式
     gantry_instance->Gantry_ctrl_cmd.Gantry_mode = GANTRY_MODE_CONTROL_REMOTE;
 
-    // Gantry_Motor_Init(gantry);
     return gantry_instance;
 }
 
@@ -204,16 +215,11 @@ static void Gantry_Remote_Control(GantryInstance *gantry)
 {
     if (gantry->remote_data == NULL) return; // 安全检查
 
-    // 保存遥控器数据的本地副本，防止与其他模块冲突
-    int16_t temp_rocker_l1 = gantry->remote_data->rc.rocker_l1;
-    int16_t temp_rocker_r1 = gantry->remote_data->rc.rocker_r1;
-    int16_t temp_rocker_l_ = gantry->remote_data->rc.rocker_l_;
-    int16_t temp_rocker_r_ = gantry->remote_data->rc.rocker_r_;
-
-    gantry->Gantry_ctrl_cmd.x += temp_rocker_r_ * gantry->Gantry_param.sidesway_sens_remote;
-    gantry->Gantry_ctrl_cmd.y += temp_rocker_r1 * gantry->Gantry_param.stretch_sens_remote;
+    // 直接使用遥控器数据，不创建副本
+    gantry->Gantry_ctrl_cmd.x += gantry->remote_data->rc.rocker_r_ * gantry->Gantry_param.sidesway_sens_remote;
+    gantry->Gantry_ctrl_cmd.y += gantry->remote_data->rc.rocker_r1 * gantry->Gantry_param.stretch_sens_remote;
     // 修改Z轴控制方向，使摇杆向上时龙门架上升
-    gantry->Gantry_ctrl_cmd.z += temp_rocker_l1 * gantry->Gantry_param.lift_sens_remote;
+    gantry->Gantry_ctrl_cmd.z += gantry->remote_data->rc.rocker_l1 * gantry->Gantry_param.lift_sens_remote;
 }
 
 /**
@@ -264,12 +270,12 @@ static void Gantry_Can_Cmd(GantryInstance *gantry)
         }
     }
     // 横移电机
-    if (gantry->sidesway_motor.motor) {
-        if (stop)
-            DJIMotorStop(gantry->sidesway_motor.motor);
-        else
-            DJIMotorEnable(gantry->sidesway_motor.motor);
-    }
+    // if (gantry->sidesway_motor.motor) {
+    //     if (stop)
+    //         DJIMotorStop(gantry->sidesway_motor.motor);
+    //     else
+    //         DJIMotorEnable(gantry->sidesway_motor.motor);
+    // }
 }
 
 /**
@@ -287,6 +293,7 @@ static void Gantry_Limit(GantryInstance *gantry)
     {
         if (gantry->Gantry_ctrl_cmd.y > 2200 && gantry->Gantry_ctrl_cmd.y < 4000 && last_y < gantry->Gantry_ctrl_cmd.y)
             gantry->Gantry_ctrl_cmd.y = 2200;
+
         else if (gantry->Gantry_ctrl_cmd.y < 11500 && gantry->Gantry_ctrl_cmd.y > 9000 && last_y > gantry->Gantry_ctrl_cmd.y)
             gantry->Gantry_ctrl_cmd.y = 11500;
 
@@ -346,10 +353,10 @@ static void Gantry_Position_Calculate(GantryInstance *gantry) {
     }
 
     // 计算 X 轴目标位置对应的编码器变化量
-    float delta_x_ecd = cmd->x * ratio;
-    if (gantry->sidesway_motor.motor) {
-        DJIMotorSetPIDRef(gantry->sidesway_motor.motor, init_sidesway_ecd - delta_x_ecd);
-    }
+    // float delta_x_ecd = cmd->x * ratio;
+    // if (gantry->sidesway_motor.motor) {
+    //     DJIMotorSetPIDRef(gantry->sidesway_motor.motor, init_sidesway_ecd - delta_x_ecd);
+    // }
 }
 
 void GantryTask()

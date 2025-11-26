@@ -109,7 +109,7 @@ static Chassis_Init_Config_s chassis_init_config = {
         .controller_param_init_config = {                                                   \
             .angle_PID = {                                                                  \
                 .Kp = angle_kp, .Ki = 0.0f, .Kd = angle_kd,                                 \
-                .IntegralLimit = 600.0f, .MaxOut = 3000.0f,                                 \
+                .IntegralLimit = 1000.0f, .MaxOut = 7500.0f,                                 \
             },                                                                              \
             .speed_PID = {                                                                  \
                 .Kp = speed_kp, .Ki = speed_ki, .Kd = 0.0f,                                 \
@@ -133,7 +133,7 @@ static Chassis_Init_Config_s chassis_init_config = {
         .controller_param_init_config = {                                                   \
             .angle_PID = {                                                                  \
                 .Kp = angle_kp, .Ki = 0.0f, .Kd = angle_kd,                                 \
-                .IntegralLimit = 600.0f, .MaxOut = 3000.0f,                                 \
+                .IntegralLimit = 600.0f, .MaxOut = 6000.0f,                                 \
             },                                                                              \
             .speed_PID = {                                                                  \
                 .Kp = speed_kp, .Ki = speed_ki, .Kd = 0.0f,                                 \
@@ -159,8 +159,8 @@ static Gantry_Init_Config_s gantry_init_config = {
             .GANTRY_MAX_Z = 40000.0f,          // 抬升最高位置
             .GANTRY_MAX_X = 17000.0f,          // 横移最右位置
 
-            .lift_sens_remote = 0.001f,        // 抬升电机灵敏度(遥控器) 从0.015f调整为0.005f
-            .stretch_sens_remote = 0.013f,     // 前伸电机灵敏度(遥控器)
+            .lift_sens_remote = 0.001f,        // 抬升电机灵敏度(遥控器)
+            .stretch_sens_remote = 0.001f,     // 前伸电机灵敏度(遥控器)
             .sidesway_sens_remote = 0.015f,    // 横移电机灵敏度(遥控器)
 
             .lift_sens_keyboard = 7.0f,        // 抬升电机灵敏度(键鼠)
@@ -209,24 +209,24 @@ static Gantry_Init_Config_s gantry_init_config = {
 .lift_motor_config[0] = GANTRY_M3508_CONFIG(
     &hfdcan2, 1,    // CA0N 句柄和 ID
     50.0f, 2.3f,     // 角度环 Kp, Kd
-    1.5f, 0.5f,   // 速度环 Kp, Ki
+    1.5f, 3.0f,   // 速度环 Kp, Ki
     MOTOR_DIRECTION_NORMAL), // 电机方向 (对应老代码中的 - ratio)
 .lift_motor_config[1] = GANTRY_M3508_CONFIG(
     &hfdcan2, 2,
     50.0f, 2.3f,     // 角度环 Kp, Kd
-    1.5f, 0.5f,   // 速度环 Kp, Ki
+    1.5f, 3.0f,   // 速度环 Kp, Ki
     MOTOR_DIRECTION_NORMAL), // 电机方向 (对应老代码中的 + ratio)
 
 // 前伸电机 (3508)
 .stretch_motor_config[0] = GANTRY_M3508_CONFIG(
     &hfdcan2, 3,
-    0.0f, 0.0f,
-    0.0f, 0.0f,
-    MOTOR_DIRECTION_REVERSE),
+    50.0f, 2.8f,
+    1.33f, 0.21f,
+    MOTOR_DIRECTION_NORMAL),
 .stretch_motor_config[1] = GANTRY_M3508_CONFIG(
     &hfdcan2, 4,
-    0.0f, 0.0f,
-    0.0f, 0.0f,
+    45.0f, 2.7f,
+    1.29f, 0.20f,
     MOTOR_DIRECTION_NORMAL),
 
 // 横移电机 (2006)
