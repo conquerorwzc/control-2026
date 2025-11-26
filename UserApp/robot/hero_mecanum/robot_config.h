@@ -33,7 +33,7 @@
 #define YAW_CHASSIS_ALIGN_ECD 5326
 #define PITCH_HORIZON_ECD 5748  // 云台处于水平位置时编码器值,若对云台有机械改动需要修改
 #define PITCH_MAX_ANGLE 11.0f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
-#define PITCH_MIN_ANGLE -15.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define PITCH_MIN_ANGLE -12.3f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
 
 // 私有宏,自动将编码器转换成角度值
 #define YAW_ALIGN_ANGLE 296.5 //hero的计算比较特殊，直接从读出来
@@ -52,8 +52,8 @@
     }, \
     .controller_param_init_config = { \
         .speed_PID = { \
-            .Kp = 0.5, \
-            .Ki = 0, \
+            .Kp = 1.0, \
+            .Ki = 0.5, \
             .Kd = 0, \
             .IntegralLimit = 6000, \
             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
@@ -120,22 +120,22 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                     {
-                      .Kp = -1.5f,
+                      .Kp = 500.0f,
                       .Ki = 0.0f,
-                      .Kd = -0.08f,
+                      .Kd = 0.0f,
                       .DeadBand = 0.1f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                       .IntegralLimit = 5.0f,
-                      .MaxOut = 22.0f,
+                      .MaxOut = 20000.0f,
                   },
                     .speed_PID =
                     {
-                      .Kp = 5500.0f,
-                      .Ki = 70.0f,
+                      .Kp = 5.0f,
+                      .Ki = 2.0f,
                       .Kd = 0.0f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                       .IntegralLimit = 12000.0f,
-                      .MaxOut = 26000.0f,
+                      .MaxOut = 20000.0f,
                   },
 
                 },
@@ -183,9 +183,9 @@ static Gimbal_Init_Config_s gimbal_init_config = {
 ((Motor_Init_Config_s) { \
 .controller_param_init_config = { \
 .speed_PID = { \
-.Kp = 0.5f, \
-.Ki = 0.0f, \
-.Kd = 0.0f, \
+.Kp = 2.0f, \
+.Ki = 0.00f, \
+.Kd = 0.05f, \
 .Improve = PID_Integral_Limit, \
 .IntegralLimit = 10000.0f, \
 .MaxOut = 15000.0f, \
