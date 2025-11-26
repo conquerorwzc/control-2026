@@ -42,7 +42,7 @@
 
 // 轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
 //  轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
-#define WHEEL_MOTOR_CONFIG(handle, id)                                                                         \
+#define WHEEL_MOTOR_CONFIG(handle, id,reverse_flag)                                                                         \
   ((Motor_Init_Config_s){                                                                                      \
       .can_init_config =                                                                                       \
           {                                                                                                    \
@@ -76,7 +76,7 @@
               .speed_feedback_source = MOTOR_FEED,                                                             \
               .outer_loop_type = SPEED_LOOP,                                                                   \
               .close_loop_type = SPEED_LOOP,                                                                   \
-              .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,                                                   \
+              .motor_reverse_flag = reverse_flag,                                                   \
           },                                                                                                   \
       .motor_type = M3508,                                                                                     \
   })
@@ -91,7 +91,7 @@
           {                                                                                                    \
               .angle_PID =                                                                                     \
                   {                                                                                            \
-                      .Kp = 50,                                                                                \
+                      .Kp = 30,                                                                                \
                       .Ki = 0,                                                                                 \
                       .Kd = 0.1,                                                                               \
                       .IntegralLimit = 960,                                                                  \
@@ -103,9 +103,9 @@
                       .Kp = 8,                                                                                 \
                       .Ki = 20,                                                                                \
                       .Kd = 0,                                                                                 \
-                      .IntegralLimit = 12000,                                                                   \
+                      .IntegralLimit = 12500,                                                                   \
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
-                      .MaxOut = 24000,                                                                         \
+                      .MaxOut = 25000,                                                                         \
                   },                                                                                           \
               .current_PID =                                                                                   \
                   {                                                                                            \
@@ -145,17 +145,18 @@ static Chassis_Init_Config_s chassis_init_config = {
             .power_param.k3 = 0.015644430204543864f,
             .power_param.k4 = 0.1580143850678086f,
             .power_param.k5 = 2.896721772539512e-05f,
+
             // 6020舵机电机零位偏移值，用于校准安装后的零偏
-            .rudder_motor_offset = {8892, 1361,2019, 5436}  // 根据实际安装情况设置每个舵机的零偏值
+            .rudder_motor_offset = {6844, 3443,13, 3388}  // 根据实际安装情况设置每个舵机的零偏值LFLBRBRF
         },
-     .wheel_motor_config[0] = WHEEL_MOTOR_CONFIG(&hcan1, 1),
-     .wheel_motor_config[1] = WHEEL_MOTOR_CONFIG(&hcan1, 4),
-     .wheel_motor_config[2] = WHEEL_MOTOR_CONFIG(&hcan1, 2),
-     .wheel_motor_config[3] = WHEEL_MOTOR_CONFIG(&hcan1, 3),
+     .wheel_motor_config[0] = WHEEL_MOTOR_CONFIG(&hcan1, 1,MOTOR_DIRECTION_REVERSE),
+     .wheel_motor_config[2] = WHEEL_MOTOR_CONFIG(&hcan1, 4,MOTOR_DIRECTION_REVERSE),
+     .wheel_motor_config[3] = WHEEL_MOTOR_CONFIG(&hcan1, 2,MOTOR_DIRECTION_REVERSE),
+     .wheel_motor_config[1] = WHEEL_MOTOR_CONFIG(&hcan1, 3,MOTOR_DIRECTION_REVERSE),
     .rudder_motor_config[0] = RUDDER_MOTOR_CONFIG(&hcan2, 1),
-    .rudder_motor_config[3] = RUDDER_MOTOR_CONFIG(&hcan2, 2),
     .rudder_motor_config[1] = RUDDER_MOTOR_CONFIG(&hcan2, 3),
     .rudder_motor_config[2] = RUDDER_MOTOR_CONFIG(&hcan2, 4),
+    .rudder_motor_config[3] = RUDDER_MOTOR_CONFIG(&hcan2, 2),
     // 跟随PID
     // .follow_pid={
     //     .Kp = -80.0f,

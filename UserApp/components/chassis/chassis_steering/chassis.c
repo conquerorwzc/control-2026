@@ -72,7 +72,7 @@ static float AngleToOptimalAngle(float target_angle, float current_angle, int8_t
         // 如果误差大于90度，则反转方向更有效
         *direction = -1;//这里没有用motor库里的反转标志
         // 通过180度调整目标（反向）
-        return current_angle + (diff - 180.0f);
+        return current_angle +(diff - 180.0f);
     } else if (diff < -90.0f) {
         // 如果误差小于-90度，则反转方向更有效
         *direction = -1;
@@ -121,43 +121,37 @@ static float last_st_lf = 0.0f, last_st_rf = 0.0f, last_st_lb = 0.0f, last_st_rb
 static int8_t dir_lf = 1, dir_rf = 1, dir_lb = 1, dir_rb = 1;
 
 static void SteeringCalculate() {
-  vt_lf = sqrtf(powf(chassis_ctrl_cmd->vy + chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), 2) + powf(chassis_ctrl_cmd->vx + chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2))/60;//lf
-  vt_lb = sqrtf(powf(chassis_ctrl_cmd->vy - chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), 2) + powf(chassis_ctrl_cmd->vx + chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2))/60;// lb
-  vt_rb = sqrtf(powf(chassis_ctrl_cmd->vy - chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), 2) + powf(chassis_ctrl_cmd->vx - chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2))/60;// rb
-  vt_rf = sqrtf(powf(chassis_ctrl_cmd->vy + chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), 2) + powf(chassis_ctrl_cmd->vx - chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2))/60;// rf
-  st_lf=RAD_2_DEGREE * atan2f(chassis_ctrl_cmd->vy + chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), chassis_ctrl_cmd->vx + chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)));
-  st_lb=RAD_2_DEGREE * atan2f(chassis_ctrl_cmd->vy - chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), chassis_ctrl_cmd->vx + chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)));
-  st_rb=RAD_2_DEGREE * atan2f(chassis_ctrl_cmd->vy - chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), chassis_ctrl_cmd->vx - chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)));
-  st_rf=RAD_2_DEGREE * atan2f(chassis_ctrl_cmd->vy + chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), chassis_ctrl_cmd->vx - chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)));
+  vt_lf = sqrtf(powf(chassis_ctrl_cmd->vy - chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), 2) + powf(chassis_ctrl_cmd->vx + chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2));//lf
+  vt_lb = sqrtf(powf(chassis_ctrl_cmd->vy + chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), 2) + powf(chassis_ctrl_cmd->vx + chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2));// lb
+  vt_rb = sqrtf(powf(chassis_ctrl_cmd->vy + chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), 2) + powf(chassis_ctrl_cmd->vx - chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2));// rb
+  vt_rf = sqrtf(powf(chassis_ctrl_cmd->vy - chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), 2) + powf(chassis_ctrl_cmd->vx - chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2));// rf
+  
+  // 修改此处的角度计算，确保正确的方向
+  st_lf=RAD_2_DEGREE * atan2f(chassis_ctrl_cmd->vy - chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), chassis_ctrl_cmd->vx + chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)));
+  st_lb=RAD_2_DEGREE * atan2f(chassis_ctrl_cmd->vy + chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), chassis_ctrl_cmd->vx + chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)));
+  st_rb=RAD_2_DEGREE * atan2f(chassis_ctrl_cmd->vy + chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), chassis_ctrl_cmd->vx - chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)));
+  st_rf=RAD_2_DEGREE * atan2f(chassis_ctrl_cmd->vy - chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), chassis_ctrl_cmd->vx - chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)));
+  
   RudderOffset();//补偿6020的偏置
 
-  // // 转换为带方向控制的最优角度
+  // 转换为带方向控制的最优角度
   st_lf = AngleToOptimalAngle(st_lf, last_st_lf, &dir_lf);
   st_rf = AngleToOptimalAngle(st_rf, last_st_rf, &dir_rf);
   st_lb = AngleToOptimalAngle(st_lb, last_st_lb, &dir_lb);
   st_rb = AngleToOptimalAngle(st_rb, last_st_rb, &dir_rb);
   
-   //将方向应用于速度命令
-   // vt_lf *= dir_lf;
-   // vt_rf *= dir_rf;
-   // vt_lb *= dir_lb;
-   // vt_rb *= dir_rb;
+  // 将方向应用于速度命令
   vt[LF]=vt_lf*dir_lf;
   vt[RF]=vt_rf*dir_rf;
   vt[LB]=vt_lb*dir_lb;
   vt[RB]=vt_rb*dir_rb;
+   
   WheelLimit();
   // 更新前一个角度
   last_st_lf = st_lf;
   last_st_rf = st_rf;
   last_st_lb = st_lb;
   last_st_rb = st_rb;
-
-  // 限制角度
-  // st_lf = NormalizeAngle(st_lf);
-  // st_rf = NormalizeAngle(st_rf);
-  // st_lb = NormalizeAngle(st_lb);
-  // st_rb = NormalizeAngle(st_rb);
 }
 /**
  * @brief 功率模型
@@ -241,10 +235,10 @@ static void SteeringCalculate() {
  *
  */
 static void LimitChassisOutput() {
-  //DJIMotorSetPIDRef(chassis->wheel_motor[0], vt[LF]);
-  //DJIMotorSetPIDRef(chassis->wheel_motor[1], vt[RF]);
-  //DJIMotorSetPIDRef(chassis->wheel_motor[2], vt[LB]);
-  //DJIMotorSetPIDRef(chassis->wheel_motor[3], vt[RB]);
+  DJIMotorSetPIDRef(chassis->wheel_motor[LF], vt[LF]);
+  DJIMotorSetPIDRef(chassis->wheel_motor[RF], vt[RF]);
+  DJIMotorSetPIDRef(chassis->wheel_motor[LB], vt[LB]);
+  DJIMotorSetPIDRef(chassis->wheel_motor[RB], vt[RB]);
   DJIMotorSetPIDRef(chassis->rudder_motor[LF], st_lf);
   DJIMotorSetPIDRef(chassis->rudder_motor[LB], st_lb);
   DJIMotorSetPIDRef(chassis->rudder_motor[RF], st_rf);

@@ -96,8 +96,8 @@ static void RemoteControlSet() {
   }
 
   // 底盘参数,系数需要调整
-  chassis_ctrl_cmd->vx = 60.0f * (float)rc_data[TEMP].rc.rocker_l_;  // _水平方向
-  chassis_ctrl_cmd->vy = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 1数值方向
+  chassis_ctrl_cmd->vy = -60.0f * (float)rc_data[TEMP].rc.rocker_l_;  // _水平方向
+  chassis_ctrl_cmd->vx = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 1数值方向
   // if (chassis_ctrl_cmd->vx<50) chassis_ctrl_cmd->vx = 0;//加个死区防止舵轮乱抖
   // if (chassis_ctrl_cmd->vy<50) chassis_ctrl_cmd->vy = 0;
   // if (chassis_ctrl_cmd->wz<50) chassis_ctrl_cmd->wz = 0;
