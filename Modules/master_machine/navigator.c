@@ -2,18 +2,13 @@
 // Created by ASUS on 2025/11/23.
 //
 #include "navigator.h"
+#include "bsp_usart.h"
 #include "crc_func.h"
-// 帧头相关
-#define PROTOCOL_SOF         0x5A
-#define PROTOCOL_HEADER_LEN  4
-#define PROTOCOL_CRC8_INIT   0xFF
+#include "bsp_dwt.h"
 
-// 帧尾相关
-#define PROTOCOL_CRC16_INIT  0xFFFF
-
+send_data_t send_data;
 // 缓冲区最大尺寸
-#define BUFFER_MAX_SIZE      128
-
+#define BUFFER_MAX_SIZE    256
 static uint8_t internal_tx_buffer[BUFFER_MAX_SIZE];
 
 static uint8_t* protocol_packed(const uint8_t* data_ptr, uint32_t time_stamp, uint8_t data_len, uint8_t data_id, uint8_t* tx_buff, uint16_t* tx_buff_len)
@@ -98,4 +93,196 @@ uint8_t protocol_send(UART_HandleTypeDef* huart, uint32_t time_stamp, const uint
   }
 
   return 1;
+}
+
+// ========== RoboMaster C型开发板发送的数据包发送函数 ==========
+
+/**
+ * @brief 发送Debug数据
+ * @param huart UART句柄
+ * @param name 调试数据名称
+ * @param type 数据类型
+ * @param data 数据值
+ * @return 发送成功返回1，失败返回0
+ */
+uint8_t send_debug_data(UART_HandleTypeDef* huart, const char* name, uint8_t type, float data)
+{
+    if (huart == NULL || name == NULL) return 0;
+
+    debug_data_t debug_data;
+    memset(&debug_data, 0, sizeof(debug_data));
+
+    // 安全拷贝名称
+    strncpy(debug_data.name, name, sizeof(debug_data.name) - 1);
+    debug_data.type = type;
+    debug_data.data = data;
+
+    uint32_t timestamp = HAL_GetTick();
+    return protocol_send(huart, timestamp,
+                        (uint8_t*)&debug_data,
+                        sizeof(debug_data),
+                        PKT_ID_DEBUG, 10);
+}
+
+/**
+ * @brief 发送机器人状态信息
+ * @param huart UART句柄
+ * @param state_info 状态信息结构体指针
+ * @return 发送成功返回1，失败返回0
+ */
+uint8_t send_robot_state_info(UART_HandleTypeDef* huart, const robot_state_info_t* state_info)
+{
+    if (huart == NULL || state_info == NULL) return 0;
+
+    uint32_t timestamp = HAL_GetTick();
+    return protocol_send(huart, timestamp,
+                        (uint8_t*)state_info,
+                        sizeof(robot_state_info_t),
+                        PKT_ID_ROBOT_STATE_INFO, 10);
+}
+
+/**
+ * @brief 发送事件数据
+ * @param huart UART句柄
+ * @param event_data 事件数据结构体指针
+ * @return 发送成功返回1，失败返回0
+ */
+uint8_t send_event_data(UART_HandleTypeDef* huart, const event_data_t* event_data)
+{
+    if (huart == NULL || event_data == NULL) return 0;
+
+    uint32_t timestamp = HAL_GetTick();
+    return protocol_send(huart, timestamp,
+                        (uint8_t*)event_data,
+                        sizeof(event_data_t),
+                        PKT_ID_EVENT, 10);
+}
+
+/**
+ * @brief 发送所有机器人血量数据
+ * @param huart UART句柄
+ * @param robot_hp 血量数据结构体指针
+ * @return 发送成功返回1，失败返回0
+ */
+uint8_t send_all_robot_hp(UART_HandleTypeDef* huart, const all_robot_hp_t* robot_hp)
+{
+    if (huart == NULL || robot_hp == NULL) return 0;
+
+    uint32_t timestamp = HAL_GetTick();
+    return protocol_send(huart, timestamp,
+                        (uint8_t*)robot_hp,
+                        sizeof(all_robot_hp_t),
+                        PKT_ID_ALL_ROBOT_HP, 10);
+}
+
+/**
+ * @brief 发送游戏状态数据
+ * @param huart UART句柄
+ * @param game_status 游戏状态结构体指针
+ * @return 发送成功返回1，失败返回0
+ */
+uint8_t send_game_status(UART_HandleTypeDef* huart, const game_status_t* game_status)
+{
+    if (huart == NULL||game_status==NULL) return 0;
+
+    uint32_t timestamp = HAL_GetTick();
+    return protocol_send(huart, timestamp,
+                        (uint8_t*)&game_status,
+                        sizeof(game_status_t),
+                        PKT_ID_GAME_STATUS, 10);
+}
+
+/**
+ * @brief 发送机器人运动数据
+ * @param huart UART句柄
+ * @param vx x方向速度
+ * @param vy y方向速度
+ * @param wz z轴角速度
+ * @return 发送成功返回1，失败返回0
+ */
+uint8_t send_robot_motion(UART_HandleTypeDef* huart, const robot_motion_t* motion)
+{
+    if (huart == NULL||motion==NULL) return 0;
+
+
+    uint32_t timestamp = HAL_GetTick();
+    return protocol_send(huart, timestamp,
+                        (uint8_t*)&motion,
+                        sizeof(robot_motion_t),
+                        PKT_ID_ROBOT_MOTION, 10);
+}
+
+/**
+ * @brief 发送地面机器人位置数据
+ * @param huart UART句柄
+ * @param position 位置数据结构体指针
+ * @return 发送成功返回1，失败返回0
+ */
+uint8_t send_ground_robot_position(UART_HandleTypeDef* huart, const ground_robot_position_t* position)
+{
+    if (huart == NULL || position == NULL) return 0;
+
+    uint32_t timestamp = HAL_GetTick();
+    return protocol_send(huart, timestamp,
+                        (uint8_t*)position,
+                        sizeof(ground_robot_position_t),
+                        PKT_ID_GROUND_ROBOT_POS, 10);
+}
+
+/**
+ * @brief 发送RFID状态数据
+ * @param huart UART句柄
+ * @param rfid_status RFID状态结构体指针
+ * @return 发送成功返回1，失败返回0
+ */
+uint8_t send_rfid_status(UART_HandleTypeDef* huart, const rfid_status_t* rfid_status)
+{
+    if (huart == NULL || rfid_status == NULL) return 0;
+
+    uint32_t timestamp = HAL_GetTick();
+    return protocol_send(huart, timestamp,
+                        (uint8_t*)rfid_status,
+                        sizeof(rfid_status_t),
+                        PKT_ID_RFID_STATUS, 10);
+}
+
+/**
+ * @brief 发送机器人状态数据
+ * @param huart UART句柄
+ * @param robot_status 机器人状态结构体指针
+ * @return 发送成功返回1，失败返回0
+ */
+uint8_t send_robot_status(UART_HandleTypeDef* huart, const robot_status_t* robot_status)
+{
+    if (huart == NULL || robot_status == NULL) return 0;
+
+    uint32_t timestamp = HAL_GetTick();
+    return protocol_send(huart, timestamp,
+                        (uint8_t*)robot_status,
+                        sizeof(robot_status_t),
+                        PKT_ID_ROBOT_STATUS, 10);
+}
+
+/**
+ * @brief 发送云台关节状态
+ * @param huart UART句柄
+ * @param joint_state 关节状态结构体指针
+ */
+uint8_t send_joint_state(UART_HandleTypeDef* huart, const joint_state_t* joint_state)
+{
+    if (huart == NULL||joint_state==NULL) return 0;
+
+    uint32_t timestamp = HAL_GetTick();
+    return protocol_send(huart, timestamp,
+                        (uint8_t*)&joint_state,
+                        sizeof(joint_state_t),
+                        PKT_ID_JOINT_STATE, 10);
+}
+
+void updata_senddata(void) {
+
+}
+
+void navigator_send(USARTInstance *instance) {
+
 }

@@ -8,6 +8,7 @@
  * @copyright Copyright (c) 2022
  *
  */
+
 #include "master_process.h"
 #include "seasky_protocol.h"
 #include "daemon.h"
@@ -15,7 +16,10 @@
 #include "srm_protocol.h"
 #include "navigator.h"
 #include "ins_task.h"
+#define VISION_USE_UART
 
+
+#ifdef VISION_USE_USB
 // static Vision_Recv_s recv_data;
 // static Vision_Send_s send_data;
 // static DaemonInstance *vision_daemon_instance;
@@ -75,12 +79,15 @@ void InitParam(void) {
 //     LOGWARNING("[vision] vision offline, restart communication.");
 // }
 //
+#endif
+
+
 #ifdef VISION_USE_UART
 
 #include "bsp_usart.h"
 
 static USARTInstance *vision_usart_instance;
-
+static DaemonInstance *vision_daemon_instance;
 /**
  * @brief 接收解包回调函数,将在bsp_usart.c中被usart rx callback调用
  * @todo  1.提高可读性,将get_protocol_info的第四个参数增加一个float类型buffer
@@ -90,7 +97,6 @@ static void DecodeVision()
 {
     uint16_t flag_register;
     DaemonReload(vision_daemon_instance); // 喂狗
-    get_protocol_info(vision_usart_instance->recv_buff, &flag_register, (uint8_t *)&recv_data.pitch);
     // TODO: code to resolve flag_register;
 }
 
