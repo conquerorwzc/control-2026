@@ -24,10 +24,8 @@ static float chassis_vx, chassis_vy;     // 将云台系的速度投影到底盘
 static float vt_lf, vt_rf, vt_lb, vt_rb;  // 底盘速度解算后的临时输出,待进行限幅
 static float vt[4]={0};//限幅后的数据
 static float st_lf,st_rf,st_lb,st_rb;
-static float total_st_rf=0;
 // 添加变量来存储上一次的角度值
 //static float last_st_lf = 0.0f, last_st_rf = 0.0f, last_st_lb = 0.0f, last_st_rb = 0.0f;
-static float err_st_rf=0;
 static float lf_radius;
 static float rf_radius;
 static float lb_radius;
@@ -38,24 +36,9 @@ static float k0,k1,k2,k3,k4,k5;       //中科大的功率模型
 /**
  * @brief 角度标准化
  */
-static float NormalizeAngle(float angle) {
-    while (angle > 180.0f) angle -= 360.0f;
-    while (angle < -180.0f) angle += 360.0f;
-    return angle;
-}
 
-// 函数用于将角度转换为连续的绝对角度，使用劣弧控制（最短路径），未实现防打舵，弃用
-static float AngleToContinuousMinorArc(float target_angle, float current_angle) {
-    // 计算最短角度差
-    float diff = target_angle - current_angle;
-    
-    // 将差值标准化到 [-180, 180] 以确保始终采用劣弧
-    while (diff > 180.0f) diff -= 360.0f;
-    while (diff < -180.0f) diff += 360.0f;
-    
-    // 返回使用最短路径的连续控制目标绝对角度
-    return current_angle + diff;
-}
+
+
 
 // 函数用于将角度转换为最优角度，带方向控制（必要时反转）和转劣弧
 static float AngleToOptimalAngle(float target_angle, float current_angle, int8_t* direction) {
