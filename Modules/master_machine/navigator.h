@@ -39,6 +39,7 @@
 // MiniPC发送的数据包
 #define PKT_ID_ROBOT_CMD          0x01
 
+
 #pragma pack(push, 1)
 
 // ========== RoboMaster C型开发板发送的数据包 ==========
@@ -192,35 +193,54 @@ typedef struct {
 } navigator_send_t;
 
 // ========== MiniPC发送的数据包 ==========
+// 接收状态枚举
+typedef enum {
+  RECV_STATE_SOF = 0,
+  RECV_STATE_LEN,
+  RECV_STATE_ID,
+  RECV_STATE_CRC8,
+  RECV_STATE_TIMESTAMP,
+  RECV_STATE_DATA,
+  RECV_STATE_CRC16
+} recv_state_t;
 
-// 机器人控制命令
+// 接收数据结构体
 typedef struct {
-    // 速度向量
-    struct {
-        float vx;
-        float vy;
-        float wz;
-    } speed_vector;
+  // 速度向量
+  struct {
+    float vx;
+    float vy;
+    float wz;
+  } speed_vector;
 
-    // 底盘控制
-    struct {
-        float roll;
-        float pitch;
-        float yaw;
-        float leg_length;
-    } chassis;
+  // 底盘控制
+  struct {
+    float roll;
+    float pitch;
+    float yaw;
+    float leg_length;
+  } chassis;
 
-    // 云台控制
-    struct {
-        float pitch;
-        float yaw;
-    } gimbal;
+  // 云台控制
+  struct {
+    float pitch;
+    float yaw;
+  } gimbal;
 
-    // 射击控制
-    struct {
-        uint8_t fire;
-        uint8_t fric_on;
-    } shoot;
+  // 射击控制
+  struct {
+    uint8_t fire;
+    uint8_t fric_on;
+  } shoot;
+} robot_cmd_t;
+
+// 接收数据结构体
+typedef struct {
+  robot_cmd_t robot_cmd;
+  // 接收状态信息
+  uint32_t last_update_time;
+  uint8_t data_valid;
+  uint8_t crc_errors;
 } navigator_recv_t;
 
 // ========== 新增需求数据包 (待完成) ==========
