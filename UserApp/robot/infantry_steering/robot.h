@@ -25,8 +25,29 @@ typedef struct {
   ShootInstance* shoot;
 
 } RobotInstance;
-
-
+#include "can_comm.h"
+#include "bsp_can.h"
+//#define DEVICE_ROLE_TX 1 // 发送板：定义为1
+#define DEVICE_ROLE_TX 0 // 接收板：注释上一行，定义为0
+#if DEVICE_ROLE_TX
+#define DEVICE_ROLE_STR "TX"
+#else
+#define DEVICE_ROLE_STR "RX"
+#endif
+//can通信任务初始化时间 单位ms
+#define CAN_COMM_TASK_INIT_TIME 100
+//can通信任务运行时间间隔 单位ms
+#define CAN_COMM_TASK_TIME 50 //1
+//云台can设备
+#define GIMBAL_CAN hcan1
+//双板can通信设备
+#define BOARD_CAN hcan1
+//发弹can通信设备
+#define SHOOT_CAN hcan2
+//裁判系统can通信
+#define SHOOT_FLAGS_CAN hcan1
+//发送云台pitch轴的相对角和绝对角can通信
+#define PitchAngle_CAN hcan1
 /**
  * @brief 机器人初始化,请在开启rtos之前调用.这也是唯一需要放入main函数的函数
  *

@@ -1,5 +1,5 @@
 #include "robot.h"
-
+#include "can_comm.h"
 #include "general_def.h"
 #include "robot_config.h"
 #include "user_lib.h"
@@ -17,7 +17,8 @@ static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 /* Intermediate variables calculated by private functions */
 static float trigger_time = 0;  // 触发时间
 static float angle;
-
+uint8_t* received_data = NULL;
+CANCommInstance* can_comm_instance = NULL;
 // static  DJIMotorInstance* debug_motor;
 
 /**
@@ -230,6 +231,10 @@ static void EmergencyHandler() {
 }
 
 void RobotInit() {
+  //要在云台和底盘任务开始之前完成该任务的初始化
+  vTaskDelay(CAN_COMM_TASK_INIT_TIME);
+  // 初始化CAN接收
+  can_comm_instance = CANCommInit(&comm_config);
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
 
 #ifdef STM32F407xx
@@ -249,9 +254,9 @@ void RobotInit() {
 //   robot->gimbal = GimbalInit(&gimbal_init_config);
 //   robot->shoot = ShootInit(&shoot_init_config);
 // #endif
-#if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
+
   robot->chassis = ChassisInit(&chassis_init_config);
-#endif
+
 
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
@@ -271,15 +276,41 @@ void RobotCMDTask() {
 }
 
 void RobotTask() {
-#if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
-  RobotCMDTask();
-  //GimbalTask();
-  //ShootTask();
-#endif
+  if (DEVICE_ROLE_TX) {
+    // 云台发送板控制任务
+    // 测试数据,实际应用中这些数据应该来自其他模块
+    board_can_comm_data.tx_buff[0] = 1;  // ui_flag
+    board_can_comm_data.tx_buff[1] = 0;  // fric_flag
+    board_can_comm_data.tx_buff[2] = 100; // chassis_vx
+    board_can_comm_data.tx_buff[3] = 50;  // chassis_vy
+    board_can_comm_data.tx_buff[4] = (3000 >> 8) & 0xFF;  // pitch_abs 高字节
+    board_can_comm_data.tx_buff[5] = 3000 & 0xFF;         // pitch_abs 低字节
+    board_can_comm_data.tx_buff[6] = 1;  // chassis_behaviour
+    board_can_comm_data.tx_buff[7] = 0;  // cap_flag
 
-#if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
-  ChassisTask();
-#endif
+    CANCommSend(can_comm_instance, board_can_comm_data.tx_buff);
+    //can数据数据发送
+    vTaskDelay(CAN_COMM_TASK_TIME);
+  }
+  else {
+    if (CANCommIsOnline(can_comm_instance)) {
+      // 检查是否有新数据更新
+      received_data = (uint8_t*)CANCommGet(can_comm_instance);
+
+      // 如果收到数据，可以在这里处理
+      if (received_data != NULL) {
+        // 解析接收到的数据到全局变量
+        memcpy(board_can_comm_data.rx_buff, received_data, 8);
+      }
+    }
+    //底盘接收板控制任务
+    RobotCMDTask();
+    //GimbalTask();
+    //ShootTask();
+    ChassisTask();
+
+  }
+
 
   // 正确的赋值方式 - 直接赋值指针值
   // robot->shoot->friction_motor[1];
