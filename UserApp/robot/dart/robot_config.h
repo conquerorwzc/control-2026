@@ -19,7 +19,7 @@
 
 /* ================= 飞镖系统参数 ================= */
 // 校准参数
-#define CALI_SPEED              3000.0f   // 校准时的归位速度 (RPM/电流单位)
+#define CALI_SPEED              6000.0f   // 校准时的归位速度 (RPM/电流单位)
 #define CALI_BACK_OFFSET        8000.0f   // 堵转后回退的编码器距离 (约一圈)
 #define CALI_POS_THRESHOLD      100.0f    // 回退到位判断阈值
 
@@ -45,18 +45,24 @@
         .angle_feedback_source = MOTOR_FEED, \
         .speed_feedback_source = MOTOR_FEED, \
         .outer_loop_type = SPEED_LOOP, \
-        .close_loop_type = SPEED_LOOP, \
+        .close_loop_type = SPEED_LOOP | ANGLE_LOOP, /* 开启双环支持 */ \
         .motor_reverse_flag = _reverse, \
     }, \
     .controller_param_init_config = { \
         .speed_PID = { \
-            .Kp = 0.0f, \
+            .Kp = 2.0f, \
+            .Ki = 0.1f, \
+            .Kd = 0.0f, \
+            .MaxOut = 16000.0f, \
+            .IntegralLimit = 3000.0f, \
+            .Improve = PID_Integral_Limit | PID_Trapezoid_Intergral | PID_ErrorHandle, \
+        }, \
+        .angle_PID = { \
+            .Kp = 10.0f, \
             .Ki = 0.0f, \
             .Kd = 0.0f, \
-            .MaxOut = 10000.0f, \
-            .IntegralLimit = 3000.0f, \
-            /* 核心：开启堵转检测和积分限幅 */ \
-            .Improve = PID_Integral_Limit | PID_Trapezoid_Intergral | PID_ErrorHandle, \
+            .MaxOut = 3000.0f, \
+            .Improve = PID_Integral_Limit, \
         }, \
     }, \
 }
@@ -80,13 +86,13 @@
     }, \
     .controller_param_init_config = { \
         .speed_PID = { \
-            .Kp = 1.0f, .Ki = 0.0f, .Kd = 0.0f, \
-            .MaxOut = 30000.0f, .IntegralLimit = 10000.0f, \
+            .Kp = 10.0f, .Ki = 0.0f, .Kd = 0.0f, \
+            .MaxOut = 30000.0f, .IntegralLimit = 3000.0f, \
             .Improve = PID_Integral_Limit, \
         }, \
         .angle_PID = { \
-            .Kp = 0.0f, .Ki = 0.0f, .Kd = 0.0f, \
-            .MaxOut = 500.0f, \
+            .Kp = 150.0f, .Ki = 0.0f, .Kd = 0.0f, \
+            .MaxOut = 3000.0f, \
             .Improve = PID_Integral_Limit, \
         }, \
     }, \
@@ -109,8 +115,8 @@
     }, \
     .controller_param_init_config = { \
         .speed_PID = { \
-            .Kp = 1.0f, .Ki = 0.0f, .Kd = 0.0f, \
-            .MaxOut = 16000.0f, .IntegralLimit = 5000.0f, \
+            .Kp = 5.0f, .Ki = 0.0f, .Kd = 0.0f, \
+            .MaxOut = 16000.0f, .IntegralLimit = 8000.0f, \
             .Improve = PID_Integral_Limit, \
         }, \
     }, \

@@ -12,9 +12,8 @@ static DartInstance* dart = NULL;
 static RC_ctrl_t* rc_data = NULL;
 static RC_ctrl_t* rc_data_last = NULL;
 
-#define DART_FRICTION_MAX_SPEED   10000.0f
-#define DART_LOAD_MAX_SPEED       5000.0f
-#define DART_PUSHROD_MAX_SPEED    10000.0f
+#define DART_FRICTION_MAX_SPEED   16000.0f
+#define DART_PUSHROD_MAX_SPEED    30000.0f
 #define RC_DEADZONE               50
 
 bool IsInDeadzone(int16_t value) {
@@ -43,7 +42,7 @@ void DartInit(void) {
   dart->vertical_pushrod = DJIMotorInit(&vert_conf);
 
   // 初始化 水平推杆 (M2006)
-      Motor_Init_Config_s hori_conf = PUSH_ROD_CONFIG(&hcan1, PUSH_HORI_ID, MOTOR_DIRECTION_NORMAL);
+      Motor_Init_Config_s hori_conf = PUSH_ROD_CONFIG(&hcan1, PUSH_HORI_ID, MOTOR_DIRECTION_REVERSE);
   dart->horizontal_pushrod = DJIMotorInit(&hori_conf);
 
   // 初始化 摩擦轮 (M3508 x4): 左边: LU(1), LD(2) | 右边: RU(3), RD(4)
@@ -112,10 +111,8 @@ void DartStateMachineUpdate(void) {
   // 下档：调试模式 (DEBUG)
   if (switch_is_down(rc_data->rc.switch_right)) {
     dart->current_mode = DART_MODE_DEBUG;
-    // 如果之前正在校准，切回调试时重置校准步骤
-    if (dart->calibration_step != CALI_STEP_DONE) {
-      dart->calibration_step = CALI_STEP_IDLE;
-    }
+    dart->calibration_step = CALI_STEP_IDLE;
+    dart->is_calibrated = false;
   }
   // 中档：自动/就绪模式
   else if (switch_is_mid(rc_data->rc.switch_right)) {
@@ -127,57 +124,64 @@ void DartStateMachineUpdate(void) {
       dart->current_mode = DART_MODE_AUTO_READY;
     }
   }
-  // 上档：自动打弹 (S1W9 暂不实现复杂逻辑，先预留)
+  // 上档：自动打弹
   else if (switch_is_up(rc_data->rc.switch_right)) {
     if (dart->is_calibrated) {
-      dart->current_mode = DART_MODE_AUTO_FIRE;
+      dart->current_mode = DART_MODE_AUTO_FIRE; // 只有校准过才允许自动打弹
     } else {
-      dart->current_mode = DART_MODE_CALIBRATING; // 必须先校准
+      dart->current_mode = DART_MODE_CALIBRATING; // 否则强制去校准
     }
   }
 }
 
-float yaw_current_target = 0.0f;
 /* 调试模式处理(纯手动控制，用于测试电机好坏和方向) */
-
-/* 调试模式：完全由遥控器控制 (S1W9 任务书逻辑) */
+static float yaw_current_target = 0.0f;
+/* 调试模式： */
 void DartDebugModeHandler(void) {
+
+  //  if (rc_data == NULL) return;// 检查指针有效性 (防止空指针)
+  int16_t stick_val = rc_data->rc.rocker_l_;// 强制类型转换，确保浮点运算
   // --- 1. Yaw 轴 (左摇杆左右 rocker_l_) ---
   // 使用“增量式”位置控制：推杆增加角度，回中保持角度
-//  float angle_inc = (rc_data->rc.rocker_l_ / 660.0f) * 0.5f; // 0.5 是灵敏度，可调
-//  yaw_current_target += angle_inc;
-//
-//  // 安全限幅 (防止转过头扯断线，根据实际机械调整范围，比如 +/- 60度)
-//  VAL_LIMIT(yaw_current_target, -60.0f, 60.0f);
-//
-//  DJIMotorOuterLoop(dart->yaw_motor, ANGLE_LOOP);
-//  DJIMotorSetPIDRef(dart->yaw_motor, yaw_current_target);
+  float angle_inc = ((float)stick_val / 66.0f) * 0.2f; // 0.5 是灵敏度，可调
+  yaw_current_target -= angle_inc;
+  float current_angle = dart->yaw_motor->measure.total_angle;
+  float max_lead_angle = 15.0f;
+  if (yaw_current_target > current_angle + max_lead_angle) {
+    yaw_current_target = current_angle + max_lead_angle;
+  }
+  else if (yaw_current_target < current_angle - max_lead_angle) {
+    yaw_current_target = current_angle - max_lead_angle;
+  }
+  VAL_LIMIT(yaw_current_target, -5000.0f, 5000.0f);
+  DJIMotorOuterLoop(dart->yaw_motor, ANGLE_LOOP);
+  DJIMotorSetPIDRef(dart->yaw_motor, yaw_current_target);
 
 
   // --- 2. 垂直推杆 (左摇杆上下 rocker_l1) ---
   // 速度环控制
-//  float vert_speed = MapStickToSpeed(rc_data->rc.rocker_l1, DART_PUSHROD_MAX_SPEED);
-//
-//  DJIMotorOuterLoop(dart->vertical_pushrod, SPEED_LOOP);
-//  DJIMotorSetPIDRef(dart->vertical_pushrod, vert_speed);
+  float vert_speed = MapStickToSpeed(rc_data->rc.rocker_l1, DART_PUSHROD_MAX_SPEED);
+
+  DJIMotorOuterLoop(dart->vertical_pushrod, SPEED_LOOP);
+  DJIMotorSetPIDRef(dart->vertical_pushrod, vert_speed);
 
 
   // --- 3. 水平推杆 (右摇杆左右 rocker_r_) ---
   // 速度环控制
-//  float hori_speed = MapStickToSpeed(rc_data->rc.rocker_r_, DART_PUSHROD_MAX_SPEED);
-//
-//  DJIMotorOuterLoop(dart->horizontal_pushrod, SPEED_LOOP);
-//  DJIMotorSetPIDRef(dart->horizontal_pushrod, hori_speed);
+  float hori_speed = MapStickToSpeed(rc_data->rc.rocker_r_, DART_PUSHROD_MAX_SPEED);
+
+  DJIMotorOuterLoop(dart->horizontal_pushrod, SPEED_LOOP);
+  DJIMotorSetPIDRef(dart->horizontal_pushrod, hori_speed);
 
 
   // --- 4. 摩擦轮 (右摇杆上下 rocker_r1) ---
   // 速度环控制，四个轮子同步
-//  float fric_speed = MapStickToSpeed(rc_data->rc.rocker_r1, DART_FRICTION_MAX_SPEED);
-//
-//  for(int i=0; i<4; i++) {
-//    DJIMotorOuterLoop(dart->friction_motor[i], SPEED_LOOP);
-//    DJIMotorSetPIDRef(dart->friction_motor[i], fric_speed);
-//  }
+  float fric_speed = MapStickToSpeed(rc_data->rc.rocker_r1, DART_FRICTION_MAX_SPEED);
+
+  for(int i=0; i<4; i++) {
+    DJIMotorOuterLoop(dart->friction_motor[i], SPEED_LOOP);
+    DJIMotorSetPIDRef(dart->friction_motor[i], fric_speed);
+  }
 }
 
 
@@ -191,7 +195,8 @@ static void DartCalibrationHandler(void) {
 
     // --- 阶段1: 垂直推杆归零 ---
     case CALI_STEP_VERT_PUSH:
-      // 速度环向后退 (CALI_SPEED 建议为负值或在此处取反)
+      dart->vertical_pushrod->motor_controller.speed_PID.MaxOut = 1000.0f;
+      dart->vertical_pushrod->motor_controller.speed_PID.IntegralLimit = 500.0f;
       DJIMotorOuterLoop(dart->vertical_pushrod, SPEED_LOOP);
       DJIMotorSetPIDRef(dart->vertical_pushrod, -CALI_SPEED);
 
@@ -199,7 +204,12 @@ static void DartCalibrationHandler(void) {
       if (IsMotorBlocked(dart->vertical_pushrod)) {
         // 记录当前编码器值作为零点参考
         dart->vert_zero_ecd = dart->vertical_pushrod->measure.total_angle;
+        dart->vertical_pushrod->motor_controller.speed_PID.ITerm = 0;
+        dart->vertical_pushrod->motor_controller.speed_PID.Output = 0;
+        dart->vertical_pushrod->motor_controller.speed_PID.Iout = 0;
         dart->calibration_step = CALI_STEP_VERT_BACK;
+        dart->vertical_pushrod->motor_controller.speed_PID.MaxOut = 10000.0f;
+        dart->vertical_pushrod->motor_controller.speed_PID.IntegralLimit = 3000.0f;
       }
       break;
 
@@ -221,11 +231,25 @@ static void DartCalibrationHandler(void) {
 
     // --- 阶段2: 水平推杆归零 (逻辑同上) ---
     case CALI_STEP_HORI_PUSH:
+      dart->horizontal_pushrod->motor_controller.speed_PID.MaxOut = 1000.0f;
+      dart->horizontal_pushrod->motor_controller.speed_PID.IntegralLimit = 500.0f;
+
       DJIMotorOuterLoop(dart->horizontal_pushrod, SPEED_LOOP);
-      DJIMotorSetPIDRef(dart->horizontal_pushrod, -CALI_SPEED);
+      DJIMotorSetPIDRef(dart->horizontal_pushrod, -CALI_SPEED); // 确认方向是否正确
 
       if (IsMotorBlocked(dart->horizontal_pushrod)) {
+        // 记录零点
         dart->hori_zero_ecd = dart->horizontal_pushrod->measure.total_angle;
+
+        // 【新增】清空 PID 积分，防止回退时暴冲
+        dart->horizontal_pushrod->motor_controller.speed_PID.ITerm = 0;
+        dart->horizontal_pushrod->motor_controller.speed_PID.Output = 0;
+        dart->horizontal_pushrod->motor_controller.speed_PID.Iout = 0;
+
+        // 【新增】恢复 PID 满血状态
+        dart->horizontal_pushrod->motor_controller.speed_PID.MaxOut = 10000.0f;
+        dart->horizontal_pushrod->motor_controller.speed_PID.IntegralLimit = 3000.0f;
+
         dart->calibration_step = CALI_STEP_HORI_BACK;
       }
       break;
@@ -285,7 +309,7 @@ void RobotTask(void) {
 
     default:
       break;
-  }
+     }
 
   // 3. 底层发送：将计算好的 PID 输出发送给电调
   DJIMotorTask();
