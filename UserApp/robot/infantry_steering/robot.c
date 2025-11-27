@@ -19,6 +19,10 @@ static float trigger_time = 0;  // 触发时间
 static float angle;
 uint8_t* received_data = NULL;
 CANCommInstance* can_comm_instance = NULL;
+typedef union {
+  int16_t value;
+  uint8_t bytes[2];
+} int16_t_bytes;
 // static  DJIMotorInstance* debug_motor;
 
 /**
