@@ -21,13 +21,8 @@ extern RC_ctrl_t controller;     // 自定义控制器数据
 extern DJI_Motor_Measure_s camera_motor_lift; // 相机平台的抬升电机
 
 static void Gantry_Run(GantryInstance *gantry);
-static void Gantry_Control(GantryInstance *gantry);
-static void Gantry_Limit(GantryInstance *gantry);
 static void Gantry_Position_Calculate(GantryInstance *gantry);
 static void Gantry_Can_Cmd(GantryInstance *gantry);
-static void Gantry_Controller_Control(GantryInstance *gantry);
-static void Gantry_Keyboard_Control(GantryInstance *gantry);
-static void Gantry_Remote_Control(GantryInstance *gantry);
 void GantryTask(void);
 /**
  * @brief 龙门架任务函数
@@ -49,12 +44,7 @@ void StartGantryTask(void const *argument)
 
 static void Gantry_Run(GantryInstance *gantry)
 {
-    Gantry_Control(gantry);            // 根据相应控制模式控制龙门架
-    // 只有在非断电模式下才进行电控限位和位置计算，防止断电时PID计算
-    if (gantry->Gantry_ctrl_cmd.Gantry_mode != GANTRY_MODE_POWER_OFF) {
-        Gantry_Limit(gantry);              // 电控限位
-        Gantry_Position_Calculate(gantry); // 根据位置矢量解算出电机转动的圈数
-    }
+    Gantry_Position_Calculate(gantry); // 根据位置矢量解算出电机转动的圈数
     Gantry_Can_Cmd(gantry);            // 使用pid计算结果控制电机转动
     // 【新增】调用电机模块的发送函数，将电流值发送给电机
     DJIMotorTask();
@@ -63,10 +53,9 @@ static void Gantry_Run(GantryInstance *gantry)
 /**
  * @brief 龙门架初始化
  * @param init_config 初始化配置
- * @param rc_data 遥控器数据指针
  * @return GantryInstance* 龙门架实例指针
  */
-GantryInstance* GantryInit(Gantry_Init_Config_s* init_config, const RC_ctrl_t* rc_data)
+GantryInstance* GantryInit(Gantry_Init_Config_s* init_config)
 {
     if (gantry_instance != NULL) {
         return gantry_instance; // 已经初始化过
@@ -93,10 +82,6 @@ GantryInstance* GantryInit(Gantry_Init_Config_s* init_config, const RC_ctrl_t* r
     }
     // 横移电机
     gantry_instance->sidesway_motor.motor = DJIMotorInit(&init_config->sidesway_motor_config);
-
-    // 设置遥控器数据指针
-    gantry_instance->remote_data = rc_data;
-    // gantry_instance->keyboard = ...;
 
     // 等电机数据出现代表电机已经正常工作
     for (int i = 0; i < 2; i++)
@@ -156,95 +141,6 @@ static void Gantry_Controller_Limit_Speed(float *dir, float target, float sens)
 }
 
 /**
- * @brief 自定义控制器控制龙门架（空实现，保留接口）
- * @param gantry 龙门架实例指针
- */
-static void Gantry_Controller_Control(GantryInstance *gantry)
-{
-    // 空实现，保留接口供将来使用
-    // 不执行任何操作
-}
-
-/**
- * @brief 键鼠控制龙门架
- * @param gantry 龙门架结构体指针
- */
-static void Gantry_Keyboard_Control(GantryInstance *gantry)
-{
-    if (gantry->keyboard == NULL) return;
-
-    if (gantry->keyboard->ctrl && !gantry->keyboard->shift) // 预防按键冲突
-    {
-        // 抬升
-        if (gantry->keyboard->r) // 升
-            gantry->Gantry_ctrl_cmd.z += gantry->Gantry_param.lift_sens_keyboard;
-        else if (gantry->keyboard->f) // 降
-            gantry->Gantry_ctrl_cmd.z -= gantry->Gantry_param.lift_sens_keyboard;
-
-        // 前伸
-        if (gantry->keyboard->w) // 伸出
-            gantry->Gantry_ctrl_cmd.y += gantry->Gantry_param.stretch_sens_keyboard;
-        else if (gantry->keyboard->s) // 收回
-            gantry->Gantry_ctrl_cmd.y -= gantry->Gantry_param.stretch_sens_keyboard;
-
-        // 横移
-        if (gantry->keyboard->a) // 左移
-            gantry->Gantry_ctrl_cmd.x -= gantry->Gantry_param.sidesway_sens_keyboard;
-        else if (gantry->keyboard->d) // 右移
-            gantry->Gantry_ctrl_cmd.x += gantry->Gantry_param.sidesway_sens_keyboard;
-    }
-
-    // 开启自定义控制器时记录当前位置，之后自定义控制器以该位置做相对偏移控制
-    static uint8_t last_st;
-    if (last_st == 0 && gantry->Gantry_ctrl_cmd.controller_st == 1)
-    {
-        last_gantry_x = gantry->Gantry_ctrl_cmd.x;
-    }
-    last_st = gantry->keyboard->g;
-
-    // 是否启用自定义控制器
-    if (gantry->Gantry_ctrl_cmd.controller_st == 1)
-        Gantry_Controller_Control(gantry);
-}
-
-/**
- * @brief 遥控模式控制龙门架
- * @param gantry 龙门架结构体指针
- */
-static void Gantry_Remote_Control(GantryInstance *gantry)
-{
-    if (gantry->remote_data == NULL) return; // 安全检查
-
-    // 直接使用遥控器数据，不创建副本
-    gantry->Gantry_ctrl_cmd.x += gantry->remote_data->rc.rocker_r_ * gantry->Gantry_param.sidesway_sens_remote;
-    gantry->Gantry_ctrl_cmd.y += gantry->remote_data->rc.rocker_r1 * gantry->Gantry_param.stretch_sens_remote;
-    // 修改Z轴控制方向，使摇杆向上时龙门架上升
-    gantry->Gantry_ctrl_cmd.z += gantry->remote_data->rc.rocker_l1 * gantry->Gantry_param.lift_sens_remote;
-}
-
-/**
- * @brief 判断龙门架控制模式并进行相应控制
- * @param gantry 龙门架实例指针
- */
-static void Gantry_Control(GantryInstance *gantry)
-{
-    switch (gantry->Gantry_ctrl_cmd.Gantry_mode)
-    {
-    case GANTRY_MODE_POWER_OFF:
-    case GANTRY_MODE_LOCK:
-        break;
-    case GANTRY_MODE_CONTROL_REMOTE:
-        Gantry_Remote_Control(gantry);
-        break;
-    case GANTRY_MODE_CONTROL_PC:
-        Gantry_Keyboard_Control(gantry);
-        break;
-    default:
-        break;
-    }
-}
-
-/**
  * @brief 使用pid计算结果控制电机转动
  * @param gantry 龙门架实例指针
  */
@@ -276,52 +172,6 @@ static void Gantry_Can_Cmd(GantryInstance *gantry)
     //     else
     //         DJIMotorEnable(gantry->sidesway_motor.motor);
     // }
-}
-
-/**
- * @brief 电控限位
- * @param gantry 龙门架结构体指针
- */
-static void Gantry_Limit(GantryInstance *gantry)
-{
-    static int32_t last_x, last_y, last_z;
-
-    /// 当抬升没有抬到一定高度的时候，不允许前伸过三角，防止结构把电线卡断
-    // 当前伸下的拖链越过三角时，不允许后退
-    // 当前伸下的拖链处于三角附近时，不允许下降太低
-    if (gantry->Gantry_ctrl_cmd.z < 2200)
-    {
-        if (gantry->Gantry_ctrl_cmd.y > 2200 && gantry->Gantry_ctrl_cmd.y < 4000 && last_y < gantry->Gantry_ctrl_cmd.y)
-            gantry->Gantry_ctrl_cmd.y = 2200;
-
-        else if (gantry->Gantry_ctrl_cmd.y < 11500 && gantry->Gantry_ctrl_cmd.y > 9000 && last_y > gantry->Gantry_ctrl_cmd.y)
-            gantry->Gantry_ctrl_cmd.y = 11500;
-
-        if (gantry->Gantry_ctrl_cmd.y > 2200 && gantry->Gantry_ctrl_cmd.y < 11500 && last_z > gantry->Gantry_ctrl_cmd.z)
-            gantry->Gantry_ctrl_cmd.z = 2100;
-    }
-
-    // 抬升
-    if (gantry->Gantry_ctrl_cmd.z <= 0)
-        gantry->Gantry_ctrl_cmd.z = 0;
-    else if (gantry->Gantry_ctrl_cmd.z >= gantry->Gantry_param.GANTRY_MAX_Z)
-        gantry->Gantry_ctrl_cmd.z = gantry->Gantry_param.GANTRY_MAX_Z;
-
-    // 前伸
-    if (gantry->Gantry_ctrl_cmd.y <= 0)
-        gantry->Gantry_ctrl_cmd.y = 0;
-    else if (gantry->Gantry_ctrl_cmd.y >= gantry->Gantry_param.GANTRY_MAX_Y)
-        gantry->Gantry_ctrl_cmd.y = gantry->Gantry_param.GANTRY_MAX_Y;
-
-    // 横移
-    if (gantry->Gantry_ctrl_cmd.x <= 0)
-        gantry->Gantry_ctrl_cmd.x = 0;
-    else if (gantry->Gantry_ctrl_cmd.x >= gantry->Gantry_param.GANTRY_MAX_X)
-        gantry->Gantry_ctrl_cmd.x = gantry->Gantry_param.GANTRY_MAX_X;
-
-    last_x = gantry->Gantry_ctrl_cmd.x;
-    last_z = gantry->Gantry_ctrl_cmd.z;
-    last_y = gantry->Gantry_ctrl_cmd.y;
 }
 
 /**

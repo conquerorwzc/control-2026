@@ -57,11 +57,9 @@ typedef struct {
     GantryMotorUnit_t lift_motor[2];         // 抬升电机实例
     GantryMotorUnit_t stretch_motor[2];      // 前伸电机实例
     GantryMotorUnit_t sidesway_motor;     // 横移电机实例
-    const RC_ctrl_t* remote_data;    // 遥控器操作
-    const Key_t *keyboard;    // 键盘按键
 } GantryInstance;
 
-GantryInstance* GantryInit(Gantry_Init_Config_s* init_config, const RC_ctrl_t* rc_data);
+GantryInstance* GantryInit(Gantry_Init_Config_s* init_config);
 void StartGantryTask(void const *argument);
 void GantryTask(void);
 

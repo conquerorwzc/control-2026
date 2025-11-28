@@ -6,6 +6,7 @@
 #include "cmsis_os.h"
 #include "stdlib.h"
 #include "string.h"
+#include "gantry.h"
 static RobotInstance *robot;
 
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
@@ -57,6 +58,15 @@ static void RemoteControlSet() {
       // 左[下]：龙门架断电
       gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_POWER_OFF;
     }
+    
+    // 遥控模式控制龙门架
+    if (gantry_ctrl_cmd->Gantry_mode == GANTRY_MODE_CONTROL_REMOTE) {
+        if (rc_data != NULL) {
+            gantry_ctrl_cmd->x += rc_data[TEMP].rc.rocker_r_ * gantry_init_config.Gantry_param.sidesway_sens_remote;
+            gantry_ctrl_cmd->y += rc_data[TEMP].rc.rocker_r1 * gantry_init_config.Gantry_param.stretch_sens_remote;
+            gantry_ctrl_cmd->z += rc_data[TEMP].rc.rocker_l1 * gantry_init_config.Gantry_param.lift_sens_remote;
+        }
+    }
   }
 
   // 底盘运动控制（使用左侧摇杆）
@@ -67,6 +77,50 @@ static void RemoteControlSet() {
         -25.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量
   }
   *rc_data_last = *rc_data;
+}
+
+/**
+ * @brief 电控限位
+ * @param gantry_ctrl_cmd 龙门架控制命令指针
+ * @param gantry_param 龙门架参数指针
+ */
+static void Gantry_Limit(Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd, const Gantry_Param_s* gantry_param)
+{
+    static int32_t last_x, last_y, last_z;
+
+    if (gantry_ctrl_cmd->z < 2200)
+    {
+        if (gantry_ctrl_cmd->y > 2200 && gantry_ctrl_cmd->y < 4000 && last_y < gantry_ctrl_cmd->y)
+            gantry_ctrl_cmd->y = 2200;
+
+        else if (gantry_ctrl_cmd->y < 11500 && gantry_ctrl_cmd->y > 9000 && last_y > gantry_ctrl_cmd->y)
+            gantry_ctrl_cmd->y = 11500;
+
+        if (gantry_ctrl_cmd->y > 2200 && gantry_ctrl_cmd->y < 11500 && last_z > gantry_ctrl_cmd->z)
+            gantry_ctrl_cmd->z = 2100;
+    }
+
+    // 抬升
+    if (gantry_ctrl_cmd->z <= 0)
+        gantry_ctrl_cmd->z = 0;
+    else if (gantry_ctrl_cmd->z >= gantry_param->GANTRY_MAX_Z)
+        gantry_ctrl_cmd->z = gantry_param->GANTRY_MAX_Z;
+
+    // 前伸
+    if (gantry_ctrl_cmd->y <= 0)
+        gantry_ctrl_cmd->y = 0;
+    else if (gantry_ctrl_cmd->y >= gantry_param->GANTRY_MAX_Y)
+        gantry_ctrl_cmd->y = gantry_param->GANTRY_MAX_Y;
+
+    // 横移
+    if (gantry_ctrl_cmd->x <= 0)
+        gantry_ctrl_cmd->x = 0;
+    else if (gantry_ctrl_cmd->x >= gantry_param->GANTRY_MAX_X)
+        gantry_ctrl_cmd->x = gantry_param->GANTRY_MAX_X;
+
+    last_x = gantry_ctrl_cmd->x;
+    last_z = gantry_ctrl_cmd->z;
+    last_y = gantry_ctrl_cmd->y;
 }
 
 #if 0
@@ -181,7 +235,7 @@ void RobotInit() {
 
   rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
   *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
-  robot->gantry = GantryInit(&gantry_init_config, robot->rc_data);
+  robot->gantry = GantryInit(&gantry_init_config);
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   robot->chassis = ChassisInit(&chassis_init_config);
@@ -204,6 +258,14 @@ void RobotCMDTask() {
   RemoteControlSet();
   // MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
+  
+  // 龙门架控制逻辑
+  if (robot->gantry != NULL && gantry_ctrl_cmd != NULL) {
+    // 执行龙门架限位（仅在非断电模式下）
+    if (gantry_ctrl_cmd->Gantry_mode != GANTRY_MODE_POWER_OFF) {
+        Gantry_Limit(gantry_ctrl_cmd, &robot->gantry->Gantry_param);
+    }
+  }
 }
 
 void RobotTask() {
