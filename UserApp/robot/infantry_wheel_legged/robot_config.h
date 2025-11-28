@@ -218,7 +218,7 @@ static Chassis_Init_Config_s chassis_init_config = {
             .Improve = PID_IMPROVE_NONE,
             .IntegralLimit = 0.0f,
         },
-};
+    .imu_init_config = {.flag = 1, .scale = {1.0f, 1.0f, 1.0f}, .Yaw = 0.0f, .Pitch = 0.0f, .Roll = 0.0f}};
 
 static Gimbal_Init_Config_s gimbal_init_config = {
     .yaw_motor_config =

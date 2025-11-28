@@ -11,24 +11,22 @@
 static Motor_Init_Config_s wheel_motor_config = {
     .controller_param_init_config =
         {
-            .speed_PID = {.Kp = 100.0f,
-                          .Ki = 0.1f,
+            .angle_PID = {.Kp = 20.0f,
+                          .Ki = 0.0f,
                           .Kd = 0.0f,
-                          .IntegralLimit = 3000.0f,
+                          .IntegralLimit = 5.0f,
                           .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                          .MaxOut = 12000.0f},
-            .current_PID =
-                {
-                    .Kp = 0.5f,
-                    .Ki = 0.0f,
-                    .Kd = 0.0f,
-                    .IntegralLimit = 3000.0f,
-                    .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                    .MaxOut = 15000.0f,
-                },
+                          .MaxOut = 20.0f},
+            .speed_PID = {.Kp = 5.0f,
+                          .Ki = 0.0f,
+                          .Kd = 0.05f,
+                          .IntegralLimit = 5.0f,
+                          .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+                          .MaxOut = 20.0f},
         },
-    .motor_type = M2006,
+    .motor_type = J8009P,
     .can_init_config.can_handle = &hcan1,
-    .can_init_config.tx_id = 3,
+    .can_init_config.tx_id = 1,
+    .can_init_config.rx_id = 0,
     .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
 };

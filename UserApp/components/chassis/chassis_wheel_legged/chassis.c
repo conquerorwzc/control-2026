@@ -48,8 +48,8 @@ static void ChassisRecovery() {
   for (int i = 0; i < 2; i++) {
     DMMotorOuterLoop(leg[i]->joint_motor[0], ANGLE_LOOP);
     DMMotorOuterLoop(leg[i]->joint_motor[1], ANGLE_LOOP);
-    DMMotorPIDCal(leg[i]->joint_motor[0], -0.1);
-    DMMotorPIDCal(leg[i]->joint_motor[1], 0.1);
+    DMMotorSetPIDRef(leg[i]->joint_motor[0], -0.1);
+    DMMotorSetPIDRef(leg[i]->joint_motor[1], 0.1);
     leg[i]->real_model.Tp_1 = leg[i]->joint_motor[0]->motor_controller.final_output;
     leg[i]->real_model.Tp_2 = leg[i]->joint_motor[1]->motor_controller.final_output;
 
@@ -113,7 +113,7 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   PIDInit(&chassis_instance->delta_theta_PID, &chassis_init_config->delta_theta_PID_config);
   PIDInit(&chassis_instance->roll_PID, &chassis_init_config->roll_PID_config);
 
-  chassis_instance->chassis_IMU_data = INS_Init();
+  chassis_instance->chassis_IMU_data = INS_Init(&chassis_init_config->imu_init_config);
 
   chassis = chassis_instance;
   leg[0] = chassis->leg[0];
