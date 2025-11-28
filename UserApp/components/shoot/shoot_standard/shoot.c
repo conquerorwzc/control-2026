@@ -76,7 +76,7 @@ void ShootTask() {// 遍历实例去控制，目前只有shoot这个写法，因
         loader_set = shoot->loader_motor->measure.total_angle +
                      one_bullet_delta_angle * reduction_ratio_loader * loader_direction;  // 控制量增加一发弹丸的角度
         hibernate_time = DWT_GetTimeline_ms();                                            // 记录触发指令的时间
-        dead_time = 500;                                                                  // 完成1发弹丸发射的时间
+        dead_time = 250;                                                                  // 完成1发弹丸发射的时间
         break;
         // 连发模式,对位置闭环,射频根据dead_time改变；原版是速度闭环，可能会更柔和一些？
       case LOAD_BURSTFIRE:

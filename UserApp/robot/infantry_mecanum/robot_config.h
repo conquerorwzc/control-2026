@@ -19,6 +19,7 @@
 #define ONE_BOARD  // 单板控制整车
 #define MOUSE_CONTROL      //键鼠控制
 //#define RC_CONTROL           //遥控器控制
+//#define MOUSEWITHRC_CONTROL  //键鼠兼容控制
 // 检查是否出现主控板定义冲突,只允许一个开发板定义存在,否则编译会自动报错
 #if (defined(ONE_BOARD) && defined(CHASSIS_BOARD)) || (defined(ONE_BOARD) && defined(GIMBAL_BOARD)) || \
     (defined(CHASSIS_BOARD) && defined(GIMBAL_BOARD))
@@ -179,7 +180,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
         },
     .imu_init_config = {
         .flag = 1,
-        .scale = {1.0f, 1.0f, 1.0f},
+        .scale = {-1.0f, 1.0f, -1.0f},
         .Yaw = 0.0f,
         .Pitch = 0.0f,
         .Roll = 0.0f

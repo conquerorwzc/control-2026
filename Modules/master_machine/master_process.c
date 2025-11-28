@@ -24,6 +24,7 @@ static DaemonInstance *vision_daemon_instance;
 
 static  Vision_Receive_s recv_data;//接收数据
 static  Vision_Send_s send_data;//发送数据
+static  attitude_t* current_attitude;
 
 //打包，注册
 static  Message receive;
@@ -45,9 +46,9 @@ void InitParam(void) {
 }
 
 void UpdateGimbalAttitude(Vision_Send_s *vision_send) {
-  attitude_t* current_attitude;
 
-  current_attitude=INS_Init();
+
+
   vision_send->gimbal_send.yaw=current_attitude->Yaw;
   vision_send->gimbal_send.pitch=current_attitude->Pitch;
   vision_send->gimbal_send.roll=current_attitude->Roll;
@@ -152,9 +153,9 @@ static void DecodeVision(uint16_t recv_len)
 }
 
 /* 视觉通信初始化 */
-Vision_Receive_s *VisionInit(UART_HandleTypeDef *_handle)
+Vision_Receive_s *VisionInit(IMU_Init_Config_s* imu_init_config)
 {
-    UNUSED(_handle); // 仅为了消除警告
+    current_attitude=INS_Init(imu_init_config);
     USB_Init_Config_s conf = {.rx_cbk = DecodeVision};
     vis_recv_buff = USBInit(conf);
     InitParam();
