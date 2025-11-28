@@ -213,6 +213,13 @@ static Shoot_Init_Config_s shoot_init_config = {
             .num_per_circle = 6,                      // 拨盘一圈的装载量
             .loader_direction = -1,                    // 拨盘旋转方向,1为正向，-1为反向
             .friction_num = 3,                        //摩擦轮数量
+            .friction_speed = 26000.0f,               //摩擦轮速度
+            .friction_coefficients = {1.0f, 1.1f, 1.0f},//摩擦轮速度比例系数
+            .deadtime_burstfire = 500,
+            .deadtime_onebullet = 1000,
+            .target_speed = 12.0f,
+            .bullet_speed_adjustment = 10.0f,
+
         },
     .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan2, 1, MOTOR_DIRECTION_NORMAL),
     .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan2, 2, MOTOR_DIRECTION_REVERSE),
@@ -251,6 +258,10 @@ static Shoot_Init_Config_s shoot_init_config = {
             .controller_setting_init_config.outer_loop_type = ANGLE_LOOP,
             .controller_setting_init_config.close_loop_type = SPEED_LOOP | ANGLE_LOOP,
         },
+
+
+
+
 };
 
 
