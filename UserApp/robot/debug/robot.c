@@ -2,11 +2,15 @@
 
 #include "dji_motor.h"
 #include "general_def.h"
+#include "master_process.h"
+#include "navigator.h"
 #include "robot_config.h"
 #include "user_lib.h"
-#include "navigator.h"
 
 static DJIMotorInstance* motor_instance;
+
+navigator_recv_t* navigator_recv_data;
+Vision_Receive_s* vision_recv_data;
 
 void RobotInit() {
   wheel_motor_config.controller_setting_init_config.angle_feedback_source = MOTOR_FEED;
@@ -14,9 +18,13 @@ void RobotInit() {
   wheel_motor_config.controller_setting_init_config.outer_loop_type = SPEED_LOOP;
   wheel_motor_config.controller_setting_init_config.close_loop_type = SPEED_LOOP;
   motor_instance = DJIMotorInit(&wheel_motor_config);
+  navigator_recv_data=navigator_init(&huart1);
+  vision_recv_data=VisionInit(&huart1);
+  InitParam();
 }
 
 void RobotTask() {
+  VisionSend();
   uint8_t custom_data[] = {0x40, 0x50, 0x60, 0x70}; //随便给的测试数据，牢恩你改一下啦
   uint32_t system_tick=0xAAAA;  //随便给的值，时间戳后面再说啦
   uint8_t data_id=0x01;

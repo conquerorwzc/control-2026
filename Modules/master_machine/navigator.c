@@ -39,7 +39,7 @@ static uint8_t* protocol_packed(const uint8_t* data_ptr, uint32_t time_stamp, ui
   tx_buff[current_index++] = PROTOCOL_SOF;                  // sof
   tx_buff[current_index++] = data_len;                      // len
   tx_buff[current_index++] = data_id;                       // id
-  tx_buff[current_index++] = get_CRC8_check_sum(&tx_buff[0], 3, PROTOCOL_CRC8_INIT); // crc
+  tx_buff[current_index++] = 0x01;//get_CRC8_check_sum(&tx_buff[0], 3, PROTOCOL_CRC8_INIT); // crc
 
   // 4. 填充时间戳 (小端模式)
   tx_buff[current_index++] = (time_stamp >> 0)  & 0xFF;
@@ -55,7 +55,7 @@ static uint8_t* protocol_packed(const uint8_t* data_ptr, uint32_t time_stamp, ui
 
   // 6. 计算并填充帧尾CRC16
   uint16_t checksum_len = PROTOCOL_HEADER_LEN + 4 + data_len;
-  uint16_t frame_crc16 = get_CRC16_check_sum(&tx_buff[0], checksum_len, PROTOCOL_CRC16_INIT);
+  uint16_t frame_crc16 = 0X0101;//get_CRC16_check_sum(&tx_buff[0], checksum_len, PROTOCOL_CRC16_INIT);
   tx_buff[current_index++] = frame_crc16 & 0xFF;
   tx_buff[current_index++] = (frame_crc16 >> 8) & 0xFF;
 
@@ -195,7 +195,7 @@ static uint8_t send_game_status(UART_HandleTypeDef* huart, const game_status_t* 
     if (huart == NULL||game_status==NULL) return 0;
 
     uint32_t timestamp = HAL_GetTick();
-    return protocol_send(huart, timestamp,
+    return protocol_send(huart, 0xABCD,
                         (uint8_t*)game_status,
                         sizeof(game_status_t),
                         PKT_ID_GAME_STATUS, 10);
@@ -290,215 +290,112 @@ static  uint8_t send_joint_state(UART_HandleTypeDef* huart, const joint_state_t*
 
 void updata_senddata(void) {
   send_data.game_status.game_progress=10;
-  send_data.game_status.stage_remain_time=0xBA;
+  send_data.game_status.stage_remain_time=200;
+  send_data.all_robot_hp.blue_1_robot_hp=0xAA;
+  send_data.all_robot_hp.blue_2_robot_hp=0xBB;
+  send_data.all_robot_hp.blue_3_robot_hp=0xCC;
+  send_data.all_robot_hp.red_7_robot_hp=0xDD;
+
 }
 
 void navigator_send(UART_HandleTypeDef *instance) {
   updata_senddata();
-  // send_all_robot_hp(instance->usart_handle,&send_data.all_robot_hp);
-  // send_event_data(instance->usart_handle,&send_data.event_data);
+  //send_all_robot_hp(instance,&send_data.all_robot_hp);
+  // send_event_data(instance,&send_data.event_data);
   send_game_status(instance,&send_data.game_status);
-  // send_ground_robot_position(instance->usart_handle,&send_data.ground_robot_position);
-  // send_joint_state(instance->usart_handle,&send_data.joint_state);
-  // send_rfid_status(instance->usart_handle,&send_data.rfid_status);
-  // send_robot_motion(instance->usart_handle,&send_data.robot_motion);
-  // send_robot_state_info(instance->usart_handle,&send_data.state_info);
-  // send_robot_status(instance->usart_handle,&send_data.robot_status);
+  // send_ground_robot_position(instance,&send_data.ground_robot_position);
+  // send_joint_state(instance,&send_data.joint_state);
+  // send_rfid_status(instance,&send_data.rfid_status);
+  // send_robot_motion(instance,&send_data.robot_motion);
+  // send_robot_state_info(instance,&send_data.state_info);
+  // send_robot_status(instance,&send_data.robot_status);
 }
 
-
-//下面是发送相关
-static uint8_t parse_robot_cmd_packet(uint8_t *data)
-{
-  if (data == NULL) {
-    return 0;
-  }
-
-  // 数据段起始位置 (帧头4字节 + 时间戳4字节)
-  uint8_t *data_segment = &data[PROTOCOL_HEADER_LEN + 4];
-  uint8_t data_len = data[1];
-
-  // 检查数据长度是否匹配
-  if (data_len != sizeof(robot_cmd_t)) {
-#ifdef NAVIGATOR_DEBUG
-    printf("Robot CMD packet length mismatch: expected %lu, got %d\n",
-           sizeof(robot_cmd_t), data_len);
-#endif
-    return 0;
-  }
-
-  // 解析数据到临时结构体
-  robot_cmd_t temp_cmd;
-  memcpy(&temp_cmd, data_segment, sizeof(robot_cmd_t));
-
-  // 拷贝数据到接收结构体
-  recv_data.robot_cmd.speed_vector.vx = temp_cmd.speed_vector.vx;
-  recv_data.robot_cmd.speed_vector.vy = temp_cmd.speed_vector.vy;
-  recv_data.robot_cmd.speed_vector.wz = temp_cmd.speed_vector.wz;
-
-  recv_data.robot_cmd.chassis.roll = temp_cmd.chassis.roll;
-  recv_data.robot_cmd.chassis.pitch = temp_cmd.chassis.pitch;
-  recv_data.robot_cmd.chassis.yaw = temp_cmd.chassis.yaw;
-  recv_data.robot_cmd.chassis.leg_length = temp_cmd.chassis.leg_length;
-
-  recv_data.robot_cmd.gimbal.pitch = temp_cmd.gimbal.pitch;
-  recv_data.robot_cmd.gimbal.yaw = temp_cmd.gimbal.yaw;
-
-  recv_data.robot_cmd.shoot.fire = temp_cmd.shoot.fire;
-  recv_data.robot_cmd.shoot.fric_on = temp_cmd.shoot.fric_on;
-
-  return 1;
-}
-
-static uint8_t parse_navigator_packet(uint8_t *data, uint16_t length)
-{
-  if (data == NULL || length < (PROTOCOL_HEADER_LEN + 4 + 2)) {
-    return 0;
-  }
-
-  // 1. 检查SOF
-  if (data[0] != PROTOCOL_SOF) {
-    return 0;
-  }
-
-  // 2. 提取基本信息
-  uint8_t data_len = data[1];
-  uint8_t data_id = data[2];
-
-  // 3. 检查CRC8
-  uint8_t crc8_calc = get_CRC8_check_sum(data, 3, PROTOCOL_CRC8_INIT);
-  if (crc8_calc != data[3]) {
-    return 0;
-  }
-
-  // 4. 提取时间戳 (小端模式)
-  uint32_t timestamp = (data[7] << 24) | (data[6] << 16) |
-                      (data[5] << 8) | data[4];
-
-  // 5. 检查CRC16
-  uint16_t checksum_len = PROTOCOL_HEADER_LEN + 4 + data_len;
-  uint16_t crc16_calc = get_CRC16_check_sum(data, checksum_len, PROTOCOL_CRC16_INIT);
-  uint16_t crc16_recv = (data[checksum_len + 1] << 8) | data[checksum_len];
-
-  if (crc16_calc != crc16_recv) {
-    return 0;
-  }
-
-  // 6. 根据数据ID处理不同的数据包
-  switch (data_id) {
-    case PKT_ID_ROBOT_CMD:
-      // 解析机器人控制命令
-      return parse_robot_cmd_packet(data);
-
-      // 可以添加其他数据包的解析
-    default:
-      // 未知的数据包ID
-#ifdef NAVIGATOR_DEBUG
-      printf("Unknown packet ID: 0x%02X\n", data_id);
-#endif
-      return 0;
-  }
-}
-
-
-
-  static void DecodeNavigator() {
-    // 检查是否有可用的接收数据
+static void DecodeNavigator() {
     if (navigator_usart_instance == NULL) {
         return;
     }
 
-    // 获取接收缓冲区中的数据
-    uint8_t *rx_data = navigator_usart_instance->recv_buff;
-    uint16_t data_size = navigator_usart_instance->recv_buff_size;
+    uint8_t* buffer = navigator_usart_instance->recv_buff;
+    uint8_t buffer_size = navigator_usart_instance->recv_buff_size;
 
-    // 处理接收到的数据
-    for (uint16_t i = 0; i < data_size; i++) {
-        uint8_t byte = rx_data[i];
+    // 检查最小长度
+    if (buffer_size < PROTOCOL_HEADER_LEN + 4 + 2) { // 帧头 + 时间戳 + CRC16
+        return;
+    }
 
-        switch (recv_state) {
-            case RECV_STATE_SOF:
-                if (byte == PROTOCOL_SOF) {
-                    recv_index = 0;
-                    recv_buffer[recv_index++] = byte;
-                    recv_state = RECV_STATE_LEN;
-                }
+    // 查找帧头
+    uint16_t index = 0;
+    uint16_t processed_len = 0;
+
+    while (index < buffer_size) {
+        // 查找SOF
+        if (buffer[index] == PROTOCOL_SOF) {
+            // 检查剩余长度是否足够
+            if (index + PROTOCOL_HEADER_LEN > buffer_size) {
                 break;
+            }
 
-            case RECV_STATE_LEN:
-                recv_buffer[recv_index++] = byte;
-                expected_data_len = byte;
-                recv_state = RECV_STATE_ID;
-                break;
+            // 解析帧头
+            HeaderFrame* header = (HeaderFrame*)&buffer[index];
 
-            case RECV_STATE_ID:
-                recv_buffer[recv_index++] = byte;
-                current_packet_id = byte;
-                recv_state = RECV_STATE_CRC8;
-                break;
+            // 检查数据长度是否合理
+            uint16_t total_frame_len = PROTOCOL_HEADER_LEN + 4 + header->len + 2;
+            if (index + total_frame_len > buffer_size) {
+                index++;
+                continue; // 数据不完整，继续查找
+            }
 
-            case RECV_STATE_CRC8:
-                recv_buffer[recv_index++] = byte;
-                // 校验CRC8
-                uint8_t crc8_calc = get_CRC8_check_sum(recv_buffer, 3, PROTOCOL_CRC8_INIT);
-                if (crc8_calc == byte) {
-                    recv_state = RECV_STATE_TIMESTAMP;
-                } else {
-                    // CRC8校验失败，重置状态机
-                    recv_state = RECV_STATE_SOF;
-                    recv_data.crc_errors++;
-                }
-                break;
+            // 校验帧头CRC8
+            uint8_t crc8_calc = 0X01;//get_CRC8_check_sum(&buffer[index], 3, PROTOCOL_CRC8_INIT);
+            if (crc8_calc != header->crc) {
+                index++;
+                continue; // CRC校验失败，继续查找
+            }
 
-            case RECV_STATE_TIMESTAMP:
-                recv_buffer[recv_index++] = byte;
-                if (recv_index >= (PROTOCOL_HEADER_LEN + 4)) {
-                    recv_state = RECV_STATE_DATA;
-                }
-                break;
+            // 计算数据段CRC16 - 只计算有效数据部分
+            uint16_t data_len_for_crc = PROTOCOL_HEADER_LEN + 4 + header->len;
+            uint16_t crc16_calc = 0x1010;//get_CRC16_check_sum(&buffer[index], data_len_for_crc, PROTOCOL_CRC16_INIT);
 
-            case RECV_STATE_DATA:
-                recv_buffer[recv_index++] = byte;
-                if (recv_index >= (PROTOCOL_HEADER_LEN + 4 + expected_data_len)) {
-                    recv_state = RECV_STATE_CRC16;
-                }
-                break;
+            // 正确获取接收到的CRC16（使用固定索引，不依赖total_frame_len）
+            uint16_t crc16_recv = 0X1010;//(buffer[index + data_len_for_crc + 1] << 8) | buffer[index + data_len_for_crc];
 
-            case RECV_STATE_CRC16:
-                recv_buffer[recv_index++] = byte;
-                if (recv_index >= (PROTOCOL_HEADER_LEN + 4 + expected_data_len + 2)) {
-                    // 完整帧接收完成，开始解析
-                    if (parse_navigator_packet(recv_buffer, recv_index)) {
-                        recv_data.last_update_time = HAL_GetTick();
-                        recv_data.data_valid = 1;
-                        last_packet_time = HAL_GetTick();
+            if (crc16_calc != crc16_recv) {
+                index++;
+                continue; // CRC16校验失败，继续查找
+            }
 
-                        // 打印接收到的控制命令（调试用）
-                        #ifdef NAVIGATOR_DEBUG
-                        printf("Received robot command: vx=%.2f, vy=%.2f, wz=%.2f\n",
-                               recv_data.speed_vector.vx,
-                               recv_data.speed_vector.vy,
-                               recv_data.speed_vector.wz);
-                        #endif
-                    } else {
-                        recv_data.data_valid = 0;
-                        recv_data.crc_errors++;
+            // 校验通过，处理数据包
+            uint16_t data_index = index + PROTOCOL_HEADER_LEN + 4; // 跳过帧头和时间戳
+
+            // 根据数据包ID进行处理
+            switch (header->id) {
+                case PKT_ID_ROBOT_CMD: {
+                    if (header->len == sizeof(navigator_recv_t)) {
+                        memcpy(&recv_data, &buffer[data_index], sizeof(navigator_recv_t));
                     }
-
-                    // 重置状态机
-                    recv_state = RECV_STATE_SOF;
+                    break;
                 }
-                break;
+                default:
+                    break;
+            }
 
-            default:
-                recv_state = RECV_STATE_SOF;
-                break;
+            // 移动索引到下一帧
+            index += total_frame_len;
+            processed_len = index;
+        } else {
+            index++;
         }
+    }
 
-        // 防止缓冲区溢出
-        if (recv_index >= NAVIGATOR_RECV_SIZE) {
-            recv_state = RECV_STATE_SOF;
-            recv_index = 0;
+    // 清除已处理的数据
+    if (processed_len > 0) {
+        if (processed_len < buffer_size) {
+            uint16_t remaining_len = buffer_size - processed_len;
+            memmove(buffer, &buffer[processed_len], remaining_len);
+            memset(&buffer[remaining_len], 0, buffer_size - remaining_len);
+        } else {
+            memset(buffer, 0, buffer_size);
         }
     }
 }
