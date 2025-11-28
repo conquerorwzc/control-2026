@@ -8,13 +8,18 @@
  * @copyright Copyright (c) 2022
  *
  */
+
 #include "master_process.h"
 #include "seasky_protocol.h"
 #include "daemon.h"
 #include "bsp_log.h"
 #include "srm_protocol.h"
+#include "navigator.h"
 #include "ins_task.h"
+#define VISION_USE_USB
 
+
+#ifdef VISION_USE_USB
 // static Vision_Recv_s recv_data;
 // static Vision_Send_s send_data;
 // static DaemonInstance *vision_daemon_instance;
@@ -25,6 +30,9 @@ static  Vision_Send_s send_data;//发送数据
 //打包，注册
 static  Message receive;
 static  Message send;
+
+uint8_t custom_data[] = {0x40, 0x50, 0x60, 0x70};
+uint16_t packed_length;
 void InitParam(void) {
 
   #define RIGISTER_ID(data, id, packet) \
@@ -38,18 +46,18 @@ void InitParam(void) {
   RIGISTER_ID(send, 2, send_data.shoot_send);
 }
 
-// void UpdateGimbalAttitude(Vision_Send_s *vision_send) {
-//   attitude_t current_attitude;
-//
-//   if (INS_GetAttitude(&current_attitude)) {
-//     vision_send->gimbal_send.yaw=current_attitude.Yaw;
-//     vision_send->gimbal_send.pitch=current_attitude.Pitch;
-//     vision_send->gimbal_send.roll=current_attitude.Roll;
-//     vision_send->gimbal_send.mode=0;
-//     vision_send->gimbal_send.color=1;
-//     vision_send->shoot_send.bullet_speed=15;
-//   }
-// }
+void UpdateGimbalAttitude(Vision_Send_s *vision_send) {
+  attitude_t* current_attitude;
+
+  current_attitude=INS_Init();
+  vision_send->gimbal_send.yaw=current_attitude->Yaw;
+  vision_send->gimbal_send.pitch=current_attitude->Pitch;
+  vision_send->gimbal_send.roll=current_attitude->Roll;
+  vision_send->gimbal_send.mode=0;
+  vision_send->gimbal_send.color=1;
+  vision_send->shoot_send.bullet_speed=15;
+
+}
 
 /**
  * @brief 离线回调函数,将在daemon.c中被daemon task调用
@@ -66,12 +74,15 @@ void InitParam(void) {
 //     LOGWARNING("[vision] vision offline, restart communication.");
 // }
 //
+#endif
+
+
 #ifdef VISION_USE_UART
 
 #include "bsp_usart.h"
 
 static USARTInstance *vision_usart_instance;
-
+static DaemonInstance *vision_daemon_instance;
 /**
  * @brief 接收解包回调函数,将在bsp_usart.c中被usart rx callback调用
  * @todo  1.提高可读性,将get_protocol_info的第四个参数增加一个float类型buffer
@@ -81,7 +92,6 @@ static void DecodeVision()
 {
     uint16_t flag_register;
     DaemonReload(vision_daemon_instance); // 喂狗
-    get_protocol_info(vision_usart_instance->recv_buff, &flag_register, (uint8_t *)&recv_data.pitch);
     // TODO: code to resolve flag_register;
 }
 
