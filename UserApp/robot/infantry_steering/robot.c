@@ -3,6 +3,7 @@
 #include "general_def.h"
 #include "robot_config.h"
 #include "user_lib.h"
+#define USECANREMOTE 1 //是否使用云台板的遥控数据
 
 static RobotInstance *robot;
 
@@ -20,9 +21,10 @@ static float angle;
 uint8_t* received_data = NULL;
 CANCommInstance* can_comm_instance = NULL;
 typedef union {
-  int16_t value;
-  uint8_t bytes[2];
+  int16_t value[5];
+  uint8_t bytes[10];
 } int16_t_bytes;
+int16_t_bytes CanData={0};//底盘板can接收的遥控数据
 // static  DJIMotorInstance* debug_motor;
 
 /**
@@ -123,6 +125,29 @@ static void RemoteControlSet() {
 
   *rc_data_last = *rc_data;
 }
+//解析底盘板收到的遥控数据
+static void DualBoardCtrlSet() {
+  if (CANCommIsOnline(can_comm_instance)) {
+    // 检查是否有新数据更新
+    received_data = (uint8_t*)CANCommGet(can_comm_instance);
+
+    // 如果收到数据，可以在这里处理
+    if (received_data != NULL) {
+      // 解析接收到的数据到全局变量
+      memcpy(board_can_comm_data.rx_buff, received_data, 64);
+
+      for (int i = 0; i < 6; i++)
+        CanData.bytes[i] = board_can_comm_data.rx_buff[i];
+      chassis_ctrl_cmd->vy=CanData.value[0];
+      chassis_ctrl_cmd->vx=CanData.value[1];
+      chassis_ctrl_cmd->wz=CanData.value[2];
+      if (switch_is_mid(CanData.bytes[6])) {
+        gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+          chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+      }
+    }
+  }
+}
 
 #if 0
 /**
@@ -209,29 +234,43 @@ static void MouseKeySet() {
  */
 static void EmergencyHandler() {
   // 两switch都在下断电
-  if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)))  // 全部失能
+  switch (USECANREMOTE)
   {
-    robot->robot_mode = ROBOT_POWER_ON;
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
-    shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
-    shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
-    shoot_ctrl_cmd->load_mode = LOAD_STOP;
-    LOGERROR("[CMD] emergency stop!");
-  } else {
-    LOGINFO("[CMD] reinstate, robot ready");
+    case 0:
+      if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)))  // 全部失能
+      {
+        robot->robot_mode = ROBOT_POWER_ON;
+        gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
+        chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
+        shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
+        shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
+        shoot_ctrl_cmd->load_mode = LOAD_STOP;
+        LOGERROR("[CMD] emergency stop!");
+      } else {
+        LOGINFO("[CMD] reinstate, robot ready");
+      }
+      if (switch_is_down(rc_data[TEMP].rc.switch_right))  // 底盘失能
+      {
+        chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
+      }
+      if (switch_is_down(rc_data[TEMP].rc.switch_left))  // 发射失能
+      {
+        shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
+        shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
+        shoot_ctrl_cmd->load_mode = LOAD_STOP;
+      }
+      // 遥控器右侧开关为[上],恢复正常运行
+      break;
+    case 1:
+
+      if (switch_is_down(CanData.bytes[6]))  // 底盘失能
+      {
+        chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
+      }
+      // 遥控器右侧开关为[上],恢复正常运行
+      break;
   }
-  if (switch_is_down(rc_data[TEMP].rc.switch_right))  // 底盘失能
-  {
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
-  }
-  if (switch_is_down(rc_data[TEMP].rc.switch_left))  // 发射失能
-  {
-    shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
-    shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
-    shoot_ctrl_cmd->load_mode = LOAD_STOP;
-  }
-  // 遥控器右侧开关为[上],恢复正常运行
+
 }
 
 void RobotInit() {
@@ -274,7 +313,8 @@ void RobotInit() {
 void RobotCMDTask() {
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
   //CalcOffsetAngle();
-  RemoteControlSet();
+  //RemoteControlSet();
+  DualBoardCtrlSet();
   // MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
@@ -297,16 +337,7 @@ void RobotTask() {
     vTaskDelay(CAN_COMM_TASK_TIME);
   }
   else {
-    if (CANCommIsOnline(can_comm_instance)) {
-      // 检查是否有新数据更新
-      received_data = (uint8_t*)CANCommGet(can_comm_instance);
 
-      // 如果收到数据，可以在这里处理
-      if (received_data != NULL) {
-        // 解析接收到的数据到全局变量
-        memcpy(board_can_comm_data.rx_buff, received_data, 8);
-      }
-    }
     //底盘接收板控制任务
     RobotCMDTask();
     //GimbalTask();
