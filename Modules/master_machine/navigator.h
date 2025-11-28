@@ -55,7 +55,7 @@ typedef struct {
     char name[32];      // 调试数据名称
     uint8_t type;       // 数据类型
     float data;         // 调试数据值
-} debug_data_t;
+}__attribute__((__packed__)) debug_data_t;
 
 
 // 机器人状态信息
@@ -77,7 +77,7 @@ typedef struct {
         uint8_t custom_controller : 1;
         uint8_t reserve : 3;
     } state;
-} robot_state_info_t;
+} __attribute__((__packed__)) robot_state_info_t;
 
 // 事件数据包 (裁判系统区域占领信息)
 typedef  struct {
@@ -92,7 +92,7 @@ typedef  struct {
     uint8_t trapezoidal_highland_3;         // 己方3号梯形高地占领状态
     uint8_t trapezoidal_highland_4;         // 己方4号梯形高地占领状态
     uint8_t base_virtual_shield_remaining;  // 己方基地虚拟护盾剩余值百分比
-} event_data_t;
+} __attribute__((__packed__)) event_data_t;
 
 // 所有机器人血量数据包
 typedef struct {
@@ -112,7 +112,7 @@ typedef struct {
     uint16_t blue_7_robot_hp;       // 蓝7机器人血量
     uint16_t blue_outpost_hp;       // 蓝方前哨站血量
     uint16_t blue_base_hp;          // 蓝方基地血量
-} all_robot_hp_t;
+} __attribute__((__packed__)) all_robot_hp_t;
 
 // 游戏状态数据包
 typedef struct {
@@ -125,7 +125,7 @@ typedef struct {
     float vx;   // x方向速度
     float vy;   // y方向速度
     float wz;   // 转轴角速度
-} robot_motion_t;
+} __attribute__((__packed__)) robot_motion_t;
 
 // 地面机器人位置数据包
 typedef struct {
@@ -134,7 +134,7 @@ typedef struct {
     float standard_3_x, standard_3_y;   // 3号步兵位置
     float standard_4_x, standard_4_y;   // 4号步兵位置
     float standard_5_x, standard_5_y;   // 5号步兵位置
-} ground_robot_position_t;
+} __attribute__((__packed__)) ground_robot_position_t;
 
 // RFID状态数据包
 typedef struct {
@@ -158,7 +158,7 @@ typedef struct {
     uint8_t enemy_big_resource_island : 1;          // 对方大资源岛增益点
     uint8_t friendly_exchange_area : 1;             // 己方兑换区
     uint8_t center_gain_point : 1;                  // 中心增益点(RMUL适用)
-} rfid_status_t;
+} __attribute__((__packed__)) rfid_status_t;
 
 // 机器人状态数据包 (融合多个数据包)
 typedef struct {
@@ -176,14 +176,14 @@ typedef struct {
     uint8_t hp_deduction_reason;                // 血量变化类型
     uint16_t projectile_allowance_17mm_1;       // 17mm弹丸剩余发射次数
     uint16_t remaining_gold_coin;               // 剩余金币数量
-} robot_status_t;
+} __attribute__((__packed__)) robot_status_t;
 
 
 // 云台状态
 typedef struct {
     float pitch;    // 俯仰角
     float yaw;      // 偏航角
-} joint_state_t;
+} __attribute__((__packed__)) joint_state_t;
 
 typedef struct {
   debug_data_t debug_data;
@@ -196,7 +196,7 @@ typedef struct {
   rfid_status_t rfid_status;
   robot_status_t robot_status;
   joint_state_t joint_state;
-} navigator_send_t;
+} __attribute__((__packed__)) navigator_send_t;
 
 // ========== MiniPC发送的数据包 ==========
 // 接收状态枚举
@@ -217,37 +217,38 @@ typedef struct {
     float vx;
     float vy;
     float wz;
-  } speed_vector;
+  } __attribute__((__packed__)) speed_vector;
 
-  // 底盘控制
-  struct {
-    float roll;
-    float pitch;
-    float yaw;
-    float leg_length;
-  } chassis;
-
-  // 云台控制
-  struct {
-    float pitch;
-    float yaw;
-  } gimbal;
-
-  // 射击控制
-  struct {
-    uint8_t fire;
-    uint8_t fric_on;
-  } shoot;
-} robot_cmd_t;
+//   // 底盘控制
+//   struct {
+//     float roll;
+//     float pitch;
+//     float yaw;
+//     float leg_length;
+//   } __attribute__((__packed__)) chassis;
+//
+//   // 云台控制
+//   struct {
+//     float pitch;
+//     float yaw;
+//   } __attribute__((__packed__)) gimbal;
+//
+//   // 射击控制
+//   struct {
+//     uint8_t fire;
+//     uint8_t fric_on;
+//   } shoot;
+} __attribute__((__packed__)) robot_cmd_t;
 
 // 接收数据结构体
 typedef struct {
+  uint32_t time_stamp;
   robot_cmd_t robot_cmd;
   // 接收状态信息
   uint32_t last_update_time;
   uint8_t data_valid;
   uint8_t crc_errors;
-} navigator_recv_t;
+} __attribute__((__packed__)) navigator_recv_t;
 
 // ========== 新增需求数据包 (待完成) ==========
 // 根据实际需求添加新的数据包结构体

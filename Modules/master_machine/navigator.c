@@ -39,7 +39,7 @@ static uint8_t* protocol_packed(const uint8_t* data_ptr, uint32_t time_stamp, ui
   tx_buff[current_index++] = PROTOCOL_SOF;                  // sof
   tx_buff[current_index++] = data_len;                      // len
   tx_buff[current_index++] = data_id;                       // id
-  tx_buff[current_index++] = 0x01;//get_CRC8_check_sum(&tx_buff[0], 3, PROTOCOL_CRC8_INIT); // crc
+  tx_buff[current_index++] = get_CRC8_check_sum(&tx_buff[0], 3, PROTOCOL_CRC8_INIT); // crc
 
   // 4. 填充时间戳 (小端模式)
   tx_buff[current_index++] = (time_stamp >> 0)  & 0xFF;
@@ -55,7 +55,7 @@ static uint8_t* protocol_packed(const uint8_t* data_ptr, uint32_t time_stamp, ui
 
   // 6. 计算并填充帧尾CRC16
   uint16_t checksum_len = PROTOCOL_HEADER_LEN + 4 + data_len;
-  uint16_t frame_crc16 = 0X0101;//get_CRC16_check_sum(&tx_buff[0], checksum_len, PROTOCOL_CRC16_INIT);
+  uint16_t frame_crc16 = get_CRC16_check_sum(&tx_buff[0], checksum_len, PROTOCOL_CRC16_INIT);
   tx_buff[current_index++] = frame_crc16 & 0xFF;
   tx_buff[current_index++] = (frame_crc16 >> 8) & 0xFF;
 
@@ -347,7 +347,7 @@ static void DecodeNavigator() {
             }
 
             // 校验帧头CRC8
-            uint8_t crc8_calc = 0X01;//get_CRC8_check_sum(&buffer[index], 3, PROTOCOL_CRC8_INIT);
+            uint8_t crc8_calc = get_CRC8_check_sum(&buffer[index], 3, PROTOCOL_CRC8_INIT);
             if (crc8_calc != header->crc) {
                 index++;
                 continue; // CRC校验失败，继续查找
@@ -355,10 +355,10 @@ static void DecodeNavigator() {
 
             // 计算数据段CRC16 - 只计算有效数据部分
             uint16_t data_len_for_crc = PROTOCOL_HEADER_LEN + 4 + header->len;
-            uint16_t crc16_calc = 0x1010;//get_CRC16_check_sum(&buffer[index], data_len_for_crc, PROTOCOL_CRC16_INIT);
+            uint16_t crc16_calc = get_CRC16_check_sum(&buffer[index], data_len_for_crc, PROTOCOL_CRC16_INIT);
 
             // 正确获取接收到的CRC16（使用固定索引，不依赖total_frame_len）
-            uint16_t crc16_recv = 0X1010;//(buffer[index + data_len_for_crc + 1] << 8) | buffer[index + data_len_for_crc];
+            uint16_t crc16_recv = (buffer[index + data_len_for_crc + 1] << 8) | buffer[index + data_len_for_crc];
 
             if (crc16_calc != crc16_recv) {
                 index++;
@@ -366,12 +366,12 @@ static void DecodeNavigator() {
             }
 
             // 校验通过，处理数据包
-            uint16_t data_index = index + PROTOCOL_HEADER_LEN + 4; // 跳过帧头和时间戳
-
+            uint16_t data_index = index + PROTOCOL_HEADER_LEN; // 跳过帧头和时间戳
+            uint8_t check_len=sizeof(navigator_recv_t)-6;
             // 根据数据包ID进行处理
             switch (header->id) {
                 case PKT_ID_ROBOT_CMD: {
-                    if (header->len == sizeof(navigator_recv_t)) {
+                    if (header->len == (check_len)) {
                         memcpy(&recv_data, &buffer[data_index], sizeof(navigator_recv_t));
                     }
                     break;
