@@ -210,8 +210,8 @@ void ChassisTask() {
   static float sin_theta, cos_theta;
   cos_theta = arm_cos_f32(chassis_ctrl_cmd->offset_angle * DEGREE_2_RAD);
   sin_theta = arm_sin_f32(chassis_ctrl_cmd->offset_angle * DEGREE_2_RAD);
-  chassis_vx = chassis_ctrl_cmd->vx * cos_theta -chassis_ctrl_cmd->vy * sin_theta;
-  chassis_vy = chassis_ctrl_cmd->vx * sin_theta + chassis_ctrl_cmd->vy * cos_theta;
+  chassis_vx = chassis_ctrl_cmd->vx * cos_theta +chassis_ctrl_cmd->vy * sin_theta;
+  chassis_vy = -chassis_ctrl_cmd->vx * sin_theta + chassis_ctrl_cmd->vy * cos_theta;
   // 根据电机的反馈速度和IMU(如果有)计算真实速度
   EstimateSpeed();
 
