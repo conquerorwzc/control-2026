@@ -33,7 +33,7 @@ static GPIO_Init_Config_s gpio_init_config_r = {
 static GPIOInstance *gpio_l;
 static GPIOInstance *gpio_r;
 
-#define robot_lost_control abs(robot->chassis->chassis_IMU_data->Pitch) > PI / 6.0f
+#define robot_lost_control abs(robot->chassis->chassis_IMU->Pitch) > PI / 6.0f
 /**
  * @brief 根据gimbal app传回的当前电机角度计算和零位的误差
  *        单圈绝对角度的范围是0~360,说明文档中有图示

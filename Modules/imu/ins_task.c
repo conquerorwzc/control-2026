@@ -15,12 +15,12 @@
 #include "ins_task.h"
 
 #include "QuaternionEKF.h"
+#include "cmsis_os.h"
 #include "controller.h"
 #include "main.h"
 #include "spi.h"
 #include "tim.h"
 #include "user_lib.h"
-#include "cmsis_os.h"
 // #include "master_process.h" TODO: 待完善
 
 static INS_t INS;
@@ -87,14 +87,15 @@ static void InitQuaternion(float* init_q4) {
  *        当安装角度或标度因子发生变化时重新计算修正矩阵
  */
 static void IMU_Param_Correction(IMU_Init_Config_s* param, float gyro[3], float accel[3]) {
-  static float lastYawOffset, lastPitchOffset, lastRollOffset; // 存储上一次设置的偏航角、俯仰角、横滚角
-  static float c_11, c_12, c_13, c_21, c_22, c_23, c_31, c_32, c_33; // 旋转矩阵的3*3=9个元素
+  static float lastYawOffset, lastPitchOffset, lastRollOffset;        // 存储上一次设置的偏航角、俯仰角、横滚角
+  static float c_11, c_12, c_13, c_21, c_22, c_23, c_31, c_32, c_33;  // 旋转矩阵的3*3=9个元素
   float cosPitch, cosYaw, cosRoll, sinPitch, sinYaw, sinRoll;
 
   // 和上一次设置的偏航角、俯仰角、横滚角的变化大小超过0.001°，或flag是1时重新计算修正矩阵。
   if (fabsf(param->Yaw - lastYawOffset) > 0.001f || fabsf(param->Pitch - lastPitchOffset) > 0.001f ||
       fabsf(param->Roll - lastRollOffset) > 0.001f || param->flag) {
-    cosYaw = arm_cos_f32(param->Yaw / 57.295779513f); // 将角度转换为弧度（除以57.295779513，即180/π）并计算对应的正余弦值。
+    cosYaw =
+        arm_cos_f32(param->Yaw / 57.295779513f);  // 将角度转换为弧度（除以57.295779513，即180/π）并计算对应的正余弦值。
     cosPitch = arm_cos_f32(param->Pitch / 57.295779513f);
     cosRoll = arm_cos_f32(param->Roll / 57.295779513f);
     sinYaw = arm_sin_f32(param->Yaw / 57.295779513f);
@@ -140,7 +141,7 @@ static void IMU_Param_Correction(IMU_Init_Config_s* param, float gyro[3], float 
   lastRollOffset = param->Roll;
 }
 
-__attribute__((noreturn)) void StartINSTASK(void const *argument) {
+__attribute__((noreturn)) void StartINSTASK(void const* argument) {
   static float ins_start;
   static float ins_dt;
   LOGINFO("[freeRTOS] INS Task Start");
@@ -162,11 +163,11 @@ __attribute__((noreturn)) void StartINSTASK(void const *argument) {
  * @note  初始化内容包括：BMI088硬件配置、IMU参数设置、四元数初始化、加速度低通滤波系数设置等
  * 创建默认的IMU参数配置并调用INS_Param_Init进行初始化
  */
-attitude_t* INS_Init(IMU_Init_Config_s* imu_init_config) {
+INS_t* INS_Init(IMU_Init_Config_s* imu_init_config) {
   if (!INS.init)
     INS.init = 1;
   else
-    return (attitude_t*)&INS.Gyro;
+    return &INS;
 
 #ifdef STM32F407xx
   BMI088_Init_Config_s bmi088_config = {
@@ -209,12 +210,12 @@ attitude_t* INS_Init(IMU_Init_Config_s* imu_init_config) {
   // noise of accel is relatively big and of high freq,thus lpf is used
   INS.AccelLPF = 0.0085;
   DWT_GetDeltaT(&INS_DWT_Count);
-  
+
   // 创建INS任务
   osThreadDef(instask, StartINSTASK, osPriorityAboveNormal, 0, 1024);
   insTaskHandle = osThreadCreate(osThread(instask), NULL);
-  
-  return (attitude_t*)&INS.Gyro;  // @todo: 这里偷懒了,不要这样做! 修改INT_t结构体可能会导致异常,待修复.
+
+  return &INS;  // @todo: 这里偷懒了,不要这样做! 修改INT_t结构体可能会导致异常,待修复.
 }
 
 /**

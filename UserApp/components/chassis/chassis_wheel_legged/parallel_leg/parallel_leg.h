@@ -57,7 +57,7 @@ typedef struct {
   // Leg position
   float length, length_d, length_dd, last_length_d;
   float phi, phi_d, phi_dd, last_phi_d;
-  float alpha;
+  float alpha, alpha_d;
   // Leg force & torque
   float F, FN;
   float Tp;
@@ -71,8 +71,15 @@ typedef struct {
 } State_Var_t;
 
 typedef struct {
+  float w;   // Angular velocity relevant to the earth frame
+  float vb;  // Body b frame velocity
+} Observer_Var_t;
+
+typedef struct {
   float rod_length[5];
   float joint_motor_zero_offset[2];
+  float wheel_radius;           // 轮子半径
+  float wheel_reduction_ratio;  // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
 } Leg_Param_s;
 
 typedef struct {
@@ -100,6 +107,7 @@ typedef struct {
   Real_Model_t real_model;
   Virtual_Model_t virtual_model;
   State_Var_t state_var;
+  Observer_Var_t observer_var;
 
   float J[2][2];
   float LQR_K[2][6];
@@ -114,7 +122,9 @@ typedef struct {
 
 LegInstance* LegInit(Leg_Init_Config_s* config);
 
-void LegCtrlUpdate(LegInstance* leg, const attitude_t* imu_data);
+void LegCtrlUpdate(LegInstance* leg, INS_t* imu);
 
 void JointTorqueUpdate(LegInstance* leg);
+
+void ObserverVarUpdate(LegInstance* leg, INS_t* imu);
 #endif  // CHASSIS_CAL_H

@@ -6,15 +6,16 @@
 #include "robot_config.h"
 #include "user_lib.h"
 
-static DMMotorInstance* motor_instance;
+static DMMotorInstance* J8009P_instance;
+static DJIMotorInstance* M3508_instance;
 float speed_ref = 0.0f;
 
 void RobotInit() {
-  wheel_motor_config.controller_setting_init_config.angle_feedback_source = MOTOR_FEED;
-  wheel_motor_config.controller_setting_init_config.speed_feedback_source = MOTOR_FEED;
-  wheel_motor_config.controller_setting_init_config.outer_loop_type = ANGLE_LOOP;
-  wheel_motor_config.controller_setting_init_config.close_loop_type = SPEED_LOOP | ANGLE_LOOP;
-  motor_instance = DMMotorInit(&wheel_motor_config);
+  J8009P_instance = DMMotorInit(&J8009P_config);
+  M3508_instance = DJIMotorInit(&M3508_config);
 }
 
-void RobotTask() { DMMotorSetPIDRef(motor_instance, speed_ref); }
+void RobotTask() {
+  // DMMotorSetPIDRef(J8009P_instance, speed_ref);
+  DJIMotorSetPIDRef(M3508_instance, speed_ref);
+}

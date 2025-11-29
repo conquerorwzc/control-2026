@@ -26,6 +26,8 @@
 // robot param
 static float rod_length[5];
 static float joint_motor_zero_offset[2];
+static float wheel_radius;
+static float wheel_reduction_ratio;
 static float LQR_K_Coefficient[2][6][4];
 // intermediate variables
 static float A0, B0, C0;
@@ -79,6 +81,7 @@ static void VirtualModelUpdate(LegInstance* leg) {
   vm->length = sqrtf((rm->xc - rod_length[4] / 2.0f) * (rm->xc - rod_length[4] / 2.0f) + rm->yc * rm->yc);
   vm->phi = atan2f(rm->yc, rm->xc - rod_length[4] / 2.0f);
   vm->alpha = PI / 2.0f - vm->phi;
+  vm->alpha_d = -vm->phi_d;
 
   // Calculate A1, xB_dot, yB_dot
   A1 = (rod_length[0] * rm->phi1_d * msin(rm->phi1 - rm->phi3) +
@@ -115,16 +118,24 @@ static void VirtualModelUpdate(LegInstance* leg) {
  * @retval  无
  * @note    计算腿部机构的状态变量theta和theta_d
  */
-static void StateVarUpdate(LegInstance* leg, const attitude_t* imu_data) {
+static void StateVarUpdate(LegInstance* leg, INS_t* imu) {
   Virtual_Model_t* vm = &leg->virtual_model;
   float last_x_d = leg->state_var.x_d;
   leg->state_var.x_d = leg->state_var.x_d;
   leg->state_var.x += ((leg->state_var.x_d + last_x_d) / 2) * leg->dt;  // 梯形积分
-  leg->state_var.phi = DEGREE_2_RAD * imu_data->Pitch;
-  leg->state_var.phi_d = imu_data->Gyro[0];  // Todo: IMU应当有可在上层配置的旋转矩阵
-  leg->state_var.theta = PI / 2.0f - vm->phi - DEGREE_2_RAD * imu_data->Pitch;
-  leg->state_var.theta_d = -vm->phi_d - imu_data->Gyro[0];
+  leg->state_var.phi = DEGREE_2_RAD * imu->Pitch;
+  leg->state_var.phi_d = imu->Gyro[0];  // Todo: IMU应当有可在上层配置的旋转矩阵
+  leg->state_var.theta = PI / 2.0f - vm->phi - DEGREE_2_RAD * imu->Pitch;
+  leg->state_var.theta_d = -vm->phi_d - imu->Gyro[0];
   // Todo:速度观测需要用的变量alpha暂时没处理
+}
+
+void ObserverVarUpdate(LegInstance* leg, INS_t* imu) {
+  Observer_Var_t* ov = &leg->observer_var;
+  Virtual_Model_t* vm = &leg->virtual_model;
+  State_Var_t* sv = &leg->state_var;
+  ov->w = -leg->wheel_motor->measure.velocity + vm->alpha_d - imu->Gyro[0];  // todo:Gyro极性不确定
+  ov->vb = ov->w * wheel_radius * vm->length * sv->theta_d * mcos(sv->theta) + vm->length_d * msin(sv->theta);
 }
 
 /**
@@ -191,6 +202,8 @@ LegInstance* LegInit(Leg_Init_Config_s* config) {
   // 初始化电机零点较腿部坐标系x轴偏移量
   joint_motor_zero_offset[0] = config->leg_param.joint_motor_zero_offset[0];
   joint_motor_zero_offset[1] = config->leg_param.joint_motor_zero_offset[1];
+  wheel_radius = config->leg_param.wheel_radius;
+  wheel_reduction_ratio = config->leg_param.wheel_reduction_ratio;
   // 初始化LQR_K矩阵拟合系数
   memcpy(LQR_K_Coefficient, config->LQR_K_Coefficient, sizeof(LQR_K_Coefficient));
   // 初始化导数相关变量
@@ -217,7 +230,7 @@ LegInstance* LegInit(Leg_Init_Config_s* config) {
  * @retval  无
  * @note    包括更新真实模型、虚拟模型、状态变量，计算LQR增益和控制力矩
  */
-void LegCtrlUpdate(LegInstance* leg, const attitude_t* imu_data) {
+void LegCtrlUpdate(LegInstance* leg, INS_t* imu) {
   // 获取时间间隔，用于状态量计算
   leg->dt = DWT_GetDeltaT(&leg->DWT_CNT);
   // 五连杆物理建模参数更新
@@ -225,7 +238,7 @@ void LegCtrlUpdate(LegInstance* leg, const attitude_t* imu_data) {
   // VMC简化模型参数更新
   VirtualModelUpdate(leg);
   // 状态变量更新
-  StateVarUpdate(leg, imu_data);
+  StateVarUpdate(leg, imu);
   // 根据腿长计算LQR_K矩阵, i->腿编号, j->状态变量编号
   for (int i = 0; i < 2; i++) {
     for (int j = 0; j < 6; j++) {
@@ -235,22 +248,21 @@ void LegCtrlUpdate(LegInstance* leg, const attitude_t* imu_data) {
   }
   float last_x_d_ref = leg->leg_ctrl_cmd.x_d_ref;
   leg->leg_ctrl_cmd.x_ref += ((leg->leg_ctrl_cmd.x_d_ref + last_x_d_ref) / 2) * leg->dt;  // 梯形积分
-
   // 状态变量矩阵与LQR_K矩阵相乘得到控制力矩, T为轮毂电机转矩，Tp为VMC模型髋关节电机转矩
   static float phi_PID_output;
   leg->real_model.T =
       // leg->update_flag.is_off_ground ? 0.0f :
-      -1 * leg->LQR_K[0][0] * (leg->state_var.theta - 0.0f) + -1 * leg->LQR_K[0][1] * (leg->state_var.theta_d - 0.0f) +
-      1 * leg->LQR_K[0][2] * (leg->state_var.x - leg->leg_ctrl_cmd.x_ref) +
-      1 * leg->LQR_K[0][3] * (leg->state_var.x_d - leg->leg_ctrl_cmd.x_d_ref) +
-      -1 * leg->LQR_K[0][4] * (leg->state_var.phi - 0.0f) + -1 * leg->LQR_K[0][5] * (leg->state_var.phi_d - 0.0f);
+      leg->LQR_K[0][0] * (leg->state_var.theta - 0.0f) + leg->LQR_K[0][1] * (leg->state_var.theta_d - 0.0f) +
+      0 * leg->LQR_K[0][2] * (leg->state_var.x - leg->leg_ctrl_cmd.x_ref) +
+      leg->LQR_K[0][3] * (leg->state_var.x_d - leg->leg_ctrl_cmd.x_d_ref) +
+      leg->LQR_K[0][4] * (leg->state_var.phi - 0.0f) + leg->LQR_K[0][5] * (leg->state_var.phi_d - 0.0f);
 
   // leg->real_model.T -= PIDCalculate(&leg->state_var.phi_PID, leg->state_var.phi, 0);
 
   leg->virtual_model.Tp =
       leg->LQR_K[1][0] * (leg->state_var.theta - 0.0f) + leg->LQR_K[1][1] * (leg->state_var.theta_d - 0.0f) +
       // leg->update_flag.is_off_ground? 0.0f:
-      leg->LQR_K[1][2] * (leg->state_var.x - leg->leg_ctrl_cmd.x_ref) +
+      0 * leg->LQR_K[1][2] * (leg->state_var.x - leg->leg_ctrl_cmd.x_ref) +
       leg->LQR_K[1][3] * (leg->state_var.x_d - leg->leg_ctrl_cmd.x_d_ref) +
       leg->LQR_K[1][4] * (leg->state_var.phi - 0.0f) + leg->LQR_K[1][5] * (leg->state_var.phi_d - 0.0f);
 

@@ -52,9 +52,7 @@ typedef struct {
 typedef struct {
   float center_gimbal_offset_x;  // 云台旋转中心距底盘几何中心的距离,前后方向,云台位于正中心时默认设为0
   float center_gimbal_offset_y;  // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
-  float wheel_radius;            // 轮子半径
   float robot_weight;
-  float wheel_reduction_ratio;  // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
 } Chassis_Param_s;
 
 typedef struct {
@@ -68,7 +66,8 @@ typedef struct {
 typedef struct {
   Chassis_Ctrl_Cmd_s chassis_ctrl_cmd;
   LegInstance* leg[2];
-  attitude_t* chassis_IMU_data;
+  INS_t* chassis_IMU;
+  KalmanFilter_t vaEstimateKF;
 
   PIDInstance delta_theta_PID;  // Only use PD
   PIDInstance roll_PID;         // Only use P

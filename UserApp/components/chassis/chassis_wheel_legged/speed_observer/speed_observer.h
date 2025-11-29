@@ -11,3 +11,6 @@
  ******************************************************************************
  */
 #pragma once
+#include "kalman_filter.h"
+void xvEstimateKF_Init(KalmanFilter_t *EstimateKF);
+void xvEstimateKF_Update(KalmanFilter_t *EstimateKF, float acc, float vel);

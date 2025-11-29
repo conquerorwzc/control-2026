@@ -110,6 +110,8 @@
               .rod_length[4] = 0.079,                                                                                  \
               .joint_motor_zero_offset[0] = 26.14 * DEGREE_2_RAD + PI,                                                 \
               .joint_motor_zero_offset[1] = -26.14 * DEGREE_2_RAD,                                                     \
+              .wheel_radius = 0.0603f,                                                                                 \
+              .wheel_reduction_ratio = 19.0f,                                                                          \
           },                                                                                                           \
       .LQR_K_Coefficient = {{{-88.3079710751263f, 68.9068310796955f, -30.0003802287502f, -0.197774178106864f},         \
                              {1.52414598059982f, -1.09343038036609f, -2.82688593867512f, 0.0281973842051861f},         \
@@ -189,7 +191,6 @@ static Chassis_Init_Config_s chassis_init_config = {
     .chassis_param =
         {
             .robot_weight = 4.1f,  // 机器人重量,单位为kg(千克)
-            .wheel_radius = 0.0603f,
         },
 
     // 通过设置电机输出/反馈方向，来使腿部控制镜像对称
@@ -218,7 +219,7 @@ static Chassis_Init_Config_s chassis_init_config = {
             .Improve = PID_IMPROVE_NONE,
             .IntegralLimit = 0.0f,
         },
-    .imu_init_config = {.flag = 1, .scale = {1.0f, 1.0f, 1.0f}, .Yaw = 0.0f, .Pitch = 0.0f, .Roll = 0.0f}};
+    .imu_init_config = {.flag = 1, .scale = {1.0f, 1.0f, 1.0f}, .Yaw = 180.0f, .Pitch = 0.0f, .Roll = 0.0f}};
 
 static Gimbal_Init_Config_s gimbal_init_config = {
     .yaw_motor_config =

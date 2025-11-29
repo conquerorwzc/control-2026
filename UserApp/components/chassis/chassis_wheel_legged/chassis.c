@@ -10,22 +10,25 @@
 #include "arm_math.h"
 #include "bsp_dwt.h"
 #include "general_def.h"
+#include "speed_observer.h"
 #include "user_lib.h"
 
 static ChassisInstance* chassis;
 static LegInstance* leg[2];
 static Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd;  // 声明但不初始化
 
+// 中间变量
+static float chassis_aver_v;
+
 // robot param
 static float robot_weight;
-static float wheel_radius;
 
 static void ChassisCtrlUpdate() {
   // chassis->roll_comp =
   // PIDCalculate(&chassis->roll_PID, chassis->chassis_IMU_data->Gyro[1], chassis->chassis_ctrl_cmd.roll);
 
   for (int i = 0; i < 2; i++) {
-    LegCtrlUpdate(leg[i], chassis->chassis_IMU_data);
+    LegCtrlUpdate(leg[i], chassis->chassis_IMU);
     float leg_force_ff = 9.8f * robot_weight / 2.0f / mcos(leg[i]->state_var.theta);
     leg[i]->virtual_model.F += leg_force_ff;  //+ (float)(1 - 2 * i) * chassis->roll_comp;
     VAL_LIMIT(leg[i]->virtual_model.F, -100.0f, 100.0f);
@@ -56,16 +59,16 @@ static void ChassisRecovery() {
     if (abs((leg[i]->joint_motor[0]->measure.position - (-0.1f))) <= 0.05f &&
         abs(leg[i]->joint_motor[1]->measure.position - (0.1f)) <= 0.05f) {
       leg[i]->leg_ctrl_cmd.x_d_ref = chassis_ctrl_cmd->vx + (float)(1 - 2 * i) * chassis->chassis_ctrl_cmd.wz;
-      LegCtrlUpdate(leg[i], chassis->chassis_IMU_data);
+      LegCtrlUpdate(leg[i], chassis->chassis_IMU);
     } else {
-      LegCtrlUpdate(leg[i], chassis->chassis_IMU_data);
+      LegCtrlUpdate(leg[i], chassis->chassis_IMU);
       // leg[i]->real_model.T = 0;
     }
   }
 }
 
 /**
- * @brief 功率模型
+ * @brief 功率控制
  * @todo 有待模块化,djimotor也得改改
  */
 static void PowerControl() {}
@@ -79,12 +82,12 @@ static void LimitChassisOutput() {
     VAL_LIMIT(leg[i]->real_model.Tp_1, -3.0f, 3.0f);
     VAL_LIMIT(leg[i]->real_model.Tp_2, -3.0f, 3.0f);
     VAL_LIMIT(leg[i]->real_model.T, -1.0f, 1.0f);
-    DMMotorSetRef(leg[i]->joint_motor[0], leg[i]->real_model.Tp_1);
-    DMMotorSetRef(leg[i]->joint_motor[1], leg[i]->real_model.Tp_2);
-    // DMMotorSetRef(leg[i]->joint_motor[0], 0);
-    // DMMotorSetRef(leg[i]->joint_motor[1], 0);
-    DMMotorSetRef(leg[i]->wheel_motor, leg[i]->real_model.T);
-    // DMMotorSetRef(leg[i]->wheel_motor, 0);
+    // DMMotorSetRef(leg[i]->joint_motor[0], leg[i]->real_model.Tp_1);
+    // DMMotorSetRef(leg[i]->joint_motor[1], leg[i]->real_model.Tp_2);
+    DMMotorSetRef(leg[i]->joint_motor[0], 0);
+    DMMotorSetRef(leg[i]->joint_motor[1], 0);
+    // DMMotorSetRef(leg[i]->wheel_motor, leg[i]->real_model.T);
+    DMMotorSetRef(leg[i]->wheel_motor, 0);
   }
   // PowerControl();
 }
@@ -96,9 +99,16 @@ static void LimitChassisOutput() {
  */
 static void EstimateSpeed() {
   for (int i = 0; i < 2; i++) {
+    ObserverVarUpdate(leg[1], imu) chassis_aver_v = leg[0]->observer_var.vb + leg[1]->observer_var.vb / 2.0f;
+    xvEstimateKF_Update(&chassis->vaEstimateKF, chassis->chassis_IMU->MotionAccel_n[1], chassis_aver_v);
+    leg[i]->state_var.x_d = chassis->vaEstimateKF.FilteredValue[0];
+  }
+#if 0
+  for (int i = 0; i < 2; i++) {
     leg[i]->state_var.x_d =
         (leg[0]->wheel_motor->measure.velocity + leg[1]->wheel_motor->measure.velocity) * wheel_radius / 2;
   }
+#endif
 }
 
 ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
@@ -108,12 +118,13 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   chassis_instance->leg[1] = LegInit(&chassis_init_config->leg_init_config[1]);
 
   robot_weight = chassis_init_config->chassis_param.robot_weight;
-  wheel_radius = chassis_init_config->chassis_param.wheel_radius;
 
   PIDInit(&chassis_instance->delta_theta_PID, &chassis_init_config->delta_theta_PID_config);
   PIDInit(&chassis_instance->roll_PID, &chassis_init_config->roll_PID_config);
 
-  chassis_instance->chassis_IMU_data = INS_Init(&chassis_init_config->imu_init_config);
+  chassis_instance->chassis_IMU = INS_Init(&chassis_init_config->imu_init_config);
+
+  xvEstimateKF_Init(&chassis->vaEstimateKF);
 
   chassis = chassis_instance;
   leg[0] = chassis->leg[0];
