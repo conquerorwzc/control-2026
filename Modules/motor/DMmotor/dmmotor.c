@@ -43,7 +43,7 @@ static void DMMotorDecode(CANInstance* motor_can) {
 
   // 先保存当前位置作为上一次位置
   measure->last_position = measure->position;
-  
+
   // 然后更新当前位置
   tmp = (uint16_t)((rxbuff[1] << 8) | rxbuff[2]);
   measure->position = uint_to_float(tmp, DM_P_MIN, DM_P_MAX, 16);
@@ -205,7 +205,7 @@ __attribute__((noreturn)) void DMMotorTask(void const* argument) {
 
     CANTransmit(motor->motor_can_instance, 1);
 
-    osDelay(1);
+    osDelay(2);
   }
 }
 
@@ -217,7 +217,7 @@ void DMMotorTaskInit() {
     char dm_id_buff[2] = {0};
     __itoa(i, dm_id_buff, 10);
     strcat(dm_task_name, dm_id_buff);
-    osThreadDef(dm_task_name, DMMotorTask, osPriorityNormal, 0, 64);
+    osThreadDef(dm_task_name, DMMotorTask, osPriorityBelowNormal, 0, 64);
     dm_task_handle[i] = osThreadCreate(osThread(dm_task_name), dm_motor_instance[i]);
   }
 }

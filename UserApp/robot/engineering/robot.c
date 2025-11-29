@@ -16,7 +16,7 @@ static float temp;
 /* Intermediate variables calculated by private functions */
 // static float trigger_time = 0;  // 触发时间
 // static float angle;
-
+int b=0;
 // static  DJIMotorInstance* debug_motor;
 
 /* Private function declarations */
@@ -75,6 +75,7 @@ void RobotTask() {
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
   RobotCMDTask();
   GrabTask();
+  grab_ctrl_cmd->grab_mode=b;
   // GimbalTask();
   // ShootTask();
 #endif

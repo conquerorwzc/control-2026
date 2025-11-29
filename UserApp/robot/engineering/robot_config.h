@@ -156,7 +156,7 @@ static Grab_Init_Config_s grab_init_config_s = {
                 {
                     .can_handle = &hcan1,
                     .tx_id = 0x01,
-                    .rx_id = 0x02,
+                    .rx_id = 0x11,
                 },
         },
     .Grab_motor_config[1] =
@@ -197,8 +197,8 @@ static Grab_Init_Config_s grab_init_config_s = {
             .can_init_config =
                 {
                     .can_handle = &hcan1,
-                    .tx_id = 0x03,
-                    .rx_id = 0x04,
+                    .tx_id = 0x02,
+                    .rx_id = 0x12,
                 },
 
         },
@@ -240,8 +240,78 @@ static Grab_Init_Config_s grab_init_config_s = {
             .can_init_config =
                 {
                     .can_handle = &hcan1,
-                    .tx_id = 0x05,
-                    .rx_id = 0x06,
+                    .tx_id = 0x03,
+                    .rx_id = 0x13,
+                },
+
+        },
+    .Grab_motor_config[3] =
+        {
+            .controller_param_init_config =
+                {
+                    .angle_PID =
+                        {
+                            .Kp = 30.0f,
+                            .Ki = 0.0f,
+                            .Kd = 0.0f,
+                            .MaxOut = 30000.0f,
+                        },
+                    .speed_PID = {.Kp = 2.0f,
+                                  .Ki = 0.0f,
+                                  .Kd = 0.0f,
+                                  .Improve = PID_Integral_Limit | PID_ErrorHandle,
+                                  .IntegralLimit = 0.0f,
+                                  .MaxOut = 10000.0},
+                },
+            .controller_setting_init_config =
+                {
+                    .outer_loop_type = ANGLE_LOOP,
+                    .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
+                    .angle_feedback_source = MOTOR_FEED,
+                    .speed_feedback_source = MOTOR_FEED,
+                    .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+                    .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+                },
+            .motor_type = M2006,
+            .can_init_config =
+                {
+                    .can_handle = &hcan1,
+                    .tx_id = 2,
+                },
+
+        },
+    .Grab_motor_config[4] =
+        {
+            .controller_param_init_config =
+                {
+                    .angle_PID =
+                        {
+                            .Kp = 30.0f,
+                            .Ki = 0.0f,
+                            .Kd = 0.0f,
+                            .MaxOut = 30000.0f,
+                        },
+                    .speed_PID = {.Kp = 2.0f,
+                                  .Ki = 0.0f,
+                                  .Kd = 0.0f,
+                                  .Improve = PID_Integral_Limit | PID_ErrorHandle,
+                                  .IntegralLimit = 0.0f,
+                                  .MaxOut = 10000.0},
+                },
+            .controller_setting_init_config =
+                {
+                    .outer_loop_type = ANGLE_LOOP,
+                    .close_loop_type = SPEED_LOOP | ANGLE_LOOP,
+                    .angle_feedback_source = MOTOR_FEED,
+                    .speed_feedback_source = MOTOR_FEED,
+                    .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+                    .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+                },
+            .motor_type = M2006,
+            .can_init_config =
+                {
+                    .can_handle = &hcan1,
+                    .tx_id = 1,
                 },
 
         },
