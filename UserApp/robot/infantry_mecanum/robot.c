@@ -31,7 +31,7 @@ uint8_t has_non_zero_data(const Vision_Receive_s* data) {
     return 0;  // 或根据需求返回错误码
   }
 
-  // 简化逻辑：只要任一字段非零，返回1；否则返回0
+  // 简化逻辑：只要任意字段非零，返回1；否则返回0
   return (data->gimbal_receive.pitch != 0) ||
          (data->gimbal_receive.yaw != 0) ||
          (data->shoot_receive.fire_flag != 0);
@@ -47,7 +47,7 @@ static void CalcOffsetAngle() {
     chassis_ctrl_cmd->offset_angle += 360.0f;
   }
 }
-#if defined(RC_CONTROL) || defined(MOUSEWITHRC_CONTROL)
+#if defined(RC_CONTROL)
 /**
  * @brief 控制输入为遥控器(调试时)的模式和控制量设置
  *
@@ -133,7 +133,7 @@ static void MouseKeySet() {
                          (float) -chassis_ctrl_cmd->chassis_speed_buff;
 if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   {
-  gimbal_ctrl_cmd->yaw += (float)rc_data[TEMP].mouse.x * 0.007f;  // 横向灵敏度调节
+  gimbal_ctrl_cmd->yaw += (float)rc_data[TEMP].mouse.x * 0.006f;  // 横向灵敏度调节
   gimbal_ctrl_cmd->pitch -= (float)rc_data[TEMP].mouse.y * 0.003f; // 纵向灵敏度调节 (负号反转Y轴)
   }
   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Z] % 3)  // Z键设置弹速
@@ -148,21 +148,21 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
       shoot_ctrl_cmd->bullet_speed = 30;
       break;
   }
-  switch (rc_data[TEMP].mouse.press_r % 2) {
+  switch (rc_data[TEMP].mouse.press_r % 2) {  //右键进入自瞄预备模式
   case 1:
-      if (has_non_zero_data(vision_recv_data)==1){
-        gimbal_ctrl_cmd->gimbal_mode=GIMBAL_VISION;    // 右键自瞄开启
+      if (has_non_zero_data(vision_recv_data)==1){  //视觉反馈有数据时自瞄开启
+        gimbal_ctrl_cmd->gimbal_mode=GIMBAL_VISION;
         gimbal_ctrl_cmd->yaw=vision_recv_data->gimbal_receive.yaw;
         gimbal_ctrl_cmd->pitch=vision_recv_data->gimbal_receive.pitch;
         //shoot_ctrl_cmd->load_mode=vision_recv_data->shoot_receive.fire_flag;
       }
       else
-        gimbal_ctrl_cmd->gimbal_mode=GIMBAL_ON;      //人工操控模式（相比于失能函数中的GIMBAL_POWER_OFF是低优先级，因此简略写）
+        gimbal_ctrl_cmd->gimbal_mode=GIMBAL_ON;      //人工操控模式
       break;
   default:
       break;
   }
-  switch (rc_data[TEMP].mouse.press_l % 2)
+  switch (rc_data[TEMP].mouse.press_l % 2)        // 左键发射
   {
   case 0:
       shoot_ctrl_cmd->load_mode=LOAD_STOP;
@@ -171,14 +171,16 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   default:
     switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 2)  // E键设置发射模式
     {
-      case 0:
-        if (shoot_ctrl_cmd->friction_mode==FRICTION_ON){
+      case 0:                                              //单发+长按连发
+        if (shoot_ctrl_cmd->friction_mode==FRICTION_ON)   //需预先开启摩擦轮，F键
+        {
             shoot_ctrl_cmd->load_mode=LOAD_1_BULLET;
-          if (DWT_GetTimeline_s() - trigger_time > 1.0f) {
+          if (DWT_GetTimeline_s() - trigger_time > 1.0f)  //长按检测，1秒
+          {
             shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
           }
           break;
-          default:
+          default:                                         //连发
           if (shoot_ctrl_cmd->friction_mode==FRICTION_ON)
           shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
           break;
@@ -248,39 +250,47 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
  */
 static void EmergencyHandler() {
   // 两switch都在下断电
-#if defined(RC_CONTROL) || defined (MOUSEWITHRC_CONTROL)
-  if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)))  // 全部失能
-  {
-    robot->robot_mode = ROBOT_POWER_ON;
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
-    shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
-    shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
-    shoot_ctrl_cmd->load_mode = LOAD_STOP;
-    for (int i=0;i<15;i++)
-      rc_data[TEMP].key_count[KEY_PRESS][i]=0;  //复位
-    LOGERROR("[CMD] emergency stop!");
-  } else {
-    LOGINFO("[CMD] reinstate, robot ready");
-  }
-  if (switch_is_down(rc_data[TEMP].rc.switch_right))  // 底盘失能
-  {
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
-  }
-  if (switch_is_down(rc_data[TEMP].rc.switch_left))  // 发射失能
-  {
-    shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
-    shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
-    shoot_ctrl_cmd->load_mode = LOAD_STOP;
-  }
-  else
-    {
-    shoot_ctrl_cmd->shoot_mode= SHOOT_ON;
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-  }
-  // 遥控器右侧开关为[上],恢复正常运行
+#if defined(RC_CONTROL) || defined (MOUSEWITHRC_CONTROL)  //判断是否定义了RC_CONTROL或MOUSEWITHRC_CONTROL
+#if defined(MOUSEWITHRC_CONTROL)  //进一步判断是MOUSEWITHRC_CONTROL的情况
+  if (!rc_data[TEMP].key_count[KEY_PRESS][Key_G]%2)  //再次按下G切回遥控器控制使能失能
 #endif
-#if defined(MOUSE_CONTROL) || defined(MOUSEWITHRC_CONTROL)
+  {
+    if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)))  // 全部失能
+    {
+      robot->robot_mode = ROBOT_POWER_ON;
+      gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
+      shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
+      shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
+      shoot_ctrl_cmd->load_mode = LOAD_STOP;
+      for (int i=0;i<14;i++)
+        rc_data[TEMP].key_count[KEY_PRESS][i]=0;  //复位    注意：更改键位的时候要对这里以及下面的复位进行大改。
+      LOGERROR("[CMD] emergency stop!");
+    } else {
+      LOGINFO("[CMD] reinstate, robot ready");
+    }
+    if (switch_is_down(rc_data[TEMP].rc.switch_right))  // 底盘失能
+    {
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
+    }
+    if (switch_is_down(rc_data[TEMP].rc.switch_left))  // 发射失能
+    {
+      shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
+      shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
+      shoot_ctrl_cmd->load_mode = LOAD_STOP;
+    }
+    else {
+      shoot_ctrl_cmd->shoot_mode= SHOOT_ON;
+      if (gimbal_ctrl_cmd->gimbal_mode!=GIMBAL_VISION)  //增加自瞄状态的优先级
+        gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+    }
+    // 遥控器右侧开关为[上],恢复正常运行
+  }
+#endif
+#if defined(MOUSE_CONTROL) || defined (MOUSEWITHRC_CONTROL) //判断是否定义了MOUSE_CONTROL或MOUSEWITHRC_CONTROL
+#if defined(MOUSEWITHRC_CONTROL)  //进一步判断是MOUSEWITHRC_CONTROL的情况
+  if (rc_data[TEMP].key_count[KEY_PRESS][Key_G]%2)  //按下G切换为键盘控制使能失能
+#endif
   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_B] % 2)  // B全部失能
   {
     case 0:
@@ -290,8 +300,8 @@ static void EmergencyHandler() {
     shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
     shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
-      for (int i=0;i<15;i++)
-      rc_data[TEMP].key_count[KEY_PRESS][i]=0;   //复位
+      for (int i=0;i<14;i++)
+      rc_data[TEMP].key_count[KEY_PRESS][i]=0;   //复位    注意：更改键位的时候要对这里以及上面的复位进行大改。
     LOGERROR("[CMD] emergency stop!");
       break;
     default:
@@ -301,6 +311,7 @@ static void EmergencyHandler() {
           chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
           break;
       default:
+          if (gimbal_ctrl_cmd->gimbal_mode!=GIMBAL_VISION)  //增加自瞄状态的优先级
           gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
           LOGINFO("[CMD] reinstate, chassis ready");
           break;
@@ -315,6 +326,7 @@ static void EmergencyHandler() {
           break;
       default:
           shoot_ctrl_cmd->shoot_mode= SHOOT_ON;
+          if (gimbal_ctrl_cmd->gimbal_mode!=GIMBAL_VISION)  //增加自瞄状态的优先级
           gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
           LOGINFO("[CMD] reinstate, shoot ready");
           break;
@@ -364,7 +376,7 @@ void RobotInit() {
 void RobotCMDTask() {
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
   CalcOffsetAngle();
-#if defined(RC_CONTROL) || defined(MOUSEWITHRC_CONTROL)
+#if defined(RC_CONTROL)
   RemoteControlSet();
 #endif
 #if defined(MOUSE_CONTROL) || defined(MOUSEWITHRC_CONTROL)

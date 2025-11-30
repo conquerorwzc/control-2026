@@ -17,9 +17,9 @@
 
 /* 开发板类型定义,烧录时注意不要弄错对应功能;修改定义后需要重新编译,只能存在一个定义! */
 #define ONE_BOARD  // 单板控制整车
-#define MOUSE_CONTROL      //键鼠控制
-//#define RC_CONTROL           //遥控器控制
-//#define MOUSEWITHRC_CONTROL  //键鼠兼容控制
+//#define MOUSE_CONTROL      //键鼠控制
+// #define RC_CONTROL           //遥控器控制
+#define MOUSEWITHRC_CONTROL  //键鼠兼容控制
 // 检查是否出现主控板定义冲突,只允许一个开发板定义存在,否则编译会自动报错
 #if (defined(ONE_BOARD) && defined(CHASSIS_BOARD)) || (defined(ONE_BOARD) && defined(GIMBAL_BOARD)) || \
     (defined(CHASSIS_BOARD) && defined(GIMBAL_BOARD))
