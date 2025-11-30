@@ -6,6 +6,9 @@
 #define CONTROL_2026_CRC_FUNC_H
 #include "main.h"
 
+#define TRUE 1
+#define FALSE 0
+
 /**
  * @brief          计算CRC8
  * @param[in]      pch_message: 数据

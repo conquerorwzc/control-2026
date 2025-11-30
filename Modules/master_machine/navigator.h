@@ -14,8 +14,8 @@
 #include "cmsis_os.h"
 
 // 协议帧头定义
-#define PROTOCOL_SOF              0x5A
-#define PROTOCOL_HEADER_LEN       4
+#define PROTOCOL_SOF              0xA5
+#define PROTOCOL_HEADER_LEN       5
 #define PROTOCOL_CRC8_INIT        0xFF
 #define PROTOCOL_CRC16_INIT       0xFFFF
 #define BUFFER_MAX_SIZE           256
@@ -44,7 +44,7 @@
 
 typedef struct {
   uint8_t sof;  // 数据帧起始字节，固定值为 0x5A
-  uint8_t len;  // 数据段长度
+  uint16_t len;  // 数据段长度
   uint8_t id;   // 数据段id
   uint8_t crc;  // 数据帧头的 CRC8 校验
 } __attribute__((packed)) HeaderFrame;
@@ -116,8 +116,10 @@ typedef struct {
 
 // 游戏状态数据包
 typedef struct {
-    uint8_t game_progress;          // 游戏阶段
-    uint16_t stage_remain_time;     // 阶段剩余时间(秒)
+  uint8_t game_type : 4;
+  uint8_t game_progress : 4;
+  uint16_t stage_remain_time;
+  uint64_t sync_time_stamp;
 }__attribute__((__packed__)) game_status_t;
 
 // 机器人运动数据
@@ -242,7 +244,6 @@ typedef struct {
 
 // 接收数据结构体
 typedef struct {
-  uint32_t time_stamp;
   robot_cmd_t robot_cmd;
   // 接收状态信息
   uint32_t last_update_time;
