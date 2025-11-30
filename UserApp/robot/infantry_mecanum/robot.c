@@ -95,8 +95,8 @@ static void RemoteControlSet() {
   }
   // 云台使能,或视觉未识别到目标,纯遥控器拨杆控制
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
-    gimbal_ctrl_cmd->yaw -= -0.0016f * (float)rc_data[TEMP].rc.rocker_r_;
-    gimbal_ctrl_cmd->pitch += 0.0003f * (float)rc_data[TEMP].rc.rocker_r1;
+    gimbal_ctrl_cmd->yaw += -0.0016f * (float)rc_data[TEMP].rc.rocker_r_;
+    gimbal_ctrl_cmd->pitch -= 0.0003f * (float)rc_data[TEMP].rc.rocker_r1;
   }
 
   // 云台PITCH轴软件限位 todo:没在云台有点不好
@@ -185,15 +185,7 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
     }
       break;
   }
-  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_F] % 2)  // F键开关摩擦轮
-  {
-    case 0:
-      shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
-      break;
-    default:
-      shoot_ctrl_cmd->friction_mode = FRICTION_ON;
-      break;
-  }
+
   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_C] % 4)  // C键设置底盘速度
   {
     case 0:
@@ -246,11 +238,7 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
  */
 static void EmergencyHandler() {
   // 两switch都在下断电
-  if (!rc_data[TEMP].key_count[KEY_PRESS][Key_G]%2)  //再次按下G切回遥控器控制使能失能
-  {
-    for (int i=0;i<15;i++)
-      rc_data[TEMP].key_count[KEY_PRESS][i]=0;  //复位    注意：更改键位的时候要对这里以及下面的复位进行大改。
-    if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)))  // 全部失能
+    if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left))||!RemoteControlIsOnline)  // 全部失能
     {
       robot->robot_mode = ROBOT_POWER_ON;
       gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
@@ -258,17 +246,21 @@ static void EmergencyHandler() {
       shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
       shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
       shoot_ctrl_cmd->load_mode = LOAD_STOP;
-      for (int i=0;i<14;i++)
+      for (int i=0;i<16;i++)
         rc_data[TEMP].key_count[KEY_PRESS][i]=0;  //复位    注意：更改键位的时候要对这里以及下面的复位进行大改。
       LOGERROR("[CMD] emergency stop!");
     } else {
       LOGINFO("[CMD] reinstate, robot ready");
     }
-    if (switch_is_down(rc_data[TEMP].rc.switch_right))  // 底盘失能
+    if (switch_is_down(rc_data[TEMP].rc.switch_right)||!RemoteControlIsOnline)  // 底盘失能
     {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
     }
-    if (switch_is_down(rc_data[TEMP].rc.switch_left))  // 发射失能
+    else
+      {
+    gimbal_ctrl_cmd->gimbal_mode=GIMBAL_ON;
+      }
+    if (switch_is_down(rc_data[TEMP].rc.switch_left)||!RemoteControlIsOnline)  // 发射失能
     {
       shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
       shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
@@ -281,54 +273,6 @@ static void EmergencyHandler() {
     }
     // 遥控器右侧开关为[上],恢复正常运行
   }
-  if (rc_data[TEMP].key_count[KEY_PRESS][Key_G]%2)  //按下G切换为键盘控制使能失能
-  {
-    switch (rc_data[TEMP].key_count[KEY_PRESS][Key_B] % 2)  // B全部失能
-    {
-      case 0:
-        robot->robot_mode = ROBOT_POWER_ON;
-        gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
-        chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
-        shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
-        shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
-        shoot_ctrl_cmd->load_mode = LOAD_STOP;
-        for (int i=0;i<14;i++)
-          rc_data[TEMP].key_count[KEY_PRESS][i]=0;   //复位    注意：更改键位的时候要对这里以及上面的复位进行大改。
-        LOGERROR("[CMD] emergency stop!");
-        break;
-      default:
-        switch(rc_data[TEMP].key_count[KEY_PRESS][Key_V] % 2)  // V底盘失能
-        {
-        case 0:
-            chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
-            break;
-        default:
-            if (gimbal_ctrl_cmd->gimbal_mode!=GIMBAL_VISION)  //增加自瞄状态的优先级
-              gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-            LOGINFO("[CMD] reinstate, chassis ready");
-            break;
-        }
-        switch(rc_data[TEMP].key_count[KEY_PRESS][Key_X] % 2)  // X发射失能
-        {
-        case 0:
-            gimbal_ctrl_cmd->gimbal_mode=GIMBAL_POWER_OFF;
-            shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
-            shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
-            shoot_ctrl_cmd->load_mode = LOAD_STOP;
-            break;
-        default:
-            shoot_ctrl_cmd->shoot_mode= SHOOT_ON;
-            if (gimbal_ctrl_cmd->gimbal_mode!=GIMBAL_VISION)  //增加自瞄状态的优先级
-              gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-            LOGINFO("[CMD] reinstate, shoot ready");
-            break;
-        }
-        LOGINFO("[CMD] reinstate, robot ready");
-        break;
-    }
-  }
-}
-
 void RobotInit() {
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
 
