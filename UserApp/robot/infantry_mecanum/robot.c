@@ -205,7 +205,7 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   {
     case 0:
       chassis_ctrl_cmd-> chassis_mode = CHASSIS_FOLLOW ;
-      chassis_ctrl_cmd->wz+=(float)rc_data[TEMP].mouse.x * 0.007f; //主动跟随量
+      chassis_ctrl_cmd->wz+=(float)rc_data[TEMP].mouse.x * 30.0f; //主动跟随量
       break;
     default:
       chassis_ctrl_cmd-> chassis_mode = CHASSIS_ROTATE ;
