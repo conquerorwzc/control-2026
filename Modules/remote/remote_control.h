@@ -57,8 +57,8 @@
 #define Key_X 11
 #define Key_C 12
 #define Key_V 13
-#define Key_G 14
-#define Key_B 15
+#define Key_B 14
+#define Key_G 15
 /* ----------------------- Data Struct ------------------------------------- */
 // 待测试的位域结构体,可以极大提升解析速度
 typedef union
