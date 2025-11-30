@@ -146,7 +146,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                     .can_handle = &hcan1,
                     .tx_id = 2,
                 },
-            .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+            .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
         },
     .pitch_motor_config =
         {
@@ -176,11 +176,11 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                     .can_handle = &hcan2,
                     .tx_id = 1,
                 },
-            .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+            .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
         },
     .imu_init_config = {
         .flag = 1,
-        .scale = {-1.0f, 1.0f, -1.0f},
+        .scale = {1.0f, 1.0f, 1.0f},
         .Yaw = 0.0f,
         .Pitch = 0.0f,
         .Roll = 0.0f

@@ -133,8 +133,8 @@ static void MouseKeySet() {
                          (float) -chassis_ctrl_cmd->chassis_speed_buff;
 if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   {
-  gimbal_ctrl_cmd->yaw += (float)rc_data[TEMP].mouse.x * 0.006f;  // 横向灵敏度调节
-  gimbal_ctrl_cmd->pitch -= (float)rc_data[TEMP].mouse.y * 0.003f; // 纵向灵敏度调节 (负号反转Y轴)
+  gimbal_ctrl_cmd->yaw -= (float)rc_data[TEMP].mouse.x * 0.007f;  // 横向灵敏度调节
+  gimbal_ctrl_cmd->pitch += (float)rc_data[TEMP].mouse.y * 0.003f; // 纵向灵敏度调节 (负号反转Y轴)
   }
   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Z] % 3)  // Z键设置弹速
   {
@@ -150,10 +150,10 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   }
   switch (rc_data[TEMP].mouse.press_r % 2) {  //右键进入自瞄预备模式
   case 1:
-      if (has_non_zero_data(vision_recv_data)==1){  //视觉反馈有数据时自瞄开启
-        gimbal_ctrl_cmd->gimbal_mode=GIMBAL_VISION;
-        gimbal_ctrl_cmd->yaw=vision_recv_data->gimbal_receive.yaw;
-        gimbal_ctrl_cmd->pitch=vision_recv_data->gimbal_receive.pitch;
+      if (has_non_zero_data(vision_recv_data)==1){
+        gimbal_ctrl_cmd->gimbal_mode=GIMBAL_VISION;    // 右键自瞄开启
+        gimbal_ctrl_cmd->yaw-=0.05*vision_recv_data->gimbal_receive.yaw;
+        gimbal_ctrl_cmd->pitch+=0;
         //shoot_ctrl_cmd->load_mode=vision_recv_data->shoot_receive.fire_flag;
       }
       else
