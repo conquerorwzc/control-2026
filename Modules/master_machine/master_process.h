@@ -2,6 +2,7 @@
 #define MASTER_PROCESS_H
 
 #include "bsp_usart.h"
+#include "ins_task.h"
 #include "seasky_protocol.h"
 
 #define VISION_RECV_SIZE 18u // 当前为固定值,36字节
@@ -114,7 +115,7 @@ typedef struct
  *
  * @param handle 用于和视觉通信的串口handle(C板上一般为USART1,丝印为USART2,4pin)
  */
-Vision_Receive_s *VisionInit(UART_HandleTypeDef *_handle);
+Vision_Receive_s *VisionInit(IMU_Init_Config_s* imu_init_config);
 
 // /**
 //  * @brief 发送视觉数据
@@ -142,5 +143,7 @@ Vision_Receive_s *VisionInit(UART_HandleTypeDef *_handle);
 void InitParam(void);
 
 void VisionSend();
+
+void navigator_send();
 
 #endif // !MASTER_PROCESS_H

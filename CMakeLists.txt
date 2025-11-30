@@ -18,7 +18,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 project(control-2026 C ASM)
 
 # 选择构建类型
-set(CMAKE_BUILD_TYPE ${buildType}) # Debug Release RelWithDebInfo MinSizeRel
+set(CMAKE_BUILD_TYPE ${buildType}) # Debug Release RelWithDebInfo Mi#nSizeRel
 
 set(MCU_TYPE "stm32-f4")
 #set(MCU_TYPE "stm32-h7")
@@ -87,7 +87,11 @@ endif ()
 set_source_files_properties(${ASM_SOURCES} PROPERTIES COMPILE_FLAGS "-x assembler-with-cpp")
 
 # build binary and hex file
-add_executable(${PROJECT_NAME}.elf ${SOURCES} ${ASM_SOURCES} ${LINKER_SCRIPT})
+add_executable(${PROJECT_NAME}.elf ${SOURCES} ${ASM_SOURCES} ${LINKER_SCRIPT}
+        Modules/master_machine/navigator.c
+        Modules/master_machine/navigator.h
+        Modules/algorithm/crc_navigator/crc_func.c
+        Modules/algorithm/crc_navigator/crc_func.h)
 target_link_libraries(${PROJECT_NAME}.elf ${DSP_NAME} m) # link DSP lib and math lib
 
 add_custom_command(

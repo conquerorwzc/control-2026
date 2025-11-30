@@ -20,10 +20,11 @@
 #include "spi.h"
 #include "tim.h"
 #include "user_lib.h"
+#include "cmsis_os.h"
 // #include "master_process.h" TODO: 待完善
 
 static INS_t INS;
-static IMU_Param_t IMU_Param;
+static IMU_Init_Config_s IMU_Param;
 static BMI088Instance* bmi088_device;
 static BMI088_Data_t bmi088_data;
 
@@ -36,11 +37,25 @@ static uint32_t INS_DWT_Count = 0;
 static float dt = 0, t = 0;
 static float RefTemp = 40;  // 恒温设定温度
 
+// INS任务句柄
+static osThreadId insTaskHandle;
+
+/**
+ * @brief IMU温度控制函数
+ * @note  通过PID控制器调节加热PWM占空比，使IMU保持恒温状态(默认40°C)
+ *        提高IMU在不同环境温度下的测量精度和稳定性
+ */
 static void IMU_Temperature_Ctrl(void) {
   float pid_ref = PIDCalculate(&bmi088_device->heat_pid, bmi088_data.temperature, RefTemp);
   PWMSetDutyRatio(bmi088_device->heat_pwm, float_constrain(float_rounding(pid_ref), 0, UINT32_MAX));
 }
 
+/**
+ * @brief 初始化四元数
+ * @param[out] init_q4 初始四元数数组指针
+ * @note  通过读取加速度计数据计算初始姿态，确定载体相对于重力方向的初始角度
+ *        利用加速度计测量的重力方向与理论重力方向的夹角来计算初始四元数
+ */
 static void InitQuaternion(float* init_q4) {
   float acc_init[3] = {0};
   float gravity_norm[3] = {0, 0, 1};  // 导航系重力加速度矢量,归一化后为(0,0,1)
@@ -64,21 +79,22 @@ static void InitQuaternion(float* init_q4) {
 }
 
 /**
- * @brief reserved.用于修正IMU安装误差与标度因数误差,即陀螺仪轴和云台轴的安装偏移
- *
- *
- * @param param IMU参数
- * @param gyro  角速度
- * @param accel 加速度
+ * @brief reserved.IMU修正函数，用于修正IMU安装误差与标度因数误差,即陀螺仪轴和云台轴的安装偏移
+ * @param[in,out] param IMU参数结构体指针
+ * @param[in,out] gyro  角速度数组指针
+ * @param[in,out] accel 加速度数组指针
+ * @note  通过修正矩阵对陀螺仪和加速度计的测量值进行校正
+ *        当安装角度或标度因子发生变化时重新计算修正矩阵
  */
-static void IMU_Param_Correction(IMU_Param_t* param, float gyro[3], float accel[3]) {
-  static float lastYawOffset, lastPitchOffset, lastRollOffset;
-  static float c_11, c_12, c_13, c_21, c_22, c_23, c_31, c_32, c_33;
+static void IMU_Param_Correction(IMU_Init_Config_s* param, float gyro[3], float accel[3]) {
+  static float lastYawOffset, lastPitchOffset, lastRollOffset; // 存储上一次设置的偏航角、俯仰角、横滚角
+  static float c_11, c_12, c_13, c_21, c_22, c_23, c_31, c_32, c_33; // 旋转矩阵的3*3=9个元素
   float cosPitch, cosYaw, cosRoll, sinPitch, sinYaw, sinRoll;
 
+  // 和上一次设置的偏航角、俯仰角、横滚角的变化大小超过0.001°，或flag是1时重新计算修正矩阵。
   if (fabsf(param->Yaw - lastYawOffset) > 0.001f || fabsf(param->Pitch - lastPitchOffset) > 0.001f ||
       fabsf(param->Roll - lastRollOffset) > 0.001f || param->flag) {
-    cosYaw = arm_cos_f32(param->Yaw / 57.295779513f);
+    cosYaw = arm_cos_f32(param->Yaw / 57.295779513f); // 将角度转换为弧度（除以57.295779513，即180/π）并计算对应的正余弦值。
     cosPitch = arm_cos_f32(param->Pitch / 57.295779513f);
     cosRoll = arm_cos_f32(param->Roll / 57.295779513f);
     sinYaw = arm_sin_f32(param->Yaw / 57.295779513f);
@@ -86,6 +102,8 @@ static void IMU_Param_Correction(IMU_Param_t* param, float gyro[3], float accel[
     sinRoll = arm_sin_f32(param->Roll / 57.295779513f);
 
     // 1.yaw(alpha) 2.pitch(beta) 3.roll(gamma)
+    // 旋转矩阵计算，将传感器坐标系中的数据转换到机体坐标系中。这个矩阵是基于ZYX顺序（偏航-俯仰-横滚）的欧拉角旋转矩阵。
+    // 计算完成后，将参数更新标志位清零。
     c_11 = cosYaw * cosRoll + sinYaw * sinPitch * sinRoll;
     c_12 = cosPitch * sinYaw;
     c_13 = cosYaw * sinRoll - cosRoll * sinYaw * sinPitch;
@@ -97,6 +115,9 @@ static void IMU_Param_Correction(IMU_Param_t* param, float gyro[3], float accel[
     c_33 = cosPitch * cosRoll;
     param->flag = 0;
   }
+
+  // 应用标度因数校正
+  // 将陀螺仪数据与标度因数相乘进行校正，然后通过旋转矩阵将校正后的陀螺仪数据从传感器坐标系转换到机体坐标系。
   float gyro_temp[3];
   for (uint8_t i = 0; i < 3; ++i) gyro_temp[i] = gyro[i] * param->scale[i];
 
@@ -104,6 +125,8 @@ static void IMU_Param_Correction(IMU_Param_t* param, float gyro[3], float accel[
   gyro[Y] = c_21 * gyro_temp[X] + c_22 * gyro_temp[Y] + c_23 * gyro_temp[Z];
   gyro[Z] = c_31 * gyro_temp[X] + c_32 * gyro_temp[Y] + c_33 * gyro_temp[Z];
 
+  // 对加速度计数据进行同样处理
+  // 对加速度计数据也应用相同的旋转矩阵进行坐标变换。
   float accel_temp[3];
   for (uint8_t i = 0; i < 3; ++i) accel_temp[i] = accel[i];
 
@@ -111,12 +134,35 @@ static void IMU_Param_Correction(IMU_Param_t* param, float gyro[3], float accel[
   accel[Y] = c_21 * accel_temp[X] + c_22 * accel_temp[Y] + c_23 * accel_temp[Z];
   accel[Z] = c_31 * accel_temp[X] + c_32 * accel_temp[Y] + c_33 * accel_temp[Z];
 
+  // 保存当前的偏航角、俯仰角和横滚角，供下次调用时比较。
   lastYawOffset = param->Yaw;
   lastPitchOffset = param->Pitch;
   lastRollOffset = param->Roll;
 }
 
-attitude_t* INS_Init(void) {
+__attribute__((noreturn)) void StartINSTASK(void const *argument) {
+  static float ins_start;
+  static float ins_dt;
+  LOGINFO("[freeRTOS] INS Task Start");
+  for (;;) {
+    // 1kHz
+    ins_start = DWT_GetTimeline_ms();
+    INS_Task();
+    ins_dt = DWT_GetTimeline_ms() - ins_start;
+    if (ins_dt > 1) LOGERROR("[freeRTOS] INS Task is being DELAY! dt = [%f]", &ins_dt);
+    // VisionSend();  // 解算完成后发送视觉数据,但是当前的实现不太优雅,后续若添加硬件触发需要重新考虑结构的组织
+    osDelay(1);
+  }
+}
+
+/**
+ * @brief 初始化惯导解算系统，使用指定参数
+ * @param[in] imu_param IMU参数配置指针
+ * @retval attitude_t* 返回指向姿态数据的指针
+ * @note  初始化内容包括：BMI088硬件配置、IMU参数设置、四元数初始化、加速度低通滤波系数设置等
+ * 创建默认的IMU参数配置并调用INS_Param_Init进行初始化
+ */
+attitude_t* INS_Init(IMU_Init_Config_s* imu_init_config) {
   if (!INS.init)
     INS.init = 1;
   else
@@ -147,13 +193,14 @@ attitude_t* INS_Init(void) {
   // 注册BMI088设备
   bmi088_device = BMI088Register(&bmi088_config);
 
-  IMU_Param.scale[X] = 1;
-  IMU_Param.scale[Y] = 1;
-  IMU_Param.scale[Z] = 1;
-  IMU_Param.Yaw = 0;
-  IMU_Param.Pitch = 0;
-  IMU_Param.Roll = 0;
-  IMU_Param.flag = 1;
+  // 使用传入的IMU参数配置
+  IMU_Param.scale[X] = imu_init_config->scale[X];
+  IMU_Param.scale[Y] = imu_init_config->scale[Y];
+  IMU_Param.scale[Z] = imu_init_config->scale[Z];
+  IMU_Param.Yaw = imu_init_config->Yaw;
+  IMU_Param.Pitch = imu_init_config->Pitch;
+  IMU_Param.Roll = imu_init_config->Roll;
+  IMU_Param.flag = imu_init_config->flag;
 
   float init_quaternion[4] = {0};
   InitQuaternion(init_quaternion);
@@ -162,10 +209,26 @@ attitude_t* INS_Init(void) {
   // noise of accel is relatively big and of high freq,thus lpf is used
   INS.AccelLPF = 0.0085;
   DWT_GetDeltaT(&INS_DWT_Count);
+  
+  // 创建INS任务
+  osThreadDef(instask, StartINSTASK, osPriorityAboveNormal, 0, 1024);
+  insTaskHandle = osThreadCreate(osThread(instask), NULL);
+  
   return (attitude_t*)&INS.Gyro;  // @todo: 这里偷懒了,不要这样做! 修改INT_t结构体可能会导致异常,待修复.
 }
 
-/* 注意以1kHz的频率运行此任务 */
+/**
+ * @attention 注意以1kHz的频率运行此任务
+ * @brief INS任务主函数，在实时系统中以1kHz频率周期性调用
+ * @note  主要完成以下工作：
+ *        1. 获取时间间隔dt
+ *        2. 读取BMI088陀螺仪和加速度计数据
+ *        3. 对原始数据进行误差修正
+ *        4. 使用扩展卡尔曼滤波器(EKF)进行姿态解算
+ *        5. 坐标系变换计算
+ *        6. 运动加速度计算
+ *        7. IMU温度控制(500Hz)
+ */
 void INS_Task(void) {
   static uint32_t count = 0;
   const float gravity[3] = {0, 0, 9.81f};
@@ -183,7 +246,7 @@ void INS_Task(void) {
     INS.Gyro[Y] = bmi088_data.gyro[Y];
     INS.Gyro[Z] = bmi088_data.gyro[Z];
 
-    // demo function,用于修正安装误差,可以不管,本demo暂时没用
+    // 用于修正安装误差（修改方式见函数注释&ins_task.md）
     IMU_Param_Correction(&IMU_Param, INS.Gyro, INS.Accel);
 
     // 计算重力加速度矢量和b系的XY两轴的夹角,可用作功能扩展,本demo暂时没用
@@ -230,10 +293,11 @@ void INS_Task(void) {
 }
 
 /**
- * @brief          Transform 3dvector from BodyFrame to EarthFrame
- * @param[1]       vector in BodyFrame
- * @param[2]       vector in EarthFrame
- * @param[3]       quaternion
+ * @brief Transform 3dvector from BodyFrame to EarthFrame 机体坐标系向量转换到导航坐标系(地球坐标系)
+ * @param[in]  vecBF vector in BodyFrame 机体坐标系下的向量
+ * @param[out] vecEF vector in EarthFrame 导航坐标系下的向量
+ * @param[in]  q     quaternion 四元数姿态信息
+ * @note  使用四元数进行坐标变换，避免万向节死锁问题
  */
 void BodyFrameToEarthFrame(const float* vecBF, float* vecEF, float* q) {
   vecEF[0] = 2.0f * ((0.5f - q[2] * q[2] - q[3] * q[3]) * vecBF[0] + (q[1] * q[2] - q[0] * q[3]) * vecBF[1] +
@@ -247,10 +311,11 @@ void BodyFrameToEarthFrame(const float* vecBF, float* vecEF, float* q) {
 }
 
 /**
- * @brief          Transform 3dvector from EarthFrame to BodyFrame
- * @param[1]       vector in EarthFrame
- * @param[2]       vector in BodyFrame
- * @param[3]       quaternion
+ * @brief Transform 3dvector from EarthFrame to BodyFrame导航坐标系(地球坐标系)向量转换到机体坐标系
+ * @param[in]  vecEF vector in EarthFrame 导航坐标系下的向量
+ * @param[out] vecBF vector in BodyFrame 机体坐标系下的向量
+ * @param[in]  q     quaternion 四元数姿态信息
+ * @note  使用四元数进行坐标变换，避免万向节死锁问题
  */
 void EarthFrameToBodyFrame(const float* vecEF, float* vecBF, float* q) {
   vecBF[0] = 2.0f * ((0.5f - q[2] * q[2] - q[3] * q[3]) * vecEF[0] + (q[1] * q[2] + q[0] * q[3]) * vecEF[1] +
@@ -271,7 +336,13 @@ void EarthFrameToBodyFrame(const float* vecEF, float* vecBF, float* q) {
 // design-----------------------------------------------
 
 /**
- * @brief        Update quaternion
+ * @brief Update quaternion 四元数更新函数,实现微分方程 dq/dt=0.5Ωq 的数值积分
+ * @param[in,out] q  四元数数组指针，长度为4
+ * @param[in] gx X轴角速度 单位: rad/s
+ * @param[in] gy Y轴角速度 单位: rad/s
+ * @param[in] gz Z轴角速度 单位: rad/s
+ * @param[in] dt 时间间隔 单位: s
+ * @note  使用一阶龙格-库塔法进行数值积分更新四元数
  */
 void QuaternionUpdate(float* q, float gx, float gy, float gz, float dt) {
   float qa, qb, qc;
@@ -289,7 +360,12 @@ void QuaternionUpdate(float* q, float gx, float gy, float gz, float dt) {
 }
 
 /**
- * @brief        Convert quaternion to eular angle
+ * @brief Convert quaternion to eular angle 四元数转换成欧拉角(ZYX顺序)
+ * @param[in]  q     输入的四元数数组指针
+ * @param[out] Yaw   输出的偏航角指针 单位: °
+ * @param[out] Pitch 输出的俯仰角指针 单位: °
+ * @param[out] Roll  输出的横滚角指针 单位: °
+ * @note  使用ZYX旋转顺序进行转换
  */
 void QuaternionToEularAngle(float* q, float* Yaw, float* Pitch, float* Roll) {
   *Yaw = atan2f(2.0f * (q[0] * q[3] + q[1] * q[2]), 2.0f * (q[0] * q[0] + q[1] * q[1]) - 1.0f) * 57.295779513f;
@@ -298,7 +374,12 @@ void QuaternionToEularAngle(float* q, float* Yaw, float* Pitch, float* Roll) {
 }
 
 /**
- * @brief        Convert eular angle to quaternion
+ * @brief Convert eular angle to quaternion ZYX欧拉角转换为四元数
+ * @param[in]  Yaw   偏航角 单位: °
+ * @param[in]  Pitch 俯仰角 单位: °
+ * @param[in]  Roll  横滚角 单位: °
+ * @param[out] q     输出的四元数数组指针
+ * @note  使用ZYX旋转顺序进行转换
  */
 void EularAngleToQuaternion(float Yaw, float Pitch, float Roll, float* q) {
   float cosPitch, cosYaw, cosRoll, sinPitch, sinYaw, sinRoll;

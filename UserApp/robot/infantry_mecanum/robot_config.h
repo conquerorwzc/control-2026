@@ -17,7 +17,6 @@
 
 /* 开发板类型定义,烧录时注意不要弄错对应功能;修改定义后需要重新编译,只能存在一个定义! */
 #define ONE_BOARD  // 单板控制整车
-
 // 检查是否出现主控板定义冲突,只允许一个开发板定义存在,否则编译会自动报错
 #if (defined(ONE_BOARD) && defined(CHASSIS_BOARD)) || (defined(ONE_BOARD) && defined(GIMBAL_BOARD)) || \
     (defined(CHASSIS_BOARD) && defined(GIMBAL_BOARD))
@@ -30,7 +29,7 @@
 
 
 // 云台参数
-#define YAW_CHASSIS_ALIGN_ECD 377  // 云台和底盘对齐指向相同方向时的电机编码器值,若对云台有机械改动需要修改
+#define YAW_CHASSIS_ALIGN_ECD 655  // 云台和底盘对齐指向相同方向时的电机编码器值,若对云台有机械改动需要修改
 #define PITCH_HORIZON_ECD 3494      // 云台处于水平位置时编码器值,若对云台有机械改动需要修改
 #define PITCH_MAX_ANGLE 26.0f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
 #define PITCH_MIN_ANGLE -35.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
@@ -101,7 +100,7 @@ static Chassis_Init_Config_s chassis_init_config = {
     .wheel_motor_config[3] = WHEEL_MOTOR_CONFIG(&hcan1,3),
     //跟随PID
     .follow_pid={
-        .Kp = -100.0f,
+        .Kp = -200.0f,
         .Ki = 0.0f,
         .Kd = 0.0f,
         .IntegralLimit = 1000.0f,
@@ -144,7 +143,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                     .can_handle = &hcan1,
                     .tx_id = 2,
                 },
-            .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+            .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
         },
     .pitch_motor_config =
         {
@@ -174,8 +173,15 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                     .can_handle = &hcan2,
                     .tx_id = 1,
                 },
-            .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+            .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
         },
+    .imu_init_config = {
+        .flag = 1,
+        .scale = {1.0f, 1.0f, 1.0f},
+        .Yaw = 0.0f,
+        .Pitch = 0.0f,
+        .Roll = 0.0f
+      }
 };
 
 #define FRICTION_MOTOR_CONFIG(handle, id, direction) \
