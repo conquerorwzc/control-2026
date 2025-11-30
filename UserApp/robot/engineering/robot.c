@@ -21,6 +21,8 @@ static float angle;
 
 extern Gantry_Init_Config_s gantry_init_config;
 
+static void Gantry_Limit(Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd, const Gantry_Param_s* gantry_param);
+
 /**
  * @brief 控制输入为遥控器(调试时)的模式和控制量设置
  *
@@ -66,6 +68,11 @@ static void RemoteControlSet() {
             gantry_ctrl_cmd->y += rc_data[TEMP].rc.rocker_r1 * gantry_init_config.Gantry_param.stretch_sens_remote;
             gantry_ctrl_cmd->z += rc_data[TEMP].rc.rocker_l1 * gantry_init_config.Gantry_param.lift_sens_remote;
         }
+    }
+    
+    // 执行龙门架限位（仅在非断电模式下）
+    if (gantry_ctrl_cmd->Gantry_mode != GANTRY_MODE_POWER_OFF) {
+        Gantry_Limit(gantry_ctrl_cmd, &robot->gantry->Gantry_param);
     }
   }
 
@@ -258,16 +265,8 @@ void RobotCMDTask() {
   RemoteControlSet();
   // MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
-  
-  // 龙门架控制逻辑
-  if (robot->gantry != NULL && gantry_ctrl_cmd != NULL) {
-    // 执行龙门架限位（仅在非断电模式下）
-    if (gantry_ctrl_cmd->Gantry_mode != GANTRY_MODE_POWER_OFF) {
-        Gantry_Limit(gantry_ctrl_cmd, &robot->gantry->Gantry_param);
-    }
-  }
 }
-
+ 
 void RobotTask() {
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
   RobotCMDTask();

@@ -22,7 +22,7 @@ extern DJI_Motor_Measure_s camera_motor_lift; // 相机平台的抬升电机
 
 static void Gantry_Run(GantryInstance *gantry);
 static void Gantry_Position_Calculate(GantryInstance *gantry);
-static void Gantry_Can_Cmd(GantryInstance *gantry);
+static void Gantry_Shut_Down(GantryInstance *gantry);
 void GantryTask(void);
 /**
  * @brief 龙门架任务函数
@@ -45,7 +45,7 @@ void StartGantryTask(void const *argument)
 static void Gantry_Run(GantryInstance *gantry)
 {
     Gantry_Position_Calculate(gantry); // 根据位置矢量解算出电机转动的圈数
-    Gantry_Can_Cmd(gantry);            // 使用pid计算结果控制电机转动
+    Gantry_Shut_Down(gantry);            // 使用pid计算结果控制电机转动
     // 【新增】调用电机模块的发送函数，将电流值发送给电机
     DJIMotorTask();
 }
@@ -125,26 +125,10 @@ GantryInstance* GantryInit(Gantry_Init_Config_s* init_config)
 }
 
 /**
- * @brief 自定义控制器限制跟随速度
- * @param dir 当前位置
- * @param target 目标位置
- * @param sens 灵敏度
- */
-static void Gantry_Controller_Limit_Speed(float *dir, float target, float sens)
-{
-    if (*dir - sens > target) // 目标位置比当前小
-        *dir -= sens;
-    else if (*dir + sens < target) // 目标位置比当前大
-        *dir += sens;
-    else
-        *dir = target;
-}
-
-/**
  * @brief 使用pid计算结果控制电机转动
  * @param gantry 龙门架实例指针
  */
-static void Gantry_Can_Cmd(GantryInstance *gantry)
+static void Gantry_Shut_Down(GantryInstance *gantry)
 {
     uint8_t stop = (gantry->Gantry_ctrl_cmd.Gantry_mode == GANTRY_MODE_POWER_OFF);
     // 抬升电机
