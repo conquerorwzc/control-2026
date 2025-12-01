@@ -358,7 +358,7 @@ static void IMU_QuaternionEKF_xhatUpdate(KalmanFilter_t *kf)
     kf->temp_vector1.numCols = 1;
     kf->MatStatus = Matrix_Subtract(&kf->z, &kf->temp_vector, &kf->temp_vector1); // temp_vector1 = z(k) - h(xhat'(k))
 
-    // chi-square test,卡方检验
+    // chi-square test,卡方检验，来判断融合加速度的条件是否满足
     kf->temp_matrix.numRows = kf->temp_vector1.numRows;
     kf->temp_matrix.numCols = 1;
     kf->MatStatus = Matrix_Multiply(&kf->temp_matrix1, &kf->temp_vector1, &kf->temp_matrix); // temp_matrix = inv(H·P'(k)·HT + R)·(z(k) - h(xhat'(k)))
@@ -374,18 +374,18 @@ static void IMU_QuaternionEKF_xhatUpdate(KalmanFilter_t *kf)
     // rk is bigger than thre but once converged
     if (QEKF_INS.ChiSquare_Data[0] > QEKF_INS.ChiSquareTestThreshold && QEKF_INS.ConvergeFlag)
     {
-        if (QEKF_INS.StableFlag)
+        if (QEKF_INS.StableFlag) //当残差较大且滤波器已经收敛时，系统会检查StableFlag
         {
-            QEKF_INS.ErrorCount++; // 载体静止时仍无法通过卡方检验
+            //如果设备处于稳定状态（StableFlag=1）但卡方检验失败，说明可能存在传感器故障或环境干扰，增加错误计数
+            QEKF_INS.ErrorCount++; // 载体静止时仍无法通过卡方检验，增加错误计数
         }
-        else
+        else// 如果不是稳定状态，重置错误计数
         {
             QEKF_INS.ErrorCount = 0;
         }
 
-        if (QEKF_INS.ErrorCount > 50)
+        if (QEKF_INS.ErrorCount > 50) //错误计数超过50次时，认为滤波器发散，重置收敛标志
         {
-            // 滤波器发散
             QEKF_INS.ConvergeFlag = 0;
             kf->SkipEq5 = FALSE; // step-5 is cov mat P updating
         }
@@ -400,9 +400,9 @@ static void IMU_QuaternionEKF_xhatUpdate(KalmanFilter_t *kf)
             return;
         }
     }
-    else // if divergent or rk is not that big/acceptable,use adaptive gain
+    else // if divergent or rk is not that big/acceptable,use adaptive gain。当滤波器收敛且残差在可接受范围内时，系统采用自适应增益
     {
-        // scale adaptive,rk越小则增益越大,否则更相信预测值
+        // scale adaptive,rk越小则增益越大,否则更相信预测值。残差越小，增益越大，表示更信任测量值；反之则更信任预测值。
         if (QEKF_INS.ChiSquare_Data[0] > 0.1f * QEKF_INS.ChiSquareTestThreshold && QEKF_INS.ConvergeFlag)
         {
             QEKF_INS.AdaptiveGainScale = (QEKF_INS.ChiSquareTestThreshold - QEKF_INS.ChiSquare_Data[0]) / (0.9f * QEKF_INS.ChiSquareTestThreshold);
@@ -421,12 +421,12 @@ static void IMU_QuaternionEKF_xhatUpdate(KalmanFilter_t *kf)
     kf->MatStatus = Matrix_Multiply(&kf->Pminus, &kf->HT, &kf->temp_matrix); // temp_matrix = P'(k)·HT
     kf->MatStatus = Matrix_Multiply(&kf->temp_matrix, &kf->temp_matrix1, &kf->K);
 
-    // implement adaptive
+    // implement adaptive。
     for (uint8_t i = 0; i < kf->K.numRows * kf->K.numCols; ++i)
     {
         kf->K_data[i] *= QEKF_INS.AdaptiveGainScale;
     }
-    for (uint8_t i = 4; i < 6; ++i)
+    for (uint8_t i = 4; i < 6; ++i)//方向余弦加权：在计算卡尔曼增益时，还考虑了各轴与重力方向的夹角。这使得与重力方向更垂直的轴具有更大的权重，因为这些轴上的加速度计测量值对姿态估计更有价值。
     {
         for (uint8_t j = 0; j < 3; ++j)
         {

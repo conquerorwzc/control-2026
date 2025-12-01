@@ -146,12 +146,12 @@ __attribute__((noreturn)) void StartINSTASK(void const *argument) {
   LOGINFO("[freeRTOS] INS Task Start");
   for (;;) {
     // 1kHz
-    ins_start = DWT_GetTimeline_ms();
-    INS_Task();
-    ins_dt = DWT_GetTimeline_ms() - ins_start;
-    if (ins_dt > 1) LOGERROR("[freeRTOS] INS Task is being DELAY! dt = [%f]", &ins_dt);
+    ins_start = DWT_GetTimeline_ms();// 获取当前时间
+    INS_Task();// INS任务
+    ins_dt = DWT_GetTimeline_ms() - ins_start; // 计算INS任务执行时间
+    if (ins_dt > 1) LOGERROR("[freeRTOS] INS Task is being DELAY! dt = [%f]", &ins_dt);// 如果INS任务执行时间超过1ms，则打印错误日志
     // VisionSend();  // 解算完成后发送视觉数据,但是当前的实现不太优雅,后续若添加硬件触发需要重新考虑结构的组织
-    osDelay(1);
+    osDelay(1);// 1khz运行这个任务
   }
 }
 
