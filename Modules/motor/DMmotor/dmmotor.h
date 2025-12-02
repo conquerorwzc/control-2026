@@ -8,7 +8,6 @@
 #include "motor_def.h"
 
 #define DM_MOTOR_CNT 6
-#define ECD_ANGLE_COEF_DM 15.0f // 达妙电机的编码器角度转换系数,单位:90度对应反馈的6
 #define DM_P_MIN (-12.5f)
 #define DM_P_MAX 12.5f
 #define DM_V_MIN (-30.0f)  // J4310 30.0f J8009P 45.0f

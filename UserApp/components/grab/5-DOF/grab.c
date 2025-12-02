@@ -31,7 +31,8 @@ void GrabTask()
 {
   Grab_ctrl_cmd = &Grab->Grab_ctrl_cmd;
   if (Grab_ctrl_cmd->grab_mode == GRAB_POWER_OFF)
-    {DMMotorStop(Grab->Grab_dmmotor[0]);
+    {
+      DMMotorStop(Grab->Grab_dmmotor[0]);
      DMMotorStop(Grab->Grab_dmmotor[1]);
      DMMotorStop(Grab->Grab_dmmotor[2]);
      DJIMotorStop(Grab->Grab_djimotor[0]);
@@ -45,8 +46,8 @@ void GrabTask()
     DJIMotorEnable(Grab->Grab_djimotor[0]);
     DJIMotorEnable(Grab->Grab_djimotor[1]);
     DMMotorPIDCal(Grab->Grab_dmmotor[0], a[0]);
-    // DMMotorPIDCal(Grab->Grab_dmmotor[1], a[1]);
-    // DMMotorPIDCal(Grab->Grab_dmmotor[2], a[2]);
+    DMMotorPIDCal(Grab->Grab_dmmotor[1], a[1]);
+    DMMotorPIDCal(Grab->Grab_dmmotor[2], a[2]);
     DJIMotorSetPIDRef(Grab->Grab_djimotor[0], a[3]);
     DJIMotorSetPIDRef(Grab->Grab_djimotor[1], a[3]);
    }
