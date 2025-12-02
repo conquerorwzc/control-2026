@@ -136,11 +136,11 @@ static void DualBoardCtrlSet() {
       // 解析接收到的数据到全局变量
       memcpy(board_can_comm_data.rx_buff, received_data, 64);
 
-      for (int i = 0; i < 6; i++)
+      for (int i = 0; i < 8; i++)
         CanData.bytes[i] = board_can_comm_data.rx_buff[i];
-      chassis_ctrl_cmd->vy=CanData.value[0];
-      chassis_ctrl_cmd->vx=CanData.value[1];
-      chassis_ctrl_cmd->wz=CanData.value[2];
+      chassis_ctrl_cmd->vy=-60.0f*CanData.value[0];//todo:后面chassis改改把负号去掉
+      chassis_ctrl_cmd->vx=60.0f*CanData.value[1];
+      chassis_ctrl_cmd->wz=30.0f*CanData.value[2];
       if (switch_is_mid(CanData.bytes[6])) {
         gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
           chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
