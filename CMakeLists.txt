@@ -18,11 +18,12 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 project(control-2026 C ASM)
 
 # 选择构建类型
-set(CMAKE_BUILD_TYPE ${buildType}) # Debug Release RelWithDebInfo MinSizeRel
+set(CMAKE_BUILD_TYPE ${buildType}) # Debug Release RelWithDebInfo Mi#nSizeRel
 
-#set(MCU_TYPE "stm32-f4")
-set(MCU_TYPE "stm32-h7")
-set(ROBOT_TYPE "infantry_wheel_legged")
+set(MCU_TYPE "stm32-f4")
+#set(MCU_TYPE "stm32-h7")
+set(ROBOT_TYPE "infantry_mecanum")
+#set(ROBOT_TYPE "infantry_wheel_legged")
 #set(ROBOT_TYPE "hero_mecanum")
 #set(ROBOT_TYPE "debug")
 

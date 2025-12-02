@@ -33,6 +33,7 @@ typedef enum {
   SMALL_AMU_30 = 30,
 } Bullet_Speed_e;
 
+
 // 机器人底盘修改的参数,单位为mm(毫米)
 typedef struct {
   float one_bullet_delta_angle;  // 发射一发弹丸拨盘转动的距离,由机械设计图纸给出
@@ -40,6 +41,12 @@ typedef struct {
   float num_per_circle;          // 拨盘一圈的装  载量
   int loader_direction;          //拨弹盘方向
   int friction_num;              //摩擦轮数量
+  float friction_speed;          // 摩擦轮速度
+  float target_speed;
+  float friction_coefficients[FRICTION_NUM]; // 摩擦轮的系数
+  float deadtime_onebullet; // 单发死时间
+  float deadtime_burstfire; // 连发死时间
+  float bullet_speed_adjustment;
 } Shoot_Param_s;
 
 // cmd发布的发射控制数据,由shoot订阅
@@ -50,6 +57,7 @@ typedef struct {
   Bullet_Speed_e bullet_speed;  // 弹速枚举
   uint8_t rest_heat;
   float shoot_rate;  // 连续发射的射频,unit per s,发/秒
+
 } Shoot_Ctrl_Cmd_s;
 
 typedef struct {
@@ -69,7 +77,6 @@ typedef struct {
  *
  */
 ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config);
-
 /**
  * @brief 云台任务
  *
