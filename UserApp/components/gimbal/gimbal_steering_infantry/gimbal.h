@@ -4,17 +4,33 @@
 #pragma once
 
 #include "dji_motor.h"
+#include "dmmotor.h"
 #include "ins_task.h"
 
 //线性控制器前馈系数
-#define YAW_FEED_FORWARD 0.7f		//1.05f
-#define PITCH_FEED_FORWARD 0.8f
 #define YAW_D 0.0f//15.0
 //角度误差项系数
 #define K_YAW_ANGLE_ERROR 	140000.0f//90000.0f
 #define K_PITCH_ANGLE_ERROR 0.01//350000.0f
 //Pitch前馈项
 #define PITCH_FORWARD	0.0f
+
+// 二阶线性控制器参数
+#define YAW_FEED_FORWARD 0.7f
+#define YAW_ANGLE_ERROR_COEF 140000.0f
+#define YAW_ANGLE_SPEED_COEF 0.0f
+#define YAW_MAX_OUT 30000.0f
+#define YAW_MIN_OUT -30000.0f
+
+#define PITCH_FEED_FORWARD 0.8f
+#define PITCH_ANGLE_ERROR_COEF 0.01f
+#define PITCH_ANGLE_SPEED_COEF 0.0f
+#define PITCH_MAX_OUT 30000.0f
+#define PITCH_MIN_OUT -30000.0f
+
+#define PITCH_MAX_ANGLE 11.0f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define PITCH_MIN_ANGLE -15.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+
 
 //云台电机二阶线性控制器
 typedef struct
@@ -46,6 +62,21 @@ typedef struct
   float k_angle_speed;
 }gimbal_motor_second_order_linear_controller_t;
 
+// //云台电机二阶线性控制器
+// typedef struct
+// {
+//   //最大输出值
+//   float max_out;
+//   //最小输出值
+//   float min_out;
+//   //前馈项系数
+//   float k_feed_forward;
+//   //误差项系数
+//   float k_angle_error;
+//   //二阶角速度项系数
+//   float k_angle_speed;
+// }gimbal_motor_second_order_linear_controller_t;
+
 typedef enum {
   GIMBAL_POWER_OFF = 0,  // 电流零输入
   GIMBAL_ON,
@@ -65,7 +96,8 @@ typedef struct {
 
 typedef struct {
   Gimbal_Ctrl_Cmd_s gimbal_ctrl_cmd;
-  DJIMotorInstance *yaw_motor, *pitch_motor;
+  DJIMotorInstance *yaw_motor;
+  DMMotorInstance *pitch_motor;
   attitude_t* gimbal_IMU_data;  // 云台IMU数据
   gimbal_motor_second_order_linear_controller_t gimbal_motor_second_order_linear_controller;
   gimbal_motor_second_order_linear_controller_t gimbal_pitch_motor_second_order_linear_controller;
