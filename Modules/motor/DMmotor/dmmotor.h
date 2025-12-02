@@ -8,7 +8,6 @@
 #include "motor_def.h"
 
 #define DM_MOTOR_CNT 6
-
 #define DM_P_MIN (-12.5f)
 #define DM_P_MAX 12.5f
 #define DM_V_MIN (-30.0f)  // J4310 30.0f J8009P 45.0f

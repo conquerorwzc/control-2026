@@ -178,7 +178,8 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
     chassis_init_config->wheel_motor_config[i].controller_setting_init_config.close_loop_type = SPEED_LOOP;
     chassis_instance->wheel_motor[i] = DJIMotorInit(&chassis_init_config->wheel_motor_config[i]);
   }
-
+   chassis_init_config->leg_motor_config[0].controller_setting_init_config.angle_feedback_source = MOTOR_FEED;
+   chassis_instance->leg_motor[0] = DMMotorInit(&chassis_init_config->leg_motor_config[0]);
   chassis = chassis_instance;
   chassis_ctrl_cmd = &chassis->chassis_ctrl_cmd;  // 在运行时初始化指针
   return chassis_instance;
@@ -186,6 +187,8 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
 
 /* 机器人底盘控制核心任务 */
 void ChassisTask() {
+  DMMotorEnable(chassis->leg_motor[0]);
+  DMMotorSetRef(chassis->leg_motor[0], 5.0f);
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_POWER_OFF) {
     // 如果出现重要模块离线或遥控器设置为急停,让电机停止
     for (int i = 0; i < 4; i++) DJIMotorStop(chassis->wheel_motor[i]);

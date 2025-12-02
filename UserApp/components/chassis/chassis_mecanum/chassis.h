@@ -29,7 +29,7 @@
 #pragma once
 
 #include "dji_motor.h"
-
+#include "dmmotor.h"
 typedef enum {
   CHASSIS_POWER_OFF = 0,    // 电流零输入
   CHASSIS_ROTATE,            // 小陀螺模式
@@ -73,12 +73,14 @@ typedef struct {
 typedef struct {
   Chassis_Param_s chassis_param;
   Motor_Init_Config_s wheel_motor_config[4];
+  Motor_Init_Config_s leg_motor_config[2];
   PID_Init_Config_s follow_pid;
 } Chassis_Init_Config_s;
 
 typedef struct {
   Chassis_Ctrl_Cmd_s chassis_ctrl_cmd;
-  DJIMotorInstance* wheel_motor[4];  // left right forward back
+  DJIMotorInstance* wheel_motor[4];// left right forward back
+  DMMotorInstance* leg_motor[2];
 } ChassisInstance;
 
 /**

@@ -271,7 +271,7 @@ static void DecodeDJIMotor(CANInstance* _instance) {
   measure->ecd = ((uint16_t)rxbuff[0]) << 8 | rxbuff[1];
   measure->angle_single_round = ECD_ANGLE_COEF_DJI * (float)measure->ecd;
   measure->speed_aps = (1.0f - SPEED_SMOOTH_COEF) * measure->speed_aps +
-                       RPM_2_ANGLE_PER_SEC * SPEED_SMOOTH_COEF * (float)((int16_t)(rxbuff[2] << 8 | rxbuff[3]));
+                          RPM_2_ANGLE_PER_SEC * SPEED_SMOOTH_COEF * (float)((int16_t)(rxbuff[2] << 8 | rxbuff[3]));
   measure->real_current = (1.0f - CURRENT_SMOOTH_COEF) * measure->real_current +
                           CURRENT_SMOOTH_COEF * (float)((int16_t)(rxbuff[4] << 8 | rxbuff[5]));
   measure->temperature = rxbuff[6];
@@ -441,7 +441,7 @@ void DJIMotorSetPIDRef(DJIMotorInstance* motor, float ref) {
   }
 
   // 获取最终输出
-  motor->motor_controller.final_output = (int16_t)pid_ref;
+  motor->motor_controller.final_output = pid_ref;
 }
 
 /**
@@ -454,7 +454,7 @@ void DJIMotorTask() {
   // 直接保存一次指针引用从而减小访存的开销,同样可以提高可读性
   uint8_t group, num;  // 电机组号和组内编号
   DJIMotorInstance* motor;
-  int16_t set;
+  uint16_t set;
 
   // 遍历所有电机实例,进行串级PID的计算并设置发送报文的值
   for (size_t i = 0; i < idx; ++i) {
@@ -466,8 +466,8 @@ void DJIMotorTask() {
     num = motor->message_num;
     set = (int16_t)(motor->motor_controller.final_output);
 
-    sender_assignment[group].tx_buff[2 * num] = (uint8_t)(set >> 8);          // 低八位
-    sender_assignment[group].tx_buff[2 * num + 1] = (uint8_t)(set & 0x00ff);  // 高八位
+    sender_assignment[group].tx_buff[2 * num] = (int8_t)(set >> 8);          // 低八位
+    sender_assignment[group].tx_buff[2 * num + 1] = (int8_t)(set & 0x00ff);  // 高八位
 
     // 若该电机处于停止状态,直接将buff置零
     if (motor->stop_flag == MOTOR_STOP) memset(sender_assignment[group].tx_buff + 2 * num, 0, sizeof(uint16_t));

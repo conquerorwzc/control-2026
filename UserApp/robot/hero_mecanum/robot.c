@@ -10,7 +10,6 @@ static RobotInstance *robot;
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
 static Gimbal_Ctrl_Cmd_s *gimbal_ctrl_cmd;
 static Shoot_Ctrl_Cmd_s *shoot_ctrl_cmd;
-
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 
