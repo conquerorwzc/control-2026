@@ -18,6 +18,7 @@
 // tasks
 #include "buzzer.h"
 #include "daemon.h"
+#include "dmmotor.h"
 #include "ins_task.h"
 #include "master_process.h"
 #include "motor_task.h"
