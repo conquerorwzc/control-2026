@@ -16,7 +16,7 @@
 static GimbalInstance* gimbal;
 static Gimbal_Ctrl_Cmd_s* gimbal_ctrl_cmd;  // 声明但不初始化
 
-static void gimbal_motor_second_order_linear_controller_init(gimbal_motor_second_order_linear_controller_t *controller,  float k_feed_forward, float k_angle_error, float k_angle_speed, float max_out, float min_out);
+static void gimbal_motor_second_order_linear_controller_init(gimbal_motor_second_order_linear_controller_t *controller,  gimbal_motor_second_order_linear_controller_init_Config_s *config);
 static float gimbal_motor_second_order_linear_controller_calc(gimbal_motor_second_order_linear_controller_t *controller, float set_angle, float cur_angle, float set_angle_speed, float cur_angle_speed, float cur_current);
 static void GimbalMotorAbsoluteAngleControl(GimbalInstance* gimbal);
 
@@ -55,19 +55,8 @@ GimbalInstance* GimbalInit(Gimbal_Init_Config_s* gimbal_init_config) {
   gimbal_instance->yaw_motor = DJIMotorInit(&gimbal_init_config->yaw_motor_config);
   gimbal_instance->pitch_motor = DMMotorInit(&gimbal_init_config->pitch_motor_config);
 
-  // 初始化YAW二阶线性控制器 - 直接使用robot_config.h中的参数赋值
-  gimbal_instance->gimbal_motor_second_order_linear_controller.k_feed_forward = YAW_FEED_FORWARD;
-  gimbal_instance->gimbal_motor_second_order_linear_controller.k_angle_error = YAW_ANGLE_ERROR_COEF;
-  gimbal_instance->gimbal_motor_second_order_linear_controller.k_angle_speed = YAW_ANGLE_SPEED_COEF;
-  gimbal_instance->gimbal_motor_second_order_linear_controller.max_out = YAW_MAX_OUT;
-  gimbal_instance->gimbal_motor_second_order_linear_controller.min_out = YAW_MIN_OUT;
-
-  // 初始化PITCH二阶线性控制器 - 同样使用robot_config.h中的参数赋值
-  gimbal_instance->gimbal_pitch_motor_second_order_linear_controller.k_feed_forward = PITCH_FEED_FORWARD;
-  gimbal_instance->gimbal_pitch_motor_second_order_linear_controller.k_angle_error = PITCH_ANGLE_ERROR_COEF;
-  gimbal_instance->gimbal_pitch_motor_second_order_linear_controller.k_angle_speed = PITCH_ANGLE_SPEED_COEF;
-  gimbal_instance->gimbal_pitch_motor_second_order_linear_controller.max_out = PITCH_MAX_OUT;
-  gimbal_instance->gimbal_pitch_motor_second_order_linear_controller.min_out = PITCH_MIN_OUT;
+  gimbal_motor_second_order_linear_controller_init(&gimbal_instance->gimbal_yaw_motor_second_order_linear_controller, &gimbal_init_config->yaw_motor_second_order_linear_controller_init_config);
+  gimbal_motor_second_order_linear_controller_init(&gimbal_instance->gimbal_pitch_motor_second_order_linear_controller, &gimbal_init_config->pitch_motor_second_order_linear_controller_init_config);
 
   gimbal = gimbal_instance;
   gimbal_ctrl_cmd = &gimbal->gimbal_ctrl_cmd;  // 在运行时初始化指针
@@ -105,7 +94,7 @@ static void GimbalMotorAbsoluteAngleControl(GimbalInstance* gimbal) {
 
   // 使用二阶线性控制器计算YAW输出
   float yaw_output = gimbal_motor_second_order_linear_controller_calc(
-      &gimbal->gimbal_motor_second_order_linear_controller,
+      &gimbal->gimbal_yaw_motor_second_order_linear_controller,
       gimbal->gimbal_ctrl_cmd.yaw,    // 设定角度
       yaw_current_angle,              // 当前角度
       0.0f,                           // 设定角速度
@@ -131,23 +120,19 @@ static void GimbalMotorAbsoluteAngleControl(GimbalInstance* gimbal) {
  * @brief 云台二阶线性控制器初始化
  *
  * @param controller 云台二阶线性控制器结构体
- * @param k_feed_forward 前馈系数
- * @param k_angle_error 角度误差系数
- * @param k_angle_speed 角速度系数
- * @param max_out 最大输出值
- * @param min_out 最小输出值
+ * @param config
  */
-static void gimbal_motor_second_order_linear_controller_init(gimbal_motor_second_order_linear_controller_t *controller,  float k_feed_forward, float k_angle_error, float k_angle_speed, float max_out, float min_out)
+static void gimbal_motor_second_order_linear_controller_init(gimbal_motor_second_order_linear_controller_t *controller, gimbal_motor_second_order_linear_controller_init_Config_s *config)
 {
     // 前馈项系数
-    controller->k_feed_forward = k_feed_forward;
+    controller->k_feed_forward = config->k_feed_forward;
     // 反馈矩阵系数
-    controller->k_angle_error = k_angle_error;
-    controller->k_angle_speed = k_angle_speed;
+    controller->k_angle_error = config->k_angle_error;
+    controller->k_angle_speed = config->k_angle_speed;
     // 设置最大输出值
-    controller->max_out = max_out;
+    controller->max_out = config->max_out;
     // 设置最小输出值
-    controller->min_out = min_out;
+    controller->min_out = config->min_out;
 }
 
 /**

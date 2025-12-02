@@ -62,20 +62,20 @@ typedef struct
   float k_angle_speed;
 }gimbal_motor_second_order_linear_controller_t;
 
-// //云台电机二阶线性控制器
-// typedef struct
-// {
-//   //最大输出值
-//   float max_out;
-//   //最小输出值
-//   float min_out;
-//   //前馈项系数
-//   float k_feed_forward;
-//   //误差项系数
-//   float k_angle_error;
-//   //二阶角速度项系数
-//   float k_angle_speed;
-// }gimbal_motor_second_order_linear_controller_t;
+//云台电机二阶线性控制器
+typedef struct
+{
+  //最大输出值
+  float max_out;
+  //最小输出值
+  float min_out;
+  //前馈项系数
+  float k_feed_forward;
+  //误差项系数
+  float k_angle_error;
+  //二阶角速度项系数
+  float k_angle_speed;
+}gimbal_motor_second_order_linear_controller_init_Config_s;
 
 typedef enum {
   GIMBAL_POWER_OFF = 0,  // 电流零输入
@@ -92,6 +92,8 @@ typedef struct {
 typedef struct {
   Motor_Init_Config_s yaw_motor_config;
   Motor_Init_Config_s pitch_motor_config;
+  gimbal_motor_second_order_linear_controller_init_Config_s yaw_motor_second_order_linear_controller_init_config;
+  gimbal_motor_second_order_linear_controller_init_Config_s pitch_motor_second_order_linear_controller_init_config;
 } Gimbal_Init_Config_s;
 
 typedef struct {
@@ -99,7 +101,7 @@ typedef struct {
   DJIMotorInstance *yaw_motor;
   DMMotorInstance *pitch_motor;
   attitude_t* gimbal_IMU_data;  // 云台IMU数据
-  gimbal_motor_second_order_linear_controller_t gimbal_motor_second_order_linear_controller;
+  gimbal_motor_second_order_linear_controller_t gimbal_yaw_motor_second_order_linear_controller;
   gimbal_motor_second_order_linear_controller_t gimbal_pitch_motor_second_order_linear_controller;
 } GimbalInstance;
 
