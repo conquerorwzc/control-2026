@@ -237,8 +237,8 @@ void RobotInit() {
 
   rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
   *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
-
-  // robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
+  // robot->referee_data=RefereeInit(&huart6);
+   robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
 
   // robot->super_cap = SuperCapInit(&super_cap_config);
 
