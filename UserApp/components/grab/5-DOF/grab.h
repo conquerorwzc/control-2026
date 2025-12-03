@@ -19,9 +19,9 @@ typedef struct {
 } Grab_Ctrl_Cmd_s;
 
 typedef struct {
-  Grab_Ctrl_Cmd_s Grab_ctrl_cmd;
-  DMMotorInstance* Grab_dmmotor[3];
-  DJIMotorInstance* Grab_djimotor[2]; // 修改为数组以支持多个电机实例
+  Grab_Ctrl_Cmd_s grab_ctrl_cmd;
+  DMMotorInstance* grab_dmmotor[3];
+  DJIMotorInstance* grab_djimotor[2]; // 修改为数组以支持多个电机实例
 } GrabInstance;
 
 
