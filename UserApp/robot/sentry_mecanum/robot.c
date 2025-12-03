@@ -5,13 +5,15 @@
 #include "robot_config.h"
 #include "user_lib.h"
 
+
 static RobotInstance *robot;
 
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
 static Gimbal_Ctrl_Cmd_s *gimbal_ctrl_cmd;
 static Shoot_Ctrl_Cmd_s *shoot_ctrl_cmd;
-Vision_Receive_s* vision_recv_data;
+static Vision_Receive_s* vision_recv_data;
+static navigator_recv_t* navigator_data;
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 
@@ -97,12 +99,18 @@ static void RemoteControlSet() {
       shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
     }
   }
+  if (switch_is_up(rc_data[TEMP].rc.switch_right))//除了右拨杆在上机器人使用导航数据，其余都正常人为控制
+  {
+    robot->control_mode=AUTO_MODE;
+  }
+  else {
+    robot->control_mode=MANUAL_MODE;
+  }
   // 云台使能,或视觉未识别到目标,纯遥控器拨杆控制
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
     gimbal_ctrl_cmd->yaw += -0.0016f * (float)rc_data[TEMP].rc.rocker_r_;
     gimbal_ctrl_cmd->pitch -= 0.0003f * (float)rc_data[TEMP].rc.rocker_r1;
   }
-
   // 云台PITCH轴软件限位 todo:没在云台有点不好
   if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
     gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
@@ -110,20 +118,24 @@ static void RemoteControlSet() {
     gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
   }
 
-  // 底盘参数,系数需要调整
-  vx_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l_;  // l_水平方向
-  vy_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // l1竖直方向
-  if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
-    chassis_ctrl_cmd->wz =
-        5.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
+  // 底盘控制部分,系数需要调整
+  if (robot->control_mode == MANUAL_MODE)//手动控制，遥控器控制量
+   {
+    vx_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l_;  // l_水平方向
+    vy_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // l1竖直方向
+    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
+      chassis_ctrl_cmd->wz =
+          5.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
+    }
+    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
+      chassis_ctrl_cmd->wz =(15.0f) *(float)rc_data[TEMP].rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
+    }
+  } else if (robot->control_mode == AUTO_MODE) // 自动控制，直接接收上位机控制量
+  {
+    vx_initial = robot->navigator_data->robot_cmd.speed_vector.vx;
+    vy_initial = robot->navigator_data->robot_cmd.speed_vector.vy;
+    chassis_ctrl_cmd->wz = robot->navigator_data->robot_cmd.speed_vector.wz;
   }
-  if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
-    chassis_ctrl_cmd->wz =(15.0f) *(float)rc_data[TEMP].rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
-  }
-
-  // 射频控制,固定每秒1发,后续可以根据左侧拨轮的值大小切换射频,
-  shoot_ctrl_cmd->shoot_rate = 8;
-
   *rc_data_last = *rc_data;
 }
 
@@ -305,6 +317,8 @@ void RobotInit() {
 
 #ifdef STM32F407xx
   robot->rc_data = RemoteControlInit(&huart3);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
+  robot->vision_recv_data = VisionInit(&gimbal_init_config.imu_init_config);
+  robot->navigator_data = navigator_init(&huart1);
 #elifdef STM32H723XX
   robot->rc_data = RemoteControlInit(&huart5);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
 #endif
@@ -330,7 +344,8 @@ void RobotInit() {
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;
-  vision_recv_data=VisionInit(&gimbal_init_config.imu_init_config);
+  vision_recv_data=robot->vision_recv_data;
+  navigator_data  = robot->navigator_data;
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */

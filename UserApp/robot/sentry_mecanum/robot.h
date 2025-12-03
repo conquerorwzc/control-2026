@@ -4,6 +4,8 @@
 #include "gimbal.h"
 #include "shoot.h"
 #include "remote_control.h"
+#include "navigator.h"
+#include "master_process.h"
 // #include "rm_referee.h"
 #include "super_cap.h"
 // todo: add vision_module
@@ -13,11 +15,20 @@ typedef enum {
   ROBOT_POWER_ON ,
 } Robot_Mode_e;
 
+// 定义枚举体，包含自动模式和手动模式
+typedef enum {
+  MANUAL_MODE=0,   // 手动控制
+  AUTO_MODE,    // 自动控制
+} Control_Mode_e;
+
 typedef struct {
-  Robot_Mode_e robot_mode;       // 机器人整体工作状态
+  Robot_Mode_e robot_mode;       // 机器人工作状态
+  Control_Mode_e control_mode;   // 控制模式
 
   RC_ctrl_t *rc_data;               // 遥控器数据,初始化时返回
   // referee_info_t* referee_data;     // 用于获取裁判系统的数据
+  Vision_Receive_s* vision_recv_data;
+  navigator_recv_t* navigator_data;    //从导航获取的控制指令
 
   SuperCapInstance* super_cap;
   ChassisInstance* chassis;
