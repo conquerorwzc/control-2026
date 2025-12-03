@@ -272,11 +272,14 @@ void INS_Task(void) {
                              INS.MotionAccel_b[i] * INS.AccelLPF / (INS.AccelLPF + dt);
     }
     BodyFrameToEarthFrame(INS.MotionAccel_b, INS.MotionAccel_n, INS.q);  // 转换回导航系n
-
-    INS.Yaw = QEKF_INS.Yaw;
-    INS.Pitch = QEKF_INS.Pitch;
-    INS.Roll = QEKF_INS.Roll;
-    INS.YawTotalAngle = QEKF_INS.YawTotalAngle;
+    // 更新INS数据
+    INS.Gyro[X] = -INS.Gyro[X] ;
+    INS.Gyro[Y] =  -INS.Gyro[Y];
+    INS.Gyro[Z] = -INS.Gyro[Z];
+    INS.Yaw = -QEKF_INS.Yaw;
+    INS.Pitch = -QEKF_INS.Pitch;
+    INS.Roll = -QEKF_INS.Roll;
+    INS.YawTotalAngle = -QEKF_INS.YawTotalAngle;
 
     // VisionSetAltitude(INS.Yaw, INS.Pitch, INS.Roll);  TODO: 待完善
   }

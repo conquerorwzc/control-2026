@@ -53,7 +53,7 @@ void UpdateGimbalAttitude(Vision_Send_s *vision_send) {
   vision_send->gimbal_send.pitch=current_attitude->Pitch;
   vision_send->gimbal_send.roll=current_attitude->Roll;
   vision_send->gimbal_send.mode=0;
-  vision_send->gimbal_send.color=1;
+  vision_send->gimbal_send.color=0;
   vision_send->shoot_send.bullet_speed=21;
 
 }

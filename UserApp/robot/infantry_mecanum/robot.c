@@ -176,8 +176,8 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   case 1:
       if (has_non_zero_data(vision_recv_data)==1){
         gimbal_ctrl_cmd->gimbal_mode=GIMBAL_VISION;    // 右键自瞄开启
-        gimbal_ctrl_cmd->yaw-=0.05*vision_recv_data->gimbal_receive.yaw;
-        gimbal_ctrl_cmd->pitch+=0;
+        gimbal_ctrl_cmd->yaw=vision_recv_data->gimbal_receive.yaw;
+        gimbal_ctrl_cmd->pitch=vision_recv_data->gimbal_receive.pitch;
         //shoot_ctrl_cmd->load_mode=vision_recv_data->shoot_receive.fire_flag;
       }
       else
