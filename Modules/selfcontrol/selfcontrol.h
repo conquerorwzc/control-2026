@@ -12,7 +12,16 @@
 typedef struct
 {
   uint8_t selfcontrol_buff[21]; // 遥控器接收buffer
+  uint8_t data[30];
 } SelfC;
+
+typedef __packed struct {
+  uint8_t SOF;           // 起始字节，固定值为0xA5
+  uint16_t data_length;  // 数据帧中 data 的长度
+  uint8_t seq;           // 包序号
+  uint8_t CRC8;          // 帧头 CRC8 校验
+} Frame_Header;
+
 /**
  * @brief 初始化遥控器,该函数会将遥控器注册到串口
  *
