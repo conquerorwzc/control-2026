@@ -55,8 +55,10 @@ GimbalInstance* GimbalInit(Gimbal_Init_Config_s* gimbal_init_config) {
   gimbal_instance->yaw_motor = DJIMotorInit(&gimbal_init_config->yaw_motor_config);
   gimbal_instance->pitch_motor = DMMotorInit(&gimbal_init_config->pitch_motor_config);
 
+#if defined(SECOND_ORDER_LINEAR_CONTROLLER_USED)
   gimbal_motor_second_order_linear_controller_init(&gimbal_instance->gimbal_yaw_motor_second_order_linear_controller, &gimbal_init_config->yaw_motor_second_order_linear_controller_init_config);
   gimbal_motor_second_order_linear_controller_init(&gimbal_instance->gimbal_pitch_motor_second_order_linear_controller, &gimbal_init_config->pitch_motor_second_order_linear_controller_init_config);
+#endif
 
   gimbal = gimbal_instance;
   gimbal_ctrl_cmd = &gimbal->gimbal_ctrl_cmd;  // 在运行时初始化指针
@@ -78,7 +80,13 @@ void GimbalTask() {
   DMMotorEnable(gimbal->pitch_motor);
 
   // 调用核心控制函数
+#if defined(SECOND_ORDER_LINEAR_CONTROLLER_USED)
   GimbalMotorAbsoluteAngleControl(gimbal);
+#endif
+
+#if defined(PID_USED)
+  DJIMotorSetPIDRef(gimbal->yaw_motor, gimbal_ctrl_cmd->yaw);  // yaw和pitch会在robot_cmd中处理好多圈和单圈GimbalMotorAbsoluteAngleControl(gimbal);
+#endif
 
   // 在合适的地方添加pitch重力补偿前馈力矩
   // 根据IMU姿态/pitch电机角度反馈计算出当前配重下的重力矩
@@ -112,7 +120,7 @@ static void GimbalMotorAbsoluteAngleControl(GimbalInstance* gimbal) {
   }
 
   // 设置电机输出
-  DJIMotorSetPIDRef(gimbal->yaw_motor, yaw_output);
+  gimbal->yaw_motor->motor_controller.final_output = (int16_t)yaw_output;
   DMMotorSetRef(gimbal->pitch_motor, pitch_set);
 }
 

@@ -7,6 +7,9 @@
 #include "dmmotor.h"
 #include "ins_task.h"
 
+//PID或者二阶线性控制器
+#define PID_USED
+
 //线性控制器前馈系数
 #define YAW_D 0.0f//15.0
 //角度误差项系数
