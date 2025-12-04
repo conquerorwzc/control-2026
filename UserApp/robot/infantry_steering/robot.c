@@ -33,15 +33,14 @@ int16_t_bytes CanData={0};//底盘板can接收的遥控数据
  *
  */
 static void CalcOffsetAngle() {
-  angle = ((uint16_t)robot->chassis->yaw_motor->measure.angle_single_round +
-           (uint16_t)robot->chassis->yaw_motor->measure.total_round % 2 * 360.0f) ;
-
-  if (angle > YAW_ALIGN_ANGLE)
-    chassis_ctrl_cmd->offset_angle = angle - YAW_ALIGN_ANGLE;
-  else if (angle <= YAW_ALIGN_ANGLE && angle >= YAW_ALIGN_ANGLE - 180.0f)
-    chassis_ctrl_cmd->offset_angle = angle - YAW_ALIGN_ANGLE;
-  else
-    chassis_ctrl_cmd->offset_angle = angle - YAW_ALIGN_ANGLE + 360.0f;
+  angle = (uint16_t)robot->chassis->yaw_motor->measure.angle_single_round;
+  float delta =YAW_ALIGN_ANGLE - angle;
+  if (delta > 180.0f) {
+    delta -= 360.0f;
+  } else if (delta <= -180.0f) {
+    delta += 360.0f;
+  }
+  chassis_ctrl_cmd->offset_angle = delta;
 }
 
 /**
