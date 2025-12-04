@@ -28,8 +28,9 @@
 
 /* IMU stream read/control struct */
 static hipnuc_raw_t hipnuc_raw = {0}; //这个结构体是我从例程中复制过来的，在这个文件里到处传，我懒得改了。反正最后只返回了里面的hi91_t结构体。
-
+static hi91_t *hi91;//这个是要输出的结构体
 static USARTInstance *HI05_usart_instance;
+
 
 /* HiPNUC protocol constants */
 #define CHSYNC1                 (0x5A)              /* CHAOHE message sync code 1 */
@@ -42,6 +43,17 @@ static USARTInstance *HI05_usart_instance;
 #define HIPNUC_ID_HI81        (0x81)
 #define HIPNUC_ID_HI83        (0x83)
 
+#ifndef GRAVITY
+#define GRAVITY (9.8F)
+#endif
+
+#ifndef D2R
+#define D2R (0.0174532925199433F)
+#endif
+
+#ifndef R2D
+#define R2D (57.2957795130823F)
+#endif
 
 /* common type conversion */
 #define I2(p) (*((int16_t *)(p)))
@@ -210,6 +222,17 @@ static void DecodeHI05(void)
 
     // 解析数据
     parse_data(&hipnuc_raw);
+
+    //数据转换
+    for (int i = 0; i < 3; i++) {
+      hipnuc_raw.hi91.acc[i]*= GRAVITY;
+      hipnuc_raw.hi91.gyr[i]*= D2R;
+    }
+    hipnuc_raw.hi91.pitch*= D2R;
+    hipnuc_raw.hi91.roll*= D2R;
+    hipnuc_raw.hi91.yaw*= D2R;
+
+    hi91 = &hipnuc_raw.hi91;
 }
 
 /**
@@ -232,23 +255,9 @@ hi91_t *HI05_Init(UART_HandleTypeDef *usart_handle)
     memset(&hipnuc_raw, 0, sizeof(hipnuc_raw_t));
 
     // 返回数据结构指针供外部访问
-    hi91_t *hi91 = &hipnuc_raw.hi91;
     return hi91;
 }
 
-
-//------------------------------------------------unused definitions------------------------------------------------//
-#ifndef GRAVITY
-#define GRAVITY (9.8F)
-#endif
-
-#ifndef D2R
-#define D2R (0.0174532925199433F)
-#endif
-
-#ifndef R2D
-#define R2D (57.2957795130823F)
-#endif
 
 //------------------------------------------------unused functions------------------------------------------------//
 /**
