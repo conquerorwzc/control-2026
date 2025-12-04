@@ -77,6 +77,7 @@ typedef struct {
   Chassis_Param_s chassis_param;
   Motor_Init_Config_s rudder_motor_config[4];
   Motor_Init_Config_s wheel_motor_config[4];
+  Motor_Init_Config_s yaw_motor_config;
   PID_Init_Config_s rudder_angle_pid_config;
   PID_Init_Config_s rudder_speed_pid_config;
   PID_Init_Config_s driver_speed_pid_config;
@@ -91,6 +92,7 @@ typedef struct {
   Chassis_Ctrl_Cmd_s chassis_ctrl_cmd;
   DJIMotorInstance *wheel_motor[4];
   DJIMotorInstance *rudder_motor[4];
+  DJIMotorInstance *yaw_motor;
   uint16_t rudder_offset[4];
 } ChassisInstance;
 /**

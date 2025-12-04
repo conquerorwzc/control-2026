@@ -21,8 +21,8 @@ static float angle;
 uint8_t* received_data = NULL;
 CANCommInstance* can_comm_instance = NULL;
 typedef union {
-  int16_t value[5];
-  uint8_t bytes[10];
+  int16_t value[32];
+  uint8_t bytes[64];
 } int16_t_bytes;
 int16_t_bytes CanData={0};//底盘板can接收的遥控数据
 // static  DJIMotorInstance* debug_motor;
@@ -33,9 +33,8 @@ int16_t_bytes CanData={0};//底盘板can接收的遥控数据
  *
  */
 static void CalcOffsetAngle() {
-  angle = ((uint16_t)robot->gimbal->yaw_motor->measure.angle_single_round +
-           (uint16_t)robot->gimbal->yaw_motor->measure.total_round % 2 * 360.0f) /
-          2.0f;
+  angle = ((uint16_t)robot->chassis->yaw_motor->measure.angle_single_round +
+           (uint16_t)robot->chassis->yaw_motor->measure.total_round % 2 * 360.0f) ;
 
   if (angle > YAW_ALIGN_ANGLE)
     chassis_ctrl_cmd->offset_angle = angle - YAW_ALIGN_ANGLE;
@@ -103,18 +102,18 @@ static void RemoteControlSet() {
   }
 
   // 底盘参数,系数需要调整
-  chassis_ctrl_cmd->vy = -60.0f * (float)rc_data[TEMP].rc.rocker_l_;  // _水平方向
-  chassis_ctrl_cmd->vx = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 1数值方向
+  chassis_ctrl_cmd->vx = 60.0f * (float)rc_data[TEMP].rc.rocker_l_;  // _水平方向
+  chassis_ctrl_cmd->vy = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 1数值方向
   // if (chassis_ctrl_cmd->vx<50) chassis_ctrl_cmd->vx = 0;//加个死区防止舵轮乱抖
   // if (chassis_ctrl_cmd->vy<50) chassis_ctrl_cmd->vy = 0;
   // if (chassis_ctrl_cmd->wz<50) chassis_ctrl_cmd->wz = 0;
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
     chassis_ctrl_cmd->wz =
-        25.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
+        60.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
   }
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
     chassis_ctrl_cmd->wz =
-        (25.0f) *
+        (60.0f) *
         (float)rc_data[TEMP]
             .rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
   }
@@ -138,9 +137,9 @@ static void DualBoardCtrlSet() {
 
       for (int i = 0; i < 8; i++)
         CanData.bytes[i] = board_can_comm_data.rx_buff[i];
-      chassis_ctrl_cmd->vy=-60.0f*CanData.value[0];//todo:后面chassis改改把负号去掉
-      chassis_ctrl_cmd->vx=60.0f*CanData.value[1];
-      chassis_ctrl_cmd->wz=30.0f*CanData.value[2];
+      chassis_ctrl_cmd->vx=60.0f*CanData.value[0];//todo:后面chassis改改把负号去掉
+      chassis_ctrl_cmd->vy=60.0f*CanData.value[1];
+      chassis_ctrl_cmd->wz=60.0f*CanData.value[2];
       if (switch_is_mid(CanData.bytes[6])) {
         gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
           chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
@@ -311,10 +310,10 @@ void RobotInit() {
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
 void RobotCMDTask() {
-  // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
-  //CalcOffsetAngle();
-  //RemoteControlSet();
-  DualBoardCtrlSet();
+  // 根据gimbal的反馈值计算云台和底盘正方向的夹角             ,不需要传参,通过static私有变量完成
+  CalcOffsetAngle();
+  RemoteControlSet();
+  //DualBoardCtrlSet();
   // MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }

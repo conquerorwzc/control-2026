@@ -104,16 +104,16 @@ static float last_st_lf = 0.0f, last_st_rf = 0.0f, last_st_lb = 0.0f, last_st_rb
 static int8_t dir_lf = 1, dir_rf = 1, dir_lb = 1, dir_rb = 1;
 
 static void SteeringCalculate() {
-  vt_lf = sqrtf(powf(chassis_ctrl_cmd->vy - chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), 2) + powf(chassis_ctrl_cmd->vx + chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2));//lf
-  vt_lb = sqrtf(powf(chassis_ctrl_cmd->vy + chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), 2) + powf(chassis_ctrl_cmd->vx + chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2));// lb
-  vt_rb = sqrtf(powf(chassis_ctrl_cmd->vy + chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), 2) + powf(chassis_ctrl_cmd->vx - chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2));// rb
-  vt_rf = sqrtf(powf(chassis_ctrl_cmd->vy - chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), 2) + powf(chassis_ctrl_cmd->vx - chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2));// rf
+  vt_lf = sqrtf(powf(chassis_vy - chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), 2) + powf(chassis_vx + chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2));//lf
+  vt_lb = sqrtf(powf(chassis_vy + chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), 2) + powf(chassis_vx + chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2));// lb
+  vt_rb = sqrtf(powf(chassis_vy + chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), 2) + powf(chassis_vx - chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2));// rb
+  vt_rf = sqrtf(powf(chassis_vy - chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), 2) + powf(chassis_vx - chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2));// rf
   
   // 修改此处的角度计算，确保正确的方向
-  st_lf=RAD_2_DEGREE * atan2f(chassis_ctrl_cmd->vy - chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), chassis_ctrl_cmd->vx + chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)));
-  st_lb=RAD_2_DEGREE * atan2f(chassis_ctrl_cmd->vy + chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), chassis_ctrl_cmd->vx + chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)));
-  st_rb=RAD_2_DEGREE * atan2f(chassis_ctrl_cmd->vy + chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), chassis_ctrl_cmd->vx - chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)));
-  st_rf=RAD_2_DEGREE * atan2f(chassis_ctrl_cmd->vy - chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), chassis_ctrl_cmd->vx - chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)));
+  st_lf=RAD_2_DEGREE * atan2f(chassis_vy - chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), chassis_vx + chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)));
+  st_lb=RAD_2_DEGREE * atan2f(chassis_vy + chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), chassis_vx + chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)));
+  st_rb=RAD_2_DEGREE * atan2f(chassis_vy + chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), chassis_vx - chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)));
+  st_rf=RAD_2_DEGREE * atan2f(chassis_vy - chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), chassis_vx - chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)));
   
   RudderOffset();//补偿6020的偏置
 
@@ -294,6 +294,7 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
     //   chassis_instance->rudder_offset[i] = chassis_param.rudder_motor_offset[i];
     // }
   }
+  chassis_instance->yaw_motor=DJIMotorInit(&chassis_init_config->yaw_motor_config);
   for (int i = 0; i < 4; i++) {
     chassis_instance->rudder_offset[i]=chassis_init_config->chassis_param.rudder_motor_offset[i];
   }

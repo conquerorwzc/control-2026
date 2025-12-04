@@ -53,7 +53,7 @@
           {                                                                                                    \
               .speed_PID =                                                                                     \
                   {                                                                                            \
-                      .Kp = 0.5,                                                                               \
+                      .Kp = 1,                                                                               \
                       .Ki = 0,                                                                                 \
                       .Kd = 0,                                                                                 \
                       .IntegralLimit = 6000,                                                                   \
@@ -157,6 +157,7 @@ static Chassis_Init_Config_s chassis_init_config = {
     .rudder_motor_config[1] = RUDDER_MOTOR_CONFIG(&hcan2, 3),
     .rudder_motor_config[2] = RUDDER_MOTOR_CONFIG(&hcan2, 4),
     .rudder_motor_config[3] = RUDDER_MOTOR_CONFIG(&hcan2, 2),
+  .yaw_motor_config=RUDDER_MOTOR_CONFIG(&hcan1, 1),
     // 跟随PID
     // .follow_pid={
     //     .Kp = -80.0f,
