@@ -179,8 +179,7 @@ static uint8_t send_all_robot_hp(UART_HandleTypeDef* huart, const all_robot_hp_t
 {
     if (huart == NULL || robot_hp == NULL) return 0;
 
-    uint32_t timestamp = HAL_GetTick();
-    return protocol_send(huart, timestamp,
+    return protocol_send(huart, 0x0003,
                         (uint8_t*)robot_hp,
                         sizeof(all_robot_hp_t),
                         PKT_ID_ALL_ROBOT_HP, 10);
@@ -195,8 +194,6 @@ static uint8_t send_all_robot_hp(UART_HandleTypeDef* huart, const all_robot_hp_t
 static uint8_t send_game_status(UART_HandleTypeDef* huart, const game_status_t* game_status)
 {
     if (huart == NULL||game_status==NULL) return 0;
-
-    uint32_t timestamp = HAL_GetTick();
     return protocol_send(huart, 0x0001,
                         (uint8_t*)game_status,
                         sizeof(game_status_t),
@@ -310,9 +307,9 @@ void updata_senddata(void) {
 
 void navigator_send(UART_HandleTypeDef *instance) {
   updata_senddata();
-  //send_all_robot_hp(instance,&send_data.all_robot_hp);
+  send_all_robot_hp(instance,&send_data.all_robot_hp);
   // send_event_data(instance,&send_data.event_data);
-  send_game_status(instance,&send_data.game_status);
+  //send_game_status(instance,&send_data.game_status);
   // send_ground_robot_position(instance,&send_data.ground_robot_position);
   // send_joint_state(instance,&send_data.joint_state);
   // send_rfid_status(instance,&send_data.rfid_status);
