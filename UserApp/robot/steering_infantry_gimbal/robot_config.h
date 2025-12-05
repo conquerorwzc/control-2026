@@ -4,6 +4,9 @@
 #include "gimbal.h"
 #include "shoot.h"
 
+#define BOARD_TX_ID 0x219
+#define BOARD_RX_ID 0x218
+
 // 云台参数
 #define YAW_CHASSIS_ALIGN_ECD 5326
 #define PITCH_HORIZON_ECD 5748  // 云台处于水平位置时编码器值,若对云台有机械改动需要修改
@@ -205,5 +208,17 @@ static Gimbal_Init_Config_s gimbal_init_config = {
 //             .controller_setting_init_config.close_loop_type = SPEED_LOOP | ANGLE_LOOP,
 //         },
 // };
+
+static CANComm_Init_Config_s comm_config = {
+  .recv_data_len = 8,        // 接收数据长度，根据实际需求调整
+  .send_data_len = 8,        // 发送数据长度，根据实际需求调整
+  .daemon_count = 1000,      // 看门狗重载计数，根据实际需求调整
+  .can_config = {
+    .can_handle = &hcan1,  // 假设使用CAN1，根据实际使用的CAN句柄调整
+    .tx_id = BOARD_TX_ID,        // 发送ID，根据实际需求调整
+    .rx_id = BOARD_RX_ID,        // 接收ID，根据实际需求调整
+    .id = NULL                   // 将在CANCommInit中设置
+  }
+};
 
 #endif  // CONTROL_2026_ROBOT_CONFIG_H

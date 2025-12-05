@@ -18,15 +18,24 @@
 // #endif
 #pragma once
 
+#include <stdint.h>
 #include "chassis.h"
 #include "gimbal.h"
 #include "shoot.h"
 #include "remote_control.h"
 // #include "rm_referee.h"
 #include "super_cap.h"
+#include "can_comm.h"
+
 // todo: add vision_module
 
 #define GIMBAL_BOARD
+
+//联合体定义
+typedef union {
+  int16_t value;
+  uint8_t bytes[2];
+} Int16ToBytes;
 
 typedef enum {
   ROBOT_POWER_OFF = 0,
