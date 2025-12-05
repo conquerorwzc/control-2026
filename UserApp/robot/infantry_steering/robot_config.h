@@ -28,7 +28,7 @@
 // #define VISION_USE_UART // 使用串口发送视觉数据
 
 // 云台参数
-#define YAW_CHASSIS_ALIGN_ECD 5326
+#define YAW_CHASSIS_ALIGN_ECD 1570
 #define PITCH_HORIZON_ECD 5748  // 云台处于水平位置时编码器值,若对云台有机械改动需要修改
 #define PITCH_MAX_ANGLE 11.0f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
 #define PITCH_MIN_ANGLE -15.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
@@ -41,6 +41,7 @@
 #define GYRO2GIMBAL_DIR_ROLL 1   // 陀螺仪数据相较于云台的roll的方向,1为相同,-1为相反
 
 // 轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
+#define WHEEL_MAX_SLEW_RATE 100.0f
 //  轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
 #define WHEEL_MOTOR_CONFIG(handle, id,reverse_flag)                                                                         \
   ((Motor_Init_Config_s){                                                                                      \

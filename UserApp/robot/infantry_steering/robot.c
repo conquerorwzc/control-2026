@@ -3,7 +3,7 @@
 #include "general_def.h"
 #include "robot_config.h"
 #include "user_lib.h"
-#define USECANREMOTE 1 //是否使用云台板的遥控数据
+#define USECANREMOTE 0 //是否使用云台板的遥控数据
 
 static RobotInstance *robot;
 
@@ -34,7 +34,7 @@ int16_t_bytes CanData={0};//底盘板can接收的遥控数据
  */
 static void CalcOffsetAngle() {
   angle = (uint16_t)robot->chassis->yaw_motor->measure.angle_single_round;
-  float delta =YAW_ALIGN_ANGLE - angle;
+  float delta = angle-YAW_ALIGN_ANGLE;
   if (delta > 180.0f) {
     delta -= 360.0f;
   } else if (delta <= -180.0f) {
@@ -341,7 +341,8 @@ void RobotTask() {
     //GimbalTask();
     //ShootTask();
     ChassisTask();
-
+    //将原本motortask的can发送改到这里，和pid计算同频，减少无用发送
+    DJIMotorCANTransmit();
   }
 
 

@@ -10,11 +10,13 @@
  * @brief   Mecanum Chassis Module
  */
 #include "chassis.h"
-
+#include "robot_config.h"
 #include "arm_math.h"
 #include "bsp_dwt.h"
 #include "general_def.h"
 #include "user_lib.h"
+#define MIN_WITH_WHEEL_MAX_SLEW_RATE(var) ((var) < (WHEEL_MAX_SLEW_RATE) ? (var) : (WHEEL_MAX_SLEW_RATE))
+
 
 static ChassisInstance* chassis;
 static Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd;  // 声明但不初始化
@@ -23,6 +25,7 @@ static Chassis_Param_s chassis_param;          // 声明为静态局部变量
 static float chassis_vx, chassis_vy;     // 将云台系的速度投影到底盘
 static float vt_lf, vt_rf, vt_lb, vt_rb;  // 底盘速度解算后的临时输出,待进行限幅
 static float vt[4]={0};//限幅后的数据
+static float AS_VT[4]={0};
 static float st_lf,st_rf,st_lb,st_rb;
 // 添加变量来存储上一次的角度值
 //static float last_st_lf = 0.0f, last_st_rf = 0.0f, last_st_lb = 0.0f, last_st_rb = 0.0f;
@@ -96,7 +99,15 @@ static void WheelLimit() {
       vt[i] *= vector_rate;
     }
   }
-}//
+}
+void AntiSpin() {
+  float temp;
+  for (int i = 0; i < 4; i++) {
+    if (AS_VT[i] < vt[i] ) {
+
+    }
+  }
+}
 
 // 添加静态变量用于存储前一个角度以实现连续跟踪
 static float last_st_lf = 0.0f, last_st_rf = 0.0f, last_st_lb = 0.0f, last_st_rb = 0.0f;
@@ -130,6 +141,7 @@ static void SteeringCalculate() {
   vt[RB]=vt_rb*dir_rb;
    
   WheelLimit();
+  //AntiSpin();
   // 更新前一个角度
   last_st_lf = st_lf;
   last_st_rf = st_rf;
