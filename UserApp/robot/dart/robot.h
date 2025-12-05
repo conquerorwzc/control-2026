@@ -39,6 +39,23 @@ typedef enum {
   CALI_STEP_DONE                // 完成
 } DartCaliStep_e;
 
+/* 飞镖自动发射状态枚举 */
+typedef enum {
+  AUTO_FIRE_INIT = 0,           // 初始化
+  PUSH_UP_RIGHT,                // 右上
+  PUSH_UP_RIGHT_PAUSE,          // 右上停
+  PUSH_DOWN_RIGHT,              // 右下
+  PUSH_DOWN_RIGHT_PAUSE,        // 右下停
+  PUSH_LEFT,                    // 左移
+  PUSH_LEFT_PAUSE,              // 左停
+  PUSH_UP_LEFT,                 // 左上
+  PUSH_UP_LEFT_PAUSE,           // 左上停
+  PUSH_DOWN_LEFT,               // 左下
+  PUSH_DOWN_LEFT_PAUSE,         // 左下停
+  PUSH_RIGHT,                   // 右移
+  PUSH_RIGHT_PAUSE,             // 右移停
+} AutoFireStep_e;
+
 /* 飞镖控制命令结构 */
 typedef struct {
   float friction_speed;         // 摩擦轮速度
@@ -58,6 +75,7 @@ typedef struct {
   // 状态管理
   DartMode_e current_mode;
   Dart_Ctrl_Cmd_s dart_ctrl_cmd;        // 飞镖控制命令
+  bool is_fire_active;                  // 检测自动发射是否正在运行
 
   // 控制参数
   float friction_speed_target;          // 摩擦轮目标速度
@@ -65,14 +83,15 @@ typedef struct {
   float horizontal_speed_target;        // 左右推杆目标速度
 
   // 系统参数
-  uint8_t shot_count;                   // 已发射数量
-  uint8_t max_ammo;                     // 最大弹药量
-  bool block_detected;                  // 堵转检测标志
-  uint8_t block_motor_id;               // 堵转电机ID
+  float fric_base_speed;                // 摩擦轮基础速度（用于自动发射模式摇杆微调）
 
   // 校准与限位专用变量
   bool is_calibrated;                   // 是否已完成校准
   DartCaliStep_e calibration_step;
+  AutoFireStep_e current_step;
+  bool is_hori_blocked;                 // 水平推杆是否已堵转
+  float hori_block_position;            // 水平推杆堵转时的位置
+  bool hori_direction;
 
   float vert_zero_ecd;                  // 垂直推杆的零点编码器值
   float hori_zero_ecd;                  // 水平推杆的零点编码器值
@@ -102,7 +121,7 @@ void RobotTask(void);
 /**
  * @brief 机器人命令解析任务
  */
-void RobotCMDTask(void);
+//void RobotCMDTask(void);
 
 /*=======飞镖函数=======*/
 /**
@@ -113,7 +132,7 @@ void DartInit(void);
 /**
  * @brief 飞镖主任务
  */
-void DartTask(void);
+//void DartTask(void);
 
 /**
  * @brief 飞镖调试模式处理
@@ -128,7 +147,7 @@ void DartAutoFireHandler(void);
 /**
  * @brief 飞镖急停处理
  */
-void DartEmergencyHandler(void);
+// DartEmergencyHandler(void);
 
 /**
  * @brief 飞镖状态机更新
