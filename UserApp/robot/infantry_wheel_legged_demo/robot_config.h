@@ -103,10 +103,10 @@
       /* 腿部五连杆长度, 单位是M */                                                                                    \
       .leg_param =                                                                                                     \
           {                                                                                                            \
-              .rod_length[0] = 0.0725,                                                                                 \
+              .rod_length[0] = 0.075,                                                                                  \
               .rod_length[1] = 0.14,                                                                                   \
               .rod_length[2] = 0.14,                                                                                   \
-              .rod_length[3] = 0.0725,                                                                                 \
+              .rod_length[3] = 0.075,                                                                                  \
               .rod_length[4] = 0.079,                                                                                  \
               .joint_motor_zero_offset[0] = 26.14 * DEGREE_2_RAD + PI,                                                 \
               .joint_motor_zero_offset[1] = -26.14 * DEGREE_2_RAD,                                                     \
@@ -219,7 +219,8 @@ static Chassis_Init_Config_s chassis_init_config = {
             .Improve = PID_IMPROVE_NONE,
             .IntegralLimit = 0.0f,
         },
-    .imu_init_config = {.flag = 1, .scale = {1.0f, 1.0f, 1.0f}, .Yaw = 180.0f, .Pitch = 0.0f, .Roll = 0.0f}};
+    // .imu_init_config = {.flag = 1, .scale = {1.0f, 1.0f, 1.0f}, .Yaw = 0.0f, .Pitch = 0.0f, .Roll = 0.0f}
+};
 
 static Gimbal_Init_Config_s gimbal_init_config = {
     .yaw_motor_config =

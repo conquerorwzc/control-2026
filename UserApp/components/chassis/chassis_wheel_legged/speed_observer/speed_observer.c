@@ -44,12 +44,11 @@ void xvEstimateKF_Init(KalmanFilter_t* EstimateKF) {
 }
 
 void xvEstimateKF_Update(KalmanFilter_t* EstimateKF, float acc, float vel) {
-  if ((int)DWT_GetTimeline_ms() % OBSERVE_TIME == 0) {  // todo:shit
-    // 卡尔曼滤波器测量值更新
-    EstimateKF->MeasuredVector[0] = vel;  // 测量速度
-    EstimateKF->MeasuredVector[1] = acc;  // 测量加速度
+  // 卡尔曼滤波器测量值更新
+  EstimateKF->MeasuredVector[0] = vel;  // 测量速度
+  EstimateKF->MeasuredVector[1] = acc;  // 测量加速度
 
-    // 卡尔曼滤波器更新函数
-    Kalman_Filter_Update(EstimateKF);
-  }
+  // 卡尔曼滤波器更新函数
+  Kalman_Filter_Update(EstimateKF);
+  // todo:更新频率需要能够控制
 }

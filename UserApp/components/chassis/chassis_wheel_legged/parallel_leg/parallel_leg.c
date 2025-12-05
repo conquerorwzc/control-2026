@@ -111,6 +111,8 @@ static void VirtualModelUpdate(LegInstance* leg) {
   vm->last_phi_d = vm->phi_d;
 }
 
+static float degree;
+
 /**
  * @brief   更新腿部机构的状态变量
  * @param   leg 指向腿部实例的指针
@@ -125,6 +127,7 @@ static void StateVarUpdate(LegInstance* leg, INS_t* imu) {
   leg->state_var.x += ((leg->state_var.x_d + last_x_d) / 2) * leg->dt;  // 梯形积分
   leg->state_var.phi = DEGREE_2_RAD * imu->Pitch;
   leg->state_var.phi_d = imu->Gyro[0];  // Todo: IMU应当有可在上层配置的旋转矩阵
+  degree += leg->state_var.phi_d * leg->dt;
   leg->state_var.theta = PI / 2.0f - vm->phi - DEGREE_2_RAD * imu->Pitch;
   leg->state_var.theta_d = -vm->phi_d - imu->Gyro[0];
   // Todo:速度观测需要用的变量alpha暂时没处理
@@ -149,17 +152,16 @@ static float LQR_K_Calc(const float* coe, float len) {
   return coe[0] * len * len * len + coe[1] * len * len + coe[2] * len + coe[3];
 }
 
-// static void OffGroundDetection(LegInstance* leg) {
-//   VirtualModel_t* vm = &leg->virtual_model;
-//   vm->FN = vm->F * arm_cos_f32(leg->state_var.theta) + vm->Tp * arm_sin_f32(leg->state_var.theta) / vm->length
-//   + 6.0f;
-//   //腿部机构的力+轮子重力，这里忽略了轮子质量*驱动轮竖直方向运动加速度
-//   if (vm->FN < 5.0f) {
-//     leg->update_flag.is_off_ground = 1; //离地了
-//   } else {
-//     leg->update_flag.is_off_ground = 0; //接地了
-//   }
-// }
+static void OffGroundDetection(LegInstance* leg) {
+  Virtual_Model_t* vm = &leg->virtual_model;
+  vm->FN = vm->F * arm_cos_f32(leg->state_var.theta) + vm->Tp * arm_sin_f32(leg->state_var.theta) / vm->length + 6.0f;
+  // 腿部机构的力+轮子重力，这里忽略了轮子质量*驱动轮竖直方向运动加速度
+  // if (vm->FN < 5.0f) {
+  //   leg->update_flag.is_off_ground = 1;  // 离地了
+  // } else {
+  //   leg->update_flag.is_off_ground = 0;  // 接地了
+  // }
+}
 
 void JointTorqueUpdate(LegInstance* leg) {
   // 简化代码量, 空间换时间, 减少指针引用
@@ -246,6 +248,8 @@ void LegCtrlUpdate(LegInstance* leg, INS_t* imu) {
       // todo:离地检测，除K21 K22以外全部置零
     }
   }
+  OffGroundDetection(leg);
+
   float last_x_d_ref = leg->leg_ctrl_cmd.x_d_ref;
   leg->leg_ctrl_cmd.x_ref += ((leg->leg_ctrl_cmd.x_d_ref + last_x_d_ref) / 2) * leg->dt;  // 梯形积分
   // 状态变量矩阵与LQR_K矩阵相乘得到控制力矩, T为轮毂电机转矩，Tp为VMC模型髋关节电机转矩
@@ -253,7 +257,7 @@ void LegCtrlUpdate(LegInstance* leg, INS_t* imu) {
   leg->real_model.T =
       // leg->update_flag.is_off_ground ? 0.0f :
       leg->LQR_K[0][0] * (leg->state_var.theta - 0.0f) + leg->LQR_K[0][1] * (leg->state_var.theta_d - 0.0f) +
-      0 * leg->LQR_K[0][2] * (leg->state_var.x - leg->leg_ctrl_cmd.x_ref) +
+      leg->LQR_K[0][2] * (leg->state_var.x - leg->leg_ctrl_cmd.x_ref) +
       leg->LQR_K[0][3] * (leg->state_var.x_d - leg->leg_ctrl_cmd.x_d_ref) +
       leg->LQR_K[0][4] * (leg->state_var.phi - 0.0f) + leg->LQR_K[0][5] * (leg->state_var.phi_d - 0.0f);
 
@@ -262,10 +266,9 @@ void LegCtrlUpdate(LegInstance* leg, INS_t* imu) {
   leg->virtual_model.Tp =
       leg->LQR_K[1][0] * (leg->state_var.theta - 0.0f) + leg->LQR_K[1][1] * (leg->state_var.theta_d - 0.0f) +
       // leg->update_flag.is_off_ground? 0.0f:
-      0 * leg->LQR_K[1][2] * (leg->state_var.x - leg->leg_ctrl_cmd.x_ref) +
+      leg->LQR_K[1][2] * (leg->state_var.x - leg->leg_ctrl_cmd.x_ref) +
       leg->LQR_K[1][3] * (leg->state_var.x_d - leg->leg_ctrl_cmd.x_d_ref) +
-      leg->LQR_K[1][4] * (leg->state_var.phi - 0.0f) + leg->LQR_K[1][5] * (leg->state_var.phi_d - 0.0f);
-
+      leg->LQR_K[1][4] * (leg->state_var.phi - 0.0f) + 0 * leg->LQR_K[1][5] * (leg->state_var.phi_d - 0.0f);
   // 腿长双环PID
   // leg->leg_ctrl_cmd.length_d_ref =
   // PIDCalculate(&leg->virtual_model.length_PID, leg->virtual_model.length, leg->leg_ctrl_cmd.length_ref);

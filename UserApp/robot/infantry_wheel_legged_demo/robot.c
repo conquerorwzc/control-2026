@@ -1,5 +1,6 @@
 #include "robot.h"
 
+#include "bsp_gpio.h"
 #include "general_def.h"
 #include "robot_config.h"
 #include "user_lib.h"
@@ -138,9 +139,12 @@ static void RemoteControlSet() {
       // chassis_ctrl_cmd->wz = TRACK_WIDTH / 2.0f * (0.0001) *
       //                        (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如，则在底盘任务中计算旋转分量
       break;
-    case ROBOT_CHASSIS_FOLLOW:
+    case ROBOT_CHASSIS_FOLLOW:;
+      chassis_ctrl_cmd->wz = -(0.0002f) * (float)rc_data[TEMP].rc.rocker_r_;
+      chassis_ctrl_cmd->vx = -(0.001f) * (float)rc_data[TEMP].rc.rocker_r1;
       // chassis_ctrl_cmd->wz = TRACK_WIDTH / 2.0f * (0.0001) *
-      //                        (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如，则在底盘任务中计算旋转分量
+      //                        (float)rc_data[TEMP].rc.dial;  //
+      //                        小陀螺模式下的旋转分量，如，则在底盘任务中计算旋转分量
       // chassis_vx = 30.0f * (float)rc_data[TEMP].rc.rocker_l_;  // _水平方向
       // chassis_vy = 30.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 竖直方向
       // chassis_ctrl_cmd->vx = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
