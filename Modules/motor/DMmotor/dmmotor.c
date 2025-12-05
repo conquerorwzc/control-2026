@@ -204,7 +204,7 @@ __attribute__((noreturn)) void DMMotorTask(void const* argument) {
     motor->motor_can_instance->tx_buff[7] = (uint8_t)(motor_send_mailbox.torque_des);
 
     CANTransmit(motor->motor_can_instance, 2);
-    
+
     osDelay(2);
   }
 }
@@ -217,7 +217,7 @@ void DMMotorTaskInit() {
     char dm_id_buff[2] = {0};
     __itoa(i, dm_id_buff, 10);
     strcat(dm_task_name, dm_id_buff);
-    osThreadDef(dm_task_name, DMMotorTask, osPriorityBelowNormal, 0, 64);
+    osThreadDef(dm_task_name, DMMotorTask, osPriorityBelowNormal, 0, 32);
     dm_task_handle[i] = osThreadCreate(osThread(dm_task_name), dm_motor_instance[i]);
   }
 }
