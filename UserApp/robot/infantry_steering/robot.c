@@ -134,7 +134,7 @@ static void DualBoardCtrlSet() {
       // 解析接收到的数据到全局变量
       memcpy(board_can_comm_data.rx_buff, received_data, 64);
 
-      for (int i = 0; i < 8; i++)
+      for (int i = 0; i < 20; i++)
         CanData.bytes[i] = board_can_comm_data.rx_buff[i];
       chassis_ctrl_cmd->vx=60.0f*CanData.value[0];//todo:后面chassis改改把负号去掉
       chassis_ctrl_cmd->vy=60.0f*CanData.value[1];
@@ -311,8 +311,8 @@ void RobotInit() {
 void RobotCMDTask() {
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角             ,不需要传参,通过static私有变量完成
   CalcOffsetAngle();
-  RemoteControlSet();
-  //DualBoardCtrlSet();
+  //RemoteControlSet();
+  DualBoardCtrlSet();
   // MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
