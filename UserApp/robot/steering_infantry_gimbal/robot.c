@@ -143,6 +143,7 @@
 #include "user_lib.h"
 
 static RobotInstance *robot;
+Int16ToBytes transmit_data;
 
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
@@ -413,26 +414,26 @@ static void EmergencyHandler() {
     // 遥控器右侧开关为[上],恢复正常运行
   }
 
-void Steering_CANCommSend(CANCommInstance *can_comm_instance, RC_ctrl_t *rc_data)
-{
-  static Int16ToBytes transmit_data;
-
-  if (can_comm_instance == NULL || rc_data == NULL)
-  {
-    return;
-  }
-
-  transmit_data.value = rc_data->rc.rocker_l_;
-  can_comm_instance->can_ins->tx_buff[0] = transmit_data.bytes[0];
-  can_comm_instance->can_ins->tx_buff[1] = transmit_data.bytes[1];
-
-  transmit_data.value = rc_data->rc.rocker_l1;
-  can_comm_instance->can_ins->tx_buff[2] = transmit_data.bytes[0];
-  can_comm_instance->can_ins->tx_buff[3] = transmit_data.bytes[1];
-
-  transmit_data.value = rc_data->rc.rocker_r_;
-  can_comm_instance->can_ins->tx_buff[4] = transmit_data.bytes[0];
-  can_comm_instance->can_ins->tx_buff[5] = transmit_data.bytes[1];
+// void Steering_CANCommSend(CANCommInstance *can_comm_instance, RC_ctrl_t *rc_data)
+// {
+//   static Int16ToBytes transmit_data;
+//
+//   if (can_comm_instance == NULL || rc_data == NULL)
+//   {
+//     return;
+//   }
+//
+//   transmit_data.value = rc_data->rc.rocker_l_;
+//   can_comm_instance->can_ins->tx_buff[0] = transmit_data.bytes[0];
+//   can_comm_instance->can_ins->tx_buff[1] = transmit_data.bytes[1];
+//
+//   transmit_data.value = rc_data->rc.rocker_l1;
+//   can_comm_instance->can_ins->tx_buff[2] = transmit_data.bytes[0];
+//   can_comm_instance->can_ins->tx_buff[3] = transmit_data.bytes[1];
+//
+//   transmit_data.value = rc_data->rc.rocker_r_;
+//   can_comm_instance->can_ins->tx_buff[4] = transmit_data.bytes[0];
+//   can_comm_instance->can_ins->tx_buff[5] = transmit_data.bytes[1];
 
   // transmit_data.value = rc_data->rc.rocker_r1;
   // can_comm_instance->can_ins->tx_buff[6] = transmit_data.bytes[0];
@@ -443,10 +444,10 @@ void Steering_CANCommSend(CANCommInstance *can_comm_instance, RC_ctrl_t *rc_data
   // can_comm_instance->can_ins->tx_buff[9] = transmit_data.bytes[1];
 
   // can_comm_instance->can_ins->tx_buff[10] = rc_data->rc.switch_left;
-  can_comm_instance->can_ins->tx_buff[6] = rc_data->rc.switch_right;
-
-  CANCommSend(can_comm_instance, can_comm_instance->can_ins->tx_buff);
-}
+//   can_comm_instance->can_ins->tx_buff[6] = rc_data->rc.switch_right;
+//
+//   CANCommSend(can_comm_instance, can_comm_instance->can_ins->tx_buff);
+// }
 
 void RobotInit() {
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
@@ -497,7 +498,23 @@ void RobotTask() {
   RobotCMDTask();
   GimbalTask();
   ShootTask();
-  Steering_CANCommSend(can_comm_instance, rc_data);
+  //Steering_CANCommSend(can_comm_instance, rc_data);
+  transmit_data.value = rc_data->rc.rocker_l_;
+  board_can_comm_data.tx_buff[0] = transmit_data.bytes[0];
+  board_can_comm_data.tx_buff[1] = transmit_data.bytes[1];
+
+  transmit_data.value = rc_data->rc.rocker_l1;
+  board_can_comm_data.tx_buff[2] = transmit_data.bytes[0];
+  board_can_comm_data.tx_buff[3] = transmit_data.bytes[1];
+
+  transmit_data.value = rc_data->rc.rocker_r_;
+  board_can_comm_data.tx_buff[4] = transmit_data.bytes[0];
+  board_can_comm_data.tx_buff[5] = transmit_data.bytes[1];
+
+  board_can_comm_data.tx_buff[6] = rc_data->rc.switch_right;
+
+  CANCommSend(can_comm_instance, board_can_comm_data.tx_buff);
+
 #endif
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
