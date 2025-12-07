@@ -138,7 +138,7 @@ void ObserverVarUpdate(LegInstance* leg, INS_t* imu) {
   Virtual_Model_t* vm = &leg->virtual_model;
   State_Var_t* sv = &leg->state_var;
   ov->w = -leg->wheel_motor->measure.velocity + vm->alpha_d - imu->Gyro[0];  // todo:Gyro极性不确定
-  ov->vb = ov->w * wheel_radius * vm->length * sv->theta_d * mcos(sv->theta) + vm->length_d * msin(sv->theta);
+  ov->vb = ov->w * wheel_radius + vm->length * sv->theta_d * mcos(sv->theta) + vm->length_d * msin(sv->theta);
 }
 
 /**
@@ -152,7 +152,7 @@ static float LQR_K_Calc(const float* coe, float len) {
   return coe[0] * len * len * len + coe[1] * len * len + coe[2] * len + coe[3];
 }
 
-static void OffGroundDetection(LegInstance* leg) {
+static void OffGroundDetection(LegInstance* leg) {  // TODO: 旦说串腿这个很搞
   Virtual_Model_t* vm = &leg->virtual_model;
   vm->FN = vm->F * arm_cos_f32(leg->state_var.theta) + vm->Tp * arm_sin_f32(leg->state_var.theta) / vm->length + 6.0f;
   // 腿部机构的力+轮子重力，这里忽略了轮子质量*驱动轮竖直方向运动加速度
@@ -241,6 +241,7 @@ void LegCtrlUpdate(LegInstance* leg, INS_t* imu) {
   VirtualModelUpdate(leg);
   // 状态变量更新
   StateVarUpdate(leg, imu);
+
   // 根据腿长计算LQR_K矩阵, i->腿编号, j->状态变量编号
   for (int i = 0; i < 2; i++) {
     for (int j = 0; j < 6; j++) {
@@ -253,6 +254,7 @@ void LegCtrlUpdate(LegInstance* leg, INS_t* imu) {
   float last_x_d_ref = leg->leg_ctrl_cmd.x_d_ref;
   leg->leg_ctrl_cmd.x_ref += ((leg->leg_ctrl_cmd.x_d_ref + last_x_d_ref) / 2) * leg->dt;  // 梯形积分
   // 状态变量矩阵与LQR_K矩阵相乘得到控制力矩, T为轮毂电机转矩，Tp为VMC模型髋关节电机转矩
+
   static float phi_PID_output;
   leg->real_model.T =
       // leg->update_flag.is_off_ground ? 0.0f :
@@ -268,7 +270,8 @@ void LegCtrlUpdate(LegInstance* leg, INS_t* imu) {
       // leg->update_flag.is_off_ground? 0.0f:
       leg->LQR_K[1][2] * (leg->state_var.x - leg->leg_ctrl_cmd.x_ref) +
       leg->LQR_K[1][3] * (leg->state_var.x_d - leg->leg_ctrl_cmd.x_d_ref) +
-      leg->LQR_K[1][4] * (leg->state_var.phi - 0.0f) + 0 * leg->LQR_K[1][5] * (leg->state_var.phi_d - 0.0f);
+      leg->LQR_K[1][4] * (leg->state_var.phi - 0.0f) + leg->LQR_K[1][5] * (leg->state_var.phi_d - 0.0f);
+
   // 腿长双环PID
   // leg->leg_ctrl_cmd.length_d_ref =
   // PIDCalculate(&leg->virtual_model.length_PID, leg->virtual_model.length, leg->leg_ctrl_cmd.length_ref);

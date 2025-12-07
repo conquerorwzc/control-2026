@@ -90,7 +90,7 @@ INS_t *INS_Init(void) {
   if (!INS.init)
     INS.init = 1;
   else
-    return (attitude_t *)&INS.Gyro;
+    return &INS;
 
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
 

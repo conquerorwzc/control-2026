@@ -27,6 +27,8 @@ typedef struct {
   ShootInstance* shoot;
 
   PIDInstance chassis_follow_PID;
+  uint32_t DWT_CNT;
+  float dt;
 } RobotInstance;
 
 /**

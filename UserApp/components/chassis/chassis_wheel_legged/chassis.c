@@ -29,17 +29,18 @@ static void ChassisCtrlUpdate() {
       PIDCalculate(&chassis->roll_PID, chassis->chassis_IMU->Roll * DEGREE_2_RAD, chassis->chassis_ctrl_cmd.roll);
 
   for (int i = 0; i < 2; i++) {
+    leg[i]->leg_ctrl_cmd.x_d_ref = chassis->chassis_ctrl_cmd.vx;
     LegCtrlUpdate(leg[i], chassis->chassis_IMU);
     float leg_force_ff = 9.8f * robot_weight / 2.0f / mcos(leg[i]->state_var.theta);
-    leg[i]->virtual_model.F += leg_force_ff;  //- (float)(1 - 2 * i) * chassis->roll_comp;
+    leg[i]->virtual_model.F += leg_force_ff - (float)(1 - 2 * i) * chassis->roll_comp;
     VAL_LIMIT(leg[i]->virtual_model.F, -100.0f, 100.0f);
+    leg[i]->real_model.T -= (float)(1 - 2 * i) * chassis->chassis_ctrl_cmd.wz;
   }
 
   chassis->delta_theta_comp =
       PIDCalculate(&chassis->delta_theta_PID, leg[0]->state_var.theta - leg[1]->state_var.theta, 0);
-
   for (int i = 0; i < 2; i++) {
-    // leg[i]->virtual_model.Tp -= (float)(1 - 2 * i) * chassis->delta_theta_comp;
+    leg[i]->virtual_model.Tp -= (float)(1 - 2 * i) * chassis->delta_theta_comp;
     JointTorqueUpdate(leg[i]);
   }
 }
@@ -57,17 +58,14 @@ static void ChassisRecovery() {
     leg[i]->real_model.Tp_1 = leg[i]->joint_motor[0]->motor_controller.final_output;
     leg[i]->real_model.Tp_2 = leg[i]->joint_motor[1]->motor_controller.final_output;
 
-    if (abs((leg[i]->joint_motor[0]->measure.position - (-0.1f))) <= 0.05f &&
-        abs(leg[i]->joint_motor[1]->measure.position - (0.1f)) <= 0.05f) {
-      // leg[i]->leg_ctrl_cmd.x_d_ref = chassis_ctrl_cmd->vx + (float)(1 - 2 * i) * chassis->chassis_ctrl_cmd.wz;
-      // float turn_T;
-      // turn_T = 2 * (0 - DEGREE_2_RAD * chassis->chassis_IMU->YawTotalAngle) - 0.2 * chassis->chassis_IMU->Gyro[2];
+    if (abs((leg[i]->joint_motor[0]->measure.position - (-0.1f))) <= 1.0f &&
+        abs(leg[i]->joint_motor[1]->measure.position - (0.1f)) <= 1.0f) {
+      leg[i]->leg_ctrl_cmd.x_d_ref = chassis->chassis_ctrl_cmd.vx;
       LegCtrlUpdate(leg[i], chassis->chassis_IMU);
-      // leg[i]->real_model.T -= (float)(1 - 2 * i) * turn_T;
+      leg[i]->real_model.T -= (float)(1 - 2 * i) * chassis->chassis_ctrl_cmd.wz;
     } else {
-      LegCtrlUpdate(leg[i], chassis->chassis_IMU);
-
-      // leg[i]->real_model.T = 0;
+      // LegCtrlUpdate(leg[i], chassis->chassis_IMU);
+      leg[i]->real_model.T = 0;
     }
   }
 }
@@ -103,7 +101,7 @@ static void LimitChassisOutput() {
  *
  */
 static void EstimateSpeed() {
-#if 0
+#if 1
   ObserverVarUpdate(leg[0], chassis->chassis_IMU);
   ObserverVarUpdate(leg[1], chassis->chassis_IMU);
   chassis_aver_v = (leg[0]->observer_var.vb + leg[1]->observer_var.vb) / 2.0f;

@@ -82,7 +82,7 @@ static void RemoteControlSet() {
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       robot->robot_mode = ROBOT_CHASSIS_ROTATE;
     } else
-      robot->robot_mode = ROBOT_CHASSIS_FOLLOW;
+      robot->robot_mode = ROBOT_CHASSIS_FREE;
   }
   // 左[中],云台启动，摩擦轮启动，拨弹盘启动，准备射击
   if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
@@ -139,23 +139,24 @@ static void RemoteControlSet() {
       // chassis_ctrl_cmd->wz = TRACK_WIDTH / 2.0f * (0.0001) *
       //                        (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如，则在底盘任务中计算旋转分量
       break;
-    case ROBOT_CHASSIS_FOLLOW:;
-      chassis_ctrl_cmd->wz = -(0.0002f) * (float)rc_data[TEMP].rc.rocker_r_;
-      chassis_ctrl_cmd->vx = -(0.001f) * (float)rc_data[TEMP].rc.rocker_r1;
+    case ROBOT_CHASSIS_FOLLOW:
       // chassis_ctrl_cmd->wz = TRACK_WIDTH / 2.0f * (0.0001) *
       //                        (float)rc_data[TEMP].rc.dial;  //
       //                        小陀螺模式下的旋转分量，如，则在底盘任务中计算旋转分量
       // chassis_vx = 30.0f * (float)rc_data[TEMP].rc.rocker_l_;  // _水平方向
       // chassis_vy = 30.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 竖直方向
-      // chassis_ctrl_cmd->vx = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
       // chassis_ctrl_cmd->wz =
-      //     (20.0f) * (float)rc_data[TEMP].rc.rocker_r_ +  // todo: 这里前馈的实现对轮腿全向移动回中没有效果
-      //     PIDCalculate(&robot->chassis_follow_PID,
-      //                  PI / 2.0f - atan2f(chassis_vy, chassis_vx) + chassis_ctrl_cmd->offset_angle, 0);
-      break;
+      //     // (20.0f) * (float)rc_data[TEMP].rc.rocker_r_ +
+      //     // PIDCalculate(&robot->chassis_follow_PID,
+      //     //              PI / 2.0f - atan2f(chassis_vy, chassis_vx) + chassis_ctrl_cmd->offset_angle, 0);
+      //     PIDCalculate(&robot->chassis_follow_PID, robot->chassis->chassis_IMU->YawTotalAngle, 0);
+      // break;
     case ROBOT_CHASSIS_FREE:
-      chassis_ctrl_cmd->vx = -(0.001f) * (float)rc_data[TEMP].rc.rocker_r1;
-      chassis_ctrl_cmd->wz = -(0.0002f) * (float)rc_data[TEMP].rc.rocker_r_;
+      static float target_angle;
+      target_angle += -(0.3f) * (float)rc_data[TEMP].rc.rocker_r_ * robot->dt;
+      chassis_ctrl_cmd->wz =
+          PIDCalculate(&robot->chassis_follow_PID, robot->chassis->chassis_IMU->YawTotalAngle, target_angle);
+      chassis_ctrl_cmd->vx = (0.001f) * (float)rc_data[TEMP].rc.rocker_r1;
       // chassis_ctrl_cmd->leg_length_d = (float)rc_data[TEMP].rc.rocker_l1;
       // chassis_ctrl_cmd->roll = (float)rc_data[TEMP].rc.rocker_l_;
       break;
@@ -330,9 +331,11 @@ void RobotInit() {
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
 
   rc_data = robot->rc_data;
+  DWT_GetDeltaT(&robot->DWT_CNT);
 }
 
 void RobotTask() {
+  robot->dt = DWT_GetDeltaT(&robot->DWT_CNT);
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
   RobotCMDTask();
   // GimbalTask();
