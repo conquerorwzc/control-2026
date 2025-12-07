@@ -4,8 +4,8 @@
 #include "gimbal.h"
 #include "shoot.h"
 
-#define BOARD_TX_ID 0x219
-#define BOARD_RX_ID 0x218
+#define BOARD_TX_ID 0x218
+#define BOARD_RX_ID 0x219
 
 // 云台参数
 #define YAW_CHASSIS_ALIGN_ECD 5326
@@ -73,7 +73,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                     .can_handle = &hcan1,
                     .tx_id = 1,
                 },
-            .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+            .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
         },
     // .pitch_motor_config =
     //     {
@@ -163,7 +163,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
 //             .loader_direction = -1,                    // 拨盘旋转方向,1为正向，-1为反向
 //             .friction_num = 2,                        //摩擦轮数量
 //             .friction_speed = 26000.0f,               //摩擦轮速度
-//             .friction_coefficients = {1.0f},//摩擦轮速度比例系数
+//             .friction_coefficients = {1.0f, 1.0f},//摩擦轮速度比例系数
 //             .deadtime_burstfire = 500,
 //             .deadtime_onebullet = 1000,
 //             .target_speed = 12.0f,
@@ -221,4 +221,16 @@ static CANComm_Init_Config_s comm_config = {
   }
 };
 
+// CAN实例配置（用于数据存储）
+static CANInstance board_can_comm_data = {
+  .can_handle = &hcan1,
+  .tx_id = BOARD_TX_ID,          // 与comm_config中的ID保持一致
+  .rx_id = BOARD_RX_ID,
+  .txconf = {
+    .StdId = BOARD_TX_ID,      // 发送ID
+    .IDE = CAN_ID_STD,   // 标准帧
+    .RTR = CAN_RTR_DATA, // 数据帧
+    .DLC = 0x08,         // 数据长度8字节
+  }
+};
 #endif  // CONTROL_2026_ROBOT_CONFIG_H
