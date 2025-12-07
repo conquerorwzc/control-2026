@@ -15,7 +15,7 @@
 #define LB 1
 #define RB 2
 #define RF 3
-#define MAX_WHEEL_SPEED 40000.0f
+#define MAX_WHEEL_SPEED 20000.0f
 //底盘模式
 // typedef enum {
 //   CHASSIS_VECTOR_FOLLOW_GIMBAL_YAW,   //底盘跟随云台
@@ -81,7 +81,7 @@ typedef struct {
   PID_Init_Config_s rudder_angle_pid_config;
   PID_Init_Config_s rudder_speed_pid_config;
   PID_Init_Config_s driver_speed_pid_config;
-  //PID_Init_Config_s follow_pid;
+  PID_Init_Config_s follow_pid;
 } Chassis_Init_Config_s;
 
 // 舵轮底盘实例

@@ -159,15 +159,17 @@ static Chassis_Init_Config_s chassis_init_config = {
     .rudder_motor_config[2] = RUDDER_MOTOR_CONFIG(&hcan2, 4),
     .rudder_motor_config[3] = RUDDER_MOTOR_CONFIG(&hcan2, 2),
   .yaw_motor_config=RUDDER_MOTOR_CONFIG(&hcan1, 1),
-    // 跟随PID
-    // .follow_pid={
-    //     .Kp = -80.0f,
-    //     .Ki = 0.0f,
-    //     .Kd = 0.0f,
-    //     .IntegralLimit = 1000.0f,
-    //     .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-    //     .MaxOut = 10000.0f,
-    // },
+    //跟随PID
+    .follow_pid={
+        .Kp = 45.0f,
+        .Ki = 0.0f,
+        .Kd = 0.0f,
+        .IntegralLimit = 1000.0f,
+        .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+        .MaxOut = 10000.0f,
+      .DeadBand = 0.0f,
+
+    },
 
 };
 
@@ -349,10 +351,10 @@ static CANComm_Init_Config_s comm_config = {
 // CAN实例配置（用于数据存储）
 static CANInstance board_can_comm_data = {
   .can_handle = &BOARD_CAN,
-  .tx_id = 0x218,          // 与comm_config中的ID保持一致
-  .rx_id = 0x218,
+  .tx_id = BOARD_TX_ID,          // 与comm_config中的ID保持一致
+  .rx_id = BOARD_RX_ID,
   .txconf = {
-    .StdId = 0x218,      // 发送ID
+    .StdId = BOARD_TX_ID,      // 发送ID
     .IDE = CAN_ID_STD,   // 标准帧
     .RTR = CAN_RTR_DATA, // 数据帧
     .DLC = 0x08,         // 数据长度8字节
