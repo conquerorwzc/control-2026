@@ -75,36 +75,36 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 },
             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
         },
-    // .pitch_motor_config =
-    //     {
-    //         .controller_param_init_config =
-    //             {
-    //                 .angle_PID =
-    //                 {
-    //                   .Kp = 0.0f,
-    //                   .Ki = 0.01f,
-    //                   .Kd = 0.0f,
-    //                   .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-    //                   .IntegralLimit = 0.0f,
-    //                   .MaxOut = 10.0f,
-    //               },
-    //           .speed_PID = {
-    //                   .Kp = 0.0f,
-    //                   .Ki = 0.0f,
-    //                   .Kd = 0.0f,
-    //                   .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-    //                   .IntegralLimit = 10000.0f,
-    //                   .MaxOut = 30000.0f,
-    //               },
-    //             },
-    //         .motor_type = GM6020,
-    //         .can_init_config =
-    //             {
-    //                 .can_handle = &hcan2,
-    //                 .tx_id = 1,
-    //             },
-    //         .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
-    //     },
+    .pitch_motor_config =
+        {
+            .controller_param_init_config =
+                {
+                    .angle_PID =
+                    {
+                      .Kp = 0.0f,
+                      .Ki = 0.01f,
+                      .Kd = 0.0f,
+                      .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+                      .IntegralLimit = 0.0f,
+                      .MaxOut = 10.0f,
+                  },
+              .speed_PID = {
+                      .Kp = 0.0f,
+                      .Ki = 0.0f,
+                      .Kd = 0.0f,
+                      .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+                      .IntegralLimit = 10000.0f,
+                      .MaxOut = 30000.0f,
+                  },
+                },
+            .motor_type = GM6020,
+            .can_init_config =
+                {
+                    .can_handle = &hcan2,
+                    .tx_id = 1,
+                },
+            .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+        },
     // .yaw_motor_second_order_linear_controller_init_config = {
     //     .k_feed_forward = YAW_FEED_FORWARD,
     //     .k_angle_error = YAW_ANGLE_ERROR_COEF,
