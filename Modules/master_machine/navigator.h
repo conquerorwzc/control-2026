@@ -96,22 +96,14 @@ typedef  struct {
 
 // 所有机器人血量数据包
 typedef struct {
-    uint16_t red_1_robot_hp;        // 红1机器人血量
-    uint16_t red_2_robot_hp;        // 红2机器人血量
-    uint16_t red_3_robot_hp;        // 红3机器人血量
-    uint16_t red_4_robot_hp;        // 红4机器人血量
-    uint16_t red_5_robot_hp;        // 红5机器人血量
-    uint16_t red_7_robot_hp;        // 红7机器人血量
-    uint16_t red_outpost_hp;        // 红方前哨站血量
-    uint16_t red_base_hp;           // 红方基地血量
-    uint16_t blue_1_robot_hp;       // 蓝1机器人血量
-    uint16_t blue_2_robot_hp;       // 蓝2机器人血量
-    uint16_t blue_3_robot_hp;       // 蓝3机器人血量
-    uint16_t blue_4_robot_hp;       // 蓝4机器人血量
-    uint16_t blue_5_robot_hp;       // 蓝5机器人血量
-    uint16_t blue_7_robot_hp;       // 蓝7机器人血量
-    uint16_t blue_outpost_hp;       // 蓝方前哨站血量
-    uint16_t blue_base_hp;          // 蓝方基地血量
+  uint16_t ally_1_robot_hp;
+  uint16_t ally_2_robot_hp;
+  uint16_t ally_3_robot_hp;
+  uint16_t ally_4_robot_hp;
+  uint16_t reserved;
+  uint16_t ally_7_robot_hp;
+  uint16_t ally_outpost_hp;
+  uint16_t ally_base_hp;
 } __attribute__((__packed__)) all_robot_hp_t;
 
 // 游戏状态数据包

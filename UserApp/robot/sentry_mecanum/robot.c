@@ -132,9 +132,9 @@ static void RemoteControlSet() {
     }
   } else if (robot->control_mode == AUTO_MODE) // 自动控制，直接接收上位机控制量
   {
-    vx_initial = robot->navigator_data->robot_cmd.speed_vector.vx;
-    vy_initial = robot->navigator_data->robot_cmd.speed_vector.vy;
-    chassis_ctrl_cmd->wz = robot->navigator_data->robot_cmd.speed_vector.wz;
+    vx_initial = robot->navigator_data->robot_cmd.speed_vector.vx*5000;
+    vy_initial = robot->navigator_data->robot_cmd.speed_vector.vy*5000;
+    chassis_ctrl_cmd->wz = robot->navigator_data->robot_cmd.speed_vector.wz*2000;
   }
   *rc_data_last = *rc_data;
 }
@@ -360,6 +360,7 @@ void RobotCMDTask() {
 void RobotTask() {
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
   VisionSend();
+  navigator_send(&huart1);
   RobotCMDTask();
   GimbalTask();
   ShootTask();
