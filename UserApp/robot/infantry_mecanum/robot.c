@@ -134,7 +134,7 @@ static void MouseKeySet() {
                          (float) -chassis_ctrl_cmd->chassis_speed_buff;
 
     //缓加速
-  if (abs(vx_initial)<10000) {
+  if (abs(vx_initial)<=10000) {
     x_speed_time=DWT_GetTimeline_s();
     chassis_ctrl_cmd->vx=vx_initial;
   }//速度绝对值在10000以下输出控制量=输入控制量
@@ -144,7 +144,7 @@ static void MouseKeySet() {
   if (vx_initial < -10000&&chassis_ctrl_cmd->vx>= 60.0f * (float)rc_data[TEMP].rc.rocker_l_) {
     chassis_ctrl_cmd->vx=-10000-(DWT_GetTimeline_s()-x_speed_time)*10000;
   }//速度绝对值在10000以上输出控制量=10000+10000t(s)
-  if (abs(vy_initial)<10000) {
+  if (abs(vy_initial)<=10000) {
     y_speed_time=DWT_GetTimeline_s();
     chassis_ctrl_cmd->vy=vy_initial;
   }//速度绝对值在10000以下输出控制量=输入控制量
