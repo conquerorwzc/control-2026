@@ -32,8 +32,8 @@
 
 /* ================= 推杆参数 ================= */
 #define DART_PUSHROD_MAX_SPEED  30000.0f     // 推杆最大速度
-#define VERT_FIRE_OFFSET_DEG    677000.0f    // 垂直发射偏移量（编码器值）
-#define HORI_RELOAD_OFFSET_DEG  14500.0f     // 水平换弹偏移量（编码器值）
+#define VERT_FIRE_OFFSET_DEG    650000.0f    // 垂直发射偏移量（编码器值）
+#define HORI_RELOAD_OFFSET_DEG  14700.0f     // 水平换弹偏移量（编码器值）
 
 /* ================= 遥控器参数 ================= */
 #define RC_DEADZONE           50             // 摇杆死区
@@ -66,16 +66,16 @@
                       .Kp = 2.0f,                                                                \
                       .Ki = 0.1f,                                                                \
                       .Kd = 0.0f,                                                                \
-                      .MaxOut = 16000.0f,                                                        \
+                      .MaxOut =10000.0f,                                                        \
                       .IntegralLimit = 3000.0f,                                                  \
                       .Improve = PID_Integral_Limit | PID_Trapezoid_Intergral | PID_ErrorHandle, \
                   },                                                                             \
               .angle_PID =                                                                       \
                   {                                                                              \
-                      .Kp = 10.0f,                                                               \
+                      .Kp = 15.0f,                                                               \
                       .Ki = 0.0f,                                                                \
                       .Kd = 0.0f,                                                                \
-                      .MaxOut = 3000.0f,                                                         \
+                      .MaxOut = 6000.0f,                                                         \
                       .Improve = PID_Integral_Limit,                                             \
                   },                                                                             \
           },                                                                                     \
@@ -114,10 +114,10 @@
                   },                                                                             \
               .angle_PID =                                                                       \
                   {                                                                              \
-                      .Kp = 12.0f,                                                               \
+                      .Kp = 30.0f,                                                               \
                       .Ki = 0.0f,                                                                \
                       .Kd = 0.3f,                                                                \
-                      .MaxOut = 16000.0f,                                                        \
+                      .MaxOut = 38000.0f,                                                        \
                       .Improve = PID_Integral_Limit,                                             \
                   },                                                                             \
           },                                                                                     \

@@ -496,9 +496,9 @@ void DartAutoFireHandler(void) {
           DJIMotorSetPIDRef(dart->horizontal_pushrod, hori_right_target);
 
           bool vertical_in_position = (abs(dart->vertical_pushrod->measure.total_angle - vert_top_target) < 500.0f) &&
-                                      (abs(dart->vertical_pushrod->measure.speed_aps) < 5.0f);
+                                      (abs(dart->vertical_pushrod->measure.speed_aps) < 50.0f);
           bool horizontal_in_position = (abs(dart->horizontal_pushrod->measure.total_angle - hori_right_target) < 500.0f) &&
-                                        (abs(dart->horizontal_pushrod->measure.speed_aps) < 30.0f);
+                                        (abs(dart->horizontal_pushrod->measure.speed_aps) < 50.0f);
           uint32_t elapsed_time = HAL_GetTick() - step_start_time;
 
           if (elapsed_time > 200 && vertical_in_position && horizontal_in_position) {
@@ -537,9 +537,9 @@ void DartAutoFireHandler(void) {
           DJIMotorSetPIDRef(dart->horizontal_pushrod, hori_right_target);
 
           bool vertical_in_position = (abs(dart->vertical_pushrod->measure.total_angle - vert_bottom_target) < 500.0f) &&
-                                      (abs(dart->vertical_pushrod->measure.speed_aps) < 5.0f);
+                                      (abs(dart->vertical_pushrod->measure.speed_aps) < 50.0f);
           bool horizontal_in_position = (abs(dart->horizontal_pushrod->measure.total_angle - hori_right_target) < 500.0f) &&
-                                        (abs(dart->horizontal_pushrod->measure.speed_aps) < 30.0f);
+                                        (abs(dart->horizontal_pushrod->measure.speed_aps) < 50.0f);
 
           uint32_t elapsed_time = HAL_GetTick() - step_start_time;
 
@@ -578,10 +578,10 @@ void DartAutoFireHandler(void) {
           DJIMotorOuterLoop(dart->horizontal_pushrod, ANGLE_LOOP);
           DJIMotorSetPIDRef(dart->horizontal_pushrod, hori_left_target);
 
-          bool vertical_in_position = (abs(dart->vertical_pushrod->measure.total_angle - vert_bottom_target) < 500.0f) &&
-                                      (abs(dart->vertical_pushrod->measure.speed_aps) < 5.0f);
-          bool horizontal_in_position = (abs(dart->horizontal_pushrod->measure.total_angle - hori_left_target) < 500.0f) &&
-                                        (abs(dart->horizontal_pushrod->measure.speed_aps) < 30.0f);
+          bool vertical_in_position = (abs(dart->vertical_pushrod->measure.total_angle - vert_bottom_target) < 750.0f) &&
+                                      (abs(dart->vertical_pushrod->measure.speed_aps) < 50.0f);
+          bool horizontal_in_position = (abs(dart->horizontal_pushrod->measure.total_angle - hori_left_target) < 750.0f) &&
+                                        (abs(dart->horizontal_pushrod->measure.speed_aps) < 50.0f);
           uint32_t elapsed_time = HAL_GetTick() - step_start_time;
 
           if (elapsed_time > 200 && vertical_in_position && horizontal_in_position) {
@@ -620,9 +620,9 @@ void DartAutoFireHandler(void) {
           DJIMotorSetPIDRef(dart->horizontal_pushrod, hori_left_target);
 
           bool vertical_in_position = (abs(dart->vertical_pushrod->measure.total_angle - vert_top_target) < 500.0f) &&
-                                      (abs(dart->vertical_pushrod->measure.speed_aps) < 5.0f);
+                                      (abs(dart->vertical_pushrod->measure.speed_aps) < 50.0f);
           bool horizontal_in_position = (abs(dart->horizontal_pushrod->measure.total_angle - hori_left_target) < 500.0f) &&
-                                        (abs(dart->horizontal_pushrod->measure.speed_aps) < 30.0f);
+                                        (abs(dart->horizontal_pushrod->measure.speed_aps) < 50.0f);
 
           uint32_t elapsed_time = HAL_GetTick() - step_start_time;
 
@@ -662,9 +662,9 @@ void DartAutoFireHandler(void) {
           DJIMotorSetPIDRef(dart->horizontal_pushrod, hori_left_target);
 
           bool vertical_in_position = (abs(dart->vertical_pushrod->measure.total_angle - vert_bottom_target) < 500.0f) &&
-                                      (abs(dart->vertical_pushrod->measure.speed_aps) < 5.0f);
+                                      (abs(dart->vertical_pushrod->measure.speed_aps) < 50.0f);
           bool horizontal_in_position = (abs(dart->horizontal_pushrod->measure.total_angle - hori_left_target) < 500.0f) &&
-                                        (abs(dart->horizontal_pushrod->measure.speed_aps) < 30.0f);
+                                        (abs(dart->horizontal_pushrod->measure.speed_aps) < 50.0f);
 
           uint32_t elapsed_time = HAL_GetTick() - step_start_time;
 
@@ -703,10 +703,10 @@ void DartAutoFireHandler(void) {
           DJIMotorOuterLoop(dart->horizontal_pushrod, ANGLE_LOOP);
           DJIMotorSetPIDRef(dart->horizontal_pushrod, hori_right_target);
 
-          bool vertical_in_position = (abs(dart->vertical_pushrod->measure.total_angle - vert_bottom_target) < 500.0f) &&
-                                      (abs(dart->vertical_pushrod->measure.speed_aps) < 5.0f);
-          bool horizontal_in_position = (abs(dart->horizontal_pushrod->measure.total_angle - hori_right_target) < 500.0f) &&
-                                        (abs(dart->horizontal_pushrod->measure.speed_aps) < 30.0f);
+          bool vertical_in_position = (abs(dart->vertical_pushrod->measure.total_angle - vert_bottom_target) < 750.0f) &&
+                                      (abs(dart->vertical_pushrod->measure.speed_aps) < 50.0f);
+          bool horizontal_in_position = (abs(dart->horizontal_pushrod->measure.total_angle - hori_right_target) < 750.0f) &&
+                                        (abs(dart->horizontal_pushrod->measure.speed_aps) < 50.0f);
 
           uint32_t elapsed_time = HAL_GetTick() - step_start_time;
 
