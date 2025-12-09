@@ -26,6 +26,7 @@
 #include <stdint.h>
 
 #include "controller.h"
+#include "dji_motor.h"
 #include "dmmotor.h"
 #include "ins_task.h"
 
@@ -102,7 +103,7 @@ typedef struct {
   Leg_Ctrl_Cmd_t leg_ctrl_cmd;
 
   DMMotorInstance* joint_motor[2];
-  DMMotorInstance* wheel_motor;
+  DJIMotorInstance* wheel_motor;
 
   Real_Model_t real_model;
   Virtual_Model_t virtual_model;

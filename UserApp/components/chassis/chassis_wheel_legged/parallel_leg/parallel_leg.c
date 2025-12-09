@@ -137,7 +137,7 @@ void ObserverVarUpdate(LegInstance* leg, INS_t* imu) {
   Observer_Var_t* ov = &leg->observer_var;
   Virtual_Model_t* vm = &leg->virtual_model;
   State_Var_t* sv = &leg->state_var;
-  ov->w = -leg->wheel_motor->measure.velocity + vm->alpha_d - imu->Gyro[0];  // todo:Gyro极性不确定
+  ov->w = -leg->wheel_motor->measure.speed_aps * DEGREE_2_RAD + vm->alpha_d - imu->Gyro[0];  // todo:Gyro极性不确定
   ov->vb = ov->w * wheel_radius + vm->length * sv->theta_d * mcos(sv->theta) + vm->length_d * msin(sv->theta);
 }
 
@@ -196,7 +196,7 @@ LegInstance* LegInit(Leg_Init_Config_s* config) {
   // 初始化腿部电机
   leg_instance->joint_motor[0] = DMMotorInit(&config->joint_motor_config[0]);
   leg_instance->joint_motor[1] = DMMotorInit(&config->joint_motor_config[1]);
-  leg_instance->wheel_motor = DMMotorInit(&config->wheel_motor_config);
+  leg_instance->wheel_motor = DJIMotorInit(&config->wheel_motor_config);
   // 初始化连杆长度参数
   for (int i = 0; i < 5; i++) {
     rod_length[i] = config->leg_param.rod_length[i];

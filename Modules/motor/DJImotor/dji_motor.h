@@ -119,6 +119,7 @@ void DJIMotorOuterLoop(DJIMotorInstance* motor, Closeloop_Type_e outer_loop);
  */
 void DJIMotorSetPIDRef(DJIMotorInstance* motor, float ref);
 
+void DJIMotorSetRef(DJIMotorInstance* motor, float ref);
 /**
  * @brief 通过CAN总线发送电机控制命令
  *        遍历所有已注册的电机，将控制输出打包到对应的CAN发送缓冲区中，

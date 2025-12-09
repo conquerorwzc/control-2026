@@ -251,10 +251,13 @@ __attribute__((noreturn)) void DMMotorTask(void const* argument) {
     motor->motor_can_instance->tx_buff[6] =
         (uint8_t)(((motor_send_mailbox.Kd & 0xF) << 4) | (motor_send_mailbox.torque_des >> 8));
     motor->motor_can_instance->tx_buff[7] = (uint8_t)(motor_send_mailbox.torque_des);
-
-    CANTransmit(motor->motor_can_instance, 1);
-
-    osDelay(1);
+    if (motor->motor_can_instance->tx_id > 3) {
+      CANTransmit(motor->motor_can_instance, 2);
+      osDelay(2);
+    } else {
+      CANTransmit(motor->motor_can_instance, 2);
+      osDelay(2);
+    }
   }
 }
 
