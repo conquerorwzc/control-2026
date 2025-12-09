@@ -108,7 +108,7 @@ static void hipnuc_crc16(uint16_t *inital, const uint8_t *buf, uint32_t len)
  * @brief HI05 IMU解码回调函数
  * @note 该函数在USART接收中断中被调用，直接处理完整的数据包
  */
-static void DecodeHI05(void)
+static void HI05Decode(void)
 {
     // 获取接收缓冲区大小
     uint16_t buffer_size = HI05_usart_instance->recv_buff_size;
@@ -214,7 +214,7 @@ HI05_t *HI05_Init(UART_HandleTypeDef *usart_handle)
 {
     // 配置USART初始化参数
     USART_Init_Config_s conf;
-    conf.module_callback = DecodeHI05;                              // 设置解码回调函数
+    conf.module_callback = HI05Decode;                              // 设置解码回调函数
     conf.recv_buff_size = sizeof(HI91_t) + CH_HDR_SIZE;             // 接收完整数据包: hi91_t(72字节) + 帧头和CRC(6字节) = 78字节
     conf.usart_handle = usart_handle;                               // 设置UART句柄
 
