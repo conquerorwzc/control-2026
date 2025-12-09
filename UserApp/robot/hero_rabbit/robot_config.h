@@ -41,9 +41,11 @@
 #define GYRO2GIMBAL_DIR_ROLL 1   // 陀螺仪数据相较于云台的roll的方向,1为相同,-1为相反
 // 腿部电机位置定义
 #define LEFT_LEG_MOTOR_NORMAL_POSITION 1.342f   // 腿部电机常规位置值
-#define LEFT_LEG_MOTOR_RAISE_POSITION  0.826f  // 腿部电机抬起位置值
+#define LEFT_LEG_MOTOR_RAISE_POSITION  0.926f  // 腿部电机抬起位置值
 #define RIGHT_LEG_MOTOR_NORMAL_POSITION -0.811f   // 腿部电机常规位置值
-#define RIGHT_LEG_MOTOR_RAISE_POSITION  -0.298f  // 腿部电机抬起位置值
+#define RIGHT_LEG_MOTOR_RAISE_POSITION  -0.398f  // 腿部电机抬起位置值
+#define LEFT_LEG_MOTOR_KIKE_POSITION 0.622f
+#define RIGHT_LEG_MOTOR_KIKE_POSITION -0.128f
 // 轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
 //  轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
 #define WHEEL_MOTOR_CONFIG(handle, id)                                                                         \
@@ -96,17 +98,17 @@
           {                                                                                                    \
               .speed_PID =                                                                                     \
                   {                                                                                            \
-                      .Kp = 0.5,                                                                               \
-                      .Ki = 0.1,                                                                               \
+                      .Kp = 1.2,                                                                               \
+                                                                                                    \
                       .Kd = 0,                                                                                 \
-                      .IntegralLimit = 0.5,                                                                    \
+                                                                                         \
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
-                      .MaxOut = 8.0,                                                                           \
+                      .MaxOut = 10.0,                                                                           \
                   },                                                                                           \
               .angle_PID =                                                                                     \
                   {                                                                                            \
-                          .Kp = 25.0f,                                                                          \
-                          .Kd = 0.1f,                                                                          \
+                          .Kp = 50.0f,                                                                          \
+                          .Kd = 0.2f,                                                                          \
                           .MaxOut = 12.0f,                                                                      \
                       },                                                                                       \
                                                                                                                \

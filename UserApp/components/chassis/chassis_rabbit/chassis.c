@@ -37,8 +37,9 @@ static void LegControl() {
   static float leg_current_position_left = 0.0f;
   static float leg_current_position_right = 0.0f;
 
-  const float LEG_SPEED_RAMP_RATE = 0.01f; // 位置渐变速率
+  const float LEG_SPEED_RAMP_RATE = 0.001f; // 位置渐变速率
   int leg_is_enabled = 0;
+  int immediate_move = 0; // 是否立即移动标志
 
   switch (chassis_ctrl_cmd->leg_mode) {
     case LEG_DISABLE:
@@ -64,50 +65,68 @@ static void LegControl() {
       target_position_right = RIGHT_LEG_MOTOR_RAISE_POSITION;
       leg_is_enabled = 1;
       break;
+
+    case LEG_KIKE:
+      // 使能腿部电机并设置到踢脚位置
+      DMMotorEnable(chassis->leg_motor[0]);
+      DMMotorEnable(chassis->leg_motor[1]);
+      target_position_left = LEFT_LEG_MOTOR_KIKE_POSITION;
+      target_position_right = RIGHT_LEG_MOTOR_KIKE_POSITION;
+      leg_is_enabled = 1;
+      immediate_move = 1; // 标记为立即移动
+      break;
   }
 
-  // 如果腿部电机启用，进行位置渐变控制
+  // 如果腿部电机启用，进行位置控制
   if (leg_is_enabled) {
     // 获取初始位置（如果第一次运行则初始化）
-    if (leg_current_position_left == 0.0f && chassis->leg_motor[0]->measure.total_angle != 0.0f) {
+    if (leg_current_position_left == 0.0f ) {
       leg_current_position_left = chassis->leg_motor[0]->measure.total_angle;
     }
 
-    if (leg_current_position_right == 0.0f && chassis->leg_motor[1]->measure.total_angle != 0.0f) {
+    if (leg_current_position_right == 0.0f ) {
       leg_current_position_right = chassis->leg_motor[1]->measure.total_angle;
     }
 
-    // 左腿位置渐变控制
-    if (leg_current_position_left < target_position_left) {
-      leg_current_position_left += LEG_SPEED_RAMP_RATE;
-      if (leg_current_position_left > target_position_left) {
-        leg_current_position_left = target_position_left;
-      }
-    } else if (leg_current_position_left > target_position_left) {
-      leg_current_position_left -= LEG_SPEED_RAMP_RATE;
+    // 如果是立即移动模式（从RAISE到KIKE），直接设置目标位置
+    if (immediate_move) {
+      leg_current_position_left = target_position_left;
+      leg_current_position_right = target_position_right;
+    } else {
+      // 否则使用原有的渐进控制（从NORMAL到RAISE）
+      // 左腿位置渐变控制
       if (leg_current_position_left < target_position_left) {
-        leg_current_position_left = target_position_left;
+        leg_current_position_left += LEG_SPEED_RAMP_RATE;
+        if (leg_current_position_left > target_position_left) {
+          leg_current_position_left = target_position_left;
+        }
+      } else if (leg_current_position_left > target_position_left) {
+        leg_current_position_left -= LEG_SPEED_RAMP_RATE;
+        if (leg_current_position_left < target_position_left) {
+          leg_current_position_left = target_position_left;
+        }
       }
-    }
 
-    // 右腿位置渐变控制
-    if (leg_current_position_right < target_position_right) {
-      leg_current_position_right += LEG_SPEED_RAMP_RATE;
-      if (leg_current_position_right > target_position_right) {
-        leg_current_position_right = target_position_right;
-      }
-    } else if (leg_current_position_right > target_position_right) {
-      leg_current_position_right -= LEG_SPEED_RAMP_RATE;
+      // 右腿位置渐变控制
       if (leg_current_position_right < target_position_right) {
-        leg_current_position_right = target_position_right;
+        leg_current_position_right += LEG_SPEED_RAMP_RATE;
+        if (leg_current_position_right > target_position_right) {
+          leg_current_position_right = target_position_right;
+        }
+      } else if (leg_current_position_right > target_position_right) {
+        leg_current_position_right -= LEG_SPEED_RAMP_RATE;
+        if (leg_current_position_right < target_position_right) {
+          leg_current_position_right = target_position_right;
+        }
       }
     }
 
-    // 应用渐变后的位置
+    // 应用位置控制
     DMMotorPIDCal(chassis->leg_motor[0], leg_current_position_left);
     DMMotorPIDCal(chassis->leg_motor[1], leg_current_position_right);
   }
 }
+
 /**
  * @brief 计算每个轮毂电机的输出,正运动学解算
  *        用宏进行预替换减小开销,运动解算具体过程参考教程

@@ -46,7 +46,7 @@ static void CalcOffsetAngle() {
  */
 static void RemoteControlSet() {
   // 右[中]，云台
-  if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
+  if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
@@ -54,22 +54,22 @@ static void RemoteControlSet() {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
   }
   // 右[上]，超电，保持底盘跟随云台
-  else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
+  else if (switch_is_up(rc_data[TEMP].rc.switch_left)) {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
     } else
       chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
   }
-  if (switch_is_down(rc_data[TEMP].rc.switch_left)) {
-    // 左下：设置腿部电机状态为失能
-    chassis_ctrl_cmd->leg_mode = LEG_DISABLE;
-  } else if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
-    // 左中：设置腿部电机状态为常规位置
+  if (switch_is_down(rc_data[TEMP].rc.switch_right)) {
+    // 左下：设置腿部电机状态NORMAL
     chassis_ctrl_cmd->leg_mode = LEG_NORMAL;
-  } else if (switch_is_up(rc_data[TEMP].rc.switch_left)) {
-    // 左上：设置腿部电机状态为抬起位置
+  } else if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
+    // 左中：设置腿部电机状态为RAISE
     chassis_ctrl_cmd->leg_mode = LEG_RAISE;
+  } else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
+    // 左上：设置腿部电机状态为抬起位置
+    chassis_ctrl_cmd->leg_mode = LEG_KIKE;
   }
 
   // 左[中],云台启动，摩擦轮启动，拨弹盘启动，准备射击
@@ -214,7 +214,7 @@ static void MouseKeySet() {
  */
 static void EmergencyHandler() {
   // 两switch都在下断电
-  if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)))  // 全部失能
+  if ( switch_is_down(rc_data[TEMP].rc.switch_left))  // 全部失能
   {
     robot->robot_mode = ROBOT_POWER_ON;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
@@ -222,20 +222,21 @@ static void EmergencyHandler() {
     shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
     shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
+    chassis_ctrl_cmd->leg_mode = LEG_DISABLE;
     LOGERROR("[CMD] emergency stop!");
   } else {
     LOGINFO("[CMD] reinstate, robot ready");
   }
-  if (switch_is_down(rc_data[TEMP].rc.switch_right))  // 底盘失能
-  {
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
-  }
-  if (switch_is_down(rc_data[TEMP].rc.switch_left))  // 发射失能
-  {
-    shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
-    shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
-    shoot_ctrl_cmd->load_mode = LOAD_STOP;
-  }
+  // if (switch_is_down(rc_data[TEMP].rc.switch_right))  // 底盘失能
+  // {
+  //   chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
+  // }
+  // if (switch_is_down(rc_data[TEMP].rc.switch_left))  // 发射失能
+  // {
+  //   shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
+  //   shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
+  //   shoot_ctrl_cmd->load_mode = LOAD_STOP;
+  // }
   // 遥控器右侧开关为[上],恢复正常运行
 }
 
