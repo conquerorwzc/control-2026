@@ -204,8 +204,8 @@ __attribute__((noreturn)) void DMMotorTask(void const* argument) {
   float set;
   DMMotorInstance* motor = (DMMotorInstance*)argument;
   Motor_Control_Setting_s* setting = &motor->motor_settings;
-
   DM_Motor_Send_s motor_send_mailbox;
+
   while (1) {
     set = motor->motor_controller.final_output;
 
@@ -251,12 +251,14 @@ __attribute__((noreturn)) void DMMotorTask(void const* argument) {
     motor->motor_can_instance->tx_buff[6] =
         (uint8_t)(((motor_send_mailbox.Kd & 0xF) << 4) | (motor_send_mailbox.torque_des >> 8));
     motor->motor_can_instance->tx_buff[7] = (uint8_t)(motor_send_mailbox.torque_des);
-    if (motor->motor_can_instance->tx_id > 3) {
-      CANTransmit(motor->motor_can_instance, 2);
-      osDelay(2);
-    } else {
-      CANTransmit(motor->motor_can_instance, 2);
-      osDelay(2);
+    // if (motor->motor_can_instance->tx_id > 6 && (DWT->CYCCNT & 1)) {
+    if (motor->motor_can_instance->tx_id > 6) {
+      CANTransmit(motor->motor_can_instance, 1);
+      osDelay(1);
+      // } else if (motor->motor_can_instance->tx_id <= 6 && !(DWT->CYCCNT & 1)) {
+    } else if (motor->motor_can_instance->tx_id <= 6) {
+      CANTransmit(motor->motor_can_instance, 5);
+      osDelay(5);
     }
   }
 }
