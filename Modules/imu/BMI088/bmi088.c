@@ -245,7 +245,7 @@ uint8_t BMI088Acquire(BMI088Instance* bmi088, BMI088_Data_t* data_store) {
       data_store->acc[i] = bmi088->acc_coef * (float)(int16_t)(((buf[2 * i + 1]) << 8) | buf[2 * i]);
     BMI088GyroRead(bmi088, BMI088_GYRO_X_L, buf, 6); // 连续读取3个(3*2=6)轴的角速度
     for (uint8_t i = 0; i < 3; i++)
-      data_store->gyro[i] = bmi088->BMI088_GYRO_SEN * (float)(int16_t)(((buf[2 * i + 1]) << 8) | buf[2 * i]);
+      data_store->gyro[i] = bmi088->BMI088_GYRO_SEN * (float)(int16_t)(((buf[2 * i + 1]) << 8) | buf[2 * i])-bmi088->gyro_offset[i];
     BMI088AccelRead(bmi088, BMI088_TEMP_M, buf, 2); // 读温度,温度传感器在accel上
     data_store->temperature = (float)(int16_t)(((buf[0] << 3) | (buf[1] >> 5))) * BMI088_TEMP_FACTOR +
                               BMI088_TEMP_OFFSET;
@@ -261,7 +261,8 @@ uint8_t BMI088Acquire(BMI088Instance* bmi088, BMI088_Data_t* data_store) {
       bmi088->update_flag.imu_ready = 0;
     }
     if (bmi088->update_flag.gyro == 1) {
-      memcpy(data_store->gyro, bmi088->gyro, 3 * sizeof(float));
+      for (uint8_t i = 0; i < 3; i++)
+        data_store->gyro[i] -= bmi088->gyro_offset[i];
       bmi088->update_flag.gyro = 0;
       bmi088->update_flag.imu_ready = 0;
     }
@@ -277,10 +278,10 @@ uint8_t BMI088Acquire(BMI088Instance* bmi088, BMI088_Data_t* data_store) {
 
 /* pre calibrate parameter to go here */
 #pragma message "REMEMBER TO SET PRE CALIBRATE PARAMETER IF YOU CHOOSE NOT TO CALIBRATE"
-#define BMI088_PRE_CALI_ACC_X_OFFSET 0.00666840421f
-#define BMI088_PRE_CALI_ACC_Y_OFFSET 0.00167263031f
-#define BMI088_PRE_CALI_ACC_Z_OFFSET 0.000496588938f
-#define BMI088_PRE_CALI_G_NORM 9.71288586f
+#define BMI088_PRE_CALI_ACC_X_OFFSET 0.001672465277f
+#define BMI088_PRE_CALI_ACC_Y_OFFSET 0.000492685009f
+#define BMI088_PRE_CALI_ACC_Z_OFFSET 0.0002577939227f
+#define BMI088_PRE_CALI_G_NORM 9.81269264f
 
 /* local G norm, remember to calibrate in different cities*/
 #define LOCAL_G_NORM 9.7946f // Shanghai
@@ -296,6 +297,7 @@ uint8_t BMI088Acquire(BMI088Instance* bmi088, BMI088_Data_t* data_store) {
  * @param _bmi088 待标定的BMI088实例
  */
 void BMI088CalibrateIMU(BMI088Instance* _bmi088) {
+
   if (_bmi088->cali_mode == BMI088_CALIBRATE_ONLINE_MODE) // 性感bmi088在线标定,耗时6s
   {
     _bmi088->acc_coef = BMI088_ACCEL_6G_SEN; // 标定完后要乘以9.805/gNorm
@@ -328,6 +330,21 @@ void BMI088CalibrateIMU(BMI088Instance* _bmi088) {
       {
         BMI088Acquire(_bmi088, &raw_data);
         gNormTemp = NormOf3d(raw_data.acc);
+
+        // 将温度值存储到heat_pid的measure字段中
+        _bmi088->heat_pid.Measure = raw_data.temperature;
+
+        // 添加温度判断，如果温度超过50度则记录当前陀螺仪偏差值和gNorm
+        if (_bmi088->heat_pid.Measure > 40.0f) {
+          // 记录高温下的陀螺仪偏差值和gNorm
+          _bmi088->gNorm = gNormTemp;
+          for (uint8_t ii = 0; ii < 3; ii++) {
+            _bmi088->gyro_offset[ii] = raw_data.gyro[ii];
+          }
+          // 完成高温下的参数记录后跳出循环
+          break;
+        }
+
         _bmi088->gNorm += gNormTemp; // 计算范数并累加,最后除以calib times获取单次值
         for (uint8_t ii = 0; ii < 3; ii++)
           _bmi088->gyro_offset[ii] += raw_data.gyro[ii]; // 因为标定时传感器静止,所以采集到的值就是漂移,累加当前值,最后除以calib times获得零飘
@@ -359,9 +376,13 @@ void BMI088CalibrateIMU(BMI088Instance* _bmi088) {
           break; // 超出范围了,重开! remake到while循环,外面还有一层
         DWT_Delay(0.0005); // 休息一会再开始下一轮数据获取,IMU准备数据需要时间
       }
-      _bmi088->gNorm /= (float)CaliTimes; // 加速度范数重力
-      for (uint8_t i = 0; i < 3; ++i)
-        _bmi088->gyro_offset[i] /= (float)CaliTimes; // 三轴零飘
+
+      // 如果是因为高温记录参数而跳出循环，则直接使用已记录的参数，不再进行平均计算
+      if (_bmi088->heat_pid.Measure <= 40.0f) {
+        _bmi088->gNorm /= (float)CaliTimes; // 加速度范数重力
+        for (uint8_t i = 0; i < 3; ++i)
+          _bmi088->gyro_offset[i] /= (float)CaliTimes; // 三轴零飘
+      }
       // 这里直接存到temperature,可以另外增加BMI088Instance的成员变量TempWhenCalib
       _bmi088->TempWhenCalib = raw_data.temperature * BMI088_TEMP_FACTOR + BMI088_TEMP_OFFSET; // 保存标定时的温度,如果已知温度和零飘的关系
       // caliTryOutCount++; 保存已经尝试的标定次数?由你.
@@ -375,6 +396,7 @@ void BMI088CalibrateIMU(BMI088Instance* _bmi088) {
              fabsf(_bmi088->gyro_offset[2]) > 0.01f); // 满足条件说明标定环境不好
   }
 
+
   // 离线标定
   if (_bmi088->cali_mode == BMI088_LOAD_PRE_CALI_MODE) // 如果标定失败也会进来,直接使用离线数据
   {
@@ -385,6 +407,40 @@ void BMI088CalibrateIMU(BMI088Instance* _bmi088) {
   }
   _bmi088->acc_coef *= LOCAL_G_NORM / _bmi088->gNorm;
 }
+
+/**
+ * @brief 调试用函数，用于标定和观察角速度偏差值
+ * @param _bmi088 BMI088实例指针
+ * @param sample_count 采样次数
+ * @return void
+ */
+void BMI088CalibrateGyroForDebug(BMI088Instance* _bmi088, uint32_t sample_count) {
+  BMI088_Data_t raw_data;
+  float gyro_sum[3] = {0.0f, 0.0f, 0.0f};
+
+  // 重置陀螺仪偏差值
+  for (uint8_t i = 0; i < 3; i++) {
+    _bmi088->gyro_offset[i] = 0.0f;
+  }
+
+  // 采集指定次数的数据
+  for (uint32_t i = 0; i < sample_count; i++) {
+    BMI088Acquire(_bmi088, &raw_data);
+    // 累加陀螺仪读数
+    for (uint8_t j = 0; j < 3; j++) {
+      gyro_sum[j] += raw_data.gyro[j];
+    }
+    // 可以在这里观察实时数据
+    _bmi088->heat_pid.Measure = raw_data.temperature;
+    DWT_Delay(0.001); // 1ms延时
+  }
+
+  // 计算平均值作为零飘
+  for (uint8_t i = 0; i < 3; i++) {
+    _bmi088->gyro_offset[i] = gyro_sum[i] / sample_count;
+  }
+}
+
 
 // 考虑阻塞模式和非阻塞模式的兼容性,通过条件编译(则需要在编译前修改宏定义)或runtime参数判断
 // runtime的开销不大(一次性判断),但是需要修改函数原型,增加参数,代码长度增加(但不多)
@@ -434,6 +490,7 @@ BMI088Instance* BMI088Register(BMI088_Init_Config_s* config) {
 
   bmi088_instance->work_mode = BMI088_BLOCK_PERIODIC_MODE; // 临时设置为阻塞模式
   BMI088CalibrateIMU(bmi088_instance); // 标定acc和gyro
+  BMI088CalibrateGyroForDebug(bmi088_instance,3000);
   bmi088_instance->work_mode = config->work_mode; // 恢复工作模式
   bmi088_instance->cali_mode = config->cali_mode;
   if (config->work_mode == BMI088_BLOCK_TRIGGER_MODE) {

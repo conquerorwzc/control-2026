@@ -110,4 +110,6 @@ uint8_t BMI088Acquire(BMI088Instance* bmi088, BMI088_Data_t* data_store);
  */
 void BMI088CalibrateIMU(BMI088Instance* _bmi088);
 
+void BMI088CalibrateGyroForDebug(BMI088Instance* _bmi088, uint32_t sample_count);
+
 #endif // !__BMI088_H__
