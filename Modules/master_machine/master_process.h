@@ -143,4 +143,6 @@ void InitParam(void);
 
 void VisionSend();
 
+void navigator_send();
+
 #endif // !MASTER_PROCESS_H
