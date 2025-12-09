@@ -266,7 +266,7 @@ void RobotCMDTask() {
   // MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
- 
+
 void RobotTask() {
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
   RobotCMDTask();

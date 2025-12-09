@@ -1,11 +1,11 @@
 #pragma once
 
-#include "chassis.h"
-#include "gantry.h"
 #include "remote_control.h"
 // #include "rm_referee.h"
-#include "super_cap.h"
-// todo: add vision_module
+// #include "super_cap.h"
+// #include "chassis.h"
+// #include "gantry.h"
+#include "custom_controller.h"
 
 typedef enum {
   ROBOT_POWER_OFF = 0,
@@ -18,9 +18,10 @@ typedef struct {
   RC_ctrl_t *rc_data;               // 遥控器数据,初始化时返回
   // referee_info_t* referee_data;     // 用于获取裁判系统的数据
 
-  SuperCapInstance* super_cap;
-  ChassisInstance* chassis;
-  GantryInstance* gantry;
+  // SuperCapInstance* super_cap;
+  // ChassisInstance* chassis;
+  // GantryInstance* gantry;
+  CustomControllerInstance* custom_controller; // 添加自定义控制器实例
 
 } RobotInstance;
 

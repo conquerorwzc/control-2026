@@ -46,8 +46,8 @@ void OSTaskInit() {
 
   // 由于是阻塞读取传感器,为姿态解算设置较高优先级,确保以1khz的频率执行
   // 后续修改为读取传感器数据准备好的中断处理
-  osThreadDef(instask, StartINSTASK, osPriorityAboveNormal, 0, 1024);
-  insTaskHandle = osThreadCreate(osThread(instask), NULL);
+  // osThreadDef(instask, StartINSTASK, osPriorityAboveNormal, 0, 1024);
+  // insTaskHandle = osThreadCreate(osThread(instask), NULL);
 
   osThreadDef(motortask, StartMOTORTASK, osPriorityBelowNormal, 0, 256);
   motorTaskHandle = osThreadCreate(osThread(motortask), NULL);

@@ -22,7 +22,6 @@
 #include "dma.h"
 #include "fdcan.h"
 #include "i2c.h"
-#include "memorymap.h"
 #include "spi.h"
 #include "tim.h"
 #include "usart.h"
