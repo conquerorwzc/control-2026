@@ -23,10 +23,12 @@
 #include "motor_task.h"
 // #include "referee_task.h"
 #include "robot.h"
+// module
+#include "dmmotor.h"
 // bsp
 #include "bsp_init.h"
+#include "dmmotor.h"
 
-osThreadId insTaskHandle;
 osThreadId motorTaskHandle;
 osThreadId daemonTaskHandle;
 osThreadId robotTaskHandle;
@@ -49,10 +51,10 @@ void OSTaskInit() {
   // osThreadDef(instask, StartINSTASK, osPriorityAboveNormal, 0, 1024);
   // insTaskHandle = osThreadCreate(osThread(instask), NULL);
 
-  osThreadDef(motortask, StartMOTORTASK, osPriorityBelowNormal, 0, 256);
+  osThreadDef(motortask, StartMOTORTASK, osPriorityBelowNormal, 0, 512);
   motorTaskHandle = osThreadCreate(osThread(motortask), NULL);
 
-  osThreadDef(daemontask, StartDAEMONTASK, osPriorityNormal, 0, 128);
+  osThreadDef(daemontask, StartDAEMONTASK, osPriorityNormal, 0, 512);
   daemonTaskHandle = osThreadCreate(osThread(daemontask), NULL);
 
   osThreadDef(robottask, StartROBOTTASK, osPriorityNormal, 0, 1024);
@@ -65,21 +67,21 @@ void OSTaskInit() {
   __enable_irq();
 }
 
-__attribute__((noreturn)) void StartINSTASK(void const *argument) {
-  static float ins_start;
-  static float ins_dt;
-  INS_Init();  // 确保BMI088被正确初始化.
-  LOGINFO("[freeRTOS] INS Task Start");
-  for (;;) {
-    // 1kHz
-    ins_start = DWT_GetTimeline_ms();
-    INS_Task();
-    ins_dt = DWT_GetTimeline_ms() - ins_start;
-    if (ins_dt > 1) LOGERROR("[freeRTOS] INS Task is being DELAY! dt = [%f]", &ins_dt);
-    // VisionSend();  // 解算完成后发送视觉数据,但是当前的实现不太优雅,后续若添加硬件触发需要重新考虑结构的组织
-    osDelay(1);
-  }
-}
+// __attribute__((noreturn)) void StartINSTASK(void const *argument) {
+//   static float ins_start;
+//   static float ins_dt;
+//   // INS_Init();  // 确保BMI088被正确初始化.
+//   LOGINFO("[freeRTOS] INS Task Start");
+//   for (;;) {
+//     // 1kHz
+//     ins_start = DWT_GetTimeline_ms();
+//     INS_Task();
+//     ins_dt = DWT_GetTimeline_ms() - ins_start;
+//     if (ins_dt > 1) LOGERROR("[freeRTOS] INS Task is being DELAY! dt = [%f]", &ins_dt);
+//     // VisionSend();  // 解算完成后发送视觉数据,但是当前的实现不太优雅,后续若添加硬件触发需要重新考虑结构的组织
+//     osDelay(1);
+//   }
+// }
 
 __attribute__((noreturn)) void StartMOTORTASK(void const *argument) {
   static float motor_dt;
@@ -113,6 +115,7 @@ __attribute__((noreturn)) void StartDAEMONTASK(void const *argument) {
 __attribute__((noreturn)) void StartROBOTTASK(void const *argument) {
   static float robot_dt;
   static float robot_start;
+
   RobotInit();
   // DMMotorTaskInit();
   LOGINFO("[freeRTOS] ROBOT core Task Start");

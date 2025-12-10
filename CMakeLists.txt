@@ -1,4 +1,4 @@
- cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.16)
 # 指定编译平台/架构与语言标准, 推荐指定Ninja为构建工具,可以加快编译速度(相比make)
 set(CMAKE_SYSTEM_NAME Generic)
 set(CMAKE_SYSTEM_PROCESSOR arm)
@@ -18,16 +18,15 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 project(control-2026 C ASM)
 
 # 选择构建类型
-set(CMAKE_BUILD_TYPE ${buildType}) # Debug Release RelWithDebInfo MinSizeRel
+set(CMAKE_BUILD_TYPE ${buildType}) # Debug Release RelWithDebInfo Mi#nSizeRel
 
 #set(MCU_TYPE "stm32-f4")
 set(MCU_TYPE "stm32-h7")
-#set(ROBOT_TYPE "engineering")
-set(ROBOT_TYPE "custom_controller")
+#set(ROBOT_TYPE "infantry_mecanum")
 #set(ROBOT_TYPE "infantry_wheel_legged")
 #set(ROBOT_TYPE "hero_mecanum")
 #set(ROBOT_TYPE "debug")
-
+set(ROBOT_TYPE "engineering")
 
 include(${CMAKE_SOURCE_DIR}/Hardware/${MCU_TYPE}/${MCU_TYPE}.cmake)
 
