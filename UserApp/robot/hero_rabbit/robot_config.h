@@ -44,8 +44,8 @@
 #define LEFT_LEG_MOTOR_RAISE_POSITION  0.926f  // 腿部电机抬起位置值
 #define RIGHT_LEG_MOTOR_NORMAL_POSITION -0.811f   // 腿部电机常规位置值
 #define RIGHT_LEG_MOTOR_RAISE_POSITION  -0.398f  // 腿部电机抬起位置值
-#define LEFT_LEG_MOTOR_KIKE_POSITION 0.622f
-#define RIGHT_LEG_MOTOR_KIKE_POSITION -0.128f
+#define LEFT_LEG_MOTOR_KIKE_POSITION 0.622f     // 腿部电机踢脚位置值
+#define RIGHT_LEG_MOTOR_KIKE_POSITION -0.128f  // 腿部电机踢脚位置值
 // 轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
 //  轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
 #define WHEEL_MOTOR_CONFIG(handle, id)                                                                         \
