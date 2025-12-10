@@ -124,9 +124,6 @@ void CustomControllerUpdate(CustomControllerInstance* controller_instance) {
         }
     }
 
-    osDelay(1000);
-    osDelay(1);
-    
     // 注意：实际的角度值将在DecodeServo回调函数中解析并存储在recv_angle中
     // 这里可以使用存储的角度值
     for (int i = 0; i < SERVO_MOTOR_COUNT; i++) {

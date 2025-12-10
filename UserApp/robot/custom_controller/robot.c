@@ -75,21 +75,9 @@ void RobotCMDTask() {
  * @param  cmd: 指向要发送的指令字符串的指针
  * @retval None
  */
-void servo_send_cmd(const char *cmd)
-{
-  uint8_t *data = (uint8_t *)cmd;
-  size_t len = strlen(cmd);
-  HAL_UART_Transmit(&huart1, data, len, HAL_MAX_DELAY);
-  // printf("Sent CMD: %s\r\n", cmd);
-}
 
 void RobotTask() {
 #if defined(ONE_BOARD)
-  // RobotCMDTask();
-  char cmd_buffer[32];
-  sprintf(cmd_buffer,"{#002P1800T0001!");
-  char rx_buffer[64] = {0};
-  servo_send_cmd(cmd_buffer);
-  HAL_UART_Receive(&huart1, (uint8_t *)rx_buffer, 64, 200);
+  RobotCMDTask();
 #endif
 }
