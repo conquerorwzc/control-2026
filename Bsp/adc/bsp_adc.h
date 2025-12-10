@@ -35,6 +35,11 @@ typedef struct adc_ins_temp {
   float voltage;                           // 转换后的电压值(V)
   void (*callback)(struct adc_ins_temp *); // 转换完成回调函数
   void *id;                                // 实例ID
+  
+  // EWMA滤波相关成员
+  uint16_t filtered_raw_value;             // 滤波后的ADC原始值
+  float alpha;                             // EWMA滤波系数 (0.0 - 1.0)
+  uint8_t is_first_value;                  // 是否为第一个值标志
 } ADCInstance;
 
 /* ADC初始化配置结构体 */
@@ -43,6 +48,7 @@ typedef struct {
   uint32_t channel;                // ADC通道
   ADC_MODE_e mode;                 // ADC工作模式
   float vref;                      // 参考电压(V),默认3.3V
+  float alpha;                     // EWMA滤波系数 (0.0 - 1.0)，默认0.0表示不使用滤波
   void (*callback)(ADCInstance *); // 转换完成回调函数
   void *id;                        // 实例ID
 } ADC_Init_Config_s;
@@ -70,6 +76,22 @@ float ADCGetVoltage(ADCInstance *adc);
  * @return uint16_t ADC原始值
  */
 uint16_t ADCGetRawValue(ADCInstance *adc);
+
+/**
+ * @brief 获取经过EWMA滤波的ADC原始值(轮询模式)
+ *
+ * @param adc ADC实例
+ * @return uint16_t 滤波后的ADC原始值
+ */
+uint16_t ADCGetFilteredRawValue(ADCInstance *adc);
+
+/**
+ * @brief 设置EWMA滤波系数
+ *
+ * @param adc ADC实例
+ * @param alpha 滤波系数 (0.0 - 1.0)
+ */
+void ADCSetFilterAlpha(ADCInstance *adc, float alpha);
 
 /**
  * @brief 启动ADC中断模式转换

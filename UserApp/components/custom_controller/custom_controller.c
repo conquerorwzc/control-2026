@@ -61,6 +61,7 @@ CustomControllerInstance* CustomControllerInit(void) {
             .channel = POTENTIOMETER_ADC_CHANNEL_1,
             .mode = ADC_MODE_POLLING,
             .vref = 3.3f,
+            .alpha = 0.3f,  // 添加EWMA滤波，alpha值为0.2
             .callback = NULL,
             .id = NULL
         },
@@ -69,6 +70,7 @@ CustomControllerInstance* CustomControllerInit(void) {
             .channel = POTENTIOMETER_ADC_CHANNEL_2,
             .mode = ADC_MODE_POLLING,
             .vref = 3.3f,
+            .alpha = 0.3f,  // 添加EWMA滤波，alpha值为0.2
             .callback = NULL,
             .id = NULL
         }

@@ -2,6 +2,7 @@
 
 #include "memory.h"
 #include "stdlib.h"
+#include "math.h"
 
 // 配合中断以及初始化
 static uint8_t idx;
@@ -48,6 +49,39 @@ static uint32_t ADCGetResolution(ADC_HandleTypeDef* hadc) {
 }
 
 /**
+ * @brief 应用EWMA滤波
+ *
+ * @param adc ADC实例
+ * @param raw_value 新的原始值
+ * @return uint16_t 滤波后的值
+ */
+static uint16_t ADCApplyEWMAFilter(ADCInstance* adc, uint16_t raw_value) {
+  // 如果alpha为0或者未启用滤波，直接返回原始值
+  if (adc->alpha <= 0.0f) {
+    return raw_value;
+  }
+
+  // 限制alpha在有效范围内
+  float alpha = adc->alpha;
+  if (alpha > 1.0f) {
+    alpha = 1.0f;
+  }
+
+  // 如果是第一个值，直接使用该值作为初始值
+  if (adc->is_first_value) {
+    adc->filtered_raw_value = raw_value;
+    adc->is_first_value = 0;
+    return raw_value;
+  }
+
+  // 应用EWMA滤波公式: y[n] = α * x[n] + (1-α) * y[n-1]
+  float filtered_value = alpha * (float)raw_value + (1.0f - alpha) * (float)adc->filtered_raw_value;
+  adc->filtered_raw_value = (uint16_t)filtered_value;
+  
+  return adc->filtered_raw_value;
+}
+
+/**
  * @brief ADC转换完成回调函数
  *
  * @param hadc 发生中断的ADC句柄
@@ -56,6 +90,8 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
   for (uint8_t i = 0; i < idx; i++) {
     if (adc_instance[i]->hadc == hadc) {
       adc_instance[i]->raw_value = HAL_ADC_GetValue(hadc);
+      // 应用EWMA滤波
+      adc_instance[i]->raw_value = ADCApplyEWMAFilter(adc_instance[i], adc_instance[i]->raw_value);
       adc_instance[i]->voltage = ADCRawToVoltage(adc_instance[i], adc_instance[i]->raw_value);
       if (adc_instance[i]->callback)  // 如果有回调函数
         adc_instance[i]->callback(adc_instance[i]);
@@ -79,6 +115,8 @@ ADCInstance* ADCRegister(ADC_Init_Config_s* config) {
   adc->resolution = ADCGetResolution(adc->hadc);
   adc->raw_value = 0;
   adc->voltage = 0;
+  adc->alpha = config->alpha > 0 ? config->alpha : 0.0f;  // 默认不使用滤波
+  adc->is_first_value = 1;  // 标记为第一个值
 
   adc_instance[idx++] = adc;
   return adc;
@@ -105,6 +143,8 @@ float ADCGetVoltage(ADCInstance* adc) {
   HAL_ADC_Start(adc->hadc);
   HAL_ADC_PollForConversion(adc->hadc, HAL_MAX_DELAY);
   adc->raw_value = HAL_ADC_GetValue(adc->hadc);
+  // 应用EWMA滤波
+  adc->raw_value = ADCApplyEWMAFilter(adc, adc->raw_value);
   adc->voltage = ADCRawToVoltage(adc, adc->raw_value);
   HAL_ADC_Stop(adc->hadc);
   return adc->voltage;
@@ -120,8 +160,32 @@ uint16_t ADCGetRawValue(ADCInstance* adc) {
   HAL_ADC_Start(adc->hadc);
   HAL_ADC_PollForConversion(adc->hadc, HAL_MAX_DELAY);
   adc->raw_value = HAL_ADC_GetValue(adc->hadc);
+  // 应用EWMA滤波
+  adc->raw_value = ADCApplyEWMAFilter(adc, adc->raw_value);
   HAL_ADC_Stop(adc->hadc);
   return adc->raw_value;
+}
+
+/**
+ * @brief 获取经过EWMA滤波的ADC原始值(轮询模式)
+ *
+ * @param adc ADC实例
+ * @return uint16_t 滤波后的ADC原始值
+ */
+uint16_t ADCGetFilteredRawValue(ADCInstance* adc) {
+  return adc->filtered_raw_value;
+}
+
+/**
+ * @brief 设置EWMA滤波系数
+ *
+ * @param adc ADC实例
+ * @param alpha 滤波系数 (0.0 - 1.0)
+ */
+void ADCSetFilterAlpha(ADCInstance* adc, float alpha) {
+  if (alpha >= 0.0f && alpha <= 1.0f) {
+    adc->alpha = alpha;
+  }
 }
 
 /* 启动ADC中断模式转换 */
