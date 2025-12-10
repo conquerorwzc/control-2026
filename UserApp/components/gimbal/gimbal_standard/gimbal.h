@@ -6,6 +6,7 @@
 typedef enum {
   GIMBAL_POWER_OFF = 0,  // 电流零输入
   GIMBAL_ON,
+  GIMBAL_VISION,
 } Gimbal_Mode_e;
 
 typedef struct {
