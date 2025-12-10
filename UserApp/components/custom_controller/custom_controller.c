@@ -1,12 +1,8 @@
 #include "custom_controller.h"
-//#include "adc.h"
 #include "stdlib.h"
 #include "memory.h"
 #include "usart.h"
 #include "stdio.h"
-#include "bsp_log.h"
-#include <stdbool.h>
-
 #include "cmsis_os.h"
 
 // 全局实例指针
@@ -58,24 +54,32 @@ CustomControllerInstance* CustomControllerInit(void) {
         }
     }
     
-    // 检查是否有任何舵机初始化失败
-    bool init_success = true;
-    for (int i = 0; i < SERVO_MOTOR_COUNT; i++) {
-        if (instance->servo_motors[i] == NULL) {
-            init_success = false;
+    // 初始化ADC
+    ADC_Init_Config_s adc_configs[POTENTIOMETER_COUNT] = {
+        {
+            .hadc = &POTENTIOMETER_ADC_HANDLE1,
+            .channel = POTENTIOMETER_ADC_CHANNEL_1,
+            .mode = ADC_MODE_POLLING,
+            .vref = 3.3f,
+            .callback = NULL,
+            .id = NULL
+        },
+        {
+            .hadc = &POTENTIOMETER_ADC_HANDLE2,
+            .channel = POTENTIOMETER_ADC_CHANNEL_2,
+            .mode = ADC_MODE_POLLING,
+            .vref = 3.3f,
+            .callback = NULL,
+            .id = NULL
+        }
+    };
+    
+    for (int i = 0; i < POTENTIOMETER_COUNT; i++) {
+        instance->potentiometer.adc[i] = ADCRegister(&adc_configs[i]);
+        if (instance->potentiometer.adc[i] == NULL) {
+            LOGERROR("Failed to initialize ADC for potentiometer %d", i);
         }
     }
-    
-    if (!init_success) {
-        LOGERROR("One or more servos failed to initialize");
-        // 释放已分配的内存
-        free(instance);
-        instance = NULL;
-        return NULL;
-    }
-    
-    // 初始化ADC
-    //MX_ADC1_Init(); // 确保ADC1已在adc.c中正确初始化
     
     LOGINFO("Custom controller initialized successfully");
     return instance;
@@ -91,30 +95,11 @@ void CustomControllerUpdate(CustomControllerInstance* controller_instance) {
         return;
     }
     
-    // 读取电位器值
-    // 暂时注释掉电位器相关代码，因为电位器还没有连线
-    /*
-    // 启动ADC转换
-    HAL_ADC_Start(&POTENTIOMETER_ADC_HANDLE);
-    
-    // 读取第一个电位器
-    HAL_ADC_PollForConversion(&POTENTIOMETER_ADC_HANDLE, HAL_MAX_DELAY);
-    controller_instance->potentiometer_values[0] = HAL_ADC_GetValue(&POTENTIOMETER_ADC_HANDLE);
-    
-    // 配置并读取第二个电位器
-    ADC_ChannelConfTypeDef sConfig = {0};
-    sConfig.Channel = POTENTIOMETER_ADC_CHANNEL_2;
-    sConfig.Rank = 1;
-    sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
-    
-    if (HAL_ADC_ConfigChannel(&POTENTIOMETER_ADC_HANDLE, &sConfig) == HAL_OK) {
-        HAL_ADC_PollForConversion(&POTENTIOMETER_ADC_HANDLE, HAL_MAX_DELAY);
-        controller_instance->potentiometer_values[1] = HAL_ADC_GetValue(&POTENTIOMETER_ADC_HANDLE);
+    // 读取电位器值并转换为角度 (0-3.3V 映射到 0-270度)
+    for (int i = 0; i < POTENTIOMETER_COUNT; i++) {
+        controller_instance->potentiometer.values[i] = ADCGetRawValue(controller_instance->potentiometer.adc[i]);
+        controller_instance->potentiometer.angles[i] = (float)controller_instance->potentiometer.values[i] * 270.0f / 65536.0f;
     }
-    
-    // 停止ADC
-    HAL_ADC_Stop(&POTENTIOMETER_ADC_HANDLE);
-    */
 
     // 发送读取舵机位置命令（针对ASCII协议舵机）
     for (int i = 0; i < SERVO_MOTOR_COUNT; i++) {
