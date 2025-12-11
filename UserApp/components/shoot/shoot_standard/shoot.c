@@ -44,13 +44,11 @@ ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
 
   // 初始化弹速控制PID控制器
 
-
-  for (int i = 0;i < FRICTION_NUM ;i++) {
+  for (int i = 0; i < FRICTION_NUM; i++) {
     friction_coefficients[i]=shoot_init_config->shoot_param.friction_coefficients[i];
   }
   for (int i = 0; i < FRICTION_NUM; i++) {
     shoot_instance->friction_motor[i] = DJIMotorInit(&shoot_init_config->friction_motor_config[i]);
-
   }
   shoot_instance->loader_motor = DJIMotorInit(&shoot_init_config->loader_motor_config);
 
