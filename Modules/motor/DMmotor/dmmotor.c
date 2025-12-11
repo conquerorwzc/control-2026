@@ -43,16 +43,54 @@ static void DMMotorDecode(CANInstance* motor_can) {
 
   // 先保存当前位置作为上一次位置
   measure->last_position = measure->position;
+  switch (motor->motor_type) {
+    case J4310:
+      // 然后更新当前位置
+      tmp = (uint16_t)((rxbuff[1] << 8) | rxbuff[2]);
+      measure->position = uint_to_float(tmp, DM_P_MIN_J4310, DM_P_MAX_J4310, 16);
 
-  // 然后更新当前位置
-  tmp = (uint16_t)((rxbuff[1] << 8) | rxbuff[2]);
-  measure->position = uint_to_float(tmp, DM_P_MIN, DM_P_MAX, 16);
+      tmp = (uint16_t)((rxbuff[3] << 4) | rxbuff[4] >> 4);
+      measure->velocity = uint_to_float(tmp, DM_V_MIN_J4310, DM_V_MAX_J4310, 12);
 
-  tmp = (uint16_t)((rxbuff[3] << 4) | rxbuff[4] >> 4);
-  measure->velocity = uint_to_float(tmp, DM_V_MIN, DM_V_MAX, 12);
+      tmp = (uint16_t)(((rxbuff[4] & 0x0f) << 8) | rxbuff[5]);
+      measure->torque = uint_to_float(tmp, DM_T_MIN_J4310, DM_T_MAX_J4310, 12);
+      break;
+    case H6215:
+      // 然后更新当前位置
+      tmp = (uint16_t)((rxbuff[1] << 8) | rxbuff[2]);
+      measure->position = uint_to_float(tmp, DM_P_MIN_H6215, DM_P_MAX_H6215, 16);
 
-  tmp = (uint16_t)(((rxbuff[4] & 0x0f) << 8) | rxbuff[5]);
-  measure->torque = uint_to_float(tmp, DM_T_MIN, DM_T_MAX, 12);
+      tmp = (uint16_t)((rxbuff[3] << 4) | rxbuff[4] >> 4);
+      measure->velocity = uint_to_float(tmp, DM_V_MIN_H6215, DM_V_MAX_H6215, 12);
+
+      tmp = (uint16_t)(((rxbuff[4] & 0x0f) << 8) | rxbuff[5]);
+      measure->torque = uint_to_float(tmp, DM_T_MIN_H6215, DM_T_MAX_H6215, 12);
+      break;
+    case J8009P:
+      // 然后更新当前位置
+      tmp = (uint16_t)((rxbuff[1] << 8) | rxbuff[2]);
+      measure->position = uint_to_float(tmp, DM_P_MIN_J8009P, DM_P_MAX_J8009P, 16);
+
+      tmp = (uint16_t)((rxbuff[3] << 4) | rxbuff[4] >> 4);
+      measure->velocity = uint_to_float(tmp, DM_V_MIN_J8009P, DM_V_MAX_J8009P, 12);
+
+      tmp = (uint16_t)(((rxbuff[4] & 0x0f) << 8) | rxbuff[5]);
+      measure->torque = uint_to_float(tmp, DM_T_MIN_J8009P, DM_T_MAX_J8009P, 12);
+      break;
+    case J4340:
+      // 然后更新当前位置
+      tmp = (uint16_t)((rxbuff[1] << 8) | rxbuff[2]);
+      measure->position = uint_to_float(tmp, DM_P_MIN_J4340, DM_P_MAX_J4340, 16);
+
+      tmp = (uint16_t)((rxbuff[3] << 4) | rxbuff[4] >> 4);
+      measure->velocity = uint_to_float(tmp, DM_V_MIN_J4340, DM_V_MAX_J4340, 12);
+
+      tmp = (uint16_t)(((rxbuff[4] & 0x0f) << 8) | rxbuff[5]);
+      measure->torque = uint_to_float(tmp, DM_T_MIN_J4340, DM_T_MAX_J4340, 12);
+      break;
+    default:
+      break;
+  }
 
   measure->T_Mos = (float)rxbuff[6];
   measure->T_Rotor = (float)rxbuff[7];
@@ -126,7 +164,7 @@ void DMMotorStop(DMMotorInstance* motor)  // 不使用使能模式是因为需�
 
 void DMMotorOuterLoop(DMMotorInstance* motor, Closeloop_Type_e type) { motor->motor_settings.outer_loop_type = type; }
 
-void DMMotorPIDCal(DMMotorInstance* motor, float ref) {
+void DMMotorSetPIDRef(DMMotorInstance* motor, float ref) {
   // 直接保存一次指针引用从而减小访存的开销,同样可以提高可读性
   motor->motor_controller.pid_ref = ref;
   Motor_Control_Setting_s* motor_setting;  // 电机控制参数
@@ -183,14 +221,44 @@ __attribute__((noreturn)) void DMMotorTask(void const* argument) {
     set = motor->motor_controller.final_output;
 
     if (setting->motor_reverse_flag == MOTOR_DIRECTION_REVERSE) set *= -1;
-    LIMIT_MIN_MAX(set, DM_T_MIN, DM_T_MAX);
-    motor_send_mailbox.position_des = float_to_uint(0, DM_P_MIN, DM_P_MAX, 16);
-    motor_send_mailbox.velocity_des = float_to_uint(0, DM_V_MIN, DM_V_MAX, 12);
-    motor_send_mailbox.torque_des = float_to_uint(set, DM_T_MIN, DM_T_MAX, 12);
+    switch (motor->motor_type) {
+      case J4310:
+        LIMIT_MIN_MAX(set, DM_T_MIN_J4310, DM_T_MAX_J4310);
+        motor_send_mailbox.position_des = float_to_uint(0, DM_P_MIN_J4310, DM_P_MAX_J4310, 16);
+        motor_send_mailbox.velocity_des = float_to_uint(0, DM_V_MIN_J4310, DM_V_MAX_J4310, 12);
+        motor_send_mailbox.torque_des = float_to_uint(set, DM_T_MIN_J4310, DM_T_MAX_J4310, 12);
+        if (motor->stop_flag == MOTOR_STOP)
+          motor_send_mailbox.torque_des = float_to_uint(0, DM_T_MIN_J4310, DM_T_MAX_J4310, 12);
+        break;
+      case H6215:
+        LIMIT_MIN_MAX(set, DM_T_MIN_H6215, DM_T_MAX_H6215);
+        motor_send_mailbox.position_des = float_to_uint(0, DM_P_MIN_H6215, DM_P_MAX_H6215, 16);
+        motor_send_mailbox.velocity_des = float_to_uint(0, DM_V_MIN_H6215, DM_V_MAX_H6215, 12);
+        motor_send_mailbox.torque_des = float_to_uint(set, DM_T_MIN_H6215, DM_T_MAX_H6215, 12);
+        if (motor->stop_flag == MOTOR_STOP)
+          motor_send_mailbox.torque_des = float_to_uint(0, DM_T_MIN_H6215, DM_T_MAX_H6215, 12);
+        break;
+      case J8009P:
+        LIMIT_MIN_MAX(set, DM_T_MIN_J8009P, DM_T_MAX_J8009P);
+        motor_send_mailbox.position_des = float_to_uint(0, DM_P_MIN_J8009P, DM_P_MAX_J8009P, 16);
+        motor_send_mailbox.velocity_des = float_to_uint(0, DM_V_MIN_J8009P, DM_V_MAX_J8009P, 12);
+        motor_send_mailbox.torque_des = float_to_uint(set, DM_T_MIN_J8009P, DM_T_MAX_J8009P, 12);
+        if (motor->stop_flag == MOTOR_STOP)
+          motor_send_mailbox.torque_des = float_to_uint(0, DM_T_MIN_J8009P, DM_T_MAX_J8009P, 12);
+        break;
+      case J4340:
+        LIMIT_MIN_MAX(set, DM_T_MIN_J4340, DM_T_MAX_J4340);
+        motor_send_mailbox.position_des = float_to_uint(0, DM_P_MIN_J4340, DM_P_MAX_J4340, 16);
+        motor_send_mailbox.velocity_des = float_to_uint(0, DM_V_MIN_J4340, DM_V_MAX_J4340, 12);
+        motor_send_mailbox.torque_des = float_to_uint(set, DM_T_MIN_J4340, DM_T_MAX_J4340, 12);
+        if (motor->stop_flag == MOTOR_STOP)
+          motor_send_mailbox.torque_des = float_to_uint(0, DM_T_MIN_J4340, DM_T_MAX_J4340, 12);
+        break;
+      default:
+        break;
+    }
     motor_send_mailbox.Kp = 0;
     motor_send_mailbox.Kd = 0;
-
-    if (motor->stop_flag == MOTOR_STOP) motor_send_mailbox.torque_des = float_to_uint(0, DM_T_MIN, DM_T_MAX, 12);
 
     motor->motor_can_instance->tx_buff[0] = (uint8_t)(motor_send_mailbox.position_des >> 8);
     motor->motor_can_instance->tx_buff[1] = (uint8_t)(motor_send_mailbox.position_des);
@@ -204,9 +272,8 @@ __attribute__((noreturn)) void DMMotorTask(void const* argument) {
     motor->motor_can_instance->tx_buff[7] = (uint8_t)(motor_send_mailbox.torque_des);
 
     CANTransmit(motor->motor_can_instance, 2);
-    
-    osDelay(2);
 
+    osDelay(2);
   }
 }
 
@@ -218,7 +285,7 @@ void DMMotorTaskInit() {
     char dm_id_buff[2] = {0};
     __itoa(i, dm_id_buff, 10);
     strcat(dm_task_name, dm_id_buff);
-    osThreadDef(dm_task_name, DMMotorTask, osPriorityBelowNormal, 0, 64);
+    osThreadDef(dm_task_name, DMMotorTask, osPriorityNormal, 0, 64);
     dm_task_handle[i] = osThreadCreate(osThread(dm_task_name), dm_motor_instance[i]);
   }
 }

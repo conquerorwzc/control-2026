@@ -49,8 +49,8 @@ void OSTaskInit() {
   osThreadDef(instask, StartINSTASK, osPriorityAboveNormal, 0, 1024);
   insTaskHandle = osThreadCreate(osThread(instask), NULL);
 
-  osThreadDef(motortask, StartMOTORTASK, osPriorityBelowNormal, 0, 256);
-  motorTaskHandle = osThreadCreate(osThread(motortask), NULL);
+  // osThreadDef(motortask, StartMOTORTASK, osPriorityBelowNormal, 0, 256);
+  // motorTaskHandle = osThreadCreate(osThread(motortask), NULL);
 
   osThreadDef(daemontask, StartDAEMONTASK, osPriorityNormal, 0, 128);
   daemonTaskHandle = osThreadCreate(osThread(daemontask), NULL);
@@ -89,8 +89,8 @@ __attribute__((noreturn)) void StartMOTORTASK(void const *argument) {
     motor_start = DWT_GetTimeline_ms();
     MotorControlTask();
     motor_dt = DWT_GetTimeline_ms() - motor_start;
-    if (motor_dt > 2) LOGERROR("[freeRTOS] MOTOR Task is being DELAY! dt = [%f]", &motor_dt);
-    osDelay(2);
+    if (motor_dt > 1) LOGERROR("[freeRTOS] MOTOR Task is being DELAY! dt = [%f]", &motor_dt);
+    osDelay(1);
   }
 }
 
@@ -120,6 +120,7 @@ __attribute__((noreturn)) void StartROBOTTASK(void const *argument) {
   for (;;) {
     robot_start = DWT_GetTimeline_ms();
     RobotTask();
+    MotorControlTask();
     robot_dt = DWT_GetTimeline_ms() - robot_start;
     if (robot_dt > 1) LOGERROR("[freeRTOS] ROBOT core Task is being DELAY! dt = [%f]", &robot_dt);
     osDelay(1);

@@ -165,7 +165,7 @@ static Grab_Init_Config_s grab_init_config_s = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 12.0f,  // 12
+                            .Kp = 15.0f,
                             .Ki = 0.00f,
                             .Kd = 0.00f,
                             .MaxOut = 8.0f,
@@ -175,10 +175,10 @@ static Grab_Init_Config_s grab_init_config_s = {
                         },
                     .speed_PID =
                         {
-                            .Kp = 0.5f,  // 0.5
-                            .Ki = 0.1f,  // 0.1
+                            .Kp = 6.0f,
+                            .Ki = 0.0f,
                             .Kd = 0.00f,
-                            .MaxOut = 8.0f,
+                            .MaxOut = 28.0f,
                             .DeadBand = 0.01f,
                             .Improve = PID_Integral_Limit,
                             .IntegralLimit = 0.5f,
@@ -187,13 +187,13 @@ static Grab_Init_Config_s grab_init_config_s = {
             .controller_setting_init_config =
                 {
                     .outer_loop_type = ANGLE_LOOP,
-                    .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
+                    .close_loop_type = SPEED_LOOP | ANGLE_LOOP,
                     .angle_feedback_source = MOTOR_FEED,
                     .speed_feedback_source = MOTOR_FEED,
                     .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
                     .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
                 },
-            .motor_type = J4310,
+            .motor_type = J4340,
             .can_init_config =
                 {
                     .can_handle = &hcan1,
@@ -208,7 +208,7 @@ static Grab_Init_Config_s grab_init_config_s = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 12.0f,  // 12
+                            .Kp = 15.0f,
                             .Ki = 0.00f,
                             .Kd = 0.00f,
                             .MaxOut = 8.0f,
@@ -218,25 +218,25 @@ static Grab_Init_Config_s grab_init_config_s = {
                         },
                     .speed_PID =
                         {
-                            .Kp = 0.6f,  // 0.5
-                            .Ki = 0.2f,  // 0.1
+                            .Kp = 6.0f,
+                            .Ki = 0.0f,
                             .Kd = 0.00f,
-                            .MaxOut = 5.0f,
+                            .MaxOut = 28.0f,
                             .DeadBand = 0.01f,
                             .Improve = PID_Integral_Limit,
-                            .IntegralLimit = 1.0f,
+                            .IntegralLimit = 0.5f,
                         },
                 },
             .controller_setting_init_config =
                 {
                     .outer_loop_type = ANGLE_LOOP,
-                    .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
+                    .close_loop_type = SPEED_LOOP | ANGLE_LOOP,
                     .angle_feedback_source = MOTOR_FEED,
                     .speed_feedback_source = MOTOR_FEED,
                     .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
                     .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
                 },
-            .motor_type = J4310,
+            .motor_type = J4340,
             .can_init_config =
                 {
                     .can_handle = &hcan1,
@@ -319,16 +319,16 @@ static Grab_Init_Config_s grab_init_config_s = {
         {
             .controller_param_init_config =
                 {
-              .current_PID =
-              {
-                .Kp = 0.0f,  // 12
-                .Ki = 0.00f,
-                .Kd = 0.00f,
-                .MaxOut = 8.0f,
-                .DeadBand = 0.01f,
-                .Improve = PID_Integral_Limit,
-                .IntegralLimit = 3.0f,
-            },
+                    .current_PID =
+                        {
+                            .Kp = 0.0f,  // 12
+                            .Ki = 0.00f,
+                            .Kd = 0.00f,
+                            .MaxOut = 8.0f,
+                            .DeadBand = 0.01f,
+                            .Improve = PID_Integral_Limit,
+                            .IntegralLimit = 3.0f,
+                        },
                     .angle_PID =
                         {
                             .Kp = 12.0f,  // 12
@@ -353,7 +353,7 @@ static Grab_Init_Config_s grab_init_config_s = {
             .controller_setting_init_config =
                 {
                     .outer_loop_type = ANGLE_LOOP,
-                    .close_loop_type = ANGLE_LOOP | SPEED_LOOP|CURRENT_LOOP,
+                    .close_loop_type = ANGLE_LOOP | SPEED_LOOP | CURRENT_LOOP,
                     .angle_feedback_source = MOTOR_FEED,
                     .speed_feedback_source = MOTOR_FEED,
                     .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
