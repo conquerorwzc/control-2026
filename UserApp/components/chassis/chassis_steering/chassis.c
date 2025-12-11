@@ -306,7 +306,7 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
     //   chassis_instance->rudder_offset[i] = chassis_param.rudder_motor_offset[i];
     // }
   }
-  chassis_instance->yaw_motor=DJIMotorInit(&chassis_init_config->yaw_motor_config);
+  //chassis_instance->yaw_motor=DJIMotorInit(&chassis_init_config->yaw_motor_config);
   for (int i = 0; i < 4; i++) {
     chassis_instance->rudder_offset[i]=chassis_init_config->chassis_param.rudder_motor_offset[i];
   }
@@ -333,7 +333,7 @@ void ChassisTask() {
       chassis_ctrl_cmd->wz+=PIDCalculate(&follow_pid,chassis_ctrl_cmd->offset_angle,0);
       break;
     case CHASSIS_ROTATE: // 自旋,同时保持全向机动;当前wz维持定值,后续增加不规则的变速策略
-      // chassis_cmd_recv.wz = 4000;
+       chassis_ctrl_cmd->wz = 30000;
       break;
     default:
       break;

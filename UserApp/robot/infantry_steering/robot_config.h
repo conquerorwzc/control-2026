@@ -161,7 +161,7 @@ static Chassis_Init_Config_s chassis_init_config = {
   .yaw_motor_config=RUDDER_MOTOR_CONFIG(&hcan1, 1),
     //跟随PID
     .follow_pid={
-        .Kp = 85.0f,
+        .Kp = 300.0f,
         .Ki = 0.0f,
         .Kd = 0.0f,
         .IntegralLimit = 1000.0f,
@@ -332,13 +332,13 @@ static Chassis_Init_Config_s chassis_init_config = {
 #define BOARD_RX_ID 0x219
 #else
 // 接收板配置
-#define BOARD_TX_ID 0x219
-#define BOARD_RX_ID 0x218
+#define BOARD_TX_ID 0x11
+#define BOARD_RX_ID 0x10
 #endif
 
 static CANComm_Init_Config_s comm_config = {
-  .recv_data_len = 8,        // 接收数据长度，根据实际需求调整
-  .send_data_len = 8,        // 发送数据长度，根据实际需求调整
+  .recv_data_len = 24,        // 接收数据长度，根据实际需求调整
+  .send_data_len = 24,        // 发送数据长度，根据实际需求调整
   .daemon_count = 1000,      // 看门狗重载计数，根据实际需求调整
   .can_config = {
     .can_handle = &hcan1,  // 假设使用CAN1，根据实际使用的CAN句柄调整

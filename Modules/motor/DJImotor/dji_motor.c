@@ -473,13 +473,6 @@ void DJIMotorTask() {
     if (motor->stop_flag == MOTOR_STOP)
       memset(sender_assignment[group].tx_buff + 2 * num, 0, sizeof(uint16_t));
   }
-  // for (size_t i = 0; i < 9; ++i) {
-  //   if (sender_enable_flag[i]) {
-  //     CANTransmit(&sender_assignment[i], 1);
-  //   }
-  // }
-}
-void DJIMotorCANTransmit() {
   for (size_t i = 0; i < 9; ++i) {
     if (sender_enable_flag[i]) {
       CANTransmit(&sender_assignment[i], 1);
