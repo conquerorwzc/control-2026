@@ -467,7 +467,7 @@ void RobotInit() {
 
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
   robot->gimbal = GimbalInit(&gimbal_init_config);
-  //robot->shoot = ShootInit(&shoot_init_config);
+  robot->shoot = ShootInit(&shoot_init_config);
 #endif
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   robot->chassis = ChassisInit(&chassis_init_config);
@@ -511,7 +511,15 @@ void RobotTask() {
   board_can_comm_data.tx_buff[4] = transmit_data.bytes[0];
   board_can_comm_data.tx_buff[5] = transmit_data.bytes[1];
 
-  board_can_comm_data.tx_buff[6] = rc_data->rc.switch_right;
+  transmit_data.value = rc_data->rc.dial;
+  board_can_comm_data.tx_buff[6] = transmit_data.bytes[0];
+  board_can_comm_data.tx_buff[7] = transmit_data.bytes[1];
+
+  transmit_data.value = (int16_t)robot->gimbal->yaw_motor->measure.angle_single_round;
+  board_can_comm_data.tx_buff[8] = transmit_data.bytes[0];
+  board_can_comm_data.tx_buff[9] = transmit_data.bytes[1];
+
+  board_can_comm_data.tx_buff[10] = rc_data->rc.switch_right;
 
   CANCommSend(can_comm_instance, board_can_comm_data.tx_buff);
 
