@@ -27,20 +27,6 @@
 #define VISION_USE_VCP  // 使用虚拟串口发送视觉数据
 // #define VISION_USE_UART // 使用串口发送视觉数据
 
-// 云台参数
-#define YAW_CHASSIS_ALIGN_ECD 5326
-#define PITCH_HORIZON_ECD 5748  // 云台处于水平位置时编码器值,若对云台有机械改动需要修改
-#define PITCH_MAX_ANGLE 11.0f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
-#define PITCH_MIN_ANGLE -15.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
-
-// 私有宏,自动将编码器转换成角度值
-#define YAW_ALIGN_ANGLE 296.5                                         // hero的计算比较特殊，直接从读出来
-#define PTICH_HORIZON_ANGLE (PITCH_HORIZON_ECD * ECD_ANGLE_COEF_DJI)  // pitch水平时电机的角度,0-360
-#define GYRO2GIMBAL_DIR_YAW 1    // 陀螺仪数据相较于云台的yaw的方向,1为相同,-1为相反
-#define GYRO2GIMBAL_DIR_PITCH 1  // 陀螺仪数据相较于云台的pitch的方向,1为相同,-1为相反
-#define GYRO2GIMBAL_DIR_ROLL 1   // 陀螺仪数据相较于云台的roll的方向,1为相同,-1为相反
-
-// 轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
 //  轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
 #define WHEEL_MOTOR_CONFIG(handle, id)                                                                         \
   ((Motor_Init_Config_s){                                                                                      \
@@ -116,6 +102,141 @@ static Chassis_Init_Config_s chassis_init_config = {
 
 };
 
+// 龙门架M3508电机配置宏 (抬升和前伸电机)
+#define GANTRY_M3508_CONFIG(handle, id, angle_kp, angle_kd, speed_kp, speed_ki, direction) \
+    ((Motor_Init_Config_s){                                                                 \
+        .can_init_config = { .can_handle = handle, .tx_id = id, },                          \
+        .controller_param_init_config = {                                                   \
+            .angle_PID = {                                                                  \
+                .Kp = angle_kp, .Ki = 0.0f, .Kd = angle_kd,                                 \
+                .IntegralLimit = 1000.0f, .MaxOut = 7500.0f,                                 \
+            },                                                                              \
+            .speed_PID = {                                                                  \
+                .Kp = speed_kp, .Ki = speed_ki, .Kd = 0.0f,                                 \
+                .IntegralLimit = 15000.0f, .MaxOut = 30000.0f,                                \
+            },                                                                              \
+        },                                                                                  \
+        .controller_setting_init_config = {                                                 \
+            .angle_feedback_source = MOTOR_FEED,                                            \
+            .speed_feedback_source = MOTOR_FEED,                                            \
+            .outer_loop_type = ANGLE_LOOP,                                                  \
+            .close_loop_type = SPEED_LOOP | ANGLE_LOOP,                                     \
+            .motor_reverse_flag = direction,                                                \
+        },                                                                                  \
+        .motor_type = M3508,                                                                \
+    })
+
+// 龙门架M2006电机配置宏 (横移电机)
+#define GANTRY_M2006_CONFIG(handle, id, angle_kp, angle_kd, speed_kp, speed_ki, direction) \
+    ((Motor_Init_Config_s){                                                                 \
+        .can_init_config = { .can_handle = handle, .tx_id = id, },                          \
+        .controller_param_init_config = {                                                   \
+            .angle_PID = {                                                                  \
+                .Kp = angle_kp, .Ki = 0.0f, .Kd = angle_kd,                                 \
+                .IntegralLimit = 600.0f, .MaxOut = 6000.0f,                                 \
+            },                                                                              \
+            .speed_PID = {                                                                  \
+                .Kp = speed_kp, .Ki = speed_ki, .Kd = 0.0f,                                 \
+                .IntegralLimit = 5000.0f, .MaxOut = 15000.0f,                               \
+            },                                                                              \
+        },                                                                                  \
+        .controller_setting_init_config = {                                                 \
+            .angle_feedback_source = MOTOR_FEED,                                            \
+            .speed_feedback_source = MOTOR_FEED,                                            \
+            .outer_loop_type = ANGLE_LOOP,                                                  \
+            .close_loop_type = SPEED_LOOP | ANGLE_LOOP,                                     \
+            .motor_reverse_flag = direction,                                                \
+        },                                                                                  \
+        .motor_type = M2006,                                                                \
+    })
+
+// 龙门架初始化配置实例
+static Gantry_Init_Config_s gantry_init_config = {
+    // ------------------- 龙门架系统参数配置 -------------------
+    .Gantry_param =
+        {
+      .GANTRY_MAX_Y = 19000.0f,          // 前伸最前位置
+      .GANTRY_MAX_Z = 40000.0f,          // 抬升最高位置
+      .GANTRY_MAX_X = 17000.0f,          // 横移最右位置
+
+      .lift_sens_remote = 0.001f,        // 抬升电机灵敏度(遥控器)
+      .stretch_sens_remote = 0.001f,     // 前伸电机灵敏度(遥控器)
+      .sidesway_sens_remote = 0.015f,    // 横移电机灵敏度(遥控器)
+
+      .lift_sens_keyboard = 7.0f,        // 抬升电机灵敏度(键鼠)
+      .stretch_sens_keyboard = 6.0f,     // 前伸电机灵敏度(键鼠)
+      .sidesway_sens_keyboard = 7.0f,    // 横移电机灵敏度(键鼠)
+
+      .position_ecd_ratio = 30.0f,
+    },   // 位置矢量与电机转动角度的比例
+
+
+    // ------------------- 龙门架电机配置 -------------------
+    /*
+    // 抬升电机 (3508)
+    .lift_motor_config[0] = GANTRY_M3508_CONFIG(
+        &hfdcan2, 1,    // CAN 句柄和 ID
+        2.6f, 6.0f,     // 角度环 Kp, Kd
+        3.5f, 0.018f,   // 速度环 Kp, Ki
+        MOTOR_DIRECTION_REVERSE), // 电机方向 (对应老代码中的 - ratio)
+    .lift_motor_config[1] = GANTRY_M3508_CONFIG(
+        &hfdcan2, 2,
+        2.6f, 6.0f,
+        3.5f, 0.018f,
+        MOTOR_DIRECTION_NORMAL), // 电机方向 (对应老代码中的 + ratio)
+
+    // 前伸电机 (3508)
+    .stretch_motor_config[0] = GANTRY_M3508_CONFIG(
+        &hfdcan2, 3,
+        2.0f, 4.0f,
+        3.0f, 0.008f,
+        MOTOR_DIRECTION_REVERSE),
+    .stretch_motor_config[1] = GANTRY_M3508_CONFIG(
+        &hfdcan2, 4,
+        2.0f, 4.0f,
+        3.0f, 0.008f,
+        MOTOR_DIRECTION_NORMAL),
+
+    // 横移电机 (2006)
+    .sidesway_motor_config = GANTRY_M2006_CONFIG(.
+
+        &hfdcan2, 5,
+        1.8f, 10.0f,
+        5.0f, 0.025f,
+        MOTOR_DIRECTION_REVERSE), // 电机方向 (对应老代码中的 - ratio)
+    */
+
+    // 抬升电机 (3508)
+.lift_motor_config[0] = GANTRY_M3508_CONFIG(
+    &hfdcan2, 1,    // CA0N 句柄和 ID
+    50.0f, 2.3f,     // 角度环 Kp, Kd
+    1.5f, 3.0f,   // 速度环 Kp, Ki
+    MOTOR_DIRECTION_NORMAL), // 电机方向 (对应老代码中的 - ratio)
+.lift_motor_config[1] = GANTRY_M3508_CONFIG(
+    &hfdcan2, 2,
+    50.0f, 2.3f,     // 角度环 Kp, Kd
+    1.5f, 3.0f,   // 速度环 Kp, Ki
+    MOTOR_DIRECTION_NORMAL), // 电机方向 (对应老代码中的 + ratio)
+
+// 前伸电机 (3508)
+.stretch_motor_config[0] = GANTRY_M3508_CONFIG(
+    &hfdcan2, 3,
+    50.0f, 2.8f,
+    1.33f, 0.21f,
+    MOTOR_DIRECTION_NORMAL),
+.stretch_motor_config[1] = GANTRY_M3508_CONFIG(
+    &hfdcan2, 4,
+    45.0f, 2.7f,
+    1.29f, 0.20f,
+    MOTOR_DIRECTION_NORMAL),
+
+// 横移电机 (2006)
+.sidesway_motor_config = GANTRY_M2006_CONFIG(
+    &hfdcan2, 5,
+    0.0f, 0.0f,
+    0.0f, 0.0f,
+    MOTOR_DIRECTION_REVERSE), // 电机方向 (对应老代码中的 - ratio)
+};
 static Grab_Init_Config_s grab_init_config_s = {
     .Grab_motor_config[0] =
         {
@@ -366,9 +487,7 @@ static Grab_Init_Config_s grab_init_config_s = {
                     .tx_id = 0x04,
                     .rx_id = 0x14,
                 },
-        },
-};
-
+        };
 // static SuperCap_Init_Config_s super_cap_config = {
 //     .can_config = {
 //         .can_handle = &hcan2,
