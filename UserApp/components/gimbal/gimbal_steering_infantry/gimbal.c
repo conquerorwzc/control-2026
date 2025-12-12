@@ -67,27 +67,27 @@ GimbalInstance* GimbalInit(Gimbal_Init_Config_s* gimbal_init_config) {
 
 /* 机器人云台控制核心任务,后续考虑只保留IMU控制,不再需要电机的反馈 */
 void GimbalTask() {
-  if (!gimbal) return;
+  // if (!gimbal) return;
   // 根据控制模式进行电机反馈切换和过渡,视觉模式在robot_cmd模块就已经设置好,gimbal只看yaw_ref和pitch_ref
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_POWER_OFF) {
     // 停止
     DJIMotorStop(gimbal->yaw_motor);
     DMMotorStop(gimbal->pitch_motor);
-    return;
-  }
+  }else {
+    DJIMotorEnable(gimbal->yaw_motor);
+    DMMotorEnable(gimbal->pitch_motor);
 
-  DJIMotorEnable(gimbal->yaw_motor);
-  DMMotorEnable(gimbal->pitch_motor);
-
-  // 调用核心控制函数
+    // 调用核心控制函数
 #if defined(SECOND_ORDER_LINEAR_CONTROLLER_USED)
-  GimbalMotorAbsoluteAngleControl(gimbal);
+    GimbalMotorAbsoluteAngleControl(gimbal);
 #endif
 
 #if defined(PID_USED)
-  DJIMotorSetPIDRef(gimbal->yaw_motor, gimbal_ctrl_cmd->yaw);  // yaw和pitch会在robot_cmd中处理好多圈和单圈GimbalMotorAbsoluteAngleControl(gimbal);
+    DJIMotorSetPIDRef(gimbal->yaw_motor, gimbal_ctrl_cmd->yaw);  // yaw和pitch会在robot_cmd中处理好多圈和单圈GimbalMotorAbsoluteAngleControl(gimbal);
+    DMMotorPIDCal(gimbal->pitch_motor, gimbal_ctrl_cmd->pitch);
+    // DMMotorPIDCal(J4310_motor, 3.0f);
 #endif
-
+  }
   // 在合适的地方添加pitch重力补偿前馈力矩
   // 根据IMU姿态/pitch电机角度反馈计算出当前配重下的重力矩
   // ...

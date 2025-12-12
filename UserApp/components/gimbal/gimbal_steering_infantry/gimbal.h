@@ -104,8 +104,11 @@ typedef struct {
   DJIMotorInstance *yaw_motor;
   DMMotorInstance *pitch_motor;
   attitude_t* gimbal_IMU_data;  // 云台IMU数据
+
+#if defined(SECOND_ORDER_LINEAR_CONTROLLER_USED)
   gimbal_motor_second_order_linear_controller_t gimbal_yaw_motor_second_order_linear_controller;
   gimbal_motor_second_order_linear_controller_t gimbal_pitch_motor_second_order_linear_controller;
+#endif
 } GimbalInstance;
 
 /**
