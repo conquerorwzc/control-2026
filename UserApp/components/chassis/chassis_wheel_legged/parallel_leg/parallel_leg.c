@@ -279,7 +279,6 @@ void LegCtrlUpdate(LegInstance* leg, INS_t* imu) {
   // PIDCalculate(&leg->virtual_model.length_PID, leg->virtual_model.length, leg->leg_ctrl_cmd.length_ref);
   // leg->virtual_model.F =
   //     PIDCalculate(&leg->virtual_model.length_d_PID, leg->virtual_model.length_d, leg->leg_ctrl_cmd.length_d_ref);
-  leg->leg_ctrl_cmd.length_ref = 0.20;
   leg->virtual_model.F =
       PIDCalculate(&leg->virtual_model.length_PID, leg->virtual_model.length, leg->leg_ctrl_cmd.length_ref);
 }

@@ -42,6 +42,10 @@
 #define CENTER_GIMBAL_OFFSET_Y 0     // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
 #define WHEEL_RADIUS 60              // 轮子半径
 #define WHEEL_REDUCTION_RATIO 19.0f  // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
+#define PITCH_MAX_ANGLE 26.0f        // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+
+#define LEG_MAX_LENGTH 0.37f  // 0.380f
+#define LEG_MIN_LENGTH 0.13f  // 0.112f
 
 // 云台参数
 #define YAW_CHASSIS_ALIGN_ECD 4757
@@ -199,8 +203,9 @@
 static Chassis_Init_Config_s chassis_init_config = {
     .chassis_param =
         {
-            // .robot_weight = 14.0f,  // 机器人重量,单位为kg(千克)
+            // .robot_weight = 0.0f,  // 机器人重量,单位为kg(千克)
             .robot_weight = 14.0f,  // 机器人重量,单位为kg(千克)
+            .track_width = 0.245f,
         },
 
     // 通过设置电机输出/反馈方向，来使腿部控制镜像对称

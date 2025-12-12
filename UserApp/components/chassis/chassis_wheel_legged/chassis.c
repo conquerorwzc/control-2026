@@ -23,6 +23,7 @@ static float q2i_coeff;
 
 // robot param
 static float robot_weight;
+static float track_width;
 static float wheel_radius;
 static float wheel_reduction_ratio;
 
@@ -32,10 +33,13 @@ static void ChassisCtrlUpdate() {
 
   for (int i = 0; i < 2; i++) {
     leg[i]->leg_ctrl_cmd.x_d_ref = chassis->chassis_ctrl_cmd.vx;
+    leg[i]->leg_ctrl_cmd.length_ref =
+        chassis->chassis_ctrl_cmd.leg_length -
+        (float)(1 - 2 * i) * track_width * (chassis->chassis_ctrl_cmd.roll - chassis->chassis_IMU->Roll * DEGREE_2_RAD);
     LegCtrlUpdate(leg[i], chassis->chassis_IMU);
     float leg_force_ff = 9.8f * robot_weight / 2.0f / mcos(leg[i]->state_var.theta);
     leg[i]->virtual_model.F += leg_force_ff - (float)(1 - 2 * i) * chassis->roll_comp;
-    VAL_LIMIT(leg[i]->virtual_model.F, -100.0f, 100.0f);
+    VAL_LIMIT(leg[i]->virtual_model.F, -500.0f, 500.0f);
     leg[i]->real_model.T -= (float)(1 - 2 * i) * chassis->chassis_ctrl_cmd.wz;
   }
 
@@ -101,6 +105,7 @@ static void LimitChassisOutput() {
     // DMMotorSetRef(leg[i]->joint_motor[0], 0);
     // DMMotorSetRef(leg[i]->joint_motor[1], 0);
     DJIMotorSetRef(leg[i]->wheel_motor, leg[i]->real_model.T * q2i_coeff * (16384.0f / 20.0f));
+    // DJIMotorSetRef(leg[0]->wheel_motor, 0);
     // DJIMotorSetRef(leg[i]->wheel_motor, ref);
     // DJIMotorSetRef(leg[i]->wheel_motor, 0);
   }
@@ -140,6 +145,7 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   chassis_instance->leg[1] = LegInit(&chassis_init_config->leg_init_config[1]);
 
   robot_weight = chassis_init_config->chassis_param.robot_weight;
+  track_width = chassis_init_config->chassis_param.track_width;
   wheel_radius = chassis_init_config->leg_init_config[0].leg_param.wheel_radius;
   wheel_reduction_ratio = chassis_init_config->leg_init_config[0].leg_param.wheel_reduction_ratio;
   q2i_coeff = (3591.0f / 187.0f) / wheel_reduction_ratio / 0.3f;

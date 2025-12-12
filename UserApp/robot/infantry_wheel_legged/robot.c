@@ -144,6 +144,7 @@ static void RemoteControlSet() {
       //                        小陀螺模式下的旋转分量，如，则在底盘任务中计算旋转分量
       // chassis_vx = 30.0f * (float)rc_data[TEMP].rc.rocker_l_;  // _水平方向
       // chassis_vy = 30.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 竖直方向
+      // chassis_vy = 30.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 竖直方向
       // chassis_ctrl_cmd->wz =
       //     // (20.0f) * (float)rc_data[TEMP].rc.rocker_r_ +
       //     // PIDCalculate(&robot->chassis_follow_PID,
@@ -158,6 +159,15 @@ static void RemoteControlSet() {
       chassis_ctrl_cmd->vx = (0.005f) * (float)rc_data[TEMP].rc.rocker_r1;
       // chassis_ctrl_cmd->leg_length_d = (float)rc_data[TEMP].rc.rocker_l1;
       // chassis_ctrl_cmd->roll = (float)rc_data[TEMP].rc.rocker_l_;
+      chassis_ctrl_cmd->leg_length += 0.0000005f * (float)rc_data[TEMP].rc.rocker_l1;
+      // chassis_ctrl_cmd->roll += 0.002f * (float)rc_data[TEMP].rc.rocker_l_;
+
+      // 云台PITCH轴软件限位 todo:没在云台有点不好
+      if (chassis_ctrl_cmd->leg_length > LEG_MAX_LENGTH) {
+        chassis_ctrl_cmd->leg_length = LEG_MAX_LENGTH;
+      } else if (chassis_ctrl_cmd->leg_length < LEG_MIN_LENGTH) {
+        chassis_ctrl_cmd->leg_length = LEG_MIN_LENGTH;
+      }
       break;
     default:
       break;
@@ -314,6 +324,7 @@ void RobotInit() {
   // robot->shoot = ShootInit(&shoot_init_config);
 #endif
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
+  DWT_Delay(1.5);
   robot->chassis = ChassisInit(&chassis_init_config);
   PIDInit(&robot->chassis_follow_PID, &chassis_follow_PID_config);
 #endif
@@ -324,6 +335,8 @@ void RobotInit() {
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
 
   rc_data = robot->rc_data;
+
+  chassis_ctrl_cmd->leg_length = 0.20f;  // TODO: config传参进来
   DWT_GetDeltaT(&robot->DWT_CNT);
 }
 
