@@ -29,7 +29,7 @@ l0 = sqrt((xc - l5 / 2)^2 + yc^2);
 phi0 = atan2(yc , xc - l5 / 2);
 
 position = [l0 ; phi0];
-matlabFunction(position , 'File' , 'Leg_Position');
+matlabFunction(position , 'File' , 'leg_position');
 
 %求雅各比矩阵
 J11 = diff(l0 , phi1);
@@ -40,8 +40,8 @@ JacobianMatrix = [J11,J12;J21,J22];
 
 %速度雅各比矩阵：关节->末端执行器
 speed = JacobianMatrix * [phi1_d;phi4_d];
-matlabFunction(speed , 'File' , 'Leg_Speed');
+matlabFunction(speed , 'File' , 'leg_speed');
 
 syms F Tp;
 T = JacobianMatrix' * [F ; Tp];
-matlabFunction(T , 'File' , 'Leg_Force');
+matlabFunction(T , 'File' , 'leg_force');

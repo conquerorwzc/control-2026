@@ -54,6 +54,7 @@ typedef struct {
   float center_gimbal_offset_y;  // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
   float track_width;
   float robot_weight;
+  float leg_length_initial;
 } Chassis_Param_s;
 
 typedef struct {
