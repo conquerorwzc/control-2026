@@ -63,6 +63,6 @@ static Motor_Init_Config_s M3508_config = {
         },
     .motor_type = M3508,
     .can_init_config.can_handle = &hcan1,
-    .can_init_config.tx_id = 1,
+    .can_init_config.tx_id = 2,
     .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
 };

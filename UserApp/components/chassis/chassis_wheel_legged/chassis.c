@@ -60,13 +60,15 @@ static void ChassisRecovery() {
     leg[i]->real_model.Tp_1 = leg[i]->joint_motor[0]->motor_controller.final_output;
     leg[i]->real_model.Tp_2 = leg[i]->joint_motor[1]->motor_controller.final_output;
 
-    if (abs((leg[i]->joint_motor[0]->measure.position - (-0.1f))) <= 5.0f &&
-        abs(leg[i]->joint_motor[1]->measure.position - (0.1f)) <= 5.0f) {
+    if (abs((leg[i]->joint_motor[0]->measure.position - (-0.1f))) <= 0.5f &&
+        abs(leg[i]->joint_motor[1]->measure.position - (0.1f)) <= 0.5f) {
       leg[i]->leg_ctrl_cmd.x_d_ref = chassis->chassis_ctrl_cmd.vx;
       LegCtrlUpdate(leg[i], chassis->chassis_IMU);
       leg[i]->real_model.T -= (float)(1 - 2 * i) * chassis->chassis_ctrl_cmd.wz;
     } else {
+      leg[i]->leg_ctrl_cmd.x_d_ref = chassis->chassis_ctrl_cmd.vx;
       LegCtrlUpdate(leg[i], chassis->chassis_IMU);
+      leg[i]->real_model.T -= (float)(1 - 2 * i) * chassis->chassis_ctrl_cmd.wz;
       // leg[i]->real_model.T = 0;
     }
   }
@@ -78,6 +80,7 @@ static void ChassisRecovery() {
  */
 static void PowerControl() {}
 
+float ref = 0;
 /**
  * @brief 预测电机功率并进行限制
  *
@@ -91,11 +94,15 @@ static void LimitChassisOutput() {
     VAL_LIMIT(leg[i]->real_model.T, -2.45f, 2.45f);
     DMMotorSetRef(leg[i]->joint_motor[0], leg[i]->real_model.Tp_1);
     DMMotorSetRef(leg[i]->joint_motor[1], leg[i]->real_model.Tp_2);
+    // DMMotorSetRef(leg[0]->joint_motor[1], 0);
+    // DMMotorSetRef(leg[0]->joint_motor[0], 0);
+    // DMMotorSetRef(leg[1]->joint_motor[0], leg[1]->real_model.Tp_1);
+    // DMMotorSetRef(leg[1]->joint_motor[1], leg[1]->real_model.Tp_2);
     // DMMotorSetRef(leg[i]->joint_motor[0], 0);
     // DMMotorSetRef(leg[i]->joint_motor[1], 0);
-    // DJIMotorSetRef(leg[i]->wheel_motor, leg[i]->real_model.T * q2i_coeff * (16384.0f / 20.0f));
-    // DJIMotorSetRef(leg[i]->wheel_motor, 550);
-    DJIMotorSetRef(leg[i]->wheel_motor, 0);
+    DJIMotorSetRef(leg[i]->wheel_motor, leg[i]->real_model.T * q2i_coeff * (16384.0f / 20.0f));
+    // DJIMotorSetRef(leg[i]->wheel_motor, ref);
+    // DJIMotorSetRef(leg[i]->wheel_motor, 0);
   }
   // PowerControl();
 }
@@ -106,7 +113,7 @@ static void LimitChassisOutput() {
  *
  */
 static void EstimateSpeed() {
-#if 0
+#if 1
   ObserverVarUpdate(leg[0], chassis->chassis_IMU);
   ObserverVarUpdate(leg[1], chassis->chassis_IMU);
   chassis_aver_v = (leg[0]->observer_var.vb + leg[1]->observer_var.vb) / 2.0f;
@@ -118,8 +125,8 @@ static void EstimateSpeed() {
 #define X_D_FILTER_ALPHA 0.1f
   for (int i = 0; i < 2; i++) {
     // 计算当前速度值
-    float current_x_d = -1 * (leg[0]->wheel_motor->measure.speed_aps + leg[1]->wheel_motor->measure.speed_aps) *
-                        DEGREE_2_RAD / 2 * wheel_radius;
+    float current_x_d = -1 * (leg[0]->wheel_motor->measure.speed_aps + leg[1]->wheel_motor->measure.speed_aps) / 2 /
+                        wheel_reduction_ratio * DEGREE_2_RAD * wheel_radius;
     // 应用一阶低通滤波
     leg[i]->state_var.x_d = leg[i]->state_var.x_d * (1.0f - X_D_FILTER_ALPHA) + current_x_d * X_D_FILTER_ALPHA;
   }

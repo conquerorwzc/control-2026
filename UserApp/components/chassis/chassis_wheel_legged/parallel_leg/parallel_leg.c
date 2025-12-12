@@ -19,9 +19,8 @@
 
 // todo: LegInstance应当以static形式在内部保存指针，内部态函数调用内部实例进行数据操作
 
-// static float LQR_K[2][6];
-// = {{-2.1954f, -0.2044f, -0.8826f, -1.3245f, 1.2784f, 0.1112f},
-// {2.5538f, 0.2718f, 1.5728f, 2.2893f, 12.1973f, 0.4578f}};
+static float LQR_K[2][6] = {{-35.4246, -7.0621, -8.4760, -9.2295, 23.3394, 1.8541},
+                            {17.7524, 3.9835, 5.6766, 5.6106, 106.4360, 6.3829}};
 
 // robot param
 static float rod_length[5];
@@ -137,7 +136,8 @@ void ObserverVarUpdate(LegInstance* leg, INS_t* imu) {
   Observer_Var_t* ov = &leg->observer_var;
   Virtual_Model_t* vm = &leg->virtual_model;
   State_Var_t* sv = &leg->state_var;
-  ov->w = -leg->wheel_motor->measure.speed_aps * DEGREE_2_RAD + vm->alpha_d - imu->Gyro[0];  // todo:Gyro极性不确定
+  ov->w = -leg->wheel_motor->measure.speed_aps / wheel_reduction_ratio * DEGREE_2_RAD + vm->alpha_d -
+          imu->Gyro[0];  // todo:Gyro极性不确定
   ov->vb = ov->w * wheel_radius + vm->length * sv->theta_d * mcos(sv->theta) + vm->length_d * msin(sv->theta);
 }
 
@@ -246,9 +246,11 @@ void LegCtrlUpdate(LegInstance* leg, INS_t* imu) {
   for (int i = 0; i < 2; i++) {
     for (int j = 0; j < 6; j++) {
       leg->LQR_K[i][j] = LQR_K_Calc(&LQR_K_Coefficient[i][j][0], leg->virtual_model.length);
+      // leg->LQR_K[i][j] = LQR_K[i][j];
       // todo:离地检测，除K21 K22以外全部置零
     }
   }
+
   OffGroundDetection(leg);
 
   float last_x_d_ref = leg->leg_ctrl_cmd.x_d_ref;
@@ -277,7 +279,7 @@ void LegCtrlUpdate(LegInstance* leg, INS_t* imu) {
   // PIDCalculate(&leg->virtual_model.length_PID, leg->virtual_model.length, leg->leg_ctrl_cmd.length_ref);
   // leg->virtual_model.F =
   //     PIDCalculate(&leg->virtual_model.length_d_PID, leg->virtual_model.length_d, leg->leg_ctrl_cmd.length_d_ref);
-  leg->leg_ctrl_cmd.length_ref = 0.14;
+  leg->leg_ctrl_cmd.length_ref = 0.20;
   leg->virtual_model.F =
       PIDCalculate(&leg->virtual_model.length_PID, leg->virtual_model.length, leg->leg_ctrl_cmd.length_ref);
 }

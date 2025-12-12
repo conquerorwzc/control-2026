@@ -21,6 +21,6 @@ void RobotInit() {
 
 void RobotTask() {
   // DMMotorSetPIDRef(J8009P_instance, speed_ref);
-  M3508_instance->motor_controller.final_output = target_torque * q2i_coeff * (16384.0f / 20.0f);
-  // DJIMotorSetPIDRef(M3508_instance, speed_ref);
+  // M3508_instance->motor_controller.final_output = target_torque * q2i_coeff * (16384.0f / 20.0f);
+  DJIMotorSetPIDRef(M3508_instance, speed_ref);
 }
