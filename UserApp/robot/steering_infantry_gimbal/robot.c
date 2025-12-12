@@ -236,14 +236,14 @@ static void RemoteControlSet() {
   // 云台使能,或视觉未识别到目标,纯遥控器拨杆控制
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
     gimbal_ctrl_cmd->yaw += -0.0016f * (float)rc_data[TEMP].rc.rocker_r_;
-    gimbal_ctrl_cmd->pitch -= 0.0003f * (float)rc_data[TEMP].rc.rocker_r1;
+    gimbal_ctrl_cmd->pitch -= 0.000006f * (float)rc_data[TEMP].rc.rocker_r1;
   }
 
   // 云台PITCH轴软件限位 todo:没在云台有点不好
-  if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
-    gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
-  } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
-    gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
+  if (gimbal_ctrl_cmd->pitch > PITCH_ABS_MAX) {
+    gimbal_ctrl_cmd->pitch = PITCH_ABS_MAX;
+  } else if (gimbal_ctrl_cmd->pitch < PITCH_ABS_MIN) {
+    gimbal_ctrl_cmd->pitch = PITCH_ABS_MIN;
   }
 
   // 底盘参数,系数需要调整
@@ -362,10 +362,10 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
 
       break;
   }
-  if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
-    gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
-  } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
-    gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
+  if (gimbal_ctrl_cmd->pitch > PITCH_ABS_MAX) {
+    gimbal_ctrl_cmd->pitch = PITCH_ABS_MAX;
+  } else if (gimbal_ctrl_cmd->pitch < PITCH_ABS_MIN) {
+    gimbal_ctrl_cmd->pitch = PITCH_ABS_MIN;
   }
   shoot_ctrl_cmd->shoot_rate = 8;// 射频控制,固定每秒1发,后续可以根据左侧拨轮的值大小切换射频,
 }

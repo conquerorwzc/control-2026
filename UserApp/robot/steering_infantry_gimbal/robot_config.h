@@ -13,6 +13,10 @@
 #define PITCH_MAX_ANGLE 11.0f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
 #define PITCH_MIN_ANGLE -15.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
 
+//达妙电机陀螺仪角度限制
+#define PITCH_ABS_MAX 0.24f				//0.279
+#define PITCH_ABS_MIN -0.50f			//-0.36
+
 // // 二阶线性控制器参数
 // #define YAW_FEED_FORWARD 0.7f
 // #define YAW_ANGLE_ERROR_COEF 140000.0f
@@ -75,36 +79,6 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 },
             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
         },
-    // .pitch_motor_config =
-    //     {
-    //         .controller_param_init_config =
-    //             {
-    //                 .angle_PID =
-    //                 {
-    //                   .Kp = 0.0f,
-    //                   .Ki = 0.01f,
-    //                   .Kd = 0.0f,
-    //                   .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-    //                   .IntegralLimit = 0.0f,
-    //                   .MaxOut = 10.0f,
-    //               },
-    //           .speed_PID = {
-    //                   .Kp = 0.0f,
-    //                   .Ki = 0.0f,
-    //                   .Kd = 0.0f,
-    //                   .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-    //                   .IntegralLimit = 10000.0f,
-    //                   .MaxOut = 30000.0f,
-    //               },
-    //             },
-    //         .motor_type = GM6020,
-    //         .can_init_config =
-    //             {
-    //                 .can_handle = &hcan2,
-    //                 .tx_id = 1,
-    //             },
-    //         .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
-    //     },
     // .yaw_motor_second_order_linear_controller_init_config = {
     //     .k_feed_forward = YAW_FEED_FORWARD,
     //     .k_angle_error = YAW_ANGLE_ERROR_COEF,
@@ -119,6 +93,48 @@ static Gimbal_Init_Config_s gimbal_init_config = {
     //     .max_out = PITCH_MAX_OUT,
     //     .min_out = PITCH_MIN_OUT,
     // },
+  .pitch_motor_config =
+        {
+            .controller_param_init_config =
+                {
+                    .angle_PID =
+                        {
+                            .Kp = 12.0f,  // 12
+                            .Ki = 0.00f,
+                            .Kd = 0.00f,
+                            .MaxOut = 8.0f,
+                            .DeadBand = 0.01f,
+                            .Improve = PID_Integral_Limit,
+                            .IntegralLimit = 0.0f,
+                        },
+                    .speed_PID =
+                        {
+                            .Kp = 0.5f,  // 0.5
+                            .Ki = 0.1f,  // 0.1
+                            .Kd = 0.00f,
+                            .MaxOut = 8.0f,
+                            .DeadBand = 0.01f,
+                            .Improve = PID_Integral_Limit,
+                            .IntegralLimit = 0.5f,
+                        },
+                },
+            .controller_setting_init_config =
+                {
+                    .outer_loop_type = ANGLE_LOOP,
+                    .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
+                    .angle_feedback_source = MOTOR_FEED,
+                    .speed_feedback_source = MOTOR_FEED,
+                    .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+                    .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+                },
+            .motor_type = J4310,
+            .can_init_config =
+                {
+                    .can_handle = &hcan2,
+                    .tx_id = 0x01,
+                    .rx_id = 0x206,
+                },
+        },
   .imu_init_config = {
       .flag = 1,
       .scale = {1.0f, 1.0f, 1.0f},
