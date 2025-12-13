@@ -93,7 +93,7 @@ GantryInstance* GantryInit(Gantry_Init_Config_s* init_config)
         {            osDelay(10);
             timeout++;
         }
-        
+
         // 等待前伸电机数据
         timeout = 0;
         while (gantry_instance->stretch_motor[i].motor == NULL ||

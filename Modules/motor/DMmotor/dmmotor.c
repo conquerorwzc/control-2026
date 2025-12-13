@@ -95,6 +95,12 @@ static void DMMotorDecode(CANInstance* motor_can) {
   measure->T_Mos = (float)rxbuff[6];
   measure->T_Rotor = (float)rxbuff[7];
 
+  if (motor_setting->feedback_reverse_flag == FEEDBACK_DIRECTION_REVERSE) {
+    measure->position = -measure->position;
+    measure->velocity = -measure->velocity;
+    measure->torque = -measure->torque;
+    measure->total_angle = -measure->total_angle;
+  }
   // 多圈角度计算,前提是假设两次采样间电机转过的角度小于12.5弧度
   // DM电机的position范围是-12.5到12.5弧度，跳变点在12.5和-12.5之间
   if (measure->position - measure->last_position > 12.5f)  // 从负值(-12.5)变成正值(12.5)，电机逆向旋转过边界
@@ -103,12 +109,7 @@ static void DMMotorDecode(CANInstance* motor_can) {
     measure->total_round++;
   measure->total_angle = measure->total_round * 2.0f * 12.5f + measure->position;
 
-  if (motor_setting->feedback_reverse_flag == FEEDBACK_DIRECTION_REVERSE) {
-    measure->position = -measure->position;
-    measure->velocity = -measure->velocity;
-    measure->torque = -measure->torque;
-    measure->total_angle = -measure->total_angle;
-  }
+
 }
 
 // todo: 会跟控制抢，有概率控不了电机

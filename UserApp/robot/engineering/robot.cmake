@@ -1,7 +1,7 @@
 # Set the type of chassis, gimbal and shooter modules for infantry robot
 set(CHASSIS_TYPE chassis_mecanum)
 set(Grab_TYPE 5-DOF)
-set(GANTRY_TYPE "")
+
 add_compile_definitions(FRICTION_NUM=3)
 
 # Include directories for header file searching
@@ -15,7 +15,7 @@ file(GLOB_RECURSE ROBOT_SOURCES
         "${CMAKE_CURRENT_LIST_DIR}/*.c"
         "${CMAKE_SOURCE_DIR}/UserApp/components/chassis/${CHASSIS_TYPE}/*.c"
         "${CMAKE_SOURCE_DIR}/UserApp/components/grab/${Grab_TYPE}/*.c"
-        "${CMAKE_SOURCE_DIR}/UserApp/components/gantry/${GANTRY_TYPE}/*.c"
+        "${CMAKE_SOURCE_DIR}/UserApp/components/gantry/*.c"
 )
 
 # Add the robot source files to the global SOURCES list

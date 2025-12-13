@@ -26,6 +26,7 @@ typedef struct {
   float gripper_joint;  // 末端夹爪关节角度
   float L_target;       //左侧电机旋转角度
   float R_target;       //右侧电机旋转角度
+  float T;
 } ActuatorInstance;
 
 typedef struct {

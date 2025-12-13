@@ -30,6 +30,7 @@ GrabInstance* GrabInit(Grab_Init_Config_s* Grab_init_config) {
   GrabInstance* grab_instance = (GrabInstance*)zmalloc(sizeof(GrabInstance));
   grab_instance->actuator = (ActuatorInstance*)zmalloc(sizeof(ActuatorInstance));
   grab_instance->arm = (ArmInstance*)zmalloc(sizeof(ArmInstance));
+
   grab_instance->actuator->grab_dmmotor[0] = DMMotorInit(&Grab_init_config->Grab_motor_config[5]);  // v2
   grab_instance->arm->grab_dmmotor[0] = DMMotorInit(&Grab_init_config->Grab_motor_config[0]);       // v3
   grab_instance->arm->grab_dmmotor[1] = DMMotorInit(&Grab_init_config->Grab_motor_config[1]);       // v4
@@ -37,10 +38,6 @@ GrabInstance* GrabInit(Grab_Init_Config_s* Grab_init_config) {
 
   grab_instance->actuator->grab_djimotor[0] = DJIMotorInit(&Grab_init_config->Grab_motor_config[3]);
   grab_instance->actuator->grab_djimotor[1] = DJIMotorInit(&Grab_init_config->Grab_motor_config[4]);
-  // grab_instance->actuator->grab_dmmotor[0] = DMMotorInit(&Grab_init_config->Grab_motor_config[5]);  // v2
-  // grab_instance->arm->grab_dmmotor[0] = DMMotorInit(&Grab_init_config->Grab_motor_config[0]);       // v3
-  // grab_instance->arm->grab_dmmotor[1] = DMMotorInit(&Grab_init_config->Grab_motor_config[1]);       // v4
-  // grab_instance->arm->grab_dmmotor[2] = DMMotorInit(&Grab_init_config->Grab_motor_config[2]);        // v4
 
   // 先赋值grab指针，再访问grab_instance中的成员
   grab = grab_instance;
@@ -87,7 +84,7 @@ static void MotorTask() {
 
     // DMMotorPIDCal(grab->actuator->grab_dmmotor[0], a[2]);
 
-    DMMotorSetRef(grab->actuator->grab_dmmotor[0], a[3]);
+    DMMotorSetRef(grab->actuator->grab_dmmotor[0], grab->actuator->T);
   }
 }
 
