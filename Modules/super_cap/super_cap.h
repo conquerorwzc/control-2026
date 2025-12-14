@@ -13,17 +13,16 @@
 #pragma pack(1)
 typedef struct
 {
-    uint16_t vol; // 电压
-    uint16_t current; // 电流
-    uint16_t power; // 功率
-} SuperCap_Msg_s;
+  uint16_t voltage;
+  uint8_t error_state;
+} SuperCap_Measure_s;
 #pragma pack()
 
 /* 超级电容实例 */
 typedef struct
 {
     CANInstance *can_ins; // CAN实例
-    SuperCap_Msg_s cap_msg; // 超级电容信息
+    SuperCap_Measure_s cap_msg; // 超级电容信息
 } SuperCapInstance;
 
 /* 超级电容初始化配置 */
@@ -40,12 +39,15 @@ typedef struct
  */
 SuperCapInstance *SuperCapInit(SuperCap_Init_Config_s *supercap_config);
 
+
 /**
- * @brief 发送超级电容控制信息
+ * @brief 发送超级电容控制消息
  * 
  * @param instance 超级电容实例
- * @param data 超级电容控制信息
+ * @param power 功率值
+ * @param buffer 缓冲区值
+ * @param state 状态值
  */
-void SuperCapSend(SuperCapInstance *instance, uint8_t *data);
+void SuperCapSendMessage(SuperCapInstance *instance, int16_t power, uint16_t buffer, uint8_t state);
 
-#endif // !SUPER_CAP_Hd
+#endif // !SUPER_CAP_H
