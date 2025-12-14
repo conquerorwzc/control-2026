@@ -16,9 +16,8 @@
 #define __INS_TASK_H
 
 #include "stdint.h"
-#include "bmi088.h"
+#include "BMI088driver.h"
 #include "QuaternionEKF.h"
-#include "cmsis_os.h"
 
 #define X 0
 #define Y 1
