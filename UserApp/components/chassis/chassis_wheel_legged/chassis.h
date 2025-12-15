@@ -42,7 +42,7 @@ typedef struct {
   float vx;  // 前进方向速度
   float wz;  // 旋转速度
   float roll;
-  float leg_length_d;
+  float leg_length;
   float offset_angle;  // 底盘和归中位置的夹角
   int chassis_speed_buff;
   uint16_t max_power;  // 最大功率限制
@@ -52,7 +52,9 @@ typedef struct {
 typedef struct {
   float center_gimbal_offset_x;  // 云台旋转中心距底盘几何中心的距离,前后方向,云台位于正中心时默认设为0
   float center_gimbal_offset_y;  // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
+  float track_width;
   float robot_weight;
+  float leg_length_initial;
 } Chassis_Param_s;
 
 typedef struct {

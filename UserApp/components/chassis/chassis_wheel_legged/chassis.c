@@ -19,10 +19,13 @@ static Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd;  // 声明但不初始化
 
 // 中间变量
 static float chassis_aver_v;
-static float wheel_radius;
+static float q2i_coeff;
 
 // robot param
 static float robot_weight;
+static float track_width;
+static float wheel_radius;
+static float wheel_reduction_ratio;
 
 static void ChassisCtrlUpdate() {
   chassis->roll_comp =
@@ -30,10 +33,13 @@ static void ChassisCtrlUpdate() {
 
   for (int i = 0; i < 2; i++) {
     leg[i]->leg_ctrl_cmd.x_d_ref = chassis->chassis_ctrl_cmd.vx;
+    leg[i]->leg_ctrl_cmd.length_ref =
+        chassis->chassis_ctrl_cmd.leg_length -
+        (float)(1 - 2 * i) * track_width * (chassis->chassis_ctrl_cmd.roll - chassis->chassis_IMU->Roll * DEGREE_2_RAD);
     LegCtrlUpdate(leg[i], chassis->chassis_IMU);
     float leg_force_ff = 9.8f * robot_weight / 2.0f / mcos(leg[i]->state_var.theta);
     leg[i]->virtual_model.F += leg_force_ff - (float)(1 - 2 * i) * chassis->roll_comp;
-    VAL_LIMIT(leg[i]->virtual_model.F, -100.0f, 100.0f);
+    VAL_LIMIT(leg[i]->virtual_model.F, -500.0f, 500.0f);
     leg[i]->real_model.T -= (float)(1 - 2 * i) * chassis->chassis_ctrl_cmd.wz;
   }
 
@@ -58,14 +64,16 @@ static void ChassisRecovery() {
     leg[i]->real_model.Tp_1 = leg[i]->joint_motor[0]->motor_controller.final_output;
     leg[i]->real_model.Tp_2 = leg[i]->joint_motor[1]->motor_controller.final_output;
 
-    if (abs((leg[i]->joint_motor[0]->measure.position - (-0.1f))) <= 1.0f &&
-        abs(leg[i]->joint_motor[1]->measure.position - (0.1f)) <= 1.0f) {
+    if (abs((leg[i]->joint_motor[0]->measure.position - (-0.1f))) <= 0.5f &&
+        abs(leg[i]->joint_motor[1]->measure.position - (0.1f)) <= 0.5f) {
       leg[i]->leg_ctrl_cmd.x_d_ref = chassis->chassis_ctrl_cmd.vx;
       LegCtrlUpdate(leg[i], chassis->chassis_IMU);
       leg[i]->real_model.T -= (float)(1 - 2 * i) * chassis->chassis_ctrl_cmd.wz;
     } else {
-      // LegCtrlUpdate(leg[i], chassis->chassis_IMU);
-      leg[i]->real_model.T = 0;
+      leg[i]->leg_ctrl_cmd.x_d_ref = chassis->chassis_ctrl_cmd.vx;
+      LegCtrlUpdate(leg[i], chassis->chassis_IMU);
+      leg[i]->real_model.T -= (float)(1 - 2 * i) * chassis->chassis_ctrl_cmd.wz;
+      // leg[i]->real_model.T = 0;
     }
   }
 }
@@ -76,21 +84,30 @@ static void ChassisRecovery() {
  */
 static void PowerControl() {}
 
+float ref = 0;
 /**
  * @brief 预测电机功率并进行限制
  *
  */
 static void LimitChassisOutput() {
   for (int i = 0; i < 2; i++) {
-    VAL_LIMIT(leg[i]->real_model.Tp_1, -3.0f, 3.0f);
-    VAL_LIMIT(leg[i]->real_model.Tp_2, -3.0f, 3.0f);
-    VAL_LIMIT(leg[i]->real_model.T, -1.0f, 1.0f);
+    VAL_LIMIT(leg[i]->real_model.Tp_1, -20.0f, 20.0f);
+    VAL_LIMIT(leg[i]->real_model.Tp_2, -20.0f, 20.0f);
+    // VAL_LIMIT(leg[i]->real_model.Tp_1, -3.0f, 3.0f);
+    // VAL_LIMIT(leg[i]->real_model.Tp_2, -3.0f, 3.0f);
+    VAL_LIMIT(leg[i]->real_model.T, -2.45f, 2.45f);
     DMMotorSetRef(leg[i]->joint_motor[0], leg[i]->real_model.Tp_1);
     DMMotorSetRef(leg[i]->joint_motor[1], leg[i]->real_model.Tp_2);
+    // DMMotorSetRef(leg[0]->joint_motor[1], 0);
+    // DMMotorSetRef(leg[0]->joint_motor[0], 0);
+    // DMMotorSetRef(leg[1]->joint_motor[0], leg[1]->real_model.Tp_1);
+    // DMMotorSetRef(leg[1]->joint_motor[1], leg[1]->real_model.Tp_2);
     // DMMotorSetRef(leg[i]->joint_motor[0], 0);
     // DMMotorSetRef(leg[i]->joint_motor[1], 0);
-    DMMotorSetRef(leg[i]->wheel_motor, leg[i]->real_model.T);
-    // DMMotorSetRef(leg[i]->wheel_motor, 0);
+    DJIMotorSetRef(leg[i]->wheel_motor, leg[i]->real_model.T * q2i_coeff * (16384.0f / 20.0f));
+    // DJIMotorSetRef(leg[0]->wheel_motor, 0);
+    // DJIMotorSetRef(leg[i]->wheel_motor, ref);
+    // DJIMotorSetRef(leg[i]->wheel_motor, 0);
   }
   // PowerControl();
 }
@@ -113,8 +130,8 @@ static void EstimateSpeed() {
 #define X_D_FILTER_ALPHA 0.1f
   for (int i = 0; i < 2; i++) {
     // 计算当前速度值
-    float current_x_d =
-        -1 * (leg[0]->wheel_motor->measure.velocity + leg[1]->wheel_motor->measure.velocity) / 2 * wheel_radius;
+    float current_x_d = -1 * (leg[0]->wheel_motor->measure.speed_aps + leg[1]->wheel_motor->measure.speed_aps) / 2 /
+                        wheel_reduction_ratio * DEGREE_2_RAD * wheel_radius;
     // 应用一阶低通滤波
     leg[i]->state_var.x_d = leg[i]->state_var.x_d * (1.0f - X_D_FILTER_ALPHA) + current_x_d * X_D_FILTER_ALPHA;
   }
@@ -128,7 +145,11 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   chassis_instance->leg[1] = LegInit(&chassis_init_config->leg_init_config[1]);
 
   robot_weight = chassis_init_config->chassis_param.robot_weight;
+  track_width = chassis_init_config->chassis_param.track_width;
   wheel_radius = chassis_init_config->leg_init_config[0].leg_param.wheel_radius;
+  wheel_reduction_ratio = chassis_init_config->leg_init_config[0].leg_param.wheel_reduction_ratio;
+  q2i_coeff = (3591.0f / 187.0f) / wheel_reduction_ratio / 0.3f;
+
   PIDInit(&chassis_instance->delta_theta_PID, &chassis_init_config->delta_theta_PID_config);
   PIDInit(&chassis_instance->roll_PID, &chassis_init_config->roll_PID_config);
 
@@ -151,14 +172,14 @@ void ChassisTask() {
     for (int i = 0; i < 2; i++) {
       DMMotorStop(chassis->leg[i]->joint_motor[0]);
       DMMotorStop(chassis->leg[i]->joint_motor[1]);
-      DMMotorStop(chassis->leg[i]->wheel_motor);
+      DJIMotorStop(chassis->leg[i]->wheel_motor);
     }
   } else {
     // 正常工作
     for (int i = 0; i < 2; i++) {
       DMMotorEnable(chassis->leg[i]->joint_motor[0]);
       DMMotorEnable(chassis->leg[i]->joint_motor[1]);
-      DMMotorEnable(chassis->leg[i]->wheel_motor);
+      DJIMotorEnable(chassis->leg[i]->wheel_motor);
     }
   }
 

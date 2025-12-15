@@ -28,8 +28,8 @@ static Motor_Init_Config_s J8009P_config = {
         {
             .angle_feedback_source = MOTOR_FEED,
             .speed_feedback_source = MOTOR_FEED,
-            .outer_loop_type = ANGLE_LOOP,
-            .close_loop_type = SPEED_LOOP | ANGLE_LOOP,
+            .outer_loop_type = SPEED_LOOP,
+            .close_loop_type = SPEED_LOOP,
         },
     .motor_type = J8009P,
     .can_init_config.can_handle = &hcan1,
@@ -63,6 +63,6 @@ static Motor_Init_Config_s M3508_config = {
         },
     .motor_type = M3508,
     .can_init_config.can_handle = &hcan1,
-    .can_init_config.tx_id = 1,
+    .can_init_config.tx_id = 2,
     .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
 };

@@ -23,8 +23,8 @@ set(CMAKE_BUILD_TYPE ${buildType}) # Debug Release RelWithDebInfo MinSizeRel
 #set(MCU_TYPE "stm32-f4")
 set(MCU_TYPE "stm32-h7")
 #set(ROBOT_TYPE "infantry_mecanum")
-#set(ROBOT_TYPE "infantry_wheel_legged")
-set(ROBOT_TYPE "infantry_wheel_legged_demo")
+set(ROBOT_TYPE "infantry_wheel_legged")
+#set(ROBOT_TYPE "infantry_wheel_legged_demo")
 #set(ROBOT_TYPE "hero_mecanum")
 #set(ROBOT_TYPE "debug")
 

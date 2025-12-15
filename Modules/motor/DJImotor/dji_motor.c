@@ -282,6 +282,12 @@ static void DecodeDJIMotor(CANInstance* _instance) {
   else if (measure->ecd - measure->last_ecd < -4096)
     measure->total_round++;
   measure->total_angle = measure->total_round * 360 + measure->angle_single_round;
+
+  if (motor->motor_settings.feedback_reverse_flag == FEEDBACK_DIRECTION_REVERSE) {
+    measure->speed_aps = -measure->speed_aps;
+    measure->real_current = -measure->real_current;
+    measure->total_angle = -measure->total_angle;
+  }
 }
 
 /**
@@ -409,7 +415,6 @@ void DJIMotorSetPIDRef(DJIMotorInstance* motor, float ref) {
   motor_controller = &motor->motor_controller;
   measure = &motor->measure;
   pid_ref = motor_controller->pid_ref;  // 保存设定值,防止motor_controller->pid_ref在计算过程中被修改
-  if (motor_setting->motor_reverse_flag == MOTOR_DIRECTION_REVERSE) pid_ref *= -1;  // 设置反转
 
   // pid_ref会顺次通过被启用的闭环充当数据的载体
   // 计算位置环,只有启用位置环且外层闭环为位置时会计算速度环输出
@@ -444,6 +449,7 @@ void DJIMotorSetPIDRef(DJIMotorInstance* motor, float ref) {
   motor->motor_controller.final_output = pid_ref;
 }
 
+void DJIMotorSetRef(DJIMotorInstance* motor, float ref) { motor->motor_controller.final_output = ref; }
 /**
  * @brief 通过CAN总线发送电机控制命令
  *        遍历所有已注册的电机，将控制输出打包到对应的CAN发送缓冲区中，
@@ -464,10 +470,11 @@ void DJIMotorTask() {
     // 将最终输出分组填入发送数据
     group = motor->sender_group;
     num = motor->message_num;
-    set = (uint16_t)(motor->motor_controller.final_output);
+    set = (int16_t)motor->motor_controller.final_output;
+    if (motor->motor_settings.motor_reverse_flag == MOTOR_DIRECTION_REVERSE) set *= -1;  // 设置反转
 
-    sender_assignment[group].tx_buff[2 * num] = (uint8_t)(set >> 8);          // 低八位
-    sender_assignment[group].tx_buff[2 * num + 1] = (uint8_t)(set & 0x00ff);  // 高八位
+    sender_assignment[group].tx_buff[2 * num] = (int8_t)(set >> 8);          // 低八位
+    sender_assignment[group].tx_buff[2 * num + 1] = (int8_t)(set & 0x00ff);  // 高八位
 
     // 若该电机处于停止状态,直接将buff置零
     if (motor->stop_flag == MOTOR_STOP) memset(sender_assignment[group].tx_buff + 2 * num, 0, sizeof(uint16_t));
