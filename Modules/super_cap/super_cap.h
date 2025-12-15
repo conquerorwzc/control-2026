@@ -13,8 +13,9 @@
 #pragma pack(1)
 typedef struct
 {
-  uint16_t voltage;
-  uint8_t error_state;
+  uint16_t cap_v;//单位：mV
+  uint16_t out_p;//除以100以后单位是W
+  uint16_t in_p;//除以100以后单位是W
 } SuperCap_Measure_s;
 #pragma pack()
 
