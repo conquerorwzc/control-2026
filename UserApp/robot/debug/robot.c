@@ -25,13 +25,14 @@ void RobotInit() {
   // hi05_instance = HI05_Init(&huart1);
 
 
+
 }
 
 void RobotTask() {
-  // osDelay(300);
+  osDelay(300);
 
   int16_t power = 10;
-  uint16_t buffer = 500;
+  uint16_t buffer = 50;
   uint8_t state = 1;
 
   SuperCapSendMessage(supercap_instance, power, buffer, state);

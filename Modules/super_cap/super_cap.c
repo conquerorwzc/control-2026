@@ -17,8 +17,9 @@ static void DecodeSuperCap(CANInstance *_instance)
     SuperCap_Measure_s *Msg;
     rxbuff = _instance->rx_buff;
     Msg = &super_cap_instance->cap_msg;
-    Msg->voltage = rxbuff[1]<<8|rxbuff[0];
-    Msg->error_state = rxbuff[2];
+    Msg->cap_v = rxbuff[1]<<8|rxbuff[0];
+    Msg->out_p = rxbuff[3]<<8|rxbuff[2];
+    Msg->in_p = rxbuff[5]<<8|rxbuff[4];
 }
 
 SuperCapInstance *SuperCapInit(SuperCap_Init_Config_s *supercap_config)
@@ -35,7 +36,7 @@ SuperCapInstance *SuperCapInit(SuperCap_Init_Config_s *supercap_config)
 void SuperCapSendMessage(SuperCapInstance *instance, int16_t power, uint16_t buffer, uint8_t state)
 {
     uint8_t tx_data[8] = {0}; // 初始化发送数据
-    
+
     // 按照原函数的格式填充数据
     memcpy(tx_data, &power, sizeof(power));
     memcpy(tx_data + 4, &buffer, sizeof(buffer));
