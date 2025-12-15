@@ -210,24 +210,24 @@ static Gantry_Init_Config_s gantry_init_config = {
     .lift_motor_config[0] = GANTRY_M3508_CONFIG(
         &hfdcan2, 1, // CA0N 句柄和 ID
         50.0f, 2.3f, // 角度环 Kp, Kd
-        1.5f, 3.0f, // 速度环 Kp, Ki
+        1.5f, 0.0f, // 速度环 Kp, Ki
         MOTOR_DIRECTION_NORMAL), // 电机方向 (对应老代码中的 - ratio)
     .lift_motor_config[1] = GANTRY_M3508_CONFIG(
         &hfdcan2, 2,
         50.0f, 2.3f, // 角度环 Kp, Kd
-        1.5f, 3.0f, // 速度环 Kp, Ki
+        1.5f, 0.0f, // 速度环 Kp, Ki
         MOTOR_DIRECTION_NORMAL), // 电机方向 (对应老代码中的 + ratio)
 
     // 前伸电机 (3508)
     .stretch_motor_config[0] = GANTRY_M3508_CONFIG(
         &hfdcan2, 3,
         50.0f, 2.8f,
-        1.33f, 0.21f,
+        1.33f, 0.00f,
         MOTOR_DIRECTION_NORMAL),
     .stretch_motor_config[1] = GANTRY_M3508_CONFIG(
         &hfdcan2, 4,
         45.0f, 2.7f,
-        1.29f, 0.20f,
+        1.29f, 0.00f,
         MOTOR_DIRECTION_NORMAL),
 
     // 横移电机 (2006)
@@ -244,7 +244,7 @@ static Grab_Init_Config_s grab_init_config_s = {
         {
             .angle_PID =
             {
-                .Kp = 14.0f, // 12
+                .Kp = 12.0f, // 120
                 .Ki = 0.00f,
                 .Kd = 0.00f,
                 .MaxOut = 8.0f,
@@ -354,8 +354,8 @@ static Grab_Init_Config_s grab_init_config_s = {
             .close_loop_type = SPEED_LOOP | ANGLE_LOOP,
             .angle_feedback_source = MOTOR_FEED,
             .speed_feedback_source = MOTOR_FEED,
-            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
-            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
         },
         .motor_type = J4340,
         .can_init_config =
@@ -492,6 +492,84 @@ static Grab_Init_Config_s grab_init_config_s = {
             .rx_id = 0x14,
         },
     },
+    .Grab_motor_config[6] =
+    {
+        .controller_param_init_config =
+        {
+            .angle_PID =
+            {
+                .Kp = 30.0f,
+                .Ki = 0.0f,
+                .Kd = 0.0f,
+                .MaxOut = 30000.0f,
+            },
+            .speed_PID = {
+                .Kp = 2.0f,
+                .Ki = 0.0f,
+                .Kd = 0.0f,
+                .Improve = PID_Integral_Limit | PID_ErrorHandle,
+                .IntegralLimit = 0.0f,
+                .MaxOut = 10000.0
+            },
+        },
+        .controller_setting_init_config =
+        {
+            .outer_loop_type = ANGLE_LOOP,
+            .close_loop_type = SPEED_LOOP | ANGLE_LOOP,
+            .angle_feedback_source = MOTOR_FEED,
+            .speed_feedback_source = MOTOR_FEED,
+            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+        },
+        .motor_type = M2006,
+        .can_init_config =
+        {
+            .can_handle = &hcan1,
+            .tx_id = 3,
+        },
+    },
+    .Grab_motor_config[7] =
+    {
+        .controller_param_init_config =
+        {
+            .angle_PID =
+            {
+                .Kp = 66.0f,
+                .Ki = 0.0f,
+                .Kd = 0.0f,
+                .Improve = PID_Integral_Limit,
+                .IntegralLimit = 0.0f,
+                .MaxOut = 1500.0f,
+            },
+        .speed_PID =
+            {
+                .Kp = 2.0f,
+                .Ki = 0.0f,
+                .Kd = 0.0f,
+                .Improve = PID_Integral_Limit,
+                .IntegralLimit = 10000.0f,
+                .MaxOut = 15000.0f,
+            },
+
+    },
+    .controller_setting_init_config =
+        {
+            .outer_loop_type = ANGLE_LOOP,
+            .close_loop_type = SPEED_LOOP|ANGLE_LOOP,
+            .angle_feedback_source = MOTOR_FEED,
+            .speed_feedback_source = MOTOR_FEED,
+            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+        },
+    .motor_type = M3508,
+    .can_init_config =
+        {
+            .can_handle = &hcan1,
+            .tx_id = 4
+            ,
+        },
+
+},
 };
 
 // static SuperCap_Init_Config_s super_cap_config = {
