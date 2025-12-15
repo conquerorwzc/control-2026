@@ -81,7 +81,7 @@ typedef struct {
   PIDInstance angle_PID;
 
   float pid_ref;         // 将会作为每个环的输入和输出顺次通过串级闭环
-  int16_t final_output;  // pid计算最后的输出，或者说最内环pid计算的输出
+  float final_output;  // pid计算最后的输出，或者说最内环pid计算的输出
 } Motor_Controller_s;
 
 /* 电机类型枚举 */

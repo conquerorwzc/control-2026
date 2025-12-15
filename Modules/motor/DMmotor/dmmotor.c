@@ -168,7 +168,7 @@ void DMMotorPIDCal(DMMotorInstance* motor, float ref) {
   }
 
   // 获取最终输出
-  motor->motor_controller.final_output = (int16_t)pid_ref;
+  motor->motor_controller.final_output = pid_ref;
 }
 
 //@Todo: 目前只实现了力控，更多位控PID等请自行添加
@@ -217,7 +217,7 @@ void DMMotorTaskInit() {
     char dm_id_buff[2] = {0};
     __itoa(i, dm_id_buff, 10);
     strcat(dm_task_name, dm_id_buff);
-    osThreadDef(dm_task_name, DMMotorTask, osPriorityNormal, 0, 128);
+    osThreadDef(dm_task_name, DMMotorTask, osPriorityNormal, 0, 32);
     dm_task_handle[i] = osThreadCreate(osThread(dm_task_name), dm_motor_instance[i]);
   }
 }
