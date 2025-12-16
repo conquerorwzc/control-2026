@@ -4,25 +4,21 @@
 * @author  Enhao Zhang
 * @date    2025/8/8
 * @copyright Copyright (c) SHU SRM 2026 all rights reserved
-* @brief   Mecanum Chassis Module
+* @brief  Parallel Wheel-Legged Chassis Module
 ******************************************************************************
 * @attention
-* Mecanum Chassis Motor Layout:
-*
-*          motor[0]     motor[1]
-*        Left Front   Right Front
-*             ╭─────────────╮
-*             │      ↑      │
-*             │    Front    │
-*             ╰─────────────╯
-*          motor[2]     motor[3]
-*        Left Rear    Right Rear
-*
-* @note    Motor Index:
-*          motor[0] - Left Front Wheel
-*          motor[1] - Right Front Wheel
-*          motor[2] - Left Rear Wheel
-*          motor[3] - Right Rear Wheel
+* Wheel-Legged Chassis Layout:
+* LEFT Leg[1]       Leg[0] RIGHT
+*        ☉----------☉
+*        |          |
+*        |          |
+*        |          |
+*        ◉          ◉
+*        |          |
+*        |          |
+*       ---        ---
+*       | |        | |
+*       ---        ---
 ******************************************************************************
 */
 #pragma once
@@ -62,7 +58,7 @@ typedef struct {
   Leg_Init_Config_s leg_init_config[2];      // 轮腿实例配置文件
   PID_Init_Config_s delta_theta_PID_config;  // 防劈叉PID
   PID_Init_Config_s roll_PID_config;         // Roll PID
-  // IMU_Init_Config_s imu_init_config;
+  IMU_Init_Config_s imu_init_config;
 } Chassis_Init_Config_s;
 
 typedef struct {

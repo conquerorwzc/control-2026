@@ -26,60 +26,64 @@
 #define INS_TASK_PERIOD 1
 
 typedef struct {
-  float Gyro[3];   // 角速度
-  float Accel[3];  // 加速度
-  // 还需要增加角速度数据
-  float Roll;
-  float Pitch;
-  float Yaw;
-  float YawTotalAngle;
-} attitude_t;  // 最终解算得到的角度,以及yaw转动的总角度(方便多圈控制)
+  float Gyro[3];   // 三个轴的角速度数据 [0]-Pitch方向 [1]-Roll方向 [2]-Yaw方向 单位: °/s
+  float Accel[3];  // 三个轴的加速度数据 [0]-X方向 [1]-Y方向 [2]-Z方向 单位: m/s^2
+  // float Ang_accel[3]; // 加角速度数据
+
+  float Roll;           // 横滚角(绕X轴旋转) 单位: °
+  float Pitch;          // 俯仰角(绕Y轴旋转) 单位: °
+  float Yaw;            // 偏航角(绕Z轴旋转) 单位: °
+  float YawTotalAngle;  // Yaw轴累计转过的总角度，可用于多圈控制 单位: °
+} attitude_t;  // 最终解算得到的角度,以及yaw转动的总角度(方便多圈控制)。姿态信息包括三轴角速度、三轴加速度和欧拉角姿态
 
 typedef struct {
-  float q[4];  // 四元数估计值
+  float q[4];  // 四元数估计值 [0]-实部 [1~3]-虚部(i,j,k)
 
-  float MotionAccel_b[3];  // 机体坐标加速度
-  float MotionAccel_n[3];  // 绝对系加速度
+  float MotionAccel_b[3];  // 机体坐标系下加速度 [0]-X方向 [1]-Y方向 [2]-Z方向 单位: m/s^2
+  float MotionAccel_n[3];  // 导航坐标系(绝对系)下的加速度 [0]-X方向 [1]-Y方向 [2]-Z方向 单位: m/s^2
 
-  float AccelLPF;  // 加速度低通滤波系数
+  float AccelLPF;  // 加速度低通滤波系数，用于滤除高频噪声
 
-  // bodyframe在绝对系的向量表示
-  float xn[3];
-  float yn[3];
-  float zn[3];
+  // bodyframe在绝对系的向量表示（就是机体坐标系各轴基向量在导航坐标系中的表示）
+  float xn[3];  // 机体坐标系X轴在导航坐标系中的方向余弦
+  float yn[3];  // 机体坐标系Y轴在导航坐标系中的方向余弦
+  float zn[3];  // 机体坐标系Z轴在导航坐标系中的方向余弦
 
   // 加速度在机体系和XY两轴的夹角
   // float atanxz;
   // float atanyz;
 
-  // IMU量测值
-  float Gyro[3];   // 角速度
-  float Accel[3];  // 加速度
-  // 位姿
-  float Roll;
-  float Pitch;
-  float Yaw;
-  float YawTotalAngle;
+  // IMU原始测量值
+  float Gyro[3];   // 陀螺仪原始测量角速度 [0]-Pitch方向 [1]-Roll方向 [2]-Yaw方向 单位: °/s
+  float Accel[3];  // 加速度计原始测量加速度 [0]-X方向 [1]-Y方向 [2]-Z方向 单位: m/s^2
 
-  uint8_t init;
+  // 姿态解算结果
+  float Roll;           // 解算得到的横滚角 单位: °
+  float Pitch;          // 解算得到的俯仰角 单位: °
+  float Yaw;            // 解算得到的偏航角 单位: °
+  float YawTotalAngle;  // Yaw轴累计转过的总角度 单位: °
+
+  uint8_t init;  // 初始化标志位 0-未初始化 1-已初始化
 } INS_t;
 
-/* 用于修正安装误差的参数 */
+/**
+ * @brief 用于修正IMU安装误差的参数（修改方法见ins的md）
+ */
 typedef struct {
-  uint8_t flag;
+  uint8_t flag;  // 参数更新标志位，当参数发生变化时置1
 
-  float scale[3];
+  float scale[3];  // 三轴标度因数修正系数 [0]-X轴 [1]-Y轴 [2]-Z轴
 
-  float Yaw;
-  float Pitch;
-  float Roll;
-} IMU_Param_t;
+  float Yaw;    // Yaw轴安装偏角修正 单位: °
+  float Pitch;  // Pitch轴安装偏角修正 单位: °
+  float Roll;   // Roll轴安装偏角修正 单位: °
+} IMU_Init_Config_s;
 
 /**
- * @brief 初始化惯导解算系统
+ * @brief 初始化惯导解算系统，使用默认参数
  *
  */
-INS_t *INS_Init(void);
+INS_t *INS_Init(IMU_Init_Config_s *imu_init_config);
 
 /**
  * @brief 此函数放入实时系统中,以1kHz频率运行
@@ -87,6 +91,12 @@ INS_t *INS_Init(void);
  *
  */
 void INS_Task(void);
+
+/**
+ * @brief INS任务主函数
+ *
+ */
+void StartINSTASK(void const *argument);
 
 /**
  * @brief 四元数更新函数,即实现dq/dt=0.5Ωq

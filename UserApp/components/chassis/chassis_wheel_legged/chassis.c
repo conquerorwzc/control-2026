@@ -37,7 +37,8 @@ static void ChassisCtrlUpdate() {
         chassis->chassis_ctrl_cmd.leg_length -
         (float)(1 - 2 * i) * track_width * (chassis->chassis_ctrl_cmd.roll - chassis->chassis_IMU->Roll * DEGREE_2_RAD);
     LegCtrlUpdate(leg[i], chassis->chassis_IMU);
-    float leg_force_ff = 9.8f * robot_weight / 2.0f / mcos(leg[i]->state_var.theta);
+    float leg_force_ff =
+        0.3f * 9.8f * robot_weight / 2.0f / mcos(leg[i]->state_var.theta);  // 不超过半边重力的一半(看机器）
     leg[i]->virtual_model.F += leg_force_ff - (float)(1 - 2 * i) * chassis->roll_comp;
     VAL_LIMIT(leg[i]->virtual_model.F, -500.0f, 500.0f);
     leg[i]->real_model.T -= (float)(1 - 2 * i) * chassis->chassis_ctrl_cmd.wz;
@@ -153,8 +154,7 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   PIDInit(&chassis_instance->delta_theta_PID, &chassis_init_config->delta_theta_PID_config);
   PIDInit(&chassis_instance->roll_PID, &chassis_init_config->roll_PID_config);
 
-  // chassis_instance->chassis_IMU = INS_Init(&chassis_init_config->imu_init_config);
-  chassis_instance->chassis_IMU = INS_Init();
+  chassis_instance->chassis_IMU = INS_Init(&chassis_init_config->imu_init_config);
 
   xvEstimateKF_Init(&chassis_instance->vaEstimateKF);
 

@@ -33,10 +33,10 @@
 
 // ���ֶ��޸�
 #if INFANTRY_ID == 0
-#define GxOFFSET 0.00247530174f
-#define GyOFFSET 0.000393082853f
-#define GzOFFSET 0.000393082853f
-#define gNORM 9.69293118f
+#define GxOFFSET 0
+#define GyOFFSET 0
+#define GzOFFSET 0
+#define gNORM 9.82187176f
 #elif INFANTRY_ID == 1
 #define GxOFFSET 0.0007222f
 #define GyOFFSET -0.001786f
@@ -102,7 +102,7 @@ extern IMU_Data_t BMI088;
 
 /**
  * @brief 初始化BMI088,传入连接的SPI总线handle,以及是否进行在线标定
- * 
+ *
  * @param bmi088_SPI handle
  * @param calibrate  1为进行在线标定,0使用离线数据
  * @return uint8_t   成功则返回BMI088_NO_ERROR
@@ -111,21 +111,21 @@ extern uint8_t BMI088Init(SPI_HandleTypeDef *bmi088_SPI, uint8_t calibrate);
 
 /**
  * @brief 加速计初始化
- * 
- * @return uint8_t 
+ *
+ * @return uint8_t
  */
 extern uint8_t bmi088_accel_init(void);
 
 /**
  * @brief 陀螺仪初始化
- * 
- * @return uint8_t 
+ *
+ * @return uint8_t
  */
 extern uint8_t bmi088_gyro_init(void);
 
 /**
  * @brief 读取一次BMI088的数据,包括gyro和accel
- * 
+ *
  * @param bmi088 传入BMI088实例(结构体)
  */
 extern void BMI088_Read(IMU_Data_t *bmi088);

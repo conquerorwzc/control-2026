@@ -45,7 +45,7 @@
 #define PITCH_MAX_ANGLE 26.0f        // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
 
 #define LEG_MAX_LENGTH 0.37f  // 0.380f
-#define LEG_MIN_LENGTH 0.13f  // 0.112f
+#define LEG_MIN_LENGTH 0.12f  // 0.112f
 
 // 云台参数
 #define YAW_CHASSIS_ALIGN_ECD 4757
@@ -234,8 +234,7 @@ static Chassis_Init_Config_s chassis_init_config = {
             .Improve = PID_IMPROVE_NONE,
             .IntegralLimit = 0.0f,
         },
-    // .imu_init_config = {.flag = 1, .scale = {1.0f, 1.0f, 1.0f}, .Yaw = 0.0f, .Pitch = 0.0f, .Roll = 0.0f}
-};
+    .imu_init_config = {.flag = 1, .scale = {1.0f, 1.0f, 1.0f}, .Yaw = 0.0f, .Pitch = 0.0f, .Roll = 0.0f}};
 
 static Gimbal_Init_Config_s gimbal_init_config = {
     .yaw_motor_config =
@@ -266,8 +265,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
             .can_init_config =
                 {
                     .can_handle = &hcan2,
-                    // .tx_id = 2,
-                    .tx_id = 0x104,
+                    .tx_id = 1,
                 },
             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
         },
@@ -298,12 +296,11 @@ static Gimbal_Init_Config_s gimbal_init_config = {
             .can_init_config =
                 {
                     .can_handle = &hcan2,
-                    // .tx_id = 1,
-                    .tx_id = 0x105,
+                    .tx_id = 2,
                 },
             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
         },
-};
+    .imu_init_config = {.flag = 1, .scale = {1.0f, 1.0f, 1.0f}, .Yaw = 0.0f, .Pitch = 0.0f, .Roll = 0.0f}};
 
 #define FRICTION_MOTOR_CONFIG(id, reverse_flag)                          \
   {                                                                      \
@@ -329,7 +326,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                   },                                                     \
           },                                                             \
       .motor_type = M3508,                                               \
-      .can_init_config.can_handle = &hcan3,                              \
+      .can_init_config.can_handle = &hcan2,                              \
       .can_init_config.tx_id = id,                                       \
       .controller_setting_init_config.motor_reverse_flag = reverse_flag, \
   }
@@ -341,8 +338,8 @@ static Shoot_Init_Config_s shoot_init_config = {
             .reduction_ratio_loader = REDUCTION_RATIO_LOADER,
             .num_per_circle = NUM_PER_CIRCLE,
         },
-    .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(2, MOTOR_DIRECTION_REVERSE),
-    .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(1, MOTOR_DIRECTION_NORMAL),
+    .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(3, MOTOR_DIRECTION_REVERSE),
+    .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(4, MOTOR_DIRECTION_NORMAL),
     .loader_motor_config =
         {
             .controller_param_init_config =
@@ -367,7 +364,7 @@ static Shoot_Init_Config_s shoot_init_config = {
             .motor_type = M2006,
             .can_init_config =
                 {
-                    .can_handle = &hcan3,
+                    .can_handle = &hcan2,
                     .tx_id = 3,
                 },
             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
@@ -375,7 +372,7 @@ static Shoot_Init_Config_s shoot_init_config = {
 };
 
 static PID_Init_Config_s chassis_follow_PID_config = {
-    .Kp = 0.15f,
+    .Kp = 0.05f,
     .Ki = 0.0f,
     .Kd = 0.005f,  // todo: kd 大了
     .IntegralLimit = 0.1f,
@@ -385,7 +382,7 @@ static PID_Init_Config_s chassis_follow_PID_config = {
 
 static SuperCap_Init_Config_s super_cap_config = {
     .can_config = {
-        .can_handle = &hcan3,
+        .can_handle = &hcan1,
         .tx_id = 0x302,  // 超级电容默认接收id
         .rx_id = 0x301,  // 超级电容默认发送id,注意tx和rx在其他人看来是反的
     }};

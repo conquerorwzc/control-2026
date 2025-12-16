@@ -14,17 +14,21 @@
 #include "ins_task.h"
 
 #include "QuaternionEKF.h"
-#include "arm_math.h"
+#include "bsp_dwt.h"
+#include "bsp_pwm.h"
+#include "bsp_spi.h"
+#include "cmsis_os.h"
 #include "controller.h"
 #include "general_def.h"
-#include "master_process.h"
 #include "spi.h"
 #include "tim.h"
 #include "user_lib.h"
 
 static INS_t INS;
-static IMU_Param_t IMU_Param;
+static IMU_Init_Config_s IMU_Param;
+// BMI088Instance* BMI;
 static PIDInstance TempCtrl = {0};
+static osThreadId insTaskHandle;
 
 const float xb[3] = {1, 0, 0};
 const float yb[3] = {0, 1, 0};
@@ -34,12 +38,16 @@ const float zb[3] = {0, 0, 1};
 static uint32_t INS_DWT_Count = 0;
 static float dt = 0, t = 0;
 static float RefTemp = 40;  // 恒温设定温度
-// INS任务句柄
-static osThreadId insTaskHandle;
-static void IMU_Param_Correction(IMU_Param_t *param, float gyro[3], float accel[3]);
 
-static void IMUPWMSet(uint16_t pwm) { __HAL_TIM_SetCompare(&htim3, TIM_CHANNEL_4, pwm); }
+static void IMU_Param_Correction(IMU_Init_Config_s *param, float gyro[3], float accel[3]);
 
+static void IMUPWMSet(uint16_t pwm) {
+#ifdef STM32F407xx
+  __HAL_TIM_SetCompare(&htim10, TIM_CHANNEL_1, pwm);
+#elifdef STM32H7
+  __HAL_TIM_SetCompare(&htim3, TIM_CHANNEL_4, pwm);
+#endif
+}
 /**
  * @brief 温度控制
  *
@@ -71,7 +79,6 @@ static void InitQuaternion(float *init_q4) {
   init_q4[0] = cosf(angle / 2.0f);
   for (uint8_t i = 0; i < 2; ++i) init_q4[i + 1] = axis_rot[i] * sinf(angle / 2.0f);  // 轴角公式,第三轴为0(没有z轴分量)
 }
-
 __attribute__((noreturn)) void StartINSTASK(void const *argument) {
   static float ins_start;
   static float ins_dt;
@@ -86,15 +93,54 @@ __attribute__((noreturn)) void StartINSTASK(void const *argument) {
     osDelay(1);
   }
 }
-INS_t *INS_Init(void) {
+/**
+ * @brief 调试用陀螺仪校准函数，用于测量陀螺仪零偏值
+ * @param sample_count 采样次数
+ * @return void
+ */
+static void INS_CalibrateGyroForDebug(uint16_t sample_count) {
+  float gyro_sum[3] = {0.0f, 0.0f, 0.0f};
+
+  // 重置陀螺仪偏差值
+  for (uint8_t i = 0; i < 3; i++) {
+    BMI088.GyroOffset[i] = 0.0f;
+  }
+
+  // 采集指定次数的数据
+  for (uint16_t i = 0; i < sample_count; i++) {
+    BMI088_Read(&BMI088);
+
+    // 累加陀螺仪读数
+    for (uint8_t j = 0; j < 3; j++) {
+      gyro_sum[j] += BMI088.Gyro[j];
+    }
+    DWT_Delay(0.001);  // 1ms延时
+  }
+
+  // 计算平均值作为零偏
+  for (uint8_t i = 0; i < 3; i++) {
+    BMI088.GyroOffset[i] = gyro_sum[i] / sample_count;
+  }
+}
+
+INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
   if (!INS.init)
     INS.init = 1;
   else
     return &INS;
 
+#ifdef STM32F407xx
+  HAL_TIM_PWM_Start(&htim10, TIM_CHANNEL_1);
+#elifdef STM32H7
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
+#endif
+  while (BMI088Init(&hspi1, 0) != BMI088_NO_ERROR);
+  // while (BMI088Init(&hspi2, 1) != BMI088_NO_ERROR);
+  // 使用我们的调试校准函数来测量陀螺仪零偏值，绕过预定义值
+  INS_CalibrateGyroForDebug(2000);
 
-  while (BMI088Init(&hspi2, 0) != BMI088_NO_ERROR);
+  // 手动计算加速度缩放因子，因为我们跳过了完整的校准过程
+  BMI088.AccelScale = 9.81f / BMI088.gNorm;
   IMU_Param.scale[X] = 1;
   IMU_Param.scale[Y] = 1;
   IMU_Param.scale[Z] = 1;
@@ -102,16 +148,16 @@ INS_t *INS_Init(void) {
   IMU_Param.Pitch = 0;
   IMU_Param.Roll = 0;
   IMU_Param.flag = 1;
-
+  // BMI088CalibrateGyroForDebug(BMI,1000);
   float init_quaternion[4] = {0};
   InitQuaternion(init_quaternion);
   IMU_QuaternionEKF_Init(init_quaternion, 10, 0.001, 1000000, 1, 0);
   // imu heat init
-  PID_Init_Config_s config = {.MaxOut = 800,
-                              .IntegralLimit = 80,
+  PID_Init_Config_s config = {.MaxOut = 2000,
+                              .IntegralLimit = 300,
                               .DeadBand = 0,
-                              .Kp = 400,
-                              .Ki = 5,
+                              .Kp = 1000,
+                              .Ki = 20,
                               .Kd = 0,
                               .Improve = 0x01};  // enable integratiaon limit
   PIDInit(&TempCtrl, &config);
@@ -119,7 +165,6 @@ INS_t *INS_Init(void) {
   // noise of accel is relatively big and of high freq,thus lpf is used
   INS.AccelLPF = 0.0085;
   DWT_GetDeltaT(&INS_DWT_Count);
-
   // 创建INS任务
   osThreadDef(instask, StartINSTASK, osPriorityAboveNormal, 0, 1024);
   insTaskHandle = osThreadCreate(osThread(instask), NULL);
@@ -176,6 +221,13 @@ void INS_Task(void) {
     INS.Pitch = QEKF_INS.Pitch;
     INS.Roll = QEKF_INS.Roll;
     INS.YawTotalAngle = QEKF_INS.YawTotalAngle;
+    if (INS.YawTotalAngle > 180.0f) {
+      INS.YawTotalAngle -= 360.0f;
+    } else if (INS.YawTotalAngle < -180.0f) {
+      INS.YawTotalAngle += 360.0f;
+    }
+
+    // VisionSetAltitude(INS.Yaw, INS.Pitch, INS.Roll);
   }
 
   // temperature control
@@ -231,7 +283,7 @@ void EarthFrameToBodyFrame(const float *vecEF, float *vecBF, float *q) {
  * @param gyro  角速度
  * @param accel 加速度
  */
-static void IMU_Param_Correction(IMU_Param_t *param, float gyro[3], float accel[3]) {
+static void IMU_Param_Correction(IMU_Init_Config_s *param, float gyro[3], float accel[3]) {
   static float lastYawOffset, lastPitchOffset, lastRollOffset;
   static float c_11, c_12, c_13, c_21, c_22, c_23, c_31, c_32, c_33;
   float cosPitch, cosYaw, cosRoll, sinPitch, sinYaw, sinRoll;
@@ -328,4 +380,22 @@ void EularAngleToQuaternion(float Yaw, float Pitch, float Roll, float *q) {
   q[1] = sinPitch * cosRoll * cosYaw - cosPitch * sinRoll * sinYaw;
   q[2] = sinPitch * cosRoll * sinYaw + cosPitch * sinRoll * cosYaw;
   q[3] = cosPitch * cosRoll * sinYaw - sinPitch * sinRoll * cosYaw;
+}
+
+uint8_t INS_GetAttitude(attitude_t *attitude) {
+  if (attitude == NULL || !INS.init) {
+    return 0;
+  }
+
+  // 复制姿态数据
+  attitude->Yaw = INS.Yaw;
+  attitude->Pitch = INS.Pitch;
+  attitude->Roll = INS.Roll;
+  attitude->YawTotalAngle = INS.YawTotalAngle;
+  // 如果需要角速度数据也可以复制
+  attitude->Gyro[0] = INS.Gyro[0];
+  attitude->Gyro[1] = INS.Gyro[1];
+  attitude->Gyro[2] = INS.Gyro[2];
+
+  return 1;
 }

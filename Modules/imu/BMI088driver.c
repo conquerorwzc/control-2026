@@ -3,6 +3,7 @@
 #include "BMI088Middleware.h"
 #include "bsp_dwt.h"
 #include "bsp_log.h"
+#include "bmi088.h"
 #include <math.h>
 
 #pragma message "this is a legacy support. test the new BMI088 module as soon as possible."
@@ -114,6 +115,36 @@ uint8_t BMI088Init(SPI_HandleTypeDef *bmi088_SPI, uint8_t calibrate)
     }
 
     return error;
+}
+
+/**
+ * @brief 调试用陀螺仪校准函数，用于测量陀螺仪零偏值
+ * @param sample_count 采样次数
+ * @return void
+ */
+static void INS_CalibrateGyroForDebug(uint16_t sample_count) {
+    float gyro_sum[3] = {0.0f, 0.0f, 0.0f};
+
+    // 重置陀螺仪偏差值
+    for (uint8_t i = 0; i < 3; i++) {
+        BMI088.GyroOffset[i] = 0.0f;
+    }
+
+    // 采集指定次数的数据
+    for (uint16_t i = 0; i < sample_count; i++) {
+        BMI088_Read(&BMI088);
+
+        // 累加陀螺仪读数
+        for (uint8_t j = 0; j < 3; j++) {
+            gyro_sum[j] += BMI088.Gyro[j];
+        }
+        DWT_Delay(0.001); // 1ms延时
+    }
+
+    // 计算平均值作为零偏
+    for (uint8_t i = 0; i < 3; i++) {
+        BMI088.GyroOffset[i] = gyro_sum[i] / sample_count;
+    }
 }
 
 void Calibrate_MPU_Offset(IMU_Data_t *bmi088)
@@ -403,3 +434,6 @@ static void BMI088_read_muli_reg(uint8_t reg, uint8_t *buf, uint8_t len)
 #elif defined(BMI088_USE_IIC)
 
 #endif
+//
+// Created by lenovo on 2025/12/14.
+//

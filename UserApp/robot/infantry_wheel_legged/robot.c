@@ -4,7 +4,7 @@
 * @author  Enhao Zhang
 * @date    2025/8/8
 * @copyright Copyright (c) SHU SRM 2026 all rights reserved
-* @brief Infantry wheeled-legged robot control module
+* @brief Infantry wheel-legged robot control module
 ******************************************************************************
 * @attention
 * None
@@ -156,7 +156,7 @@ static void RemoteControlSet() {
       target_angle += -(0.3f) * (float)rc_data[TEMP].rc.rocker_r_ * robot->dt;
       chassis_ctrl_cmd->wz =
           PIDCalculate(&robot->chassis_follow_PID, robot->chassis->chassis_IMU->YawTotalAngle, target_angle);
-      chassis_ctrl_cmd->vx = (0.005f) * (float)rc_data[TEMP].rc.rocker_r1;
+      chassis_ctrl_cmd->vx = (0.002f) * (float)rc_data[TEMP].rc.rocker_r1;
       // chassis_ctrl_cmd->leg_length_d = (float)rc_data[TEMP].rc.rocker_l1;
       // chassis_ctrl_cmd->roll = (float)rc_data[TEMP].rc.rocker_l_;
       chassis_ctrl_cmd->leg_length += 0.0000005f * (float)rc_data[TEMP].rc.rocker_l1;
