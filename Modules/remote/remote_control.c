@@ -39,7 +39,7 @@ static void sbus_to_rc(const uint8_t* sbus_buf) {
                                RC_CH_VALUE_OFFSET; //!< Channel 2
   rc_ctrl[TEMP].rc.rocker_l1 = (((sbus_buf[4] >> 1) | (sbus_buf[5] << 7)) & 0x07ff) - RC_CH_VALUE_OFFSET; //!< Channel 3
   rc_ctrl[TEMP].rc.dial = ((sbus_buf[16] | (sbus_buf[17] << 8)) & 0x07FF) - RC_CH_VALUE_OFFSET; // 左侧拨轮
-  // RectifyRCjoystick();
+  RectifyRCjoystick();
   // 开关,0左1右
   rc_ctrl[TEMP].rc.switch_right = ((sbus_buf[5] >> 4) & 0x0003); //!< Switch right
   rc_ctrl[TEMP].rc.switch_left = ((sbus_buf[5] >> 4) & 0x000C) >> 2; //!< Switch left
