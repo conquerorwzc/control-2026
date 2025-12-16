@@ -40,15 +40,53 @@
 #define GYRO2GIMBAL_DIR_PITCH 1  // 陀螺仪数据相较于云台的pitch的方向,1为相同,-1为相反
 #define GYRO2GIMBAL_DIR_ROLL 1   // 陀螺仪数据相较于云台的roll的方向,1为相同,-1为相反
 // 腿部电机位置定义
-#define LEFT_LEG_MOTOR_NORMAL_POSITION 1.342f   // 腿部电机常规位置值
+#define LEFT_LEG_MOTOR_NORMAL_POSITION 1.352f   // 腿部电机常规位置值
 #define LEFT_LEG_MOTOR_RAISE_POSITION  0.926f  // 腿部电机抬起位置值
-#define RIGHT_LEG_MOTOR_NORMAL_POSITION -0.811f   // 腿部电机常规位置值
+#define RIGHT_LEG_MOTOR_NORMAL_POSITION -0.822f   // 腿部电机常规位置值
 #define RIGHT_LEG_MOTOR_RAISE_POSITION  -0.398f  // 腿部电机抬起位置值
-#define LEFT_LEG_MOTOR_KIKE_POSITION 0.622f     // 腿部电机踢脚位置值
-#define RIGHT_LEG_MOTOR_KIKE_POSITION -0.128f  // 腿部电机踢脚位置值
+#define LEFT_LEG_MOTOR_KIKE_POSITION 0.546f     // 腿部电机踢脚位置值
+#define RIGHT_LEG_MOTOR_KIKE_POSITION -0.0547f  // 腿部电机踢脚位置值
 // 轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
 //  轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
-#define WHEEL_MOTOR_CONFIG(handle, id)                                                                         \
+#define FRONT_WHEEL_MOTOR_CONFIG(handle, id)                                                                         \
+  ((Motor_Init_Config_s){                                                                                      \
+      .can_init_config =                                                                                       \
+          {                                                                                                    \
+              .can_handle = handle,                                                                            \
+              .tx_id = id,                                                                                     \
+          },                                                                                                   \
+      .controller_param_init_config =                                                                          \
+          {                                                                                                    \
+              .speed_PID =                                                                                     \
+                  {                                                                                            \
+                      .Kp = 2.0,                                                                               \
+                      .Ki = 0.5,                                                                               \
+                      .Kd = 0,                                                                                 \
+                      .IntegralLimit = 6000,                                                                   \
+                      .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
+                      .MaxOut = 15000,                                                                         \
+                  },                                                                                           \
+              .current_PID =                                                                                   \
+                  {                                                                                            \
+                      .Kp = 0,                                                                                 \
+                      .Ki = 0,                                                                                 \
+                      .Kd = 0,                                                                                 \
+                      .IntegralLimit = 3000,                                                                   \
+                      .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
+                      .MaxOut = 15000,                                                                         \
+                  },                                                                                           \
+          },                                                                                                   \
+      .controller_setting_init_config =                                                                        \
+          {                                                                                                    \
+              .angle_feedback_source = MOTOR_FEED,                                                             \
+              .speed_feedback_source = MOTOR_FEED,                                                             \
+              .outer_loop_type = SPEED_LOOP,                                                                   \
+              .close_loop_type = SPEED_LOOP,                                                                   \
+              .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,                                                   \
+          },                                                                                                   \
+      .motor_type = M3508,                                                                                     \
+  })
+#define REAR_WHEEL_MOTOR_CONFIG(handle, id)                                                                         \
   ((Motor_Init_Config_s){                                                                                      \
       .can_init_config =                                                                                       \
           {                                                                                                    \
@@ -108,7 +146,7 @@
               .angle_PID =                                                                                     \
                   {                                                                                            \
                           .Kp = 50.0f,                                                                          \
-                          .Kd = 0.2f,                                                                          \
+                          .Kd = 1.0f,                                                                          \
                           .MaxOut = 12.0f,                                                                      \
                       },                                                                                       \
                                                                                                                \
@@ -142,10 +180,10 @@ static Chassis_Init_Config_s chassis_init_config = {
             .power_param.k4 = 0.1580143850678086f,
             .power_param.k5 = 2.896721772539512e-05f,
         },
-    .wheel_motor_config[0] = WHEEL_MOTOR_CONFIG(&hcan2, 3),
-    .wheel_motor_config[1] = WHEEL_MOTOR_CONFIG(&hcan2, 4),
-    .wheel_motor_config[2] = WHEEL_MOTOR_CONFIG(&hcan2, 1),
-    .wheel_motor_config[3] = WHEEL_MOTOR_CONFIG(&hcan2, 2),
+    .wheel_motor_config[0] = FRONT_WHEEL_MOTOR_CONFIG(&hcan2, 3),
+    .wheel_motor_config[1] = FRONT_WHEEL_MOTOR_CONFIG(&hcan2, 4),
+    .wheel_motor_config[2] = REAR_WHEEL_MOTOR_CONFIG(&hcan2, 1),
+    .wheel_motor_config[3] = REAR_WHEEL_MOTOR_CONFIG(&hcan2, 2),
     .leg_motor_config[0]= LEG_MOTOR_CONFIG(&hcan1, 2, 0x12),
     .leg_motor_config[1]= LEG_MOTOR_CONFIG(&hcan1, 1, 1),
     // 跟随PID

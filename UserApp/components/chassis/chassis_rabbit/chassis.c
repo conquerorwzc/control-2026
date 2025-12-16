@@ -37,7 +37,7 @@ static void LegControl() {
   static float leg_current_position_left = 0.0f;
   static float leg_current_position_right = 0.0f;
 
-  const float LEG_SPEED_RAMP_RATE = 0.001f; // 位置渐变速率
+  const float LEG_SPEED_RAMP_RATE = 0.002f; // 位置渐变速率
   int leg_is_enabled = 0;
   int immediate_move = 0; // 是否立即移动标志
 
@@ -55,6 +55,13 @@ static void LegControl() {
       target_position_left = LEFT_LEG_MOTOR_NORMAL_POSITION;
       target_position_right = RIGHT_LEG_MOTOR_NORMAL_POSITION;
       leg_is_enabled = 1;
+      // 从KIKE位置回到NORMAL位置也应该一步到位
+
+       if (fabsf(leg_current_position_left - LEFT_LEG_MOTOR_KIKE_POSITION) < 0.05f &&
+                 fabsf(leg_current_position_right - RIGHT_LEG_MOTOR_KIKE_POSITION) < 0.05f) {
+        // 如果当前处于KIKE位置，则标记为立即移动
+        immediate_move = 1;
+                 }
       break;
 
     case LEG_RAISE:

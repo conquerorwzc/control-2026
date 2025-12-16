@@ -43,7 +43,7 @@ typedef enum {
   LEG_DISABLE = 0,        // 腿部电机失能
   LEG_NORMAL,             // 常规位置
   LEG_RAISE,              // 抬起位置
-  LEG_KIKE,               // 踢脚位置
+  LEG_KIKE,
 } Leg_Mode_e;
 typedef struct {
   // 控制部分
