@@ -10,8 +10,10 @@
 
 
 /* Private define ------------------------------------------------------------*/
+#define STRETCH_SENS_KEYBOARD   // 前伸灵敏度(键盘)
+#define LIFT_SENS_KEYBOARD      // 抬升灵敏度(键盘)
 
-/* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
+/* Intermediate variables calculated by private functions */
 static RobotInstance *robot;
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
 static Grab_Ctrl_Cmd_s *grab_ctrl_cmd;
@@ -21,10 +23,8 @@ static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last; // 遥控器数据,初始化时返回
 static void MouseKeySet();
 
-/* Intermediate variables calculated by private functions */
-
 int b = 0;
-
+int flag;
 static float angle;
 
 
@@ -103,71 +103,96 @@ void RobotCMDTask() {
  *
  */
 static void MouseKeySet() {
-    chassis_ctrl_cmd->vx = rc_data[TEMP].key[KEY_PRESS].w * 300 - rc_data[TEMP].key[KEY_PRESS].s * 300; // 系数待测
-    chassis_ctrl_cmd->vy = rc_data[TEMP].key[KEY_PRESS].s * 300 - rc_data[TEMP].key[KEY_PRESS].d * 300;
+    if (rc_data)
+    chassis_ctrl_cmd->wz = -rc_data[TEMP].mouse.x * 25 ;
 
-    // gimbal_ctrl_cmd->yaw += (float)rc_data[TEMP].mouse.x / 660 * 10;  // 系数待测
-    // gimbal_ctrl_cmd->pitch += (float)rc_data[TEMP].mouse.y / 660 * 10;
+    if (rc_data != NULL) {
+        gantry_ctrl_cmd->y += rc_data[TEMP].key[KEY_PRESS].b * 0.1 - rc_data[TEMP].key[KEY_PRESS].v * 0.1;
+        gantry_ctrl_cmd->z += rc_data[TEMP].key[KEY_PRESS].x * 0.1 - rc_data[TEMP].key[KEY_PRESS].z * 0.1;
+    };
 
-    switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Z] % 3) // Z键设置弹速
+    switch (rc_data[TEMP].key_count[KEY_PRESS][Key_R] % 3) // Z键设置弹速
     {
         case 0:
-
+            chassis_ctrl_cmd->vx = rc_data[TEMP].key[KEY_PRESS].d *  chassis_ctrl_cmd->chassis_speed_buff - rc_data[TEMP].key[KEY_PRESS].a *  chassis_ctrl_cmd->chassis_speed_buff; // 系数待测
+            chassis_ctrl_cmd->vy = rc_data[TEMP].key[KEY_PRESS].w *  chassis_ctrl_cmd->chassis_speed_buff - rc_data[TEMP].key[KEY_PRESS].s *  chassis_ctrl_cmd->chassis_speed_buff;
             break;
+
         case 1:
+            if (rc_data[TEMP].key[KEY_PRESS].keys != 0 && rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].keys == 0) {
+                grab_ctrl_cmd->base_joint += rc_data[TEMP].key[KEY_PRESS].a * 0.1 - rc_data[TEMP].key[KEY_PRESS].d *
+                        0.1; //系数待测
+                grab_ctrl_cmd->elbow_pitch += rc_data[TEMP].key[KEY_PRESS].w * 0.1 - rc_data[TEMP].key[KEY_PRESS].s *
+                        0.1; //系数待测
+                grab_ctrl_cmd->elbow_roll += rc_data[TEMP].key[KEY_PRESS].q * 0.1 - rc_data[TEMP].key[KEY_PRESS].e *
+                        0.1; //系数待测
+            }
+
+            else if (rc_data[TEMP].key[KEY_PRESS].keys != 0 && rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].keys != 0) {
+                grab_ctrl_cmd->wrist_roll += rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].d * 0.1 - rc_data[TEMP].key[KEY_PRESS].a * 0.1;
+                grab_ctrl_cmd->wrist_pitch += rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].w * 0.1 - rc_data[TEMP].key[KEY_PRESS].s * 0.1;
+            };
 
             break;
-        default:
 
-            break;
-    }
-    switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 4) // E键设置发射模式
-    {
-            break;
-        case 1:
-
-            break;
         case 2:
+            grab_ctrl_cmd->Vedio_forward += rc_data[TEMP].key[KEY_PRESS].q * 0.1 - rc_data[TEMP].key[KEY_PRESS].a * 0.1;
+            //系数待测
+            grab_ctrl_cmd->Vedio_pitch += rc_data[TEMP].key[KEY_PRESS].w * 0.1 - rc_data[TEMP].key[KEY_PRESS].s * 0.1;
+            //系数待测
 
             break;
-        default:
 
+        default:
             break;
     }
-    switch (rc_data[TEMP].key_count[KEY_PRESS][Key_F] % 2) // F键开关摩擦轮
-    {
-        case 0:
-
-            break;
-        default:
-
-            break;
-    }
+    // switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 4) // E键设置发射模式
+    // {
+    //         break;
+    //     case 1:
+    //
+    //         break;
+    //     case 2:
+    //
+    //         break;
+    //     default:
+    //
+    //         break;
+    // }
+    // switch (rc_data[TEMP].key_count[KEY_PRESS][Key_F] % 2) // F键开关摩擦轮
+    // {
+    //     case 0:
+    //
+    //         break;
+    //     default:
+    //
+    //         break;
+    // }
     switch (rc_data[TEMP].key_count[KEY_PRESS][Key_C] % 4) // C键设置底盘速度
     {
         case 0:
-            chassis_ctrl_cmd->chassis_speed_buff = 40;
+            chassis_ctrl_cmd->chassis_speed_buff = 10000;
             break;
         case 1:
-            chassis_ctrl_cmd->chassis_speed_buff = 60;
+            chassis_ctrl_cmd->chassis_speed_buff = 20000;
             break;
         case 2:
-            chassis_ctrl_cmd->chassis_speed_buff = 80;
+            chassis_ctrl_cmd->chassis_speed_buff = 40000;
             break;
         default:
-            chassis_ctrl_cmd->chassis_speed_buff = 100;
+            chassis_ctrl_cmd->chassis_speed_buff = 80000;
             break;
     }
-    switch (rc_data[TEMP].key[KEY_PRESS].shift) // 待添加 按shift允许超功率 消耗缓冲能量
-    {
-        case 1:
-
-            break;
-
-        default:
-
-            break;
-    }
+    // switch (rc_data[TEMP].key[KEY_PRESS].shift) // 待添加 按shift允许超功率 消耗缓冲能量
+    // {
+    //     case 1:
+    //
+    //         break;
+    //
+    //     default:
+    //
+    //         break;
+    // }
 }
 
 
