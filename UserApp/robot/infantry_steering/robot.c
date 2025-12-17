@@ -130,7 +130,6 @@ static void DualBoardCtrlSet() {
   if (CANCommIsOnline(can_comm_instance)) {
     // 检查是否有新数据更新
     received_data = (uint8_t*)CANCommGet(can_comm_instance);
-
     // 如果收到数据，可以在这里处理
     if (received_data != NULL) {
       // 解析接收到的数据到全局变量
@@ -140,7 +139,10 @@ static void DualBoardCtrlSet() {
         CanData.bytes[i] = received_data[i];
       chassis_ctrl_cmd->vx=60.0f*CanData.value16[0];//todo:后面chassis改改把负号去掉
       chassis_ctrl_cmd->vy=60.0f*CanData.value16[1];
-      chassis_ctrl_cmd->wz=42.0f*CanData.value16[2];
+      if (CanData.value16[2]>=0)
+      chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)-CanData.value16[2]/50.0f))*CanData.value16[2];
+      else chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)CanData.value16[2]/50.0f))*CanData.value16[2];
+      //chassis_ctrl_cmd->wz=42.0f*CanData.value16[2];
       if (switch_is_mid(CanData.bytes[10])) {
         //gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
         if (CanData.value16[3] > 20) {
@@ -236,6 +238,12 @@ static void MouseKeySet() {
  *
  */
 static void EmergencyHandler() {
+  //底盘侧双板通信离线,好痛
+  if (!CANCommIsOnline(can_comm_instance)) {
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
+    LOGERROR("[CMD] Emergency Stop! DualBoardComm Lost");
+  }
+  else LOGINFO("[CMD]DualBoardComm is Online");
   // 两switch都在下断电
   switch (USECANREMOTE)//急停信号源
   {
