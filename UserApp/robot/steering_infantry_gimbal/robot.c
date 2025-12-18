@@ -1,142 +1,6 @@
-// //#include "bsp_init.h"
-// #include "robot.h"
-// #include "dmmotor.h"
-// #include "remote_control.h"
-// #include "os_task.h"
-//
-// // 编译warning,提醒开发者修改机器人参数
-// #ifndef ROBOT_DEF_PARAM_WARNING
-// #define ROBOT_DEF_PARAM_WARNING
-// #endif // !ROBOT_DEF_PARAM_WARNING
-//
-// // 达妙4310电机实例
-// static DMMotorInstance *J4310_motor;
-// RC_ctrl_t *rc_data;
-//
-// // 达妙4310电机初始化配置
-// Motor_Init_Config_s J4310_config = {
-//     .can_init_config = {
-//         .can_handle = &hcan1,        // 根据实际使用的CAN修改
-//         .tx_id = 2,              // 发送ID，根据实际电机设置
-//     },
-//     .controller_param_init_config = {
-//         .current_PID = {
-//             .Kp = 0.0f,
-//             .Ki = 0.0f,
-//             .Kd = 0.0f,
-//             .MaxOut = 0.0f,
-//             .Improve = 0,
-//             .DeadBand = 0,
-//             .IntegralLimit = 0,
-//         },
-//         .speed_PID = {
-//             .Kp = 1f,
-//             .Ki = 0.01f,
-//             .Kd = 0.0f,
-//             .MaxOut = 5.0f,
-//             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-//             .DeadBand = 0.1f,
-//             .IntegralLimit = 1000,
-//         },
-//         .angle_PID = {
-//             .Kp = 0.0f,
-//             .Ki = 0.0f,
-//             .Kd = 0.0f,
-//             .MaxOut = 10.0f,
-//             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-//             .DeadBand = 0.05f,
-//             .IntegralLimit = 500,
-//         },
-//         .other_angle_feedback_ptr = NULL,
-//         .other_speed_feedback_ptr = NULL,
-//     },
-//     .controller_setting_init_config = {
-//         .angle_feedback_source = MOTOR_FEED,
-//         .speed_feedback_source = MOTOR_FEED,
-//         .outer_loop_type = SPEED_LOOP,                    // 默认外环为位置环
-//         .close_loop_type = SPEED_LOOP,          // 启用位置环和速度环
-//         .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,     // 电机方向正常
-//         .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL, // 反馈方向正常
-//         .feedforward_flag = 0,                           // 不使用前馈
-//     },
-//     .motor_type = J4310,                         // 达妙电机类型
-// };
-//
-// void RobotInit()
-// {
-//     // 关闭中断,防止在初始化过程中发生中断
-//     // 请不要在初始化过程中使用中断和延时函数！
-//     // 若必须,则只允许使用DWT_Delay()
-//     __disable_irq();
-//
-//     // BSPInit();
-//
-//     // 初始化达妙4310电机
-//     J4310_motor = DMMotorInit(&J4310_config);
-//
-//     // 初始化遥控器
-//     rc_data = RemoteControlInit(&huart3);  // 根据实际使用的UART修改
-//
-//     // 设置电机外环控制模式为位置环
-//     DMMotorOuterLoop(J4310_motor, SPEED_LOOP);
-//
-//     // 使能电机
-//     //DMMotorEnable(J4310_motor);
-//
-//     // 初始化电机任务（会创建独立的控制线程）
-//     DMMotorTaskInit();
-//
-//     // 初始化其他任务
-//     OSTaskInit(); // 创建基础任务
-//
-//     // 初始化完成,开启中断
-//     __enable_irq();
-// }
-//
-// void RobotTask() {
-//     // 达妙4310电机控制代码
-//     if(RemoteControlIsOnline() && J4310_motor != NULL) {
-//       // if(rc_data->rc.switch_left == RC_SW_UP) {
-//       //   DMMotorPIDCal(J4310_motor, 20000);  // 转动
-//       // } else {
-//       //   DMMotorPIDCal(J4310_motor, 0);      // 停止
-//       // }
-//       DMMotorPIDCal(J4310_motor, rc_data->rc.rocker_l1/ 660.0f * 200.0f);
-//     }
-//     /*
-//     if(J4310_motor != NULL && rc_data != NULL) {
-//         static float target_angle = 0.0f;
-//
-//         // 根据遥控器左拨杆位置选择控制模式
-//         if(rc_data->rc.switch_left == RC_SW_UP) {
-//             // 上拨杆：位置控制模式
-//             DMMotorOuterLoop(J4310_motor, ANGLE_LOOP);
-//
-//             // 使用右摇杆控制目标角度
-//             target_angle = (float)rc_data->rc.rocker_r1 / 660.0f * 180.0f;
-//
-//             // 限制角度范围在电机安全范围内
-//             if(target_angle > 360.0f) target_angle = 360.0f;
-//             if(target_angle < 0.0f) target_angle = 0.0f;
-//
-//         } else if(rc_data->rc.switch_left == RC_SW_DOWN) {
-//             // 下拨杆：速度控制模式
-//             DMMotorOuterLoop(J4310_motor, SPEED_LOOP);
-//
-//             // 使用右摇杆控制目标速度
-//             target_angle = (float)rc_data->rc.rocker_r1 / 660.0f * 20.0f;
-//
-//         } else {
-//             // 中拨杆：停止电机，目标设为0
-//             target_angle = 0.0f;
-//         }
-//         // 计算PID控制量
-//         DMMotorPIDCal(J4310_motor, target_angle);
-//     }
-//     */
-// }
 #include "robot.h"
 
+#include "components/gimbal/gimbal_steering_infantry/gimbal.h"
 #include "general_def.h"
 #include "master_process.h"
 #include "robot_config.h"
@@ -157,6 +21,10 @@ CANCommInstance* can_comm_instance = NULL;
 
 /* Intermediate variables calculated by private functions */
 static float trigger_time = 0;  // 触发时间
+static float x_speed_time=0;  //x方向加速触发时间
+static float y_speed_time=0;  //y方向加速触发时间
+static float vx_initial;   //x轴输入控制量
+static float vy_initial;   //y轴输入控制量
 static float angle;
 // static  DJIMotorInstance* debug_motor;
 
@@ -236,14 +104,14 @@ static void RemoteControlSet() {
   // 云台使能,或视觉未识别到目标,纯遥控器拨杆控制
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
     gimbal_ctrl_cmd->yaw += -0.0016f * (float)rc_data[TEMP].rc.rocker_r_;
-    gimbal_ctrl_cmd->pitch -= 0.000006f * (float)rc_data[TEMP].rc.rocker_r1;
+    gimbal_ctrl_cmd->pitch -= 0.0006f * (float)rc_data[TEMP].rc.rocker_r1;
   }
 
   // 云台PITCH轴软件限位 todo:没在云台有点不好
-  if (gimbal_ctrl_cmd->pitch > PITCH_ABS_MAX) {
-    gimbal_ctrl_cmd->pitch = PITCH_ABS_MAX;
-  } else if (gimbal_ctrl_cmd->pitch < PITCH_ABS_MIN) {
-    gimbal_ctrl_cmd->pitch = PITCH_ABS_MIN;
+  if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
+    gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
+  } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
+    gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
   }
 
   // 底盘参数,系数需要调整
@@ -264,14 +132,37 @@ static void RemoteControlSet() {
 }
 
 static void MouseKeySet() {
-  chassis_ctrl_cmd->vy += (float)((rc_data[TEMP].key[KEY_PRESS].w) - rc_data[TEMP].key[KEY_PRESS].s) *
+  vy_initial += (float)((rc_data[TEMP].key[KEY_PRESS].w) - rc_data[TEMP].key[KEY_PRESS].s) *
                          (float) chassis_ctrl_cmd->chassis_speed_buff;
-  chassis_ctrl_cmd->vx += (float)(rc_data[TEMP].key[KEY_PRESS].d - rc_data[TEMP].key[KEY_PRESS].a) *
+  vx_initial += (float)(rc_data[TEMP].key[KEY_PRESS].d - rc_data[TEMP].key[KEY_PRESS].a) *
                          (float) -chassis_ctrl_cmd->chassis_speed_buff;
+
+    //缓加速
+  if (abs(vx_initial)<=10000) {
+    x_speed_time=DWT_GetTimeline_s();
+    chassis_ctrl_cmd->vx=vx_initial;
+  }//速度绝对值在10000以下输出控制量=输入控制量
+  if (vx_initial > 10000&&chassis_ctrl_cmd->vx<= 60.0f * (float)rc_data[TEMP].rc.rocker_l_ ) {
+    chassis_ctrl_cmd->vx=10000+(DWT_GetTimeline_s()-x_speed_time)*10000;
+  }
+  if (vx_initial < -10000&&chassis_ctrl_cmd->vx>= 60.0f * (float)rc_data[TEMP].rc.rocker_l_) {
+    chassis_ctrl_cmd->vx=-10000-(DWT_GetTimeline_s()-x_speed_time)*10000;
+  }//速度绝对值在10000以上输出控制量=10000+10000t(s)
+  if (abs(vy_initial)<=10000) {
+    y_speed_time=DWT_GetTimeline_s();
+    chassis_ctrl_cmd->vy=vy_initial;
+  }//速度绝对值在10000以下输出控制量=输入控制量
+  if (vy_initial > 10000&&chassis_ctrl_cmd->vy<= 60.0f * (float)rc_data[TEMP].rc.rocker_l1 ) {
+    chassis_ctrl_cmd->vy=10000+(DWT_GetTimeline_s()-y_speed_time)*10000;
+  }
+  if (vy_initial < -10000&&chassis_ctrl_cmd->vy>= 60.0f * (float)rc_data[TEMP].rc.rocker_l1) {
+    chassis_ctrl_cmd->vy=-10000-(DWT_GetTimeline_s()-y_speed_time)*10000;
+  }//速度绝对值在10000以上输出控制量=10000+10000t(s)
+
 if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   {
-  gimbal_ctrl_cmd->yaw -= (float)rc_data[TEMP].mouse.x * 0.007f;  // 横向灵敏度调节
-  gimbal_ctrl_cmd->pitch += (float)rc_data[TEMP].mouse.y * 0.003f; // 纵向灵敏度调节 (负号反转Y轴)
+    gimbal_ctrl_cmd->yaw += (float)rc_data[TEMP].mouse.x * 0.007f;  // 横向灵敏度调节
+    gimbal_ctrl_cmd->pitch -= (float)rc_data[TEMP].mouse.y * 0.003f; // 纵向灵敏度调节 (负号反转Y轴)
   }
   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Z] % 3)  // Z键设置弹速
   {
@@ -289,8 +180,8 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   case 1:
       if (has_non_zero_data(vision_recv_data)==1){
         gimbal_ctrl_cmd->gimbal_mode=GIMBAL_VISION;    // 右键自瞄开启
-        gimbal_ctrl_cmd->yaw-=0.05*vision_recv_data->gimbal_receive.yaw;
-        gimbal_ctrl_cmd->pitch+=0;
+        gimbal_ctrl_cmd->yaw=vision_recv_data->gimbal_receive.yaw;
+        gimbal_ctrl_cmd->pitch=vision_recv_data->gimbal_receive.pitch;
         //shoot_ctrl_cmd->load_mode=vision_recv_data->shoot_receive.fire_flag;
       }
       else
@@ -341,16 +232,16 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
       chassis_ctrl_cmd->chassis_speed_buff = 80000;
       break;
   }
-  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Q]%2) //新增Q自旋开启
-  {
-    case 0:
-      chassis_ctrl_cmd-> chassis_mode = CHASSIS_FOLLOW ;
-      chassis_ctrl_cmd->wz+=(float)rc_data[TEMP].mouse.x * 30.0f; //主动跟随量
-      break;
-    default:
-      chassis_ctrl_cmd-> chassis_mode = CHASSIS_ROTATE ;
-      break;
-  }
+  // switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Q]%2) //新增Q自旋开启
+  // {
+  //   case 0:
+  //     chassis_ctrl_cmd-> chassis_mode = CHASSIS_FOLLOW ;
+  //     chassis_ctrl_cmd->wz+=(float)rc_data[TEMP].mouse.x * 30.0f; //主动跟随量
+  //     break;
+  //   default:
+  //     chassis_ctrl_cmd-> chassis_mode = CHASSIS_ROTATE ;
+  //     break;
+  // }
 
   switch (rc_data[TEMP].key[KEY_PRESS].shift)  // 待添加 按shift允许超功率 消耗缓冲能量
   {
@@ -362,12 +253,12 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
 
       break;
   }
-  if (gimbal_ctrl_cmd->pitch > PITCH_ABS_MAX) {
-    gimbal_ctrl_cmd->pitch = PITCH_ABS_MAX;
-  } else if (gimbal_ctrl_cmd->pitch < PITCH_ABS_MIN) {
-    gimbal_ctrl_cmd->pitch = PITCH_ABS_MIN;
-  }
   shoot_ctrl_cmd->shoot_rate = 8;// 射频控制,固定每秒1发,后续可以根据左侧拨轮的值大小切换射频,
+  if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
+    gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
+  } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
+    gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
+  }
 }
 /**
  * @brief  紧急停止,包括遥控器左上侧拨轮打满/重要模块离线/双板通信失效等
@@ -378,41 +269,41 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
  */
 static void EmergencyHandler() {
   // 两switch都在下断电
-    if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left))||!RemoteControlIsOnline)  // 全部失能
-    {
-      robot->robot_mode = ROBOT_POWER_ON;
-      gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
-      shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
-      shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
-      shoot_ctrl_cmd->load_mode = LOAD_STOP;
-      for (int i=0;i<16;i++)
-        rc_data[TEMP].key_count[KEY_PRESS][i]=0;  //复位    注意：更改键位的时候要对这里以及下面的复位进行大改。
-      LOGERROR("[CMD] emergency stop!");
-    } else {
-      LOGINFO("[CMD] reinstate, robot ready");
-    }
-    if (switch_is_down(rc_data[TEMP].rc.switch_right)||!RemoteControlIsOnline)  // 底盘失能
-    {
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
-    }
-    else
-      {
-    gimbal_ctrl_cmd->gimbal_mode=GIMBAL_ON;
-      }
-    if (switch_is_down(rc_data[TEMP].rc.switch_left)||!RemoteControlIsOnline)  // 发射失能
-    {
-      shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
-      shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
-      shoot_ctrl_cmd->load_mode = LOAD_STOP;
-    }
-    else {
-      shoot_ctrl_cmd->shoot_mode= SHOOT_ON;
-      if (gimbal_ctrl_cmd->gimbal_mode!=GIMBAL_VISION)  //增加自瞄状态的优先级
-        gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-    }
-    // 遥控器右侧开关为[上],恢复正常运行
+  if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left))||!RemoteControlIsOnline())  // 全部失能
+  {
+    robot->robot_mode = ROBOT_POWER_ON;
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
+    shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
+    shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
+    shoot_ctrl_cmd->load_mode = LOAD_STOP;
+    for (int i=0;i<16;i++)
+      rc_data[TEMP].key_count[KEY_PRESS][i]=0;  //复位    注意：更改键位的时候要对这里以及下面的复位进行大改。
+    LOGERROR("[CMD] emergency stop!");
+  } else {
+    LOGINFO("[CMD] reinstate, robot ready");
   }
+  if (switch_is_down(rc_data[TEMP].rc.switch_right)||!RemoteControlIsOnline())  // 底盘失能
+  {
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
+  }
+  else
+  {
+    gimbal_ctrl_cmd->gimbal_mode=GIMBAL_ON;
+  }
+  if (switch_is_down(rc_data[TEMP].rc.switch_left)||!RemoteControlIsOnline())  // 发射失能
+  {
+    shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
+    shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
+    shoot_ctrl_cmd->load_mode = LOAD_STOP;
+  }
+  else {
+    shoot_ctrl_cmd->shoot_mode= SHOOT_ON;
+    if (gimbal_ctrl_cmd->gimbal_mode!=GIMBAL_VISION)  //增加自瞄状态的优先级
+      gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+  }
+  // 遥控器右侧开关为[上],恢复正常运行
+}
 
 // void Steering_CANCommSend(CANCommInstance *can_comm_instance, RC_ctrl_t *rc_data)
 // {
