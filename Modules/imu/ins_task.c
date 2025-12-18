@@ -79,6 +79,7 @@ static void InitQuaternion(float *init_q4) {
   init_q4[0] = cosf(angle / 2.0f);
   for (uint8_t i = 0; i < 2; ++i) init_q4[i + 1] = axis_rot[i] * sinf(angle / 2.0f);  // 轴角公式,第三轴为0(没有z轴分量)
 }
+
 __attribute__((noreturn)) void StartINSTASK(void const *argument) {
   static float ins_start;
   static float ins_dt;
@@ -134,8 +135,11 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
 #elifdef STM32H7
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
 #endif
+#ifdef STM32F407xx
   while (BMI088Init(&hspi1, 0) != BMI088_NO_ERROR);
-  // while (BMI088Init(&hspi2, 1) != BMI088_NO_ERROR);
+#elifdef STM32H7
+  while (BMI088Init(&hspi2, 0) != BMI088_NO_ERROR);
+#endif
   // 使用我们的调试校准函数来测量陀螺仪零偏值，绕过预定义值
   INS_CalibrateGyroForDebug(2000);
 
