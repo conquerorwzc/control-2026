@@ -128,7 +128,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                   },
                     .speed_PID =
                     {
-                      .Kp = 6000.0f,
+                      .Kp =6000.0f,
                       .Ki = 100.0f,
                       .Kd = 0.0f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,

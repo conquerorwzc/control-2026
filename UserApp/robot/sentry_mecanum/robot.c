@@ -108,7 +108,7 @@ static void RemoteControlSet() {
   }
   // 云台使能,或视觉未识别到目标,纯遥控器拨杆控制
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
-    gimbal_ctrl_cmd->yaw += -0.0016f * (float)rc_data[TEMP].rc.rocker_r_;
+    gimbal_ctrl_cmd->yaw += -0.005f * (float)rc_data[TEMP].rc.rocker_r_;
     gimbal_ctrl_cmd->pitch -= 0.0003f * (float)rc_data[TEMP].rc.rocker_r1;
   }
   // 云台PITCH轴软件限位 todo:没在云台有点不好
@@ -128,7 +128,7 @@ static void RemoteControlSet() {
           5.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
     }
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
-      chassis_ctrl_cmd->wz =(-15.0f) *(float)rc_data[TEMP].rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
+      chassis_ctrl_cmd->wz =(15.0f) *(float)rc_data[TEMP].rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
     }
   } else if (robot->control_mode == AUTO_MODE) // 自动控制，直接接收上位机控制量
   {
