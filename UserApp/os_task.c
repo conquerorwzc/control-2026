@@ -93,7 +93,7 @@ __attribute__((noreturn)) void StartMOTORTASK(void const *argument) {
     MotorControlTask();
     motor_dt = DWT_GetTimeline_ms() - motor_start;
     if (motor_dt > 1) LOGERROR("[freeRTOS] MOTOR Task is being DELAY! dt = [%f]", &motor_dt);
-    osDelay(1);
+    osDelay(2);
   }
 }
 
