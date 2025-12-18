@@ -38,7 +38,7 @@ typedef enum {
 typedef struct {
   float one_bullet_delta_angle;  // 发射一发弹丸拨盘转动的距离,由机械设计图纸给出
   float reduction_ratio_loader;  // 2006拨盘电机的减速比,英雄拨弹盘的3508减速比为100
-  float num_per_circle;          // 拨盘一圈的装  载量
+  float num_per_circle;          // 拨盘一圈的装载量
   int loader_direction;          //拨弹盘方向
   int friction_num;              //摩擦轮数量
   float friction_speed;          // 摩擦轮速度
