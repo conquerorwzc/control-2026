@@ -1,7 +1,7 @@
 #ifndef CUSTOM_CONTROLLER_H
 #define CUSTOM_CONTROLLER_H
 
-#include "servo_motor.h"
+#include "serial_servo_motor.h"
 #include "bsp_log.h"
 #include "bsp_adc.h"
 
@@ -24,7 +24,7 @@ typedef struct {
 
 // 自定义控制器结构体
 typedef struct {
-    ServoInstance* servo_motors[SERVO_MOTOR_COUNT];  // 舵机相关
+    SerialServoInstance* servo_motors[SERVO_MOTOR_COUNT];  // 舵机相关
     PotentiometerInstance potentiometer;             // 电位器相关
 } CustomControllerInstance;
 

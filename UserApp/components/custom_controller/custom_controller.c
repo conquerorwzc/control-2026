@@ -4,13 +4,14 @@
 #include "usart.h"
 #include "stdio.h"
 #include "cmsis_os.h"
+#include "bsp_dwt.h"
 
 // 全局实例指针
 static CustomControllerInstance* instance = NULL;
 
 /**
  * @brief 初始化自定义控制器
- * 
+ *
  * @return CustomControllerInstance* 控制器实例指针
  */
 CustomControllerInstance* CustomControllerInit(void) {
@@ -20,42 +21,45 @@ CustomControllerInstance* CustomControllerInit(void) {
         LOGERROR("Failed to allocate memory for custom controller");
         return NULL;
     }
-    
+
     // 清空内存
     memset(instance, 0, sizeof(CustomControllerInstance));
-    
+
     // 初始化舵机
     Servo_Init_Config_s servo_configs[SERVO_MOTOR_COUNT] = {
         {
-            .servo_type = Bus_Servo,  // 使用ASCII协议舵机
-            ._handle = &huart3,  // 根据实际连接修改
+            .servo_type = Bus_Servo,  // 使用串行舵机
+            ._handle = &huart6,  // 根据实际连接修改
             .servo_id = 1
         },
         {
-            .servo_type = Bus_Servo,  // 使用ASCII协议舵机
-            ._handle = &huart3,  // 根据实际连接修改
+            .servo_type = Bus_Servo,  // 使用串行舵机
+            ._handle = &huart6,  // 根据实际连接修改
             .servo_id = 2
         },
         {
-            .servo_type = Bus_Servo,  // 使用ASCII协议舵机
-            ._handle = &huart3,  // 根据实际连接修改
+            .servo_type = Bus_Servo,  // 使用串行舵机
+            ._handle = &huart6,  // 根据实际连接修改
             .servo_id = 3
         }
     };
-    
+
     for (int i = 0; i < SERVO_MOTOR_COUNT; i++) {
-        instance->servo_motors[i] = ServoInit(&servo_configs[i]);
+        instance->servo_motors[i] = SerialServoInit(&servo_configs[i]);
         if (instance->servo_motors[i] != NULL) {
             // 设置舵机为释力模式，允许手动摆动
-            // 但延迟1秒发送释力命令，确保系统稳定
-            osDelay(1000);
-            Bus_Servo_Unload(instance->servo_motors[i]);
+            // 但延迟0.1秒发送释力命令，确保系统稳定
+            uint32_t start_tick = HAL_GetTick();
+            while ((HAL_GetTick() - start_tick) < 100) {
+                // 空循环等待0.1秒
+            }
+            SerialServoLoadUnload(instance->servo_motors[i], servo_configs[i].servo_id, 0); // 0表示卸载
             LOGINFO("Servo %d initialized successfully", servo_configs[i].servo_id);
         } else {
             LOGERROR("Failed to initialize servo %d", servo_configs[i].servo_id);
         }
     }
-    
+
     // 初始化ADC
     ADC_Init_Config_s adc_configs[POTENTIOMETER_COUNT] = {
         {
@@ -77,41 +81,46 @@ CustomControllerInstance* CustomControllerInit(void) {
             .id = NULL
         }
     };
-    
+
     for (int i = 0; i < POTENTIOMETER_COUNT; i++) {
         instance->potentiometer.adc[i] = ADCRegister(&adc_configs[i]);
         if (instance->potentiometer.adc[i] == NULL) {
             LOGERROR("Failed to initialize ADC for potentiometer %d", i);
         }
     }
-    
+
     LOGINFO("Custom controller initialized successfully");
     return instance;
 }
 
 /**
  * @brief 更新自定义控制器状态
- * 
+ *
  * @param controller_instance 控制器实例指针
  */
 void CustomControllerUpdate(CustomControllerInstance* controller_instance) {
     if (controller_instance == NULL) {
         return;
     }
-    
+
     // 读取电位器值并转换为角度 (0-3.3V 映射到 0-270度)
     for (int i = 0; i < POTENTIOMETER_COUNT; i++) {
         controller_instance->potentiometer.values[i] = ADCGetRawValue(controller_instance->potentiometer.adc[i]);
         controller_instance->potentiometer.angles[i] = (float)controller_instance->potentiometer.values[i] * 270.0f / 65536.0f;
     }
 
-    // 发送读取舵机位置命令（针对ASCII协议舵机）
+    // 发送读取舵机位置命令（针对串行舵机）
     for (int i = 0; i < SERVO_MOTOR_COUNT; i++) {
         if (controller_instance->servo_motors[i] != NULL) {
             // 发送读取角度命令给每个舵机
-            Bus_Servo_GetAngle(controller_instance->servo_motors[i]);
+            SerialServoReadPosition(controller_instance->servo_motors[i],
+                              controller_instance->servo_motors[i]->servo_id,
+                              (int16_t*)&controller_instance->servo_motors[i]->recv_angle);
             // 添加延迟，避免命令过于频繁导致舵机无响应
-            osDelay(50);
+            uint32_t start_tick = HAL_GetTick();
+            while ((HAL_GetTick() - start_tick) < 50) {
+                // 空循环等待50毫秒
+            }
         }
     }
 

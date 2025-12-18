@@ -26,6 +26,10 @@ static float angle;
 static void RemoteControlSet() {
   // 在这个专用于自定义控制器的机器人类型中，我们可以简化遥控器控制逻辑
   // 或者根据需要添加特定的控制逻辑
+  // 更新自定义控制器状态
+  if (robot->custom_controller != NULL) {
+    CustomControllerUpdate(robot->custom_controller);
+  }
 }
 
 /**
@@ -51,6 +55,9 @@ void RobotInit() {
   rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
   *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
 
+  // 重置舵机索引计数器，确保初始化正确
+  SerialServoResetIndex();
+  
   // 初始化自定义控制器（包含舵机）
   robot->custom_controller = CustomControllerInit();
 
@@ -63,11 +70,7 @@ void RobotCMDTask() {
   RemoteControlSet();
   // MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
-  
-  // 更新自定义控制器状态
-  if (robot->custom_controller != NULL) {
-    CustomControllerUpdate(robot->custom_controller);
-  }
+
 }
 
 /**
