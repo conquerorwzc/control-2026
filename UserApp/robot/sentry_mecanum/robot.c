@@ -128,7 +128,7 @@ static void RemoteControlSet() {
           5.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
     }
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
-      chassis_ctrl_cmd->wz =(15.0f) *(float)rc_data[TEMP].rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
+      chassis_ctrl_cmd->wz =(-15.0f) *(float)rc_data[TEMP].rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
     }
   } else if (robot->control_mode == AUTO_MODE) // 自动控制，直接接收上位机控制量
   {
