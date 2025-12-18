@@ -99,8 +99,8 @@ static void RemoteControlSet() {
   }
   // 云台使能,或视觉未识别到目标,纯遥控器拨杆控制
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
-    gimbal_ctrl_cmd->yaw += -0.0016f * (float)rc_data[TEMP].rc.rocker_r_;
-    gimbal_ctrl_cmd->pitch -= 0.0003f * (float)rc_data[TEMP].rc.rocker_r1;
+    gimbal_ctrl_cmd->yaw -= -0.0016f * (float)rc_data[TEMP].rc.rocker_r_;
+    gimbal_ctrl_cmd->pitch += 0.0003f * (float)rc_data[TEMP].rc.rocker_r1;
   }
 
   // 云台PITCH轴软件限位 todo:没在云台有点不好
@@ -115,7 +115,7 @@ static void RemoteControlSet() {
   vy_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // l1竖直方向
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
     chassis_ctrl_cmd->wz =
-        5.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
+        15.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
   }
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
     chassis_ctrl_cmd->wz =(15.0f) *(float)rc_data[TEMP].rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
@@ -157,8 +157,8 @@ static void MouseKeySet() {
 
 if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   {
-  gimbal_ctrl_cmd->yaw -= (float)rc_data[TEMP].mouse.x * 0.007f;  // 横向灵敏度调节
-  gimbal_ctrl_cmd->pitch += (float)rc_data[TEMP].mouse.y * 0.003f; // 纵向灵敏度调节 (负号反转Y轴)
+  gimbal_ctrl_cmd->yaw += (float)rc_data[TEMP].mouse.x * 0.007f;  // 横向灵敏度调节
+  gimbal_ctrl_cmd->pitch -= (float)rc_data[TEMP].mouse.y * 0.003f; // 纵向灵敏度调节 (负号反转Y轴)
   }
   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Z] % 3)  // Z键设置弹速
   {
@@ -176,8 +176,8 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   case 1:
       if (has_non_zero_data(vision_recv_data)==1){
         gimbal_ctrl_cmd->gimbal_mode=GIMBAL_VISION;    // 右键自瞄开启
-        gimbal_ctrl_cmd->yaw-=0.05*vision_recv_data->gimbal_receive.yaw;
-        gimbal_ctrl_cmd->pitch+=0;
+        gimbal_ctrl_cmd->yaw=vision_recv_data->gimbal_receive.yaw;
+        gimbal_ctrl_cmd->pitch=vision_recv_data->gimbal_receive.pitch;
         //shoot_ctrl_cmd->load_mode=vision_recv_data->shoot_receive.fire_flag;
       }
       else
@@ -228,16 +228,16 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
       chassis_ctrl_cmd->chassis_speed_buff = 80000;
       break;
   }
-  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Q]%2) //新增Q自旋开启
-  {
-    case 0:
-      chassis_ctrl_cmd-> chassis_mode = CHASSIS_FOLLOW ;
-      chassis_ctrl_cmd->wz+=(float)rc_data[TEMP].mouse.x * 30.0f; //主动跟随量
-      break;
-    default:
-      chassis_ctrl_cmd-> chassis_mode = CHASSIS_ROTATE ;
-      break;
-  }
+  // switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Q]%2) //新增Q自旋开启
+  // {
+  //   case 0:
+  //     chassis_ctrl_cmd-> chassis_mode = CHASSIS_FOLLOW ;
+  //     chassis_ctrl_cmd->wz+=(float)rc_data[TEMP].mouse.x * 30.0f; //主动跟随量
+  //     break;
+  //   default:
+  //     chassis_ctrl_cmd-> chassis_mode = CHASSIS_ROTATE ;
+  //     break;
+  // }
 
   switch (rc_data[TEMP].key[KEY_PRESS].shift)  // 待添加 按shift允许超功率 消耗缓冲能量
   {

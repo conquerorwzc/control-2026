@@ -1,8 +1,7 @@
 #pragma once
 
 #include "chassis.h"
-#include "gimbal.h"
-#include "shoot.h"
+#include "gantry.h"
 #include "remote_control.h"
 // #include "rm_referee.h"
 #include "super_cap.h"
@@ -21,8 +20,7 @@ typedef struct {
 
   SuperCapInstance* super_cap;
   ChassisInstance* chassis;
-  GimbalInstance* gimbal;
-  ShootInstance* shoot;
+  GantryInstance* gantry;
 
 } RobotInstance;
 
@@ -34,7 +32,7 @@ typedef struct {
 void RobotInit();
 
 /**
- * @brief 机器人任务,放入实时系统以一定频率运行,内部会调用各个应用的任务/
+ * @brief 机器人任务,放入实时系统以一定频率运行,内部会调用各个应用的任务
  *
  */
 void RobotTask();

@@ -128,8 +128,8 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                   },
                     .speed_PID =
                     {
-                      .Kp = 6000.0f,
-                      .Ki = 100.0f,
+                      .Kp = -6000.0f,
+                      .Ki = -100.0f,
                       .Kd = 0.0f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                       .IntegralLimit = 12000.0f,
@@ -151,7 +151,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                     {
-                      .Kp = 1.0f,
+                      .Kp = 0.5f,
                       .Ki = 0.0f,
                       .Kd = 0.0f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
@@ -159,8 +159,8 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                       .MaxOut = 25.0f,
                   },
               .speed_PID = {
-                      .Kp = 5000.0f,
-                      .Ki = 200.0f,
+                      .Kp = -5000.0f,
+                      .Ki = -200.0f,
                       .Kd = 0.0f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                       .IntegralLimit = 12000.0f,
@@ -188,7 +188,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
 ((Motor_Init_Config_s) { \
 .controller_param_init_config = { \
 .speed_PID = { \
-.Kp = 0.5f, \
+.Kp = 1.0f, \
 .Ki = 0.0f, \
 .Kd = 0.0f, \
 .Improve = PID_Integral_Limit, \
@@ -228,9 +228,9 @@ static Shoot_Init_Config_s shoot_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 45.0f,
+                            .Kp = 40.0f,
                             .Ki = 0.0f,
-                            .Kd = 0.1f,
+                            .Kd = 0.0f,
                             .MaxOut = 30000.0f,
                         },
                     .speed_PID =
