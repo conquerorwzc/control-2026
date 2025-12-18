@@ -116,6 +116,7 @@ int main(void)
   MX_UART7_Init();
   MX_ADC1_Init();
   MX_ADC2_Init();
+  MX_USART6_UART_Init();
   /* USER CODE BEGIN 2 */
   OSTaskInit();
   LOGINFO("[main] SystemInit() and OSInit() done");

@@ -28,17 +28,17 @@ CustomControllerInstance* CustomControllerInit(void) {
     Servo_Init_Config_s servo_configs[SERVO_MOTOR_COUNT] = {
         {
             .servo_type = Bus_Servo,  // 使用ASCII协议舵机
-            ._handle = &huart1,  // 根据实际连接修改
+            ._handle = &huart3,  // 根据实际连接修改
             .servo_id = 1
         },
         {
             .servo_type = Bus_Servo,  // 使用ASCII协议舵机
-            ._handle = &huart1,  // 根据实际连接修改
+            ._handle = &huart3,  // 根据实际连接修改
             .servo_id = 2
         },
         {
             .servo_type = Bus_Servo,  // 使用ASCII协议舵机
-            ._handle = &huart1,  // 根据实际连接修改
+            ._handle = &huart3,  // 根据实际连接修改
             .servo_id = 3
         }
     };
@@ -47,6 +47,8 @@ CustomControllerInstance* CustomControllerInit(void) {
         instance->servo_motors[i] = ServoInit(&servo_configs[i]);
         if (instance->servo_motors[i] != NULL) {
             // 设置舵机为释力模式，允许手动摆动
+            // 但延迟1秒发送释力命令，确保系统稳定
+            osDelay(1000);
             Bus_Servo_Unload(instance->servo_motors[i]);
             LOGINFO("Servo %d initialized successfully", servo_configs[i].servo_id);
         } else {
@@ -108,6 +110,8 @@ void CustomControllerUpdate(CustomControllerInstance* controller_instance) {
         if (controller_instance->servo_motors[i] != NULL) {
             // 发送读取角度命令给每个舵机
             Bus_Servo_GetAngle(controller_instance->servo_motors[i]);
+            // 添加延迟，避免命令过于频繁导致舵机无响应
+            osDelay(50);
         }
     }
 
