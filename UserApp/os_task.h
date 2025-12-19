@@ -15,7 +15,6 @@
 
 void OSTaskInit();
 
-void StartINSTASK(void const *argument);
 void StartMOTORTASK(void const *argument);
 void StartDAEMONTASK(void const *argument);
 void StartROBOTTASK(void const *argument);

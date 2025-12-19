@@ -10,7 +10,6 @@ typedef enum {
   SHOOT_ON,
 } Shoot_Mode_e;
 
-
 typedef enum {
   FRICTION_OFF = 0,  // 摩擦轮关闭
   FRICTION_ON,       // 摩擦轮开启
@@ -33,19 +32,18 @@ typedef enum {
   SMALL_AMU_30 = 30,
 } Bullet_Speed_e;
 
-
 // 机器人底盘修改的参数,单位为mm(毫米)
 typedef struct {
   float one_bullet_delta_angle;  // 发射一发弹丸拨盘转动的距离,由机械设计图纸给出
   float reduction_ratio_loader;  // 2006拨盘电机的减速比,英雄拨弹盘的3508减速比为100
   float num_per_circle;          // 拨盘一圈的装  载量
-  int loader_direction;          //拨弹盘方向
-  int friction_num;              //摩擦轮数量
+  int loader_direction;          // 拨弹盘方向
+  int friction_num;              // 摩擦轮数量
   float friction_speed;          // 摩擦轮速度
   float target_speed;
-  float friction_coefficients[FRICTION_NUM]; // 摩擦轮的系数
-  float deadtime_onebullet; // 单发死时间
-  float deadtime_burstfire; // 连发死时间
+  float friction_coefficients[FRICTION_NUM];  // 摩擦轮的系数
+  float deadtime_onebullet;                   // 单发死时间
+  float deadtime_burstfire;                   // 连发死时间
   float bullet_speed_adjustment;
 } Shoot_Param_s;
 
