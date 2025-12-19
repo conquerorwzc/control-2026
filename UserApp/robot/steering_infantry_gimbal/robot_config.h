@@ -123,6 +123,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
 .outer_loop_type = SPEED_LOOP,\
 .close_loop_type = SPEED_LOOP,\
 .motor_reverse_flag = direction,\
+.feedback_reverse_flag = direction,\
 },\
 .motor_type = M3508, \
 .can_init_config = { \
@@ -139,7 +140,7 @@ static Shoot_Init_Config_s shoot_init_config = {
             .num_per_circle = 8,                      // 拨盘一圈的装载量6
             .loader_direction = 1,                    // 拨盘旋转方向,1为正向，-1为反向
             .friction_num = 2,                        //摩擦轮数量
-            .friction_speed = 26000.0f,               //摩擦轮速度
+            .friction_speed = 5000.0f,               //摩擦轮速度
             .friction_coefficients = {1.0f, 1.0f}, //摩擦轮速度比例系数
             // .deadtime_burstfire = 500,
             // .deadtime_onebullet = 50,               //弹丸发射间隔
@@ -147,7 +148,7 @@ static Shoot_Init_Config_s shoot_init_config = {
             // .bullet_speed_adjustment = 10.0f,
 
         },
-    .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan1, 8, MOTOR_DIRECTION_NORMAL),
+    .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan1, 8, MOTOR_DIRECTION_REVERSE),
     .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan1, 6, MOTOR_DIRECTION_REVERSE),
 
     .loader_motor_config =

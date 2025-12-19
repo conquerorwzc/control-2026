@@ -30,7 +30,7 @@ typedef struct {
   Gimbal_Ctrl_Cmd_s gimbal_ctrl_cmd;
   DJIMotorInstance *yaw_motor;
   DMMotorInstance *pitch_motor;
-  attitude_t* gimbal_IMU_data;  // 云台IMU数据
+  INS_t* gimbal_IMU_data;  // 云台IMU数据
 } GimbalInstance;
 
 /**

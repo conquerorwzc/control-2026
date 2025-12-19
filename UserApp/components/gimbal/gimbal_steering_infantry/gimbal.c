@@ -68,7 +68,7 @@ void GimbalTask() {
 
     // 调用核心控制函数
     DJIMotorSetPIDRef(gimbal->yaw_motor, gimbal_ctrl_cmd->yaw);  // yaw和pitch会在robot_cmd中处理好多圈和单圈GimbalMotorAbsoluteAngleControl(gimbal);
-    DMMotorPIDCal(gimbal->pitch_motor, gimbal_ctrl_cmd->pitch);
+    DMMotorSetPIDRef(gimbal->pitch_motor, gimbal_ctrl_cmd->pitch);
 
   }
   // 在合适的地方添加pitch重力补偿前馈力矩
