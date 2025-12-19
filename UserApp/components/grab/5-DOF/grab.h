@@ -4,7 +4,7 @@
 
 typedef enum {
     GRAB_POWER_OFF = 0, // 电流零输入
-    GRAB_ON
+    GRAB_POWER_ON
 } Grab_Mode_e;
 
 typedef struct {
@@ -17,8 +17,8 @@ typedef struct {
     float base_joint; // 基座旋转关节角度
     float elbow_roll; // 肘部关节旋转角度
     float elbow_pitch; // 肘部关节俯仰角度
-    float Vedio_forward; //图传的前后移动距离
-    float Vedio_pitch; //图传的pitch旋转角度
+    float vedio_forward; //图传的前后移动距离
+    float vedio_pitch; //图传的pitch旋转角度
     Grab_Mode_e grab_mode;
 } Grab_Ctrl_Cmd_s;
 
