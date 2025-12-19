@@ -110,6 +110,7 @@ typedef struct
     Key_t key[3]; // 改为位域后的键盘索引,空间减少8倍,速度增加16~倍
 
     uint8_t key_count[3][16];
+    uint8_t mouse_count[3][2];
 } RC_ctrl_t;
 
 /* ------------------------- Internal Data ----------------------------------- */

@@ -92,16 +92,18 @@ static Chassis_Init_Config_s chassis_init_config = {
     // 跟随PID
     .follow_pid =
         {
-            .Kp = 0.0f,
+            .Kp = 60.0f,
             .Ki = 0.0f,
             .Kd = 0.0f,
-            .IntegralLimit = 1000.0f,
+            .IntegralLimit = 2000.0f,
             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
             .MaxOut = 10000.0f,
         },
 
+
 };
 
+static IMU_Init_Config_s imu_init_config = {.flag = 1, .scale = {1.0f, 1.0f, 1.0f}, .Yaw = 0.0f, .Pitch = 0.0f, .Roll = 0.0f};
 // 龙门架M3508电机配置宏 (抬升和前伸电机)
 #define GANTRY_M3508_CONFIG(handle, id, angle_kp, angle_kd, speed_kp, speed_ki, direction) \
     ((Motor_Init_Config_s){                                                                 \

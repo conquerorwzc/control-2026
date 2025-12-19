@@ -4,6 +4,7 @@
 #include "robot_config.h"
 #include "user_lib.h"
 #include "cmsis_os.h"
+#include "ins_task.h"
 #include "stdlib.h"
 #include "string.h"
 
@@ -17,15 +18,16 @@ static RobotInstance *robot;
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
 static Grab_Ctrl_Cmd_s *grab_ctrl_cmd;
 static Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd; // 【新增】龙门架控制命令指针
-
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last; // 遥控器数据,初始化时返回
+static float set_angle=0;
 static void MouseKeySet();
 
 int b = 0;
-static float angle;
+static float angle=0;
+static float target_angle = 0;
 static int mouse_l_count = 0;
-static float angle;
+
 /* Private function prototypes -----------------------------------------------*/
 static void Gantry_Limit(Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd, const Gantry_Param_s *gantry_param);
 
@@ -34,7 +36,6 @@ static void RemoteControlSet();
 static void EmergencyHandler();
 
 static void CalcOffsetAngle();
-
 void RobotInit();
 
 void RobotCMDTask();
@@ -55,6 +56,7 @@ void RobotInit()
 
     rc_data_last = (RC_ctrl_t *) zmalloc(sizeof(RC_ctrl_t));
     *rc_data_last = *robot->rc_data; // 记录上一次遥控器的状态
+    robot->ins_data = INS_Init(&imu_init_config);
     robot->gantry = GantryInit(&gantry_init_config);
     robot->grab = GrabInit(&grab_init_config_s);
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
@@ -99,14 +101,11 @@ void RobotCMDTask()
     // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
     CalcOffsetAngle();
     RemoteControlSet();
-    MouseKeySet();
+    // MouseKeySet();
     EmergencyHandler(); // 处理模块离线和遥控器急停等紧急情况
 }
 
-static void CalcOffsetAngle()
-{
-    angle =
-}
+
 /**
  * @brief 输入为键鼠时模式和控制量设置
  *
@@ -273,7 +272,8 @@ static void RemoteControlSet()
     {
         if (abs(rc_data[TEMP].rc.dial) > 20)
         {
-            chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+            chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+            set_angle += rc_data[TEMP].rc.dial * 0.0001;
         } else
             chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
     }
@@ -332,7 +332,7 @@ static void RemoteControlSet()
     // 底盘运动控制（使用左侧摇杆）
     chassis_ctrl_cmd->vx = 60.0f * (float) rc_data[TEMP].rc.rocker_l1; // 水平方向
     chassis_ctrl_cmd->vy = 60.0f * (float) rc_data[TEMP].rc.rocker_l_; // 竖直方向
-    chassis_ctrl_cmd->offset_angle =
+    // chassis_ctrl_cmd->offset_angle =
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE)
     {
         chassis_ctrl_cmd->wz =
@@ -389,4 +389,8 @@ static void Gantry_Limit(Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd, const Gantry_Param_
     last_y = gantry_ctrl_cmd->y;
 }
 
+static void CalcOffsetAngle()
+{
+     chassis_ctrl_cmd->offset_angle = set_angle-robot->ins_data->YawTotalAngle;
+}
 /* ---------------------------------------------------------------------------*/
