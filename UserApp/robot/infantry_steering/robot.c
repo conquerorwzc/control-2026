@@ -140,9 +140,9 @@ static void DualBoardCtrlSet() {
       chassis_ctrl_cmd->vx=60.0f*CanData.value16[0];//todo:后面chassis改改把负号去掉
       chassis_ctrl_cmd->vy=60.0f*CanData.value16[1];
       if (CanData.value16[2]>=0)
-      chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)-CanData.value16[2]/50.0f))*CanData.value16[2];
-      else chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)CanData.value16[2]/50.0f))*CanData.value16[2];
-      //chassis_ctrl_cmd->wz=42.0f*CanData.value16[2];
+      // chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)-CanData.value16[2]/50.0f))*CanData.value16[2];
+      // else chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)CanData.value16[2]/50.0f))*CanData.value16[2];
+      chassis_ctrl_cmd->wz=42.0f*CanData.value16[2];
       if (switch_is_mid(CanData.bytes[10])) {
         //gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
         if (CanData.value16[3] > 20) {
