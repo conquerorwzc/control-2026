@@ -48,7 +48,7 @@
 #define RIGHT_LEG_MOTOR_KIKE_POSITION -0.0547f  // 腿部电机踢脚位置值
 // 轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
 //  轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
-#define FRONT_WHEEL_MOTOR_CONFIG(handle, id)                                                                         \
+#define FRONT_WHEEL_MOTOR_CONFIG(handle, id)                                                                   \
   ((Motor_Init_Config_s){                                                                                      \
       .can_init_config =                                                                                       \
           {                                                                                                    \
@@ -83,10 +83,11 @@
               .outer_loop_type = SPEED_LOOP,                                                                   \
               .close_loop_type = SPEED_LOOP,                                                                   \
               .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,                                                   \
+              .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,                                                   \
           },                                                                                                   \
       .motor_type = M3508,                                                                                     \
   })
-#define REAR_WHEEL_MOTOR_CONFIG(handle, id)                                                                         \
+#define REAR_WHEEL_MOTOR_CONFIG(handle, id)                                                                    \
   ((Motor_Init_Config_s){                                                                                      \
       .can_init_config =                                                                                       \
           {                                                                                                    \
@@ -121,34 +122,35 @@
               .outer_loop_type = SPEED_LOOP,                                                                   \
               .close_loop_type = SPEED_LOOP,                                                                   \
               .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,                                                   \
+              .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,                                                   \
           },                                                                                                   \
       .motor_type = M3508,                                                                                     \
   })
-#define LEG_MOTOR_CONFIG(handle, id_tx,id_rx)                                                                 \
+#define LEG_MOTOR_CONFIG(handle, id_tx, id_rx)                                                                 \
   ((Motor_Init_Config_s){                                                                                      \
       .can_init_config =                                                                                       \
           {                                                                                                    \
               .can_handle = handle,                                                                            \
               .tx_id = id_tx,                                                                                  \
-              .rx_id = id_rx,                                                                                \
+              .rx_id = id_rx,                                                                                  \
           },                                                                                                   \
       .controller_param_init_config =                                                                          \
           {                                                                                                    \
               .speed_PID =                                                                                     \
                   {                                                                                            \
                       .Kp = 1.2,                                                                               \
-                                                                                                    \
+                                                                                                               \
                       .Kd = 0,                                                                                 \
-                                                                                         \
+                                                                                                               \
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
-                      .MaxOut = 10.0,                                                                           \
+                      .MaxOut = 10.0,                                                                          \
                   },                                                                                           \
               .angle_PID =                                                                                     \
                   {                                                                                            \
-                          .Kp = 50.0f,                                                                          \
-                          .Kd = 1.0f,                                                                          \
-                          .MaxOut = 12.0f,                                                                      \
-                      },                                                                                       \
+                      .Kp = 50.0f,                                                                             \
+                      .Kd = 1.0f,                                                                              \
+                      .MaxOut = 12.0f,                                                                         \
+                  },                                                                                           \
                                                                                                                \
           },                                                                                                   \
       .controller_setting_init_config =                                                                        \
@@ -157,7 +159,8 @@
               .speed_feedback_source = MOTOR_FEED,                                                             \
               .outer_loop_type = ANGLE_LOOP,                                                                   \
               .close_loop_type = SPEED_LOOP | ANGLE_LOOP,                                                      \
-              .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,                                                   \
+              .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,                                                    \
+              .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,                                                    \
           },                                                                                                   \
       .motor_type = J4310,                                                                                     \
   })
@@ -287,6 +290,7 @@ static Chassis_Init_Config_s chassis_init_config = {
               .outer_loop_type = SPEED_LOOP,         \
               .close_loop_type = SPEED_LOOP,         \
               .motor_reverse_flag = direction,       \
+              .feedback_reverse_flag = direction,    \
           },                                         \
       .motor_type = M3508,                           \
       .can_init_config =                             \
