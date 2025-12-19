@@ -225,12 +225,6 @@ void INS_Task(void) {
     INS.Pitch = QEKF_INS.Pitch;
     INS.Roll = QEKF_INS.Roll;
     INS.YawTotalAngle = QEKF_INS.YawTotalAngle;
-    if (INS.YawTotalAngle > 180.0f) {
-      INS.YawTotalAngle -= 360.0f;
-    } else if (INS.YawTotalAngle < -180.0f) {
-      INS.YawTotalAngle += 360.0f;
-    }
-
     // VisionSetAltitude(INS.Yaw, INS.Pitch, INS.Roll);
   }
 
