@@ -77,6 +77,17 @@ static void DMMotorDecode(CANInstance* motor_can) {
       tmp = (uint16_t)(((rxbuff[4] & 0x0f) << 8) | rxbuff[5]);
       measure->torque = uint_to_float(tmp, DM_T_MIN_J8009P, DM_T_MAX_J8009P, 12);
       break;
+    case J4340:
+      // 然后更新当前位置
+      tmp = (uint16_t)((rxbuff[1] << 8) | rxbuff[2]);
+      measure->position = uint_to_float(tmp, DM_P_MIN_J4340, DM_P_MAX_J4340, 16);
+
+      tmp = (uint16_t)((rxbuff[3] << 4) | rxbuff[4] >> 4);
+      measure->velocity = uint_to_float(tmp, DM_V_MIN_J4340, DM_V_MAX_J4340, 12);
+
+      tmp = (uint16_t)(((rxbuff[4] & 0x0f) << 8) | rxbuff[5]);
+      measure->torque = uint_to_float(tmp, DM_T_MIN_J4340, DM_T_MAX_J4340, 12);
+      break;
     default:
       break;
   }
@@ -84,6 +95,12 @@ static void DMMotorDecode(CANInstance* motor_can) {
   measure->T_Mos = (float)rxbuff[6];
   measure->T_Rotor = (float)rxbuff[7];
 
+  if (motor_setting->feedback_reverse_flag == FEEDBACK_DIRECTION_REVERSE) {
+    measure->position = -measure->position;
+    measure->velocity = -measure->velocity;
+    measure->torque = -measure->torque;
+    measure->total_angle = -measure->total_angle;
+  }
   // 多圈角度计算,前提是假设两次采样间电机转过的角度小于12.5弧度
   // DM电机的position范围是-12.5到12.5弧度，跳变点在12.5和-12.5之间
   if (measure->position - measure->last_position > 12.5f)  // 从负值(-12.5)变成正值(12.5)，电机逆向旋转过边界
@@ -92,12 +109,7 @@ static void DMMotorDecode(CANInstance* motor_can) {
     measure->total_round++;
   measure->total_angle = measure->total_round * 2.0f * 12.5f + measure->position;
 
-  if (motor_setting->feedback_reverse_flag == FEEDBACK_DIRECTION_REVERSE) {
-    measure->position = -measure->position;
-    measure->velocity = -measure->velocity;
-    measure->torque = -measure->torque;
-    measure->total_angle = -measure->total_angle;
-  }
+
 }
 
 // todo: 会跟控制抢，有概率控不了电机
@@ -197,7 +209,6 @@ void DMMotorSetPIDRef(DMMotorInstance* motor, float ref) {
 
   // 获取最终输出
   motor->motor_controller.final_output = pid_ref;
-  motor->motor_controller.final_output = pid_ref;
 }
 
 //@Todo: 目前只实现了力控，更多位控PID等请自行添加
@@ -205,8 +216,8 @@ __attribute__((noreturn)) void DMMotorTask(void const* argument) {
   float set;
   DMMotorInstance* motor = (DMMotorInstance*)argument;
   Motor_Control_Setting_s* setting = &motor->motor_settings;
-  DM_Motor_Send_s motor_send_mailbox;
 
+  DM_Motor_Send_s motor_send_mailbox;
   while (1) {
     set = motor->motor_controller.final_output;
 
@@ -236,6 +247,14 @@ __attribute__((noreturn)) void DMMotorTask(void const* argument) {
         if (motor->stop_flag == MOTOR_STOP)
           motor_send_mailbox.torque_des = float_to_uint(0, DM_T_MIN_J8009P, DM_T_MAX_J8009P, 12);
         break;
+      case J4340:
+        LIMIT_MIN_MAX(set, DM_T_MIN_J4340, DM_T_MAX_J4340);
+        motor_send_mailbox.position_des = float_to_uint(0, DM_P_MIN_J4340, DM_P_MAX_J4340, 16);
+        motor_send_mailbox.velocity_des = float_to_uint(0, DM_V_MIN_J4340, DM_V_MAX_J4340, 12);
+        motor_send_mailbox.torque_des = float_to_uint(set, DM_T_MIN_J4340, DM_T_MAX_J4340, 12);
+        if (motor->stop_flag == MOTOR_STOP)
+          motor_send_mailbox.torque_des = float_to_uint(0, DM_T_MIN_J4340, DM_T_MAX_J4340, 12);
+        break;
       default:
         break;
     }
@@ -252,15 +271,10 @@ __attribute__((noreturn)) void DMMotorTask(void const* argument) {
     motor->motor_can_instance->tx_buff[6] =
         (uint8_t)(((motor_send_mailbox.Kd & 0xF) << 4) | (motor_send_mailbox.torque_des >> 8));
     motor->motor_can_instance->tx_buff[7] = (uint8_t)(motor_send_mailbox.torque_des);
-    // if (motor->motor_can_instance->tx_id > 6 && (DWT->CYCCNT & 1)) {
-    if (motor->motor_can_instance->tx_id > 6) {
-      CANTransmit(motor->motor_can_instance, 1);
-      osDelay(1);
-      // } else if (motor->motor_can_instance->tx_id <= 6 && !(DWT->CYCCNT & 1)) {
-    } else if (motor->motor_can_instance->tx_id <= 6) {
-      CANTransmit(motor->motor_can_instance, 5);
-      osDelay(5);
-    }
+
+    CANTransmit(motor->motor_can_instance, 2);
+
+    osDelay(5);
   }
 }
 
@@ -272,7 +286,7 @@ void DMMotorTaskInit() {
     char dm_id_buff[2] = {0};
     __itoa(i, dm_id_buff, 10);
     strcat(dm_task_name, dm_id_buff);
-    osThreadDef(dm_task_name, DMMotorTask, osPriorityNormal, 0, 32);
+    osThreadDef(dm_task_name, DMMotorTask, osPriorityNormal, 0, 64);
     dm_task_handle[i] = osThreadCreate(osThread(dm_task_name), dm_motor_instance[i]);
   }
 }

@@ -148,7 +148,7 @@ static Shoot_Init_Config_s shoot_init_config = {
             // .bullet_speed_adjustment = 10.0f,
 
         },
-    .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan1, 8, MOTOR_DIRECTION_REVERSE),
+    .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan1, 8, MOTOR_DIRECTION_NORMAL),
     .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan1, 6, MOTOR_DIRECTION_REVERSE),
 
     .loader_motor_config =
