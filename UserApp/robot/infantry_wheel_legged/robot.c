@@ -270,6 +270,9 @@ static void EmergencyHandler() {
   // 两switch都在下或者遥控器断连，断电
   if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)) |
       switch_is_off(rc_data[TEMP].rc.switch_right))  // 全部失能
+  // 两switch都在下或者遥控器断连，断电
+  if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)) |
+      switch_is_off(rc_data[TEMP].rc.switch_right))  // 全部失能
   {
     robot->robot_mode = ROBOT_POWER_OFF;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;

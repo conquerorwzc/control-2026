@@ -84,24 +84,24 @@ GantryInstance* GantryInit(Gantry_Init_Config_s* init_config)
     gantry_instance->sidesway_motor.motor = DJIMotorInit(&init_config->sidesway_motor_config);
 
     // 等电机数据出现代表电机已经正常工作
-    for (int i = 0; i < 2; i++)
-    {
-        // 等待抬升电机数据
-        int timeout = 0;
-        while (gantry_instance->lift_motor[i].motor == NULL ||
-               gantry_instance->lift_motor[i].motor->measure.ecd == 0 )
-        {            osDelay(10);
-            timeout++;
-        }
-        
-        // 等待前伸电机数据
-        timeout = 0;
-        while (gantry_instance->stretch_motor[i].motor == NULL ||
-               gantry_instance->stretch_motor[i].motor->measure.ecd == 0 )
-        {            osDelay(10);
-            timeout++;
-        }
-    }
+    // for (int i = 0; i < 2; i++)
+    // {
+    //     // 等待抬升电机数据
+    //     int timeout = 0;
+    //     while (gantry_instance->lift_motor[i].motor == NULL ||
+    //            gantry_instance->lift_motor[i].motor->measure.ecd == 0 )
+    //     {            osDelay(10);
+    //         timeout++;
+    //     }
+    //
+    //     // 等待前伸电机数据
+    //     timeout = 0;
+    //     while (gantry_instance->stretch_motor[i].motor == NULL ||
+    //            gantry_instance->stretch_motor[i].motor->measure.ecd == 0 )
+    //     {            osDelay(10);
+    //         timeout++;
+    //     }
+    // }
     osDelay(100);
 
     // 设置目标角度为当前角度，防止上电时失控

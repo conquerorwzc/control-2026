@@ -446,7 +446,7 @@ void DJIMotorSetPIDRef(DJIMotorInstance* motor, float ref) {
   }
 
   // 获取最终输出
-  motor->motor_controller.final_output = (int16_t)pid_ref;
+  motor->motor_controller.final_output = pid_ref;
 }
 
 void DJIMotorSetRef(DJIMotorInstance* motor, float ref) { motor->motor_controller.final_output = ref; }
@@ -474,6 +474,8 @@ void DJIMotorTask() {
     set = (int16_t)motor->motor_controller.final_output;
     if (motor->motor_settings.motor_reverse_flag == MOTOR_DIRECTION_REVERSE) set *= -1;  // 设置反转
 
+    sender_assignment[group].tx_buff[2 * num] = (int8_t)(set >> 8);          // 低八位
+    sender_assignment[group].tx_buff[2 * num + 1] = (int8_t)(set & 0x00ff);  // 高八位
     sender_assignment[group].tx_buff[2 * num] = (int8_t)(set >> 8);          // 低八位
     sender_assignment[group].tx_buff[2 * num + 1] = (int8_t)(set & 0x00ff);  // 高八位
 
