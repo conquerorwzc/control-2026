@@ -130,7 +130,7 @@ static void RemoteControlSet() {
 static void MouseKeySet() {
   vy_initial += (float)((rc_data[TEMP].key[KEY_PRESS].w) - rc_data[TEMP].key[KEY_PRESS].s) *
                          (float) chassis_ctrl_cmd->chassis_speed_buff;
-  vx_initial += (float)(rc_data[TEMP].key[KEY_PRESS].d - rc_data[TEMP].key[KEY_PRESS].a) *
+  vx_initial += (float)(rc_data[TEMP].key[KEY_PRESS].a - rc_data[TEMP].key[KEY_PRESS].d) *
                          (float) -chassis_ctrl_cmd->chassis_speed_buff;
 
     //缓加速
