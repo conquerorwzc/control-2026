@@ -48,13 +48,10 @@ void OSTaskInit() {
 
   // 由于是阻塞读取传感器,为姿态解算设置较高优先级,确保以1khz的频率执行
   // 后续修改为读取传感器数据准备好的中断处理
-  // osThreadDef(instask, StartINSTASK, osPriorityAboveNormal, 0, 1024);
-  // insTaskHandle = osThreadCreate(osThread(instask), NULL);
-
-  osThreadDef(motortask, StartMOTORTASK, osPriorityBelowNormal, 0, 512);
+  osThreadDef(motortask, StartMOTORTASK, osPriorityBelowNormal, 0, 256);
   motorTaskHandle = osThreadCreate(osThread(motortask), NULL);
 
-  osThreadDef(daemontask, StartDAEMONTASK, osPriorityNormal, 0, 512);
+  osThreadDef(daemontask, StartDAEMONTASK, osPriorityNormal, 0, 128);
   daemonTaskHandle = osThreadCreate(osThread(daemontask), NULL);
 
   osThreadDef(robottask, StartROBOTTASK, osPriorityNormal, 0, 1024);
@@ -101,15 +98,15 @@ __attribute__((noreturn)) void StartROBOTTASK(void const *argument) {
   static float robot_start;
 
   RobotInit();
-  // DMMotorTaskInit();
+  DMMotorTaskInit();
   LOGINFO("[freeRTOS] ROBOT core Task Start");
   // 200Hz-500Hz,若有额外的控制任务如平衡步兵可能需要提升至1kHz
   for (;;) {
     robot_start = DWT_GetTimeline_ms();
     RobotTask();
     robot_dt = DWT_GetTimeline_ms() - robot_start;
-    if (robot_dt > 2) LOGERROR("[freeRTOS] ROBOT core Task is being DELAY! dt = [%f]", &robot_dt);
-    osDelay(2);
+    if (robot_dt > 1) LOGERROR("[freeRTOS] ROBOT core Task is being DELAY! dt = [%f]", &robot_dt);
+    osDelay(1);
   }
 }
 

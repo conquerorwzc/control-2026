@@ -14,6 +14,7 @@
 #define REMOTE_CONTROL_H
 
 #include <stdint.h>
+
 #include "main.h"
 #include "usart.h"
 
@@ -33,13 +34,15 @@
 #define RC_CH_VALUE_MAX ((uint16_t)1684)
 
 /* ----------------------- RC Switch Definition----------------------------- */
-#define RC_SW_UP ((uint16_t)1)   // 开关向上时的值
-#define RC_SW_MID ((uint16_t)3)  // 开关中间时的值
-#define RC_SW_DOWN ((uint16_t)2) // 开关向下时的值
+#define RC_SW_UP ((uint16_t)1)    // 开关向上时的值
+#define RC_SW_MID ((uint16_t)3)   // 开关中间时的值
+#define RC_SW_DOWN ((uint16_t)2)  // 开关向下时的值
+#define RC_SW_OFF ((uint16_t)0)   //  遥控器断连
 // 三个判断开关状态的宏
 #define switch_is_down(s) (s == RC_SW_DOWN)
 #define switch_is_mid(s) (s == RC_SW_MID)
 #define switch_is_up(s) (s == RC_SW_UP)
+#define switch_is_off(s) (s == RC_SW_OFF)
 
 /* ----------------------- PC Key Definition-------------------------------- */
 // 对应key[x][0~16],获取对应的键;例如通过key[KEY_PRESS][Key_W]获取W键是否按下,后续改为位域后删除

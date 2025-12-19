@@ -9,12 +9,26 @@
 
 #define DM_MOTOR_CNT 6
 
-#define DM_P_MIN (-12.5f)
-#define DM_P_MAX 12.5f
-#define DM_V_MIN (-30.0f)  // J4310 30.0f J8009P 45.0f
-#define DM_V_MAX 30.0f
-#define DM_T_MIN (-10.0f)  // J4310 10.0f J8009P 54.0f
-#define DM_T_MAX 10.0f
+#define DM_P_MIN_J4310 (-12.5f)
+#define DM_P_MAX_J4310 12.5f
+#define DM_V_MIN_J4310 (-30.0f)  // J4310 30.0f J8009P 45.0f
+#define DM_V_MAX_J4310 30.0f
+#define DM_T_MIN_J4310 (-10.0f)  // J4310 10.0f J8009P 54.0f
+#define DM_T_MAX_J4310 10.0f
+
+#define DM_P_MIN_H6215 (-12.0f)
+#define DM_P_MAX_H6215 12.0f
+#define DM_V_MIN_H6215 (-45.0f)  // J4310 30.0f J8009P 45.0f
+#define DM_V_MAX_H6215 45.0f
+#define DM_T_MIN_H6215 (-18.0f)  // J4310 10.0f J8009P 54.0f
+#define DM_T_MAX_H6215 18.0f
+
+#define DM_P_MIN_J8009P (-12.5f)
+#define DM_P_MAX_J8009P 12.5f
+#define DM_V_MIN_J8009P (-45.0f)  // J4310 30.0f J8009P 45.0f
+#define DM_V_MAX_J8009P 45.0f
+#define DM_T_MIN_J8009P (-54.0f)  // J4310 10.0f J8009P 54.0f
+#define DM_T_MAX_J8009P 54.0f
 
 typedef struct {
   uint8_t id;
@@ -70,7 +84,7 @@ void DMMotorStop(DMMotorInstance* motor);
 
 void DMMotorCaliEncoder(DMMotorInstance* motor);
 
-void DMMotorPIDCal(DMMotorInstance* motor, float pid_ref);
+void DMMotorSetPIDRef(DMMotorInstance* motor, float pid_ref);
 
 void DMMotorTask(void const* argument);
 
