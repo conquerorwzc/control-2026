@@ -32,13 +32,15 @@ static void ChassisCtrlUpdate() {
       PIDCalculate(&chassis->roll_PID, chassis->chassis_IMU->Roll * DEGREE_2_RAD, chassis->chassis_ctrl_cmd.roll);
 
   for (int i = 0; i < 2; i++) {
+    // leg[i]->update_flag.is_controlled = chassis->chassis_ctrl_cmd.vx || chassis->chassis_ctrl_cmd.wz != 0;
+    leg[i]->update_flag.is_controlled = 1;
     leg[i]->leg_ctrl_cmd.x_d_ref = chassis->chassis_ctrl_cmd.vx;
     leg[i]->leg_ctrl_cmd.length_ref =
         chassis->chassis_ctrl_cmd.leg_length -
         (float)(1 - 2 * i) * track_width * (chassis->chassis_ctrl_cmd.roll - chassis->chassis_IMU->Roll * DEGREE_2_RAD);
     LegCtrlUpdate(leg[i], chassis->chassis_IMU);
     float leg_force_ff =
-        0.3f * 9.8f * robot_weight / 2.0f / mcos(leg[i]->state_var.theta);  // 不超过半边重力的一半(看机器）
+        0.7f * 9.8f * robot_weight / 2.0f / mcos(leg[i]->state_var.theta);  // 不超过半边重力的一半(看机器）
     leg[i]->virtual_model.F += leg_force_ff - (float)(1 - 2 * i) * chassis->roll_comp;
     VAL_LIMIT(leg[i]->virtual_model.F, -500.0f, 500.0f);
     leg[i]->real_model.T -= (float)(1 - 2 * i) * chassis->chassis_ctrl_cmd.wz;
@@ -64,7 +66,8 @@ static void ChassisRecovery() {
     DMMotorSetPIDRef(leg[i]->joint_motor[1], 0.1);
     leg[i]->real_model.Tp_1 = leg[i]->joint_motor[0]->motor_controller.final_output;
     leg[i]->real_model.Tp_2 = leg[i]->joint_motor[1]->motor_controller.final_output;
-
+    // leg[i]->update_flag.is_controlled = chassis->chassis_ctrl_cmd.vx || chassis->chassis_ctrl_cmd.wz != 0;
+    leg[i]->update_flag.is_controlled = 1;
     if (abs((leg[i]->joint_motor[0]->measure.position - (-0.1f))) <= 0.5f &&
         abs(leg[i]->joint_motor[1]->measure.position - (0.1f)) <= 0.5f) {
       leg[i]->leg_ctrl_cmd.x_d_ref = chassis->chassis_ctrl_cmd.vx;

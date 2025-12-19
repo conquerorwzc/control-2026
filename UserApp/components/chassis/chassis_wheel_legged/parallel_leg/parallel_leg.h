@@ -118,6 +118,7 @@ typedef struct {
   struct {
     uint8_t is_initialized : 1;
     uint8_t is_off_ground : 1;
+    uint8_t is_controlled : 1;
   } update_flag;
 } LegInstance;
 

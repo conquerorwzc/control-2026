@@ -123,7 +123,11 @@ static void StateVarUpdate(LegInstance* leg, INS_t* imu) {
   Virtual_Model_t* vm = &leg->virtual_model;
   float last_x_d = leg->state_var.x_d;
   leg->state_var.x_d = leg->state_var.x_d;
-  leg->state_var.x += ((leg->state_var.x_d + last_x_d) / 2) * leg->dt;  // 梯形积分
+  if (leg->update_flag.is_controlled) {
+    leg->state_var.x += ((leg->state_var.x_d + last_x_d) / 2) * leg->dt;  // 梯形积分
+  } else {
+    leg->state_var.x = 0;
+  }
   leg->state_var.phi = DEGREE_2_RAD * imu->Pitch;
   leg->state_var.phi_d = imu->Gyro[0];  // Todo: IMU应当有可在上层配置的旋转矩阵
   degree += leg->state_var.phi_d * leg->dt;
@@ -214,6 +218,7 @@ LegInstance* LegInit(Leg_Init_Config_s* config) {
   // 初始化各更新标志
   leg_instance->update_flag.is_initialized = 0;
   leg_instance->update_flag.is_off_ground = 0;
+  leg_instance->update_flag.is_controlled = 0;
   // 初始化DWT计数器
   DWT_GetDeltaT(&leg_instance->DWT_CNT);
 
@@ -254,14 +259,18 @@ void LegCtrlUpdate(LegInstance* leg, INS_t* imu) {
   OffGroundDetection(leg);
 
   float last_x_d_ref = leg->leg_ctrl_cmd.x_d_ref;
-  leg->leg_ctrl_cmd.x_ref += ((leg->leg_ctrl_cmd.x_d_ref + last_x_d_ref) / 2) * leg->dt;  // 梯形积分
+  if (leg->update_flag.is_controlled) {
+    leg->leg_ctrl_cmd.x_ref += ((leg->leg_ctrl_cmd.x_d_ref + last_x_d_ref) / 2) * leg->dt;  // 梯形积分
+  } else {
+    leg->leg_ctrl_cmd.x_ref = 0;
+  }
   // 状态变量矩阵与LQR_K矩阵相乘得到控制力矩, T为轮毂电机转矩，Tp为VMC模型髋关节电机转矩
 
   static float phi_PID_output;
   leg->real_model.T =
       // leg->update_flag.is_off_ground ? 0.0f :
       leg->LQR_K[0][0] * (leg->state_var.theta - 0.0f) + leg->LQR_K[0][1] * (leg->state_var.theta_d - 0.0f) +
-      leg->LQR_K[0][2] * (leg->state_var.x - leg->leg_ctrl_cmd.x_ref) +
+      !leg->update_flag.is_controlled * leg->LQR_K[0][2] * (leg->state_var.x - leg->leg_ctrl_cmd.x_ref) +
       leg->LQR_K[0][3] * (leg->state_var.x_d - leg->leg_ctrl_cmd.x_d_ref) +
       leg->LQR_K[0][4] * (leg->state_var.phi - 0.0f) + leg->LQR_K[0][5] * (leg->state_var.phi_d - 0.0f);
 
@@ -270,7 +279,7 @@ void LegCtrlUpdate(LegInstance* leg, INS_t* imu) {
   leg->virtual_model.Tp =
       leg->LQR_K[1][0] * (leg->state_var.theta - 0.0f) + leg->LQR_K[1][1] * (leg->state_var.theta_d - 0.0f) +
       // leg->update_flag.is_off_ground? 0.0f:
-      leg->LQR_K[1][2] * (leg->state_var.x - leg->leg_ctrl_cmd.x_ref) +
+      !leg->update_flag.is_controlled * leg->LQR_K[1][2] * (leg->state_var.x - leg->leg_ctrl_cmd.x_ref) +
       leg->LQR_K[1][3] * (leg->state_var.x_d - leg->leg_ctrl_cmd.x_d_ref) +
       leg->LQR_K[1][4] * (leg->state_var.phi - 0.0f) + leg->LQR_K[1][5] * (leg->state_var.phi_d - 0.0f);
 
