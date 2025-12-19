@@ -274,7 +274,7 @@ __attribute__((noreturn)) void DMMotorTask(void const* argument) {
 
     CANTransmit(motor->motor_can_instance, 2);
 
-    osDelay(5);
+    osDelay(2);
   }
 }
 

@@ -77,7 +77,8 @@
               .speed_feedback_source = MOTOR_FEED,                                                             \
               .outer_loop_type = SPEED_LOOP,                                                                   \
               .close_loop_type = SPEED_LOOP,                                                                   \
-              .motor_reverse_flag = reverse_flag,                                                   \
+              .motor_reverse_flag = reverse_flag,                                                              \
+              .feedback_reverse_flag = reverse_flag,                                                           \
           },                                                                                                   \
       .motor_type = M3508,                                                                                     \
   })
@@ -125,6 +126,7 @@
               .outer_loop_type = SPEED_LOOP,                                                                   \
               .close_loop_type = SPEED_LOOP,                                                                   \
               .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,                                                   \
+              .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,                                                           \
           },                                                                                                   \
       .motor_type = GM6020,                                                                                    \
   })
