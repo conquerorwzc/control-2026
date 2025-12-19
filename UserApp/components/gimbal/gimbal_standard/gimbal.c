@@ -20,7 +20,7 @@ static GimbalInstance* gimbal;
 static Gimbal_Ctrl_Cmd_s* gimbal_ctrl_cmd;  // 声明但不初始化
 
 // static BMI088Instance *bmi088; // 云台IMU
-GimbalInstance* GimbalInit(Gimbal_Init_Config_s* gimbal_init_config) {
+GimbalInstance* xGimbalInit(Gimbal_Init_Config_s* gimbal_init_config) {
   GimbalInstance* gimbal_instance = (GimbalInstance*)zmalloc(sizeof(GimbalInstance));
   gimbal_instance->gimbal_IMU_data = INS_Init(&gimbal_init_config->imu_init_config);  // IMU先初始化,获取姿态数据指针赋给yaw电机的其他数据来源
 
@@ -31,8 +31,8 @@ GimbalInstance* GimbalInit(Gimbal_Init_Config_s* gimbal_init_config) {
       &gimbal_instance->gimbal_IMU_data->Gyro[2];
 
   // YAW控制器设置配置
-  gimbal_init_config->yaw_motor_config.controller_setting_init_config.angle_feedback_source = OTHER_FEED;
-  gimbal_init_config->yaw_motor_config.controller_setting_init_config.speed_feedback_source = OTHER_FEED;
+  gimbal_init_config->yaw_motor_config.controller_setting_init_config.angle_feedback_source = MOTOR_FEED;
+  gimbal_init_config->yaw_motor_config.controller_setting_init_config.speed_feedback_source = MOTOR_FEED;
   gimbal_init_config->yaw_motor_config.controller_setting_init_config.outer_loop_type = ANGLE_LOOP;
   gimbal_init_config->yaw_motor_config.controller_setting_init_config.close_loop_type = SPEED_LOOP | ANGLE_LOOP;
 
@@ -44,8 +44,8 @@ GimbalInstance* GimbalInit(Gimbal_Init_Config_s* gimbal_init_config) {
       &gimbal_instance->gimbal_IMU_data->Gyro[0];
 
   // PITCH控制器设置配置
-  gimbal_init_config->pitch_motor_config.controller_setting_init_config.angle_feedback_source = OTHER_FEED;
-  gimbal_init_config->pitch_motor_config.controller_setting_init_config.speed_feedback_source = OTHER_FEED;
+  gimbal_init_config->pitch_motor_config.controller_setting_init_config.angle_feedback_source = MOTOR_FEED;
+  gimbal_init_config->pitch_motor_config.controller_setting_init_config.speed_feedback_source = MOTOR_FEED;
   gimbal_init_config->pitch_motor_config.controller_setting_init_config.outer_loop_type = ANGLE_LOOP;
   gimbal_init_config->pitch_motor_config.controller_setting_init_config.close_loop_type = SPEED_LOOP | ANGLE_LOOP;
 

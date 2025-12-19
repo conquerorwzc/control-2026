@@ -28,8 +28,6 @@ ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
   reduction_ratio_loader = shoot_init_config->shoot_param.reduction_ratio_loader;
   loader_direction = shoot_init_config->shoot_param.loader_direction;
 
-
-
   for (int i = 0; i < FRICTION_NUM; i++) {
     shoot_instance->friction_motor[i] = DJIMotorInit(&shoot_init_config->friction_motor_config[i]);
 
