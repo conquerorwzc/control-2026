@@ -1,5 +1,5 @@
 #include "robot.h"
-
+#include "dmmotor.h"
 #include "dji_motor.h"
 #include "dmmotor.h"
 #include "general_def.h"

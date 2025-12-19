@@ -19,7 +19,7 @@ static float friction_coefficients[FRICTION_NUM];
 
 static float loader_set = 0;       // 波胆盘速度
 static float friction_set = 0;     // 摩擦轮速度
-float actual_bullet_speed = 0.0f;  // 调试用，后续从裁判系统中获取
+static float actual_bullet_speed = 0.0f;  // 调试用，后续从裁判系统中获取
 // 波弹盘位置初始化标志
 //  static uint8_t loader_position_init=0;
 
@@ -27,7 +27,7 @@ static float hibernate_time = 0, dead_time = 0;
 static float deadtime_burstfire;
 static float deadtime_onebullet;
 static float target_speed;
-float bullet_speed_adjustment;
+static float bullet_speed_adjustment;
 
 ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
   ShootInstance* shoot_instance = (ShootInstance*)zmalloc(sizeof(ShootInstance));

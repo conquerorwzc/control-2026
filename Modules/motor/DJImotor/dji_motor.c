@@ -271,7 +271,7 @@ static void DecodeDJIMotor(CANInstance* _instance) {
   measure->ecd = ((uint16_t)rxbuff[0]) << 8 | rxbuff[1];
   measure->angle_single_round = ECD_ANGLE_COEF_DJI * (float)measure->ecd;
   measure->speed_aps = (1.0f - SPEED_SMOOTH_COEF) * measure->speed_aps +
-                       RPM_2_ANGLE_PER_SEC * SPEED_SMOOTH_COEF * (float)((int16_t)(rxbuff[2] << 8 | rxbuff[3]));
+                          RPM_2_ANGLE_PER_SEC * SPEED_SMOOTH_COEF * (float)((int16_t)(rxbuff[2] << 8 | rxbuff[3]));
   measure->real_current = (1.0f - CURRENT_SMOOTH_COEF) * measure->real_current +
                           CURRENT_SMOOTH_COEF * (float)((int16_t)(rxbuff[4] << 8 | rxbuff[5]));
   measure->temperature = rxbuff[6];
@@ -474,8 +474,6 @@ void DJIMotorTask() {
     set = (int16_t)motor->motor_controller.final_output;
     if (motor->motor_settings.motor_reverse_flag == MOTOR_DIRECTION_REVERSE) set *= -1;  // 设置反转
 
-    sender_assignment[group].tx_buff[2 * num] = (int8_t)(set >> 8);          // 低八位
-    sender_assignment[group].tx_buff[2 * num + 1] = (int8_t)(set & 0x00ff);  // 高八位
     sender_assignment[group].tx_buff[2 * num] = (int8_t)(set >> 8);          // 低八位
     sender_assignment[group].tx_buff[2 * num + 1] = (int8_t)(set & 0x00ff);  // 高八位
 

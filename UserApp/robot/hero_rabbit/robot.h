@@ -1,10 +1,14 @@
+//
+// Created by zeg on 2025/12/3.
+//
+
 #pragma once
 
 #include "chassis.h"
 #include "gimbal.h"
 #include "shoot.h"
 #include "remote_control.h"
-#include "rm_referee.h"
+// #include "rm_referee.h"
 #include "super_cap.h"
 // todo: add vision_module
 
@@ -15,9 +19,9 @@ typedef enum {
 
 typedef struct {
   Robot_Mode_e robot_mode;       // 机器人整体工作状态
-  referee_info_t* referee_data;   // 裁判系统数据
+
   RC_ctrl_t *rc_data;               // 遥控器数据,初始化时返回
-  referee_info_t* referee_data;     // 用于获取裁判系统的数据
+  // referee_info_t* referee_data;     // 用于获取裁判系统的数据
 
   SuperCapInstance* super_cap;
   ChassisInstance* chassis;
