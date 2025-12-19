@@ -17,8 +17,8 @@ static float friction_speed;
 static float friction_coefficients[FRICTION_NUM];
 /* 对于双发射机构的机器人,将下面的数据封装成结构体即可,生成两份shoot应用实例 */
 
-static float loader_set = 0;       // 波胆盘速度
-static float friction_set = 0;     // 摩擦轮速度
+static float loader_set = 45;       // 波胆盘速度
+static float friction_set = 10000;     // 摩擦轮速度
 float actual_bullet_speed = 0.0f;  // 调试用，后续从裁判系统中获取
 // 波弹盘位置初始化标志
 //  static uint8_t loader_position_init=0;
