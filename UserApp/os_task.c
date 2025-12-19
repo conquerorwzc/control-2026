@@ -18,6 +18,7 @@
 // tasks
 #include "buzzer.h"
 #include "daemon.h"
+#include "dmmotor.h"
 #include "ins_task.h"
 #include "master_process.h"
 #include "motor_task.h"
@@ -73,7 +74,7 @@ __attribute__((noreturn)) void StartMOTORTASK(void const *argument) {
     MotorControlTask();
     motor_dt = DWT_GetTimeline_ms() - motor_start;
     if (motor_dt > 1) LOGERROR("[freeRTOS] MOTOR Task is being DELAY! dt = [%f]", &motor_dt);
-    osDelay(1);
+    osDelay(2);
   }
 }
 

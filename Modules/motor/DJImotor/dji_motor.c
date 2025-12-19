@@ -19,8 +19,8 @@ static DJIMotorInstance* dji_motor_instance[DJI_MOTOR_CNT] = {NULL};  // 会在c
  * C609(m2006)/C620(m3508):0x1ff,0x200;
  * GM6019:0x1ff,0x2ff
  * 反馈(rx_id): GM6019: 0x204+id ; C610/C620: 0x200+id
- * fdcan0: [0]:0x1FF,[1]:0x200,[2]:0x2FF
- * fdcan1: [3]:0x1FF,[4]:0x200,[5]:0x2FF
+ * fdcan1: [0]:0x1FF,[1]:0x200,[2]:0x2FF
+ * fdcan2: [3]:0x1FF,[4]:0x200,[5]:0x2FF
  */
 #ifdef STM32F407xx
 static CANInstance sender_assignment[6] = {
@@ -478,7 +478,8 @@ void DJIMotorTask() {
     sender_assignment[group].tx_buff[2 * num + 1] = (int8_t)(set & 0x00ff);  // 高八位
 
     // 若该电机处于停止状态,直接将buff置零
-    if (motor->stop_flag == MOTOR_STOP) memset(sender_assignment[group].tx_buff + 2 * num, 0, sizeof(uint16_t));
+    if (motor->stop_flag == MOTOR_STOP)
+      memset(sender_assignment[group].tx_buff + 2 * num, 0, sizeof(uint16_t));
   }
   for (size_t i = 0; i < 9; ++i) {
     if (sender_enable_flag[i]) {

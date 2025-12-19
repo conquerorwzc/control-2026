@@ -197,6 +197,7 @@ void DMMotorSetPIDRef(DMMotorInstance* motor, float ref) {
 
   // 获取最终输出
   motor->motor_controller.final_output = pid_ref;
+  motor->motor_controller.final_output = pid_ref;
 }
 
 //@Todo: 目前只实现了力控，更多位控PID等请自行添加
