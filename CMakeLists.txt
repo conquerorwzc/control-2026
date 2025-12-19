@@ -25,11 +25,12 @@ set(MCU_TYPE "stm32-h7")
 
 #set(ROBOT_TYPE "steering_infantry_gimbal")
 #set(ROBOT_TYPE "sentry_mecanum")
+set(ROBOT_TYPE "engineering")
 #set(ROBOT_TYPE "infantry_wheel_legged")
 #set(ROBOT_TYPE "infantry_wheel_legged_demo")
 #set(ROBOT_TYPE "hero_mecanum")
 #set(ROBOT_TYPE "infantry_steering")
-set(ROBOT_TYPE "infantry_mecanum")
+#set(ROBOT_TYPE "infantry_mecanum")
 #set(ROBOT_TYPE "dart")
 #set(ROBOT_TYPE "debug")
 
@@ -93,10 +94,7 @@ endif ()
 set_source_files_properties(${ASM_SOURCES} PROPERTIES COMPILE_FLAGS "-x assembler-with-cpp")
 
 # build binary and hex file
-add_executable(${PROJECT_NAME}.elf ${SOURCES} ${ASM_SOURCES} ${LINKER_SCRIPT}
-        UserApp/robot/dart/robot.c
-        UserApp/robot/dart/robot.h
-        UserApp/robot/dart/robot_config.h)
+add_executable(${PROJECT_NAME}.elf ${SOURCES} ${ASM_SOURCES} ${LINKER_SCRIPT})
 target_link_libraries(${PROJECT_NAME}.elf ${DSP_NAME} m) # link DSP lib and math lib
 
 add_custom_command(

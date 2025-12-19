@@ -63,6 +63,7 @@
               .outer_loop_type = SPEED_LOOP,                                                                   \
               .close_loop_type = SPEED_LOOP,                                                                   \
               .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,                                                   \
+              .feedback_reverse_flag = MOTOR_DIRECTION_REVERSE,                                                \
           },                                                                                                   \
       .motor_type = M3508,                                                                                     \
   })
@@ -124,6 +125,7 @@ static IMU_Init_Config_s imu_init_config = {.flag = 1, .scale = {1.0f, 1.0f, 1.0
             .outer_loop_type = ANGLE_LOOP,                                                  \
             .close_loop_type = SPEED_LOOP | ANGLE_LOOP,                                     \
             .motor_reverse_flag = direction,                                                \
+            .feedback_reverse_flag = direction,                                             \
         },                                                                                  \
         .motor_type = M3508,                                                                \
     })
@@ -148,6 +150,7 @@ static IMU_Init_Config_s imu_init_config = {.flag = 1, .scale = {1.0f, 1.0f, 1.0
             .outer_loop_type = ANGLE_LOOP,                                                  \
             .close_loop_type = SPEED_LOOP | ANGLE_LOOP,                                     \
             .motor_reverse_flag = direction,                                                \
+            .feedback_reverse_flag = direction,                                             \
         },                                                                                  \
         .motor_type = M2006,                                                                \
     })
