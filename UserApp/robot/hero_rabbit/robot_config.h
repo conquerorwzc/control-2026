@@ -46,6 +46,7 @@
 #define RIGHT_LEG_MOTOR_RAISE_POSITION  -0.398f  // 腿部电机抬起位置值
 #define LEFT_LEG_MOTOR_KIKE_POSITION 0.546f     // 腿部电机踢脚位置值
 #define RIGHT_LEG_MOTOR_KIKE_POSITION -0.0547f  // 腿部电机踢脚位置值
+
 // 轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
 //  轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
 #define FRONT_WHEEL_MOTOR_CONFIG(handle, id)                                                                   \
@@ -199,6 +200,12 @@ static Chassis_Init_Config_s chassis_init_config = {
             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
             .MaxOut = 10000.0f,
         },
+    .external_imu=
+       {
+           .can_id=0x01,
+           .mst_id=0x11,
+           .can_handle = &hfdcan2,
+         }
 
 };
 

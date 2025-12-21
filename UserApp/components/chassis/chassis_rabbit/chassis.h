@@ -34,6 +34,7 @@
 
 #include "dji_motor.h"
 #include "dmmotor.h"
+#include "external_imu/external_imu.h"
 typedef enum {
   CHASSIS_POWER_OFF = 0,    // 电流零输入
   CHASSIS_ROTATE,            // 小陀螺模式
@@ -85,12 +86,18 @@ typedef struct {
   Motor_Init_Config_s wheel_motor_config[4];
   Motor_Init_Config_s leg_motor_config[2];
   PID_Init_Config_s follow_pid;
+  struct {
+    uint8_t can_id;
+    uint8_t mst_id;
+    FDCAN_HandleTypeDef *can_handle;
+  } external_imu; // External IMU sensor configuration
 } Chassis_Init_Config_s;
 
 typedef struct {
   Chassis_Ctrl_Cmd_s chassis_ctrl_cmd;
   DJIMotorInstance* wheel_motor[4];// left right forward back
   DMMotorInstance* leg_motor[2];
+  external_imu_t* chassis_external_imu;  // 底盘外部IMU数据
 } ChassisInstance;
 
 /**

@@ -1,7 +1,7 @@
 
 
 #include "chassis.h"
-
+#include "external_imu/external_imu.h"
 #include "arm_math.h"
 #include "bsp_dwt.h"
 #include "general_def.h"
@@ -21,6 +21,8 @@ static float rb_radius;
 static PIDInstance follow_pid;
 static float k0,k1,k2,k3,k4,k5;       //中科大的功率模型
 // 添加腿部电机目标位置和当前位置变量
+
+
 
 
 
@@ -129,8 +131,8 @@ static void LegControl() {
     }
 
     // 应用位置控制
-    DMMotorPIDCal(chassis->leg_motor[0], leg_current_position_left);
-    DMMotorPIDCal(chassis->leg_motor[1], leg_current_position_right);
+    DMMotorSetPIDRef(chassis->leg_motor[0], leg_current_position_left);
+    DMMotorSetPIDRef(chassis->leg_motor[1], leg_current_position_right);
   }
 }
 
@@ -298,7 +300,11 @@ static void EstimateSpeed() {
 ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   ChassisInstance* chassis_instance = (ChassisInstance*)zmalloc(sizeof(ChassisInstance));
 
-
+  // 初始化底盘外部IMU
+  chassis_instance->chassis_external_imu = ExternalIMUInit(
+      chassis_init_config->external_imu.can_id,
+      chassis_init_config->external_imu.mst_id,
+      chassis_init_config->external_imu.can_handle);
   chassis_param = chassis_init_config->chassis_param;  // 在运行时赋值
 
 
@@ -384,6 +390,10 @@ void ChassisTask() {
 
   // 功率控制与输出限幅
   LimitChassisOutput();
+  //外置陀螺仪请求数据
+  ExternalIMURequestAccel();
+  ExternalIMURequestGyro();
+  ExternalIMURequestEuler();
   //兔腿控制
   LegControl();
 }
