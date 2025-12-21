@@ -19,8 +19,8 @@ static DJIMotorInstance* dji_motor_instance[DJI_MOTOR_CNT] = {NULL};  // 会在c
  * C609(m2006)/C620(m3508):0x1ff,0x200;
  * GM6019:0x1ff,0x2ff
  * 反馈(rx_id): GM6019: 0x204+id ; C610/C620: 0x200+id
- * fdcan1: [0]:0x1FF,[1]:0x200,[2]:0x2FF
- * fdcan2: [3]:0x1FF,[4]:0x200,[5]:0x2FF
+ * fdcan0: [0]:0x1FF,[1]:0x200,[2]:0x2FF
+ * fdcan1: [3]:0x1FF,[4]:0x200,[5]:0x2FF
  */
 #ifdef STM32F407xx
 static CANInstance sender_assignment[6] = {
@@ -271,7 +271,7 @@ static void DecodeDJIMotor(CANInstance* _instance) {
   measure->ecd = ((uint16_t)rxbuff[0]) << 8 | rxbuff[1];
   measure->angle_single_round = ECD_ANGLE_COEF_DJI * (float)measure->ecd;
   measure->speed_aps = (1.0f - SPEED_SMOOTH_COEF) * measure->speed_aps +
-                          RPM_2_ANGLE_PER_SEC * SPEED_SMOOTH_COEF * (float)((int16_t)(rxbuff[2] << 8 | rxbuff[3]));
+                       RPM_2_ANGLE_PER_SEC * SPEED_SMOOTH_COEF * (float)((int16_t)(rxbuff[2] << 8 | rxbuff[3]));
   measure->real_current = (1.0f - CURRENT_SMOOTH_COEF) * measure->real_current +
                           CURRENT_SMOOTH_COEF * (float)((int16_t)(rxbuff[4] << 8 | rxbuff[5]));
   measure->temperature = rxbuff[6];
@@ -460,7 +460,7 @@ void DJIMotorTask() {
   // 直接保存一次指针引用从而减小访存的开销,同样可以提高可读性
   uint8_t group, num;  // 电机组号和组内编号
   DJIMotorInstance* motor;
-  int16_t set;
+  uint16_t set;
 
   // 遍历所有电机实例,进行串级PID的计算并设置发送报文的值
   for (size_t i = 0; i < idx; ++i) {
@@ -470,7 +470,6 @@ void DJIMotorTask() {
     // 将最终输出分组填入发送数据
     group = motor->sender_group;
     num = motor->message_num;
-    set = (int16_t)(motor->motor_controller.final_output);
     set = (int16_t)motor->motor_controller.final_output;
     if (motor->motor_settings.motor_reverse_flag == MOTOR_DIRECTION_REVERSE) set *= -1;  // 设置反转
 
@@ -478,8 +477,7 @@ void DJIMotorTask() {
     sender_assignment[group].tx_buff[2 * num + 1] = (int8_t)(set & 0x00ff);  // 高八位
 
     // 若该电机处于停止状态,直接将buff置零
-    if (motor->stop_flag == MOTOR_STOP)
-      memset(sender_assignment[group].tx_buff + 2 * num, 0, sizeof(uint16_t));
+    if (motor->stop_flag == MOTOR_STOP) memset(sender_assignment[group].tx_buff + 2 * num, 0, sizeof(uint16_t));
   }
   for (size_t i = 0; i < 9; ++i) {
     if (sender_enable_flag[i]) {

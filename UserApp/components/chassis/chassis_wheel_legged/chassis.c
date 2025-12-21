@@ -66,8 +66,8 @@ static void ChassisRecovery() {
     DMMotorSetPIDRef(leg[i]->joint_motor[1], 0.1);
     leg[i]->real_model.Tp_1 = leg[i]->joint_motor[0]->motor_controller.final_output;
     leg[i]->real_model.Tp_2 = leg[i]->joint_motor[1]->motor_controller.final_output;
-    leg[i]->update_flag.is_controlled = chassis->chassis_ctrl_cmd.vx != 0;
-    // leg[i]->update_flag.is_controlled = 1;
+    // leg[i]->update_flag.is_controlled = chassis->chassis_ctrl_cmd.vx || chassis->chassis_ctrl_cmd.wz != 0;
+    leg[i]->update_flag.is_controlled = 1;
     if (abs((leg[i]->joint_motor[0]->measure.position - (-0.1f))) <= 0.5f &&
         abs(leg[i]->joint_motor[1]->measure.position - (0.1f)) <= 0.5f) {
       leg[i]->leg_ctrl_cmd.x_d_ref = chassis->chassis_ctrl_cmd.vx;
@@ -108,10 +108,13 @@ static void LimitChassisOutput() {
     // DMMotorSetRef(leg[1]->joint_motor[1], leg[1]->real_model.Tp_2);
     // DMMotorSetRef(leg[i]->joint_motor[0], 0);
     // DMMotorSetRef(leg[i]->joint_motor[1], 0);
-    DJIMotorSetRef(leg[i]->wheel_motor, leg[i]->real_model.T * q2i_coeff * (16384.0f / 20.0f));
+    if (leg[i]->update_flag.is_off_ground) {
+      DJIMotorSetRef(leg[i]->wheel_motor, 0);
+    } else {
+      DJIMotorSetRef(leg[i]->wheel_motor, leg[i]->real_model.T * q2i_coeff * (16384.0f / 20.0f));
+    }
     // DJIMotorSetRef(leg[0]->wheel_motor, 0);
     // DJIMotorSetRef(leg[i]->wheel_motor, ref);
-    // DJIMotorSetRef(leg[i]->wheel_motor, 0);
   }
   // PowerControl();
 }

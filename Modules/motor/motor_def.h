@@ -95,7 +95,6 @@ typedef enum {
   J4310,
   J8009P,
   H6215,
-  J4340,
 } Motor_Type_e;
 
 /**

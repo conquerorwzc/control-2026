@@ -156,7 +156,7 @@ static void RemoteControlSet() {
       target_angle += -(0.3f) * (float)rc_data[TEMP].rc.rocker_r_ * robot->dt;
       chassis_ctrl_cmd->wz =
           PIDCalculate(&robot->chassis_follow_PID, robot->chassis->chassis_IMU->YawTotalAngle, target_angle);
-      chassis_ctrl_cmd->vx = (0.002f) * (float)rc_data[TEMP].rc.rocker_r1;
+      chassis_ctrl_cmd->vx = (0.005f) * (float)rc_data[TEMP].rc.rocker_r1;
       // chassis_ctrl_cmd->leg_length_d = (float)rc_data[TEMP].rc.rocker_l1;
       // chassis_ctrl_cmd->roll = (float)rc_data[TEMP].rc.rocker_l_;
       chassis_ctrl_cmd->leg_length += 0.0000005f * (float)rc_data[TEMP].rc.rocker_l1;
@@ -267,9 +267,6 @@ static void EmergencyHandler() {
   if (robot_lost_control) {
     // robot->chassis->chassis_ctrl_cmd.chassis_mode = CHASSIS_RECOVERY;  // todo:因该写成elif比较安全
   }
-  // 两switch都在下或者遥控器断连，断电
-  if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)) |
-      switch_is_off(rc_data[TEMP].rc.switch_right))  // 全部失能
   // 两switch都在下或者遥控器断连，断电
   if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)) |
       switch_is_off(rc_data[TEMP].rc.switch_right))  // 全部失能

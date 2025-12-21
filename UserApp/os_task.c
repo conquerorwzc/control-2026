@@ -18,7 +18,6 @@
 // tasks
 #include "buzzer.h"
 #include "daemon.h"
-#include "dmmotor.h"
 #include "ins_task.h"
 #include "master_process.h"
 #include "motor_task.h"
@@ -28,9 +27,9 @@
 #include "dmmotor.h"
 // bsp
 #include "bsp_init.h"
+#include "dmmotor.h"
 
 osThreadId motorTaskHandle;
-osThreadId dmmotorTaskHandle;
 osThreadId daemonTaskHandle;
 osThreadId robotTaskHandle;
 osThreadId uiTaskHandle;
@@ -52,14 +51,11 @@ void OSTaskInit() {
   osThreadDef(motortask, StartMOTORTASK, osPriorityBelowNormal, 0, 256);
   motorTaskHandle = osThreadCreate(osThread(motortask), NULL);
 
-  // osThreadDef(daemontask, StartDAEMONTASK, osPriorityNormal, 0, 128);
-  // daemonTaskHandle = osThreadCreate(osThread(daemontask), NULL);
+  osThreadDef(daemontask, StartDAEMONTASK, osPriorityNormal, 0, 128);
+  daemonTaskHandle = osThreadCreate(osThread(daemontask), NULL);
 
   osThreadDef(robottask, StartROBOTTASK, osPriorityNormal, 0, 1024);
   robotTaskHandle = osThreadCreate(osThread(robottask), NULL);
-
-  osThreadDef(dm_task_name, StartDMMOTORTASK, osPriorityBelowNormal, 0, 128);
-  dmmotorTaskHandle = osThreadCreate(osThread(dm_task_name), NULL);
 
   // osThreadDef(uitask, StartUITASK, osPriorityNormal, 0, 512);
   // uiTaskHandle = osThreadCreate(osThread(uitask), NULL);
@@ -76,14 +72,9 @@ __attribute__((noreturn)) void StartMOTORTASK(void const *argument) {
     motor_start = DWT_GetTimeline_ms();
     MotorControlTask();
     motor_dt = DWT_GetTimeline_ms() - motor_start;
-    if (motor_dt > 2) LOGERROR("[freeRTOS] MOTOR Task is being DELAY! dt = [%f]", &motor_dt);
-    osDelay(2);
+    if (motor_dt > 1) LOGERROR("[freeRTOS] MOTOR Task is being DELAY! dt = [%f]", &motor_dt);
+    osDelay(1);
   }
-}
-
-__attribute__((noreturn)) void StartDMMOTORTASK(void const *argument) {
-  LOGINFO("[freeRTOS] DMMOTOR Task Start");
-  DMMotorTask();
 }
 
 __attribute__((noreturn)) void StartDAEMONTASK(void const *argument) {
@@ -107,6 +98,7 @@ __attribute__((noreturn)) void StartROBOTTASK(void const *argument) {
   static float robot_start;
 
   RobotInit();
+  DMMotorTaskInit();
   LOGINFO("[freeRTOS] ROBOT core Task Start");
   // 200Hz-500Hz,若有额外的控制任务如平衡步兵可能需要提升至1kHz
   for (;;) {
