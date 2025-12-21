@@ -32,8 +32,8 @@ static void ChassisCtrlUpdate() {
       PIDCalculate(&chassis->roll_PID, chassis->chassis_IMU->Roll * DEGREE_2_RAD, chassis->chassis_ctrl_cmd.roll);
 
   for (int i = 0; i < 2; i++) {
-    // leg[i]->update_flag.is_controlled = chassis->chassis_ctrl_cmd.vx || chassis->chassis_ctrl_cmd.wz != 0;
-    leg[i]->update_flag.is_controlled = 1;
+    leg[i]->update_flag.is_controlled = chassis->chassis_ctrl_cmd.vx != 0;
+    // leg[i]->update_flag.is_controlled = 1;
     leg[i]->leg_ctrl_cmd.x_d_ref = chassis->chassis_ctrl_cmd.vx;
     leg[i]->leg_ctrl_cmd.length_ref =
         chassis->chassis_ctrl_cmd.leg_length -
@@ -66,8 +66,8 @@ static void ChassisRecovery() {
     DMMotorSetPIDRef(leg[i]->joint_motor[1], 0.1);
     leg[i]->real_model.Tp_1 = leg[i]->joint_motor[0]->motor_controller.final_output;
     leg[i]->real_model.Tp_2 = leg[i]->joint_motor[1]->motor_controller.final_output;
-    // leg[i]->update_flag.is_controlled = chassis->chassis_ctrl_cmd.vx || chassis->chassis_ctrl_cmd.wz != 0;
-    leg[i]->update_flag.is_controlled = 1;
+    leg[i]->update_flag.is_controlled = chassis->chassis_ctrl_cmd.vx != 0;
+    // leg[i]->update_flag.is_controlled = 1;
     if (abs((leg[i]->joint_motor[0]->measure.position - (-0.1f))) <= 0.5f &&
         abs(leg[i]->joint_motor[1]->measure.position - (0.1f)) <= 0.5f) {
       leg[i]->leg_ctrl_cmd.x_d_ref = chassis->chassis_ctrl_cmd.vx;

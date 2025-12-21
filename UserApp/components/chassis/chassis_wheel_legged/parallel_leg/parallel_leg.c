@@ -19,9 +19,6 @@
 
 // todo: LegInstance应当以static形式在内部保存指针，内部态函数调用内部实例进行数据操作
 
-static float LQR_K[2][6] = {{-35.4246, -7.0621, -8.4760, -9.2295, 23.3394, 1.8541},
-                            {17.7524, 3.9835, 5.6766, 5.6106, 106.4360, 6.3829}};
-
 // robot param
 static float rod_length[5];
 static float joint_motor_zero_offset[2];
@@ -110,7 +107,7 @@ static void VirtualModelUpdate(LegInstance* leg) {
   vm->last_phi_d = vm->phi_d;
 }
 
-static float degree;
+static float degree;  // todo: use for debug, remain to be deleted
 
 /**
  * @brief   更新腿部机构的状态变量
@@ -124,9 +121,9 @@ static void StateVarUpdate(LegInstance* leg, INS_t* imu) {
   float last_x_d = leg->state_var.x_d;
   leg->state_var.x_d = leg->state_var.x_d;
   if (leg->update_flag.is_controlled) {
-    leg->state_var.x += ((leg->state_var.x_d + last_x_d) / 2) * leg->dt;  // 梯形积分
-  } else {
     leg->state_var.x = 0;
+  } else {
+    leg->state_var.x += ((leg->state_var.x_d + last_x_d) / 2) * leg->dt;  // 梯形积分
   }
   leg->state_var.phi = DEGREE_2_RAD * imu->Pitch;
   leg->state_var.phi_d = imu->Gyro[0];  // Todo: IMU应当有可在上层配置的旋转矩阵
@@ -258,20 +255,17 @@ void LegCtrlUpdate(LegInstance* leg, INS_t* imu) {
 
   OffGroundDetection(leg);
 
-  float last_x_d_ref = leg->leg_ctrl_cmd.x_d_ref;
-  if (leg->update_flag.is_controlled) {
-    leg->leg_ctrl_cmd.x_ref += ((leg->leg_ctrl_cmd.x_d_ref + last_x_d_ref) / 2) * leg->dt;  // 梯形积分
-  } else {
-    leg->leg_ctrl_cmd.x_ref = 0;
-  }
+  leg->leg_ctrl_cmd.x_ref = 0;
+
   // 状态变量矩阵与LQR_K矩阵相乘得到控制力矩, T为轮毂电机转矩，Tp为VMC模型髋关节电机转矩
 
   static float phi_PID_output;
+
   leg->real_model.T =
       // leg->update_flag.is_off_ground ? 0.0f :
       leg->LQR_K[0][0] * (leg->state_var.theta - 0.0f) + leg->LQR_K[0][1] * (leg->state_var.theta_d - 0.0f) +
       !leg->update_flag.is_controlled * leg->LQR_K[0][2] * (leg->state_var.x - leg->leg_ctrl_cmd.x_ref) +
-      leg->LQR_K[0][3] * (leg->state_var.x_d - leg->leg_ctrl_cmd.x_d_ref) +
+      leg->update_flag.is_controlled * leg->LQR_K[0][3] * (leg->state_var.x_d - leg->leg_ctrl_cmd.x_d_ref) +
       leg->LQR_K[0][4] * (leg->state_var.phi - 0.0f) + leg->LQR_K[0][5] * (leg->state_var.phi_d - 0.0f);
 
   // leg->real_model.T -= PIDCalculate(&leg->state_var.phi_PID, leg->state_var.phi, 0);
@@ -280,14 +274,14 @@ void LegCtrlUpdate(LegInstance* leg, INS_t* imu) {
       leg->LQR_K[1][0] * (leg->state_var.theta - 0.0f) + leg->LQR_K[1][1] * (leg->state_var.theta_d - 0.0f) +
       // leg->update_flag.is_off_ground? 0.0f:
       !leg->update_flag.is_controlled * leg->LQR_K[1][2] * (leg->state_var.x - leg->leg_ctrl_cmd.x_ref) +
-      leg->LQR_K[1][3] * (leg->state_var.x_d - leg->leg_ctrl_cmd.x_d_ref) +
+      leg->update_flag.is_controlled * leg->LQR_K[1][3] * (leg->state_var.x_d - leg->leg_ctrl_cmd.x_d_ref) +
       leg->LQR_K[1][4] * (leg->state_var.phi - 0.0f) + leg->LQR_K[1][5] * (leg->state_var.phi_d - 0.0f);
 
   // 腿长双环PID
-  // leg->leg_ctrl_cmd.length_d_ref =
-  // PIDCalculate(&leg->virtual_model.length_PID, leg->virtual_model.length, leg->leg_ctrl_cmd.length_ref);
-  // leg->virtual_model.F =
-  //     PIDCalculate(&leg->virtual_model.length_d_PID, leg->virtual_model.length_d, leg->leg_ctrl_cmd.length_d_ref);
-  leg->virtual_model.F =
+  leg->leg_ctrl_cmd.length_d_ref =
       PIDCalculate(&leg->virtual_model.length_PID, leg->virtual_model.length, leg->leg_ctrl_cmd.length_ref);
+  leg->virtual_model.F =
+      PIDCalculate(&leg->virtual_model.length_d_PID, leg->virtual_model.length_d, leg->leg_ctrl_cmd.length_d_ref);
+  // leg->virtual_model.F =
+  // PIDCalculate(&leg->virtual_model.length_PID, leg->virtual_model.length, leg->leg_ctrl_cmd.length_ref);
 }

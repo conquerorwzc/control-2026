@@ -12,6 +12,8 @@
 static uint8_t idx;
 static DMMotorInstance* dm_motor_instance[DM_MOTOR_CNT];
 static osThreadId dm_task_handle[DM_MOTOR_CNT];
+static uint8_t control_phase = 0;
+
 /* 两个用于将uint值和float值进行映射的函数,在设定发送值和解析反馈值时使用 */
 static uint16_t float_to_uint(float x, float x_min, float x_max, uint8_t bits) {
   float span = x_max - x_min;
@@ -108,8 +110,6 @@ static void DMMotorDecode(CANInstance* motor_can) {
   else if (measure->position - measure->last_position < -12.5f)  // 从正值(12.5)变成负值(-12.5)，电机正向旋转过边界
     measure->total_round++;
   measure->total_angle = measure->total_round * 2.0f * 12.5f + measure->position;
-
-
 }
 
 // todo: 会跟控制抢，有概率控不了电机
@@ -212,81 +212,74 @@ void DMMotorSetPIDRef(DMMotorInstance* motor, float ref) {
 }
 
 //@Todo: 目前只实现了力控，更多位控PID等请自行添加
-__attribute__((noreturn)) void DMMotorTask(void const* argument) {
-  float set;
-  DMMotorInstance* motor = (DMMotorInstance*)argument;
-  Motor_Control_Setting_s* setting = &motor->motor_settings;
-
+void DMMotorTask() {
   DM_Motor_Send_s motor_send_mailbox;
   while (1) {
-    set = motor->motor_controller.final_output;
+    // 遍历所有已注册的电机实例
+    for (size_t i = 0; i < idx; ++i) {
+      DMMotorInstance* motor = dm_motor_instance[i];
+      float set = motor->motor_controller.final_output;
+      Motor_Control_Setting_s* setting = &motor->motor_settings;
 
-    if (setting->motor_reverse_flag == MOTOR_DIRECTION_REVERSE) set *= -1;
-    switch (motor->motor_type) {
-      case J4310:
-        LIMIT_MIN_MAX(set, DM_T_MIN_J4310, DM_T_MAX_J4310);
-        motor_send_mailbox.position_des = float_to_uint(0, DM_P_MIN_J4310, DM_P_MAX_J4310, 16);
-        motor_send_mailbox.velocity_des = float_to_uint(0, DM_V_MIN_J4310, DM_V_MAX_J4310, 12);
-        motor_send_mailbox.torque_des = float_to_uint(set, DM_T_MIN_J4310, DM_T_MAX_J4310, 12);
-        if (motor->stop_flag == MOTOR_STOP)
-          motor_send_mailbox.torque_des = float_to_uint(0, DM_T_MIN_J4310, DM_T_MAX_J4310, 12);
-        break;
-      case H6215:
-        LIMIT_MIN_MAX(set, DM_T_MIN_H6215, DM_T_MAX_H6215);
-        motor_send_mailbox.position_des = float_to_uint(0, DM_P_MIN_H6215, DM_P_MAX_H6215, 16);
-        motor_send_mailbox.velocity_des = float_to_uint(0, DM_V_MIN_H6215, DM_V_MAX_H6215, 12);
-        motor_send_mailbox.torque_des = float_to_uint(set, DM_T_MIN_H6215, DM_T_MAX_H6215, 12);
-        if (motor->stop_flag == MOTOR_STOP)
-          motor_send_mailbox.torque_des = float_to_uint(0, DM_T_MIN_H6215, DM_T_MAX_H6215, 12);
-        break;
-      case J8009P:
-        LIMIT_MIN_MAX(set, DM_T_MIN_J8009P, DM_T_MAX_J8009P);
-        motor_send_mailbox.position_des = float_to_uint(0, DM_P_MIN_J8009P, DM_P_MAX_J8009P, 16);
-        motor_send_mailbox.velocity_des = float_to_uint(0, DM_V_MIN_J8009P, DM_V_MAX_J8009P, 12);
-        motor_send_mailbox.torque_des = float_to_uint(set, DM_T_MIN_J8009P, DM_T_MAX_J8009P, 12);
-        if (motor->stop_flag == MOTOR_STOP)
-          motor_send_mailbox.torque_des = float_to_uint(0, DM_T_MIN_J8009P, DM_T_MAX_J8009P, 12);
-        break;
-      case J4340:
-        LIMIT_MIN_MAX(set, DM_T_MIN_J4340, DM_T_MAX_J4340);
-        motor_send_mailbox.position_des = float_to_uint(0, DM_P_MIN_J4340, DM_P_MAX_J4340, 16);
-        motor_send_mailbox.velocity_des = float_to_uint(0, DM_V_MIN_J4340, DM_V_MAX_J4340, 12);
-        motor_send_mailbox.torque_des = float_to_uint(set, DM_T_MIN_J4340, DM_T_MAX_J4340, 12);
-        if (motor->stop_flag == MOTOR_STOP)
-          motor_send_mailbox.torque_des = float_to_uint(0, DM_T_MIN_J4340, DM_T_MAX_J4340, 12);
-        break;
-      default:
-        break;
+      if (setting->motor_reverse_flag == MOTOR_DIRECTION_REVERSE) set *= -1;
+      switch (motor->motor_type) {
+        case J4310:
+          LIMIT_MIN_MAX(set, DM_T_MIN_J4310, DM_T_MAX_J4310);
+          motor_send_mailbox.position_des = float_to_uint(0, DM_P_MIN_J4310, DM_P_MAX_J4310, 16);
+          motor_send_mailbox.velocity_des = float_to_uint(0, DM_V_MIN_J4310, DM_V_MAX_J4310, 12);
+          motor_send_mailbox.torque_des = float_to_uint(set, DM_T_MIN_J4310, DM_T_MAX_J4310, 12);
+          if (motor->stop_flag == MOTOR_STOP)
+            motor_send_mailbox.torque_des = float_to_uint(0, DM_T_MIN_J4310, DM_T_MAX_J4310, 12);
+          break;
+        case H6215:
+          LIMIT_MIN_MAX(set, DM_T_MIN_H6215, DM_T_MAX_H6215);
+          motor_send_mailbox.position_des = float_to_uint(0, DM_P_MIN_H6215, DM_P_MAX_H6215, 16);
+          motor_send_mailbox.velocity_des = float_to_uint(0, DM_V_MIN_H6215, DM_V_MAX_H6215, 12);
+          motor_send_mailbox.torque_des = float_to_uint(set, DM_T_MIN_H6215, DM_T_MAX_H6215, 12);
+          if (motor->stop_flag == MOTOR_STOP)
+            motor_send_mailbox.torque_des = float_to_uint(0, DM_T_MIN_H6215, DM_T_MAX_H6215, 12);
+          break;
+        case J8009P:
+          LIMIT_MIN_MAX(set, DM_T_MIN_J8009P, DM_T_MAX_J8009P);
+          motor_send_mailbox.position_des = float_to_uint(0, DM_P_MIN_J8009P, DM_P_MAX_J8009P, 16);
+          motor_send_mailbox.velocity_des = float_to_uint(0, DM_V_MIN_J8009P, DM_V_MAX_J8009P, 12);
+          motor_send_mailbox.torque_des = float_to_uint(set, DM_T_MIN_J8009P, DM_T_MAX_J8009P, 12);
+          if (motor->stop_flag == MOTOR_STOP)
+            motor_send_mailbox.torque_des = float_to_uint(0, DM_T_MIN_J8009P, DM_T_MAX_J8009P, 12);
+          break;
+        case J4340:
+          LIMIT_MIN_MAX(set, DM_T_MIN_J4340, DM_T_MAX_J4340);
+          motor_send_mailbox.position_des = float_to_uint(0, DM_P_MIN_J4340, DM_P_MAX_J4340, 16);
+          motor_send_mailbox.velocity_des = float_to_uint(0, DM_V_MIN_J4340, DM_V_MAX_J4340, 12);
+          motor_send_mailbox.torque_des = float_to_uint(set, DM_T_MIN_J4340, DM_T_MAX_J4340, 12);
+          if (motor->stop_flag == MOTOR_STOP)
+            motor_send_mailbox.torque_des = float_to_uint(0, DM_T_MIN_J4340, DM_T_MAX_J4340, 12);
+          break;
+        default:
+          continue;  // 跳过未知类型的电机
+      }
+
+      motor_send_mailbox.Kp = 0;
+      motor_send_mailbox.Kd = 0;
+
+      motor->motor_can_instance->tx_buff[0] = (uint8_t)(motor_send_mailbox.position_des >> 8);
+      motor->motor_can_instance->tx_buff[1] = (uint8_t)(motor_send_mailbox.position_des);
+      motor->motor_can_instance->tx_buff[2] = (uint8_t)(motor_send_mailbox.velocity_des >> 4);
+      motor->motor_can_instance->tx_buff[3] =
+          (uint8_t)(((motor_send_mailbox.velocity_des & 0xF) << 4) | (motor_send_mailbox.Kp >> 8));
+      motor->motor_can_instance->tx_buff[4] = (uint8_t)(motor_send_mailbox.Kp);
+      motor->motor_can_instance->tx_buff[5] = (uint8_t)(motor_send_mailbox.Kd >> 4);
+      motor->motor_can_instance->tx_buff[6] =
+          (uint8_t)(((motor_send_mailbox.Kd & 0xF) << 4) | (motor_send_mailbox.torque_des >> 8));
+      motor->motor_can_instance->tx_buff[7] = (uint8_t)(motor_send_mailbox.torque_des);
+
+      CANTransmit(motor->motor_can_instance, 2);
     }
-    motor_send_mailbox.Kp = 0;
-    motor_send_mailbox.Kd = 0;
 
-    motor->motor_can_instance->tx_buff[0] = (uint8_t)(motor_send_mailbox.position_des >> 8);
-    motor->motor_can_instance->tx_buff[1] = (uint8_t)(motor_send_mailbox.position_des);
-    motor->motor_can_instance->tx_buff[2] = (uint8_t)(motor_send_mailbox.velocity_des >> 4);
-    motor->motor_can_instance->tx_buff[3] =
-        (uint8_t)(((motor_send_mailbox.velocity_des & 0xF) << 4) | (motor_send_mailbox.Kp >> 8));
-    motor->motor_can_instance->tx_buff[4] = (uint8_t)(motor_send_mailbox.Kp);
-    motor->motor_can_instance->tx_buff[5] = (uint8_t)(motor_send_mailbox.Kd >> 4);
-    motor->motor_can_instance->tx_buff[6] =
-        (uint8_t)(((motor_send_mailbox.Kd & 0xF) << 4) | (motor_send_mailbox.torque_des >> 8));
-    motor->motor_can_instance->tx_buff[7] = (uint8_t)(motor_send_mailbox.torque_des);
-
-    CANTransmit(motor->motor_can_instance, 2);
-
-    osDelay(2);
-  }
-}
-
-void DMMotorTaskInit() {
-  char dm_task_name[5] = "dm";
-  // 遍历所有电机实例,创建任务
-  if (!idx) return;
-  for (size_t i = 0; i < idx; i++) {
-    char dm_id_buff[2] = {0};
-    __itoa(i, dm_id_buff, 10);
-    strcat(dm_task_name, dm_id_buff);
-    osThreadDef(dm_task_name, DMMotorTask, osPriorityNormal, 0, 64);
-    dm_task_handle[i] = osThreadCreate(osThread(dm_task_name), dm_motor_instance[i]);
+    if (motor->motor_can_instance->tx_id > 6) {
+      osDelay(2);
+    } else {
+      osDelay(1);
+    }
   }
 }

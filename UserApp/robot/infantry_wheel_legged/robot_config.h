@@ -139,20 +139,10 @@
                              {17.0573479696088f, -20.6180593973892f, 10.2480958411851f, 4.62769177087231f}}},       \
       .length_PID_config =                                                                                          \
           {                                                                                                         \
-              .Kp = 350.0f,                                                                                         \
+              .Kp = 300.0f,                                                                                         \
               .Ki = 0.0f,                                                                                           \
-              .Kd = 3000.0f,                                                                                        \
-              .MaxOut = 90.0f,                                                                                      \
-              .DeadBand = 0.01f,                                                                                    \
-              .Improve = PID_IMPROVE_NONE,                                                                          \
-              .IntegralLimit = 0.0f,                                                                                \
-          },                                                                                                        \
-      .length_PID_config =                                                                                          \
-          {                                                                                                         \
-              .Kp = 350.0f,                                                                                         \
-              .Ki = 0.0f,                                                                                           \
-              .Kd = 30.0f,                                                                                          \
-              .MaxOut = 90.0f,                                                                                      \
+              .Kd = 0.0f,                                                                                           \
+              .MaxOut = 1000.0f,                                                                                    \
               .DeadBand = 0.01f,                                                                                    \
               .Improve = PID_IMPROVE_NONE,                                                                          \
               .IntegralLimit = 0.0f,                                                                                \
@@ -163,7 +153,7 @@
               .Ki = 0.0f,                                                                                           \
               .Kd = 0.0f,                                                                                           \
               .MaxOut = 90.0f,                                                                                      \
-              .DeadBand = 0.01f,                                                                                    \
+              .DeadBand = 0.001f,                                                                                   \
               .Improve = PID_IMPROVE_NONE,                                                                          \
               .IntegralLimit = 0.0f,                                                                                \
           },                                                                                                        \
@@ -202,8 +192,8 @@
 static Chassis_Init_Config_s chassis_init_config = {
     .chassis_param =
         {
-            // .robot_weight = 0.0f,  // 机器人重量,单位为kg(千克)
-            .robot_weight = 14.0f,  // 机器人重量,单位为kg(千克)
+            .robot_weight = 0.0f,  // 机器人重量,单位为kg(千克)
+            // .robot_weight = 14.0f,  // 机器人重量,单位为kg(千克)
             .track_width = 0.245f,
             .leg_length_initial = 0.25f,  // 初始腿长,单位为m(米)
         },

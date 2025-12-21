@@ -93,7 +93,6 @@ void DMMotorCaliEncoder(DMMotorInstance* motor);
 
 void DMMotorSetPIDRef(DMMotorInstance* motor, float pid_ref);
 
-void DMMotorTask(void const* argument);
+void DMMotorTask();
 
-void DMMotorTaskInit();
 #endif  // !DMMOTOR
