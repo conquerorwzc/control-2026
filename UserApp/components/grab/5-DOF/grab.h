@@ -1,7 +1,7 @@
 #pragma once
 #include "dji_motor.h"
 #include "dmmotor.h"
-
+#include "general_def.h"
 typedef enum {
     GRAB_POWER_OFF = 0, // 电流零输入
     GRAB_POWER_ON

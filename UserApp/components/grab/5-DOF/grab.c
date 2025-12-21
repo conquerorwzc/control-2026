@@ -8,9 +8,6 @@
 #define PULLEY_GEAR_RATIO 2.0f                  // 带轮传动比
 #define BEVEL_GEAR_RATIO 1.6667f                // 锥齿轮传动比 5:3
 #define MOTOR2006_REDUCTION_RATIO 36.0f         // 2006 ecd减速比36
-#define C_PI 3.1415926535897932384626433832795  // 数学常量
-#define DTOR(D) (D / 180.0 * C_PI)              // 度转弧度
-#define RTOD(D) (D / C_PI * 180.0)              // 弧度转度
 /* Private define ------------------------------------------------------------*/
 static GrabInstance *grab;
 static Grab_Ctrl_Cmd_s *grab_ctrl_cmd;
@@ -90,9 +87,9 @@ static void MotorTask() {
         // DJIMotorEnable(grab->vedio->grab_djimotor[0]);
         // DJIMotorEnable(grab->vedio->grab_djimotor[1]);
 
-        DMMotorSetPIDRef(grab->arm->grab_dmmotor[0], DTOR(grab->arm->base_joint)); //弧度制，需要把度转弧度
-        DMMotorSetPIDRef(grab->arm->grab_dmmotor[1], DTOR(grab->arm->elbow_roll));
-        DMMotorSetPIDRef(grab->arm->grab_dmmotor[2], DTOR(grab->arm->elbow_pitch));
+        DMMotorSetPIDRef(grab->arm->grab_dmmotor[0], grab->arm->base_joint * DEGREE_2_RAD ); //弧度制，需要把度转弧度
+        DMMotorSetPIDRef(grab->arm->grab_dmmotor[1], grab->arm->elbow_roll * DEGREE_2_RAD);
+        DMMotorSetPIDRef(grab->arm->grab_dmmotor[2], grab->arm->elbow_pitch * DEGREE_2_RAD);
 
         DJIMotorSetPIDRef(grab->actuator->grab_djimotor[0], grab->actuator->R_target);
         DJIMotorSetPIDRef(grab->actuator->grab_djimotor[1], grab->actuator->L_target);
