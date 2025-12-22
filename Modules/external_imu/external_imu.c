@@ -176,7 +176,7 @@ static void IMU_UpdateTemp(uint8_t* pData)
  */
 void IMU_UpdateData(uint8_t* pData)
 {
-    switch(pData[1])  // 根据寄存器ID判断数据类型
+    switch(pData[0])  // 根据寄存器ID判断数据类型
     {
         case ACCEL_DATA:
             IMU_UpdateAccel(pData);

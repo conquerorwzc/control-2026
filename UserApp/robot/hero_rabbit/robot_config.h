@@ -202,9 +202,9 @@ static Chassis_Init_Config_s chassis_init_config = {
         },
     .external_imu=
        {
-           .can_id=0x01,
+           .can_id=0x11,
            .mst_id=0x11,
-           .can_handle = &hfdcan2,
+           .can_handle = &hfdcan3,
          }
 
 };

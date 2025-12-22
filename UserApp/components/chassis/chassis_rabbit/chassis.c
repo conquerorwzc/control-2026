@@ -391,9 +391,9 @@ void ChassisTask() {
   // 功率控制与输出限幅
   LimitChassisOutput();
   //外置陀螺仪请求数据
-  ExternalIMURequestAccel();
-  ExternalIMURequestGyro();
-  ExternalIMURequestEuler();
+  // ExternalIMURequestAccel();
+  // ExternalIMURequestGyro();
+  // ExternalIMURequestEuler();
   //兔腿控制
   LegControl();
 }

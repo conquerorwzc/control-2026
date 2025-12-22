@@ -4,6 +4,7 @@
 
 #include "robot.h"
 
+#include "bsp_gpio.h"
 #include "general_def.h"
 #include "robot_config.h"
 #include "user_lib.h"
@@ -19,6 +20,16 @@ static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 /* Intermediate variables calculated by private functions */
 static float trigger_time = 0;  // 触发时间
 static float angle;
+
+external_imu_t *external_imu_instance;
+
+static GPIOInstance *gpio_5V_EN;
+static GPIO_Init_Config_s gpio_init_config_5v = {
+  .GPIO_Pin = POWER_5V_Pin,
+  .GPIOx = POWER_5V_GPIO_Port,
+  .pin_state = GPIO_PIN_SET,
+};
+
 
 // static  DJIMotorInstance* debug_motor;
 
@@ -270,6 +281,9 @@ void RobotInit() {
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;
+
+  gpio_5V_EN = GPIORegister(&gpio_init_config_5v);
+  GPIOSet(gpio_5V_EN);
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
