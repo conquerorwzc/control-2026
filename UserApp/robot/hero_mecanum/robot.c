@@ -4,6 +4,7 @@
 #include "master_process.h"
 #include "robot_config.h"
 #include "user_lib.h"
+#include "bsp_gpio.h"
 
 static RobotInstance *robot;
 
@@ -22,7 +23,12 @@ static float y_speed_time=0;  //y方向加速触发时间
 static float vx_initial;   //x轴输入控制量
 static float vy_initial;   //y轴输入控制量
 static float angle;
-
+static GPIOInstance *gpio_5V_EN;
+static GPIO_Init_Config_s gpio_init_config_5v = {
+  .GPIO_Pin = POWER_5V_Pin,
+  .GPIOx = POWER_5V_GPIO_Port,
+  .pin_state = GPIO_PIN_SET,
+};
 // static  DJIMotorInstance* debug_motor;
 
 /**
@@ -120,7 +126,7 @@ static void RemoteControlSet() {
   }
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
     chassis_ctrl_cmd->wz =
-        (25.0f) *
+        (-15.0f) *
         (float)rc_data[TEMP]
             .rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
   }
@@ -241,7 +247,7 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   {
     case 0:
       chassis_ctrl_cmd-> chassis_mode = CHASSIS_FOLLOW ;
-      chassis_ctrl_cmd->wz+=(float)rc_data[TEMP].mouse.x * 30.0f; //主动跟随量
+      chassis_ctrl_cmd->wz-=(float)rc_data[TEMP].mouse.x * 30.0f; //主动跟随量
       break;
     default:
       chassis_ctrl_cmd-> chassis_mode = CHASSIS_ROTATE ;
@@ -313,16 +319,16 @@ static void EmergencyHandler() {
 void RobotInit() {
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
 
-#ifdef STM32F407xx
+#ifdef STM32F4
   robot->rc_data = RemoteControlInit(&huart3);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
-#elifdef STM32H723XX
+#elifdef STM32H7
   robot->rc_data = RemoteControlInit(&huart5);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
 #endif
 
   rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
   *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
   // robot->referee_data=RefereeInit(&huart6);
-   robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
+   robot->referee_data = RefereeInit(&huart1);  // 裁判系统初始化
 
   // robot->super_cap = SuperCapInit(&super_cap_config);
 
@@ -341,6 +347,8 @@ void RobotInit() {
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;
   vision_recv_data=VisionInit(&gimbal_init_config.imu_init_config);
+  gpio_5V_EN = GPIORegister(&gpio_init_config_5v);
+  GPIOSet(gpio_5V_EN);
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
@@ -348,7 +356,7 @@ void RobotCMDTask() {
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
   CalcOffsetAngle();
   RemoteControlSet();
-  MouseKeySet();
+  //MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
 

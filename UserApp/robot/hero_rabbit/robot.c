@@ -291,7 +291,7 @@ void RobotInit() {
 
  #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
 //   robot->gimbal = GimbalInit(&gimbal_init_config);
-//   robot->shoot = ShootInit(&shoot_init_config);
+   robot->shoot = ShootInit(&shoot_init_config);
 #endif
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   robot->chassis = ChassisInit(&chassis_init_config);

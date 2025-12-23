@@ -307,61 +307,61 @@ static Chassis_Init_Config_s chassis_init_config = {
           },                                         \
   })
 
-// static Shoot_Init_Config_s shoot_init_config = {
-//     .shoot_param =
-//         {
-//             .one_bullet_delta_angle = 60.0f,              // 发射一发弹丸拨盘转动的距离,由机械设计图纸给出
-//             .reduction_ratio_loader = 100.0f,             // 3508拨盘电机的减速比,英雄
-//             .num_per_circle = 6,                          // 拨盘一圈的装载量
-//             .loader_direction = -1,                       // 拨盘旋转方向,1为正向，-1为反向
-//             .friction_num = 3,                            // 摩擦轮数量
-//             .friction_speed = 26000.0f,                   // 摩擦轮速度
-//             .friction_coefficients = {1.0f, 1.1f, 1.0f},  // 摩擦轮速度比例系数
-//             .deadtime_burstfire = 500,
-//             .deadtime_onebullet = 1000,
-//             .target_speed = 12.0f,
-//             .bullet_speed_adjustment = 10.0f,
-//
-//         },
-//     .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan2, 1, MOTOR_DIRECTION_NORMAL),
-//     .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan2, 2, MOTOR_DIRECTION_REVERSE),
-//     .friction_motor_config[2] = FRICTION_MOTOR_CONFIG(&hcan2, 4, MOTOR_DIRECTION_NORMAL),
-//
-//     .loader_motor_config =
-//         {
-//             .controller_param_init_config =
-//                 {
-//                     .angle_PID =
-//                         {
-//                             .Kp = 30.0f,
-//                             .Ki = 0.0f,
-//                             .Kd = 0.3f,
-//                             .MaxOut = 50000.0f,
-//                         },
-//                     .speed_PID =
-//                         {
-//                             .Kp = 3.0f,
-//                             .Ki = 0.5f,
-//                             .Kd = 0.0f,
-//                             .Improve = PID_Integral_Limit | PID_ErrorHandle,
-//                             .IntegralLimit = 7000.0f,
-//                             .MaxOut = 16000.0f,
-//                         },
-//                 },
-//             .motor_type = M3508,
-//             .can_init_config =
-//                 {
-//                     .can_handle = &hcan2,
-//                     .tx_id = 3,
-//                 },
-//             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
-//             .controller_setting_init_config.angle_feedback_source = MOTOR_FEED,
-//             .controller_setting_init_config.speed_feedback_source = MOTOR_FEED,
-//             .controller_setting_init_config.outer_loop_type = ANGLE_LOOP,
-//             .controller_setting_init_config.close_loop_type = SPEED_LOOP | ANGLE_LOOP,
-//         },
-//
-// };
+static Shoot_Init_Config_s shoot_init_config = {
+    .shoot_param =
+        {
+            .one_bullet_delta_angle = 60.0f,              // 发射一发弹丸拨盘转动的距离,由机械设计图纸给出
+            .reduction_ratio_loader = 100.0f,             // 3508拨盘电机的减速比,英雄
+            .num_per_circle = 6,                          // 拨盘一圈的装载量
+            .loader_direction = -1,                       // 拨盘旋转方向,1为正向，-1为反向
+            .friction_num = 3,                            // 摩擦轮数量
+            .friction_speed = 26000.0f,                   // 摩擦轮速度
+            .friction_coefficients = {1.0f, 1.1f, 1.0f},  // 摩擦轮速度比例系数
+            .deadtime_burstfire = 500,
+            .deadtime_onebullet = 1000,
+            .target_speed = 12.0f,
+            .bullet_speed_adjustment = 10.0f,
+
+        },
+    .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan2, 1, MOTOR_DIRECTION_NORMAL),
+    .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan2, 2, MOTOR_DIRECTION_REVERSE),
+    .friction_motor_config[2] = FRICTION_MOTOR_CONFIG(&hcan2, 4, MOTOR_DIRECTION_NORMAL),
+
+    .loader_motor_config =
+        {
+            .controller_param_init_config =
+                {
+                    .angle_PID =
+                        {
+                            .Kp = 30.0f,
+                            .Ki = 0.0f,
+                            .Kd = 0.3f,
+                            .MaxOut = 50000.0f,
+                        },
+                    .speed_PID =
+                        {
+                            .Kp = 3.0f,
+                            .Ki = 0.5f,
+                            .Kd = 0.0f,
+                            .Improve = PID_Integral_Limit | PID_ErrorHandle,
+                            .IntegralLimit = 7000.0f,
+                            .MaxOut = 16000.0f,
+                        },
+                },
+            .motor_type = M3508,
+            .can_init_config =
+                {
+                    .can_handle = &hcan3,
+                    .tx_id = 3,
+                },
+            .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+            .controller_setting_init_config.angle_feedback_source = MOTOR_FEED,
+            .controller_setting_init_config.speed_feedback_source = MOTOR_FEED,
+            .controller_setting_init_config.outer_loop_type = ANGLE_LOOP,
+            .controller_setting_init_config.close_loop_type = SPEED_LOOP | ANGLE_LOOP,
+        },
+
+};
 
 // static SuperCap_Init_Config_s super_cap_config = {
 //     .can_config = {

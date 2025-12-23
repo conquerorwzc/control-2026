@@ -11,8 +11,7 @@ static Shoot_Ctrl_Cmd_s* shoot_ctrl_cmd;
 
 static float one_bullet_delta_angle;
 static float reduction_ratio_loader;
-static float
-    loader_direction;  // 实际上应该修改loader_config就可以了，但是角度为最外环似乎有bug？？，先打个补丁，后续做修改
+static float loader_direction;  // 实际上应该修改loader_config就可以了，但是角度为最外环似乎有bug？？，先打个补丁，后续做修改
 static float friction_speed;
 static float friction_coefficients[FRICTION_NUM];
 /* 对于双发射机构的机器人,将下面的数据封装成结构体即可,生成两份shoot应用实例 */

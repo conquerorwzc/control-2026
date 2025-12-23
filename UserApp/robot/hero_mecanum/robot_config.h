@@ -30,8 +30,8 @@
 // 云台参数
 #define YAW_CHASSIS_ALIGN_ECD 5326
 #define PITCH_HORIZON_ECD 5748  // 云台处于水平位置时编码器值,若对云台有机械改动需要修改
-#define PITCH_MAX_ANGLE 11.0f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
-#define PITCH_MIN_ANGLE -12.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define PITCH_MAX_ANGLE 12.8f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define PITCH_MIN_ANGLE -18.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
 
 // 私有宏,自动将编码器转换成角度值
 #define YAW_ALIGN_ANGLE 296.5                                         // hero的计算比较特殊，直接从读出来
@@ -70,7 +70,8 @@
         .speed_feedback_source = MOTOR_FEED, \
         .outer_loop_type = SPEED_LOOP, \
         .close_loop_type = SPEED_LOOP, \
-        .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,\
+        .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,       \
+        .feedback_reverse_flag=FEEDBACK_DIRECTION_REVERSE,      \
     }, \
     .motor_type = M3508, \
 })
@@ -97,7 +98,6 @@ static Chassis_Init_Config_s chassis_init_config = {
     .wheel_motor_config[1] = WHEEL_MOTOR_CONFIG(&hcan1, 4),
     .wheel_motor_config[2] = WHEEL_MOTOR_CONFIG(&hcan1, 2),
     .wheel_motor_config[3] = WHEEL_MOTOR_CONFIG(&hcan1, 3),
-    .leg_motor_config[0] = LEG_MOTOR_CONFIG(&hcan2, 1),
     // 跟随PID
     .follow_pid =
         {
@@ -118,9 +118,9 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                     {
-                      .Kp = -1.5f,
+                      .Kp = 1.5f,
                       .Ki = 0.0f,
-                      .Kd = -0.08f,
+                      .Kd = 0.08f,
                       .DeadBand = 0.1f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                       .IntegralLimit = 5.0f,
@@ -144,6 +144,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                     .tx_id = 2,
                 },
             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+            .controller_setting_init_config.feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
         },
     .pitch_motor_config =
         {
@@ -174,7 +175,8 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                     .can_handle = &hcan2,
                     .tx_id = 1,
                 },
-            .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+               .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+               .controller_setting_init_config.feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
         },
     .imu_init_config = {
       .flag = 1,
@@ -206,6 +208,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
               .outer_loop_type = SPEED_LOOP,         \
               .close_loop_type = SPEED_LOOP,         \
               .motor_reverse_flag = direction,       \
+              .feedback_reverse_flag=direction,      \
           },                                         \
       .motor_type = M3508,                           \
       .can_init_config =                             \
@@ -223,7 +226,7 @@ static Shoot_Init_Config_s shoot_init_config = {
             .num_per_circle = 6,                          // 拨盘一圈的装载量
             .loader_direction = -1,                       // 拨盘旋转方向,1为正向，-1为反向
             .friction_num = 3,                            // 摩擦轮数量
-            .friction_speed = 26000.0f,                   // 摩擦轮速度
+            .friction_speed = 10000.0f,                   // 摩擦轮速度
             .friction_coefficients = {1.0f, 1.1f, 1.0f},  // 摩擦轮速度比例系数
             .deadtime_burstfire = 500,
             .deadtime_onebullet = 1000,
@@ -259,10 +262,11 @@ static Shoot_Init_Config_s shoot_init_config = {
             .motor_type = M3508,
             .can_init_config =
                 {
-                    .can_handle = &hcan2,
+                    .can_handle = &hcan3,
                     .tx_id = 3,
                 },
             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+            .controller_setting_init_config.feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
             .controller_setting_init_config.angle_feedback_source = MOTOR_FEED,
             .controller_setting_init_config.speed_feedback_source = MOTOR_FEED,
             .controller_setting_init_config.outer_loop_type = ANGLE_LOOP,
