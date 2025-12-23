@@ -153,10 +153,12 @@ static void RemoteControlSet() {
       // break;
     case ROBOT_CHASSIS_FREE:
       static float target_angle;
-      target_angle += -(0.3f) * (float)rc_data[TEMP].rc.rocker_r_ * robot->dt;
+      target_angle += -(0.25f) * (float)rc_data[TEMP].rc.rocker_r_ * robot->dt;
       chassis_ctrl_cmd->wz =
+          -0.002f * (float)rc_data[TEMP].rc.rocker_r_ +
           PIDCalculate(&robot->chassis_follow_PID, robot->chassis->chassis_IMU->YawTotalAngle, target_angle);
-      chassis_ctrl_cmd->vx = (0.005f) * (float)rc_data[TEMP].rc.rocker_r1;
+      chassis_ctrl_cmd->vx = (0.020f) * (float)rc_data[TEMP].rc.rocker_r1;
+      // slope_following((0.025f) * (float)rc_data[TEMP].rc.rocker_r1, &chassis_ctrl_cmd->vx, 4.0f * robot->dt);
       // chassis_ctrl_cmd->leg_length_d = (float)rc_data[TEMP].rc.rocker_l1;
       // chassis_ctrl_cmd->roll = (float)rc_data[TEMP].rc.rocker_l_;
       chassis_ctrl_cmd->leg_length += 0.0000005f * (float)rc_data[TEMP].rc.rocker_l1;

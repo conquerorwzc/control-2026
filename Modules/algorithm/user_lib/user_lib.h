@@ -102,6 +102,8 @@ float theta_format(float Ang);
 
 int float_rounding(float raw);
 
+void slope_following(float target, float *set, float acc_d);
+
 float *Norm3d(float *v);
 
 float NormOf3d(float *v);

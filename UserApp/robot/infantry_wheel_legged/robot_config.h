@@ -151,7 +151,7 @@
           {                                                                                                         \
               .Kp = 10.0f,                                                                                          \
               .Ki = 0.0f,                                                                                           \
-              .Kd = 0.0f,                                                                                           \
+              .Kd = 120.0f,                                                                                         \
               .MaxOut = 90.0f,                                                                                      \
               .DeadBand = 0.01f,                                                                                    \
               .Improve = PID_IMPROVE_NONE,                                                                          \
@@ -362,12 +362,12 @@ static Shoot_Init_Config_s shoot_init_config = {
 };
 
 static PID_Init_Config_s chassis_follow_PID_config = {
-    .Kp = 0.05f,
+    .Kp = 2.0f,
     .Ki = 0.0f,
-    .Kd = 0.005f,  // todo: kd 大了
+    .Kd = 0.2f,
     .IntegralLimit = 0.1f,
     .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-    .MaxOut = 1.0f,
+    .MaxOut = 2.0f,
 };
 
 static SuperCap_Init_Config_s super_cap_config = {
