@@ -305,6 +305,7 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
       chassis_init_config->external_imu.can_id,
       chassis_init_config->external_imu.mst_id,
       chassis_init_config->external_imu.can_handle);
+
   chassis_param = chassis_init_config->chassis_param;  // 在运行时赋值
 
 
@@ -393,7 +394,9 @@ void ChassisTask() {
   //外置陀螺仪请求数据
   // ExternalIMURequestAccel();
   // ExternalIMURequestGyro();
-  // ExternalIMURequestEuler();
+  //ExternalIMURequestEuler();
+
+
   //兔腿控制
   LegControl();
 }
