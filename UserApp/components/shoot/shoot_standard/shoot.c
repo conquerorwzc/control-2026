@@ -18,7 +18,7 @@ static float friction_coefficients[FRICTION_NUM];
 
 static float loader_set = 0;       // 波胆盘速度
 static float friction_set = 0;     // 摩擦轮速度
-static float actual_bullet_speed = 0.0f;  // 调试用，后续从裁判系统中获取
+static float actual_bullet_speed = 12.0f;  // 调试用，后续从裁判系统中获取
 // 波弹盘位置初始化标志
 //  static uint8_t loader_position_init=0;
 

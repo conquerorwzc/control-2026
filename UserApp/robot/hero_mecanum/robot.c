@@ -23,12 +23,12 @@ static float y_speed_time=0;  //y方向加速触发时间
 static float vx_initial;   //x轴输入控制量
 static float vy_initial;   //y轴输入控制量
 static float angle;
-static GPIOInstance *gpio_5V_EN;
+static GPIOInstance *gpio_5V_EN;//开启h7引脚供电的，没啥用
 static GPIO_Init_Config_s gpio_init_config_5v = {
   .GPIO_Pin = POWER_5V_Pin,
   .GPIOx = POWER_5V_GPIO_Port,
   .pin_state = GPIO_PIN_SET,
-};
+};//开启h7引脚供电的，没啥用
 // static  DJIMotorInstance* debug_motor;
 
 /**
@@ -126,7 +126,7 @@ static void RemoteControlSet() {
   }
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
     chassis_ctrl_cmd->wz =
-        (-15.0f) *
+        (15.0f) *
         (float)rc_data[TEMP]
             .rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
   }
@@ -347,8 +347,8 @@ void RobotInit() {
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;
   vision_recv_data=VisionInit(&gimbal_init_config.imu_init_config);
-  gpio_5V_EN = GPIORegister(&gpio_init_config_5v);
-  GPIOSet(gpio_5V_EN);
+  gpio_5V_EN = GPIORegister(&gpio_init_config_5v);//开启h7引脚供电的，没啥用
+  GPIOSet(gpio_5V_EN);//开启h7引脚供电的，没啥用
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
