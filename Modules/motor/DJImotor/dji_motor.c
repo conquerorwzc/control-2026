@@ -460,7 +460,7 @@ void DJIMotorTask() {
   // 直接保存一次指针引用从而减小访存的开销,同样可以提高可读性
   uint8_t group, num;  // 电机组号和组内编号
   DJIMotorInstance* motor;
-  uint16_t set;
+  int16_t set;
 
   // 遍历所有电机实例,进行串级PID的计算并设置发送报文的值
   for (size_t i = 0; i < idx; ++i) {
@@ -471,7 +471,7 @@ void DJIMotorTask() {
     group = motor->sender_group;
     num = motor->message_num;
     set = (int16_t)motor->motor_controller.final_output;
-    if (motor->motor_settings.motor_reverse_flag == MOTOR_DIRECTION_REVERSE) set *= -1;  // 设置反转
+    if (motor->motor_settings.motor_reverse_flag == MOTOR_DIRECTION_REVERSE) set *= -1.0f;  // 设置反转
 
     sender_assignment[group].tx_buff[2 * num] = (int8_t)(set >> 8);          // 低八位
     sender_assignment[group].tx_buff[2 * num + 1] = (int8_t)(set & 0x00ff);  // 高八位
