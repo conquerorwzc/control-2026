@@ -119,7 +119,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                     {
-                      .Kp = 0.3f,
+                      .Kp = 0.8f,
                       .Ki = 0.0f,
                       .Kd = 0.0f,
                       .DeadBand = 0.1f,
@@ -152,7 +152,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                     {
-                      .Kp = 0.5f,
+                      .Kp = 1.0f,
                       .Ki = 0.0f,
                       .Kd = 0.0f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
@@ -189,7 +189,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
 ((Motor_Init_Config_s) { \
 .controller_param_init_config = { \
 .speed_PID = { \
-.Kp = 1.0f, \
+.Kp = 2.0f, \
 .Ki = 0.0f, \
 .Kd = 0.0f, \
 .Improve = PID_Integral_Limit, \
