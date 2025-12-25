@@ -152,7 +152,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 0.8f,
+                            .Kp = 2.5f,
                             .Ki = 0.0f,
                             .Kd = 0.0f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
@@ -193,9 +193,9 @@ static Gimbal_Init_Config_s gimbal_init_config = {
           {                                          \
               .speed_PID =                           \
                   {                                  \
-                      .Kp = 2.0f,                    \
-                      .Ki = 0.00f,                   \
-                      .Kd = 0.05f,                   \
+                      .Kp = 2.00f,                    \
+                      .Ki = 0.10f,                   \
+                      .Kd = 0.00f,                   \
                       .Improve = PID_Integral_Limit, \
                       .IntegralLimit = 10000.0f,     \
                       .MaxOut = 15000.0f,            \
@@ -226,17 +226,17 @@ static Shoot_Init_Config_s shoot_init_config = {
             .num_per_circle = 6,                          // 拨盘一圈的装载量
             .loader_direction = -1,                       // 拨盘旋转方向,1为正向，-1为反向
             .friction_num = 3,                            // 摩擦轮数量
-            .friction_speed = 26500.0f,                   // 摩擦轮速度
-            .friction_coefficients = {1.0f, 1.1f, 1.0f},  // 摩擦轮速度比例系数
+            .friction_speed = 26800.0f,                   // 摩擦轮速度
+            .friction_coefficients = {1.0f, 1.0f, 1.1f},  // 摩擦轮速度比例系数
             .deadtime_burstfire = 500,
             .deadtime_onebullet = 1000,
             .target_speed = 12.0f,
             .bullet_speed_adjustment = 10.0f,
 
         },
-    .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan2, 1, MOTOR_DIRECTION_NORMAL),
-    .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan2, 4, MOTOR_DIRECTION_REVERSE),
-    .friction_motor_config[2] = FRICTION_MOTOR_CONFIG(&hcan2, 2, MOTOR_DIRECTION_NORMAL),
+    .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan2, 1, 0),
+    .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan2, 2, 1),
+    .friction_motor_config[2] = FRICTION_MOTOR_CONFIG(&hcan2, 4, 0),
 
     .loader_motor_config =
         {
@@ -246,12 +246,12 @@ static Shoot_Init_Config_s shoot_init_config = {
                         {
                             .Kp = 30.0f,
                             .Ki = 0.0f,
-                            .Kd = 0.3f,
+                            .Kd = 0.0f,
                             .MaxOut = 50000.0f,
                         },
                     .speed_PID =
                         {
-                            .Kp = 3.0f,
+                            .Kp = 5.0f,
                             .Ki = 0.5f,
                             .Kd = 0.0f,
                             .Improve = PID_Integral_Limit | PID_ErrorHandle,
