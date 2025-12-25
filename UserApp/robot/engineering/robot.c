@@ -164,7 +164,7 @@ static void MouseKeySet()
                                    rc_data[TEMP].key[KEY_PRESS].a * chassis_ctrl_cmd->chassis_speed_buff;
             chassis_ctrl_cmd->vy = rc_data[TEMP].key[KEY_PRESS].w * chassis_ctrl_cmd->chassis_speed_buff -
                                    rc_data[TEMP].key[KEY_PRESS].s * chassis_ctrl_cmd->chassis_speed_buff;
-            set_angle += -rc_data[TEMP].mouse.x * 0.001;
+            // set_angle += -rc_data[TEMP].mouse.x * 0.001;
         }
         break;
 
@@ -215,27 +215,7 @@ static void MouseKeySet()
     default:
         break;
     }
-    // switch (mouse_l_count)
-    // {
-    //
-    //     case 1:
-    //         gantry_ctrl_cmd->z = 180;
-    //         break;
-    //     case 2:
-    //         gantry_ctrl_cmd->y = 140;
-    //         break;
-    //     default:
-    //         break;
-    // }
 
-    // if (rc_data[TEMP].mouse.press_l)
-    // {
-    //     mouse_l_count ++;
-    // }
-    // if (rc_data[TEMP].mouse.press_r)
-    // {
-    //     mouse_l_count --;
-    // }
 }
 
 /**
@@ -288,14 +268,9 @@ static void RemoteControlSet()
     // 右[上]，保持底盘跟随云台
     else if (switch_is_up(rc_data[TEMP].rc.switch_right))
     {
-        if (abs(rc_data[TEMP].rc.dial) > 20)
-        {
-            chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
-        }
-        else
-        {
+
             chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
-        }
+
     }
     // 右[下] 控制底盘断电，但不触发整机紧急停止
     else if (switch_is_down(rc_data[TEMP].rc.switch_right))
@@ -343,14 +318,11 @@ static void RemoteControlSet()
     // 底盘运动控制（使用左侧摇杆）
     chassis_ctrl_cmd->vx = 60.0f * (float)rc_data[TEMP].rc.rocker_l1; // 水平方向
     chassis_ctrl_cmd->vy = 60.0f * (float)rc_data[TEMP].rc.rocker_l_; // 竖直方向
-    // chassis_ctrl_cmd->offset_angle =
-    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE)
-    {
-        chassis_ctrl_cmd->wz = -25.0f * (float)rc_data[TEMP].rc.dial; // 小陀螺模式下的旋转分量
-    }
+
+
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW)
     {
-        chassis_ctrl_cmd->wz = 0;
+        set_angle += rc_data[TEMP].rc.dial * 0.0001;
     }
     *rc_data_last = *rc_data;
 }
