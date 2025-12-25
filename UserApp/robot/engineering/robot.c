@@ -1,17 +1,14 @@
 /* Private includes ----------------------------------------------------------*/
 #include "robot.h"
-#include "general_def.h"
-#include "robot_config.h"
-#include "user_lib.h"
 #include "cmsis_os.h"
+#include "general_def.h"
 #include "ins_task.h"
+#include "robot_config.h"
 #include "stdlib.h"
 #include "string.h"
-
+#include "user_lib.h"
 
 /* Private define ------------------------------------------------------------*/
-#define STRETCH_SENS_KEYBOARD   // 前伸灵敏度(键盘)
-#define LIFT_SENS_KEYBOARD      // 抬升灵敏度(键盘)
 
 /* Intermediate variables calculated by private functions */
 static RobotInstance *robot;
@@ -20,17 +17,18 @@ static Grab_Ctrl_Cmd_s *grab_ctrl_cmd;
 static Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd; // 【新增】龙门架控制命令指针
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last; // 遥控器数据,初始化时返回
-static float set_angle=0;
+static float set_angle = 0;
 static void MouseKeySet();
 
 int b = 0;
-static float angle=0;
+static float angle = 0;
 static float target_angle = 0;
 static int mouse_l_count = 0;
-
+static Gantry_Param_s gantry_param;
+static Garb_Param_s grab_param;
 /* Private function prototypes -----------------------------------------------*/
 static void Gantry_Limit(Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd, const Gantry_Param_s *gantry_param);
-
+static void Grab_Limit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, const Gantry_Param_s *gantry_param);
 static void RemoteControlSet();
 
 static void EmergencyHandler();
@@ -42,11 +40,10 @@ void RobotCMDTask();
 
 void RobotTask();
 
-
 /* Private user code ---------------------------------------------------------*/
 void RobotInit()
 {
-    robot = (RobotInstance *) zmalloc(sizeof(RobotInstance));
+    robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
 
 #ifdef STM32F4
     robot->rc_data = RemoteControlInit(&huart3); // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
@@ -54,11 +51,12 @@ void RobotInit()
     robot->rc_data = RemoteControlInit(&huart5); // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
 #endif
 
-    rc_data_last = (RC_ctrl_t *) zmalloc(sizeof(RC_ctrl_t));
+    rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
     *rc_data_last = *robot->rc_data; // 记录上一次遥控器的状态
     robot->ins_data = INS_Init(&imu_init_config);
     robot->gantry = GantryInit(&gantry_init_config);
-    robot->grab = GrabInit(&grab_init_config_s);
+    robot->grab = GrabInit(&grab_init_config);
+
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
     robot->chassis = ChassisInit(&chassis_init_config);
 #endif
@@ -73,6 +71,8 @@ void RobotInit()
         gantry_ctrl_cmd = &robot->gantry->Gantry_ctrl_cmd;
     }
 
+    gantry_param = gantry_init_config.Gantry_param;
+    grab_param = grab_init_config.Grab_param;
 
     rc_data = robot->rc_data;
 }
@@ -91,7 +91,7 @@ void RobotTask()
 #if defined(ONE_BOARD) // 假设龙门架逻辑运行在主控板
     GantryTask();
     GrabTask();
-    grab_ctrl_cmd->grab_mode = b;
+    // grab_ctrl_cmd->grab_mode = b;
 #endif
 }
 
@@ -101,10 +101,9 @@ void RobotCMDTask()
     // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
     CalcOffsetAngle();
     RemoteControlSet();
-    // MouseKeySet();
+    MouseKeySet();
     EmergencyHandler(); // 处理模块离线和遥控器急停等紧急情况
 }
-
 
 /**
  * @brief 输入为键鼠时模式和控制量设置
@@ -116,37 +115,38 @@ static void MouseKeySet()
     {
         return;
     }
-    
-    if (rc_data[TEMP].rc.dial !=0 ||rc_data[TEMP].rc.rocker_l1 !=0 || rc_data[TEMP].rc.rocker_l_ !=0 ||rc_data[TEMP].rc.rocker_r1 !=0 || rc_data[TEMP].rc.rocker_r_ !=0)
+
+    if (rc_data[TEMP].rc.dial != 0 || rc_data[TEMP].rc.rocker_l1 != 0 || rc_data[TEMP].rc.rocker_l_ != 0 ||
+        rc_data[TEMP].rc.rocker_r1 != 0 || rc_data[TEMP].rc.rocker_r_ != 0)
     {
         return; // 有摇杆输入时不进行键鼠控制
     }
 
     switch (rc_data[TEMP].key_count[KEY_PRESS][Key_G] % 2) // G键控制机械臂使能
     {
-        case 0:
-            grab_ctrl_cmd->grab_mode = GRAB_POWER_OFF;
-            break;
-        case 1:
-            grab_ctrl_cmd->grab_mode = GRAB_POWER_ON;
-            break;
-        default:
-            break;
+    case 0:
+        grab_ctrl_cmd->grab_mode = GRAB_POWER_OFF;
+        break;
+    case 1:
+        grab_ctrl_cmd->grab_mode = GRAB_POWER_ON;
+        break;
+    default:
+        break;
     }
     switch (rc_data[TEMP].key_count[KEY_PRESS][Key_C] % 4) // C键设置底盘速度
     {
-        case 0:
-            chassis_ctrl_cmd->chassis_speed_buff = 10000;
-            break;
-        case 1:
-            chassis_ctrl_cmd->chassis_speed_buff = 20000;
-            break;
-        case 2:
-            chassis_ctrl_cmd->chassis_speed_buff = 40000;
-            break;
-        default:
-            chassis_ctrl_cmd->chassis_speed_buff = 80000;
-            break;
+    case 0:
+        chassis_ctrl_cmd->chassis_speed_buff = 10000;
+        break;
+    case 1:
+        chassis_ctrl_cmd->chassis_speed_buff = 20000;
+        break;
+    case 2:
+        chassis_ctrl_cmd->chassis_speed_buff = 40000;
+        break;
+    default:
+        chassis_ctrl_cmd->chassis_speed_buff = 80000;
+        break;
     }
 
     if (gantry_ctrl_cmd->Gantry_mode != GANTRY_MODE_POWER_OFF)
@@ -157,79 +157,86 @@ static void MouseKeySet()
 
     switch (rc_data[TEMP].key_count[KEY_PRESS][Key_R] % 3) // 控制底盘/机械臂/摄像头
     {
-        case 0: //控制底盘
-            if (chassis_ctrl_cmd->chassis_mode != CHASSIS_POWER_OFF )
+    case 0: // 控制底盘
+        if (chassis_ctrl_cmd->chassis_mode != CHASSIS_POWER_OFF)
+        {
+            chassis_ctrl_cmd->vx = rc_data[TEMP].key[KEY_PRESS].d * chassis_ctrl_cmd->chassis_speed_buff -
+                                   rc_data[TEMP].key[KEY_PRESS].a * chassis_ctrl_cmd->chassis_speed_buff;
+            chassis_ctrl_cmd->vy = rc_data[TEMP].key[KEY_PRESS].w * chassis_ctrl_cmd->chassis_speed_buff -
+                                   rc_data[TEMP].key[KEY_PRESS].s * chassis_ctrl_cmd->chassis_speed_buff;
+            set_angle += -rc_data[TEMP].mouse.x * 0.001;
+        }
+        break;
+
+    case 1: // 控制机械臂
+
+        // 用adwsqe控制机械臂
+        if (rc_data[TEMP].key[KEY_PRESS].keys != 0 && rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].keys == 0 &&
+            grab_ctrl_cmd->grab_mode == GRAB_POWER_ON)
+        {
+            grab_ctrl_cmd->base_joint +=
+                (rc_data[TEMP].key[KEY_PRESS].a - rc_data[TEMP].key[KEY_PRESS].d) * grab_param.base_joint_sens_keyboard;
+            grab_ctrl_cmd->elbow_pitch += (rc_data[TEMP].key[KEY_PRESS].w - rc_data[TEMP].key[KEY_PRESS].s) *
+                                          grab_param.elbow_pitch_sens_keyboard;
+            grab_ctrl_cmd->elbow_roll +=
+                (rc_data[TEMP].key[KEY_PRESS].q - rc_data[TEMP].key[KEY_PRESS].e) * grab_param.elbow_roll_sens_keyboard;
+        }
+        // 用shift+wasd控制腕部
+        else if (rc_data[TEMP].key[KEY_PRESS].keys != 0 && rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].keys != 0 &&
+                 grab_ctrl_cmd->grab_mode == GRAB_POWER_ON)
+        {
+            grab_ctrl_cmd->wrist_roll += (rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].d - rc_data[TEMP].key[KEY_PRESS].a) *
+                                         grab_param.wrist_roll_sens_keyboard;
+            grab_ctrl_cmd->wrist_pitch += (rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].w - rc_data[TEMP].key[KEY_PRESS].s) *
+                                          grab_param.wrist_pitch_sens_keyboard;
+            switch (rc_data[TEMP].key_count[KEY_PRESS_WITH_SHIFT][Key_C] % 2)
             {
-                chassis_ctrl_cmd->vx = rc_data[TEMP].key[KEY_PRESS].d * chassis_ctrl_cmd->chassis_speed_buff - rc_data[
-                                           TEMP].key[KEY_PRESS].a * chassis_ctrl_cmd->chassis_speed_buff; // 系数待测
-                chassis_ctrl_cmd->vy = rc_data[TEMP].key[KEY_PRESS].w * chassis_ctrl_cmd->chassis_speed_buff - rc_data[TEMP]
-                                   .key[KEY_PRESS].s * chassis_ctrl_cmd->chassis_speed_buff;
-                chassis_ctrl_cmd->wz = -rc_data[TEMP].mouse.x * 25;
+            case 0:
+                grab_ctrl_cmd->torque = -0.6;
+                break;
+            case 1:
+                grab_ctrl_cmd->torque = 2;
+                break;
+            default:
+                break;
             }
-            break;
+        }
+        break;
 
-        case 1: //控制机械臂
+    case 2: // 控制摄像头
 
-            //用adwsqe控制机械臂
-            if (rc_data[TEMP].key[KEY_PRESS].keys != 0 && rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].keys == 0 &&
-                grab_ctrl_cmd->grab_mode == GRAB_POWER_ON)
-            {
-                grab_ctrl_cmd->base_joint += rc_data[TEMP].key[KEY_PRESS].a * 0.1 - rc_data[TEMP].key[KEY_PRESS].d *
-                        0.1; //系数待测
-                grab_ctrl_cmd->elbow_pitch += rc_data[TEMP].key[KEY_PRESS].w * 0.1 - rc_data[TEMP].key[KEY_PRESS].s *
-                        0.1; //系数待测
-                grab_ctrl_cmd->elbow_roll += rc_data[TEMP].key[KEY_PRESS].q * 0.1 - rc_data[TEMP].key[KEY_PRESS].e *
-                        0.1; //系数待测
-            }
-            //用shift+wasd控制腕部
-            else if (rc_data[TEMP].key[KEY_PRESS].keys != 0 && rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].keys != 0 &&
-                     grab_ctrl_cmd->grab_mode == GRAB_POWER_ON)
-            {
-                grab_ctrl_cmd->wrist_roll += rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].d * 0.1 - rc_data[TEMP].key[
-                    KEY_PRESS].a * 0.1;
-                grab_ctrl_cmd->wrist_pitch += rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].w * 0.1 - rc_data[TEMP].key[
-                    KEY_PRESS].s * 0.1;
-            }
-            break;
+        grab_ctrl_cmd->vedio_forward +=
+            (rc_data[TEMP].key[KEY_PRESS].d - rc_data[TEMP].key[KEY_PRESS].a) * grab_param.vedio_forward_sens_keyboard;
 
-        case 2: //控制摄像头
-            if (grab_ctrl_cmd->grab_mode == GRAB_POWER_ON)
-            {
-                grab_ctrl_cmd->vedio_forward += rc_data[TEMP].key[KEY_PRESS].q * 0.1 - rc_data[TEMP].key[KEY_PRESS].a *
-                        0.1;
-                //系数待测
-                grab_ctrl_cmd->vedio_pitch += rc_data[TEMP].key[KEY_PRESS].w * 0.1 - rc_data[TEMP].key[KEY_PRESS].s *
-                        0.1;
-                //系数待测
-            }
-            break;
-        default:
-            break;
+        grab_ctrl_cmd->vedio_pitch +=
+            (rc_data[TEMP].key[KEY_PRESS].w - rc_data[TEMP].key[KEY_PRESS].s) * grab_param.vedio_pitch_sens_keyboard;
+
+        break;
+    default:
+        break;
     }
-    switch (mouse_l_count)
-    {
+    // switch (mouse_l_count)
+    // {
+    //
+    //     case 1:
+    //         gantry_ctrl_cmd->z = 180;
+    //         break;
+    //     case 2:
+    //         gantry_ctrl_cmd->y = 140;
+    //         break;
+    //     default:
+    //         break;
+    // }
 
-        case 1:
-            gantry_ctrl_cmd->z = 180;
-            break;
-        case 2:
-            gantry_ctrl_cmd->y = 140;
-            break;
-        default:
-            break;
-    }
-
-    if (rc_data[TEMP].mouse.press_l)
-    {
-        mouse_l_count ++;
-    }
-    if (rc_data[TEMP].mouse.press_r)
-    {
-        mouse_l_count --;
-    }
-
+    // if (rc_data[TEMP].mouse.press_l)
+    // {
+    //     mouse_l_count ++;
+    // }
+    // if (rc_data[TEMP].mouse.press_r)
+    // {
+    //     mouse_l_count --;
+    // }
 }
-
 
 /**
  * @brief  紧急停止,包括遥控器左上侧拨轮打满/重要模块离线/双板通信失效等
@@ -247,7 +254,8 @@ static void EmergencyHandler()
         // 右侧拨杆DOWN时底盘断电
         chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
         LOGINFO("[CMD] chassis power off");
-    } else
+    }
+    else
     {
         // 右侧拨杆非DOWN时恢复底盘
         if (chassis_ctrl_cmd->chassis_mode == CHASSIS_POWER_OFF)
@@ -259,7 +267,6 @@ static void EmergencyHandler()
 
     // 左侧拨杆完全由RemoteControlSet函数控制，不在这里干预
 }
-
 
 /**
  * @brief 控制输入为遥控器(调试时)的模式和控制量设置
@@ -274,7 +281,8 @@ static void RemoteControlSet()
         {
             chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
             set_angle += rc_data[TEMP].rc.dial * 0.0001;
-        } else
+        }
+        else
             chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
     }
     // 右[上]，保持底盘跟随云台
@@ -283,7 +291,8 @@ static void RemoteControlSet()
         if (abs(rc_data[TEMP].rc.dial) > 20)
         {
             chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
-        } else
+        }
+        else
         {
             chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
         }
@@ -301,11 +310,13 @@ static void RemoteControlSet()
         {
             // 左[上]：遥控器控制龙门架
             gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_CONTROL_REMOTE;
-        } else if (switch_is_mid(rc_data[TEMP].rc.switch_left))
+        }
+        else if (switch_is_mid(rc_data[TEMP].rc.switch_left))
         {
             // 左[中]：龙门架锁死
             gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_LOCK;
-        } else if (switch_is_down(rc_data[TEMP].rc.switch_left))
+        }
+        else if (switch_is_down(rc_data[TEMP].rc.switch_left))
         {
             // 左[下]：龙门架断电
             gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_POWER_OFF;
@@ -330,13 +341,12 @@ static void RemoteControlSet()
     }
 
     // 底盘运动控制（使用左侧摇杆）
-    chassis_ctrl_cmd->vx = 60.0f * (float) rc_data[TEMP].rc.rocker_l1; // 水平方向
-    chassis_ctrl_cmd->vy = 60.0f * (float) rc_data[TEMP].rc.rocker_l_; // 竖直方向
+    chassis_ctrl_cmd->vx = 60.0f * (float)rc_data[TEMP].rc.rocker_l1; // 水平方向
+    chassis_ctrl_cmd->vy = 60.0f * (float)rc_data[TEMP].rc.rocker_l_; // 竖直方向
     // chassis_ctrl_cmd->offset_angle =
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE)
     {
-        chassis_ctrl_cmd->wz =
-                -25.0f * (float) rc_data[TEMP].rc.dial; // 小陀螺模式下的旋转分量
+        chassis_ctrl_cmd->wz = -25.0f * (float)rc_data[TEMP].rc.dial; // 小陀螺模式下的旋转分量
     }
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW)
     {
@@ -391,6 +401,6 @@ static void Gantry_Limit(Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd, const Gantry_Param_
 
 static void CalcOffsetAngle()
 {
-     chassis_ctrl_cmd->offset_angle = set_angle-robot->ins_data->YawTotalAngle;
+    chassis_ctrl_cmd->offset_angle = set_angle - robot->ins_data->YawTotalAngle;
 }
 /* ---------------------------------------------------------------------------*/
