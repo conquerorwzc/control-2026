@@ -204,11 +204,11 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   switch (rc_data[TEMP].mouse.press_l % 2)        // 左键发射
   {
   case 0:
-      if(switch_is_up(rc_data[TEMP].rc.switch_left)) {
-        break;
-      }
+      if(!switch_is_up(rc_data[TEMP].rc.switch_left)) {
         shoot_ctrl_cmd->load_mode=LOAD_STOP;
         trigger_time = DWT_GetTimeline_s();
+      }
+      break;
   default:
     switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 2)  // E键设置发射模式
     {
