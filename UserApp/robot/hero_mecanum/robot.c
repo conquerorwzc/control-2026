@@ -204,9 +204,11 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   switch (rc_data[TEMP].mouse.press_l % 2)        // 左键发射
   {
   case 0:
-      shoot_ctrl_cmd->load_mode=LOAD_STOP;
-      trigger_time = DWT_GetTimeline_s();
-      break;
+      if(switch_is_up(rc_data[TEMP].rc.switch_left)) {
+        break;
+      }
+        shoot_ctrl_cmd->load_mode=LOAD_STOP;
+        trigger_time = DWT_GetTimeline_s();
   default:
     switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 2)  // E键设置发射模式
     {
@@ -356,7 +358,7 @@ void RobotCMDTask() {
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
   CalcOffsetAngle();
   RemoteControlSet();
-  //MouseKeySet();
+  MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
 
