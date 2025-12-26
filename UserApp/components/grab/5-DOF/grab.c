@@ -35,27 +35,33 @@ GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config)
     grab_instance->arm = (ArmInstance *)zmalloc(sizeof(ArmInstance));
     grab_instance->vedio = (VedioInstance *)zmalloc(sizeof(VedioInstance));
 
+    grab_instance->actuator->grab_djimotor[0] = DJIMotorInit(&Grab_init_config->Grab_motor_config[3]);
+    grab_instance->actuator->grab_djimotor[1] = DJIMotorInit(&Grab_init_config->Grab_motor_config[4]);
+
+    while (grab_instance->actuator->grab_djimotor[1]->measure.real_current == 0)
+    {
+        osDelay(10);
+    }
+    //在没有上电的情况下先不发使能帧给dm电机，即不初始化
     grab_instance->actuator->grab_dmmotor[0] = DMMotorInit(&Grab_init_config->Grab_motor_config[5]); // v2
     grab_instance->arm->grab_dmmotor[0] = DMMotorInit(&Grab_init_config->Grab_motor_config[0]);      // v3
     grab_instance->arm->grab_dmmotor[1] = DMMotorInit(&Grab_init_config->Grab_motor_config[1]);      // v4
     grab_instance->arm->grab_dmmotor[2] = DMMotorInit(&Grab_init_config->Grab_motor_config[2]);      // v4
 
-    // grab_instance->actuator->grab_djimotor[0] = DJIMotorInit(&Grab_init_config->Grab_motor_config[3]);
-    // grab_instance->actuator->grab_djimotor[1] = DJIMotorInit(&Grab_init_config->Grab_motor_config[4]);
-
-    grab_instance->vedio->grab_djimotor[0] =
-    DJIMotorInit(&Grab_init_config->Grab_motor_config[6]);
-    grab_instance->vedio->grab_djimotor[1] =
-    DJIMotorInit(&Grab_init_config->Grab_motor_config[7]);
+    //
+    // grab_instance->vedio->grab_djimotor[0] =
+    // DJIMotorInit(&Grab_init_config->Grab_motor_config[6]);
+    // grab_instance->vedio->grab_djimotor[1] =
+    // DJIMotorInit(&Grab_init_config->Grab_motor_config[7]);
 
     // 先赋值grab指针，再访问grab_instance中的成员
     grab = grab_instance;
     grab_ctrl_cmd = &grab->grab_ctrl_cmd;
 
     // 初始化电机初始角度，必须要发生在grab的赋值之后
-    // osDelay(10);
-    // total_angle_init_L = grab->actuator->grab_djimotor[1]->measure.total_angle;
-    // total_angle_init_R = grab->actuator->grab_djimotor[0]->measure.total_angle;
+    osDelay(10);
+    total_angle_init_L = grab->actuator->grab_djimotor[1]->measure.total_angle;
+    total_angle_init_R = grab->actuator->grab_djimotor[0]->measure.total_angle;
     total_angle_init_vedio_forward =
     grab->vedio->grab_djimotor[0]->measure.total_angle;
     total_angle_init_vedio_pitch =
@@ -65,7 +71,7 @@ GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config)
         DMMotorCaliEncoder(grab->arm->grab_dmmotor[0]);
         DMMotorCaliEncoder(grab->arm->grab_dmmotor[1]);
         DMMotorCaliEncoder(grab->arm->grab_dmmotor[2]);
-        // DMMotorCaliEncoder(grab->actuator->grab_dmmotor[0]);
+        DMMotorCaliEncoder(grab->actuator->grab_dmmotor[0]);
     }
     return grab_instance;
 }
@@ -88,8 +94,8 @@ static void GrabCmdTask()
     grab->actuator->wrist_pitch = grab_ctrl_cmd->wrist_pitch;
     grab->actuator->wrist_roll = grab_ctrl_cmd->wrist_roll;
     grab->actuator->torque= grab_ctrl_cmd->torque;
-    grab->vedio->vedio_forward= grab_ctrl_cmd->vedio_forward;
-    grab->vedio->vedio_pitch= grab_ctrl_cmd->vedio_pitch;
+    // grab->vedio->vedio_forward= grab_ctrl_cmd->vedio_forward;
+    // grab->vedio->vedio_pitch= grab_ctrl_cmd->vedio_pitch;
 }
 static void MotorTask()
 {
@@ -99,21 +105,21 @@ static void MotorTask()
         DMMotorStop(grab->arm->grab_dmmotor[1]);
         DMMotorStop(grab->arm->grab_dmmotor[2]);
 
-        // DJIMotorStop(grab->actuator->grab_djimotor[0]);
-        // DJIMotorStop(grab->actuator->grab_djimotor[1]);
-        // DMMotorStop(grab->actuator->grab_dmmotor[0]);
+        DJIMotorStop(grab->actuator->grab_djimotor[0]);
+        DJIMotorStop(grab->actuator->grab_djimotor[1]);
+        DMMotorStop(grab->actuator->grab_dmmotor[0]);
 
-        DJIMotorStop(grab->vedio->grab_djimotor[0]);
-        DJIMotorStop(grab->vedio->grab_djimotor[1]);
+        // DJIMotorStop(grab->vedio->grab_djimotor[0]);
+        // DJIMotorStop(grab->vedio->grab_djimotor[1]);
     }
     else
     {
         DMMotorEnable(grab->arm->grab_dmmotor[0]);
         DMMotorEnable(grab->arm->grab_dmmotor[1]);
         DMMotorEnable(grab->arm->grab_dmmotor[2]);
-        // DJIMotorEnable(grab->actuator->grab_djimotor[0]);
-        // DJIMotorEnable(grab->actuator->grab_djimotor[1]);
-        // DMMotorEnable(grab->actuator->grab_dmmotor[0]);
+        DJIMotorEnable(grab->actuator->grab_djimotor[0]);
+        DJIMotorEnable(grab->actuator->grab_djimotor[1]);
+        DMMotorEnable(grab->actuator->grab_dmmotor[0]);
         DJIMotorEnable(grab->vedio->grab_djimotor[0]);
         DJIMotorEnable(grab->vedio->grab_djimotor[1]);
 
@@ -122,13 +128,13 @@ static void MotorTask()
         DMMotorSetPIDRef(grab->arm->grab_dmmotor[1], grab->arm->elbow_roll * DEGREE_2_RAD);
         DMMotorSetPIDRef(grab->arm->grab_dmmotor[2], grab->arm->elbow_pitch * DEGREE_2_RAD);
 
-        // DJIMotorSetPIDRef(grab->actuator->grab_djimotor[0], grab->actuator->R_target);
-        // DJIMotorSetPIDRef(grab->actuator->grab_djimotor[1], grab->actuator->L_target);
-        //
-        // DMMotorSetRef(grab->actuator->grab_dmmotor[0], grab->actuator->T_target);
+        DJIMotorSetPIDRef(grab->actuator->grab_djimotor[0], grab->actuator->R_target);
+        DJIMotorSetPIDRef(grab->actuator->grab_djimotor[1], grab->actuator->L_target);
 
-        DJIMotorSetPIDRef(grab->vedio->grab_djimotor[0], grab->vedio->F_target);
-        DJIMotorSetPIDRef(grab->vedio->grab_djimotor[1], grab->vedio->P_target);
+        DMMotorSetRef(grab->actuator->grab_dmmotor[0], grab->actuator->T_target);
+
+        // DJIMotorSetPIDRef(grab->vedio->grab_djimotor[0], grab->vedio->F_target);
+        // DJIMotorSetPIDRef(grab->vedio->grab_djimotor[1], grab->vedio->P_target);
     }
 }
 
@@ -143,13 +149,13 @@ static void Grab_Position_Calculate(GrabInstance *grab)
      * R = +pitch + roll
      */
 
-    // grab->actuator->R_target =
-    //     total_angle_init_R + (grab->actuator->wrist_pitch + grab->actuator->wrist_roll * BEVEL_GEAR_RATIO) *
-    //                              MOTOR2006_REDUCTION_RATIO * PULLEY_GEAR_RATIO;
-    // grab->actuator->L_target =
-    //     total_angle_init_L + (-grab->actuator->wrist_pitch + grab->actuator->wrist_roll * BEVEL_GEAR_RATIO) *
-    //                              MOTOR2006_REDUCTION_RATIO * PULLEY_GEAR_RATIO;
-    grab->vedio->F_target = total_angle_init_vedio_forward + grab->vedio->vedio_forward * MOTOR2006_REDUCTION_RATIO;
-    grab->vedio->P_target = total_angle_init_vedio_pitch + grab->vedio->vedio_pitch;
-    // grab->actuator->T_target= grab->actuator->torque;
+    grab->actuator->R_target =
+        total_angle_init_R + (grab->actuator->wrist_pitch + grab->actuator->wrist_roll * BEVEL_GEAR_RATIO) *
+                                 MOTOR2006_REDUCTION_RATIO * PULLEY_GEAR_RATIO;
+    grab->actuator->L_target =
+        total_angle_init_L + (-grab->actuator->wrist_pitch + grab->actuator->wrist_roll * BEVEL_GEAR_RATIO) *
+                                 MOTOR2006_REDUCTION_RATIO * PULLEY_GEAR_RATIO;
+    // grab->vedio->F_target = total_angle_init_vedio_forward + grab->vedio->vedio_forward * MOTOR2006_REDUCTION_RATIO;
+    // grab->vedio->P_target = total_angle_init_vedio_pitch + grab->vedio->vedio_pitch;
+    grab->actuator->T_target= grab->actuator->torque;
 }
