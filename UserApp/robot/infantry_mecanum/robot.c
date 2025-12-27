@@ -1,12 +1,12 @@
 #include "robot.h"
 
+#include "bsp_gpio.h"
 #include "general_def.h"
 #include "master_process.h"
 #include "robot_config.h"
 #include "user_lib.h"
 
 static RobotInstance *robot;
-
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
 static Gimbal_Ctrl_Cmd_s *gimbal_ctrl_cmd;
@@ -196,7 +196,7 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
     switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 2)  // E键设置发射模式
     {
       case 0:                                              //单发+长按连发
-        if (shoot_ctrl_cmd->friction_mode==FRICTION_ON)   //需预先开启摩擦轮，F键
+        if (shoot_ctrl_cmd->friction_mode==FRICTION_ON&&(vision_recv_data->shoot_receive.fire_flag||rc_data[TEMP].mouse.press_r % 2==0))   //需预先开启摩擦轮
         {
             shoot_ctrl_cmd->load_mode=LOAD_1_BULLET;
           if (DWT_GetTimeline_s() - trigger_time > 1.0f)  //长按检测，1秒
@@ -222,10 +222,10 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
       chassis_ctrl_cmd->chassis_speed_buff = 20000;
       break;
     case 2:
-      chassis_ctrl_cmd->chassis_speed_buff = 40000;
+      chassis_ctrl_cmd->chassis_speed_buff = 30000;
       break;
     default:
-      chassis_ctrl_cmd->chassis_speed_buff = 80000;
+      chassis_ctrl_cmd->chassis_speed_buff = 40000;
       break;
   }
   // switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Q]%2) //新增Q自旋开启
@@ -302,7 +302,6 @@ static void EmergencyHandler() {
   }
 void RobotInit() {
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
-
 #ifdef STM32F407xx
   robot->rc_data = RemoteControlInit(&huart3);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
 #elifdef STM32H723XX
