@@ -98,7 +98,6 @@ void RobotTask()
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
 void RobotCMDTask()
 {
-    // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
     CalcOffsetAngle();
     RemoteControlSet();
     MouseKeySet();
@@ -215,7 +214,6 @@ static void MouseKeySet()
     default:
         break;
     }
-
 }
 
 /**
@@ -227,25 +225,16 @@ static void MouseKeySet()
  */
 static void EmergencyHandler()
 {
-    // 简化紧急停止逻辑 - 只有右侧拨杆控制紧急停止
-    // 避免与左侧拨杆控制龙门架的逻辑冲突
-    if (switch_is_down(rc_data[TEMP].rc.switch_right))
+    // 遥控器不在线的时候停止所有电机
+    if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)) ||
+        !RemoteControlIsOnline())
     {
-        // 右侧拨杆DOWN时底盘断电
+        robot->robot_mode = ROBOT_EMERGENCY_STOP;
         chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
-        LOGINFO("[CMD] chassis power off");
+        gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_POWER_OFF;
+        grab_ctrl_cmd->grab_mode = GRAB_POWER_OFF;
+        LOGINFO("[CMD] emergency stop!");
     }
-    else
-    {
-        // 右侧拨杆非DOWN时恢复底盘
-        if (chassis_ctrl_cmd->chassis_mode == CHASSIS_POWER_OFF)
-        {
-            chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW; // 默认恢复为跟随模式
-            LOGINFO("[CMD] chassis power on");
-        }
-    }
-
-    // 左侧拨杆完全由RemoteControlSet函数控制，不在这里干预
 }
 
 /**
@@ -269,8 +258,7 @@ static void RemoteControlSet()
     else if (switch_is_up(rc_data[TEMP].rc.switch_right))
     {
 
-            chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
-
+        chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
     }
     // 右[下] 控制底盘断电，但不触发整机紧急停止
     else if (switch_is_down(rc_data[TEMP].rc.switch_right))
@@ -318,7 +306,6 @@ static void RemoteControlSet()
     // 底盘运动控制（使用左侧摇杆）
     chassis_ctrl_cmd->vx = 60.0f * (float)rc_data[TEMP].rc.rocker_l1; // 水平方向
     chassis_ctrl_cmd->vy = 60.0f * (float)rc_data[TEMP].rc.rocker_l_; // 竖直方向
-
 
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW)
     {

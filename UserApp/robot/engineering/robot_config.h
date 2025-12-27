@@ -432,7 +432,7 @@ static Grab_Init_Config_s
                     .can_init_config =
                         {
                             .can_handle = &hcan1,
-                            .tx_id = 1,
+                            .tx_id = 5,
                         },
 
                 },
@@ -467,7 +467,7 @@ static Grab_Init_Config_s
                     .can_init_config =
                         {
                             .can_handle = &hcan1,
-                            .tx_id = 2,
+                            .tx_id = 6,
                         },
 
                 },
