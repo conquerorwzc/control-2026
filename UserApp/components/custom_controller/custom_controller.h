@@ -12,10 +12,7 @@
 #define POTENTIOMETER_ADC_CHANNEL_1 ADC_CHANNEL_16  // ADC1通道16
 #define POTENTIOMETER_ADC_CHANNEL_2 ADC_CHANNEL_14  // ADC2通道14
 
-// 定义舵机相关常量
-#define SERVO_MOTOR_COUNT 3
-
-// 电位器结构体
+// 电位器结构体 (遵循自定义控制器结构体设计规范)
 typedef struct {
     ADCInstance* adc[POTENTIOMETER_COUNT];    // 电位器ADC实例
     uint32_t values[POTENTIOMETER_COUNT];     // 电位器原始值
@@ -24,8 +21,8 @@ typedef struct {
 
 // 自定义控制器结构体
 typedef struct {
-    SerialServoInstance* servo_motors[SERVO_MOTOR_COUNT];  // 舵机相关
-    PotentiometerInstance potentiometer;             // 电位器相关
+    SerialServo_t* servo_motors[SERVO_MOTOR_COUNT];  // 舵机相关，使用SerialServo_t类型
+    PotentiometerInstance potentiometer;             // 电位器相关，封装在独立的子结构体中
 } CustomControllerInstance;
 
 // 函数声明
