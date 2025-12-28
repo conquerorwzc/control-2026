@@ -41,6 +41,9 @@ static void CalcOffsetAngle() {
   } else if (delta <= -180.0f) {
     delta += 360.0f;
   }
+  if (abs(delta) < 1.5f) {
+    delta =0.0f;
+  }
   chassis_ctrl_cmd->offset_angle = delta;
 }
 
@@ -137,16 +140,17 @@ static void DualBoardCtrlSet() {
 
       for (int i = 0; i < 24; i++)
         CanData.bytes[i] = received_data[i];
-      chassis_ctrl_cmd->vx=60.0f*CanData.value16[0];//todo:后面chassis改改把负号去掉
-      chassis_ctrl_cmd->vy=60.0f*CanData.value16[1];
+      chassis_ctrl_cmd->vy=-60.0f*CanData.value16[0];//todo:后面chassis改改把负号去掉
+      chassis_ctrl_cmd->vx=60.0f*CanData.value16[1];
       //if (CanData.value16[2]>=0)
       // chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)-CanData.value16[2]/50.0f))*CanData.value16[2];
       // else chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)CanData.value16[2]/50.0f))*CanData.value16[2];
-      chassis_ctrl_cmd->wz=42.0f*CanData.value16[2];
+      chassis_ctrl_cmd->wz=35.0f*CanData.value16[2];
       if (switch_is_mid(CanData.bytes[10])) {
         //gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-        if (CanData.value16[3] > 20) {
+        if (abs((CanData.value16[3])) > 20) {
           chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+          chassis_ctrl_cmd->wz = 20.0f*abs(CanData.value16[3]);
         } else
           chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
       }
@@ -302,7 +306,7 @@ void RobotInit() {
 
   // robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
 
-  // robot->super_cap = SuperCapInit(&super_cap_config);
+   robot->super_cap = QQSuperCapInit(&super_cap_config);
 
 // #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
 //   robot->gimbal = GimbalInit(&gimbal_init_config);

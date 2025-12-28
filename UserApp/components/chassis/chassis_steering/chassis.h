@@ -92,7 +92,7 @@ typedef struct {
   Chassis_Ctrl_Cmd_s chassis_ctrl_cmd;
   DJIMotorInstance *wheel_motor[4];
   DJIMotorInstance *rudder_motor[4];
-  DJIMotorInstance *yaw_motor;
+  //DJIMotorInstance *yaw_motor;
   uint16_t rudder_offset[4];
 } ChassisInstance;
 /**

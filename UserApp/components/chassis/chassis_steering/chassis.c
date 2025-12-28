@@ -333,7 +333,7 @@ void ChassisTask() {
       chassis_ctrl_cmd->wz+=PIDCalculate(&follow_pid,chassis_ctrl_cmd->offset_angle,0);
       break;
     case CHASSIS_ROTATE: // 自旋,同时保持全向机动;当前wz维持定值,后续增加不规则的变速策略
-       chassis_ctrl_cmd->wz = 30000;
+
       chassis_ctrl_cmd->offset_angle+=0.001f*chassis_ctrl_cmd->wz;
       break;
     default:

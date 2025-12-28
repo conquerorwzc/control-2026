@@ -28,7 +28,7 @@
 // #define VISION_USE_UART // 使用串口发送视觉数据
 
 // 云台参数
-#define YAW_CHASSIS_ALIGN_ECD 1570
+#define YAW_CHASSIS_ALIGN_ECD 7714
 #define PITCH_HORIZON_ECD 5748  // 云台处于水平位置时编码器值,若对云台有机械改动需要修改
 #define PITCH_MAX_ANGLE 11.0f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
 #define PITCH_MIN_ANGLE -15.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
@@ -163,7 +163,7 @@ static Chassis_Init_Config_s chassis_init_config = {
   .yaw_motor_config=RUDDER_MOTOR_CONFIG(&hcan1, 1),
     //跟随PID
     .follow_pid={
-        .Kp = 300.0f,
+        .Kp = 200.0f,
         .Ki = 0.0f,
         .Kd = 0.0f,
         .IntegralLimit = 1000.0f,
@@ -315,12 +315,12 @@ static Chassis_Init_Config_s chassis_init_config = {
 //         },
 // };
 
-// static SuperCap_Init_Config_s super_cap_config = {
-//     .can_config = {
-//         .can_handle = &hcan2,
-//         .tx_id = 0x302,  // 超级电容默认接收id
-//         .rx_id = 0x301,  // 超级电容默认发送id,注意tx和rx在其他人看来是反的
-//     }}
+static QQSuperCap_Init_Config_s super_cap_config = {
+    .can_config = {
+        .can_handle = &hcan2,
+        .tx_id = 0x210,  // 超级电容默认接收id
+        .rx_id = 0x210,  // 超级电容默认发送id,注意tx和rx在其他人看来是反的
+    }};
 #ifndef CONTROL_2026_ROBOT_CONFIG_H
 #define CONTROL_2026_ROBOT_CONFIG_H
 
