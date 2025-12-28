@@ -235,7 +235,7 @@ static Shoot_Init_Config_s shoot_init_config = {
 
         },
     .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan2, 1, 0),
-    .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan2, 2, 1),
+    .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan2, 2, 0),
     .friction_motor_config[2] = FRICTION_MOTOR_CONFIG(&hcan2, 4, 0),
 
     .loader_motor_config =

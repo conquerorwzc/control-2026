@@ -82,9 +82,9 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
 
     DJIMotorSetPIDRef(shoot->loader_motor, loader_set);
     // 使用根据机器人类型设置的摩擦轮系数
-    for (int i = 0; i < FRICTION_NUM; i++) {
-      DJIMotorSetPIDRef(shoot->friction_motor[i], friction_coefficients[i] * friction_set);
-    }
+    DJIMotorSetPIDRef(shoot->friction_motor[0], friction_coefficients[0] * friction_set);
+    DJIMotorSetPIDRef(shoot->friction_motor[1], -1.0*friction_coefficients[1] * friction_set);
+    DJIMotorSetPIDRef(shoot->friction_motor[2], friction_coefficients[2] * friction_set);
   }
   // 如果上一次触发单发或3发指令的时间加上不应期仍然大于当前时间(尚未休眠完毕),直接返回即可
   if (hibernate_time + dead_time > DWT_GetTimeline_ms()) return;
