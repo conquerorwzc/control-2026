@@ -221,7 +221,7 @@ static Shoot_Init_Config_s shoot_init_config = {
             .loader_direction = 1,                    // 拨盘旋转方向,1为正向，-1为反向
             .friction_num = 2,
       .friction_speed = 35000.0f,//摩擦轮数量
-      .friction_coefficients = {1.0f, 1.0f}, //摩擦轮速度比例系数
+      .friction_coefficients = {1.0f, -1.0f}, //摩擦轮速度比例系数
       .deadtime_burstfire = 50,
       .deadtime_onebullet = 250,               //弹丸发射间隔
 
@@ -229,7 +229,7 @@ static Shoot_Init_Config_s shoot_init_config = {
       .bullet_speed_adjustment = 10.0f,
         },
     .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan2, 1, MOTOR_DIRECTION_NORMAL),
-    .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan2, 2, MOTOR_DIRECTION_REVERSE),
+    .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan2, 2, MOTOR_DIRECTION_NORMAL),
 
     .loader_motor_config =
         {
