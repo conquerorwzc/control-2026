@@ -5,6 +5,7 @@
 #include "stdio.h"
 #include "cmsis_os.h"
 #include "bsp_dwt.h"
+#include "bsp_usart.h"
 
 // 全局实例指针
 static CustomControllerInstance* instance = NULL;
@@ -25,39 +26,31 @@ CustomControllerInstance* CustomControllerInit(void) {
     // 清空内存
     memset(instance, 0, sizeof(CustomControllerInstance));
 
-    // 初始化舵机
-    Servo_Init_Config_s servo_configs[SERVO_MOTOR_COUNT] = {
-        {
-            .servo_type = Bus_Servo,  // 使用串行舵机
-            ._handle = &huart6,  // 根据实际连接修改
-            .servo_id = 1
-        },
-        {
-            .servo_type = Bus_Servo,  // 使用串行舵机
-            ._handle = &huart6,  // 根据实际连接修改
-            .servo_id = 2
-        },
-        {
-            .servo_type = Bus_Servo,  // 使用串行舵机
-            ._handle = &huart6,  // 根据实际连接修改
-            .servo_id = 3
-        }
-    };
-
-    for (int i = 0; i < SERVO_MOTOR_COUNT; i++) {
-        instance->servo_motors[i] = SerialServoInit(&servo_configs[i]);
-        if (instance->servo_motors[i] != NULL) {
-            // 设置舵机为释力模式，允许手动摆动
-            // 但延迟0.1秒发送释力命令，确保系统稳定
-            uint32_t start_tick = HAL_GetTick();
-            while ((HAL_GetTick() - start_tick) < 100) {
-                // 空循环等待0.1秒
-            }
-            SerialServoLoadUnload(instance->servo_motors[i], servo_configs[i].servo_id, 0); // 0表示卸载
-            LOGINFO("Servo %d initialized successfully", servo_configs[i].servo_id);
-        } else {
-            LOGERROR("Failed to initialize servo %d", servo_configs[i].servo_id);
-        }
+    // 初始化舵机 - 只初始化ID为1的舵机
+    instance->servo_motors[0] = SerialServoInit(NULL);
+    if (instance->servo_motors[0] != NULL) {
+        // 创建 USART 配置
+        USART_Init_Config_s usart_config = {0};
+        usart_config.usart_handle = &huart6;
+        usart_config.recv_buff_size = 1; // 每次接收1个字节
+        usart_config.module_callback = NULL; // 可以根据需要添加回调函数
+        
+        // 注册 USART 实例
+        USARTInstance* usart_instance = USARTRegister(&usart_config);
+        
+        Servo_Init(instance->servo_motors[0], 1, usart_instance);
+        LOGINFO("Servo %d initialized", 1);
+        
+        // 延迟0.1秒发送释力命令，确保系统稳定
+        osDelay(100);
+        // 使用新的舵机控制接口
+        Servo_SetTorque(instance->servo_motors[0], false); // false表示卸载，释力
+        LOGINFO("Servo %d set to unload state", 1);
+        
+        // 再增加一些延时确保舵机进入卸载状态
+        osDelay(200);
+    } else {
+        LOGERROR("Failed to initialize servo %d", 1);
     }
 
     // 初始化ADC
@@ -67,7 +60,7 @@ CustomControllerInstance* CustomControllerInit(void) {
             .channel = POTENTIOMETER_ADC_CHANNEL_1,
             .mode = ADC_MODE_POLLING,
             .vref = 3.3f,
-            .alpha = 0.3f,  // 添加EWMA滤波，alpha值为0.2
+            .alpha = 0.3f,  // 添加EWMA滤波，alpha值为0.3
             .callback = NULL,
             .id = NULL
         },
@@ -76,7 +69,7 @@ CustomControllerInstance* CustomControllerInit(void) {
             .channel = POTENTIOMETER_ADC_CHANNEL_2,
             .mode = ADC_MODE_POLLING,
             .vref = 3.3f,
-            .alpha = 0.3f,  // 添加EWMA滤波，alpha值为0.2
+            .alpha = 0.3f,  // 添加EWMA滤波，alpha值为0.3
             .callback = NULL,
             .id = NULL
         }
@@ -110,26 +103,38 @@ void CustomControllerUpdate(CustomControllerInstance* controller_instance) {
     }
 
     // 发送读取舵机位置命令（针对串行舵机）
-    for (int i = 0; i < SERVO_MOTOR_COUNT; i++) {
-        if (controller_instance->servo_motors[i] != NULL) {
-            // 发送读取角度命令给每个舵机
-            SerialServoReadPosition(controller_instance->servo_motors[i],
-                              controller_instance->servo_motors[i]->servo_id,
-                              (int16_t*)&controller_instance->servo_motors[i]->recv_angle);
-            // 添加延迟，避免命令过于频繁导致舵机无响应
-            uint32_t start_tick = HAL_GetTick();
-            while ((HAL_GetTick() - start_tick) < 50) {
-                // 空循环等待50毫秒
-            }
-        }
-    }
-
-    // 注意：实际的角度值将在DecodeServo回调函数中解析并存储在recv_angle中
-    // 这里可以使用存储的角度值
-    for (int i = 0; i < SERVO_MOTOR_COUNT; i++) {
-        if (controller_instance->servo_motors[i] != NULL) {
-            float angle = controller_instance->servo_motors[i]->recv_angle / 10.0f;  // 转换为实际角度值
-            LOGINFO("Servo %d Angle: %.2f", controller_instance->servo_motors[i]->servo_id, angle);
+    // 只处理ID为1的舵机
+    if (controller_instance->servo_motors[0] != NULL) {
+        // 主动请求舵机角度
+        LOGINFO("About to request angle from servo %d", controller_instance->servo_motors[0]->id);
+        
+        // 使用新的舵机控制接口请求位置
+        Servo_ReadPosition(controller_instance->servo_motors[0]);
+        
+        // 等待一段时间让舵机返回数据
+        osDelay(300); // 进一步增加等待时间到300ms
+        
+        // 检查角度值是否合理再打印
+        // 将current_angle转换为角度值（根据协议，0-1000映射到0-240度）
+        // 在访问变量前先进行缓存同步
+        SCB_InvalidateDCache_by_Addr((uint32_t*)&(controller_instance->servo_motors[0]->present_pos), sizeof(controller_instance->servo_motors[0]->present_pos));
+        
+        LOGINFO("Raw angle value: %d", controller_instance->servo_motors[0]->present_pos);
+        
+        if (controller_instance->servo_motors[0]->present_pos >= 0 && 
+            controller_instance->servo_motors[0]->present_pos <= 1000) {
+            // 修复RTT打印语句，使用局部变量承接
+            int16_t print_angle = controller_instance->servo_motors[0]->present_pos; // 强制从结构体读到局部变量
+            float angle_degrees = (float)print_angle * 240.0f / 1000.0f;
+            LOGINFO("Servo %d Angle: %.2f degrees (raw: %d)", 
+                   (int)controller_instance->servo_motors[0]->id, 
+                   angle_degrees,
+                   (int)print_angle);
+        } else {
+            int16_t print_angle = controller_instance->servo_motors[0]->present_pos;
+            LOGWARNING("Servo %d returned invalid angle (raw: %d)", 
+                      (int)controller_instance->servo_motors[0]->id,
+                      (int)print_angle);
         }
     }
 }

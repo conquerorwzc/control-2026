@@ -97,7 +97,8 @@ int main(void)
   PeriphCommonClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
+  // 暂时不禁用D-Cache，避免HardFault
+  // SCB_DisableDCache();
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */

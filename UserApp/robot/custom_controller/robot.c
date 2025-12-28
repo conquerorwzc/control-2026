@@ -17,7 +17,6 @@ static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 
 /* Intermediate variables calculated by private functions */
-static float angle;
 
 /**
  * @brief 控制输入为遥控器(调试时)的模式和控制量设置
