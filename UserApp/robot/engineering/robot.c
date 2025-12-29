@@ -66,11 +66,16 @@ void RobotInit()
 
     // 初始化半自动控制参数
     semi_auto_param.gantry_lift_pos = 3000.0f;      // 龙门架抬升目标位置
-    semi_auto_param.chassis_forward_speed = 40000.0f; // 底盘前移速度（用于插入操作）
-    semi_auto_param.arm_raise_angle = 10.0f;        // 机械臂上抬角度
-    semi_auto_param.handle_flip_angle = 15.0f;      // 把手掰动角度
-    semi_auto_param.rotate_angle = 5.0f;            // 旋转角度（5度）
-    semi_auto_param.step_delay_ms = 1000;           // 步骤间延时（毫秒）
+    semi_auto_param.chassis_forward_speed = 40000.0f; // 底盘前移速度
+    // 机械臂关节控制参数
+    semi_auto_param.base_joint_angle = 0.0f;        // 基座关节角度
+    semi_auto_param.elbow_pitch_angle = 0.0f;       // 肘部俯仰角度
+    semi_auto_param.elbow_roll_angle = 0.0f;        // 肘部滚动角度
+    semi_auto_param.wrist_roll_angle = 0.0f;        // 腕部滚动角度
+    semi_auto_param.wrist_pitch_angle = 0.0f;       // 腕部俯仰角度
+    semi_auto_param.arm_raise_delay_ms = 1000;      // 机械臂上抬动作延迟（毫秒）
+    semi_auto_param.handle_flip_delay_ms = 1000;    // 把手掰动动作延迟（毫秒）
+    semi_auto_param.rotate_delay_ms = 1000;         // 旋转动作延迟（毫秒）
 
     // 初始化半自动控制模块
     SemiAuto_Init_Config_s semi_auto_init_config;
@@ -178,22 +183,43 @@ static void MouseKeySet()
         break;
     }
 
-    // 添加独立抬升龙门架控制 - 使用F键抬升龙门架
-    if (rc_data[TEMP].key[KEY_PRESS].f) {
-        if (robot->semi_auto != NULL) {
-            LiftGantryToTarget(); // 独立抬升龙门架
-        }
-    }
-
-    // 添加半自动操作控制 - 使用H键启动半自动操作（从插入矿物开始）
-    if (rc_data[TEMP].key_count[KEY_PRESS][Key_H] % 2 == 1) {
+    // 使用G+X组合键启动龙门架抬升 (Gantry + X)
+    if (rc_data[TEMP].key[KEY_PRESS].g && rc_data[TEMP].key[KEY_PRESS].x) {
         if (semi_auto_ctrl_cmd != NULL && !semi_auto_ctrl_cmd->is_running) {
-            StartSemiAutoOperation(); // 启动半自动操作（从插入矿物开始）
+            StartGantryLift(); // 启动龙门架抬升
+        }
+    }
+    
+    // 使用C+V组合键启动底盘移动 (Chassis + V)
+    if (rc_data[TEMP].key[KEY_PRESS].c && rc_data[TEMP].key[KEY_PRESS].v) {
+        if (semi_auto_ctrl_cmd != NULL && !semi_auto_ctrl_cmd->is_running) {
+            StartChassisMove(); // 启动底盘移动
+        }
+    }
+    
+    // 使用A+R组合键启动机械臂上抬 (Arm + R for Raise)
+    if (rc_data[TEMP].key[KEY_PRESS].a && rc_data[TEMP].key[KEY_PRESS].r) {
+        if (semi_auto_ctrl_cmd != NULL && !semi_auto_ctrl_cmd->is_running) {
+            StartArmRaise(); // 启动机械臂上抬
+        }
+    }
+    
+    // 使用A+F组合键启动掰把手 (Arm + F for Flip)
+    if (rc_data[TEMP].key[KEY_PRESS].a && rc_data[TEMP].key[KEY_PRESS].f) {
+        if (semi_auto_ctrl_cmd != NULL && !semi_auto_ctrl_cmd->is_running) {
+            StartArmFlip(); // 启动掰把手
+        }
+    }
+    
+    // 使用A+E组合键启动旋转 (Arm + E for Rotate)
+    if (rc_data[TEMP].key[KEY_PRESS].a && rc_data[TEMP].key[KEY_PRESS].e) {
+        if (semi_auto_ctrl_cmd != NULL && !semi_auto_ctrl_cmd->is_running) {
+            StartArmRotate(); // 启动旋转
         }
     }
 
-    // 使用J键停止半自动操作
-    if (rc_data[TEMP].key[KEY_PRESS].j) {
+    // 使用ctrl+s键停止半自动操作 (模拟ESC功能)
+    if (rc_data[TEMP].key[KEY_PRESS].ctrl && rc_data[TEMP].key[KEY_PRESS].s) {
         if (semi_auto_ctrl_cmd != NULL) {
             StopSemiAutoOperation(); // 停止半自动操作
         }

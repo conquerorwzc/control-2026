@@ -50,24 +50,14 @@ void SemiAutoTask(void)
 }
 
 /**
- * @brief 启动半自动操作
+ * @brief 启动半自动操作 - 抬升龙门架
  */
 void StartSemiAutoOperation(void)
 {
     if (semi_auto_instance != NULL) {
         semi_auto_instance->ctrl_cmd.is_running = 1;
-        semi_auto_instance->ctrl_cmd.state = SEMI_AUTO_INSERT_MINERAL;  // 直接从第二步开始
+        semi_auto_instance->ctrl_cmd.state = SEMI_AUTO_RAISE_GANTRY;  // 从抬升龙门架开始
         semi_auto_instance->ctrl_cmd.step_start_time = xTaskGetTickCount();
-    }
-}
-
-/**
- * @brief 执行抬升龙门架操作（独立功能）
- */
-void LiftGantryToTarget(void)
-{
-    if (semi_auto_instance != NULL && semi_auto_instance->gantry != NULL) {
-        semi_auto_instance->gantry->Gantry_ctrl_cmd.z = semi_auto_instance->param.gantry_lift_pos;
     }
 }
 
@@ -95,6 +85,66 @@ void ResetSemiAutoOperation(void)
 }
 
 /**
+ * @brief 启动龙门架抬升
+ */
+void StartGantryLift(void)
+{
+    if (semi_auto_instance != NULL) {
+        semi_auto_instance->ctrl_cmd.is_running = 1;
+        semi_auto_instance->ctrl_cmd.state = SEMI_AUTO_RAISE_GANTRY;
+        semi_auto_instance->ctrl_cmd.step_start_time = xTaskGetTickCount();
+    }
+}
+
+/**
+ * @brief 启动底盘移动
+ */
+void StartChassisMove(void)
+{
+    if (semi_auto_instance != NULL) {
+        semi_auto_instance->ctrl_cmd.is_running = 1;
+        semi_auto_instance->ctrl_cmd.state = SEMI_AUTO_MOVE_CHASSIS;
+        semi_auto_instance->ctrl_cmd.step_start_time = xTaskGetTickCount();
+    }
+}
+
+/**
+ * @brief 启动机械臂上抬
+ */
+void StartArmRaise(void)
+{
+    if (semi_auto_instance != NULL) {
+        semi_auto_instance->ctrl_cmd.is_running = 1;
+        semi_auto_instance->ctrl_cmd.state = SEMI_AUTO_ARM_RAISE;
+        semi_auto_instance->ctrl_cmd.step_start_time = xTaskGetTickCount();
+    }
+}
+
+/**
+ * @brief 启动掰把手
+ */
+void StartArmFlip(void)
+{
+    if (semi_auto_instance != NULL) {
+        semi_auto_instance->ctrl_cmd.is_running = 1;
+        semi_auto_instance->ctrl_cmd.state = SEMI_AUTO_ARM_FLIP;
+        semi_auto_instance->ctrl_cmd.step_start_time = xTaskGetTickCount();
+    }
+}
+
+/**
+ * @brief 启动旋转
+ */
+void StartArmRotate(void)
+{
+    if (semi_auto_instance != NULL) {
+        semi_auto_instance->ctrl_cmd.is_running = 1;
+        semi_auto_instance->ctrl_cmd.state = SEMI_AUTO_ARM_ROTATE;
+        semi_auto_instance->ctrl_cmd.step_start_time = xTaskGetTickCount();
+    }
+}
+
+/**
  * @brief 半自动操作运行函数
  * @param instance 半自动操作实例
  */
@@ -110,62 +160,70 @@ static void SemiAuto_Run(SemiAutoInstance* instance)
     // 根据当前状态执行相应的操作
     switch (instance->ctrl_cmd.state)
     {
-        case SEMI_AUTO_INSERT_MINERAL:
-            // 第一步：将矿物插入科技核心（移动底盘）
+        case SEMI_AUTO_RAISE_GANTRY:
+            // 第一步：抬升龙门架
+            if (instance->gantry != NULL) {
+                // 设置龙门架抬升位置
+                instance->gantry->Gantry_ctrl_cmd.z = instance->param.gantry_lift_pos;
+                // 立即跳转到空闲状态，等待手动微调
+                instance->ctrl_cmd.state = SEMI_AUTO_IDLE;
+                instance->ctrl_cmd.is_running = 0;
+            } else {
+                instance->ctrl_cmd.state = SEMI_AUTO_ERROR;
+            }
+            break;
+
+        case SEMI_AUTO_MOVE_CHASSIS:
+            // 第二步：移动底盘
             if (instance->chassis != NULL) {
-                // 设置底盘向前移动，执行插入操作
-                instance->chassis->chassis_ctrl_cmd.vx = instance->param.chassis_forward_speed; // 向前移动
-                // 假设插入操作需要2000ms完成
-                if (elapsed_time >= 2000) {
-                    instance->chassis->chassis_ctrl_cmd.vx = 0; // 停止移动
-                    instance->ctrl_cmd.state = SEMI_AUTO_RAISE_ARM;
-                    instance->ctrl_cmd.step_start_time = current_time;
-                }
+                // 设置底盘向前移动
+                instance->chassis->chassis_ctrl_cmd.vx = instance->param.chassis_forward_speed;
+                // 立即跳转到空闲状态，等待手动微调
+                instance->chassis->chassis_ctrl_cmd.vx = 0; // 立即停止
+                instance->ctrl_cmd.state = SEMI_AUTO_IDLE;
+                instance->ctrl_cmd.is_running = 0;
             } else {
                 instance->ctrl_cmd.state = SEMI_AUTO_ERROR;
             }
             break;
 
-        case SEMI_AUTO_RAISE_ARM:
-            // 第二步：机械臂整体上抬
+        case SEMI_AUTO_ARM_RAISE:
+            // 第三步：机械臂上抬
             if (instance->grab != NULL) {
-                // 设置机械臂抬升角度（这里假设是肘部关节角度）
-                instance->grab->grab_ctrl_cmd.elbow_pitch += 10.0f; // 增加10度
-                // 假设上抬操作需要1000ms完成
-                if (elapsed_time >= 1000) {
-                    instance->ctrl_cmd.state = SEMI_AUTO_FLIP_HANDLE;
-                    instance->ctrl_cmd.step_start_time = current_time;
-                }
+                // 机械臂上抬 - 设置目标角度
+                instance->grab->grab_ctrl_cmd.elbow_pitch = instance->param.elbow_pitch_angle;
+                
+                // 立即跳转到空闲状态，等待手动微调
+                instance->ctrl_cmd.state = SEMI_AUTO_IDLE;
+                instance->ctrl_cmd.is_running = 0;
             } else {
                 instance->ctrl_cmd.state = SEMI_AUTO_ERROR;
             }
             break;
-
-        case SEMI_AUTO_FLIP_HANDLE:
-            // 第三步：掰科技核心把手
+            
+        case SEMI_AUTO_ARM_FLIP:
+            // 第四步：掰把手
             if (instance->grab != NULL) {
-                // 设置掰把手的角度（这里假设是腕部关节角度）
-                instance->grab->grab_ctrl_cmd.wrist_pitch = instance->param.handle_flip_angle;
-                // 假设掰把手操作需要1200ms完成
-                if (elapsed_time >= 1200) {
-                    instance->ctrl_cmd.state = SEMI_AUTO_ROTATE_RIGHT;
-                    instance->ctrl_cmd.step_start_time = current_time;
-                }
+                // 把手掰动 - 设置目标角度
+                instance->grab->grab_ctrl_cmd.wrist_pitch = instance->param.wrist_pitch_angle;
+                
+                // 立即跳转到空闲状态，等待手动微调
+                instance->ctrl_cmd.state = SEMI_AUTO_IDLE;
+                instance->ctrl_cmd.is_running = 0;
             } else {
                 instance->ctrl_cmd.state = SEMI_AUTO_ERROR;
             }
             break;
-
-        case SEMI_AUTO_ROTATE_RIGHT:
-            // 第四步：向右旋转5度
+            
+        case SEMI_AUTO_ARM_ROTATE:
+            // 第五步：旋转
             if (instance->grab != NULL) {
-                // 设置旋转角度（这里假设是基座关节角度）
-                instance->grab->grab_ctrl_cmd.base_joint = instance->param.rotate_angle;
-                // 假设旋转操作需要800ms完成
-                if (elapsed_time >= 800) {
-                    instance->ctrl_cmd.state = SEMI_AUTO_COMPLETE;
-                    instance->ctrl_cmd.step_start_time = current_time;
-                }
+                // 旋转 - 设置目标角度
+                instance->grab->grab_ctrl_cmd.base_joint = instance->param.base_joint_angle;
+                
+                // 立即跳转到完成状态
+                instance->ctrl_cmd.state = SEMI_AUTO_COMPLETE;
+                instance->ctrl_cmd.step_start_time = current_time;
             } else {
                 instance->ctrl_cmd.state = SEMI_AUTO_ERROR;
             }
