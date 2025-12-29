@@ -65,28 +65,43 @@ void RobotInit()
     robot->grab = GrabInit(&grab_init_config);
 
     // 初始化半自动控制参数
-    semi_auto_param.gantry_lift_pos = 3000.0f;      // 龙门架抬升目标位置
-    semi_auto_param.chassis_forward_speed = 40000.0f; // 底盘前移速度
-    // 机械臂关节控制参数
-    semi_auto_param.base_joint_angle = 0.0f;        // 基座关节角度
-    semi_auto_param.elbow_pitch_angle = 0.0f;       // 肘部俯仰角度
-    semi_auto_param.elbow_roll_angle = 0.0f;        // 肘部滚动角度
-    semi_auto_param.wrist_roll_angle = 0.0f;        // 腕部滚动角度
-    semi_auto_param.wrist_pitch_angle = 0.0f;       // 腕部俯仰角度
-    semi_auto_param.arm_raise_delay_ms = 1000;      // 机械臂上抬动作延迟（毫秒）
-    semi_auto_param.handle_flip_delay_ms = 1000;    // 把手掰动动作延迟（毫秒）
-    semi_auto_param.rotate_delay_ms = 1000;         // 旋转动作延迟（毫秒）
+    // 第一步：抬升龙门架参数
+    semi_auto_param.raise_gantry_param.z = 0.0f;                      // 龙门架抬升目标位置（对应Gantry_Ctrl_Cmd_s中的z轴）
+    semi_auto_param.raise_gantry_param.delay_ms = 0;                  // 动作延迟（毫秒）
+    
+    // 第二步：机械臂上抬参数
+    semi_auto_param.arm_raise_param.base_joint = 0.0f;                // 基座关节角度（对应Grab_Ctrl_Cmd_s中的参数）
+    semi_auto_param.arm_raise_param.elbow_pitch = 0.0f;               // 肘部俯仰角度
+    semi_auto_param.arm_raise_param.elbow_roll = 0.0f;                // 肘部滚动角度
+    semi_auto_param.arm_raise_param.wrist_roll = 0.0f;                // 腕部滚动角度
+    semi_auto_param.arm_raise_param.wrist_pitch = 0.0f;               // 腕部俯仰角度
+    semi_auto_param.arm_raise_param.delay_ms = 0;                     // 动作延迟（毫秒）
+    
+    // 第三步：掰把手参数
+    semi_auto_param.arm_flip_param.base_joint = 0.0f;                 // 基座关节角度
+    semi_auto_param.arm_flip_param.elbow_pitch = 0.0f;                // 肘部俯仰角度
+    semi_auto_param.arm_flip_param.elbow_roll = 0.0f;                 // 肘部滚动角度
+    semi_auto_param.arm_flip_param.wrist_roll = 0.0f;                 // 腕部滚动角度
+    semi_auto_param.arm_flip_param.wrist_pitch = 0.0f;                // 腕部俯仰角度
+    semi_auto_param.arm_flip_param.delay_ms = 0;                      // 动作延迟（毫秒）
+    
+    // 第四步：旋转参数
+    semi_auto_param.arm_rotate_param.base_joint = 0.0f;               // 基座关节角度
+    semi_auto_param.arm_rotate_param.elbow_pitch = 0.0f;              // 肘部俯仰角度
+    semi_auto_param.arm_rotate_param.elbow_roll = 0.0f;               // 肘部滚动角度
+    semi_auto_param.arm_rotate_param.wrist_roll = 0.0f;               // 腕部滚动角度
+    semi_auto_param.arm_rotate_param.wrist_pitch = 0.0f;              // 腕部俯仰角度
+    semi_auto_param.arm_rotate_param.delay_ms = 0;                    // 动作延迟（毫秒）
 
     // 初始化半自动控制模块
     SemiAuto_Init_Config_s semi_auto_init_config;
     semi_auto_init_config.param = semi_auto_param;
     robot->semi_auto = SemiAutoInit(&semi_auto_init_config);
     
-    // 将龙门架、机械臂和底盘实例赋给半自动控制模块
+    // 将龙门架和机械臂实例赋给半自动控制模块
     if (robot->semi_auto != NULL) {
         robot->semi_auto->gantry = robot->gantry;
         robot->semi_auto->grab = robot->grab;
-        robot->semi_auto->chassis = robot->chassis;
     }
 
     // 初始化控制命令指针
@@ -187,13 +202,6 @@ static void MouseKeySet()
     if (rc_data[TEMP].key[KEY_PRESS].g && rc_data[TEMP].key[KEY_PRESS].x) {
         if (semi_auto_ctrl_cmd != NULL && !semi_auto_ctrl_cmd->is_running) {
             StartGantryLift(); // 启动龙门架抬升
-        }
-    }
-    
-    // 使用C+V组合键启动底盘移动 (Chassis + V)
-    if (rc_data[TEMP].key[KEY_PRESS].c && rc_data[TEMP].key[KEY_PRESS].v) {
-        if (semi_auto_ctrl_cmd != NULL && !semi_auto_ctrl_cmd->is_running) {
-            StartChassisMove(); // 启动底盘移动
         }
     }
     

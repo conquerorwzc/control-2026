@@ -97,18 +97,6 @@ void StartGantryLift(void)
 }
 
 /**
- * @brief 启动底盘移动
- */
-void StartChassisMove(void)
-{
-    if (semi_auto_instance != NULL) {
-        semi_auto_instance->ctrl_cmd.is_running = 1;
-        semi_auto_instance->ctrl_cmd.state = SEMI_AUTO_MOVE_CHASSIS;
-        semi_auto_instance->ctrl_cmd.step_start_time = xTaskGetTickCount();
-    }
-}
-
-/**
  * @brief 启动机械臂上抬
  */
 void StartArmRaise(void)
@@ -164,22 +152,8 @@ static void SemiAuto_Run(SemiAutoInstance* instance)
             // 第一步：抬升龙门架
             if (instance->gantry != NULL) {
                 // 设置龙门架抬升位置
-                instance->gantry->Gantry_ctrl_cmd.z = instance->param.gantry_lift_pos;
+                instance->gantry->Gantry_ctrl_cmd.z = instance->param.raise_gantry_param.z;
                 // 立即跳转到空闲状态，等待手动微调
-                instance->ctrl_cmd.state = SEMI_AUTO_IDLE;
-                instance->ctrl_cmd.is_running = 0;
-            } else {
-                instance->ctrl_cmd.state = SEMI_AUTO_ERROR;
-            }
-            break;
-
-        case SEMI_AUTO_MOVE_CHASSIS:
-            // 第二步：移动底盘
-            if (instance->chassis != NULL) {
-                // 设置底盘向前移动
-                instance->chassis->chassis_ctrl_cmd.vx = instance->param.chassis_forward_speed;
-                // 立即跳转到空闲状态，等待手动微调
-                instance->chassis->chassis_ctrl_cmd.vx = 0; // 立即停止
                 instance->ctrl_cmd.state = SEMI_AUTO_IDLE;
                 instance->ctrl_cmd.is_running = 0;
             } else {
@@ -188,10 +162,14 @@ static void SemiAuto_Run(SemiAutoInstance* instance)
             break;
 
         case SEMI_AUTO_ARM_RAISE:
-            // 第三步：机械臂上抬
+            // 第二步：机械臂上抬
             if (instance->grab != NULL) {
                 // 机械臂上抬 - 设置目标角度
-                instance->grab->grab_ctrl_cmd.elbow_pitch = instance->param.elbow_pitch_angle;
+                instance->grab->grab_ctrl_cmd.base_joint = instance->param.arm_raise_param.base_joint;
+                instance->grab->grab_ctrl_cmd.elbow_pitch = instance->param.arm_raise_param.elbow_pitch;
+                instance->grab->grab_ctrl_cmd.elbow_roll = instance->param.arm_raise_param.elbow_roll;
+                instance->grab->grab_ctrl_cmd.wrist_roll = instance->param.arm_raise_param.wrist_roll;
+                instance->grab->grab_ctrl_cmd.wrist_pitch = instance->param.arm_raise_param.wrist_pitch;
                 
                 // 立即跳转到空闲状态，等待手动微调
                 instance->ctrl_cmd.state = SEMI_AUTO_IDLE;
@@ -202,10 +180,14 @@ static void SemiAuto_Run(SemiAutoInstance* instance)
             break;
             
         case SEMI_AUTO_ARM_FLIP:
-            // 第四步：掰把手
+            // 第三步：掰把手
             if (instance->grab != NULL) {
                 // 把手掰动 - 设置目标角度
-                instance->grab->grab_ctrl_cmd.wrist_pitch = instance->param.wrist_pitch_angle;
+                instance->grab->grab_ctrl_cmd.base_joint = instance->param.arm_flip_param.base_joint;
+                instance->grab->grab_ctrl_cmd.elbow_pitch = instance->param.arm_flip_param.elbow_pitch;
+                instance->grab->grab_ctrl_cmd.elbow_roll = instance->param.arm_flip_param.elbow_roll;
+                instance->grab->grab_ctrl_cmd.wrist_roll = instance->param.arm_flip_param.wrist_roll;
+                instance->grab->grab_ctrl_cmd.wrist_pitch = instance->param.arm_flip_param.wrist_pitch;
                 
                 // 立即跳转到空闲状态，等待手动微调
                 instance->ctrl_cmd.state = SEMI_AUTO_IDLE;
@@ -216,10 +198,14 @@ static void SemiAuto_Run(SemiAutoInstance* instance)
             break;
             
         case SEMI_AUTO_ARM_ROTATE:
-            // 第五步：旋转
+            // 第四步：旋转
             if (instance->grab != NULL) {
                 // 旋转 - 设置目标角度
-                instance->grab->grab_ctrl_cmd.base_joint = instance->param.base_joint_angle;
+                instance->grab->grab_ctrl_cmd.base_joint = instance->param.arm_rotate_param.base_joint;
+                instance->grab->grab_ctrl_cmd.elbow_pitch = instance->param.arm_rotate_param.elbow_pitch;
+                instance->grab->grab_ctrl_cmd.elbow_roll = instance->param.arm_rotate_param.elbow_roll;
+                instance->grab->grab_ctrl_cmd.wrist_roll = instance->param.arm_rotate_param.wrist_roll;
+                instance->grab->grab_ctrl_cmd.wrist_pitch = instance->param.arm_rotate_param.wrist_pitch;
                 
                 // 立即跳转到完成状态
                 instance->ctrl_cmd.state = SEMI_AUTO_COMPLETE;
