@@ -7,6 +7,7 @@
 #include "stdlib.h"
 #include "string.h"
 #include "user_lib.h"
+#include "semi_automatic.h" // 添加半自动控制头文件
 
 /* Private define ------------------------------------------------------------*/
 
@@ -15,6 +16,7 @@ static RobotInstance *robot;
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
 static Grab_Ctrl_Cmd_s *grab_ctrl_cmd;
 static Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd; // 【新增】龙门架控制命令指针
+static SemiAuto_Ctrl_Cmd_s *semi_auto_ctrl_cmd; // 半自动控制命令指针
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last; // 遥控器数据,初始化时返回
 static float set_angle = 0;
@@ -26,6 +28,7 @@ static float target_angle = 0;
 static int mouse_l_count = 0;
 static Gantry_Param_s gantry_param;
 static Garb_Param_s grab_param;
+static SemiAuto_Param_s semi_auto_param; // 半自动参数
 /* Private function prototypes -----------------------------------------------*/
 static void Gantry_Limit(Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd, const Gantry_Param_s *gantry_param);
 static void Grab_Limit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, const Gantry_Param_s *gantry_param);
@@ -54,12 +57,32 @@ void RobotInit()
     rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
     *rc_data_last = *robot->rc_data; // 记录上一次遥控器的状态
     robot->ins_data = INS_Init(&imu_init_config);
-    robot->gantry = GantryInit(&gantry_init_config);
-    robot->grab = GrabInit(&grab_init_config);
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
     robot->chassis = ChassisInit(&chassis_init_config);
 #endif
+    robot->gantry = GantryInit(&gantry_init_config);
+    robot->grab = GrabInit(&grab_init_config);
+
+    // 初始化半自动控制参数
+    semi_auto_param.gantry_lift_pos = 3000.0f;      // 龙门架抬升目标位置
+    semi_auto_param.chassis_forward_speed = 40000.0f; // 底盘前移速度（用于插入操作）
+    semi_auto_param.arm_raise_angle = 10.0f;        // 机械臂上抬角度
+    semi_auto_param.handle_flip_angle = 15.0f;      // 把手掰动角度
+    semi_auto_param.rotate_angle = 5.0f;            // 旋转角度（5度）
+    semi_auto_param.step_delay_ms = 1000;           // 步骤间延时（毫秒）
+
+    // 初始化半自动控制模块
+    SemiAuto_Init_Config_s semi_auto_init_config;
+    semi_auto_init_config.param = semi_auto_param;
+    robot->semi_auto = SemiAutoInit(&semi_auto_init_config);
+    
+    // 将龙门架、机械臂和底盘实例赋给半自动控制模块
+    if (robot->semi_auto != NULL) {
+        robot->semi_auto->gantry = robot->gantry;
+        robot->semi_auto->grab = robot->grab;
+        robot->semi_auto->chassis = robot->chassis;
+    }
 
     // 初始化控制命令指针
     chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
@@ -69,6 +92,12 @@ void RobotInit()
     if (robot->gantry != NULL)
     {
         gantry_ctrl_cmd = &robot->gantry->Gantry_ctrl_cmd;
+    }
+    
+    // 【新增】半自动控制命令指针
+    if (robot->semi_auto != NULL)
+    {
+        semi_auto_ctrl_cmd = &robot->semi_auto->ctrl_cmd;
     }
 
     gantry_param = gantry_init_config.Gantry_param;
@@ -91,6 +120,7 @@ void RobotTask()
 #if defined(ONE_BOARD) // 假设龙门架逻辑运行在主控板
     GantryTask();
     GrabTask();
+    SemiAutoTask(); // 添加半自动控制任务
     // grab_ctrl_cmd->grab_mode = b;
 #endif
 }
@@ -146,6 +176,27 @@ static void MouseKeySet()
     default:
         chassis_ctrl_cmd->chassis_speed_buff = 80000;
         break;
+    }
+
+    // 添加独立抬升龙门架控制 - 使用F键抬升龙门架
+    if (rc_data[TEMP].key[KEY_PRESS].f) {
+        if (robot->semi_auto != NULL) {
+            LiftGantryToTarget(); // 独立抬升龙门架
+        }
+    }
+
+    // 添加半自动操作控制 - 使用H键启动半自动操作（从插入矿物开始）
+    if (rc_data[TEMP].key_count[KEY_PRESS][Key_H] % 2 == 1) {
+        if (semi_auto_ctrl_cmd != NULL && !semi_auto_ctrl_cmd->is_running) {
+            StartSemiAutoOperation(); // 启动半自动操作（从插入矿物开始）
+        }
+    }
+
+    // 使用J键停止半自动操作
+    if (rc_data[TEMP].key[KEY_PRESS].j) {
+        if (semi_auto_ctrl_cmd != NULL) {
+            StopSemiAutoOperation(); // 停止半自动操作
+        }
     }
 
     if (gantry_ctrl_cmd->Gantry_mode != GANTRY_MODE_POWER_OFF)
@@ -221,7 +272,7 @@ static void MouseKeySet()
  *         停止的阈值'300'待修改成合适的值,或改为开关控制.
  *
  * @todo   后续修改为遥控器离线则电机停止(关闭遥控器急停),通过给遥控器模块添加daemon实现
- *
+ *.
  */
 static void EmergencyHandler()
 {
@@ -233,12 +284,16 @@ static void EmergencyHandler()
         chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
         gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_POWER_OFF;
         grab_ctrl_cmd->grab_mode = GRAB_POWER_OFF;
+        // 紧急停止时也停止半自动操作
+        if (semi_auto_ctrl_cmd != NULL) {
+            StopSemiAutoOperation();
+        }
         LOGINFO("[CMD] emergency stop!");
     }
 }
 
 /**
- * @brief 控制输入为遥控器(调试时)的模式和控制量设置
+ * @brief 控制输入为遥控器(调试时)的模式和控制量设置wasdqezxcvbg
  *
  */
 static void RemoteControlSet()

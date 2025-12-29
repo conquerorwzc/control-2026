@@ -4,6 +4,7 @@
 #include "gantry.h"
 #include "grab.h"
 #include "remote_control.h"
+#include "semi_automatic.h" // 添加半自动控制头文件
 // #include "rm_referee.h"
 #include "ins_task.h"
 #include "super_cap.h"
@@ -26,6 +27,7 @@ typedef struct
     ChassisInstance *chassis;
     GantryInstance *gantry;
     GrabInstance *grab;
+    SemiAutoInstance *semi_auto; // 半自动控制实例
 
 } RobotInstance;
 
