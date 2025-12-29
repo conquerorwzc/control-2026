@@ -18,6 +18,7 @@
 // tasks
 #include "buzzer.h"
 #include "daemon.h"
+#include "dmmotor.h"
 #include "ins_task.h"
 #include "master_process.h"
 #include "motor_task.h"
@@ -27,7 +28,7 @@
 #include "dmmotor.h"
 // bsp
 #include "bsp_init.h"
-#include "dmmotor.h"
+
 
 osThreadId motorTaskHandle;
 osThreadId daemonTaskHandle;
@@ -48,14 +49,11 @@ void OSTaskInit() {
 
   // 由于是阻塞读取传感器,为姿态解算设置较高优先级,确保以1khz的频率执行
   // 后续修改为读取传感器数据准备好的中断处理
-  // osThreadDef(instask, StartINSTASK, osPriorityAboveNormal, 0, 1024);
-  // insTaskHandle = osThreadCreate(osThread(instask), NULL);
-
-  osThreadDef(motortask, StartMOTORTASK, osPriorityBelowNormal, 0, 512);
+  osThreadDef(motortask, StartMOTORTASK, osPriorityBelowNormal, 0, 256);
   motorTaskHandle = osThreadCreate(osThread(motortask), NULL);
 
-  osThreadDef(daemontask, StartDAEMONTASK, osPriorityNormal, 0, 512);
-  daemonTaskHandle = osThreadCreate(osThread(daemontask), NULL);
+  // osThreadDef(daemontask, StartDAEMONTASK, osPriorityNormal, 0, 128);
+  // daemonTaskHandle = osThreadCreate(osThread(daemontask), NULL);
 
   osThreadDef(robottask, StartROBOTTASK, osPriorityNormal, 0, 1024);
   robotTaskHandle = osThreadCreate(osThread(robottask), NULL);
@@ -67,29 +65,6 @@ void OSTaskInit() {
   __enable_irq();
 }
 
-__attribute__((noreturn)) void StartINSTASK(void const *argument) {
-  static float ins_start;
-  static float ins_dt;
-  IMU_Init_Config_s imu_init_config= {
-    .flag = 1,
-    .scale = {1.0f, 1.0f, 1.0f},
-    .Yaw = 0.0f,
-    .Pitch = 0.0f,
-    .Roll = 0.0f
-  };
-  INS_Init(&imu_init_config);  // 确保BMI088被正确初始化.
-  LOGINFO("[freeRTOS] INS Task Start");
-  for (;;) {
-    // 1kHz
-    ins_start = DWT_GetTimeline_ms();
-    INS_Task();
-    ins_dt = DWT_GetTimeline_ms() - ins_start;
-    if (ins_dt > 1) LOGERROR("[freeRTOS] INS Task is being DELAY! dt = [%f]", &ins_dt);
-    // VisionSend();  // 解算完成后发送视觉数据,但是当前的实现不太优雅,后续若添加硬件触发需要重新考虑结构的组织
-    osDelay(1);
-  }
-}
-
 __attribute__((noreturn)) void StartMOTORTASK(void const *argument) {
   static float motor_dt;
   static float motor_start;
@@ -98,8 +73,8 @@ __attribute__((noreturn)) void StartMOTORTASK(void const *argument) {
     motor_start = DWT_GetTimeline_ms();
     MotorControlTask();
     motor_dt = DWT_GetTimeline_ms() - motor_start;
-    if (motor_dt > 1) LOGERROR("[freeRTOS] MOTOR Task is being DELAY! dt = [%f]", &motor_dt);
-    osDelay(1);
+    if (motor_dt > 2) LOGERROR("[freeRTOS] MOTOR Task is being DELAY! dt = [%f]", &motor_dt);
+    osDelay(2);
   }
 }
 
@@ -124,7 +99,7 @@ __attribute__((noreturn)) void StartROBOTTASK(void const *argument) {
   static float robot_start;
 
   RobotInit();
-  // DMMotorTaskInit();
+  DMMotorTaskInit();
   LOGINFO("[freeRTOS] ROBOT core Task Start");
   // 200Hz-500Hz,若有额外的控制任务如平衡步兵可能需要提升至1kHz
   for (;;) {

@@ -14,6 +14,7 @@
 #define REMOTE_CONTROL_H
 
 #include <stdint.h>
+
 #include "main.h"
 #include "usart.h"
 
@@ -33,32 +34,34 @@
 #define RC_CH_VALUE_MAX ((uint16_t)1684)
 
 /* ----------------------- RC Switch Definition----------------------------- */
-#define RC_SW_UP ((uint16_t)1)   // 开关向上时的值
-#define RC_SW_MID ((uint16_t)3)  // 开关中间时的值
-#define RC_SW_DOWN ((uint16_t)2) // 开关向下时的值
+#define RC_SW_UP ((uint16_t)1)    // 开关向上时的值
+#define RC_SW_MID ((uint16_t)3)   // 开关中间时的值
+#define RC_SW_DOWN ((uint16_t)2)  // 开关向下时的值
+#define RC_SW_OFF ((uint16_t)0)   //  遥控器断连
 // 三个判断开关状态的宏
 #define switch_is_down(s) (s == RC_SW_DOWN)
 #define switch_is_mid(s) (s == RC_SW_MID)
 #define switch_is_up(s) (s == RC_SW_UP)
+#define switch_is_off(s) (s == RC_SW_OFF)
 
 /* ----------------------- PC Key Definition-------------------------------- */
 // 对应key[x][0~16],获取对应的键;例如通过key[KEY_PRESS][Key_W]获取W键是否按下,后续改为位域后删除
 #define Key_W 0
 #define Key_S 1
-#define Key_D 2
-#define Key_A 3
+#define Key_A 2
+#define Key_D 3
 #define Key_Shift 4
 #define Key_Ctrl 5
 #define Key_Q 6
 #define Key_E 7
 #define Key_R 8
 #define Key_F 9
-#define Key_Z 10
-#define Key_X 11
-#define Key_C 12
-#define Key_V 13
-#define Key_B 14
-#define Key_G 15
+#define Key_G 10
+#define Key_Z 11
+#define Key_X 12
+#define Key_C 13
+#define Key_V 14
+#define Key_B 15
 /* ----------------------- Data Struct ------------------------------------- */
 // 待测试的位域结构体,可以极大提升解析速度
 typedef union
@@ -67,8 +70,8 @@ typedef union
     {
         uint16_t w : 1;
         uint16_t s : 1;
-        uint16_t d : 1;
         uint16_t a : 1;
+        uint16_t d : 1;
         uint16_t shift : 1;
         uint16_t ctrl : 1;
         uint16_t q : 1;
@@ -110,6 +113,7 @@ typedef struct
     Key_t key[3]; // 改为位域后的键盘索引,空间减少8倍,速度增加16~倍
 
     uint8_t key_count[3][16];
+    uint8_t mouse_count[3][2];
 } RC_ctrl_t;
 
 /* ------------------------- Internal Data ----------------------------------- */

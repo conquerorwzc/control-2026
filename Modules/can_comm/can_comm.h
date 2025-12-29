@@ -21,6 +21,26 @@
 #define CAN_COMM_TAIL 'e'         // 帧尾
 #define CAN_COMM_OFFSET_BYTES 4   // 's'+ datalen + 'e' + crc8
 
+//bool类型
+typedef enum
+{
+  true = 1,
+  false = 0
+} bool;
+/*
+//can通信目标
+typedef enum
+{
+  CAN_COMM_NONE,
+  CAN_COMM_GIMBAL,
+  CAN_COMM_CHASSIS,
+  CAN_COMM_SHOOT,
+  CAN_COMM_TRIGGER,
+  CAN_COMM_SHOOT_FLAGS,
+  CAN_COMM_PITCHANGLE,
+  CAN_COMM_SHOOT_FLAG,
+} can_comm_target_e;
+*/
 #pragma pack(1)
 /* CAN comm 结构体, 拥有CAN comm的app应该包含一个CAN comm指针 */
 typedef struct {

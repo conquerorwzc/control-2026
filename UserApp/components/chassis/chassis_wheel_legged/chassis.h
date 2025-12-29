@@ -4,25 +4,21 @@
 * @author  Enhao Zhang
 * @date    2025/8/8
 * @copyright Copyright (c) SHU SRM 2026 all rights reserved
-* @brief   Mecanum Chassis Module
+* @brief  Parallel Wheel-Legged Chassis Module
 ******************************************************************************
 * @attention
-* Mecanum Chassis Motor Layout:
-*
-*          motor[0]     motor[1]
-*        Left Front   Right Front
-*             ╭─────────────╮
-*             │      ↑      │
-*             │    Front    │
-*             ╰─────────────╯
-*          motor[2]     motor[3]
-*        Left Rear    Right Rear
-*
-* @note    Motor Index:
-*          motor[0] - Left Front Wheel
-*          motor[1] - Right Front Wheel
-*          motor[2] - Left Rear Wheel
-*          motor[3] - Right Rear Wheel
+* Wheel-Legged Chassis Layout:
+* LEFT Leg[1]       Leg[0] RIGHT
+*        ☉----------☉
+*        |          |
+*        |          |
+*        |          |
+*        ◉          ◉
+*        |          |
+*        |          |
+*       ---        ---
+*       | |        | |
+*       ---        ---
 ******************************************************************************
 */
 #pragma once
@@ -42,7 +38,7 @@ typedef struct {
   float vx;  // 前进方向速度
   float wz;  // 旋转速度
   float roll;
-  float leg_length_d;
+  float leg_length;
   float offset_angle;  // 底盘和归中位置的夹角
   int chassis_speed_buff;
   uint16_t max_power;  // 最大功率限制
@@ -52,9 +48,9 @@ typedef struct {
 typedef struct {
   float center_gimbal_offset_x;  // 云台旋转中心距底盘几何中心的距离,前后方向,云台位于正中心时默认设为0
   float center_gimbal_offset_y;  // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
-  float wheel_radius;            // 轮子半径
+  float track_width;
   float robot_weight;
-  float wheel_reduction_ratio;  // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
+  float leg_length_initial;
 } Chassis_Param_s;
 
 typedef struct {
@@ -62,12 +58,14 @@ typedef struct {
   Leg_Init_Config_s leg_init_config[2];      // 轮腿实例配置文件
   PID_Init_Config_s delta_theta_PID_config;  // 防劈叉PID
   PID_Init_Config_s roll_PID_config;         // Roll PID
+  IMU_Init_Config_s imu_init_config;
 } Chassis_Init_Config_s;
 
 typedef struct {
   Chassis_Ctrl_Cmd_s chassis_ctrl_cmd;
   LegInstance* leg[2];
-  attitude_t* chassis_IMU_data;
+  INS_t* chassis_IMU;
+  KalmanFilter_t vaEstimateKF;
 
   PIDInstance delta_theta_PID;  // Only use PD
   PIDInstance roll_PID;         // Only use P

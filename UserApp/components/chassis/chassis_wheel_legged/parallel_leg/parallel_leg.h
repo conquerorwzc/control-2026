@@ -4,10 +4,10 @@
  * @author  Enhao Zhang
  * @date    2025/8/8
  * @copyright Copyright (c) SHU SRM 2026 all rights reserved
- * @brief   None
+ * @brief   Parallel-Leg Module
  ******************************************************************************
  * @attention
- *     T2         T1
+ *     Tp2         Tp1
  *  joint[1] l5 joint[0]    LEFT       RIGHT
  *    phi4 ☉---☉  phi1       ☉----------☉
  *        /     \             |          |
@@ -26,12 +26,16 @@
 #include <stdint.h>
 
 #include "controller.h"
+#include "dji_motor.h"
 #include "dmmotor.h"
 #include "ins_task.h"
 
+typedef enum {
+  LEG_PRE_CALI_MODE = 0,
+  LEG_CALI_MODE,
+} Leg_Cali_Mode_e;
+
 typedef struct {
-  // Connecting rods length
-  float l1, l2, l3, l4, l5;
   // Joint coordinates
   float xb, yb;
   float xb_d, yb_d;
@@ -54,26 +58,30 @@ typedef struct {
   // Leg position
   float length, length_d, length_dd, last_length_d;
   float phi, phi_d, phi_dd, last_phi_d;
+  float alpha, alpha_d;
   // Leg force & torque
   float F, FN;
   float Tp;
 } Virtual_Model_t;
 
 typedef struct {
+  PIDInstance phi_PID;
   float x, x_d;
   float theta, theta_d;
   float phi, phi_d;
 } State_Var_t;
 
 typedef struct {
+  float w;   // Angular velocity relevant to the earth frame
+  float vb;  // Body b frame velocity
+} Observer_Var_t;
+
+typedef struct {
   float rod_length[5];
   float joint_motor_zero_offset[2];
+  float wheel_radius;           // 轮子半径
+  float wheel_reduction_ratio;  // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
 } Leg_Param_s;
-
-typedef enum {
-  LEG_PRE_CALI_MODE = 0,
-  LEG_CALI_MODE,
-} Leg_Cali_Mode_e;
 
 typedef struct {
   float x_ref, x_d_ref;
@@ -84,6 +92,7 @@ typedef struct {
   Leg_Cali_Mode_e leg_cali_mode;
   Leg_Param_s leg_param;
   float LQR_K_Coefficient[2][6][4];  // [2腿][6状态变量][4多项式系数]
+  PID_Init_Config_s phi_PID_config;
   PID_Init_Config_s length_PID_config;
   PID_Init_Config_s length_d_PID_config;
   Motor_Init_Config_s joint_motor_config[2];
@@ -91,29 +100,33 @@ typedef struct {
 } Leg_Init_Config_s;
 
 typedef struct {
+  Leg_Ctrl_Cmd_t leg_ctrl_cmd;
+
   DMMotorInstance* joint_motor[2];
-  DMMotorInstance* wheel_motor;
+  DJIMotorInstance* wheel_motor;
 
   Real_Model_t real_model;
   Virtual_Model_t virtual_model;
   State_Var_t state_var;
+  Observer_Var_t observer_var;
 
   float J[2][2];
   float LQR_K[2][6];
   uint32_t DWT_CNT;
   float dt;
 
-  Leg_Ctrl_Cmd_t leg_ctrl_cmd;
-
   struct {
     uint8_t is_initialized : 1;
-    uint8_t is_grounded : 1;
+    uint8_t is_off_ground : 1;
+    uint8_t is_controlled : 1;
   } update_flag;
 } LegInstance;
 
 LegInstance* LegInit(Leg_Init_Config_s* config);
 
-void LegCtrlUpdate(LegInstance* leg, const attitude_t* imu_data);
+void LegCtrlUpdate(LegInstance* leg, INS_t* imu);
 
 void JointTorqueUpdate(LegInstance* leg);
+
+void ObserverVarUpdate(LegInstance* leg, INS_t* imu);
 #endif  // CHASSIS_CAL_H
