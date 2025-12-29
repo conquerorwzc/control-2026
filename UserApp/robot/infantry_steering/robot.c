@@ -41,7 +41,7 @@ static void CalcOffsetAngle() {
   } else if (delta <= -180.0f) {
     delta += 360.0f;
   }
-  if (abs(delta) < 1.5f) {
+  if (abs(delta) < 2.5f) {
     delta =0.0f;
   }
   chassis_ctrl_cmd->offset_angle = delta;
