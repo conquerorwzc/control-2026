@@ -23,10 +23,11 @@
 #include "spi.h"
 #include "tim.h"
 #include "user_lib.h"
+#include "robot_config.h"
 
 static INS_t INS;
 static IMU_Init_Config_s IMU_Param;
-// BMI088Instance* BMI;
+static IMU_Offset_Config_s IMU_offset;
 static PIDInstance TempCtrl = {0};
 static osThreadId insTaskHandle;
 
@@ -141,7 +142,14 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
   while (BMI088Init(&hspi2, 0) != BMI088_NO_ERROR);
 #endif
   // 使用我们的调试校准函数来测量陀螺仪零偏值，绕过预定义值
+  IMU_offset.imu_offset_mode = gimbal_init_config.imu_offset_config.imu_offset_mode;
   INS_CalibrateGyroForDebug(2000);
+  // //使用离线模式
+  // if (IMU_offset.imu_offset_mode==IMU_OFFSET_CALIBRATION_OFFLINE) {
+  //   BMI088.GyroOffset[0]=gimbal_init_config.imu_offset_config.Gyro_offset[0];
+  //   BMI088.GyroOffset[1]=gimbal_init_config.imu_offset_config.Gyro_offset[1];
+  //   BMI088.GyroOffset[2]=gimbal_init_config.imu_offset_config.Gyro_offset[2];
+  // }
 
   // 手动计算加速度缩放因子，因为我们跳过了完整的校准过程
   BMI088.AccelScale = 9.81f / BMI088.gNorm;

@@ -184,7 +184,13 @@ static Gimbal_Init_Config_s gimbal_init_config = {
       .Yaw = 0.0f,
       .Pitch = 0.0f,
       .Roll = 0.0f
-    }
+    },
+    .imu_offset_config={
+      .imu_offset_mode=IMU_OFFSET_CALIBRATION_OFFLINE,
+      .Gyro_offset[0]=-0.002026529838f,
+      .Gyro_offset[1]=0.0007959523225f,
+      .Gyro_offset[2]=-0.002025201395f,
+    },
 };
 
 #define FRICTION_MOTOR_CONFIG(handle, id, direction) \

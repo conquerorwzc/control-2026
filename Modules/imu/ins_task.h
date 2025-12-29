@@ -79,6 +79,20 @@ typedef struct {
   float Roll;   // Roll轴安装偏角修正 单位: °
 } IMU_Init_Config_s;
 
+typedef enum {
+  IMU_OFFSET_CALIBRATION_OFFLINE = 0,  // 离线校准模式
+  IMU_OFFSET_CALIBRATION_ONLINE = 1,   // 在线校准模式           // 跟随模式，底盘叠加角度环控制
+} IMU_Offset_Mode;
+
+/**
+ * @brief 用于记录陀螺仪零漂参数
+ */
+typedef struct {
+  IMU_Offset_Mode imu_offset_mode;
+
+  float Gyro_offset[3];  // 陀螺仪零漂参数 [0]-X轴 [1]-Y轴 [2]-Z轴
+} IMU_Offset_Config_s;
+
 /**
  * @brief 初始化惯导解算系统，使用默认参数
  *
