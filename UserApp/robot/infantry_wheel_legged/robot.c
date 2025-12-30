@@ -33,7 +33,7 @@ static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 static float trigger_time = 0;  // 触发时间
 static float angle;
 
-#define robot_lost_control abs(robot->chassis->chassis_IMU->Pitch) > PI / 6.0f
+#define robot_lost_control abs(robot->chassis->chassis_IMU->Pitch) > 20.0f
 /**
  * @brief 根据gimbal app传回的当前电机角度计算和零位的误差
  *        单圈绝对角度的范围是0~360,说明文档中有图示
@@ -65,8 +65,8 @@ static void CalcOffsetAngle() {
 static void RemoteControlSet() {
   // 右[中]，云台
   if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
-    // chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_RECOVERY;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
+    // chassis_ctrl_cmd->chassis_mode = CHASSIS_RECOVERY;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       robot->robot_mode = ROBOT_CHASSIS_ROTATE;
@@ -96,8 +96,8 @@ static void RemoteControlSet() {
   } else if (switch_is_up(rc_data[TEMP].rc.switch_left))  // 开火，发射，根据时间判断单发或者连发
   {
     shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
-    // chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_RECOVERY;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
+    // chassis_ctrl_cmd->chassis_mode = CHASSIS_RECOVERY;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
@@ -155,10 +155,12 @@ static void RemoteControlSet() {
       static float target_angle;
       target_angle += -(0.25f) * (float)rc_data[TEMP].rc.rocker_r_ * robot->dt;
       chassis_ctrl_cmd->wz =
-          -0.002f * (float)rc_data[TEMP].rc.rocker_r_ +
+          -0.0015f * (float)rc_data[TEMP].rc.rocker_r_ +
           PIDCalculate(&robot->chassis_follow_PID, robot->chassis->chassis_IMU->YawTotalAngle, target_angle);
       // chassis_ctrl_cmd->vx = (0.0025f) * (float)rc_data[TEMP].rc.rocker_r1;
-      slope_following((0.004f) * (float)rc_data[TEMP].rc.rocker_r1, &chassis_ctrl_cmd->vx, 1.0f * robot->dt);
+      // slope_following((0.0021f) * (float)rc_data[TEMP].rc.rocker_r1, &chassis_ctrl_cmd->vx, 3.5f * robot->dt);
+      slope_following((0.004f) * (float)rc_data[TEMP].rc.rocker_r1, &chassis_ctrl_cmd->vx,
+                      1.0f * robot->dt);  // 0.0045(最大3m/s)
       // slope_following((0.002f) * (float)rc_data[TEMP].rc.rocker_r1, &chassis_ctrl_cmd->vx, 4.0f * robot->dt);
       // chassis_ctrl_cmd->leg_length_d = (float)rc_data[TEMP].rc.rocker_l1;
       // chassis_ctrl_cmd->roll = (float)rc_data[TEMP].rc.rocker_l_;
@@ -268,7 +270,7 @@ static void MouseKeySet() {
  */
 static void EmergencyHandler() {
   if (robot_lost_control) {
-    // robot->chassis->chassis_ctrl_cmd.chassis_mode = CHASSIS_RECOVERY;  // todo:因该写成elif比较安全
+    robot->chassis->chassis_ctrl_cmd.chassis_mode = CHASSIS_RECOVERY;  // todo:因该写成elif比较安全
   }
   // 两switch都在下或者遥控器断连，断电
   if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)) |

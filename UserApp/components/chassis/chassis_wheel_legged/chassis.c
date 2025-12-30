@@ -20,6 +20,8 @@ static Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd;  // 声明但不初始化
 // 中间变量
 static float chassis_aver_v;
 static float q2i_coeff;
+static uint8_t last_is_off_ground;
+static float DWT_CNT = 0;
 
 // robot param
 static float robot_weight;
@@ -38,6 +40,17 @@ static void ChassisCtrlUpdate() {
     leg[i]->leg_ctrl_cmd.length_ref =
         chassis->chassis_ctrl_cmd.leg_length -
         (float)(1 - 2 * i) * track_width * (chassis->chassis_ctrl_cmd.roll - chassis->chassis_IMU->Roll * DEGREE_2_RAD);
+
+    // if ((last_is_off_ground > leg[i]->update_flag.is_off_ground)) {
+    //   DWT_CNT = DWT_GetTimeline_s();
+    // }
+    // if ((DWT_GetTimeline_s() - DWT_CNT) > 2.0f) {
+    //   DWT_CNT = 0;
+    // } else if (DWT_CNT != 0) {
+    //   leg[i]->leg_ctrl_cmd.length_ref = 0.12;
+    // }
+    // last_is_off_ground = leg[i]->update_flag.is_off_ground;
+
     LegCtrlUpdate(leg[i], chassis->chassis_IMU);
     float leg_force_ff =
         0.7f * 9.8f * robot_weight / 2.0f / mcos(leg[i]->state_var.theta);  // 不超过半边重力的一半(看机器）
@@ -66,19 +79,16 @@ static void ChassisRecovery() {
     DMMotorSetPIDRef(leg[i]->joint_motor[1], 0.1);
     leg[i]->real_model.Tp_1 = leg[i]->joint_motor[0]->motor_controller.final_output;
     leg[i]->real_model.Tp_2 = leg[i]->joint_motor[1]->motor_controller.final_output;
-    // leg[i]->update_flag.is_controlled = chassis->chassis_ctrl_cmd.vx || chassis->chassis_ctrl_cmd.wz != 0;
-    leg[i]->update_flag.is_controlled = 1;
+    leg[i]->update_flag.is_controlled = 1;  // todo: 可以看看哪个好
     if (abs((leg[i]->joint_motor[0]->measure.position - (-0.1f))) <= 0.5f &&
         abs(leg[i]->joint_motor[1]->measure.position - (0.1f)) <= 0.5f) {
       leg[i]->leg_ctrl_cmd.x_d_ref = chassis->chassis_ctrl_cmd.vx;
       LegCtrlUpdate(leg[i], chassis->chassis_IMU);
       leg[i]->real_model.T -= (float)(1 - 2 * i) * chassis->chassis_ctrl_cmd.wz;
     } else {
-      leg[i]->leg_ctrl_cmd.x_d_ref = chassis->chassis_ctrl_cmd.vx;
-      LegCtrlUpdate(leg[i], chassis->chassis_IMU);
-      leg[i]->real_model.T -= (float)(1 - 2 * i) * chassis->chassis_ctrl_cmd.wz;
-      // leg[i]->real_model.T = 0;
+      leg[i]->real_model.T = 0;
     }
+    leg[i]->update_flag.is_off_ground = 0;
   }
 }
 
@@ -88,7 +98,6 @@ static void ChassisRecovery() {
  */
 static void PowerControl() {}
 
-float ref = 0;
 /**
  * @brief 预测电机功率并进行限制
  *

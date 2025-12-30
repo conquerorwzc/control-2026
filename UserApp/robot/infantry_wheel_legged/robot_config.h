@@ -64,6 +64,15 @@
 #define REDUCTION_RATIO_LOADER 36.0f            // 2006拨盘电机的减速比,英雄需要修改为3508的19.0f
 #define NUM_PER_CIRCLE 10                       // 拨盘一圈的装载量
 
+// delta_h = 0.380 - 0.112 = 0.268;
+// target_h = 0.3
+// m = 5
+// g = 9.8
+// Equation for Jump Loop
+// F: 单腿输出力 m: 底盘质量 g: 重力加速度 target_h: 目标跳跃高度 delta_h: 腿部形变量 delta_t：收腿时间
+// F = m * g / 2 * (1 + (target_h - delta_h) / delta_h);
+// delta_t = sqrt(2 * (target_h - delta_h), g);
+
 // todo: dmmotor只对j4310做了适配
 // 不用Macro会传不进去
 #define JOINT_MOTOR_CONFIG(motor_reverse, feedback_reverse, can, tx, rx)                                       \

@@ -266,6 +266,7 @@ void LegCtrlUpdate(LegInstance* leg, INS_t* imu) {
       leg->LQR_K[0][0] * (leg->state_var.theta - 0.0f) + leg->LQR_K[0][1] * (leg->state_var.theta_d - 0.0f) +
       !leg->update_flag.is_controlled * leg->LQR_K[0][2] * (leg->state_var.x - leg->leg_ctrl_cmd.x_ref) +
       leg->LQR_K[0][3] * (leg->state_var.x_d - leg->leg_ctrl_cmd.x_d_ref) +
+      // leg->LQR_K[0][4] * (leg->state_var.phi - 0.0f) + leg->LQR_K[0][5] * (leg->state_var.phi_d - 0.0f);
       leg->LQR_K[0][4] * (leg->state_var.phi - 0.0f) + leg->LQR_K[0][5] * (leg->state_var.phi_d - 0.0f);
 
   // leg->real_model.T -= PIDCalculate(&leg->state_var.phi_PID, leg->state_var.phi, 0);
@@ -276,6 +277,7 @@ void LegCtrlUpdate(LegInstance* leg, INS_t* imu) {
            ? 0.0f
            : !leg->update_flag.is_controlled * leg->LQR_K[1][2] * (leg->state_var.x - leg->leg_ctrl_cmd.x_ref) +
                  leg->LQR_K[1][3] * (leg->state_var.x_d - leg->leg_ctrl_cmd.x_d_ref) +
+                 // leg->LQR_K[1][4] * (leg->state_var.phi - 0.0f) + leg->LQR_K[1][5] * (leg->state_var.phi_d - 0.0f));
                  leg->LQR_K[1][4] * (leg->state_var.phi - 0.0f) + leg->LQR_K[1][5] * (leg->state_var.phi_d - 0.0f));
 
   // 腿长双环PID

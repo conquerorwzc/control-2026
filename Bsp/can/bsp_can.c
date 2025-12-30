@@ -205,7 +205,11 @@ uint8_t CANTransmit(CANInstance *_instance, float timeout) {
   }
   return 1;  // 发送成功
 }
-
+uint8_t mbox = CAN_Transmit(CAN1, &TxMessage);  // 发送数据并获取邮箱号
+uint16_t i = 0;
+while ((CAN_TransmitStatus(CAN1, mbox) == CAN_TxStatus_Failed) && (i < 0XFFF)) i++;  // 等待发送结束
+if (i >= 0xFFF) return 0;                                                            // 发送失败
+return 1;                                                                            // 发送成功
 void CANSetDLC(CANInstance *_instance, uint8_t length) {
   // 发送长度错误!检查调用参数是否出错,或出现野指针/越界访问
 #ifdef STM32F407xx
