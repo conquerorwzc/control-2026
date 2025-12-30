@@ -38,6 +38,8 @@ void RobotInit(void) {
   robot->target_yaw = YAW_INIT_ANGLE;     // 118.69
   robot->target_pitch = PITCH_INIT_ANGLE; // 98.88
 
+  robot->is_first_loop = true;
+
   robot->mode = ROBOT_STOP;
 }
 
@@ -97,7 +99,7 @@ static void RobotControlLogic(void) {
 
   // 1. Yaw 轴控制 (左摇杆左右)
   // 逻辑：你向左转(摇杆+)，ECD需要变小(去596/29.8度)，所以用减法
-  robot->target_yaw -= 0.005f * (float)robot->rc->rc.rocker_l_;
+  robot->target_yaw -= 0.0005f * (float)robot->rc->rc.rocker_l_;
   // 限位：[29.80, 208.69]
   LimitTarget(&robot->target_yaw, YAW_MIN_ANGLE, YAW_MAX_ANGLE);
 
