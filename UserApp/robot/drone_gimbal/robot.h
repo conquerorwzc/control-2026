@@ -2,6 +2,8 @@
 #include "main.h"
 #include "remote_control.h"
 #include "dji_motor.h"
+#include <stdint.h>
+#include <stdbool.h>
 
 // 机器人状态
 typedef enum {
@@ -24,6 +26,7 @@ typedef struct {
   float target_yaw;
   float target_pitch;
   float target_fric_speed;
+  bool is_first_loop;
 
 } RobotInstance;
 

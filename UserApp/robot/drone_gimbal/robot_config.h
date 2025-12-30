@@ -2,16 +2,16 @@
 #include "dji_motor.h"
 
 /* ================= 1. 硬件 ID 配置 ================= */
-#define YAW_ID      3   // GM6020 CAN1
+#define YAW_ID      1   // GM6020 CAN1
 #define PITCH_ID    5   // GM6020 CAN1
 #define FRIC_L_ID   1   // M3508 CAN1 (左)
 #define FRIC_R_ID   2   // M3508 CAN1 (右)
 
 /* ================= 2. 关键角度参数 ================= */
 // 【1】Pitch轴 (ECD 2250 -> 98.88度, ECD 1250 -> 54.93度)
-#define PITCH_INIT_ANGLE 98.88f  // 水平
-#define PITCH_MAX_ANGLE  98.88f  // 0度
-#define PITCH_MIN_ANGLE  54.93f  // -45度
+#define PITCH_INIT_ANGLE 91.00f   // 平行位置 (ECD 2130)
+#define PITCH_MAX_ANGLE  91.00f  // 对应 ECD
+#define PITCH_MIN_ANGLE  45.00f   // 对应
 
 // 【2】Yaw轴 (ECD 2701 -> 118.69度)
 #define YAW_INIT_ANGLE   118.69f // 正前
@@ -34,8 +34,8 @@
         }, \
         .controller_param_init_config = { \
             /* Angle Kp=12: 响应快 */ \
-            .angle_PID = { .Kp = 80.0f, .Ki = 0.0f, .Kd = 0.0f, .MaxOut = 30000.0f }, /* Speed Kp=45: 标准力度，足够应付 Pitch */ \
-            .speed_PID = { .Kp = 11.0f, .Ki = 0.0f, .Kd = 0.0f, .MaxOut = 30000.0f, .IntegralLimit = 3000.0f }, \
+            .angle_PID = { .Kp = 70.0f, .Ki = 0.0f, .Kd = 0.0f, .MaxOut = 30000.0f }, /* Speed Kp=45: 标准力度，足够应付 Pitch */ \
+            .speed_PID = { .Kp = 10.0f, .Ki = 0.0f, .Kd = 0.0f, .MaxOut = 30000.0f, .IntegralLimit = 3000.0f }, \
         }, \
     }
 
@@ -53,8 +53,8 @@
         }, \
         .controller_param_init_config = { \
             /* Angle Kp=12: 保持灵敏 */ \
-            .angle_PID = { .Kp = 60.0f, .Ki = 0.0f, .Kd = 0.0f, .MaxOut = 30000.0f }, /* Speed Kp=60: 【加强】力度更大，锁住重负载 */ /* 如果还不够硬，可以继续加到 80 */ \
-            .speed_PID = { .Kp = 5.0f, .Ki = 0.0f, .Kd = 0.0f, .MaxOut = 28000.0f, .IntegralLimit = 3000.0f }, \
+            .angle_PID = { .Kp = 50.0f, .Ki = 0.0f, .Kd = 0.0f, .MaxOut = 30000.0f }, /* Speed Kp=60: 【加强】力度更大，锁住重负载 */ /* 如果还不够硬，可以继续加到 80 */ \
+            .speed_PID = { .Kp = 10.0f, .Ki = 0.0f, .Kd = 0.0f, .MaxOut = 28000.0f, .IntegralLimit = 3000.0f }, \
         }, \
     }
 

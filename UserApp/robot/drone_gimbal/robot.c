@@ -1,7 +1,8 @@
 #include "robot.h"
 #include "robot_config.h"
 #include "user_lib.h"
-
+#include <stdint.h>
+#include <stdbool.h>
 RobotInstance *robot;
 
 // 辅助限幅函数
@@ -43,6 +44,29 @@ void RobotInit(void) {
 static void RobotControlLogic(void) {
   if (robot->rc == NULL) return;
 
+  // 如果是上电后的第一次循环，且电机还没准备好数据，就不要进行控制
+  if (robot->is_first_loop) {
+    // 检查 Yaw 和 Pitch 是否都已收到有效数据 (ECD不为0通常意味着数据来了)
+    bool yaw_ready = (robot->yaw_motor->measure.ecd != 0);
+    bool pitch_ready = (robot->pitch_motor->measure.ecd != 0);
+
+    if (yaw_ready && pitch_ready) {
+      // 核心：把目标值强制设为“当前实际位置”
+      // 这样 PID 误差 = 0，电机就不会动
+      robot->target_yaw = robot->yaw_motor->measure.total_angle;
+      robot->target_pitch = robot->pitch_motor->measure.total_angle;
+
+      // 顺便更新 PID 内部的 Ref，防止积分器问题
+      robot->yaw_motor->motor_controller.pid_ref = robot->target_yaw;
+      robot->pitch_motor->motor_controller.pid_ref = robot->target_pitch;
+
+      // 初始化完成，关闭标志位
+      robot->is_first_loop = false;
+    } else {
+      // 如果数据还没回来，直接跳过本次控制，等待下一帧
+      return;
+    }
+  }
   // [急停逻辑] 右拨杆在下 -> 停止
   if (switch_is_down(robot->rc->rc.switch_right)) {
     robot->mode = ROBOT_STOP;
@@ -51,11 +75,16 @@ static void RobotControlLogic(void) {
     DJIMotorStop(robot->fric_l);
     DJIMotorStop(robot->fric_r);
 
-    // 关键：急停恢复后，为了不让云台猛甩回初始位
-    // 我们把目标重置为当前实际位置 (或者你希望重置回 INIT 也行，这里选安全策略)
-    // 但既然你指定了 INIT 值，也可以每次重置回 INIT，看你习惯
-    robot->target_yaw = YAW_INIT_ANGLE;
-    robot->target_pitch = PITCH_INIT_ANGLE;
+    // 在急停(失能)状态下，让目标值实时跟随电机当前的实际位置。
+    // 这样，当你手掰动了云台，或者切回正常模式的那一瞬间，
+    // 目标值 == 实际值，云台会从当前位置平滑开始控制，而不是猛甩回 INIT_ANGLE。
+    robot->target_yaw = robot->yaw_motor->measure.total_angle;
+    robot->target_pitch = robot->pitch_motor->measure.total_angle;
+
+    // 同时也更新 PID Ref
+    robot->yaw_motor->motor_controller.pid_ref = robot->target_yaw;
+    robot->pitch_motor->motor_controller.pid_ref = robot->target_pitch;
+
     return;
   }
 
@@ -68,7 +97,7 @@ static void RobotControlLogic(void) {
 
   // 1. Yaw 轴控制 (左摇杆左右)
   // 逻辑：你向左转(摇杆+)，ECD需要变小(去596/29.8度)，所以用减法
-  robot->target_yaw -= 0.0005f * (float)robot->rc->rc.rocker_l_;
+  robot->target_yaw -= 0.005f * (float)robot->rc->rc.rocker_l_;
   // 限位：[29.80, 208.69]
   LimitTarget(&robot->target_yaw, YAW_MIN_ANGLE, YAW_MAX_ANGLE);
 
