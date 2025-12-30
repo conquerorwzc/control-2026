@@ -166,10 +166,15 @@ static void SemiAuto_Run(SemiAutoInstance* instance)
             if (instance->grab != NULL) {
                 // 机械臂上抬 - 设置目标角度
                 instance->grab->grab_ctrl_cmd.base_joint = instance->param.arm_raise_param.base_joint;
+                osDelay(100); // 添加延迟，确保至少100ms延迟
                 instance->grab->grab_ctrl_cmd.elbow_pitch = instance->param.arm_raise_param.elbow_pitch;
+                osDelay(100); // 添加延迟，确保至少100ms延迟
                 instance->grab->grab_ctrl_cmd.elbow_roll = instance->param.arm_raise_param.elbow_roll;
+                osDelay(100); // 添加延迟，确保至少100ms延迟
                 instance->grab->grab_ctrl_cmd.wrist_roll = instance->param.arm_raise_param.wrist_roll;
+                osDelay(100); // 添加延迟，确保至少100ms延迟
                 instance->grab->grab_ctrl_cmd.wrist_pitch = instance->param.arm_raise_param.wrist_pitch;
+                osDelay(100); // 添加延迟，确保至少100ms延迟
                 
                 // 立即跳转到空闲状态，等待手动微调
                 instance->ctrl_cmd.state = SEMI_AUTO_IDLE;
@@ -184,10 +189,15 @@ static void SemiAuto_Run(SemiAutoInstance* instance)
             if (instance->grab != NULL) {
                 // 把手掰动 - 设置目标角度
                 instance->grab->grab_ctrl_cmd.base_joint = instance->param.arm_flip_param.base_joint;
+                osDelay(100); // 添加延迟，确保至少100ms延迟
                 instance->grab->grab_ctrl_cmd.elbow_pitch = instance->param.arm_flip_param.elbow_pitch;
+                osDelay(100); // 添加延迟，确保至少100ms延迟
                 instance->grab->grab_ctrl_cmd.elbow_roll = instance->param.arm_flip_param.elbow_roll;
+                osDelay(100); // 添加延迟，确保至少100ms延迟
                 instance->grab->grab_ctrl_cmd.wrist_roll = instance->param.arm_flip_param.wrist_roll;
+                osDelay(100); // 添加延迟，确保至少100ms延迟
                 instance->grab->grab_ctrl_cmd.wrist_pitch = instance->param.arm_flip_param.wrist_pitch;
+                osDelay(100); // 添加延迟，确保至少100ms延迟
                 
                 // 立即跳转到空闲状态，等待手动微调
                 instance->ctrl_cmd.state = SEMI_AUTO_IDLE;
@@ -202,10 +212,15 @@ static void SemiAuto_Run(SemiAutoInstance* instance)
             if (instance->grab != NULL) {
                 // 旋转 - 设置目标角度
                 instance->grab->grab_ctrl_cmd.base_joint = instance->param.arm_rotate_param.base_joint;
+                osDelay(100); // 添加延迟，确保至少100ms延迟
                 instance->grab->grab_ctrl_cmd.elbow_pitch = instance->param.arm_rotate_param.elbow_pitch;
+                osDelay(100); // 添加延迟，确保至少100ms延迟
                 instance->grab->grab_ctrl_cmd.elbow_roll = instance->param.arm_rotate_param.elbow_roll;
+                osDelay(100); // 添加延迟，确保至少100ms延迟
                 instance->grab->grab_ctrl_cmd.wrist_roll = instance->param.arm_rotate_param.wrist_roll;
+                osDelay(100); // 添加延迟，确保至少100ms延迟
                 instance->grab->grab_ctrl_cmd.wrist_pitch = instance->param.arm_rotate_param.wrist_pitch;
+                osDelay(100); // 添加延迟，确保至少100ms延迟
                 
                 // 立即跳转到完成状态
                 instance->ctrl_cmd.state = SEMI_AUTO_COMPLETE;
