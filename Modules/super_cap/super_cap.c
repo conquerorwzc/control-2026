@@ -32,16 +32,22 @@ SuperCapInstance *SuperCapInit(SuperCap_Init_Config_s *supercap_config)
     return super_cap_instance;
 }
 
+//去年的超电控制逻辑
+// 要开超电的时候底盘的功率就在这个power limit上加需要的功率多出来的50由超电提供。
+// 当超电电压低于12时，底盘功率限制不应该超过裁判系统读到的powerlimit值。
+// 被动使用模式：去年的逻辑是12V以下就必须等待超电充电，等到充电到18V以上再能打开超电。
+// 主动使用模式：power直接给200。
+// 超电最大给200W，但正常来说用不到那么大。
 
 void SuperCapSendMessage(SuperCapInstance *instance, int16_t power, uint16_t buffer, uint8_t state)
 {
     uint8_t tx_data[8] = {0}; // 初始化发送数据
 
     // 按照原函数的格式填充数据
-    memcpy(tx_data, &power, sizeof(power));
-    memcpy(tx_data + 4, &buffer, sizeof(buffer));
-    tx_data[6] = state;
-    
+    memcpy(tx_data, &power, sizeof(power)); // 主控板设定的功率值，就是裁判系统ID_game_robot_state（0x0201）接收到的GameRobotState的chassis_power_limit。
+    memcpy(tx_data + 4, &buffer, sizeof(buffer));// 缓冲能量状态，是裁判系统ID_power_heat_data（0x0202）接收到的ext_power_heat_data_t的buffer_energy
+    tx_data[6] = state;// 输出状态（开启/关闭），是裁判系统ID_game_robot_state（0x0201）接收到的GameRobotState的power_management_chassis_output
+
     // 使用现有的CAN发送机制发送数据
     memcpy(instance->can_ins->tx_buff, tx_data, 8);
     CANTransmit(instance->can_ins, 1);

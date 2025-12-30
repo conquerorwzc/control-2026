@@ -1,10 +1,12 @@
 #include "robot.h"
 
 // #include "HI05.h"
+#include "bsp_gpio.h"
 #include "dji_motor.h"
 #include "general_def.h"
 #include "master_process.h"
 #include "navigator.h"
+#include "rm_referee.h"
 #include "robot_config.h"
 #include "super_cap.h"
 #include "user_lib.h"
@@ -12,17 +14,27 @@
 static SuperCapInstance* supercap_instance;
 // static HI05_t* hi05_instance;  // 保存HI05实例指针
 
+referee_info_t* referee_info;
+
 static SuperCap_Init_Config_s supercab_init_config = {
   .can_config = {
-    .can_handle = &hcan1,  // 根据实际情况选择CAN接口
+    .can_handle = &hcan1,  // 根据实际情况选择CAN接口，英雄的h7是can1
     .rx_id = 0x211,        // 接收ID (CAN_SUPERCAP_ID)
     .tx_id = 0X210,        // 发送ID
   }
 };
 
+static GPIOInstance *gpio_5V_EN;
+static GPIO_Init_Config_s gpio_init_config_5v = {
+  .GPIO_Pin = POWER_5V_Pin,
+  .GPIOx = POWER_5V_GPIO_Port,
+  .pin_state = GPIO_PIN_SET,
+};
+
 void RobotInit() {
   supercap_instance = SuperCapInit(&supercab_init_config);
   // hi05_instance = HI05_Init(&huart1);
+  referee_info = RefereeInit(&huart1);
 
 
 
@@ -31,7 +43,7 @@ void RobotInit() {
 void RobotTask() {
   osDelay(300);
 
-  int16_t power = 10;
+  int16_t power = ;
   uint16_t buffer = 50;
   uint8_t state = 1;
 
