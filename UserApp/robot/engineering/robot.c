@@ -163,6 +163,7 @@ static void MouseKeySet()
                                    rc_data[TEMP].key[KEY_PRESS].a * chassis_ctrl_cmd->chassis_speed_buff;
             chassis_ctrl_cmd->vy = rc_data[TEMP].key[KEY_PRESS].w * chassis_ctrl_cmd->chassis_speed_buff -
                                    rc_data[TEMP].key[KEY_PRESS].s * chassis_ctrl_cmd->chassis_speed_buff;
+            chassis_ctrl_cmd->wz = 0;
             // set_angle += -rc_data[TEMP].mouse.x * 0.001;
         }
         break;
@@ -249,16 +250,19 @@ static void RemoteControlSet()
         if (abs(rc_data[TEMP].rc.dial) > 20)
         {
             chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+            chassis_ctrl_cmd->wz = 0;
             set_angle += rc_data[TEMP].rc.dial * 0.0001;
         }
         else
             chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+            chassis_ctrl_cmd->wz = 0;
     }
     // 右[上]，保持底盘跟随云台
     else if (switch_is_up(rc_data[TEMP].rc.switch_right))
     {
 
         chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+        chassis_ctrl_cmd->wz = 0;
     }
     // 右[下] 控制底盘断电，但不触发整机紧急停止
     else if (switch_is_down(rc_data[TEMP].rc.switch_right))
@@ -309,6 +313,7 @@ static void RemoteControlSet()
 
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW)
     {
+        chassis_ctrl_cmd->wz = 0;
         set_angle += rc_data[TEMP].rc.dial * 0.0001;
     }
     *rc_data_last = *rc_data;

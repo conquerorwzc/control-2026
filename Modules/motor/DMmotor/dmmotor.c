@@ -122,7 +122,7 @@ static void DMMotorDecode(CANInstance *motor_can)
 static void DMMotorLostCallback(void *motor_ptr)
 {
     DMMotorInstance *motor = (DMMotorInstance *)motor_ptr;
-    // DMMotorStop(motor);
+    DMMotorStop(motor);
     uint16_t can_bus = motor->motor_can_instance->can_handle == &hfdcan1
                            ? 1
                            : (motor->motor_can_instance->can_handle == &hfdcan2 ? 2 : 3); // 修改：变量名
@@ -133,8 +133,6 @@ static void DMMotorLostCallback(void *motor_ptr)
     motor->motor_controller.speed_PID.Iout = 0;
     motor->motor_controller.current_PID.ITerm = 0;
     motor->motor_controller.current_PID.Iout = 0;
-    // DMMotorSetMode(DM_CMD_MOTOR_MODE, motor);
-    // osDelay(1);
 }
 
 void DMMotorCaliEncoder(DMMotorInstance *motor)
@@ -318,7 +316,7 @@ __attribute__((noreturn)) void DMMotorTask(void const *argument)
         CANTransmit(motor->motor_can_instance, 2);
 
         osDelay(2);
-        if (motor->daemon->temp_count == 0)
+        if (motor->daemon->temp_count == 0 || motor->measure.state == 0)
         {
             DMMotorSetMode(DM_CMD_MOTOR_MODE, motor);
             osDelay(1);

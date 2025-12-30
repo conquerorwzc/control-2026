@@ -196,7 +196,7 @@ void ChassisTask() {
   // 根据控制模式设定旋转速度
   switch (chassis_ctrl_cmd->chassis_mode) {
     case CHASSIS_FOLLOW:  // 跟随云台,不单独设置pid,以误差角度平方为速度输出
-      chassis_ctrl_cmd->wz = PIDCalculate(&follow_pid, chassis_ctrl_cmd->offset_angle, 0);
+      chassis_ctrl_cmd->wz += PIDCalculate(&follow_pid, chassis_ctrl_cmd->offset_angle, 0);
       break;
     case CHASSIS_ROTATE:  // 自旋,同时保持全向机动;当前wz维持定值,后续增加不规则的变速策略
       // chassis_cmd_recv.wz = 4000;
