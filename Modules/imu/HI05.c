@@ -37,7 +37,7 @@ static USARTInstance *HI05_usart_instance;
 const float gravity[3] = {0, 0, 9.81f};
 static float dt = 0, t = 0;
 static uint32_t HI05_DWT_Count = 0;
-
+static uint8_t init_flag = 0;
 
 static uint16_t U2(uint8_t *p)
 {
@@ -213,6 +213,8 @@ static void HI05Decode(void)
 HI05_t *HI05_Init(UART_HandleTypeDef *usart_handle)
 {
     // 配置USART初始化参数
+    if(init_flag==0)
+    {
     USART_Init_Config_s conf;
     conf.module_callback = HI05Decode;                              // 设置解码回调函数
     conf.recv_buff_size = sizeof(HI91_t) + CH_HDR_SIZE;             // 接收完整数据包: hi91_t(72字节) + 帧头和CRC(6字节) = 78字节
@@ -220,6 +222,7 @@ HI05_t *HI05_Init(UART_HandleTypeDef *usart_handle)
 
     // 注册USART实例
     HI05_usart_instance = USARTRegister(&conf);
+    init_flag=1;
 
     // 初始化hipnuc_raw数据结构
     memset(&hipnuc_raw, 0, sizeof(HIPNUC_Raw_t));
@@ -232,6 +235,7 @@ HI05_t *HI05_Init(UART_HandleTypeDef *usart_handle)
     // noise of accel is relatively big and of high freq,thus lpf is used
     hi05_t->AccelLPF = 0.0085;
     DWT_GetDeltaT(&HI05_DWT_Count);
+    }
 
     // 返回数据结构指针供外部访问
     return hi05_t;
