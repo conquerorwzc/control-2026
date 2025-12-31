@@ -28,9 +28,9 @@ void RobotInit(void) {
   robot->pitch_motor = DJIMotorInit(&pitch_conf);
 
   // 摩擦轮 (左ID1, 右ID2)
-  Motor_Init_Config_s fric_l_conf = SHOOT_MOTOR_CONFIG(&hcan1, FRIC_L_ID, MOTOR_DIRECTION_NORMAL);
+  Motor_Init_Config_s fric_l_conf = SHOOT_MOTOR_CONFIG(&hcan1, FRIC_L_ID, MOTOR_DIRECTION_REVERSE);
   robot->fric_l = DJIMotorInit(&fric_l_conf);
-  Motor_Init_Config_s fric_r_conf = SHOOT_MOTOR_CONFIG(&hcan1, FRIC_R_ID, MOTOR_DIRECTION_REVERSE);
+  Motor_Init_Config_s fric_r_conf = SHOOT_MOTOR_CONFIG(&hcan1, FRIC_R_ID, MOTOR_DIRECTION_NORMAL);
   robot->fric_r = DJIMotorInit(&fric_r_conf);
 
   // 4. 初始化目标角度为校准值
@@ -99,7 +99,7 @@ static void RobotControlLogic(void) {
 
   // 1. Yaw 轴控制 (左摇杆左右)
   // 逻辑：你向左转(摇杆+)，ECD需要变小(去596/29.8度)，所以用减法
-  robot->target_yaw -= 0.0005f * (float)robot->rc->rc.rocker_l_;
+  robot->target_yaw -= 0.0002f * (float)robot->rc->rc.rocker_l_;
   // 限位：[29.80, 208.69]
   LimitTarget(&robot->target_yaw, YAW_MIN_ANGLE, YAW_MAX_ANGLE);
 
@@ -116,12 +116,30 @@ static void RobotControlLogic(void) {
   DJIMotorOuterLoop(robot->pitch_motor, ANGLE_LOOP);
   DJIMotorSetPIDRef(robot->pitch_motor, robot->target_pitch);
 
-  // 4. 摩擦轮 (右拨杆中/上 -> 开启)
-  if (!switch_is_down(robot->rc->rc.switch_right)) {
-    robot->target_fric_speed = 0.0f;
+  // 4. 摩擦轮
+  if (switch_is_mid(robot->rc->rc.switch_right)) {
+
+    // 读取左侧拨杆，决定速度档位
+    if (switch_is_down(robot->rc->rc.switch_left)) {
+      // [左-下] 怠速 (预热)
+      robot->target_fric_speed = FRIC_SPEED_IDLE;
+    }
+    else if (switch_is_mid(robot->rc->rc.switch_left)) {
+      // [左-中] 常规速度
+      robot->target_fric_speed = FRIC_SPEED_NORMAL;
+    }
+    else if (switch_is_up(robot->rc->rc.switch_left)) {
+      // [左-上] 高速
+      robot->target_fric_speed = FRIC_SPEED_HIGH;
+    }
+
   } else {
+    // 右侧拨杆在【上档】时，也强制关停 (除非你想在上档也开，可以改这里)
+    // 右侧拨杆在【下档】时，上面已经 return 了，这里不用管
     robot->target_fric_speed = 0.0f;
   }
+
+  // 应用目标速度
   DJIMotorSetPIDRef(robot->fric_l, robot->target_fric_speed);
   DJIMotorSetPIDRef(robot->fric_r, robot->target_fric_speed);
 }

@@ -18,6 +18,16 @@
 #define YAW_MAX_ANGLE    208.69f // 右转极限
 #define YAW_MIN_ANGLE    29.80f  // 左转极限
 
+/* ================= 摩擦轮 (3508) 速度参数 ================= */
+// 怠速 (Down): 只是为了预热或维持转动，不发射
+#define FRIC_SPEED_IDLE    1000.0f
+
+// 中速 (Mid): 正常的发射速度
+#define FRIC_SPEED_NORMAL  4000.0f
+
+// 高速 (Up): 暴力发射速度
+#define FRIC_SPEED_HIGH    6000.0f
+
 /* ================= 3. 电机初始化宏 (已拆分) ================= */
 
 // --- Pitch 轴专用配置 ---
@@ -70,7 +80,7 @@
         }, \
         .controller_param_init_config = { \
             .speed_PID = { \
-                .Kp = 5.0f, .Ki = 0.00f, .Kd = 0.0f, \
+                .Kp = 2.0f, .Ki = 0.00f, .Kd = 0.0f, \
                 .MaxOut = 16000.0f, .IntegralLimit = 5000.0f, \
             }, \
         }, \
