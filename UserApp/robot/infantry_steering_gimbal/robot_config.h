@@ -102,7 +102,8 @@ static Gimbal_Init_Config_s gimbal_init_config = {
       .Yaw = 0.0f,
       .Pitch = 0.0f,
       .Roll = 0.0f
-    }
+  },
+  .hi05_uart_handle = &huart1,
 };
 
 #define FRICTION_MOTOR_CONFIG(handle, id, direction) \
