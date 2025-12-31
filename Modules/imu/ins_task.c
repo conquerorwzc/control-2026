@@ -63,7 +63,7 @@ static void InitQuaternion(float *init_q4) {
   float gravity_norm[3] = {0, 0, 1};  // 导航系重力加速度矢量,归一化后为(0,0,1)
   float axis_rot[3] = {0};            // 旋转轴
   // 读取100次加速度计数据,取平均值作为初始值
-  for (uint8_t i = 0; i < 100; ++i) {
+  for (uint8_t i = 0; i < 254; ++i) {
     BMI088_Read(&BMI088);
     acc_init[X] += BMI088.Accel[X];
     acc_init[Y] += BMI088.Accel[Y];
@@ -141,7 +141,11 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
   while (BMI088Init(&hspi2, 0) != BMI088_NO_ERROR);
 #endif
   // 使用我们的调试校准函数来测量陀螺仪零偏值，绕过预定义值
-  INS_CalibrateGyroForDebug(2000);
+  while(abs(BMI088.Temperature-40.0)>1) {
+    IMU_Temperature_Ctrl();
+    DWT_Delay(0.001);
+  }
+  INS_CalibrateGyroForDebug(5000);
 
   // 手动计算加速度缩放因子，因为我们跳过了完整的校准过程
   BMI088.AccelScale = 9.81f / BMI088.gNorm;
@@ -167,7 +171,7 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
   PIDInit(&TempCtrl, &config);
 
   // noise of accel is relatively big and of high freq,thus lpf is used
-  INS.AccelLPF = 0.0085;
+  INS.AccelLPF = 0.00085;
   DWT_GetDeltaT(&INS_DWT_Count);
   // 创建INS任务
   osThreadDef(instask, StartINSTASK, osPriorityAboveNormal, 0, 1024);
