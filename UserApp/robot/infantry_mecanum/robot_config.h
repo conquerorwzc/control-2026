@@ -119,10 +119,10 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                     {
-                      .Kp = 0.3f,
+                      .Kp = 0.35f,
                       .Ki = 0.0f,
                       .Kd = 0.0f,
-                      .DeadBand = 0.1f,
+                      .DeadBand = 0.01f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                       .IntegralLimit = 5.0f,
                       .MaxOut = 22.0f,
@@ -152,7 +152,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                     {
-                      .Kp = 0.4f,
+                      .Kp = 0.8f,
                       .Ki = 0.0f,
                       .Kd = 0.0f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
@@ -223,8 +223,8 @@ static Shoot_Init_Config_s shoot_init_config = {
             .friction_num = 2,
       .friction_speed = 35000.0f,//摩擦轮数量
       .friction_coefficients = {1.0f, -1.0f}, //摩擦轮速度比例系数
-      .deadtime_burstfire = 100,
-      .deadtime_onebullet = 250,               //弹丸发射间隔
+      .deadtime_burstfire = 300,
+      .deadtime_onebullet = 500,               //弹丸发射间隔
 
       .target_speed = 0.0f,
       .bullet_speed_adjustment = 10.0f,
@@ -238,7 +238,7 @@ static Shoot_Init_Config_s shoot_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 25.0f,
+                            .Kp = 20.0f,
                             .Ki = 0.0f,
                             .Kd = 0.0f,
                             .MaxOut = 30000.0f,

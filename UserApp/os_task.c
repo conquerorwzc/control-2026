@@ -74,7 +74,7 @@ __attribute__((noreturn)) void StartMOTORTASK(void const *argument) {
     MotorControlTask();
     motor_dt = DWT_GetTimeline_ms() - motor_start;
     if (motor_dt > 2) LOGERROR("[freeRTOS] MOTOR Task is being DELAY! dt = [%f]", &motor_dt);
-    osDelay(2);
+    osDelay(1);
   }
 }
 
@@ -107,7 +107,7 @@ __attribute__((noreturn)) void StartROBOTTASK(void const *argument) {
     RobotTask();
     robot_dt = DWT_GetTimeline_ms() - robot_start;
     if (robot_dt > 2) LOGERROR("[freeRTOS] ROBOT core Task is being DELAY! dt = [%f]", &robot_dt);
-    osDelay(2);
+    osDelay(1);
   }
 }
 

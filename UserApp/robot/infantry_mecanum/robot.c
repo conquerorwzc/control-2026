@@ -361,6 +361,4 @@ void RobotTask() {
   ChassisTask();
 #endif
 
-  // 正确的赋值方式 - 直接赋值指针值
-  // robot->shoot->friction_motor[1];
 }
