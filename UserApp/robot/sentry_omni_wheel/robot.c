@@ -259,6 +259,7 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   //   gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
   // }
 }
+
 /**
  * @brief  紧急停止,包括遥控器左上侧拨轮打满/重要模块离线/双板通信失效等
  *         停止的阈值'300'待修改成合适的值,或改为开关控制.
@@ -302,13 +303,14 @@ static void EmergencyHandler() {
     //     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     // }
     // 遥控器右侧开关为[上],恢复正常运行
-  }
+}
+
 void RobotInit() {
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
 
 #ifdef STM32F407xx
   robot->rc_data = RemoteControlInit(&huart3);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
-#elifdef STM32H723XX
+#elif defined(STM32H723XX)
   robot->rc_data = RemoteControlInit(&huart5);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
 #endif
 
@@ -333,7 +335,7 @@ void RobotInit() {
   // gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   // shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;
-  // vision_recv_data=VisionInit(&gimbal_init_config.imu_init_config);
+  // vision_recv_data = VisionInit(&gimbal_init_config.imu_init_config);  // 启用视觉初始化
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
@@ -346,11 +348,12 @@ void RobotCMDTask() {
 }
 
 void RobotTask() {
+  RobotCMDTask();  // 无论哪种板子配置都需要执行命令任务
+
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
-  // VisionSend();
-  RobotCMDTask();
-  // GimbalTask();
-  // ShootTask();
+  VisionSend();
+  GimbalTask();
+  ShootTask();
 #endif
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
