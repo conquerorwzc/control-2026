@@ -188,9 +188,12 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   }
   switch (rc_data[TEMP].mouse.press_l % 2)        // 左键发射
   {
-  case 0:
-      shoot_ctrl_cmd->load_mode=LOAD_STOP;
-      trigger_time = DWT_GetTimeline_s();
+    case 0:
+      if (!switch_is_up(rc_data[TEMP].rc.switch_left))
+      {
+        shoot_ctrl_cmd->load_mode=LOAD_STOP;
+        trigger_time = DWT_GetTimeline_s();
+      }
       break;
   default:
     switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 2)  // E键设置发射模式
@@ -222,10 +225,10 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
       chassis_ctrl_cmd->chassis_speed_buff = 20000;
       break;
     case 2:
-      chassis_ctrl_cmd->chassis_speed_buff = 40000;
+      chassis_ctrl_cmd->chassis_speed_buff = 30000;
       break;
     default:
-      chassis_ctrl_cmd->chassis_speed_buff = 80000;
+      chassis_ctrl_cmd->chassis_speed_buff = 40000;
       break;
   }
   // switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Q]%2) //新增Q自旋开启
@@ -249,12 +252,12 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
 
       break;
   }
-  shoot_ctrl_cmd->shoot_rate = 8;// 射频控制,固定每秒1发,后续可以根据左侧拨轮的值大小切换射频,
-  if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
-    gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
-  } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
-    gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
-  }
+  // shoot_ctrl_cmd->shoot_rate = 8;// 射频控制,固定每秒1发,后续可以根据左侧拨轮的值大小切换射频,
+  // if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
+  //   gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
+  // } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
+  //   gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
+  // }
 }
 /**
  * @brief  紧急停止,包括遥控器左上侧拨轮打满/重要模块离线/双板通信失效等
@@ -265,39 +268,39 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
  */
 static void EmergencyHandler() {
   // 两switch都在下断电
-    if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left))||!RemoteControlIsOnline())  // 全部失能
+    if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left))||switch_is_off(rc_data[TEMP].rc.switch_left)||switch_is_off(rc_data[TEMP].rc.switch_right))  // 全部失能
     {
       robot->robot_mode = ROBOT_POWER_ON;
-      gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
+      // gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
       chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
-      shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
-      shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
-      shoot_ctrl_cmd->load_mode = LOAD_STOP;
+      // shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
+      // shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
+      // shoot_ctrl_cmd->load_mode = LOAD_STOP;
       for (int i=0;i<16;i++)
         rc_data[TEMP].key_count[KEY_PRESS][i]=0;  //复位    注意：更改键位的时候要对这里以及下面的复位进行大改。
       LOGERROR("[CMD] emergency stop!");
     } else {
       LOGINFO("[CMD] reinstate, robot ready");
     }
-    if (switch_is_down(rc_data[TEMP].rc.switch_right)||!RemoteControlIsOnline())  // 底盘失能
+    if (switch_is_down(rc_data[TEMP].rc.switch_right)||switch_is_off(rc_data[TEMP].rc.switch_right))  // 底盘失能
     {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
     }
-    else
-      {
-    gimbal_ctrl_cmd->gimbal_mode=GIMBAL_ON;
-      }
-    if (switch_is_down(rc_data[TEMP].rc.switch_left)||!RemoteControlIsOnline())  // 发射失能
-    {
-      shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
-      shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
-      shoot_ctrl_cmd->load_mode = LOAD_STOP;
-    }
-    else {
-      shoot_ctrl_cmd->shoot_mode= SHOOT_ON;
-      if (gimbal_ctrl_cmd->gimbal_mode!=GIMBAL_VISION)  //增加自瞄状态的优先级
-        gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-    }
+    // else
+    //   {
+    // gimbal_ctrl_cmd->gimbal_mode=GIMBAL_ON;
+    //   }
+    // if (switch_is_down(rc_data[TEMP].rc.switch_left)||!RemoteControlIsOnline())  // 发射失能
+    // {
+    //   shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
+    //   shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
+    //   shoot_ctrl_cmd->load_mode = LOAD_STOP;
+    // }
+    // else {
+    //   shoot_ctrl_cmd->shoot_mode= SHOOT_ON;
+    //   if (gimbal_ctrl_cmd->gimbal_mode!=GIMBAL_VISION)  //增加自瞄状态的优先级
+    //     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+    // }
     // 遥控器右侧开关为[上],恢复正常运行
   }
 void RobotInit() {
@@ -327,16 +330,16 @@ void RobotInit() {
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   chassis_ctrl_cmd->max_power = 80;  // 随便给一个初始功率，后面应该要从裁判系统获取
-  gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
-  shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
+  // gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
+  // shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;
-  vision_recv_data=VisionInit(&gimbal_init_config.imu_init_config);
+  // vision_recv_data=VisionInit(&gimbal_init_config.imu_init_config);
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
 void RobotCMDTask() {
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
-  CalcOffsetAngle();
+  // CalcOffsetAngle();
   RemoteControlSet();
   MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
@@ -344,10 +347,10 @@ void RobotCMDTask() {
 
 void RobotTask() {
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
-  VisionSend();
+  // VisionSend();
   RobotCMDTask();
-  GimbalTask();
-  ShootTask();
+  // GimbalTask();
+  // ShootTask();
 #endif
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
