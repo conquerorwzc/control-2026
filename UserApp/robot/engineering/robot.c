@@ -7,7 +7,8 @@
 #include "stdlib.h"
 #include "string.h"
 #include "user_lib.h"
-#include "semi_automatic.h" // 添加半自动控制头文件
+#include "semi_automatic.h"
+#include "stdbool.h"
 
 /* Private define ------------------------------------------------------------*/
 
@@ -198,30 +199,36 @@ static void MouseKeySet()
         break;
     }
 
+    // 检查机器人是否处于失能状态，如果是则不执行半自动操作
+    bool is_robot_safe = (robot->robot_mode != ROBOT_EMERGENCY_STOP && 
+                         chassis_ctrl_cmd->chassis_mode != CHASSIS_POWER_OFF && 
+                         gantry_ctrl_cmd->Gantry_mode != GANTRY_MODE_POWER_OFF && 
+                         grab_ctrl_cmd->grab_mode != GRAB_POWER_OFF);
+    
     // 使用G+X组合键启动龙门架抬升 (Gantry + X)
     if (rc_data[TEMP].key[KEY_PRESS].g && rc_data[TEMP].key[KEY_PRESS].x) {
-        if (semi_auto_ctrl_cmd != NULL && !semi_auto_ctrl_cmd->is_running) {
+        if (semi_auto_ctrl_cmd != NULL && !semi_auto_ctrl_cmd->is_running && is_robot_safe) {
             StartGantryLift(); // 启动龙门架抬升
         }
     }
     
     // 使用A+R组合键启动机械臂上抬 (Arm + R for Raise)
     if (rc_data[TEMP].key[KEY_PRESS].a && rc_data[TEMP].key[KEY_PRESS].r) {
-        if (semi_auto_ctrl_cmd != NULL && !semi_auto_ctrl_cmd->is_running) {
+        if (semi_auto_ctrl_cmd != NULL && !semi_auto_ctrl_cmd->is_running && is_robot_safe) {
             StartArmRaise(); // 启动机械臂上抬
         }
     }
     
     // 使用A+F组合键启动掰把手 (Arm + F for Flip)
     if (rc_data[TEMP].key[KEY_PRESS].a && rc_data[TEMP].key[KEY_PRESS].f) {
-        if (semi_auto_ctrl_cmd != NULL && !semi_auto_ctrl_cmd->is_running) {
+        if (semi_auto_ctrl_cmd != NULL && !semi_auto_ctrl_cmd->is_running && is_robot_safe) {
             StartArmFlip(); // 启动掰把手
         }
     }
     
     // 使用A+E组合键启动旋转 (Arm + E for Rotate)
     if (rc_data[TEMP].key[KEY_PRESS].a && rc_data[TEMP].key[KEY_PRESS].e) {
-        if (semi_auto_ctrl_cmd != NULL && !semi_auto_ctrl_cmd->is_running) {
+        if (semi_auto_ctrl_cmd != NULL && !semi_auto_ctrl_cmd->is_running && is_robot_safe) {
             StartArmRotate(); // 启动旋转
         }
     }
