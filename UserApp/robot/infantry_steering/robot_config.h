@@ -28,7 +28,7 @@
 // #define VISION_USE_UART // 使用串口发送视觉数据
 
 // 云台参数
-#define YAW_CHASSIS_ALIGN_ECD 7714
+#define YAW_CHASSIS_ALIGN_ECD 1570
 #define PITCH_HORIZON_ECD 5748  // 云台处于水平位置时编码器值,若对云台有机械改动需要修改
 #define PITCH_MAX_ANGLE 11.0f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
 #define PITCH_MIN_ANGLE -15.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
@@ -93,7 +93,7 @@
           {                                                                                                    \
               .angle_PID =                                                                                     \
                   {                                                                                            \
-                      .Kp = 30,                                                                                \
+                      .Kp = 40,                                                                                \
                       .Ki = 0,                                                                                 \
                       .Kd = 0.1,                                                                               \
                       .IntegralLimit = 960,                                                                  \
@@ -102,12 +102,12 @@
                   },                                                                                           \
               .speed_PID =                                                                                     \
                   {                                                                                            \
-                      .Kp = 8,                                                                                 \
-                      .Ki = 20,                                                                                \
+                      .Kp = 10,                                                                                 \
+                      .Ki = 30,                                                                                \
                       .Kd = 0,                                                                                 \
                       .IntegralLimit = 12500,                                                                   \
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
-                      .MaxOut = 25000,                                                                         \
+                      .MaxOut = 20000,                                                                         \
                   },                                                                                           \
               .current_PID =                                                                                   \
                   {                                                                                            \
@@ -163,7 +163,7 @@ static Chassis_Init_Config_s chassis_init_config = {
   .yaw_motor_config=RUDDER_MOTOR_CONFIG(&hcan1, 1),
     //跟随PID
     .follow_pid={
-        .Kp = 200.0f,
+        .Kp = 250.0f,
         .Ki = 0.0f,
         .Kd = 0.0f,
         .IntegralLimit = 1000.0f,
