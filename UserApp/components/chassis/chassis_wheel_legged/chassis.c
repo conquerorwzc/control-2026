@@ -73,6 +73,7 @@ static void ChassisCtrlUpdate() {
  */
 static void ChassisRecovery() {
   for (int i = 0; i < 2; i++) {
+    // 关节收腿
     DMMotorOuterLoop(leg[i]->joint_motor[0], ANGLE_LOOP);
     DMMotorOuterLoop(leg[i]->joint_motor[1], ANGLE_LOOP);
     DMMotorSetPIDRef(leg[i]->joint_motor[0], -0.1);
@@ -80,6 +81,7 @@ static void ChassisRecovery() {
     leg[i]->real_model.Tp_1 = leg[i]->joint_motor[0]->motor_controller.final_output;
     leg[i]->real_model.Tp_2 = leg[i]->joint_motor[1]->motor_controller.final_output;
     leg[i]->update_flag.is_controlled = 1;  // todo: 可以看看哪个好
+    // 没收完腿不动轮毂, 防止位移项错误累加
     if (abs((leg[i]->joint_motor[0]->measure.position - (-0.1f))) <= 0.5f &&
         abs(leg[i]->joint_motor[1]->measure.position - (0.1f)) <= 0.5f) {
       leg[i]->leg_ctrl_cmd.x_d_ref = chassis->chassis_ctrl_cmd.vx;
@@ -88,7 +90,27 @@ static void ChassisRecovery() {
     } else {
       leg[i]->real_model.T = 0;
     }
+    // 位置环下离地检测有误，需手动将标志位置零
     leg[i]->update_flag.is_off_ground = 0;
+  }
+}
+
+static void ChassisJump() {
+  for (int i = 0; i < 2; i++) {
+    leg[i]->leg_ctrl_cmd.length_ref = 0.385;
+    switch (chassis->jump_state) {
+      case JUMP_STATE_COMPRESS:
+        break;
+      case JUMP_STATE_EXTEND:
+        break;
+      case JUMP_STATE_RETRACT:
+        break;
+      case JUMP_STATE_LAND:
+        break;
+      case JUMP_STATE_IDLE:
+      default:
+        break;
+    }
   }
 }
 
@@ -173,6 +195,8 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
 
   xvEstimateKF_Init(&chassis_instance->vaEstimateKF);
 
+  chassis_instance->jump_state = JUMP_STATE_IDLE;
+
   chassis = chassis_instance;
   leg[0] = chassis->leg[0];
   leg[1] = chassis->leg[1];
@@ -208,6 +232,8 @@ void ChassisTask() {
     case CHASSIS_ON:
       ChassisCtrlUpdate();
       break;
+    case CHASSIS_JUMP:
+      ChassisJump();
     default:
       break;
   }

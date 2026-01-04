@@ -31,7 +31,16 @@ typedef enum {
   CHASSIS_POWER_OFF = 0,  // 电流零输入
   CHASSIS_RECOVERY,       // 一阶倒立摆
   CHASSIS_ON,             // 二阶倒立摆
+  CHASSIS_JUMP,           // 跳跃
 } Chassis_Mode_e;
+
+typedef enum {
+  JUMP_STATE_IDLE,      // 空闲状态
+  JUMP_STATE_COMPRESS,  // 压缩状态（施加F）
+  JUMP_STATE_EXTEND,    // 伸腿状态（准备跳跃）
+  JUMP_STATE_RETRACT,   // 收腿状态
+  JUMP_STATE_LAND       // 着陆状态
+} Jump_State_e;
 
 typedef struct {
   Chassis_Mode_e chassis_mode;
@@ -62,6 +71,7 @@ typedef struct {
 } Chassis_Init_Config_s;
 
 typedef struct {
+  Jump_State_e jump_state;
   Chassis_Ctrl_Cmd_s chassis_ctrl_cmd;
   LegInstance* leg[2];
   INS_t* chassis_IMU;
