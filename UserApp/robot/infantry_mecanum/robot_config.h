@@ -119,9 +119,9 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                     {
-                      .Kp = 0.35f,
+                      .Kp = 1.2f,
                       .Ki = 0.0f,
-                      .Kd = 0.0f,
+                      .Kd = 0.06f,
                       .DeadBand = 0.01f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                       .IntegralLimit = 5.0f,
@@ -152,9 +152,9 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                     {
-                      .Kp = 0.8f,
+                      .Kp = 3.5f,
                       .Ki = 0.0f,
-                      .Kd = 0.0f,
+                      .Kd = 0.04f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                       .IntegralLimit = 5.0f,
                       .MaxOut = 25.0f,
@@ -221,7 +221,7 @@ static Shoot_Init_Config_s shoot_init_config = {
             .num_per_circle = 8,                      // 拨盘一圈的装载量
             .loader_direction = 1,                    // 拨盘旋转方向,1为正向，-1为反向
             .friction_num = 2,
-      .friction_speed = 35000.0f,//摩擦轮数量
+      .friction_speed = 0.0f,
       .friction_coefficients = {1.0f, -1.0f}, //摩擦轮速度比例系数
       .deadtime_burstfire = 300,
       .deadtime_onebullet = 500,               //弹丸发射间隔

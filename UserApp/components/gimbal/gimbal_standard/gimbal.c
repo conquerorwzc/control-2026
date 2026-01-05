@@ -26,11 +26,11 @@ GimbalInstance* GimbalInit(Gimbal_Init_Config_s* gimbal_init_config) {
   gimbal_instance->gimbal_hi05_data = HI05_Init(gimbal_init_config->hi05_uart_handle);
 
   // YAW控制器参数配置
-   // gimbal_init_config->yaw_motor_config.controller_param_init_config.other_angle_feedback_ptr =
-  //     &gimbal_instance->gimbal_IMU_data->YawTotalAngle;
+   gimbal_init_config->yaw_motor_config.controller_param_init_config.other_angle_feedback_ptr =
+      &gimbal_instance->gimbal_IMU_data->YawTotalAngle;
   gimbal_init_config->yaw_motor_config.controller_param_init_config.other_speed_feedback_ptr =
       &gimbal_instance->gimbal_IMU_data->Gyro[2];
-  gimbal_init_config->yaw_motor_config.controller_param_init_config.other_angle_feedback_ptr=&gimbal_instance->gimbal_hi05_data->YawTotalAngle;
+  //gimbal_init_config->yaw_motor_config.controller_param_init_config.other_angle_feedback_ptr=&gimbal_instance->gimbal_hi05_data->YawTotalAngle;
   // gimbal_init_config->yaw_motor_config.controller_param_init_config.other_speed_feedback_ptr=&gimbal_instance->gimbal_hi05_data->gyr[2];
 
   // YAW控制器设置配置
