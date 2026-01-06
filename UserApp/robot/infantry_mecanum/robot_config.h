@@ -119,9 +119,9 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                     {
-                      .Kp = 1.2f,
+                      .Kp = 1.0f,
                       .Ki = 0.0f,
-                      .Kd = 0.06f,
+                      .Kd = 0.04f,
                       .DeadBand = 0.01f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                       .IntegralLimit = 5.0f,
@@ -129,7 +129,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                   },
                     .speed_PID =
                     {
-                      .Kp = 8000.0f,
+                      .Kp = 6000.0f,
                       .Ki = 100.0f,
                       .Kd = 0.0f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
@@ -152,9 +152,9 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                     {
-                      .Kp = 3.5f,
+                      .Kp = 1.5f,
                       .Ki = 0.0f,
-                      .Kd = 0.04f,
+                      .Kd = 0.02f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                       .IntegralLimit = 5.0f,
                       .MaxOut = 25.0f,
@@ -238,9 +238,9 @@ static Shoot_Init_Config_s shoot_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 20.0f,
+                            .Kp = 80.0f,
                             .Ki = 0.0f,
-                            .Kd = 0.0f,
+                            .Kd = 0.6f,
                             .MaxOut = 20000.0f,
                         },
                     .speed_PID =
