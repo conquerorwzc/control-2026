@@ -8,7 +8,7 @@
 #include "ins_task.h"
 #include "HI05.h"
 
-#define HI05_CTRL
+#define BMI088_CTRL
 
 typedef enum {
   GIMBAL_POWER_OFF = 0,  // 电流零输入
