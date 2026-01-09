@@ -93,9 +93,9 @@
           {                                                                                                    \
               .angle_PID =                                                                                     \
                   {                                                                                            \
-                      .Kp = 40,                                                                                \
+                      .Kp = 80,                                                                                \
                       .Ki = 0,                                                                                 \
-                      .Kd = 0.1,                                                                               \
+                      .Kd = 0.5,                                                                               \
                       .IntegralLimit = 960,                                                                  \
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
                       .MaxOut = 1920,                                                                          \

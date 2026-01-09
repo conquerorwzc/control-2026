@@ -95,27 +95,18 @@ static void WheelLimit() {
   }
 }
 
+/**
+ * @brief 舵电机优先，避免轮电机在方向不正时猛转打滑，一定程度上优化功率分配
+ */
 void RudderFirst() {
-    //float k=1-fabsf((st_lf-chassis->rudder_motor[LF]->measure.total_angle)/90.0f);
-  r1=fabsf(cosf(DEG2R(st_lf-chassis->rudder_motor[LF]->measure.total_angle)));
-  //if (k0>0.9) k0=1.0f;
+  r1=powf(cosf(DEG2R(st_lf-chassis->rudder_motor[LF]->measure.total_angle)),3);
     vt[LF] *= r1;
-  r2=fabsf(cosf(DEG2R(st_lb-chassis->rudder_motor[LB]->measure.total_angle)));
-  //if (k1>0.9) k1=1.0f;
+  r2=powf(cosf(DEG2R(st_lb-chassis->rudder_motor[LB]->measure.total_angle)),3);
   vt[LB] *= r2;
-  r3=fabsf(cosf(DEG2R(st_rb-chassis->rudder_motor[RB]->measure.total_angle)));
-  //if (k2>0.9) k2=1.0f;
+  r3=powf(cosf(DEG2R(st_rb-chassis->rudder_motor[RB]->measure.total_angle)),3);
   vt[RB] *= r3;
-  r4=fabsf(cosf(DEG2R(st_rf-chassis->rudder_motor[RF]->measure.total_angle)));
-  //if (k3>0.9) k3=1.0f;
+  r4=powf(cosf(DEG2R(st_rf-chassis->rudder_motor[RF]->measure.total_angle)),3);
   vt[RF] *= r4;
-}
-void AntiSpin() {
-  float temp;
-  for (int i = 0; i < 4; i++) {
-    if (AS_VT[i] < vt[i]) {
-    }
-  }
 }
 
 // 添加静态变量用于存储前一个角度以实现连续跟踪
