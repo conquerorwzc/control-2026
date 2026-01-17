@@ -15,6 +15,7 @@
 #include "robot.h"
 
 #include "bsp_gpio.h"
+#include "can_comm.h"
 #include "general_def.h"
 #include "robot_config.h"
 #include "user_lib.h"
@@ -167,7 +168,6 @@ static void RemoteControlSet() {
       chassis_ctrl_cmd->leg_length += 0.0000005f * (float)rc_data[TEMP].rc.rocker_l1;
       // chassis_ctrl_cmd->roll += 0.002f * (float)rc_data[TEMP].rc.rocker_l_;
 
-      // 云台PITCH轴软件限位 todo:没在云台有点不好
       if (chassis_ctrl_cmd->leg_length > LEG_MAX_LENGTH) {
         chassis_ctrl_cmd->leg_length = LEG_MAX_LENGTH;
       } else if (chassis_ctrl_cmd->leg_length < LEG_MIN_LENGTH) {
@@ -301,47 +301,59 @@ static void EmergencyHandler() {
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
 void RobotCMDTask() {
+#if defined(ONE_BOARD || GIMBAL_BOARD)
+  CalcOffsetAngle();
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
-  // CalcOffsetAngle();
   RemoteControlSet();
   // MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
+#if !defined(ONE_BOARD)
+  robot->chassis_fetch_data = (Chassis_Upload_Data_s *)CANCommGet(robot->can_comm);
+  CANCommSend(robot->can_comm, (void *)chassis_ctrl_cmd);
+#endif
+#elif defined(CHASSIS_BOARD)
+  chassis_ctrl_cmd = (Chassis_Ctrl_Cmd_s *)CANCommGet(robot->can_comm);
+  CANCommSend(robot->can_comm, (void *)&chassis_feedback_data);
+#endif
 }
 
 void RobotInit() {
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
 
-#ifdef STM32F4
-  robot->rc_data = RemoteControlInit(&huart6);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
-#elifdef STM32H7
-  robot->rc_data = RemoteControlInit(&huart5);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
-#endif
-
-  rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
-  *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
-
-  // robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
-
-  // robot->super_cap = SuperCapInit(&super_cap_config);
+  DWT_Delay(1.5);  // todo: 待完善
 
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
-  // robot->gimbal = GimbalInit(&gimbal_init_config);
-  // robot->shoot = ShootInit(&shoot_init_config);
+  // 遥控器初始化
+#if defined(STM32F4)
+  robot->rc_data = RemoteControlInit(&huart6);
+#elif defined(STM32H7)
+  robot->rc_data = RemoteControlInit(&huart5);
 #endif
-#if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
-  DWT_Delay(1.5);
-  robot->chassis = ChassisInit(&chassis_init_config);
-  PIDInit(&robot->chassis_follow_PID, &chassis_follow_PID_config);
-#endif
+  rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));  // 分配独立内存空间，与robot->rc_data区分开
+  *rc_data_last = *robot->rc_data;                         // 记录上一次遥控器的状态，传值确保内存空间独立
 
-  // 初始化控制命令指针
-  chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
+  robot->gimbal = GimbalInit(&gimbal_init_config);
+  robot->shoot = ShootInit(&shoot_init_config);
+  PIDInit(&robot->chassis_follow_PID, &chassis_follow_PID_config);
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
-
   rc_data = robot->rc_data;
+#if !defined(ONE_BOARD)
+  robot->chassis = (ChassisInstance *)zmalloc(sizeof(ChassisInstance));
+  robot->can_comm = CANCommInit(&gimbal_comm_conf);
+#endif
+#elif defined(ONE_BOARD) || defined(CHASSIS_BOARD)
+  // robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
+  // robot->super_cap = SuperCapInit(&super_cap_config);
+  robot->chassis = ChassisInit(&chassis_init_config);
+#if !defined(ONE_BOARD)
+  robot->can_comm = CANCommInit(&chassis_comm_conf);  // can comm初始化
+#endif
+#endif
 
-  chassis_ctrl_cmd->leg_length = 0.20f;  // TODO: config传参进来
+  chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
+  chassis_ctrl_cmd->leg_length = 0.20f;  // 初始腿长 TODO: config传参进来
+  // 初始化控制命令指针
   DWT_GetDeltaT(&robot->DWT_CNT);
 }
 

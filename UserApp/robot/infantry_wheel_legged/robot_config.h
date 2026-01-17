@@ -15,26 +15,10 @@
 
 #include "robot.h"
 
-// 编译warning,提醒开发者修改机器人参数
-#ifndef ROBOT_CONFIG_PARAM_WARNING
-#define ROBOT_CONFIG_PARAM_WARNING
-#pragma message \
-    "check if you have configured the parameters in robot_config.h, IF NOT, please refer to the comments AND DO IT, otherwise the robot will have FATAL ERRORS!!!"
-#endif
-
-/* 开发板类型定义,烧录时注意不要弄错对应功能;修改定义后需要重新编译,只能存在一个定义! */
-#define ONE_BOARD  // 单板控制整车
-
-// 检查是否出现主控板定义冲突,只允许一个开发板定义存在,否则编译会自动报错
-#if (defined(ONE_BOARD) && defined(CHASSIS_BOARD)) || (defined(ONE_BOARD) && defined(GIMBAL_BOARD)) || \
-    (defined(CHASSIS_BOARD) && defined(GIMBAL_BOARD))
-#error Conflict board definition! You can only define one board type.
-#endif
-
 #define VISION_USE_VCP  // 使用虚拟串口发送视觉数据
 // #define VISION_USE_UART // 使用串口发送视觉数据
 
-/* 机器人重要参数定义,注意根据不同机器人进行修改,浮点数需要以.0或f结尾,无符号以u结尾 */
+/* 机器人重要参数定义,浮点数需要以.0或f结尾,无符号以u结尾 */
 
 // 机器人底盘修改的参数,单位为mm(毫米)
 #define TRACK_WIDTH 300              // 横向轮距(左右平移方向)
@@ -377,6 +361,27 @@ static PID_Init_Config_s chassis_follow_PID_config = {
     .IntegralLimit = 0.1f,
     .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
     .MaxOut = 2.0f,
+};
+static CANComm_Init_Config_s gimbal_comm_conf = {
+    .can_config =
+        {
+            .can_handle = &hcan1,
+            .tx_id = 0x312,
+            .rx_id = 0x311,
+        },
+    .recv_data_len = sizeof(Chassis_Upload_Data_s),
+    .send_data_len = sizeof(Chassis_Ctrl_Cmd_s),  // chassis_ctrl_cmd
+};
+
+static CANComm_Init_Config_s chassis_comm_conf = {
+    .can_config =
+        {
+            .can_handle = &hcan2,
+            .tx_id = 0x311,
+            .rx_id = 0x312,
+        },
+    .recv_data_len = sizeof(Chassis_Ctrl_Cmd_s),  // chassis_ctrl_cmd
+    .send_data_len = sizeof(Chassis_Upload_Data_s),
 };
 
 static SuperCap_Init_Config_s super_cap_config = {

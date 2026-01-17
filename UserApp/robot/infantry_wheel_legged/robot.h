@@ -5,8 +5,25 @@
 #include "remote_control.h"
 #include "shoot.h"
 // #include "rm_referee.h"
+#include "can_comm.h"
 #include "super_cap.h"
+
 // todo: add vision_module
+
+#ifndef ONE_BOARD
+#pragma pack(1)
+typedef struct {
+  attitude_t chassis_imu_data;
+  // 后续增加底盘的真实速度
+  // float real_vx;
+  // float real_vy;
+  // float real_wz;
+  // uint8_t rest_heat;            // 剩余枪口热量
+  // Bullet_Speed_e bullet_speed;  // 弹速限制
+  // Enemy_Color_e enemy_color;    // 0 for blue, 1 for red
+} Chassis_Upload_Data_s;  // means the Chassis board, not the component
+#pragma pack()
+#endif
 
 typedef enum {
   ROBOT_POWER_OFF = 0,
@@ -27,6 +44,12 @@ typedef struct {
   ShootInstance* shoot;
 
   PIDInstance chassis_follow_PID;
+
+#ifndef ONE_BOARD
+  Chassis_Upload_Data_s* chassis_fetch_data;
+  CANCommInstance* can_comm;
+#endif
+
   uint32_t DWT_CNT;
   float dt;
 } RobotInstance;

@@ -42,6 +42,7 @@ typedef enum {
   JUMP_STATE_LAND       // 着陆状态
 } Jump_State_e;
 
+#pragma pack(1)
 typedef struct {
   Chassis_Mode_e chassis_mode;
   float vx;  // 前进方向速度
@@ -52,6 +53,7 @@ typedef struct {
   int chassis_speed_buff;
   uint16_t max_power;  // 最大功率限制
 } Chassis_Ctrl_Cmd_s;
+#pragma pack()
 
 // 机器人底盘修改的参数,单位为mm(毫米)
 typedef struct {
