@@ -27,6 +27,11 @@ static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
 static Gimbal_Ctrl_Cmd_s *gimbal_ctrl_cmd;
 static Shoot_Ctrl_Cmd_s *shoot_ctrl_cmd;
 
+#if !defined(ONE_BOARD)
+static Chassis_Upload_Data_s *chassis_upload_data;
+static Chassis_Fetch_Data_s *chassis_fetch_data;
+#endif
+
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 
@@ -301,19 +306,22 @@ static void EmergencyHandler() {
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
 void RobotCMDTask() {
-#if defined(ONE_BOARD || GIMBAL_BOARD)
+#if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
   CalcOffsetAngle();
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
   RemoteControlSet();
   // MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
-#if !defined(ONE_BOARD)
-  robot->chassis_fetch_data = (Chassis_Upload_Data_s *)CANCommGet(robot->can_comm);
-  CANCommSend(robot->can_comm, (void *)chassis_ctrl_cmd);
+#if defined(GIMBAL_BOARD)
+  chassis_fetch_data->chassis_ctrl_cmd = *chassis_ctrl_cmd;
+  chassis_upload_data = (Chassis_Upload_Data_s *)CANCommGet(robot->can_comm);
+  CANCommSend(robot->can_comm, (void *)chassis_fetch_data);
 #endif
 #elif defined(CHASSIS_BOARD)
-  chassis_ctrl_cmd = (Chassis_Ctrl_Cmd_s *)CANCommGet(robot->can_comm);
-  CANCommSend(robot->can_comm, (void *)&chassis_feedback_data);
+  INS_GetAttitude(&chassis_upload_data->chassis_imu_data);
+  chassis_fetch_data = (Chassis_Fetch_Data_s *)CANCommGet(robot->can_comm);
+  robot->chassis->chassis_ctrl_cmd = chassis_fetch_data->chassis_ctrl_cmd;
+  CANCommSend(robot->can_comm, (void *)chassis_upload_data);
 #endif
 }
 
@@ -323,12 +331,14 @@ void RobotInit() {
   DWT_Delay(1.5);  // todo: 待完善
 
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
+
   // 遥控器初始化
 #if defined(STM32F4)
-  robot->rc_data = RemoteControlInit(&huart6);
+  robot->rc_data = RemoteControlInit(&huart3);
 #elif defined(STM32H7)
   robot->rc_data = RemoteControlInit(&huart5);
 #endif
+
   rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));  // 分配独立内存空间，与robot->rc_data区分开
   *rc_data_last = *robot->rc_data;                         // 记录上一次遥控器的状态，传值确保内存空间独立
 
@@ -338,29 +348,36 @@ void RobotInit() {
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;
-#if !defined(ONE_BOARD)
+#if defined(GIMBAL_BOARD)
+  robot->chassis_upload_data = (Chassis_Upload_Data_s *)zmalloc(sizeof(Chassis_Upload_Data_s));
+  robot->chassis_fetch_data = (Chassis_Fetch_Data_s *)zmalloc(sizeof(Chassis_Fetch_Data_s));
+  chassis_upload_data = robot->chassis_upload_data;
+  chassis_fetch_data = robot->chassis_fetch_data;
   robot->chassis = (ChassisInstance *)zmalloc(sizeof(ChassisInstance));
   robot->can_comm = CANCommInit(&gimbal_comm_conf);
 #endif
+
 #elif defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   // robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
   // robot->super_cap = SuperCapInit(&super_cap_config);
   robot->chassis = ChassisInit(&chassis_init_config);
-#if !defined(ONE_BOARD)
+#if defined(CHASSIS_BOARD)
+  robot->chassis_upload_data = (Chassis_Upload_Data_s *)zmalloc(sizeof(Chassis_Upload_Data_s));
+  robot->chassis_fetch_data = (Chassis_Fetch_Data_s *)zmalloc(sizeof(Chassis_Fetch_Data_s));
+  chassis_upload_data = robot->chassis_upload_data;
+  chassis_fetch_data = robot->chassis_fetch_data;
   robot->can_comm = CANCommInit(&chassis_comm_conf);  // can comm初始化
 #endif
 #endif
-
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
-  chassis_ctrl_cmd->leg_length = 0.20f;  // 初始腿长 TODO: config传参进来
-  // 初始化控制命令指针
+  chassis_ctrl_cmd->leg_length = chassis_init_config.initial_leg_length;  // 初始腿长
   DWT_GetDeltaT(&robot->DWT_CNT);
 }
 
 void RobotTask() {
   robot->dt = DWT_GetDeltaT(&robot->DWT_CNT);
-#if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
   RobotCMDTask();
+#if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
   // GimbalTask();
   // ShootTask();
 #endif

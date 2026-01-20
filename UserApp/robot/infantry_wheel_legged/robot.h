@@ -22,7 +22,12 @@ typedef struct {
   // Bullet_Speed_e bullet_speed;  // 弹速限制
   // Enemy_Color_e enemy_color;    // 0 for blue, 1 for red
 } Chassis_Upload_Data_s;  // means the Chassis board, not the component
+
+typedef struct {
+  Chassis_Ctrl_Cmd_s chassis_ctrl_cmd;
+} Chassis_Fetch_Data_s;  // means the Chassis board, not the component
 #pragma pack()
+
 #endif
 
 typedef enum {
@@ -46,7 +51,8 @@ typedef struct {
   PIDInstance chassis_follow_PID;
 
 #ifndef ONE_BOARD
-  Chassis_Upload_Data_s* chassis_fetch_data;
+  Chassis_Upload_Data_s* chassis_upload_data;  // 此处chassis定义为chassis_board, 而非chassis模组, 故所有处理在robot中
+  Chassis_Fetch_Data_s* chassis_fetch_data;
   CANCommInstance* can_comm;
 #endif
 

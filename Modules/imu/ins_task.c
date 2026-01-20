@@ -141,7 +141,7 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
   while (BMI088Init(&hspi2, 0) != BMI088_NO_ERROR);
 #endif
   // 使用我们的调试校准函数来测量陀螺仪零偏值，绕过预定义值
-  while(abs(BMI088.Temperature-40.0)>1) {
+  while (abs(BMI088.Temperature - 40.0) > 1) {
     IMU_Temperature_Ctrl();
     DWT_Delay(0.001);
   }
@@ -385,19 +385,21 @@ void EularAngleToQuaternion(float Yaw, float Pitch, float Roll, float *q) {
 }
 
 uint8_t INS_GetAttitude(attitude_t *attitude) {
-  if (attitude == NULL || !INS.init) {
+  if (!INS.init) {
     return 0;
   }
-
   // 复制姿态数据
-  attitude->Yaw = INS.Yaw;
-  attitude->Pitch = INS.Pitch;
-  attitude->Roll = INS.Roll;
-  attitude->YawTotalAngle = INS.YawTotalAngle;
-  // 如果需要角速度数据也可以复制
   attitude->Gyro[0] = INS.Gyro[0];
   attitude->Gyro[1] = INS.Gyro[1];
   attitude->Gyro[2] = INS.Gyro[2];
 
+  attitude->Accel[0] = INS.Accel[0];
+  attitude->Accel[1] = INS.Accel[1];
+  attitude->Accel[2] = INS.Accel[2];
+
+  attitude->Yaw = INS.Yaw;
+  attitude->Pitch = INS.Pitch;
+  attitude->Roll = INS.Roll;
+  attitude->YawTotalAngle = INS.YawTotalAngle;
   return 1;
 }

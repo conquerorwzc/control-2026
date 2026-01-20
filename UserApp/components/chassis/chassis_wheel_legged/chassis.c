@@ -20,8 +20,6 @@ static Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd;  // 声明但不初始化
 // 中间变量
 static float chassis_aver_v;
 static float q2i_coeff;
-static uint8_t last_is_off_ground;
-static float DWT_CNT = 0;
 
 // robot param
 static float robot_weight;
