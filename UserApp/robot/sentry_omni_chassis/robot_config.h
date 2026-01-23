@@ -31,7 +31,7 @@
 //can通信任务初始化时间 单位ms
 #define CAN_COMM_TASK_INIT_TIME 100
 //双板can通信设备
-#define BOARD_CAN hcan1
+#define BOARD_CAN hcan2
 // 云台参数
 #define YAW_CHASSIS_ALIGN_ECD 4760  // 云台和底盘对齐指向相同方向时的电机编码器值,若对云台有机械改动需要修改
 #define PITCH_HORIZON_ECD 3494      // 云台处于水平位置时编码器值,若对云台有机械改动需要修改
@@ -294,7 +294,7 @@ static CANComm_Init_Config_s comm_config = {
   .send_data_len = 24,        // 发送数据长度，根据实际需求调整
   .daemon_count = 10,      // 看门狗重载计数，根据实际需求调整
   .can_config = {
-    .can_handle = &hcan1,  // 假设使用CAN1，根据实际使用的CAN句柄调整
+    .can_handle = &hcan2,  // 假设使用CAN1，根据实际使用的CAN句柄调整
     .tx_id = BOARD_TX_ID,        // 发送ID，根据实际需求调整
     .rx_id = BOARD_RX_ID,        // 接收ID，根据实际需求调整
     .id = NULL                   // 将在CANCommInit中设置

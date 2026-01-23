@@ -52,15 +52,14 @@ uint8_t has_non_zero_data(const Vision_Receive_s* data) {
          (data->shoot_receive.fire_flag != 0);
 }
 static void CalcOffsetAngle() {
-  angle = (uint16_t)robot->gimbal->yaw_motor->measure.angle_single_round;
-  float delta =YAW_ALIGN_ANGLE - angle;
-  chassis_ctrl_cmd->offset_angle = delta;
-
-  if (chassis_ctrl_cmd->offset_angle > 180.0f) {
-    chassis_ctrl_cmd->offset_angle -= 360.0f;
-  } else if (chassis_ctrl_cmd->offset_angle <= -180.0f) {
-    chassis_ctrl_cmd->offset_angle += 360.0f;
+  angle = (uint16_t)CanData.valueu16[4];
+  float delta = angle-YAW_ALIGN_ANGLE;
+  if (delta > 180.0f) {
+    delta -= 360.0f;
+  } else if (delta <= -180.0f) {
+    delta += 360.0f;
   }
+  chassis_ctrl_cmd->offset_angle = delta;
 }
 /**
  * @brief 控制输入为遥控器(调试时)的模式和控制量设置
@@ -373,7 +372,7 @@ void RobotInit() {
   // 初始化CAN接收
   can_comm_instance = CANCommInit(&comm_config);
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
-  //robot->rc_data = RemoteControlInit(&huart3);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
+  robot->rc_data = RemoteControlInit(&huart3);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
   //robot->vision_recv_data = VisionInit(&gimbal_init_config.imu_init_config);
   robot->navigator_data = navigator_init(&huart1);
 
@@ -398,8 +397,8 @@ void RobotCMDTask() {
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
   CalcOffsetAngle();
   DualBoardCtrlSet();
-  //RemoteControlSet();
-  //MouseKeySet();
+  RemoteControlSet();
+  MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
 
