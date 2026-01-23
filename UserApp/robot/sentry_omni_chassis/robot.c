@@ -297,8 +297,8 @@ static void DualBoardCtrlSet() {
 
       for (int i = 0; i < 24; i++)
         CanData.bytes[i] = received_data[i];
-      chassis_ctrl_cmd->vx=60.0f*CanData.value16[0];//todo:后面chassis改改把负号去掉
-      chassis_ctrl_cmd->vy=60.0f*CanData.value16[1];
+      rc_data[TEMP].rc.rocker_l_=CanData.value16[0];//todo:后面chassis改改把负号去掉
+      rc_data[TEMP].rc.rocker_l1=CanData.value16[1];
       //if (CanData.value16[2]>=0)
       // chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)-CanData.value16[2]/50.0f))*CanData.value16[2];
       // else chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)CanData.value16[2]/50.0f))*CanData.value16[2];
@@ -399,7 +399,7 @@ void RobotCMDTask() {
   CalcOffsetAngle();
   DualBoardCtrlSet();
   RemoteControlSet();
-//  MouseKeySet();
+  MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
 
