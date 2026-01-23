@@ -22,11 +22,7 @@
 #define CAN_COMM_OFFSET_BYTES 4   // 's'+ datalen + 'e' + crc8
 
 //bool类型
-typedef enum
-{
-  true = 1,
-  false = 0
-} bool;
+
 /*
 //can通信目标
 typedef enum

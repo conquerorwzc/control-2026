@@ -4,7 +4,7 @@
 #include "master_process.h"
 #include "robot_config.h"
 #include "user_lib.h"
-
+#include "can_comm.h"
 static RobotInstance *robot;
 
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
@@ -15,7 +15,7 @@ static Vision_Receive_s* vision_recv_data;
 static navigator_recv_t* navigator_data;
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
-CANCommInstance* can_comm_instance = NULL;
+static CANCommInstance* can_comm_instance = NULL;
 Int16ToBytes transmit_data;
 /* Intermediate variables calculated by private functions */
 static float trigger_time = 0;  // 触发时间
