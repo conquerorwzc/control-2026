@@ -138,7 +138,8 @@ static void RemoteControlSet() {
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
       chassis_ctrl_cmd->wz =(15.0f) *(float)rc_data[TEMP].rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
     }
-  } else if (robot->control_mode == AUTO_MODE) // 自动控制，直接接收上位机控制量
+
+  } else if (robot->control_mode == AUTO_MODE) // 自动控制，直接收上位机控制量
   {
     vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vy*5000;
     //vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vx*5000;
@@ -398,7 +399,7 @@ void RobotCMDTask() {
   CalcOffsetAngle();
   DualBoardCtrlSet();
   RemoteControlSet();
-  MouseKeySet();
+//  MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
 
