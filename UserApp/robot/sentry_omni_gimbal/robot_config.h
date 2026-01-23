@@ -26,6 +26,8 @@
 #define VISION_USE_VCP  // 使用虚拟串口发送视觉数据
 // #define VISION_USE_UART // 使用串口发送视觉数据
 
+#define BOARD_TX_ID 0x10
+#define BOARD_RX_ID 0x11
 
 
 // 云台参数
@@ -264,6 +266,30 @@ static Shoot_Init_Config_s shoot_init_config = {
             .controller_setting_init_config.outer_loop_type = ANGLE_LOOP,
             .controller_setting_init_config.close_loop_type = SPEED_LOOP | ANGLE_LOOP,
         },
+};
+static CANComm_Init_Config_s comm_config = {
+  .recv_data_len = 24,        // 接收数据长度，根据实际需求调整
+  .send_data_len = 24,        // 发送数据长度，根据实际需求调整
+  .daemon_count = 1000,      // 看门狗重载计数，根据实际需求调整
+  .can_config = {
+    .can_handle = &hcan1,  // 假设使用CAN1，根据实际使用的CAN句柄调整
+    .tx_id = BOARD_TX_ID,        // 发送ID，根据实际需求调整
+    .rx_id = BOARD_RX_ID,        // 接收ID，根据实际需求调整
+    .id = NULL                   // 将在CANCommInit中设置
+  }
+};
+
+// CAN实例配置（用于数据存储）
+static CANInstance board_can_comm_data = {
+  .can_handle = &hcan1,
+  .tx_id = BOARD_TX_ID,          // 与comm_config中的ID保持一致
+  .rx_id = BOARD_RX_ID,
+  .txconf = {
+    .StdId = BOARD_TX_ID,      // 发送ID
+    .IDE = CAN_ID_STD,   // 标准帧
+    .RTR = CAN_RTR_DATA, // 数据帧
+    .DLC = 0x08,         // 数据长度8字节
+  }
 };
 
 // static SuperCap_Init_Config_s super_cap_config = {

@@ -5,7 +5,6 @@
 #include "robot_config.h"
 #include "user_lib.h"
 
-
 static RobotInstance *robot;
 
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
@@ -16,7 +15,8 @@ static Vision_Receive_s* vision_recv_data;
 static navigator_recv_t* navigator_data;
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
-
+CANCommInstance* can_comm_instance = NULL;
+Int16ToBytes transmit_data;
 /* Intermediate variables calculated by private functions */
 static float trigger_time = 0;  // 触发时间
 static float x_speed_time=0;  //x方向加速触发时间
@@ -191,8 +191,7 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
       if (has_non_zero_data(vision_recv_data)==1){
         gimbal_ctrl_cmd->gimbal_mode=GIMBAL_VISION;    // 右键自瞄开启
 
-        gimbal_ctrl_cmd->yaw=1.0f*vision_recv_data->gimbal_receive.yaw+0.0f*last_yaw;
-        last_yaw=vision_recv_data->gimbal_receive.yaw;
+        gimbal_ctrl_cmd->yaw=vision_recv_data->gimbal_receive.yaw;
         gimbal_ctrl_cmd->pitch=vision_recv_data->gimbal_receive.pitch;
         //shoot_ctrl_cmd->load_mode=vision_recv_data->shoot_receive.fire_flag;
       }
@@ -319,12 +318,43 @@ static void EmergencyHandler() {
     }
     // 遥控器右侧开关为[上],恢复正常运行
   }
+void Gimbal_CANCommSend()
+{
+  if (can_comm_instance == NULL || rc_data == NULL)
+  {
+    return;
+  }
+
+  transmit_data.value = rc_data->rc.rocker_l_;
+  board_can_comm_data.tx_buff[0] = transmit_data.bytes[0];
+  board_can_comm_data.tx_buff[1] = transmit_data.bytes[1];
+
+  transmit_data.value = rc_data->rc.rocker_l1;
+  board_can_comm_data.tx_buff[2] = transmit_data.bytes[0];
+  board_can_comm_data.tx_buff[3] = transmit_data.bytes[1];
+
+  transmit_data.value = rc_data->rc.rocker_r_;
+  board_can_comm_data.tx_buff[4] = transmit_data.bytes[0];
+  board_can_comm_data.tx_buff[5] = transmit_data.bytes[1];
+
+  transmit_data.value = rc_data->rc.dial;
+  board_can_comm_data.tx_buff[6] = transmit_data.bytes[0];
+  board_can_comm_data.tx_buff[7] = transmit_data.bytes[1];
+
+  transmit_data.value = (int16_t)robot->gimbal->yaw_motor->measure.angle_single_round;
+  board_can_comm_data.tx_buff[8] = transmit_data.bytes[0];
+  board_can_comm_data.tx_buff[9] = transmit_data.bytes[1];
+
+  board_can_comm_data.tx_buff[10] = rc_data->rc.switch_right;
+
+  CANCommSend(can_comm_instance, board_can_comm_data.tx_buff);
+  }
+
 void RobotInit() {
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
+
 #ifdef STM32F407xx
   robot->rc_data = RemoteControlInit(&huart3);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
-  robot->vision_recv_data = VisionInit(&gimbal_init_config.imu_init_config);
-  robot->navigator_data = navigator_init(&huart1);
 #elifdef STM32H723XX
   robot->rc_data = RemoteControlInit(&huart5);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
 #endif
@@ -352,6 +382,7 @@ void RobotInit() {
   rc_data = robot->rc_data;
   navigator_data  = robot->navigator_data;
   vision_recv_data=VisionInit(&gimbal_init_config.imu_init_config);
+  can_comm_instance = CANCommInit(&comm_config);
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
@@ -359,17 +390,17 @@ void RobotCMDTask() {
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
   CalcOffsetAngle();
   RemoteControlSet();
-  MouseKeySet();
+   MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
 
 void RobotTask() {
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
   VisionSend();
-  navigator_send(&huart1);
   RobotCMDTask();
   GimbalTask();
   ShootTask();
+  Gimbal_CANCommSend();
 #endif
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)

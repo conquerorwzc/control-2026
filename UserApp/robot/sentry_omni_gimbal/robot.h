@@ -8,6 +8,7 @@
 #include "master_process.h"
 // #include "rm_referee.h"
 #include "super_cap.h"
+#include "can_comm.h"
 // todo: add vision_module
 
 typedef enum {
@@ -20,7 +21,11 @@ typedef enum {
   MANUAL_MODE=0,   // 手动控制
   AUTO_MODE,    // 自动控制
 } Control_Mode_e;
-
+//联合体定义
+typedef union {
+  int16_t value;
+  uint8_t bytes[2];
+} Int16ToBytes;
 typedef struct {
   Robot_Mode_e robot_mode;       // 机器人工作状态
   Control_Mode_e control_mode;   // 控制模式
