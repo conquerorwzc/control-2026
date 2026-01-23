@@ -53,7 +53,8 @@ void UpdateGimbalAttitude(Vision_Send_s *vision_send) {
 
   vision_send->gimbal_send.yaw=current_attitude->Yaw;
   vision_send->gimbal_send.pitch=current_attitude->Pitch;
-  vision_send->gimbal_send.roll=current_attitude->Roll;
+  //vision_send->gimbal_send.roll=HI05_Init(&huart1)->roll;
+  vision_send->gimbal_send.roll=1.90f;
   // vision_send->gimbal_send.yaw=current_attitude->yaw;
   // vision_send->gimbal_send.pitch=current_attitude->pitch;
   // vision_send->gimbal_send.roll=current_attitude->roll;
@@ -161,7 +162,7 @@ static void DecodeVision(uint16_t recv_len)
 Vision_Receive_s *VisionInit(IMU_Init_Config_s* imu_init_config)
 {
     current_attitude=INS_Init(imu_init_config);
-    // current_attitude = HI05_Init(&huart1);
+    //current_attitude->Roll = HI05_Init(&huart1)->roll;
     USB_Init_Config_s conf = {.rx_cbk = DecodeVision};
     vis_recv_buff = USBInit(conf);
     InitParam();
