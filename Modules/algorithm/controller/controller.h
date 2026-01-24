@@ -60,6 +60,7 @@ typedef struct
     float Kp;
     float Ki;
     float Kd;
+    float Kf;
     float MaxOut;
     float DeadBand;
 
@@ -82,6 +83,7 @@ typedef struct
     float Pout;
     float Iout;
     float Dout;
+    float Fout;
     float ITerm;
 
     float Output;
@@ -89,6 +91,7 @@ typedef struct
     float Last_Dout;
 
     float Ref;
+    float Last_Ref;
 
     uint32_t DWT_CNT;
     float dt;
@@ -103,6 +106,7 @@ typedef struct // config parameter
     float Kp;
     float Ki;
     float Kd;
+    float Kf;//前馈参数
     float MaxOut;   // 输出限幅
     float DeadBand; // 死区
 

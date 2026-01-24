@@ -164,6 +164,7 @@ float PIDCalculate(PIDInstance *pid, float measure, float ref)
         pid->Pout = pid->Kp * pid->Err;
         pid->ITerm = pid->Ki * pid->Err * pid->dt;
         pid->Dout = pid->Kd * (pid->Err - pid->Last_Err) / pid->dt;
+        pid->Fout = pid->Kf * (pid->Ref-pid->Last_Ref)*pid->dt;
 
         // 梯形积分
         if (pid->Improve & PID_Trapezoid_Intergral)
@@ -182,7 +183,7 @@ float PIDCalculate(PIDInstance *pid, float measure, float ref)
             f_Integral_Limit(pid);
 
         pid->Iout += pid->ITerm;                         // 累加积分
-        pid->Output = pid->Pout + pid->Iout + pid->Dout; // 计算输出
+        pid->Output = pid->Pout + pid->Iout + pid->Dout+ pid->Fout; // 计算输出
 
         // 输出滤波
         if (pid->Improve & PID_OutputFilter)
@@ -203,6 +204,7 @@ float PIDCalculate(PIDInstance *pid, float measure, float ref)
     pid->Last_Dout = pid->Dout;
     pid->Last_Err = pid->Err;
     pid->Last_ITerm = pid->ITerm;
+    pid->Last_Ref = pid->Ref;
 
     return pid->Output;
 }
