@@ -23,7 +23,7 @@ static Gimbal_Ctrl_Cmd_s* gimbal_ctrl_cmd;  // 声明但不初始化
 GimbalInstance* GimbalInit(Gimbal_Init_Config_s* gimbal_init_config) {
   GimbalInstance* gimbal_instance = (GimbalInstance*)zmalloc(sizeof(GimbalInstance));
   gimbal_instance->gimbal_IMU_data = INS_Init(&gimbal_init_config->imu_init_config);  // IMU先初始化,获取姿态数据指针赋给yaw电机的其他数据来源
-  gimbal_instance->gimbal_hi05_data = HI05_Init(gimbal_init_config->hi05_uart_handle);
+  // gimbal_instance->gimbal_hi05_data = HI05_Init(gimbal_init_config->hi05_uart_handle);
 
   // YAW控制器参数配置
    gimbal_init_config->yaw_motor_config.controller_param_init_config.other_angle_feedback_ptr =
@@ -56,7 +56,7 @@ GimbalInstance* GimbalInit(Gimbal_Init_Config_s* gimbal_init_config) {
   gimbal_init_config->pitch_motor_config.controller_setting_init_config.outer_loop_type = ANGLE_LOOP;
   gimbal_init_config->pitch_motor_config.controller_setting_init_config.close_loop_type = SPEED_LOOP | ANGLE_LOOP;
 
-  gimbal_instance->yaw_motor = DJIMotorInit(&gimbal_init_config->yaw_motor_config);
+  // gimbal_instance->yaw_motor = DJIMotorInit(&gimbal_init_config->yaw_motor_config);
   gimbal_instance->pitch_motor = DJIMotorInit(&gimbal_init_config->pitch_motor_config);
 
   gimbal = gimbal_instance;
