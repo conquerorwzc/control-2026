@@ -35,8 +35,9 @@ static float lb_radius;
 static float rb_radius;
 static PIDInstance follow_pid;
 static float k0, k1, k2, k3, k4, k5;  // 中科大的功率模型
+static float k0r,k1r,k2r,k3r,k4r,k5r;
 static float r1,r2,r3,r4;
-
+static float power;
 /**
  * @brief 角度标准化
  */
@@ -109,6 +110,58 @@ void RudderFirst() {
   vt[RF] *= r4;
 }
 
+static float RudderPowerForecast(float Current, float Omega) {
+  float K_0=0.8130f;
+  float K_1=-0.0005f;
+  float K_2=6.0021f;
+  float A=1.3715f;
+  return K_0 * Current * Omega + K_1 * Omega * Omega + K_2 * Current * Current + A;
+}
+float real1,real2;
+int16_t Current;
+int16_t Power_reso_GM6020(float K_0, float K_1, float K_2, float A, float Omega,float GivePower)
+{
+  float a,b,c,delta,h;
+
+
+  a = K_2;
+  b = K_0 * Omega;
+  c = K_1 * Omega * Omega + A - GivePower;
+  delta = b * b - 4 * a * c;
+  h = sqrt(b * b - 4 * a * c);
+  if(delta < 0)
+  {
+    Current = 0;
+  }
+  else
+  {
+    real1 = (-b + h) / (2 * a);
+    real2 = (-b - h) / (2 * a);
+    if((real1 > 0.0f&&real2 < 0.0f) || (real1 < 0.0f&&real2 > 0.0f))
+    {
+      if((Current > 0.0f&&real1 > 0.0f)||(Current < 0.0f&&real1 < 0.0f))
+      {
+        Current = real1 / (16384.0f/3.0f);
+      }
+      else
+      {
+        Current = real2 / (16384.0f/3.0f);
+      }
+    }
+    else
+    {
+      if(fabs(real1) < fabs(real2))
+      {
+        Current = real1 / (16384.0f/3.0f);
+      }
+      else
+      {
+        Current = real2 / (16384.0f/3.0f);
+      }
+    }
+  }
+  return Current;
+}
 // 添加静态变量用于存储前一个角度以实现连续跟踪
 static float last_st_lf = 0.0f, last_st_rf = 0.0f, last_st_lb = 0.0f, last_st_rb = 0.0f;
 // 添加变量用于存储每个电机的方向标志
@@ -169,7 +222,76 @@ static void SteeringCalculate() {
  * @brief 功率模型
  * @todo 有待模块化,djimotor也得改改
  */
- static void PowerControl() {
+float initial_rudder_total_power=0.0f;
+float initial_rudder_give_power[4]={0};
+ void PowerControl() {
+  //RPCBegin
+  float rudder_real_total_power = 0.0f;
+  float rudder_speed_fdb[4];
+  for (int i=0;i<4;i++)
+    rudder_speed_fdb[i] = (float)chassis->rudder_motor[i]->measure.speed_aps;
+  float rudder_current_list[4]={0};
+  for (int i=0;i<4;i++)
+    rudder_current_list[i] = chassis->rudder_motor[i]->measure.real_current;
+
+  initial_rudder_total_power=0.0f;
+  // 计算每个电机的功率贡献
+  for (int i = 0; i < 4; i++) {
+    initial_rudder_give_power[i] =RudderPowerForecast(chassis->rudder_motor[i]->measure.real_current*3.0f/16384.0f, rudder_speed_fdb[i]*DEGREE_2_RAD);
+        // k0r + k1r * rudder_current_list[i] / (16384.0f / 3.0f) + k2r * rudder_speed_fdb[i] * DEGREE_2_RAD +
+        // k3r * rudder_current_list[i] / (16384.0f / 3.0f) * rudder_speed_fdb[i] * DEGREE_2_RAD +
+        // k4r * rudder_current_list[i] / (16384.0f / 3.0f) * rudder_current_list[i] / (16384.0f / 3.0f) +
+        // k5r * rudder_speed_fdb[i] * DEGREE_2_RAD * rudder_speed_fdb[i] * DEGREE_2_RAD;
+
+    // 只累加正向功率
+    if (initial_rudder_give_power[i] > 0) {
+      initial_rudder_total_power += initial_rudder_give_power[i];
+    }
+  }
+  // // 功率超限时进行动态调整
+  // if (initial_rudder_total_power > (float)chassis_ctrl_cmd->max_power-rudder_real_total_power) {
+  //   float power_scale = (float)chassis_ctrl_cmd->max_power / initial_rudder_total_power;  // 削减功率比例
+  //   float scaled_give_power[4];
+  //   // 计算缩放后的功率目标
+  //   for (int i = 0; i < 4; i++) {
+  //     scaled_give_power[i] = initial_rudder_give_power[i] * power_scale;
+  //   }
+  //
+  //   // 重新计算每个电机的电流参考值
+  //   for (int i = 0; i < 4; i++) {
+  //     // 二次方程系数计算，参数
+  //     float a = k4 / (16384.0f / 20.0f) / (16384.0f / 20.0f);
+  //     float b = k1 / (16384.0f / 20.0f) + k3 * rudder_speed_fdb[i] * (2.0f * PI / 60.0f) / (16384.0f / 20.0f);
+  //     float c = k2 * rudder_speed_fdb[i] * (2.0f * PI / 60.0f) +
+  //               k5 * rudder_speed_fdb[i] * (2.0f * PI / 60.0f) * rudder_speed_fdb[i] * (2.0f * PI / 60.0f) -
+  //               scaled_give_power[i] + k0;
+  //     float discriminant = b * b - 4 * a * c;  // 判别式
+  //     if (discriminant >= 0) {
+  //       float sqrt_disc = sqrtf(discriminant);
+  //       float temp1 = (-b + sqrt_disc) / (2 * a);
+  //       float temp2 = (-b - sqrt_disc) / (2 * a);
+  //
+  //       // 选择最接近当前电流的解
+  //       if (rudder_current_list[i] > 0) {
+  //         rudder_current_list[i] = (fabsf(temp1 - rudder_current_list[i]) < fabsf(temp2 - rudder_current_list[i]))
+  //                                     ? fminf(16000.f, temp1)
+  //                                     : fminf(16000.f, temp2);
+  //       } else {
+  //         rudder_current_list[i] = (fabsf(temp1 - rudder_current_list[i]) < fabsf(temp2 - rudder_current_list[i]))
+  //                                     ? fmaxf(-16000.f, temp1)
+  //                                     : fmaxf(-16000.f, temp2);
+  //       }
+  //     } else {
+  //       // 无解时归零
+  //       rudder_current_list[i] = 0.0f;
+  //     }
+  //   }
+  // }
+  // for (int i = 0; i < 4; i++) {
+  //   chassis->rudder_motor[i]->motor_controller.final_output = (int16_t)(rudder_current_list[i]);
+  // }
+
+  //RPCEnd
   // 获取电机速度反馈,化成单位rad/s
   float motor_speed_fdb[4];
   for (int i = 0; i < 4; i++) {
@@ -185,6 +307,8 @@ static void SteeringCalculate() {
   float initial_give_power[4] = {0.0f};  // 每个电机的初始估计功率
   float initial_total_power = 0.0f;      // 估计初始总功率
 
+  //6020，舵功率
+  //总功率减去舵功率=剩余功率（轮功率）
   // 计算每个电机的功率贡献
   for (int i = 0; i < 4; i++) {
     initial_give_power[i] =
@@ -199,8 +323,8 @@ static void SteeringCalculate() {
     }
   }
   // 功率超限时进行动态调整
-  if (initial_total_power > (float)chassis_ctrl_cmd->max_power) {
-    float power_scale = (float)chassis_ctrl_cmd->max_power / initial_total_power;  // 削减功率比例
+  if (initial_total_power > (float)chassis_ctrl_cmd->max_power-initial_rudder_total_power) {
+    float power_scale = (float)(chassis_ctrl_cmd->max_power-initial_rudder_total_power) / initial_total_power;  // 削减功率比例
     float scaled_give_power[4];
     // 计算缩放后的功率目标
     for (int i = 0; i < 4; i++) {
@@ -284,6 +408,13 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   k3 = chassis_param.power_param.k3;
   k4 = chassis_param.power_param.k4;
   k5 = chassis_param.power_param.k5;
+   k0r=chassis_param.power_param_6020.k0;
+   k1r=chassis_param.power_param_6020.k1;
+   k2r=chassis_param.power_param_6020.k2;
+   k3r=chassis_param.power_param_6020.k3;
+   k4r=chassis_param.power_param_6020.k4;
+   k5r=chassis_param.power_param_6020.k5;
+
 
   lf_radius = sqrtf((half_track_width + center_gimbal_offset_x) * (half_track_width + center_gimbal_offset_x) +
                     (half_wheel_base - center_gimbal_offset_y) * (half_wheel_base - center_gimbal_offset_y)) *
@@ -340,8 +471,9 @@ void ChassisTask() {
     for (int i = 0; i < 4; i++) DJIMotorStop(chassis->rudder_motor[i]);
   } else {
     // 正常工作
-    for (int i = 0; i < 4; i++) DJIMotorEnable(chassis->wheel_motor[i]);
+    //for (int i = 0; i < 4; i++) DJIMotorEnable(chassis->wheel_motor[i]);
     for (int i = 0; i < 4; i++) DJIMotorEnable(chassis->rudder_motor[i]);
+    for (int i = 0; i < 4; i++) DJIMotorEnable(chassis->wheel_motor[i]);
   }
   // 根据控制模式设定旋转速度
   switch (chassis_ctrl_cmd->chassis_mode) {
@@ -364,9 +496,16 @@ void ChassisTask() {
   chassis_vy = chassis_ctrl_cmd->vx * sin_theta + chassis_ctrl_cmd->vy * cos_theta;
   // 根据电机的反馈速度和IMU(如果有)计算真实速度
   EstimateSpeed();
-
+//6020功率预测
+  float total_power = 0;
+for (int i = 0; i < 4; i++) {
+  total_power += RudderPowerForecast(chassis->rudder_motor[i]->measure.real_current*3.0f/16384.0f,
+                                     chassis->rudder_motor[i]->measure.speed_aps*DEGREE_2_RAD);
+}
+  power=total_power;
   // 底盘零输入时的特殊处理，避免无意义打舵
  // if (chassis_ctrl_cmd->vx != 0 || chassis_ctrl_cmd->vy != 0 || chassis_ctrl_cmd->wz != 0)
+  if (chassis_ctrl_cmd->chassis_mode != CHASSIS_POWER_OFF)
     SteeringCalculate();
   //else
 

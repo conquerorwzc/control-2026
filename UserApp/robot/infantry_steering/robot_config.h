@@ -93,9 +93,9 @@
           {                                                                                                    \
               .angle_PID =                                                                                     \
                   {                                                                                            \
-                      .Kp = 80,                                                                                \
+                      .Kp = 70,                                                                                \
                       .Ki = 0,                                                                                 \
-                      .Kd = 0.5,                                                                               \
+                      .Kd = 0.4,                                                                               \
                       .IntegralLimit = 960,                                                                  \
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
                       .MaxOut = 1920,                                                                          \
@@ -148,6 +148,12 @@ static Chassis_Init_Config_s chassis_init_config = {
             .power_param.k3 = 0.015644430204543864f,
             .power_param.k4 = 0.1580143850678086f,
             .power_param.k5 = 2.896721772539512e-05f,
+          .power_param_6020.k0 = 1.0015598804886459f,
+          .power_param_6020.k1 = -0.0011271483180564656f,
+          .power_param_6020.k2 = 0.1628643511122505f,
+          .power_param_6020.k3 = 0.630911350030345f,
+          .power_param_6020.k4 = 0.001254230359389605f,
+          .power_param_6020.k5 = 7.632464718194001f,
 
             // 6020舵机电机零位偏移值，用于校准安装后的零偏
             .rudder_motor_offset = {6844, 3443,13, 3388}  // 根据实际安装情况设置每个舵机的零偏值LFLBRBRF
@@ -362,4 +368,10 @@ static CANInstance board_can_comm_data = {
     .DLC = 0x08,         // 数据长度8字节
   }
 };
+//6020电机
+#define GM6020_K0 0.8130f
+#define GM6020_K1 -0.0005f
+#define GM6020_K2 6.0021f
+#define GM6020_K3 1.3715f
+#define GM6020_Current_To_Out (3.0f/16384.0f)
 #endif  // CONTROL_2026_ROBOT_CONFIG_H

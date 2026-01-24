@@ -60,6 +60,15 @@ typedef struct {
   float k5;
 }Power_Param_3508_s ;
 
+typedef struct {
+  float k0;
+  float k1;
+  float k2;
+  float k3;
+  float k4;
+  float k5;
+}Power_Param_6020_s ;
+
 // 舵轮底盘参数，这一坨是从英雄的代码抄过来的，得改，但是逆解算用不上先不管
 typedef struct {
   float wheel_base;                     // 纵向轴距(前进后退方向)
@@ -69,6 +78,7 @@ typedef struct {
   float wheel_radius;                   // 轮子半径
   float wheel_reduction_ratio;          // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
   Power_Param_3508_s power_param;       //3508功率模型参数，采用中科大的模型
+  Power_Param_6020_s power_param_6020;
   uint16_t rudder_motor_offset[4];      // 6020舵电机零位偏移值，用于校准安装后的零偏
 } Chassis_Param_s;
 
