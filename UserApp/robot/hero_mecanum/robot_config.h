@@ -162,8 +162,8 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                         },
                     .speed_PID =
                         {
-                            .Kp = -8000.0f,
-                            .Ki = -120.0f,
+                            .Kp = 8000.0f,
+                            .Ki = 120.0f,
                             .Kd = 0.0f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                             .IntegralLimit = 12000.0f,
@@ -181,7 +181,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
         },
     .imu_init_config = {
       .flag = 1,
-      .scale = {1.0f, 1.0f, 1.0f},
+      .scale = {-1.0f, 1.0f, 1.0f},
       .Yaw = 0.0f,
       .Pitch = 0.0f,
       .Roll = 0.0f

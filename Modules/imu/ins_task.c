@@ -145,13 +145,13 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
 
   // 手动计算加速度缩放因子，因为我们跳过了完整的校准过程
   BMI088.AccelScale = 9.81f / BMI088.gNorm;
-  IMU_Param.scale[X] = 1;
-  IMU_Param.scale[Y] = 1;
-  IMU_Param.scale[Z] = 1;
-  IMU_Param.Yaw = 0;
-  IMU_Param.Pitch = 0;
-  IMU_Param.Roll = 0;
-  IMU_Param.flag = 1;
+  IMU_Param.scale[X] = imu_init_config->scale[X];
+  IMU_Param.scale[Y] = imu_init_config->scale[Y];
+  IMU_Param.scale[Z] = imu_init_config->scale[Z];
+  IMU_Param.Yaw = imu_init_config->Yaw;
+  IMU_Param.Pitch = imu_init_config->Pitch;
+  IMU_Param.Roll = imu_init_config->Roll;
+  IMU_Param.flag = imu_init_config->flag;
   // BMI088CalibrateGyroForDebug(BMI,1000);
   float init_quaternion[4] = {0};
   InitQuaternion(init_quaternion);
@@ -315,7 +315,7 @@ static void IMU_Param_Correction(IMU_Init_Config_s *param, float gyro[3], float 
   gyro[Z] = c_31 * gyro_temp[X] + c_32 * gyro_temp[Y] + c_33 * gyro_temp[Z];
 
   float accel_temp[3];
-  for (uint8_t i = 0; i < 3; ++i) accel_temp[i] = accel[i];
+  for (uint8_t i = 0; i < 3; ++i) accel_temp[i] = accel[i]*param->scale[i];
 
   accel[X] = c_11 * accel_temp[X] + c_12 * accel_temp[Y] + c_13 * accel_temp[Z];
   accel[Y] = c_21 * accel_temp[X] + c_22 * accel_temp[Y] + c_23 * accel_temp[Z];
