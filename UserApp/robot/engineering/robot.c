@@ -33,9 +33,11 @@ static SemiAuto_Param_s semi_auto_param; // 半自动参数
 /* Private function prototypes -----------------------------------------------*/
 static void Gantry_Limit(Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd, const Gantry_Param_s *gantry_param);
 static void Grab_Limit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, const Gantry_Param_s *gantry_param);
-static void RemoteControlSet();
 
+static void RemoteControlSet();
 static void EmergencyHandler();
+
+static void ProcessCustomControllerData();
 
 static void CalcOffsetAngle();
 void RobotInit();
@@ -51,8 +53,9 @@ void RobotInit()
 
 #ifdef STM32F4
     robot->rc_data = RemoteControlInit(&huart3); // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
-#elifdef STM32H7
+#elif defined(STM32H7)
     robot->rc_data = RemoteControlInit(&huart5); // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
+    robot->self_control = SelfControlInit(&huart7); // 初始化自定义控制器
 #endif
 
     rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
@@ -152,6 +155,7 @@ void RobotCMDTask()
     CalcOffsetAngle();
     RemoteControlSet();
     MouseKeySet();
+    ProcessCustomControllerData(); // 处理自定义控制器数据
     EmergencyHandler(); // 处理模块离线和遥控器急停等紧急情况
 }
 
@@ -452,6 +456,30 @@ static void Gantry_Limit(Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd, const Gantry_Param_
     last_x = gantry_ctrl_cmd->x;
     last_z = gantry_ctrl_cmd->z;
     last_y = gantry_ctrl_cmd->y;
+}
+
+/*
+ * @brief 处理自定义控制器数据
+ */
+static void ProcessCustomControllerData() {
+    if (robot->self_control != NULL) {
+        // 从自定义控制器获取解析后的数据
+        UnpackedControllerData_t *controller_data = &robot->self_control->unpacked_data;
+        
+        // 将接收到的舵机角度数据映射到机械臂关节
+        // 假设舵机0对应基座关节，舵机1对应肘部旋转，舵机2对应肘部俯仰
+        if (robot->grab != NULL && grab_ctrl_cmd != NULL) {
+            // 设置各关节角度，根据实际机械臂结构进行映射
+            grab_ctrl_cmd->base_joint = controller_data->servos[0].angle;      // 舵机0 -> 基座关节
+            grab_ctrl_cmd->elbow_roll = controller_data->servos[1].angle;      // 舵机1 -> 肘部旋转
+            grab_ctrl_cmd->elbow_pitch = controller_data->servos[2].angle;     // 舵机2 -> 肘部俯仰
+            
+            // 可以使用电位器数据进行额外控制
+            // 例如：使用电位器0控制腕部俯仰，电位器1控制腕部旋转
+            grab_ctrl_cmd->wrist_pitch = controller_data->pots[0].angle;       // 电位器0 -> 腕部俯仰
+            grab_ctrl_cmd->wrist_roll = controller_data->pots[1].angle;        // 电位器1 -> 腕部旋转
+        }
+    }
 }
 
 static void CalcOffsetAngle()
