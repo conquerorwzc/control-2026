@@ -67,6 +67,8 @@ void GimbalTask() {
   } else {
     DJIMotorEnable(gimbal->yaw_motor);
     DJIMotorEnable(gimbal->pitch_motor);
+    //pid调参测试用
+    //gimbal_ctrl_cmd->yaw=40*sin(DWT_GetTimeline_s()*2.5f);
     DJIMotorSetPIDRef(gimbal->yaw_motor, gimbal_ctrl_cmd->yaw);  // yaw和pitch会在robot_cmd中处理好多圈和单圈
     DJIMotorSetPIDRef(gimbal->pitch_motor, gimbal_ctrl_cmd->pitch);
   }
