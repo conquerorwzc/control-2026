@@ -4,6 +4,7 @@
 #include "dji_motor.h"
 #include <stdint.h>
 #include <stdbool.h>
+#include "ins_task.h"
 
 // 机器人状态
 typedef enum {
@@ -27,6 +28,13 @@ typedef struct {
   float target_pitch;
   float target_fric_speed;
   bool is_first_loop;
+
+  // IMU 数据指针
+  const attitude_t *imu_data;
+
+  // 用于修正方向的临时变量
+  float yaw_imu_feed;
+  float pitch_imu_feed;
 
 } RobotInstance;
 

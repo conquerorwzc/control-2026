@@ -15,16 +15,34 @@ void RobotInit(void) {
   // 1. 内存清零
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
 
-  // 2. 初始化遥控器 (直接调，防止宏定义坑)
+  // 2. 初始化 IMU 和遥控器
+  robot->imu_data = INS_Init();
   robot->rc = RemoteControlInit(&huart3);
 
   // 3. 初始化电机 (直接用宏，简单粗暴)
   // Yaw (ID 3)
   Motor_Init_Config_s yaw_conf = YAW_CONFIG(&hcan1, YAW_ID);
+  yaw_conf.controller_setting_init_config.angle_feedback_source = OTHER_FEED;
+  yaw_conf.controller_setting_init_config.speed_feedback_source = OTHER_FEED;
+  // Gyro[2] 通常是 Z 轴角速度
+  yaw_conf.controller_param_init_config.other_angle_feedback_ptr = &robot->yaw_imu_feed;
+  yaw_conf.controller_param_init_config.other_speed_feedback_ptr = &robot->imu_data->Gyro[2];
+  // 参数归零
+  yaw_conf.controller_param_init_config.angle_PID.Kp = 0;
+  yaw_conf.controller_param_init_config.speed_PID.Kp = 0;
   robot->yaw_motor = DJIMotorInit(&yaw_conf);
 
   // Pitch (ID 5)
   Motor_Init_Config_s pitch_conf = PITCH_CONFIG(&hcan1, PITCH_ID);
+  pitch_conf.controller_setting_init_config.angle_feedback_source = OTHER_FEED;
+  pitch_conf.controller_setting_init_config.speed_feedback_source = OTHER_FEED;
+  // Pitch 通常用欧拉角 (Pitch) 而不是累积角
+  pitch_conf.controller_param_init_config.other_angle_feedback_ptr = &robot->pitch_imu_feed;
+  pitch_conf.controller_param_init_config.other_speed_feedback_ptr = &robot->imu_data->Gyro[0]; // 假设 Gyro[0] 是 X轴
+  // 参数归零
+  pitch_conf.controller_param_init_config.angle_PID.Kp = 0;
+  pitch_conf.controller_param_init_config.speed_PID.Kp = 0;
+
   robot->pitch_motor = DJIMotorInit(&pitch_conf);
 
   // 摩擦轮 (左ID1, 右ID2)
@@ -46,30 +64,44 @@ void RobotInit(void) {
 static void RobotControlLogic(void) {
   if (robot->rc == NULL) return;
 
-  // 如果是上电后的第一次循环，且电机还没准备好数据，就不要进行控制
+  // ============================================================
+  // 1. 【数据桥接】把 IMU 数据搬运给 PID 监控变量
+  // ============================================================
+  if (robot->imu_data) {
+    robot->yaw_imu_feed = robot->imu_data->YawTotalAngle * -1.0f;
+
+    float raw_pitch = robot->imu_data->Pitch;
+    if (raw_pitch < 0) {
+      raw_pitch += 360.0f;
+    }
+    robot->pitch_imu_feed = (180.0f - raw_pitch);
+  }
+
+  // ============================================================
+  // 2. 上电初始化同步 (防飞车核心逻辑)
+  // ============================================================
   if (robot->is_first_loop) {
-    // 检查 Yaw 和 Pitch 是否都已收到有效数据 (ECD不为0通常意味着数据来了)
-    bool yaw_ready = (robot->yaw_motor->measure.ecd != 0);
-    bool pitch_ready = (robot->pitch_motor->measure.ecd != 0);
+    // 【修正】删除了 .init 的检查，只检查电机数据
+    // 只要电机回传了非0数据，说明系统已经启动一小会儿了，IMU肯定也好了
+    if (robot->yaw_motor->measure.ecd != 0) {
 
-    if (yaw_ready && pitch_ready) {
-      // 核心：把目标值强制设为“当前实际位置”
-      // 这样 PID 误差 = 0，电机就不会动
-      robot->target_yaw = robot->yaw_motor->measure.total_angle;
-      robot->target_pitch = robot->pitch_motor->measure.total_angle;
+      // 关键：把目标对齐到【IMU当前角度】
+      robot->target_yaw = robot->yaw_imu_feed;
+      robot->target_pitch = robot->pitch_imu_feed;
 
-      // 顺便更新 PID 内部的 Ref，防止积分器问题
+      // 同步 PID 内部积分状态，防止瞬间突变
       robot->yaw_motor->motor_controller.pid_ref = robot->target_yaw;
       robot->pitch_motor->motor_controller.pid_ref = robot->target_pitch;
 
-      // 初始化完成，关闭标志位
       robot->is_first_loop = false;
     } else {
-      // 如果数据还没回来，直接跳过本次控制，等待下一帧
-      return;
+      return; // 等待电机数据回传
     }
   }
-  // [急停逻辑] 右拨杆在下 -> 停止
+
+  // ============================================================
+  // 3. 急停逻辑
+  // ============================================================
   if (switch_is_down(robot->rc->rc.switch_right)) {
     robot->mode = ROBOT_STOP;
     DJIMotorStop(robot->yaw_motor);
@@ -77,16 +109,14 @@ static void RobotControlLogic(void) {
     DJIMotorStop(robot->fric_l);
     DJIMotorStop(robot->fric_r);
 
-    // 在急停(失能)状态下，让目标值实时跟随电机当前的实际位置。
-    // 这样，当你手掰动了云台，或者切回正常模式的那一瞬间，
-    // 目标值 == 实际值，云台会从当前位置平滑开始控制，而不是猛甩回 INIT_ANGLE。
-    robot->target_yaw = robot->yaw_motor->measure.total_angle;
-    robot->target_pitch = robot->pitch_motor->measure.total_angle;
+    // 急停时刻跟随【IMU角度】
+    // 这样松手时，云台就锁在当前朝向的世界坐标上
+    robot->target_yaw = robot->yaw_imu_feed;
+    robot->target_pitch = robot->pitch_imu_feed;
 
-    // 同时也更新 PID Ref
+    // 更新 PID Ref
     robot->yaw_motor->motor_controller.pid_ref = robot->target_yaw;
     robot->pitch_motor->motor_controller.pid_ref = robot->target_pitch;
-
     return;
   }
 
@@ -97,49 +127,37 @@ static void RobotControlLogic(void) {
   DJIMotorEnable(robot->fric_l);
   DJIMotorEnable(robot->fric_r);
 
-  // 1. Yaw 轴控制 (左摇杆左右)
-  // 逻辑：你向左转(摇杆+)，ECD需要变小(去596/29.8度)，所以用减法
-  robot->target_yaw -= 0.0002f * (float)robot->rc->rc.rocker_l_;
-  // 限位：[29.80, 208.69]
+  // --- 1. Yaw 轴控制 ---
+  // 注意：摇杆控制的是【世界坐标系的朝向】
+  robot->target_yaw -= 0.05f * (float)robot->rc->rc.rocker_l_;
   LimitTarget(&robot->target_yaw, YAW_MIN_ANGLE, YAW_MAX_ANGLE);
 
-  // 2. Pitch 轴控制 (右摇杆上下)
-  // 逻辑：你向上推(摇杆+)，需要抬头(去水平/98.88度/ECD变大)，所以用加法
-  robot->target_pitch += 0.0002f * (float)robot->rc->rc.rocker_r1;
-  // 限位：[54.93, 98.88]
+  // --- 2. Pitch 轴控制 ---
+  robot->target_pitch += 0.02f * (float)robot->rc->rc.rocker_r1;
   LimitTarget(&robot->target_pitch, PITCH_MIN_ANGLE, PITCH_MAX_ANGLE);
+  LimitTarget(&robot->target_pitch, -20.0f, 30.0f);
 
-  // 3. 应用目标到电机
+  // --- 3. 应用目标 ---
+  // 现在的 Feedback 是 IMU 数据，Target 是 IMU 角度，单位统一了！
   DJIMotorOuterLoop(robot->yaw_motor, ANGLE_LOOP);
   DJIMotorSetPIDRef(robot->yaw_motor, robot->target_yaw);
 
   DJIMotorOuterLoop(robot->pitch_motor, ANGLE_LOOP);
   DJIMotorSetPIDRef(robot->pitch_motor, robot->target_pitch);
 
-  // 4. 摩擦轮
+  // --- 4. 摩擦轮逻辑 (保持不变) ---
   if (switch_is_mid(robot->rc->rc.switch_right)) {
-
-    // 读取左侧拨杆，决定速度档位
     if (switch_is_down(robot->rc->rc.switch_left)) {
-      // [左-下] 怠速 (预热)
       robot->target_fric_speed = FRIC_SPEED_IDLE;
-    }
-    else if (switch_is_mid(robot->rc->rc.switch_left)) {
-      // [左-中] 常规速度
+    } else if (switch_is_mid(robot->rc->rc.switch_left)) {
       robot->target_fric_speed = FRIC_SPEED_NORMAL;
-    }
-    else if (switch_is_up(robot->rc->rc.switch_left)) {
-      // [左-上] 高速
+    } else if (switch_is_up(robot->rc->rc.switch_left)) {
       robot->target_fric_speed = FRIC_SPEED_HIGH;
     }
-
   } else {
-    // 右侧拨杆在【上档】时，也强制关停 (除非你想在上档也开，可以改这里)
-    // 右侧拨杆在【下档】时，上面已经 return 了，这里不用管
     robot->target_fric_speed = 0.0f;
   }
 
-  // 应用目标速度
   DJIMotorSetPIDRef(robot->fric_l, robot->target_fric_speed);
   DJIMotorSetPIDRef(robot->fric_r, robot->target_fric_speed);
 }
