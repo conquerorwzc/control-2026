@@ -54,8 +54,8 @@ void RobotInit()
     rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
     *rc_data_last = *robot->rc_data; // 记录上一次遥控器的状态
     robot->ins_data = INS_Init(&imu_init_config);
-    robot->gantry = GantryInit(&gantry_init_config);
-    robot->grab = GrabInit(&grab_init_config);
+    // robot->gantry = GantryInit(&gantry_init_config);
+    // robot->grab = GrabInit(&grab_init_config);
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
     robot->chassis = ChassisInit(&chassis_init_config);
@@ -66,13 +66,13 @@ void RobotInit()
     chassis_ctrl_cmd->max_power = 80; // 随便给一个初始功率，后面应该要从裁判系统获取
     grab_ctrl_cmd = &robot->grab->grab_ctrl_cmd;
     // 【新增】龙门架控制命令指针
-    if (robot->gantry != NULL)
-    {
-        gantry_ctrl_cmd = &robot->gantry->Gantry_ctrl_cmd;
-    }
+    // if (robot->gantry != NULL)
+    // {
+    //     gantry_ctrl_cmd = &robot->gantry->Gantry_ctrl_cmd;
+    // }
 
-    gantry_param = gantry_init_config.Gantry_param;
-    grab_param = grab_init_config.Grab_param;
+    // gantry_param = gantry_init_config.Gantry_param;
+    // grab_param = grab_init_config.Grab_param;
 
     rc_data = robot->rc_data;
 }
@@ -89,8 +89,8 @@ void RobotTask()
 
     // 新增: 龙门架控制逻辑 (GantryTask)
 #if defined(ONE_BOARD) // 假设龙门架逻辑运行在主控板
-    GantryTask();
-    GrabTask();
+    // GantryTask();
+    // GrabTask();
     // grab_ctrl_cmd->grab_mode = b;
 #endif
 }
@@ -308,9 +308,8 @@ static void RemoteControlSet()
     }
 
     // 底盘运动控制（使用左侧摇杆）
-    chassis_ctrl_cmd->vx = 60.0f * (float)rc_data[TEMP].rc.rocker_l1; // 水平方向
-    chassis_ctrl_cmd->vy = 60.0f * (float)rc_data[TEMP].rc.rocker_l_; // 竖直方向
-
+    chassis_ctrl_cmd->vx = 60.0f * (float)rc_data[TEMP].rc.rocker_l_;  // _水平方向
+    chassis_ctrl_cmd->vy = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 1数值方向
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW)
     {
         chassis_ctrl_cmd->wz = 0;
