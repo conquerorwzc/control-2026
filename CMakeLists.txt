@@ -26,8 +26,8 @@ set(MCU_TYPE "stm32-h7")
 #set(ROBOT_TYPE "infantry_wheel_legged")
 #set(ROBOT_TYPE "hero_mecanum")
 #set(ROBOT_TYPE "debug")
-#set(ROBOT_TYPE "engineering")
-set(ROBOT_TYPE "custom_controller")
+set(ROBOT_TYPE "engineering")
+
 
 include(${CMAKE_SOURCE_DIR}/Hardware/${MCU_TYPE}/${MCU_TYPE}.cmake)
 
