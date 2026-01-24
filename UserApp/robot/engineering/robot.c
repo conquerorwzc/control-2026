@@ -17,8 +17,6 @@ static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 
 /* Intermediate variables calculated by private functions */
-static float angle;
-
 extern Gantry_Init_Config_s gantry_init_config;
 
 static void Gantry_Limit(Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd, const Gantry_Param_s* gantry_param);
