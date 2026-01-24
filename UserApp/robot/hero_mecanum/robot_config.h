@@ -118,9 +118,9 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                     {
-                      .Kp = 1.5f,
+                      .Kp = 1.8f,
                       .Ki = 0.0f,
-                      .Kd = 0.08f,
+                      .Kd = 0.04f,
                       .DeadBand = 0.1f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                       .IntegralLimit = 5.0f,
@@ -152,17 +152,17 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 2.5f,
+                            .Kp = 5.0f,
                             .Ki = 0.0f,
-                            .Kd = 0.0f,
+                            .Kd = 0.03f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                             .IntegralLimit = 5.0f,
                             .MaxOut = 25.0f,
                         },
                     .speed_PID =
                         {
-                            .Kp = 20000.0f,
-                            .Ki = 120.0f,
+                            .Kp = -20000.0f,
+                            .Ki = -120.0f,
                             .Kd = 0.0f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                             .IntegralLimit = 12000.0f,
@@ -175,8 +175,8 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                     .can_handle = &hcan2,
                     .tx_id = 1,
                 },
-               .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
-               .controller_setting_init_config.feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
+               .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+               .controller_setting_init_config.feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
         },
     .imu_init_config = {
       .flag = 1,

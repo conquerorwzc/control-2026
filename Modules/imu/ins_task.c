@@ -141,7 +141,7 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
   while (BMI088Init(&hspi2, 0) != BMI088_NO_ERROR);
 #endif
   // 使用我们的调试校准函数来测量陀螺仪零偏值，绕过预定义值
-  INS_CalibrateGyroForDebug(2000);
+  INS_CalibrateGyroForDebug(5000);
 
   // 手动计算加速度缩放因子，因为我们跳过了完整的校准过程
   BMI088.AccelScale = 9.81f / BMI088.gNorm;
