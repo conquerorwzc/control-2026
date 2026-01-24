@@ -16,28 +16,28 @@
 #define SERVO_POS_READ_CMD 0x15
 typedef enum
 {
-    Servo_None_Type = 0,
-    Bus_Servo = 1,
-    PWM_Servo = 2,
+  Servo_None_Type = 0,
+  Bus_Servo = 1,
+  PWM_Servo = 2,
 }ServoType_e;
 
 
 /* 用于初始化不同舵机的结构体,各类舵机通用 */
 typedef struct
 {
-    PWM_Init_Config_s pwm_init_config;
-    ServoType_e servo_type;
-    UART_HandleTypeDef *_handle;
-    uint8_t servo_id;
+  PWM_Init_Config_s pwm_init_config;
+  ServoType_e servo_type;
+  UART_HandleTypeDef *_handle;
+  uint8_t servo_id;
 }Servo_Init_Config_s;
 typedef struct
-{   
-    uint8_t servo_id;
-    float angle;
-    uint16_t recv_angle;
-    PWMInstance *pwm_instance;
-    USARTInstance *usart_instance;
-    ServoType_e servo_type;
+{
+  uint8_t servo_id;
+  float angle;
+  uint16_t recv_angle;
+  PWMInstance *pwm_instance;
+  USARTInstance *usart_instance;
+  ServoType_e servo_type;
 }ServoInstance;
 
 ServoInstance *ServoInit(Servo_Init_Config_s *Servo_Init_Config);
