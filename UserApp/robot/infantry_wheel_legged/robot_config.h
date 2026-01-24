@@ -26,7 +26,7 @@
 #define CENTER_GIMBAL_OFFSET_Y 0     // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
 #define WHEEL_RADIUS 60              // 轮子半径
 #define WHEEL_REDUCTION_RATIO 19.0f  // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
-#define PITCH_MAX_ANGLE 26.0f        // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+// #define PITCH_MAX_ANGLE 26.0f        // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
 
 #define LEG_MAX_LENGTH 0.37f  // 0.380f
 #define LEG_MIN_LENGTH 0.12f  // 0.112f
@@ -288,7 +288,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
         },
     .imu_init_config = {.flag = 1, .scale = {1.0f, 1.0f, 1.0f}, .Yaw = 0.0f, .Pitch = 0.0f, .Roll = 0.0f}};
 
-#define FRICTION_MOTOR_CONFIG(handle, id, motor_direction,feedback_motor) \
+#define FRICTION_MOTOR_CONFIG(handle, id, motor_direction,feedback_direction) \
   ((Motor_Init_Config_s){                            \
       .controller_param_init_config =                \
           {                                          \
@@ -309,7 +309,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
               .outer_loop_type = SPEED_LOOP,         \
               .close_loop_type = SPEED_LOOP,         \
 .motor_reverse_flag = motor_direction,                   \
-.feedback_reverse_flag = feedback_motor,       \
+.feedback_reverse_flag = feedback_direction,       \
           },                                         \
       .motor_type = M3508,                           \
       .can_init_config =                             \
@@ -392,7 +392,7 @@ static SuperCap_Init_Config_s super_cap_config = {
 static CANComm_Init_Config_s gimbal_comm_conf = {
     .can_config =
         {
-            .can_handle = &hcan1,
+            .can_handle = &hcan2,
             .tx_id = 0x312,
             .rx_id = 0x311,
         },
