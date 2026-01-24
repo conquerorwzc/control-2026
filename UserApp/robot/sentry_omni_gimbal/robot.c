@@ -388,7 +388,7 @@ void RobotInit() {
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
 void RobotCMDTask() {
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
-  CalcOffsetAngle();
+  // CalcOffsetAngle();
   RemoteControlSet();
    MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
