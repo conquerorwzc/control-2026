@@ -121,7 +121,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                       .Kp = 1.6f,
                       .Ki = 0.0f,
                       .Kd = 0.04f,
-                      .Kf = 8000.0f,
+                      .Kf = 2000.0f,
                       .DeadBand = 0.1f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                       .IntegralLimit = 5.0f,
@@ -129,8 +129,8 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                   },
                     .speed_PID =
                     {
-                      .Kp = 5500.0f,
-                      .Ki = 70.0f,
+                      .Kp = -5500.0f,
+                      .Ki = -70.0f,
                       .Kd = 0.0f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                       .IntegralLimit = 12000.0f,
@@ -144,8 +144,8 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                     .can_handle = &hcan1,
                     .tx_id = 2,
                 },
-            .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
-            .controller_setting_init_config.feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
+            .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+            .controller_setting_init_config.feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
         },
     .pitch_motor_config =
         {
@@ -153,9 +153,9 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 5.0f,
+                            .Kp = 3.0f,
                             .Ki = 0.0f,
-                            .Kd = 0.03f,
+                            .Kd = 0.02f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                             .IntegralLimit = 5.0f,
                             .MaxOut = 25.0f,
@@ -181,7 +181,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
         },
     .imu_init_config = {
       .flag = 1,
-      .scale = {-1.0f, 1.0f, 1.0f},
+      .scale = {1.0f, 1.0f, 1.0f},
       .Yaw = 0.0f,
       .Pitch = 0.0f,
       .Roll = 0.0f
