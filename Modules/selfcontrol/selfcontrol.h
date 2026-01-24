@@ -9,10 +9,30 @@
 #include "main.h"
 #include "usart.h"
 
+// 定义接收和解析的数据结构
+typedef struct {
+    uint8_t id;           // 舵机ID
+    float angle;          // 舵机角度
+    uint8_t torque_status; // 舵机扭矩状态
+    uint8_t is_online;    // 舵机在线状态
+} ServoData_t;
+
+typedef struct {
+    uint8_t id;           // 电位器ID
+    float angle;          // 电位器角度
+    float voltage;        // 电位器电压
+} PotentiometerData_t;
+
+typedef struct {
+    ServoData_t servos[3];           // 3个舵机的数据
+    PotentiometerData_t pots[2];     // 2个电位器的数据
+} UnpackedControllerData_t;
+
 typedef struct
 {
   uint8_t selfcontrol_buff[21]; // 遥控器接收buffer
   uint8_t data[30];
+  UnpackedControllerData_t unpacked_data;  // 解析后的控制器数据
 } SelfC;
 
 typedef __packed struct {
