@@ -15,7 +15,7 @@ static Shoot_Ctrl_Cmd_s *shoot_ctrl_cmd;
 static DiffFFContext* diff_ff_context = NULL;
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
-
+float temp=0;
 /* Intermediate variables calculated by private functions */
 static float trigger_time = 0;  // 触发时间
 static float angle=0;
@@ -147,8 +147,10 @@ static void DualBoardCtrlSet() {
       //if (CanData.value16[2]>=0)
       // chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)-CanData.value16[2]/50.0f))*CanData.value16[2];
       // else chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)CanData.value16[2]/50.0f))*CanData.value16[2];
-      //chassis_ctrl_cmd->wz=35.0f*CanData.value16[2];//前馈
-      chassis_ctrl_cmd->wz=secondOrderDiffFF(CanData.value16[2]);
+      //chassis_ctrl_cmd->wz=0;
+      chassis_ctrl_cmd->wz=35.0f*CanData.value16[2];//前馈
+      // temp+=secondOrderDiffFF(CanData.value16[2]);
+      // chassis_ctrl_cmd->wz+=temp;
       if (switch_is_mid(CanData.bytes[10])) {
         //gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
         chassis_ctrl_cmd->max_power=50;
