@@ -55,6 +55,7 @@ void UpdateGimbalAttitude(Vision_Send_s *vision_send) {
   vision_send->gimbal_send.pitch=current_attitude->Pitch;
   //vision_send->gimbal_send.roll=HI05_Init(&huart1)->roll;
   vision_send->gimbal_send.roll=1.90f;
+  ///*TODO: 注意此处发送给上位机的数据不是真实陀螺仪数据！
   // vision_send->gimbal_send.yaw=current_attitude->yaw;
   // vision_send->gimbal_send.pitch=current_attitude->pitch;
   // vision_send->gimbal_send.roll=current_attitude->roll;

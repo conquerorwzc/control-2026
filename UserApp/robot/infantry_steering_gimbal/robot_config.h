@@ -70,8 +70,8 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                         },
                     .speed_PID =
                         {
-                            .Kp = 1.5f,  // 0.5
-                            .Ki = 0.0f,  // 0.1
+                            .Kp = 1.4f,  // 0.5
+                            .Ki = 0.01f,  // 0.1
                             .Kd = 0.00f,
                             .MaxOut = 11.0f,  //8
                             .DeadBand = 0.01f,
@@ -110,11 +110,10 @@ static Gimbal_Init_Config_s gimbal_init_config = {
 ((Motor_Init_Config_s) { \
 .controller_param_init_config = { \
 .speed_PID = { \
-.Kp = 0.5f, \
+.Kp = 1.0f, \
 .Ki = 0.0f, \
 .Kd = 0.0f, \
-.Improve = PID_Integral_Limit|PID_OutputFilter, \
-.Output_LPF_RC=2.0f,\
+.Improve = PID_Integral_Limit, \
 .IntegralLimit = 10000.0f, \
 .MaxOut = 15000.0f, \
 }, \
