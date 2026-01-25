@@ -27,6 +27,9 @@ static float track_width;
 static float wheel_radius;
 static float wheel_reduction_ratio;
 
+// 中科大的功率模型
+static float k0, k1, k2, k3, k4, k5;
+
 static void ChassisCtrlUpdate() {
   chassis->roll_comp =
       PIDCalculate(&chassis->roll_PID, chassis->chassis_IMU->Roll * DEGREE_2_RAD, chassis->chassis_ctrl_cmd.roll);
@@ -116,13 +119,113 @@ static void ChassisJump() {
  * @brief 功率控制
  * @todo 有待模块化,djimotor也得改改
  */
-static void PowerControl() {}
+static void PowerControl() {
+  // 获取电机角速度
+  float wheel_motor_speed_fdb[2];
+  for (int i = 0; i < 2; i++) {
+    wheel_motor_speed_fdb[i] = leg[i]->wheel_motor->measure.speed_aps;
+    wheel_motor_speed_fdb[i] *= DEGREE_2_RAD;
+  }
+
+  // 获取电机电流
+  float wheel_motor_current_fdb[2];
+  for (int i = 0; i < 2; i++) {
+    wheel_motor_current_fdb[i] = leg[i]->wheel_motor->motor_controller.final_output;
+  }
+
+  // 获取电机各力矩,之后转换为各分量实际电流值
+  float M[2];        // 轮毂力矩的平衡分量,之后转换为实际电流值
+  float T_speed[2];  // 轮毂力矩的速度分量,之后转换为实际电流值
+  float T_yaw[2];    // 轮毂力矩的yaw分量,之后转换为实际电流值
+  for (int i = 0; i < 2; i++) {
+    M[i] = leg[i]->LQR_K[0][0] * (leg[i]->state_var.theta - 0.0f) +
+           leg[i]->LQR_K[0][1] * (leg[i]->state_var.theta_d - 0.0f) +
+           leg[i]->LQR_K[0][4] * (leg[i]->state_var.phi - 0.0f) +
+           leg[i]->LQR_K[0][5] * (leg[i]->state_var.phi_d - 0.0f);
+    T_speed[i] =
+        !leg[i]->update_flag.is_controlled * leg[i]->LQR_K[0][2] * (leg[i]->state_var.x - leg[i]->leg_ctrl_cmd.x_ref) +
+        leg[i]->LQR_K[0][3] * (leg[i]->state_var.x_d - leg[i]->leg_ctrl_cmd.x_d_ref);
+    T_yaw[i] = (float)(2 * i - 1) * chassis->chassis_ctrl_cmd.wz;
+
+    // 将力矩转化为实际电流(A)
+    M[i] *= q2i_coeff;
+    T_speed[i] *= q2i_coeff;
+    T_yaw[i] *= q2i_coeff;
+  }
+
+  float initial_give_power[2] = {0.0f};  // 每个电机的初始估计功率
+  float initial_total_power = 0.0f;      // 估计初始总功率
+
+  // 计算电机当前功率
+  for (int i = 0; i < 2; i++) {
+    initial_give_power[i] =
+        k0 + k1 * wheel_motor_current_fdb[i] / (16384.0f / 20.0f) + k2 * wheel_motor_speed_fdb[i] +
+        k3 * wheel_motor_current_fdb[i] / (16384.0f / 20.0f) * wheel_motor_speed_fdb[i] +
+        k4 * wheel_motor_current_fdb[i] / (16384.0f / 20.0f) * wheel_motor_current_fdb[i] / (16384.0f / 20.0f) +
+        k5 * wheel_motor_speed_fdb[i] * wheel_motor_speed_fdb[i];
+    // 只累加正向功率
+    if (initial_give_power[i] > 0) {
+      initial_total_power += initial_give_power[i];
+    }
+  }
+
+  float k[2] = {0.0f};        // 约束条件：T_speed = k * T_yaw 和 T_yaw_target = k * T_speed_target
+  float k_speed[2] = {1.0f};  // speed分量的衰减系数
+  float k_yaw[2] = {1.0f};    // yaw分量的衰减系数
+  float T_speed_target[2] = {0.0f};
+  float T_yaw_target[2] = {0.0f};
+
+  // 功率超限时进行动态调整
+  if (initial_total_power > (float)chassis_ctrl_cmd->max_power) {
+    for (int i = 0; i < 2; i++) {
+      k[i] = T_speed[i] / T_yaw[i];
+
+      // 以T_yaw_target为x，解方程，x单位是A
+      float a = k4 * (k[i] + 1) * (k[i] + 1);
+      float b = (k1 + k3 * M[i] + 2 * k4 * M[i]) * (k[i] + 1);
+      float c = k0 + k1 * M[i] + k2 * wheel_motor_speed_fdb[i] + k3 * M[i] * wheel_motor_speed_fdb[i] +
+                k4 * M[i] * M[i] + k5 * wheel_motor_speed_fdb[i] * wheel_motor_speed_fdb[i] -
+                (float)chassis_ctrl_cmd->max_power;
+      float discriminant = b * b - 4 * a * c;  // 判别式
+      if (discriminant > 0) {
+        float sqrt_disc = sqrtf(discriminant);
+        float x1 = (-b + sqrt_disc) / (2 * a);
+        float x2 = (-b - sqrt_disc) / (2 * a);
+        if (T_yaw_target[i] > 0) {
+          T_yaw_target[i] =
+              (fabsf(x1 - T_yaw_target[i]) < fabsf(x2 - T_yaw_target[i])) ? fminf(10.0f, x1) : fminf(10.0f, x2);
+        } else {
+          T_yaw_target[i] =
+              (fabsf(x1 - T_yaw_target[i]) < fabsf(x2 - T_yaw_target[i])) ? fmaxf(-10.0f, x1) : fmaxf(-10.0f, x2);
+        }
+
+        k_yaw[i] = T_yaw_target[i] / T_yaw[i];
+        k_speed[i] = k_yaw[i];
+      } else if (discriminant == 0) {
+        T_yaw_target[i] = (-b) / (2 * a);
+
+        k_yaw[i] = T_yaw_target[i] / T_yaw[i];
+        k_speed[i] = k_yaw[i];
+      } else {
+        k_speed[i] = 0.0f;
+        k_yaw[i] = 0.0f;
+      }
+
+      // 限制衰减系数在0~1内
+      VAL_LIMIT(k_speed[i], 0.0f, 1.0f);
+      VAL_LIMIT(k_yaw[i], 0.0f, 1.0f);
+
+      leg[i]->real_model.T = M[i] + k_speed[i] * T_speed[i] + k_yaw[i] * T_yaw[i];
+    }
+  }
+}
 
 /**
  * @brief 预测电机功率并进行限制
  *
  */
 static void LimitChassisOutput() {
+  // PowerControl();
   for (int i = 0; i < 2; i++) {
     VAL_LIMIT(leg[i]->real_model.Tp_1, -20.0f, 20.0f);
     VAL_LIMIT(leg[i]->real_model.Tp_2, -20.0f, 20.0f);
@@ -145,7 +248,6 @@ static void LimitChassisOutput() {
     // DJIMotorSetRef(leg[0]->wheel_motor, 0);
     // DJIMotorSetRef(leg[i]->wheel_motor, ref);
   }
-  // PowerControl();
 }
 
 /**
