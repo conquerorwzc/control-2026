@@ -3,6 +3,7 @@
 #include "general_def.h"
 #include "robot_config.h"
 #include "user_lib.h"
+#include "SecondOrderDiffFF.h"
 #define USECANREMOTE 1 //是否使用云台板的遥控数据
 
 static RobotInstance *robot;
@@ -11,7 +12,7 @@ static RobotInstance *robot;
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
 static Gimbal_Ctrl_Cmd_s *gimbal_ctrl_cmd;
 static Shoot_Ctrl_Cmd_s *shoot_ctrl_cmd;
-
+static DiffFFContext* diff_ff_context = NULL;
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 
@@ -128,6 +129,7 @@ static void RemoteControlSet() {
   *rc_data_last = *rc_data;
 }
 //解析底盘板收到的遥控数据
+//value16数组0表示左遥感横向，1表示纵向，2表示右摇杆横，3表示左侧滚轮，byte10表示右侧拨杆
 static void DualBoardCtrlSet() {
   //chassis_ctrl_cmd->wz=0;
   if (CANCommIsOnline(can_comm_instance)) {
@@ -145,7 +147,8 @@ static void DualBoardCtrlSet() {
       //if (CanData.value16[2]>=0)
       // chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)-CanData.value16[2]/50.0f))*CanData.value16[2];
       // else chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)CanData.value16[2]/50.0f))*CanData.value16[2];
-      chassis_ctrl_cmd->wz=35.0f*CanData.value16[2];
+      //chassis_ctrl_cmd->wz=35.0f*CanData.value16[2];//前馈
+      chassis_ctrl_cmd->wz=secondOrderDiffFF(CanData.value16[2]);
       if (switch_is_mid(CanData.bytes[10])) {
         //gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
         chassis_ctrl_cmd->max_power=50;
@@ -319,7 +322,8 @@ void RobotInit() {
 // #endif
 
   robot->chassis = ChassisInit(&chassis_init_config);
-
+//初始化二阶差分前馈
+  diff_ff_context=diffFFContextInit(35);
 
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
