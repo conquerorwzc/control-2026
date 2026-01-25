@@ -25,8 +25,7 @@ set(MCU_TYPE "stm32-f4")
 #set(ROBOT_TYPE "infantry_wheel_legged")
 #set(ROBOT_TYPE "hero_mecanum")
 #set(ROBOT_TYPE "debug")
-#set(ROBOT_TYPE "dart")
-set(ROBOT_TYPE "drone_gimbal")
+set(ROBOT_TYPE "dart")
 
 include(${CMAKE_SOURCE_DIR}/Hardware/${MCU_TYPE}/${MCU_TYPE}.cmake)
 
@@ -89,7 +88,9 @@ set_source_files_properties(${ASM_SOURCES} PROPERTIES COMPILE_FLAGS "-x assemble
 
 # build binary and hex file
 add_executable(${PROJECT_NAME}.elf ${SOURCES} ${ASM_SOURCES} ${LINKER_SCRIPT}
-)
+        UserApp/robot/dart/robot.c
+        UserApp/robot/dart/robot.h
+        UserApp/robot/dart/robot_config.h)
 target_link_libraries(${PROJECT_NAME}.elf ${DSP_NAME} m) # link DSP lib and math lib
 
 add_custom_command(

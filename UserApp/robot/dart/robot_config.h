@@ -58,7 +58,8 @@
               .outer_loop_type = SPEED_LOOP,                                                     \
               .close_loop_type = SPEED_LOOP | ANGLE_LOOP,                                        \
               .motor_reverse_flag = _reverse,                                                    \
-          },                                                                                     \
+              .feedback_reverse_flag = _reverse,                                                 \
+},                                                                                               \
       .controller_param_init_config =                                                            \
           {                                                                                      \
               .speed_PID =                                                                       \
@@ -100,6 +101,7 @@
               .outer_loop_type = SPEED_LOOP,                                                     \
               .close_loop_type = SPEED_LOOP | ANGLE_LOOP,                                        \
               .motor_reverse_flag = _reverse,                                                    \
+              .feedback_reverse_flag = _reverse,                                                 \
           },                                                                                     \
       .controller_param_init_config =                                                            \
           {                                                                                      \
@@ -141,6 +143,7 @@
               .outer_loop_type = ANGLE_LOOP,                \
               .close_loop_type = SPEED_LOOP | ANGLE_LOOP,   \
               .motor_reverse_flag = MOTOR_DIRECTION_NORMAL, \
+              .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL, \
           },                                                \
       .controller_param_init_config =                       \
           {                                                 \
@@ -180,6 +183,7 @@
               .outer_loop_type = SPEED_LOOP,         \
               .close_loop_type = SPEED_LOOP,         \
               .motor_reverse_flag = _reverse,        \
+              .feedback_reverse_flag = _reverse,     \
           },                                         \
       .controller_param_init_config =                \
           {                                          \
