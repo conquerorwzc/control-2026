@@ -1,168 +1,153 @@
 #include "robot.h"
 #include "robot_config.h"
 #include "user_lib.h"
-#include <stdint.h>
-#include <stdbool.h>
+
 RobotInstance *robot;
 
-// 辅助限幅函数
+// 辅助限幅
 static void LimitTarget(float *val, float min, float max) {
   if (*val > max) *val = max;
   if (*val < min) *val = min;
 }
 
 void RobotInit(void) {
-  // 1. 内存清零
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
 
-  // 2. 初始化 IMU 和遥控器
-  robot->imu_data = INS_Init();
+  // 1. 初始化遥控器
   robot->rc = RemoteControlInit(&huart3);
 
-  // 3. 初始化电机 (直接用宏，简单粗暴)
-  // Yaw (ID 3)
-  Motor_Init_Config_s yaw_conf = YAW_CONFIG(&hcan1, YAW_ID);
-  yaw_conf.controller_setting_init_config.angle_feedback_source = OTHER_FEED;
-  yaw_conf.controller_setting_init_config.speed_feedback_source = OTHER_FEED;
-  // Gyro[2] 通常是 Z 轴角速度
-  yaw_conf.controller_param_init_config.other_angle_feedback_ptr = &robot->yaw_imu_feed;
-  yaw_conf.controller_param_init_config.other_speed_feedback_ptr = &robot->imu_data->Gyro[2];
-  // 参数归零
-  yaw_conf.controller_param_init_config.angle_PID.Kp = 0;
-  yaw_conf.controller_param_init_config.speed_PID.Kp = 0;
-  robot->yaw_motor = DJIMotorInit(&yaw_conf);
+  // 2. 初始化云台组件
+  Gimbal_Init_Config_s gimbal_conf = {
+      .yaw_motor_config = YAW_CONFIG(&hcan1, YAW_MOTOR_ID),
+      .pitch_motor_config = PITCH_CONFIG(&hcan1, PITCH_MOTOR_ID)
+  };
+  robot->gimbal = GimbalInit(&gimbal_conf);
 
-  // Pitch (ID 5)
-  Motor_Init_Config_s pitch_conf = PITCH_CONFIG(&hcan1, PITCH_ID);
-  pitch_conf.controller_setting_init_config.angle_feedback_source = OTHER_FEED;
-  pitch_conf.controller_setting_init_config.speed_feedback_source = OTHER_FEED;
-  // Pitch 通常用欧拉角 (Pitch) 而不是累积角
-  pitch_conf.controller_param_init_config.other_angle_feedback_ptr = &robot->pitch_imu_feed;
-  pitch_conf.controller_param_init_config.other_speed_feedback_ptr = &robot->imu_data->Gyro[0]; // 假设 Gyro[0] 是 X轴
-  // 参数归零
-  pitch_conf.controller_param_init_config.angle_PID.Kp = 0;
-  pitch_conf.controller_param_init_config.speed_PID.Kp = 0;
+  // ============================================================
+  // 运行时指针劫持 (Runtime Pointer Hijacking)
+  // ============================================================
+  // GimbalInit 默认把指针指像了原始 IMU 数据，我们要把它改指到我们自己的变量上！
+  // 这样我们就可以在不修改 gimbal.c 的情况下，给它喂“修正后”的数据了。
 
-  robot->pitch_motor = DJIMotorInit(&pitch_conf);
+  // 1. 劫持 Yaw 轴反馈指针
+  robot->gimbal->yaw_motor->motor_controller.other_angle_feedback_ptr = &robot->yaw_imu_feed;
+  robot->gimbal->yaw_motor->motor_controller.other_speed_feedback_ptr = &robot->gimbal->gimbal_IMU_data->Gyro[2]; // 速度暂不修正
 
-  // 摩擦轮 (左ID1, 右ID2)
-  Motor_Init_Config_s fric_l_conf = SHOOT_MOTOR_CONFIG(&hcan1, FRIC_L_ID, MOTOR_DIRECTION_REVERSE);
-  robot->fric_l = DJIMotorInit(&fric_l_conf);
-  Motor_Init_Config_s fric_r_conf = SHOOT_MOTOR_CONFIG(&hcan1, FRIC_R_ID, MOTOR_DIRECTION_NORMAL);
-  robot->fric_r = DJIMotorInit(&fric_r_conf);
-
-  // 4. 初始化目标角度为校准值
-  // 必须是这个值，不然上电 PID error 巨大，直接起飞
-  robot->target_yaw = YAW_INIT_ANGLE;     // 118.69
-  robot->target_pitch = PITCH_INIT_ANGLE; // 98.88
-
-  robot->is_first_loop = true;
-
-  robot->mode = ROBOT_STOP;
+  // 2. 劫持 Pitch 轴反馈指针
+  robot->gimbal->pitch_motor->motor_controller.other_angle_feedback_ptr = &robot->pitch_imu_feed;
+  robot->gimbal->pitch_motor->motor_controller.other_speed_feedback_ptr = &robot->gimbal->gimbal_IMU_data->Gyro[0]; // 速度暂不修正
 }
 
-static void RobotControlLogic(void) {
-  if (robot->rc == NULL) return;
+// ---------------------------------------------------------
+// IMU 数据修正 (Middleware)
+// ---------------------------------------------------------
+// 定义静态变量来存储“初始偏差”
+static float yaw_offset = 0.0f;
+static float pitch_offset = 0.0f;
+static bool is_offset_init = false; // 标记是否已经完成归零
 
-  // ============================================================
-  // 1. 【数据桥接】把 IMU 数据搬运给 PID 监控变量
-  // ============================================================
-  if (robot->imu_data) {
-    robot->yaw_imu_feed = robot->imu_data->YawTotalAngle * -1.0f;
+static void HackIMUData(void) {
+  if (!robot->gimbal || !robot->gimbal->gimbal_IMU_data) return;
 
-    float raw_pitch = robot->imu_data->Pitch;
-    if (raw_pitch < 0) {
-      raw_pitch += 360.0f;
+  // 1. 读取原始数据
+  float raw_yaw = robot->gimbal->gimbal_IMU_data->YawTotalAngle;
+  float raw_pitch = robot->gimbal->gimbal_IMU_data->Pitch;
+
+  // 2. 上电自动校准逻辑 (Auto-Zero)
+  // 我们利用 RobotControlLogic 循环运行的特性来计时
+  // 假设主循环 1ms 一次，我们等 1000 次 (约1秒) 让数据稳下来
+  static uint16_t cali_count = 0;
+
+  if (!is_offset_init) {
+    cali_count++;
+
+    // 在前 1 秒内，为了防止 PID 乱动，强制把反馈给 0
+    robot->yaw_imu_feed = 0;
+    robot->pitch_imu_feed = 0;
+
+    if (cali_count > 1000) { // 等待 1 秒 (让温漂飞一会儿)
+      // --- 记录 Yaw 的初始偏差 ---
+      // 比如此刻它是 -27.0，我们就记下来。以后 raw - (-27) 就等于 0 了
+      yaw_offset = raw_yaw;
+
+      // --- 记录 Pitch 的初始偏差 ---
+      // 比如此刻它是 187.0 (微抬头)，我们也记下来
+      pitch_offset = raw_pitch;
+
+      is_offset_init = true; // 校准完成！锁定！
     }
-    robot->pitch_imu_feed = (180.0f - raw_pitch);
-  }
-
-  // ============================================================
-  // 2. 上电初始化同步 (防飞车核心逻辑)
-  // ============================================================
-  if (robot->is_first_loop) {
-    // 【修正】删除了 .init 的检查，只检查电机数据
-    // 只要电机回传了非0数据，说明系统已经启动一小会儿了，IMU肯定也好了
-    if (robot->yaw_motor->measure.ecd != 0) {
-
-      // 关键：把目标对齐到【IMU当前角度】
-      robot->target_yaw = robot->yaw_imu_feed;
-      robot->target_pitch = robot->pitch_imu_feed;
-
-      // 同步 PID 内部积分状态，防止瞬间突变
-      robot->yaw_motor->motor_controller.pid_ref = robot->target_yaw;
-      robot->pitch_motor->motor_controller.pid_ref = robot->target_pitch;
-
-      robot->is_first_loop = false;
-    } else {
-      return; // 等待电机数据回传
-    }
-  }
-
-  // ============================================================
-  // 3. 急停逻辑
-  // ============================================================
-  if (switch_is_down(robot->rc->rc.switch_right)) {
-    robot->mode = ROBOT_STOP;
-    DJIMotorStop(robot->yaw_motor);
-    DJIMotorStop(robot->pitch_motor);
-    DJIMotorStop(robot->fric_l);
-    DJIMotorStop(robot->fric_r);
-
-    // 急停时刻跟随【IMU角度】
-    // 这样松手时，云台就锁在当前朝向的世界坐标上
-    robot->target_yaw = robot->yaw_imu_feed;
-    robot->target_pitch = robot->pitch_imu_feed;
-
-    // 更新 PID Ref
-    robot->yaw_motor->motor_controller.pid_ref = robot->target_yaw;
-    robot->pitch_motor->motor_controller.pid_ref = robot->target_pitch;
     return;
   }
 
-  // [正常模式]
-  robot->mode = ROBOT_RUNNING;
-  DJIMotorEnable(robot->yaw_motor);
-  DJIMotorEnable(robot->pitch_motor);
-  DJIMotorEnable(robot->fric_l);
-  DJIMotorEnable(robot->fric_r);
+  // 3. 应用修正 (实时读数 - 初始偏差)
 
-  // --- 1. Yaw 轴控制 ---
-  // 注意：摇杆控制的是【世界坐标系的朝向】
-  robot->target_yaw -= 0.05f * (float)robot->rc->rc.rocker_l_;
-  LimitTarget(&robot->target_yaw, YAW_MIN_ANGLE, YAW_MAX_ANGLE);
+  // --- Yaw 轴 ---
+  // 公式：(当前值 - 初始偏差) * 1.0f (左转正)
+  // 比如：初始是 -41，offset 记住了 -41。
+  // 现在不动还是 -41。运算： -41 - (-41) = 0。 完美归零！
+  robot->yaw_imu_feed = (raw_yaw - yaw_offset) * 1.0f;
 
-  // --- 2. Pitch 轴控制 ---
-  robot->target_pitch += 0.02f * (float)robot->rc->rc.rocker_r1;
-  LimitTarget(&robot->target_pitch, PITCH_MIN_ANGLE, PITCH_MAX_ANGLE);
-  LimitTarget(&robot->target_pitch, -20.0f, 30.0f);
+  // --- Pitch 轴 ---
+  // 公式：(当前值 - 初始偏差)
+  // 比如：初始是 -6，offset 记住了 -6。
+  // 运算： -6 - (-6) = 0。 完美归零！
+  float diff_pitch = raw_pitch - pitch_offset;
 
-  // --- 3. 应用目标 ---
-  // 现在的 Feedback 是 IMU 数据，Target 是 IMU 角度，单位统一了！
-  DJIMotorOuterLoop(robot->yaw_motor, ANGLE_LOOP);
-  DJIMotorSetPIDRef(robot->yaw_motor, robot->target_yaw);
+  // 处理 0/360 跳变 (防止转一圈数据乱飞)
+  if (diff_pitch < -180.0f) diff_pitch += 360.0f;
+  if (diff_pitch > 180.0f)  diff_pitch -= 360.0f;
 
-  DJIMotorOuterLoop(robot->pitch_motor, ANGLE_LOOP);
-  DJIMotorSetPIDRef(robot->pitch_motor, robot->target_pitch);
+  // Pitch 方向修正 (如果抬头数值变小，前面加个负号： -diff_pitch)
+  // 根据你之前的测试，抬头是变大，所以不用加负号
+  robot->pitch_imu_feed = diff_pitch;
+}
 
-  // --- 4. 摩擦轮逻辑 (保持不变) ---
-  if (switch_is_mid(robot->rc->rc.switch_right)) {
-    if (switch_is_down(robot->rc->rc.switch_left)) {
-      robot->target_fric_speed = FRIC_SPEED_IDLE;
-    } else if (switch_is_mid(robot->rc->rc.switch_left)) {
-      robot->target_fric_speed = FRIC_SPEED_NORMAL;
-    } else if (switch_is_up(robot->rc->rc.switch_left)) {
-      robot->target_fric_speed = FRIC_SPEED_HIGH;
-    }
-  } else {
-    robot->target_fric_speed = 0.0f;
+// ---------------------------------------------------------
+// 功能逻辑
+// ---------------------------------------------------------
+static void RobotControlLogic(void) {
+  if (!robot->gimbal) return;
+
+  Gimbal_Ctrl_Cmd_s *cmd = &robot->gimbal->gimbal_ctrl_cmd;
+
+  // 读取修正后的反馈值（现在不会闪烁了）
+  float current_yaw = robot->yaw_imu_feed;
+  float current_pitch = robot->pitch_imu_feed;
+
+  // --- 上电 1 秒静止逻辑 ---
+  static uint16_t startup_count = 0;
+  if (startup_count < 1000) {
+    startup_count++;
+    // 同步目标 = 实际
+    cmd->yaw = current_yaw;
+    cmd->pitch = current_pitch;
+    cmd->gimbal_mode = GIMBAL_POWER_OFF;
+    return;
   }
 
-  DJIMotorSetPIDRef(robot->fric_l, robot->target_fric_speed);
-  DJIMotorSetPIDRef(robot->fric_r, robot->target_fric_speed);
+  cmd->gimbal_mode = GIMBAL_ON;
+
+  // 计算目标
+  float target_yaw = cmd->yaw;
+  float target_pitch = cmd->pitch;
+
+  target_yaw -= ((float)robot->rc->rc.rocker_l_ / 660.0f) * 0.3f;
+  target_pitch += ((float)robot->rc->rc.rocker_r1 / 660.0f) * 0.3f;
+
+  // Pitch 限位暂时给大一点，防止测试时卡住
+  LimitTarget(&target_pitch, -50.0f, 50.0f);
+
+  cmd->yaw = target_yaw;
+  cmd->pitch = target_pitch;
 }
 
 void RobotTask(void) {
+  // 1. 计算修正数据
+  HackIMUData();
+
+  // 2. 计算控制目标
   RobotControlLogic();
-  DJIMotorTask();
+
+  // 3. 执行组件
+  GimbalTask();
 }

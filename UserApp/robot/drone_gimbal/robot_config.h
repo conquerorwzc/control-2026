@@ -1,87 +1,51 @@
-#pragma once
+#ifndef ROBOT_CONFIG_H
+#define ROBOT_CONFIG_H
+
 #include "dji_motor.h"
 
 /* ================= 1. 硬件 ID 配置 ================= */
-#define YAW_ID      1   // GM6020 CAN1
-#define PITCH_ID    5   // GM6020 CAN1
-#define FRIC_L_ID   1   // M3508 CAN1 (左)
-#define FRIC_R_ID   2   // M3508 CAN1 (右)
+#define YAW_MOTOR_ID 2    // 确认是 ID 2
+#define PITCH_MOTOR_ID 5  // 你的代码里 Pitch 是 5
+#define FRIC_L_ID 1
+#define FRIC_R_ID 2
+#define LOADER_ID 3
 
-/* ================= 2. 关键角度参数 ================= */
-// 【1】Pitch轴 (ECD 2250 -> 98.88度, ECD 1250 -> 54.93度)
-#define PITCH_INIT_ANGLE 91.00f   // 平行位置 (ECD 2130)
-#define PITCH_MAX_ANGLE  91.00f  // 对应 ECD
-#define PITCH_MIN_ANGLE  45.00f   // 对应
+/* ================= 2. 云台电机配置宏 ================= */
 
-// 【2】Yaw轴 (ECD 2701 -> 118.69度)
-#define YAW_INIT_ANGLE   118.69f // 正前
-#define YAW_MAX_ANGLE    208.69f // 右转极限
-#define YAW_MIN_ANGLE    29.80f  // 左转极限
-
-/* ================= 摩擦轮 (3508) 速度参数 ================= */
-// 怠速 (Down): 只是为了预热或维持转动，不发射
-#define FRIC_SPEED_IDLE    1000.0f
-
-// 中速 (Mid): 正常的发射速度
-#define FRIC_SPEED_NORMAL  4000.0f
-
-// 高速 (Up): 暴力发射速度
-#define FRIC_SPEED_HIGH    6000.0f
-
-/* ================= 3. 电机初始化宏 (已拆分) ================= */
-
-// --- Pitch 轴专用配置 ---
-#define PITCH_CONFIG(can_h, _id) \
-    { \
-        .motor_type = GM6020, \
-        .can_init_config = { .can_handle = can_h, .tx_id = _id }, \
-        .controller_setting_init_config = { \
-            .angle_feedback_source = MOTOR_FEED, \
-            .speed_feedback_source = MOTOR_FEED, \
-            .outer_loop_type = ANGLE_LOOP, \
-            .close_loop_type = SPEED_LOOP | ANGLE_LOOP, \
-            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL, \
-        }, \
-        .controller_param_init_config = { \
-            /* Angle Kp=12: 响应快 */ \
-            .angle_PID = { .Kp = 70.0f, .Ki = 0.0f, .Kd = 0.0f, .MaxOut = 30000.0f }, /* Speed Kp=45: 标准力度，足够应付 Pitch */ \
-            .speed_PID = { .Kp = 10.0f, .Ki = 0.0f, .Kd = 0.0f, .MaxOut = 30000.0f, .IntegralLimit = 3000.0f }, \
-        }, \
-    }
-
-// --- Yaw 轴专用配置 (重负载/倒挂加强版) ---
+// Yaw 轴配置 (标准组件会强制使用 OTHER_FEED，但我们这里也写上)
 #define YAW_CONFIG(can_h, _id) \
     { \
         .motor_type = GM6020, \
         .can_init_config = { .can_handle = can_h, .tx_id = _id }, \
         .controller_setting_init_config = { \
-            .angle_feedback_source = MOTOR_FEED, \
-            .speed_feedback_source = MOTOR_FEED, \
+            .angle_feedback_source = OTHER_FEED, \
+            .speed_feedback_source = OTHER_FEED, \
             .outer_loop_type = ANGLE_LOOP, \
             .close_loop_type = SPEED_LOOP | ANGLE_LOOP, \
             .motor_reverse_flag = MOTOR_DIRECTION_NORMAL, \
         }, \
         .controller_param_init_config = { \
-            /* Angle Kp=12: 保持灵敏 */ \
-            .angle_PID = { .Kp = 50.0f, .Ki = 0.0f, .Kd = 0.0f, .MaxOut = 30000.0f }, /* Speed Kp=60: 【加强】力度更大，锁住重负载 */ /* 如果还不够硬，可以继续加到 80 */ \
-            .speed_PID = { .Kp = 10.0f, .Ki = 0.0f, .Kd = 0.0f, .MaxOut = 28000.0f, .IntegralLimit = 3000.0f }, \
+            .angle_PID = { .Kp = 0.0f, .Ki = 0.0f, .Kd = 0.0f, .MaxOut = 30000.0f }, \
+            .speed_PID = { .Kp = 0.0f, .Ki = 0.0f, .Kd = 0.0f, .MaxOut = 28000.0f, .IntegralLimit = 3000.0f }, \
         }, \
     }
 
-// --- 摩擦轮配置 ---
-#define SHOOT_MOTOR_CONFIG(can_h, _id, _reverse) \
+// Pitch 轴配置
+#define PITCH_CONFIG(can_h, _id) \
     { \
-        .motor_type = M3508, \
+        .motor_type = GM6020, \
         .can_init_config = { .can_handle = can_h, .tx_id = _id }, \
         .controller_setting_init_config = { \
-            .outer_loop_type = SPEED_LOOP, \
-            .close_loop_type = SPEED_LOOP, \
-            .motor_reverse_flag = _reverse, \
+            .angle_feedback_source = OTHER_FEED, \
+            .speed_feedback_source = OTHER_FEED, \
+            .outer_loop_type = ANGLE_LOOP, \
+            .close_loop_type = SPEED_LOOP | ANGLE_LOOP, \
+            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL, \
         }, \
         .controller_param_init_config = { \
-            .speed_PID = { \
-                .Kp = 2.0f, .Ki = 0.00f, .Kd = 0.0f, \
-                .MaxOut = 16000.0f, .IntegralLimit = 5000.0f, \
-            }, \
+            .angle_PID = { .Kp = 0.0f, .Ki = 0.0f, .Kd = 0.0f, .MaxOut = 30000.0f }, \
+            .speed_PID = { .Kp = 0.0f, .Ki = 0.0f, .Kd = 0.0f, .MaxOut = 28000.0f, .IntegralLimit = 3000.0f }, \
         }, \
     }
+
+#endif
