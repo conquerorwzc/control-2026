@@ -30,26 +30,26 @@ bool parse_custom_controller_data(const uint8_t *packed_data, uint16_t packed_si
     // 提取数据长度 (第1-2字节)
     uint16_t data_len = ((uint16_t)packed_data[2] << 8) | packed_data[1];
     
-    // 检查数据长度是否符合预期 (固定30字节数据 + 7字节头部 + 2字节CRC尾部)
-    if (packed_size != (7 + data_len + 2)) {
+    // 检查数据长度是否符合预期
+    if (packed_size != (sizeof(Frame_Header) - 1 + sizeof(uint16_t) + data_len + 2)) {  // +2 for CRC16
         return false;
     }
 
     // 检查命令ID是否为自定义控制器 (CMD_ID_CUSTOM_CONTROLLER = 0x0302)
-    uint16_t cmd_id = ((uint16_t)packed_data[6] << 8) | packed_data[5];
+    uint16_t cmd_id = ((uint16_t)packed_data[5] << 8) | packed_data[4];
     if (cmd_id != 0x0302) {
         return false;
     }
 
-    // 指向实际数据部分 (跳过协议头：帧头+长度+序号+CRC8+命令ID = 7字节)
-    const uint8_t *data_ptr = &packed_data[7];
+    // 指向实际数据部分 (跳过协议头：帧头(1)+长度(2)+序号(1)+CRC8(1)+命令ID(2) = 7字节)
+    const uint8_t *data_ptr = &packed_data[sizeof(Frame_Header) - 1 + sizeof(uint16_t)];  // 4 + 2 = 6 bytes header before data
 
-    // 数据包类型标识 (data_ptr[0] = data_ptr[7+0] = packed_data[7])
+    // 数据包类型标识
     if (data_ptr[0] != 0x20) {  // 控制器数据包标识
         return false;
     }
 
-    // 解析3个舵机的数据
+    // 解析3个舵机的数据 (每个舵机占用5字节：ID + 2字节角度 + 1字节扭矩状态 + 1字节在线状态)
     for (int i = 0; i < 3; i++) {
         unpacked_data->servos[i].id = data_ptr[1 + i*5];  // 舵机ID
         
@@ -64,16 +64,16 @@ bool parse_custom_controller_data(const uint8_t *packed_data, uint16_t packed_si
         unpacked_data->servos[i].is_online = data_ptr[5 + i*5];
     }
 
-    // 解析2个电位器的数据 (每个电位器占用5字节：ID + 2字节角度 + 2字节电压)
+    // 解析2个电位器的数据 (每个电位器占用4字节：ID + 2字节角度 + 2字节电压)
     for (int i = 0; i < 2; i++) {
-        unpacked_data->pots[i].id = data_ptr[16 + i*5];  // 电位器ID
+        unpacked_data->pots[i].id = data_ptr[16 + i*4];  // 电位器ID (修正索引计算，每个电位器4字节)
         
         // 解析角度值 (2字节，已乘以100存储)
-        int16_t angle_raw = ((int16_t)data_ptr[18 + i*5] << 8) | data_ptr[17 + i*5];
+        int16_t angle_raw = ((int16_t)data_ptr[18 + i*4] << 8) | data_ptr[17 + i*4];
         unpacked_data->pots[i].angle = (float)angle_raw / 100.0f;
         
         // 解析电压值 (2字节，已乘以100存储)
-        int16_t voltage_raw = ((int16_t)data_ptr[20 + i*5] << 8) | data_ptr[19 + i*5];
+        int16_t voltage_raw = ((int16_t)data_ptr[20 + i*4] << 8) | data_ptr[19 + i*4];
         unpacked_data->pots[i].voltage = (float)voltage_raw / 100.0f;
     }
 
@@ -84,17 +84,16 @@ void selfcontrol_data_solve(uint8_t* frame) {
   uint16_t cmd_id = 0;
   uint8_t index = 0;
   memcpy(&referee_receive_header, frame, sizeof(Frame_Header));
-  index += sizeof(Frame_Header);
-  index--;
+  index += sizeof(Frame_Header) - 1;  // 跳过Frame_Header（除了最后一个字节）
   memcpy(&cmd_id, frame + index, sizeof(uint16_t));
   index += sizeof(uint16_t);
 
   switch (cmd_id) {
     case ROBOT_INTERACTIVE_DATA_CMD_ID:  // 自定义控制器数据(0x0302)
-      memcpy(&self_control.data, frame + index, sizeof(self_control.data));
-      
-      // 解析自定义控制器数据
-      parse_custom_controller_data(frame, sizeof(Frame_Header) + sizeof(uint16_t) + sizeof(self_control.data), &self_control.unpacked_data);
+      // 解析自定义控制器数据，使用实际的帧长度
+      // 总长度 = 帧头(4字节) + cmd_id(2字节) + 数据内容 + CRC16(2字节)
+      uint16_t total_frame_size = sizeof(Frame_Header) - 1 + sizeof(uint16_t) + referee_receive_header.data_length + 2;
+      parse_custom_controller_data(frame, total_frame_size, &self_control.unpacked_data);
       break;
     default:
       break;
