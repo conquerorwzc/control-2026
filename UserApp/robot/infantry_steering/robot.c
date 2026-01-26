@@ -1,9 +1,9 @@
 #include "robot.h"
 #include "can_comm.h"
 #include "general_def.h"
+#include "referee_task.h"
 #include "robot_config.h"
 #include "user_lib.h"
-#include "SecondOrderDiffFF.h"
 #define USECANREMOTE 1 //是否使用云台板的遥控数据
 
 static RobotInstance *robot;
@@ -12,7 +12,6 @@ static RobotInstance *robot;
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
 static Gimbal_Ctrl_Cmd_s *gimbal_ctrl_cmd;
 static Shoot_Ctrl_Cmd_s *shoot_ctrl_cmd;
-static DiffFFContext* diff_ff_context = NULL;
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 float temp=0;
@@ -298,7 +297,11 @@ static void EmergencyHandler() {
 
 }
 
-void RobotInit() {
+RobotInstance * RobotInit() {
+  if (!robot->init)
+    robot->init = 1;
+  else
+    return robot;
   //要在云台和底盘任务开始之前完成该任务的初始化
   vTaskDelay(CAN_COMM_TASK_INIT_TIME);
   // 初始化CAN接收
@@ -324,8 +327,7 @@ void RobotInit() {
 // #endif
 
   robot->chassis = ChassisInit(&chassis_init_config);
-//初始化二阶差分前馈
-  diff_ff_context=diffFFContextInit(35);
+
 
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
@@ -333,7 +335,8 @@ void RobotInit() {
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;
-
+ // MyUIInit();
+  return robot;
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
