@@ -326,7 +326,7 @@ static Shoot_Init_Config_s shoot_init_config = {
             .loader_direction = -1,                       // 拨盘旋转方向,1为正向，-1为反向
             .friction_num = 3,                            // 摩擦轮数量
             .friction_speed = 26000.0f,                   // 摩擦轮速度
-            .friction_coefficients = {1.0f, 1.1f, 1.0f},  // 摩擦轮速度比例系数
+            .friction_coefficients = {1.0f, -1.0f, 1.1f},  // 摩擦轮速度比例系数
             .deadtime_burstfire = 500,
             .deadtime_onebullet = 1000,
             .target_speed = 12.0f,
@@ -365,6 +365,7 @@ static Shoot_Init_Config_s shoot_init_config = {
                     .tx_id = 2,
                 },
             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+            .controller_setting_init_config.feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
             .controller_setting_init_config.angle_feedback_source = MOTOR_FEED,
             .controller_setting_init_config.speed_feedback_source = MOTOR_FEED,
             .controller_setting_init_config.outer_loop_type = ANGLE_LOOP,
