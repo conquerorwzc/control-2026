@@ -6,6 +6,7 @@
 #include "remote_control.h"
 // #include "rm_referee.h"
 #include "qqsuper_cap/qqsuper_cap.h"
+#include "rm_referee.h"
 // todo: add vision_module
 
 typedef enum {
@@ -17,7 +18,7 @@ typedef struct {
   Robot_Mode_e robot_mode;       // 机器人整体工作状态
 
   RC_ctrl_t *rc_data;               // 遥控器数据,初始化时返回
-  // referee_info_t* referee_data;     // 用于获取裁判系统的数据
+   referee_info_t* referee_data;     // 用于获取裁判系统的数据
 
   QQSuperCapInstance* super_cap;
   ChassisInstance* chassis;
