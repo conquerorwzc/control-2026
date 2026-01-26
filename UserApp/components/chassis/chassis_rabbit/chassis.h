@@ -28,6 +28,7 @@
 *          motor[1] - Right Front Wheel
 *          motor[2] - Left Rear Wheel
 *          motor[3] - Right Rear Wheel
+*          腿：0左 1右
 ******************************************************************************
 */
 #pragma once
