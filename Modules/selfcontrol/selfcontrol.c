@@ -41,12 +41,12 @@ bool parse_custom_controller_data(const uint8_t *packed_data, uint16_t packed_si
     // 电位器解析 (关键点：修正 i*4 为 i*5)
     for (int i = 0; i < 2; i++) {
         // 每个电位器数据：ID(1) + Angle(2) + Volt(2) = 5字节
-        unpacked_data->pots[i].id = data_ptr[16 + i*5];
+        unpacked_data->pots[i].id = data_ptr[17 + i*5];
 
-        int16_t angle_raw = ((int16_t)data_ptr[18 + i*5] << 8) | data_ptr[17 + i*5];
+        int16_t angle_raw = ((int16_t)data_ptr[19 + i*5] << 8) | data_ptr[18 + i*5];
         unpacked_data->pots[i].angle = (float)angle_raw / 100.0f;
 
-        int16_t voltage_raw = ((int16_t)data_ptr[20 + i*5] << 8) | data_ptr[19 + i*5];
+        int16_t voltage_raw = ((int16_t)data_ptr[21 + i*5] << 8) | data_ptr[20 + i*5];
         unpacked_data->pots[i].voltage = (float)voltage_raw / 100.0f;
     }
 
