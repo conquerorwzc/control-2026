@@ -130,7 +130,7 @@ static void RemoteControlSet() {
   }
   // 云台使能,或视觉未识别到目标,纯遥控器拨杆控制
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
-    gimbal_ctrl_cmd->yaw -= -0.003f * (float)rc_data[TEMP].rc.rocker_r_;
+    gimbal_ctrl_cmd->yaw += -0.003f * (float)rc_data[TEMP].rc.rocker_r_;
     gimbal_ctrl_cmd->pitch += 0.0006f * (float)rc_data[TEMP].rc.rocker_r1;
   }
 
@@ -290,7 +290,7 @@ void RobotInit() {
   // robot->super_cap = SuperCapInit(&super_cap_config);
 
  #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
-//   robot->gimbal = GimbalInit(&gimbal_init_config);
+   robot->gimbal = GimbalInit(&gimbal_init_config);
    robot->shoot = ShootInit(&shoot_init_config);
 #endif
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
@@ -311,7 +311,7 @@ void RobotInit() {
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
 void RobotCMDTask() {
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
-  //CalcOffsetAngle();
+  CalcOffsetAngle();
   RemoteControlSet();
   // MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
@@ -321,7 +321,7 @@ void RobotTask() {
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
   VisionSend();
   RobotCMDTask();
-  //GimbalTask();
+  GimbalTask();
   ShootTask();
 #endif
 
