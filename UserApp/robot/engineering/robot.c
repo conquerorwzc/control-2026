@@ -105,6 +105,27 @@ void RobotCMDTask()
 }
 
 /**
+ * @brief  紧急停止,包括遥控器左上侧拨轮打满/重要模块离线/双板通信失效等
+ *         停止的阈值'300'待修改成合适的值,或改为开关控制.
+ *
+ * @todo   后续修改为遥控器离线则电机停止(关闭遥控器急停),通过给遥控器模块添加daemon实现
+ *
+ */
+static void EmergencyHandler()
+{
+    // 遥控器不在线的时候停止所有电机
+    if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)) ||
+        !RemoteControlIsOnline())
+    {
+        robot->robot_mode = ROBOT_EMERGENCY_STOP;
+        chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
+        gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_POWER_OFF;
+        grab_ctrl_cmd->grab_mode = GRAB_POWER_OFF;
+        LOGINFO("[CMD] emergency stop!");
+    }
+}
+
+/**
  * @brief 输入为键鼠时模式和控制量设置
  *
  */
@@ -148,7 +169,7 @@ static void MouseKeySet()
         break;
     }
 
-    if (gantry_ctrl_cmd->Gantry_mode != GANTRY_MODE_POWER_OFF)
+    if (gantry_ctrl_cmd->Gantry_mode != GANTRY_MODE_POWER_OFF&&chassis_ctrl_cmd->chassis_mode !=CHASSIS_CLIMB )
     {
         gantry_ctrl_cmd->y += rc_data[TEMP].key[KEY_PRESS].b * 0.1 - rc_data[TEMP].key[KEY_PRESS].v * 0.1;
         gantry_ctrl_cmd->z += rc_data[TEMP].key[KEY_PRESS].x * 0.1 - rc_data[TEMP].key[KEY_PRESS].z * 0.1;
@@ -165,7 +186,28 @@ static void MouseKeySet()
                                    rc_data[TEMP].key[KEY_PRESS].s * chassis_ctrl_cmd->chassis_speed_buff;
             chassis_ctrl_cmd->wz = 0;
             // set_angle += -rc_data[TEMP].mouse.x * 0.001;
+            // 如果在底盘爬楼梯模式
+            if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB && rc_data[TEMP].key[KEY_PRESS].keys != 0 &&
+                rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].keys == 0)
+            {
+                if (rc_data[TEMP].key[KEY_PRESS].z)
+                {
+                    chassis_ctrl_cmd->climb_state = CLIMB_STAGE_BOTH_EXTEND;
+                }
+                // 【X键】：第二步 (收前腿)
+                else if (rc_data[TEMP].key[KEY_PRESS].x)
+                {
+                    chassis_ctrl_cmd->climb_state = CLIMB_STAGE_FRONT_RETRACT;
+                }
+                // 【V键】：第三步 (全收)
+                else if (rc_data[TEMP].key[KEY_PRESS].v)
+                {
+                    chassis_ctrl_cmd->climb_state = CLIMB_STAGE_ALL_RETRACT;
+                }
+
+            }
         }
+
         break;
 
     case 1: // 控制机械臂
@@ -216,28 +258,6 @@ static void MouseKeySet()
         break;
     }
 }
-
-/**
- * @brief  紧急停止,包括遥控器左上侧拨轮打满/重要模块离线/双板通信失效等
- *         停止的阈值'300'待修改成合适的值,或改为开关控制.
- *
- * @todo   后续修改为遥控器离线则电机停止(关闭遥控器急停),通过给遥控器模块添加daemon实现
- *
- */
-static void EmergencyHandler()
-{
-    // 遥控器不在线的时候停止所有电机
-    if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)) ||
-        !RemoteControlIsOnline())
-    {
-        robot->robot_mode = ROBOT_EMERGENCY_STOP;
-        chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
-        gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_POWER_OFF;
-        grab_ctrl_cmd->grab_mode = GRAB_POWER_OFF;
-        LOGINFO("[CMD] emergency stop!");
-    }
-}
-
 /**
  * @brief 控制输入为遥控器(调试时)的模式和控制量设置
  *
@@ -255,13 +275,12 @@ static void RemoteControlSet()
         }
         else
             chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
-            chassis_ctrl_cmd->wz = 0;
+        chassis_ctrl_cmd->wz = 0;
     }
-    // 右[上]，保持底盘跟随云台
+    // 右[上]，进入爬楼梯模式
     else if (switch_is_up(rc_data[TEMP].rc.switch_right))
     {
-
-        chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+        chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB;
         chassis_ctrl_cmd->wz = 0;
     }
     // 右[下] 控制底盘断电，但不触发整机紧急停止

@@ -10,7 +10,7 @@
 #define PULLEY_GEAR_RATIO 2.0f          // 带轮传动比
 #define BEVEL_GEAR_RATIO 1.6667f        // 锥齿轮传动比 5:3
 #define MOTOR2006_REDUCTION_RATIO 36.0f // 2006 ecd减速比36
-/* Private define ------------------------------------------------------------*/
+/* Private variables ---------------------------------------------------------*/
 static GrabInstance *grab;
 static Grab_Ctrl_Cmd_s *grab_ctrl_cmd;
 static float total_angle_init_L = 0;

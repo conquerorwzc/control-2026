@@ -68,7 +68,88 @@
             },                                                                                                         \
         .motor_type = M3508,                                                                                           \
     })
-
+#define LIFT_FORWARD_MOTOR_CONFIG(handle, id)                                                                          \
+    ((Motor_Init_Config_s){                                                                                            \
+        .can_init_config =                                                                                             \
+            {                                                                                                          \
+                .can_handle = handle,                                                                                  \
+                .tx_id = id,                                                                                           \
+            },                                                                                                         \
+        .controller_param_init_config =                                                                                \
+            {                                                                                                          \
+                .speed_PID =                                                                                           \
+                    {                                                                                                  \
+                        .Kp = 0.5,                                                                                     \
+                        .Ki = 0,                                                                                       \
+                        .Kd = 0,                                                                                       \
+                        .IntegralLimit = 6000,                                                                         \
+                        .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,       \
+                        .MaxOut = 15000,                                                                               \
+                    },                                                                                                 \
+                .current_PID =                                                                                         \
+                    {                                                                                                  \
+                        .Kp = 0,                                                                                       \
+                        .Ki = 0,                                                                                       \
+                        .Kd = 0,                                                                                       \
+                        .IntegralLimit = 3000,                                                                         \
+                        .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,       \
+                        .MaxOut = 15000,                                                                               \
+                    },                                                                                                 \
+            },                                                                                                         \
+        .controller_setting_init_config =                                                                              \
+            {                                                                                                          \
+                .angle_feedback_source = MOTOR_FEED,                                                                   \
+                .speed_feedback_source = MOTOR_FEED,                                                                   \
+                .outer_loop_type = ANGLE_LOOP|SPEED_LOOP,                                                                         \
+                .close_loop_type = SPEED_LOOP,                                                                         \
+                .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,                                                         \
+                .feedback_reverse_flag = MOTOR_DIRECTION_REVERSE,                                                      \
+            },                                                                                                         \
+        .motor_type = M3508,                                                                                           \
+    })
+#define LIFT_BACKWARD_MOTOR_CONFIG(handle, id)                                                                         \
+    ((Motor_Init_Config_s){                                                                                            \
+        .can_init_config =                                                                                             \
+            {                                                                                                          \
+                .can_handle = handle,                                                                                  \
+                .tx_id = id,                                                                                           \
+            },                                                                                                         \
+        .controller_param_init_config =                                                                                \
+            {                                                                                                          \
+                .speed_PID =                                                                                           \
+                    {                                                                                                  \
+                        .Kp = 0.5,                                                                                     \
+                        .Ki = 0,                                                                                       \
+                        .Kd = 0,                                                                                       \
+                        .IntegralLimit = 6000,                                                                         \
+                        .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,       \
+                        .MaxOut = 15000,                                                                               \
+                    },                                                                                                 \
+                .current_PID =                                                                                         \
+                    {                                                                                                  \
+                        .Kp = 0,                                                                                       \
+                        .Ki = 0,                                                                                       \
+                        .Kd = 0,                                                                                       \
+                        .IntegralLimit = 3000,                                                                         \
+                        .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,       \
+                        .MaxOut = 15000,                                                                               \
+                    },                                                                                                 \
+            },                                                                                                         \
+        .controller_setting_init_config =                                                                              \
+            {                                                                                                          \
+                .angle_feedback_source = MOTOR_FEED,                                                                   \
+                .speed_feedback_source = MOTOR_FEED,                                                                   \
+                .outer_loop_type = ANGLE_LOOP | SPEED_LOOP,                                                            \
+                .close_loop_type = SPEED_LOOP,                                                                         \
+                .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,                                                         \
+                .feedback_reverse_flag = MOTOR_DIRECTION_REVERSE,                                                      \
+            },                                                                                                         \
+        .motor_type = M2006,                                                                                           \
+    })
+// TODO:电机pid参数待测，方向待测，2006/3508
+/**
+ *
+ */
 static Chassis_Init_Config_s chassis_init_config = {
     .chassis_param =
         {
@@ -86,11 +167,22 @@ static Chassis_Init_Config_s chassis_init_config = {
             .power_param.k3 = 0.015644430204543864f,
             .power_param.k4 = 0.1580143850678086f,
             .power_param.k5 = 2.896721772539512e-05f,
+
+            .forward_lift_in = 0,
+            .forward_lift_out = 0,
+            .backward_lift_down = 0,
+            .backward_lift_up = 0,
+
         },
     .wheel_motor_config[0] = WHEEL_MOTOR_CONFIG(&hcan3, 1),
     .wheel_motor_config[1] = WHEEL_MOTOR_CONFIG(&hcan3, 4),
     .wheel_motor_config[2] = WHEEL_MOTOR_CONFIG(&hcan3, 2),
     .wheel_motor_config[3] = WHEEL_MOTOR_CONFIG(&hcan3, 3),
+    .lift_forward_motor_config[0] = LIFT_FORWARD_MOTOR_CONFIG(&hcan2, 4),
+    .lift_forward_motor_config[1] = LIFT_FORWARD_MOTOR_CONFIG(&hcan2, 1),
+    .lift_backward_motor_config[0] = LIFT_BACKWARD_MOTOR_CONFIG(&hcan2, 2),
+    .lift_backward_motor_config[1] = LIFT_BACKWARD_MOTOR_CONFIG(&hcan2, 3),
+    // TODO: id待确定
     // 跟随PID
     .follow_pid =
         {

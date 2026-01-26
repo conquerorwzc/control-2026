@@ -33,10 +33,16 @@
 typedef enum
 {
     CHASSIS_POWER_OFF = 0, // 电流零输入
-    CHASSIS_ROTATE,        // 小陀螺模式
     CHASSIS_FOLLOW,        // 跟随模式，底盘叠加角度环控制
+    CHASSIS_CLIMB,
 } Chassis_Mode_e;
-
+typedef enum
+{
+    CLIMB_STAGE_IDLE = 0,      // 平地/复位状态 (全收)
+    CLIMB_STAGE_BOTH_EXTEND,   // 阶段1: 全伸 (准备上台阶)
+    CLIMB_STAGE_FRONT_RETRACT, // 阶段2: 只收前 (前轮已上，屁股还抬着)
+    CLIMB_STAGE_ALL_RETRACT    // 阶段3: 全收 (上完台阶/复位)
+} ClimbState_e;
 typedef struct
 {
     // 控制部分
@@ -44,11 +50,13 @@ typedef struct
     float vy; // 横移方向速度
     float wz; // 旋转速度
     Chassis_Mode_e chassis_mode;
+    ClimbState_e climb_state;
     float offset_angle; // 底盘和归中位置的夹角
     int chassis_speed_buff;
-    uint16_t max_power; // 最大功率限制
-                        // UI部分
-                        //  ...
+    uint16_t max_power;  // 最大功率限制
+    int16_t lift_height; // 抬升高度
+                         // UI部分
+                         //  ...
 
 } Chassis_Ctrl_Cmd_s;
 
@@ -72,20 +80,27 @@ typedef struct
     float wheel_radius;             // 轮子半径
     float wheel_reduction_ratio;    // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
     Power_Param_3508_s power_param; // 3508功率模型参数，采用中科大的模型
+    float forward_lift_in;          // 导杆收回位置
+    float forward_lift_out;         // 导杆伸出位置
+    float backward_lift_up;         // 腿抬升收回位置
+    float backward_lift_down;       // 腿抬升伸出位置
 } Chassis_Param_s;
 
 typedef struct
 {
     Chassis_Param_s chassis_param;
     Motor_Init_Config_s wheel_motor_config[4];
+    Motor_Init_Config_s lift_forward_motor_config[2];
+    Motor_Init_Config_s lift_backward_motor_config[2];
     PID_Init_Config_s follow_pid;
 } Chassis_Init_Config_s;
 
 typedef struct
 {
     Chassis_Ctrl_Cmd_s chassis_ctrl_cmd;
-    DJIMotorInstance *wheel_motor[4]; // left right forward back
-    DJIMotorInstance *lift_motor[2];// 底盘的抬升电机
+    DJIMotorInstance *wheel_motor[4];          // left right forward back
+    DJIMotorInstance *lift_forward_motor[2];   // 导杆电机实例
+    DJIMotorInstance *lift_backward_motor[2]; // 腿抬升电机实例
 } ChassisInstance;
 
 /**
