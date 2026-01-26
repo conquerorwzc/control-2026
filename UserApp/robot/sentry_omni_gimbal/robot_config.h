@@ -145,20 +145,55 @@ static Gimbal_Init_Config_s gimbal_init_config = {
 static Shoot_Init_Config_s shoot_init_config = {
     .shoot_param =
         {
-            .one_bullet_delta_angle = 45.0f,              // 发射一发弹丸拨盘转动的距离,由机械设计图纸给出
-            .reduction_ratio_loader = 36.0f,              // M2006拨盘电机的减速比
-            .num_per_circle = 8,                          // 拨盘一圈的装载量
+            .one_bullet_delta_angle = 36.0f,              // 发射一发弹丸拨盘转动的距离,由机械设计图纸给出
+            .reduction_ratio_loader = 66.0f,              // M2006拨盘电机的减速比
+            .num_per_circle = 10,                          // 拨盘一圈的装载量
             .loader_direction = 1,                        // 拨盘旋转方向,1为正向，-1为反向
             .friction_num = 2,                            // 摩擦轮数量
             .friction_speed = 7500.0f,                   // 摩擦轮速度
             .friction_coefficients = {1.0f, 1.0f},  // 摩擦轮速度比例系数
-            .deadtime_burstfire = 500,
-            .deadtime_onebullet = 1000,
+              .deadtime_burstfire = 150,
+            .deadtime_onebullet = 5000,
             .target_speed = 0.0f,
             .bullet_speed_adjustment = 10.0f,
         },
     .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan1, 2, MOTOR_DIRECTION_NORMAL),
     .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan1, 1, MOTOR_DIRECTION_REVERSE),
+  .loader_motor_config =
+    {
+      .controller_param_init_config =
+      {
+        .angle_PID =
+        {
+          .Kp = 150.0f,
+          .Ki = 0.0f,
+          .Kd = 0.2f,
+          .MaxOut = 20000.0f,
+      },
+  .speed_PID =
+        {
+          .Kp = 1.5f,
+          .Ki = 0.4f,
+          .Kd = 0.0f,
+          .Improve = PID_Integral_Limit | PID_ErrorHandle,
+          .IntegralLimit = 3000.0f,
+          .MaxOut = 4000.0f,
+      },
+},
+.motor_type = M2006, //拨盘电机为M2006
+.can_init_config =
+      {
+        .can_handle = &hcan1,
+        .tx_id = 4,
+    },
+      .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+      .controller_setting_init_config.feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
+
+.controller_setting_init_config.angle_feedback_source = MOTOR_FEED,
+.controller_setting_init_config.speed_feedback_source = MOTOR_FEED,
+.controller_setting_init_config.outer_loop_type = ANGLE_LOOP,
+.controller_setting_init_config.close_loop_type = SPEED_LOOP | ANGLE_LOOP,
+},
 };
 static CANComm_Init_Config_s comm_config = {
   .recv_data_len = 24,        // 接收数据长度，根据实际需求调整

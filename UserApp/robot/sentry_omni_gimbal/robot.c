@@ -18,7 +18,7 @@ static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 static CANCommInstance* can_comm_instance = NULL;
 Int16ToBytes transmit_data;
 /* Intermediate variables calculated by private functions */
-// static float trigger_time = 0;  // 触发时间
+static float trigger_time = 0;  // 触发时间
 // static float x_speed_time=0;  //x方向加速触发时间
 // static float y_speed_time=0;  //y方向加速触发时间
 // static float vx_initial;   //x轴输入控制量
@@ -77,28 +77,28 @@ static void RemoteControlSet() {
   // }
   // 左[中],云台启动，摩擦轮启动，拨弹盘启动，准备射击
   if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
-    // shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
+    shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
-    // shoot_ctrl_cmd->load_mode = LOAD_STOP;
+    shoot_ctrl_cmd->load_mode = LOAD_STOP;
     // 待添加,视觉会发来和目标的误差,同样将其转化为total angle的增量进行控制
     // ...
   }
   else if (switch_is_up(rc_data[TEMP].rc.switch_left))  // 开火，发射，根据时间判断单发或者连发
   {
-    // shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
+    shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
-    // shoot_ctrl_cmd->load_mode = LOAD_STOP;
-    //   if (switch_is_mid(rc_data_last[TEMP].rc.switch_left)) {
-    //     trigger_time = DWT_GetTimeline_s();
-    //   }
-    //   if (DWT_GetTimeline_s() - trigger_time > 1.0f) {
-    //     shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
-    //   } else {
-    //     shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
-    //   }
-    // }
+    shoot_ctrl_cmd->load_mode = LOAD_STOP;
+      if (switch_is_mid(rc_data_last[TEMP].rc.switch_left)) {
+        trigger_time = DWT_GetTimeline_s();
+      }
+      if (DWT_GetTimeline_s() - trigger_time > 1.0f) {
+        shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+      } else {
+        shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
+      }
+    }
     if (switch_is_up(rc_data[TEMP].rc.switch_right))//除了右拨杆在上机器人使用导航数据，其余都正常人为控制
     {
       robot->control_mode=AUTO_MODE;
@@ -140,7 +140,6 @@ static void RemoteControlSet() {
     // }
     *rc_data_last = *rc_data;
   }
-}
 static void MouseKeySet() {
   // vy_initial += (float)((rc_data[TEMP].key[KEY_PRESS].w) - rc_data[TEMP].key[KEY_PRESS].s) *
   //               (float)chassis_ctrl_cmd->chassis_speed_buff;
@@ -193,7 +192,7 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
 
         gimbal_ctrl_cmd->yaw=vision_recv_data->gimbal_receive.yaw;
         gimbal_ctrl_cmd->pitch=vision_recv_data->gimbal_receive.pitch;
-        //shoot_ctrl_cmd->load_mode=vision_recv_data->shoot_receive.fire_flag;
+        shoot_ctrl_cmd->load_mode=vision_recv_data->shoot_receive.fire_flag;
       }
       else
         gimbal_ctrl_cmd->gimbal_mode=GIMBAL_ON;      //人工操控模式
@@ -201,35 +200,35 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   default:
       break;
   }
-  // switch (rc_data[TEMP].mouse.press_l % 2)        // 左键发射
-  // {
-  // case 0:
-  //     if (!switch_is_up(rc_data[TEMP].rc.switch_left))
-  //     {
-  //       shoot_ctrl_cmd->load_mode=LOAD_STOP;
-  //       trigger_time = DWT_GetTimeline_s();
-  //     }
-  //     break;
-  // default:
-  //   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 2)  // E键设置发射模式
-  //   {
-  //     case 0:                                              //单发+长按连发
-  //       if (shoot_ctrl_cmd->friction_mode==FRICTION_ON&&(vision_recv_data->shoot_receive.fire_flag||rc_data[TEMP].mouse.press_r % 2==0))   //需预先开启摩擦轮
-  //       {
-  //           shoot_ctrl_cmd->load_mode=LOAD_1_BULLET;
-  //         if (DWT_GetTimeline_s() - trigger_time > 1.0f)  //长按检测，1秒
-  //         {
-  //           shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
-  //         }
-  //         break;
-  //         default:                                         //连发
-  //         if (shoot_ctrl_cmd->friction_mode==FRICTION_ON)
-  //         shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
-  //         break;
-  //       }
-  //   }
-  //     break;
-  // }
+  switch (rc_data[TEMP].mouse.press_l % 2)        // 左键发射
+  {
+  case 0:
+      if (!switch_is_up(rc_data[TEMP].rc.switch_left))
+      {
+        shoot_ctrl_cmd->load_mode=LOAD_STOP;
+        trigger_time = DWT_GetTimeline_s();
+      }
+      break;
+  default:
+    switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 2)  // E键设置发射模式
+    {
+      case 0:                                              //单发+长按连发
+        if (shoot_ctrl_cmd->friction_mode==FRICTION_ON&&(vision_recv_data->shoot_receive.fire_flag||rc_data[TEMP].mouse.press_r % 2==0))   //需预先开启摩擦轮
+        {
+            shoot_ctrl_cmd->load_mode=LOAD_1_BULLET;
+          if (DWT_GetTimeline_s() - trigger_time > 1.0f)  //长按检测，1秒
+          {
+            shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+          }
+          break;
+          default:                                         //连发
+          if (shoot_ctrl_cmd->friction_mode==FRICTION_ON)
+          shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+          break;
+        }
+    }
+      break;
+  }
 
   // switch (rc_data[TEMP].key_count[KEY_PRESS][Key_C] % 4)  // C键设置底盘速度
   // {
@@ -288,9 +287,9 @@ static void EmergencyHandler() {
       robot->robot_mode = ROBOT_POWER_ON;
       gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
       // chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
-      // shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
+      shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
       shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
-      // shoot_ctrl_cmd->load_mode = LOAD_STOP;
+      shoot_ctrl_cmd->load_mode = LOAD_STOP;
       for (int i=0;i<16;i++)
         rc_data[TEMP].key_count[KEY_PRESS][i]=0;  //复位    注意：更改键位的时候要对这里以及下面的复位进行大改。
       LOGERROR("[CMD] emergency stop!");
@@ -309,7 +308,7 @@ static void EmergencyHandler() {
     {
       shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
       shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
-      // shoot_ctrl_cmd->load_mode = LOAD_STOP;
+      shoot_ctrl_cmd->load_mode = LOAD_STOP;
     }
     else {
       shoot_ctrl_cmd->shoot_mode= SHOOT_ON;
@@ -367,7 +366,7 @@ void RobotInit() {
   // robot->super_cap = SuperCapInit(&super_cap_config);
 
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
-  robot->gimbal = GimbalInit(&gimbal_init_config);
+  // robot->gimbal = GimbalInit(&gimbal_init_config);
   robot->shoot = ShootInit(&shoot_init_config);
 #endif
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
@@ -398,7 +397,7 @@ void RobotTask() {
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
   VisionSend();
   RobotCMDTask();
-  GimbalTask();
+  // GimbalTask();
   ShootTask();
   // Gimbal_CANCommSend();
 #endif

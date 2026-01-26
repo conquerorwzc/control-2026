@@ -50,7 +50,7 @@ ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
   for (int i = 0; i < FRICTION_NUM; i++) {
     shoot_instance->friction_motor[i] = DJIMotorInit(&shoot_init_config->friction_motor_config[i]);
   }
-  // shoot_instance->loader_motor = DJIMotorInit(&shoot_init_config->loader_motor_config);
+  shoot_instance->loader_motor = DJIMotorInit(&shoot_init_config->loader_motor_config);
 
   shoot = shoot_instance;
   shoot_ctrl_cmd = &shoot_instance->shoot_ctrl_cmd;  // 在运行时初始化指针
