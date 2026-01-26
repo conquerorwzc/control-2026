@@ -314,14 +314,29 @@ void RobotCMDTask() {
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 #if defined(GIMBAL_BOARD)
   chassis_fetch_data->chassis_ctrl_cmd = *chassis_ctrl_cmd;
-  chassis_upload_data = (Chassis_Upload_Data_s *)CANCommGet(robot->can_comm);
-  CANCommSend(robot->can_comm, (void *)chassis_fetch_data);
+
+  // 获取数据
+  void *raw_data = CANCommGet(robot->can_comm);
+  if(raw_data != NULL && robot->can_comm->update_flag == 0) {
+    // 数据有效，进行类型转换
+    chassis_upload_data = (Chassis_Upload_Data_s *)raw_data;
+
+    // 验证数据是否合理
+    LOGINFO("[robot] IMU Yaw: %f, Pitch: %f, Roll: %f",
+            chassis_upload_data->chassis_imu_data.Yaw,
+            chassis_upload_data->chassis_imu_data.Pitch,
+            chassis_upload_data->chassis_imu_data.Roll);
+  } else {
+    LOGWARNING("[robot] No valid data received");
+  }
+
+  CANCommSend(robot->can_comm, (uint8_t*)chassis_fetch_data);
 #endif
 #elif defined(CHASSIS_BOARD)
   INS_GetAttitude(&chassis_upload_data->chassis_imu_data);
   chassis_fetch_data = (Chassis_Fetch_Data_s *)CANCommGet(robot->can_comm);
   robot->chassis->chassis_ctrl_cmd = chassis_fetch_data->chassis_ctrl_cmd;
-  CANCommSend(robot->can_comm, (void *)chassis_upload_data);
+  CANCommSend(robot->can_comm, (void*)chassis_upload_data);
 #endif
 }
 
