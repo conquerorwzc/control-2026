@@ -30,7 +30,7 @@ typedef struct {
 
 typedef struct
 {
-  uint8_t selfcontrol_buff[21]; // 遥控器接收buffer
+  uint8_t selfcontrol_buff[30]; // 遥控器接收buffer
   uint8_t data[30];
   UnpackedControllerData_t unpacked_data;  // 解析后的控制器数据
 } SelfC;
