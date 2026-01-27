@@ -31,6 +31,7 @@ typedef enum {
   CHASSIS_POWER_OFF = 0,  // 电流零输入
   CHASSIS_RECOVERY,       // 一阶倒立摆
   CHASSIS_ON,             // 二阶倒立摆
+  CHASSIS_JUMP_READY,           // 跳跃
   CHASSIS_JUMP,           // 跳跃
 } Chassis_Mode_e;
 
@@ -58,8 +59,9 @@ typedef struct {
   float center_gimbal_offset_x;  // 云台旋转中心距底盘几何中心的距离,前后方向,云台位于正中心时默认设为0
   float center_gimbal_offset_y;  // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
   float track_width;
-  float robot_weight;
-  float leg_length_initial;
+  float robot_mass;
+  float initial_leg_length;  // 初始腿长,单位为m(米)
+  float leg_force_ff_gain;
 } Chassis_Param_s;
 
 typedef struct {
@@ -68,7 +70,7 @@ typedef struct {
   PID_Init_Config_s delta_theta_PID_config;  // 防劈叉PID
   PID_Init_Config_s roll_PID_config;         // Roll PID
   IMU_Init_Config_s imu_init_config;
-  float initial_leg_length;  // 初始腿长,单位为m(米)
+
 } Chassis_Init_Config_s;
 
 typedef struct {

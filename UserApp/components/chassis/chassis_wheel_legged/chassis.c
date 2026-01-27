@@ -10,6 +10,7 @@
 #include "arm_math.h"
 #include "bsp_dwt.h"
 #include "general_def.h"
+#include "robot_config.h"
 #include "speed_observer.h"
 #include "user_lib.h"
 
@@ -22,8 +23,9 @@ static float chassis_aver_v;
 static float q2i_coeff;
 
 // robot param
-static float robot_weight;
+static float robot_mass;
 static float track_width;
+static float leg_force_ff_gain;
 static float wheel_radius;
 static float wheel_reduction_ratio;
 
@@ -54,7 +56,7 @@ static void ChassisCtrlUpdate() {
 
     LegCtrlUpdate(leg[i], chassis->chassis_IMU);
     float leg_force_ff =
-        0.7f * 9.8f * robot_weight / 2.0f / mcos(leg[i]->state_var.theta);  // 不超过半边重力的一半(看机器）
+        leg_force_ff_gain * 9.8f * robot_mass / 2.0f / mcos(leg[i]->state_var.theta);  // 不超过半边重力的一半(看机器）
     leg[i]->virtual_model.F += leg_force_ff - (float)(1 - 2 * i) * chassis->roll_comp;
     VAL_LIMIT(leg[i]->virtual_model.F, -500.0f, 500.0f);
     leg[i]->real_model.T -= (float)(1 - 2 * i) * chassis->chassis_ctrl_cmd.wz;
@@ -101,10 +103,28 @@ static void ChassisJump() {
     leg[i]->leg_ctrl_cmd.length_ref = 0.385;
     switch (chassis->jump_state) {
       case JUMP_STATE_COMPRESS:
+        leg[i]->leg_ctrl_cmd.length_ref = LEG_MIN_LENGTH;
+        ChassisCtrlUpdate();
+        if (abs(leg[0]->virtual_model.length - LEG_MIN_LENGTH) <= 0.01 &&
+            abs(leg[1]->virtual_model.length - LEG_MIN_LENGTH) <= 0.01) {
+          chassis->jump_state = JUMP_STATE_EXTEND;
+        }
         break;
       case JUMP_STATE_EXTEND:
+        leg[i]->leg_ctrl_cmd.length_ref = LEG_MAX_LENGTH;
+        ChassisCtrlUpdate();
+        if (abs(leg[0]->virtual_model.length - LEG_MAX_LENGTH) <= 0.01 &&
+            abs(leg[1]->virtual_model.length - LEG_MAX_LENGTH) <= 0.01) {
+          chassis->jump_state = JUMP_STATE_RETRACT;
+        }
         break;
       case JUMP_STATE_RETRACT:
+        leg[i]->leg_ctrl_cmd.length_ref = LEG_MIN_LENGTH;
+        ChassisCtrlUpdate();
+        if (abs(leg[0]->virtual_model.length - LEG_MIN_LENGTH) <= 0.01 &&
+            abs(leg[1]->virtual_model.length - LEG_MIN_LENGTH) <= 0.01) {
+          chassis->jump_state = JUMP_STATE_LAND;
+        }
         break;
       case JUMP_STATE_LAND:
         break;
@@ -282,8 +302,9 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   chassis_instance->leg[0] = LegInit(&chassis_init_config->leg_init_config[0]);
   chassis_instance->leg[1] = LegInit(&chassis_init_config->leg_init_config[1]);
 
-  robot_weight = chassis_init_config->chassis_param.robot_weight;
+  robot_mass = chassis_init_config->chassis_param.robot_mass;
   track_width = chassis_init_config->chassis_param.track_width;
+  leg_force_ff_gain = chassis_init_config->chassis_param.leg_force_ff_gain;
   wheel_radius = chassis_init_config->leg_init_config[0].leg_param.wheel_radius;
   wheel_reduction_ratio = chassis_init_config->leg_init_config[0].leg_param.wheel_reduction_ratio;
   q2i_coeff = (3591.0f / 187.0f) / wheel_reduction_ratio / 0.3f;

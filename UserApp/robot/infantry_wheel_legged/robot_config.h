@@ -21,15 +21,27 @@
 /* 机器人重要参数定义,浮点数需要以.0或f结尾,无符号以u结尾 */
 
 // 机器人底盘修改的参数,单位为mm(毫米)
-#define TRACK_WIDTH 300              // 横向轮距(左右平移方向)
 #define CENTER_GIMBAL_OFFSET_X 0     // 云台旋转中心距底盘几何中心的距离,前后方向,云台位于正中心时默认设为0
 #define CENTER_GIMBAL_OFFSET_Y 0     // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
 #define WHEEL_RADIUS 60              // 轮子半径
 #define WHEEL_REDUCTION_RATIO 19.0f  // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
-// #define PITCH_MAX_ANGLE 26.0f        // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+// #define PITCH_MAX_ANGLE 26.0f        // 云台竖直向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
 
-#define LEG_MAX_LENGTH 0.37f  // 0.380f
-#define LEG_MIN_LENGTH 0.12f  // 0.112f
+#define TRACK_WIDTH 0.245f
+#define ROBOT_MASS 14.0f
+#define LEG_MAX_LENGTH 0.370f  // 0.380f
+#define LEG_MIN_LENGTH 0.120f  // 0.112f
+
+#define DELTA_LEG_LENGTH LEG_MAX_LENGTH - LEG_MIN_LENGTH
+// 跳台阶
+#define TARGET_JUMP_HEIGHT 0.3f
+#define TARGET_JUMP_DISTANCE 0.5f
+// 反向飞坡
+// #define TARGET_JUMP_HEIGHT 0.8f
+// #define TARGET_JUMP_DISTANCE 1.0f
+// 目标速度与腿部输出力
+#define JUMP_SPEED TARGET_JUMP_DISTANCE / sqrtf(2.0f * TARGET_JUMP_HEIGHT / 9.8f)
+#define JUMP_FORCE ROBOT_MASS * 9.8f / 2.0f * (1.0f + (TARGET_JUMP_HEIGHT - DELTA_LEG_LENGTH) / DELTA_LEG_LENGTH)
 
 // 云台参数
 #define YAW_CHASSIS_ALIGN_ECD 655  // 云台和底盘对齐指向相同方向时的电机编码器值,若对云台有机械改动需要修改
@@ -42,7 +54,6 @@
 #define GYRO2GIMBAL_DIR_YAW 1    // 陀螺仪数据相较于云台的yaw的方向,1为相同,-1为相反
 #define GYRO2GIMBAL_DIR_PITCH 1  // 陀螺仪数据相较于云台的pitch的方向,1为相同,-1为相反
 #define GYRO2GIMBAL_DIR_ROLL 1   // 陀螺仪数据相较于云台的roll的方向,1为相同,-1为相反
-
 // 发射参数
 #define ONE_BULLET_DELTA_ANGLE 36.0f  // 发射一发弹丸拨盘转动的距离,由机械设计图纸给出
 #define REDUCTION_RATIO_LOADER 90.0f  // 2006拨盘电机的减速比,英雄需要修改为3508的19.0f
@@ -185,13 +196,11 @@
 static Chassis_Init_Config_s chassis_init_config = {
     .chassis_param =
         {
-            // .robot_weight = 0.0f,  // 机器人重量,单位为kg(千克)
-            .robot_weight = 14.0f,  // 机器人重量,单位为kg(千克)
-            .track_width = 0.245f,
-            .leg_length_initial = 0.25f,  // 初始腿长,单位为m(米)
+            .robot_mass = ROBOT_MASS,  // 机器人重量,单位为kg(千克)
+            .track_width = TRACK_WIDTH,
+            .initial_leg_length = 0.20f,  // 初始腿长,单位为m(米)
+            .leg_force_ff_gain = 0.7f,
         },
-    .initial_leg_length = 0.20f,  // 初始腿长,单位为m(米)
-
     // 通过设置电机输出/反馈方向，来使腿部控制镜像对称
     .leg_init_config[0] = LEG_INIT_CONFIG(MOTOR_DIRECTION_NORMAL, MOTOR_DIRECTION_REVERSE, &hcan2, 0x02, 0x01, &hcan2,
                                           0x06, 0x03, &hcan1, 0x01, 0x00),
@@ -249,8 +258,8 @@ static Gimbal_Init_Config_s gimbal_init_config = {
             .motor_type = GM6020,
             .can_init_config =
                 {
-                    .can_handle = &hcan2,
-                    .tx_id = 6,
+                    .can_handle = &hcan1,
+                    .tx_id = 2,
                 },
             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
         },
@@ -281,8 +290,8 @@ static Gimbal_Init_Config_s gimbal_init_config = {
             .motor_type = GM6020,
             .can_init_config =
                 {
-                    .can_handle = &hcan1,
-                    .tx_id = 2,
+                    .can_handle = &hcan2,
+                    .tx_id = 1,
                 },
             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
         },
@@ -334,8 +343,8 @@ static Shoot_Init_Config_s shoot_init_config = {
             .target_speed = 0.0f,
             .bullet_speed_adjustment = 10.0f,
         },
-    .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan1, 4, MOTOR_DIRECTION_NORMAL, MOTOR_DIRECTION_NORMAL),
-    .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan1, 5, MOTOR_DIRECTION_NORMAL, MOTOR_DIRECTION_NORMAL),
+    .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan2, 1, MOTOR_DIRECTION_NORMAL, MOTOR_DIRECTION_NORMAL),
+    .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan2, 2, MOTOR_DIRECTION_NORMAL, MOTOR_DIRECTION_NORMAL),
 
     .loader_motor_config =
         {
@@ -383,7 +392,7 @@ static PID_Init_Config_s chassis_follow_PID_config = {
 
 static SuperCap_Init_Config_s super_cap_config = {
     .can_config = {
-        .can_handle = &hcan2,
+        .can_handle = &hcan1,
         .tx_id = 0x302,  // 超级电容默认接收id
         .rx_id = 0x301,  // 超级电容默认发送id,注意tx和rx在其他人看来是反的
     }};
