@@ -8,7 +8,6 @@
 static RobotInstance *robot;
 
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
-static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
 static Gimbal_Ctrl_Cmd_s *gimbal_ctrl_cmd;
 static Shoot_Ctrl_Cmd_s *shoot_ctrl_cmd;
 static Vision_Receive_s* vision_recv_data;
@@ -19,12 +18,6 @@ static CANCommInstance* can_comm_instance = NULL;
 Int16ToBytes transmit_data;
 /* Intermediate variables calculated by private functions */
 static float trigger_time = 0;  // 触发时间
-// static float x_speed_time=0;  //x方向加速触发时间
-// static float y_speed_time=0;  //y方向加速触发时间
-// static float vx_initial;   //x轴输入控制量
-// static float vy_initial;   //y轴输入控制量
-// static float angle;
-// static  DJIMotorInstance* debug_motor;
 
 /**
  * @brief 根据gimbal app传回的当前电机角度计算和零位的误差
@@ -59,22 +52,15 @@ uint8_t has_non_zero_data(const Vision_Receive_s* data) {
  */
 static void RemoteControlSet() {
   // 右[中]，云台
-  // if (switch_is_mid(rc_data[TEMP].rc.switch_right))
-  // {
-  //   gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-  //   if (abs(rc_data[TEMP].rc.dial) > 20) {
-  //     chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
-  //   } else
-  //     chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
-  // }
-  // // 右[上]，超电，保持底盘跟随云台
-  // else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
-  //   gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-  //   if (abs(rc_data[TEMP].rc.dial) > 20) {
-  //     chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
-  //   } else
-  //     chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
-  // }
+   if (switch_is_mid(rc_data[TEMP].rc.switch_right))
+   {
+     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+   }
+  // 右[上]，超电，保持底盘跟随云台
+  else if (switch_is_up(rc_data[TEMP].rc.switch_right))
+    {
+      gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+    }
   // 左[中],云台启动，摩擦轮启动，拨弹盘启动，准备射击
   if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
     shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
@@ -118,73 +104,38 @@ static void RemoteControlSet() {
       gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
     }
 
-    // // 底盘控制部分,系数需要调整
-    // if (robot->control_mode == MANUAL_MODE)//手动控制，遥控器控制量
-    //  {
-    //   vx_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l_;  // l_水平方向
-    //   vy_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // l1竖直方向
-    //   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
-    //     chassis_ctrl_cmd->wz =
-    //         5.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
-    //   }
-    //   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
-    //     chassis_ctrl_cmd->wz =(15.0f) *(float)rc_data[TEMP].rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
-    //   }
-    // } else if (robot->control_mode == AUTO_MODE) // 自动控制，直接接收上位机控制量
-    // {
+    // 底盘控制部分,系数需要调整
+    if (robot->control_mode == MANUAL_MODE)//手动控制，遥控器控制量
+    {
+    }
+    else if (robot->control_mode == AUTO_MODE) // 自动控制，直接接收上位机控制量
+    {
     //   vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vy*5000;
     //   //vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vx*5000;
     //   vy_initial = robot->navigator_data->robot_cmd.speed_vector.vx*5000;
     //   chassis_ctrl_cmd->wz = robot->navigator_data->robot_cmd.speed_vector.wz*0;
     //   //gimbal_ctrl_cmd->yaw-=robot->navigator_data->robot_cmd.speed_vector.wz*0.01;
-    // }
+    }
     *rc_data_last = *rc_data;
   }
 static void MouseKeySet() {
-  // vy_initial += (float)((rc_data[TEMP].key[KEY_PRESS].w) - rc_data[TEMP].key[KEY_PRESS].s) *
-  //               (float)chassis_ctrl_cmd->chassis_speed_buff;
-  // vx_initial += (float)(rc_data[TEMP].key[KEY_PRESS].a - rc_data[TEMP].key[KEY_PRESS].d) *
-  //               (float)-chassis_ctrl_cmd->chassis_speed_buff;
-  //
-  //   //缓加速
-  // if (abs(vx_initial)<=10000) {
-  //   x_speed_time=DWT_GetTimeline_s();
-  //   chassis_ctrl_cmd->vx=vx_initial;
-  // }//速度绝对值在10000以下输出控制量=输入控制量
-  // if (vx_initial > 10000&&chassis_ctrl_cmd->vx<= 60.0f * (float)rc_data[TEMP].rc.rocker_l_ ) {
-  //   chassis_ctrl_cmd->vx=10000+(DWT_GetTimeline_s()-x_speed_time)*10000;
-  // }
-  // if (vx_initial < -10000&&chassis_ctrl_cmd->vx>= 60.0f * (float)rc_data[TEMP].rc.rocker_l_) {
-  //   chassis_ctrl_cmd->vx=-10000-(DWT_GetTimeline_s()-x_speed_time)*10000;
-  // }//速度绝对值在10000以上输出控制量=10000+10000t(s)
-  // if (abs(vy_initial)<=10000) {
-  //   y_speed_time=DWT_GetTimeline_s();
-  //   chassis_ctrl_cmd->vy=vy_initial;
-  // }//速度绝对值在10000以下输出控制量=输入控制量
-  // if (vy_initial > 10000&&chassis_ctrl_cmd->vy<= 60.0f * (float)rc_data[TEMP].rc.rocker_l1 ) {
-  //   chassis_ctrl_cmd->vy=10000+(DWT_GetTimeline_s()-y_speed_time)*10000;
-  // }
-  // if (vy_initial < -10000&&chassis_ctrl_cmd->vy>= 60.0f * (float)rc_data[TEMP].rc.rocker_l1) {
-  //   chassis_ctrl_cmd->vy=-10000-(DWT_GetTimeline_s()-y_speed_time)*10000;
-  // }//速度绝对值在10000以上输出控制量=10000+10000t(s)
-
 if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   {
   gimbal_ctrl_cmd->yaw -= (float)rc_data[TEMP].mouse.x * 0.007f;  // 横向灵敏度调节
   gimbal_ctrl_cmd->pitch += (float)rc_data[TEMP].mouse.y * 0.003f; // 纵向灵敏度调节 (负号反转Y轴)
   }
-  // switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Z] % 3)  // Z键设置弹速
-  // {
-  //   case 0:
-  //     shoot_ctrl_cmd->bullet_speed = 15;
-  //     break;
-  //   case 1:
-  //     shoot_ctrl_cmd->bullet_speed = 18;
-  //     break;
-  //   default:
-  //     shoot_ctrl_cmd->bullet_speed = 30;
-  //     break;
-  // }
+  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Z] % 3)  // Z键设置弹速
+  {
+    case 0:
+      shoot_ctrl_cmd->bullet_speed = 15;
+      break;
+    case 1:
+      shoot_ctrl_cmd->bullet_speed = 18;
+      break;
+    default:
+      shoot_ctrl_cmd->bullet_speed = 30;
+      break;
+  }
   switch (rc_data[TEMP].mouse.press_r % 2) {  //右键进入自瞄预备模式
   case 1:
       if (has_non_zero_data(vision_recv_data)==1){
@@ -245,7 +196,7 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   //     chassis_ctrl_cmd->chassis_speed_buff = 40000;
   //     break;
   // }
-  // switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Q]%2) //新增Q自旋开启
+  // switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Q]%2) //Q自旋开启
   // {
   //   case 0:
   //     chassis_ctrl_cmd-> chassis_mode = CHASSIS_FOLLOW ;
@@ -324,11 +275,11 @@ void Gimbal_CANCommSend()
     return;
   }
 
-  transmit_data.value = rc_data->rc.rocker_l_;
+  transmit_data.value = rc_data->rc.rocker_l_;//+ rc_data[TEMP].key[KEY_PRESS].w * 660 - rc_data[TEMP].key[KEY_PRESS].s * 660;
   board_can_comm_data.tx_buff[0] = transmit_data.bytes[0];
   board_can_comm_data.tx_buff[1] = transmit_data.bytes[1];
 
-  transmit_data.value = rc_data->rc.rocker_l1;
+  transmit_data.value = rc_data->rc.rocker_l1;// + rc_data[TEMP].key[KEY_PRESS].a * 660 - rc_data[TEMP].key[KEY_PRESS]. * 660;
   board_can_comm_data.tx_buff[2] = transmit_data.bytes[0];
   board_can_comm_data.tx_buff[3] = transmit_data.bytes[1];
 
@@ -366,7 +317,7 @@ void RobotInit() {
   // robot->super_cap = SuperCapInit(&super_cap_config);
 
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
-  // robot->gimbal = GimbalInit(&gimbal_init_config);
+  robot->gimbal = GimbalInit(&gimbal_init_config);
   robot->shoot = ShootInit(&shoot_init_config);
 #endif
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
@@ -397,9 +348,9 @@ void RobotTask() {
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
   VisionSend();
   RobotCMDTask();
-  // GimbalTask();
+  GimbalTask();
   ShootTask();
-  // Gimbal_CANCommSend();
+  Gimbal_CANCommSend();
 #endif
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
