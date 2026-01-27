@@ -19,7 +19,6 @@ static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last; // 遥控器数据,初始化时返回
 static float set_angle = 0;
 
-
 int b = 0;
 static float angle = 0;
 static float target_angle = 0;
@@ -158,10 +157,9 @@ static void MouseKeySet()
     case 1:
         chassis_ctrl_cmd->chassis_speed_buff = 20000;
         break;
-
     }
 
-    if (gantry_ctrl_cmd->Gantry_mode != GANTRY_MODE_POWER_OFF&&chassis_ctrl_cmd->chassis_mode !=CHASSIS_CLIMB )
+    if (gantry_ctrl_cmd->Gantry_mode != GANTRY_MODE_POWER_OFF && chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB)
     {
         gantry_ctrl_cmd->y += rc_data[TEMP].key[KEY_PRESS].b * 0.1 - rc_data[TEMP].key[KEY_PRESS].v * 0.1;
         gantry_ctrl_cmd->z += rc_data[TEMP].key[KEY_PRESS].x * 0.1 - rc_data[TEMP].key[KEY_PRESS].z * 0.1;
@@ -196,12 +194,10 @@ static void MouseKeySet()
                 {
                     chassis_ctrl_cmd->climb_state = CLIMB_STAGE_ALL_RETRACT;
                 }
-
             }
         }
 
         break;
-
 
     case 1: // 控制机械臂
 
@@ -306,9 +302,10 @@ static void RemoteControlSet()
     //     {
     //         if (rc_data != NULL)
     //         {
-    //             gantry_ctrl_cmd->x += rc_data[TEMP].rc.rocker_r_ * gantry_init_config.Gantry_param.sidesway_sens_remote;
-    //             gantry_ctrl_cmd->y += rc_data[TEMP].rc.rocker_r1 * gantry_init_config.Gantry_param.stretch_sens_remote;
-    //             gantry_ctrl_cmd->z += rc_data[TEMP].rc.rocker_l1 * gantry_init_config.Gantry_param.lift_sens_remote;
+    //             gantry_ctrl_cmd->x += rc_data[TEMP].rc.rocker_r_ *
+    //             gantry_init_config.Gantry_param.sidesway_sens_remote; gantry_ctrl_cmd->y +=
+    //             rc_data[TEMP].rc.rocker_r1 * gantry_init_config.Gantry_param.stretch_sens_remote; gantry_ctrl_cmd->z
+    //             += rc_data[TEMP].rc.rocker_l1 * gantry_init_config.Gantry_param.lift_sens_remote;
     //         }
     //     }
     //
@@ -318,23 +315,25 @@ static void RemoteControlSet()
     //         Gantry_Limit(gantry_ctrl_cmd, &robot->gantry->Gantry_param);
     //     }
     // }
+    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB)
+    {
+        if (switch_is_up(rc_data[TEMP].rc.switch_left))
+        {
+            // 左[上]：全伸
+            chassis_ctrl_cmd->climb_state = CLIMB_STAGE_BOTH_EXTEND;
+        }
+        else if (switch_is_mid(rc_data[TEMP].rc.switch_left))
+        {
+            // 左[中]：只伸后腿
+            chassis_ctrl_cmd->climb_state = CLIMB_STAGE_FRONT_RETRACT;
+        }
+        else if (switch_is_down(rc_data[TEMP].rc.switch_left))
+        {
+            // 左[下]：全收
+            chassis_ctrl_cmd->climb_state = CLIMB_STAGE_ALL_RETRACT;
 
-    if (switch_is_up(rc_data[TEMP].rc.switch_left))
-    {
-        // 左[上]：全伸
-        chassis_ctrl_cmd->climb_state = CLIMB_STAGE_BOTH_EXTEND;
+        }
     }
-    else if (switch_is_mid(rc_data[TEMP].rc.switch_left))
-    {
-        // 左[中]：只伸后腿
-        chassis_ctrl_cmd->climb_state = CLIMB_STAGE_FRONT_RETRACT;
-    }
-    else if (switch_is_down(rc_data[TEMP].rc.switch_left))
-    {
-        // 左[下]：全收
-        chassis_ctrl_cmd->climb_state = CLIMB_STAGE_ALL_RETRACT;;
-    }
-
 
     // 底盘运动控制（使用左侧摇杆）
     chassis_ctrl_cmd->vx = 60.0f * (float)rc_data[TEMP].rc.rocker_l1; // 水平方向

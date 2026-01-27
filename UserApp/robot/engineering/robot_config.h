@@ -100,7 +100,7 @@
             {                                                                                                          \
                 .angle_feedback_source = MOTOR_FEED,                                                                   \
                 .speed_feedback_source = MOTOR_FEED,                                                                   \
-                .outer_loop_type = ANGLE_LOOP ,                                                            \
+                .outer_loop_type = ANGLE_LOOP ,                                                                          \
                 .close_loop_type = ANGLE_LOOP | SPEED_LOOP,                                                                         \
                 .motor_reverse_flag = direction,                                                                       \
                 .feedback_reverse_flag = direction,                                                                    \
@@ -137,7 +137,7 @@
             {                                                                                                          \
                 .angle_feedback_source = MOTOR_FEED,                                                                   \
                 .speed_feedback_source = MOTOR_FEED,                                                                   \
-                .outer_loop_type = ANGLE_LOOP,                                                            \
+                .outer_loop_type = ANGLE_LOOP,                                                                         \
                 .close_loop_type = ANGLE_LOOP | SPEED_LOOP,                                                                         \
                 .motor_reverse_flag = direction,                                                                       \
                 .feedback_reverse_flag = direction,                                                                    \
@@ -167,9 +167,9 @@ static Chassis_Init_Config_s chassis_init_config = {
             .power_param.k5 = 2.896721772539512e-05f,
 
             .forward_lift_in = 0,
-            .forward_lift_out = 12000,
+            .forward_lift_out = 12000.0f,
             .backward_lift_in = 0,
-            .backward_lift_out = 590000,
+            .backward_lift_out = 590000.0f,
 
         },
     .wheel_motor_config[0] = WHEEL_MOTOR_CONFIG(&hcan3, 1),
