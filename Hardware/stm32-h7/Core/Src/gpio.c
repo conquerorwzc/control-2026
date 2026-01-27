@@ -56,8 +56,10 @@ void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOE, SERIAL_SERVO_RX_EN_Pin_Pin|SERIAL_SERVO_TX_EN_Pin_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, POWER_24V_L_Pin|POWER_24V_R_Pin|POWER_5V_Pin|ACC_CS_Pin
-                          |GYRO_CS_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, POWER_24V_L_Pin|POWER_24V_R_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOC, POWER_5V_Pin|ACC_CS_Pin|GYRO_CS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : SERIAL_SERVO_RX_EN_Pin_Pin SERIAL_SERVO_TX_EN_Pin_Pin */
   GPIO_InitStruct.Pin = SERIAL_SERVO_RX_EN_Pin_Pin|SERIAL_SERVO_TX_EN_Pin_Pin;

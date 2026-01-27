@@ -7,7 +7,7 @@
 #include "stdlib.h"
 #include "string.h"
 #include "user_lib.h"
-#include "semi_automatic.h"
+
 #include "stdbool.h"
 
 /* Private define ------------------------------------------------------------*/
@@ -17,7 +17,6 @@ static RobotInstance *robot;
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
 static Grab_Ctrl_Cmd_s *grab_ctrl_cmd;
 static Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd; // 【新增】龙门架控制命令指针
-static SemiAuto_Ctrl_Cmd_s *semi_auto_ctrl_cmd; // 半自动控制命令指针
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last; // 遥控器数据,初始化时返回
 static float set_angle = 0;
@@ -29,7 +28,6 @@ static float target_angle = 0;
 static int mouse_l_count = 0;
 static Gantry_Param_s gantry_param;
 static Garb_Param_s grab_param;
-static SemiAuto_Param_s semi_auto_param; // 半自动参数
 /* Private function prototypes -----------------------------------------------*/
 static void Gantry_Limit(Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd, const Gantry_Param_s *gantry_param);
 static void Grab_Limit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, const Gantry_Param_s *gantry_param);
@@ -68,46 +66,6 @@ void RobotInit()
     robot->gantry = GantryInit(&gantry_init_config);
     robot->grab = GrabInit(&grab_init_config);
 
-    // 初始化半自动控制参数
-    // 第一步：抬升龙门架参数
-    semi_auto_param.raise_gantry_param.z = 0.0f;                      // 龙门架抬升目标位置（对应Gantry_Ctrl_Cmd_s中的z轴）
-    semi_auto_param.raise_gantry_param.delay_ms = 0;                  // 动作延迟（毫秒）
-    
-    // 第二步：机械臂上抬参数
-    semi_auto_param.arm_raise_param.base_joint = 0.0f;                // 基座关节角度（对应Grab_Ctrl_Cmd_s中的参数）
-    semi_auto_param.arm_raise_param.elbow_pitch = 0.0f;               // 肘部俯仰角度
-    semi_auto_param.arm_raise_param.elbow_roll = 0.0f;                // 肘部滚动角度
-    semi_auto_param.arm_raise_param.wrist_roll = 0.0f;                // 腕部滚动角度
-    semi_auto_param.arm_raise_param.wrist_pitch = 0.0f;               // 腕部俯仰角度
-    semi_auto_param.arm_raise_param.delay_ms = 0;                     // 动作延迟（毫秒）
-    
-    // 第三步：掰把手参数
-    semi_auto_param.arm_flip_param.base_joint = 0.0f;                 // 基座关节角度
-    semi_auto_param.arm_flip_param.elbow_pitch = 0.0f;                // 肘部俯仰角度
-    semi_auto_param.arm_flip_param.elbow_roll = 0.0f;                 // 肘部滚动角度
-    semi_auto_param.arm_flip_param.wrist_roll = 0.0f;                 // 腕部滚动角度
-    semi_auto_param.arm_flip_param.wrist_pitch = 0.0f;                // 腕部俯仰角度
-    semi_auto_param.arm_flip_param.delay_ms = 0;                      // 动作延迟（毫秒）
-    
-    // 第四步：旋转参数
-    semi_auto_param.arm_rotate_param.base_joint = 0.0f;               // 基座关节角度
-    semi_auto_param.arm_rotate_param.elbow_pitch = 0.0f;              // 肘部俯仰角度
-    semi_auto_param.arm_rotate_param.elbow_roll = 0.0f;               // 肘部滚动角度
-    semi_auto_param.arm_rotate_param.wrist_roll = 0.0f;               // 腕部滚动角度
-    semi_auto_param.arm_rotate_param.wrist_pitch = 0.0f;              // 腕部俯仰角度
-    semi_auto_param.arm_rotate_param.delay_ms = 0;                    // 动作延迟（毫秒）
-
-    // 初始化半自动控制模块
-    SemiAuto_Init_Config_s semi_auto_init_config;
-    semi_auto_init_config.param = semi_auto_param;
-    robot->semi_auto = SemiAutoInit(&semi_auto_init_config);
-    
-    // 将龙门架和机械臂实例赋给半自动控制模块
-    if (robot->semi_auto != NULL) {
-        robot->semi_auto->gantry = robot->gantry;
-        robot->semi_auto->grab = robot->grab;
-    }
-
     // 初始化控制命令指针
     chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
     chassis_ctrl_cmd->max_power = 80; // 随便给一个初始功率，后面应该要从裁判系统获取
@@ -116,12 +74,6 @@ void RobotInit()
     if (robot->gantry != NULL)
     {
         gantry_ctrl_cmd = &robot->gantry->Gantry_ctrl_cmd;
-    }
-    
-    // 【新增】半自动控制命令指针
-    if (robot->semi_auto != NULL)
-    {
-        semi_auto_ctrl_cmd = &robot->semi_auto->ctrl_cmd;
     }
 
     gantry_param = gantry_init_config.Gantry_param;
@@ -144,7 +96,6 @@ void RobotTask()
 #if defined(ONE_BOARD) // 假设龙门架逻辑运行在主控板
     GantryTask();
     GrabTask();
-    SemiAutoTask(); // 添加半自动控制任务
     // grab_ctrl_cmd->grab_mode = b;
 #endif
 }
@@ -203,46 +154,6 @@ static void MouseKeySet()
         break;
     }
 
-    // 检查机器人是否处于失能状态，如果是则不执行半自动操作
-    bool is_robot_safe = (robot->robot_mode != ROBOT_EMERGENCY_STOP && 
-                         chassis_ctrl_cmd->chassis_mode != CHASSIS_POWER_OFF && 
-                         gantry_ctrl_cmd->Gantry_mode != GANTRY_MODE_POWER_OFF && 
-                         grab_ctrl_cmd->grab_mode != GRAB_POWER_OFF);
-    
-    // 使用G+X组合键启动龙门架抬升 (Gantry + X)
-    if (rc_data[TEMP].key[KEY_PRESS].g && rc_data[TEMP].key[KEY_PRESS].x) {
-        if (semi_auto_ctrl_cmd != NULL && !semi_auto_ctrl_cmd->is_running && is_robot_safe) {
-            StartGantryLift(); // 启动龙门架抬升
-        }
-    }
-    
-    // 使用A+R组合键启动机械臂上抬 (Arm + R for Raise)
-    if (rc_data[TEMP].key[KEY_PRESS].a && rc_data[TEMP].key[KEY_PRESS].r) {
-        if (semi_auto_ctrl_cmd != NULL && !semi_auto_ctrl_cmd->is_running && is_robot_safe) {
-            StartArmRaise(); // 启动机械臂上抬
-        }
-    }
-    
-    // 使用A+F组合键启动掰把手 (Arm + F for Flip)
-    if (rc_data[TEMP].key[KEY_PRESS].a && rc_data[TEMP].key[KEY_PRESS].f) {
-        if (semi_auto_ctrl_cmd != NULL && !semi_auto_ctrl_cmd->is_running && is_robot_safe) {
-            StartArmFlip(); // 启动掰把手
-        }
-    }
-    
-    // 使用A+E组合键启动旋转 (Arm + E for Rotate)
-    if (rc_data[TEMP].key[KEY_PRESS].a && rc_data[TEMP].key[KEY_PRESS].e) {
-        if (semi_auto_ctrl_cmd != NULL && !semi_auto_ctrl_cmd->is_running && is_robot_safe) {
-            StartArmRotate(); // 启动旋转
-        }
-    }
-
-    // 使用ctrl+s键停止半自动操作 (模拟ESC功能)
-    if (rc_data[TEMP].key[KEY_PRESS].ctrl && rc_data[TEMP].key[KEY_PRESS].s) {
-        if (semi_auto_ctrl_cmd != NULL) {
-            StopSemiAutoOperation(); // 停止半自动操作
-        }
-    }
 
     if (gantry_ctrl_cmd->Gantry_mode != GANTRY_MODE_POWER_OFF)
     {
@@ -329,10 +240,6 @@ static void EmergencyHandler()
         chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
         gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_POWER_OFF;
         grab_ctrl_cmd->grab_mode = GRAB_POWER_OFF;
-        // 紧急停止时也停止半自动操作
-        if (semi_auto_ctrl_cmd != NULL) {
-            StopSemiAutoOperation();
-        }
         LOGINFO("[CMD] emergency stop!");
     }
 }
