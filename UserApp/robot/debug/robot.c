@@ -12,20 +12,28 @@ float q2i_coeff = (3591.0f / 187.0f) / reduction_ratio / 0.3f;
 
 // static DMMotorInstance* J8009P_instance;
 static DJIMotorInstance *M3508_instance;
+static DJIMotorInstance *M3508_instance_2;
 static DJIMotorInstance *M2006_instance;
+static DJIMotorInstance *M2006_instance_2;
+
 float speed_ref = 0.0f;
+float speed_ref_2= 0.0f;
 
 void RobotInit()
 {
     // J8009P_instance = DMMotorInit(&J8009P_config);
-    // M3508_instance = DJIMotorInit(&M3508_config);
+    M3508_instance = DJIMotorInit(&M3508_config);
+    M3508_instance_2 = DJIMotorInit(&M3508_config_2);
     M2006_instance = DJIMotorInit(&M2006_config);
+    M2006_instance_2 = DJIMotorInit(&M2006_config_2);
 }
 
 void RobotTask()
 {
     // DMMotorSetPIDRef(J8009P_instance, speed_ref);
     // M3508_instance->motor_controller.final_output = target_torque * q2i_coeff * (16384.0f / 20.0f);
-    // DJIMotorSetPIDRef(M3508_instance, speed_ref);
-    DJIMotorSetPIDRef(M2006_instance, speed_ref);
+    DJIMotorSetPIDRef(M3508_instance, speed_ref);
+    DJIMotorSetPIDRef(M3508_instance_2, speed_ref);
+    DJIMotorSetPIDRef(M2006_instance, speed_ref * 49.1f);
+    DJIMotorSetPIDRef(M2006_instance_2, speed_ref * 49.1f);
 }
