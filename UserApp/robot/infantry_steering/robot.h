@@ -60,3 +60,6 @@ RobotInstance* RobotInit();
  *
  */
 void RobotTask();
+
+//用于裁判系统或其他ostask读取robot实例的接口，与init解耦
+RobotInstance* RobotGet();

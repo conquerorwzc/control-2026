@@ -329,8 +329,8 @@ RobotInstance * RobotInit() {
 
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
-  chassis_ctrl_cmd->max_power = 80;  // 随便给一个初始功率，后面应该要从裁判系统获取
-  chassis_ctrl_cmd->max_power = (uint16_t)robot->referee_data->PowerHeatData.chassis_power;
+  //chassis_ctrl_cmd->max_power = 80;  // 随便给一个初始功率，后面应该要从裁判系统获取
+  chassis_ctrl_cmd->max_power = robot->referee_data->GameRobotState.chassis_power_limit;
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;
@@ -375,8 +375,11 @@ void RobotTask() {
     //将原本motortask的can发送改到这里，和pid计算同频，减少无用发送
     //DJIMotorCANTransmit();
   }
-
-
   // 正确的赋值方式 - 直接赋值指针值
   // robot->shoot->friction_motor[1];
+}
+RobotInstance* RobotGet() {
+  if (robot!=NULL)
+    return robot;
+  return NULL;
 }

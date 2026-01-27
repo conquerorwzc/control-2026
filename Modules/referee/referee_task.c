@@ -130,13 +130,13 @@ static void UIChangeCheck(Referee_Interactive_info_t *_Interactive_data)
 }
 
 // UI更新函数
-static void MyUIRefresh(Referee_Interactive_info_t *_Interactive_data)
+static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
 {
     // 更新底盘状态
-    if (_Interactive_data->Referee_Interactive_Flag.chassis_flag == 1)
+    if (interactive_data->Referee_Interactive_Flag.chassis_flag == 1)
     {
         char *chassis_str;
-        switch(_Interactive_data->chassis_mode)
+        switch(interactive_data->chassis_mode)
         {
             case CHASSIS_POWER_OFF:
                 chassis_str = "PowerOff";
@@ -153,14 +153,14 @@ static void MyUIRefresh(Referee_Interactive_info_t *_Interactive_data)
         }
         UICharDraw(&UI_State_dyn[0], "sd0", UI_Graph_Change, 8, UI_Color_Main, 15, 2, 270, 750, chassis_str);
         UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[0]);
-        _Interactive_data->Referee_Interactive_Flag.chassis_flag = 0;
+        interactive_data->Referee_Interactive_Flag.chassis_flag = 0;
     }
     
     // 更新云台状态
-    if (_Interactive_data->Referee_Interactive_Flag.gimbal_flag == 1)
+    if (interactive_data->Referee_Interactive_Flag.gimbal_flag == 1)
     {
         char *gimbal_str;
-        switch(_Interactive_data->gimbal_mode)
+        switch(interactive_data->gimbal_mode)
         {
             case GIMBAL_POWER_OFF:
                 gimbal_str = "PowerOff";
@@ -177,53 +177,53 @@ static void MyUIRefresh(Referee_Interactive_info_t *_Interactive_data)
         }
         UICharDraw(&UI_State_dyn[1], "sd1", UI_Graph_Change, 8, UI_Color_Yellow, 15, 2, 270, 700, gimbal_str);
         UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[1]);
-        _Interactive_data->Referee_Interactive_Flag.gimbal_flag = 0;
+        interactive_data->Referee_Interactive_Flag.gimbal_flag = 0;
     }
     
     // 更新射击状态
-    if (_Interactive_data->Referee_Interactive_Flag.shoot_flag == 1)
+    if (interactive_data->Referee_Interactive_Flag.shoot_flag == 1)
     {
-        char *shoot_str = _Interactive_data->shoot_mode == SHOOT_ON ? "on" : "off";
+        char *shoot_str = interactive_data->shoot_mode == SHOOT_ON ? "on" : "off";
         UICharDraw(&UI_State_dyn[2], "sd2", UI_Graph_Change, 8, UI_Color_Orange, 15, 2, 270, 650, shoot_str);
         UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[2]);
-        _Interactive_data->Referee_Interactive_Flag.shoot_flag = 0;
+        interactive_data->Referee_Interactive_Flag.shoot_flag = 0;
     }
     
     // 更新摩擦轮状态
-    if (_Interactive_data->Referee_Interactive_Flag.friction_flag == 1)
+    if (interactive_data->Referee_Interactive_Flag.friction_flag == 1)
     {
-        char *friction_str = _Interactive_data->friction_mode == FRICTION_ON ? "on" : "off";
+        char *friction_str = interactive_data->friction_mode == FRICTION_ON ? "on" : "off";
         UICharDraw(&UI_State_dyn[3], "sd3", UI_Graph_Change, 8, UI_Color_Pink, 15, 2, 270, 600, friction_str);
         UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[3]);
-        _Interactive_data->Referee_Interactive_Flag.friction_flag = 0;
+        interactive_data->Referee_Interactive_Flag.friction_flag = 0;
     }
     
     // 更新弹舱盖状态
-    if (_Interactive_data->Referee_Interactive_Flag.lid_flag == 1)
+    if (interactive_data->Referee_Interactive_Flag.lid_flag == 1)
     {
-        char *lid_str = _Interactive_data->lid_mode == LID_OPEN ? "open" : "close";
+        char *lid_str = interactive_data->lid_mode == LID_OPEN ? "open" : "close";
         UICharDraw(&UI_State_dyn[4], "sd4", UI_Graph_Change, 8, UI_Color_Pink, 15, 2, 270, 550, lid_str);
         UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[4]);
-        _Interactive_data->Referee_Interactive_Flag.lid_flag = 0;
+        interactive_data->Referee_Interactive_Flag.lid_flag = 0;
     }
     
     // 更新功率显示
-    if (_Interactive_data->Referee_Interactive_Flag.Power_flag == 1)
+    if (interactive_data->Referee_Interactive_Flag.Power_flag == 1)
     {
-        int32_t power_value = (int32_t)(_Interactive_data->Chassis_Power_Data.chassis_power_mx * 1000);
+        int32_t power_value = (int32_t)(interactive_data->Chassis_Power_Data.chassis_power_mx * 1000);
         UIFloatDraw(&UI_Energy[1], "sd5", UI_Graph_Change, 8, UI_Color_Green, 18, 2, 2, 750, 230, power_value);
         
         // 更新能量条长度
-        uint32_t energy_bar_length = 720 + (uint32_t)(_Interactive_data->Chassis_Power_Data.chassis_power_mx * 300);
+        uint32_t energy_bar_length = 720 + (uint32_t)(interactive_data->Chassis_Power_Data.chassis_power_mx * 300);
         UILineDraw(&UI_Energy[2], "sd6", UI_Graph_Change, 8, UI_Color_Pink, 30, 720, 160, energy_bar_length, 160);
         UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_Energy[1], UI_Energy[2]);
-        _Interactive_data->Referee_Interactive_Flag.Power_flag = 0;
+        interactive_data->Referee_Interactive_Flag.Power_flag = 0;
     }
 }
 //newend
 void MyUIInit()
 {
-    robotdata=RobotInit();
+  robotdata=RobotGet();
   referee_recv_info=robotdata->referee_data;
     // if (!referee_recv_info->init_flag)
     //     vTaskDelete(NULL); // 如果没有初始化裁判系统则直接删除ui任务
@@ -255,9 +255,9 @@ void MyUIInit()
 
     // 绘制车辆状态标志，动态
     // 由于初始化时xxx_last_mode默认为0，所以此处对应UI也应该设为0时对应的UI，防止模式不变的情况下无法置位flag，导致UI无法刷新
-    UICharDraw(&UI_State_dyn[0], "sd0", UI_Graph_ADD, 8, UI_Color_Main, 15, 2, 270, 750, "zeroforce");
+    UICharDraw(&UI_State_dyn[0], "sd0", UI_Graph_ADD, 8, UI_Color_Main, 15, 2, 270, 750, "PowerOff");
     UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[0]);
-    UICharDraw(&UI_State_dyn[1], "sd1", UI_Graph_ADD, 8, UI_Color_Yellow, 15, 2, 270, 700, "zeroforce");
+    UICharDraw(&UI_State_dyn[1], "sd1", UI_Graph_ADD, 8, UI_Color_Yellow, 15, 2, 270, 700, "PowerOff");
     UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[1]);
     UICharDraw(&UI_State_dyn[2], "sd2", UI_Graph_ADD, 8, UI_Color_Orange, 15, 2, 270, 650, "off");
     UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[2]);
@@ -285,7 +285,7 @@ void UITask()
 {
     // 首次运行时初始化指针
     if (referee_recv_info == NULL) {
-        referee_recv_info = RefereeInit(NULL); // 假设使用默认串口
+        referee_recv_info = RefereeInit(&huart6); // 假设使用默认串口
     }
     
     // 更新交互数据（模拟从系统其他部分获取数据）
