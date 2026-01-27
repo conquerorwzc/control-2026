@@ -30,6 +30,7 @@ static float k0,k1,k2,k3,k4,k5;       //中科大的功率模型
  * @brief 控制腿部电机状态
  *
  */
+// ... existing code ...
 static void LegControl() {
   // 左右腿目标位置
   float target_position_left = 0.0f;
@@ -39,7 +40,7 @@ static void LegControl() {
   static float leg_current_position_left = 0.0f;
   static float leg_current_position_right = 0.0f;
 
-  const float LEG_SPEED_RAMP_RATE = 0.002f; // 位置渐变速率
+  const float LEG_SPEED_RAMP_RATE = 0.0005f; // 位置渐变速率
   int leg_is_enabled = 0;
   int immediate_move = 0; // 是否立即移动标志
 
@@ -83,6 +84,87 @@ static void LegControl() {
       target_position_right = RIGHT_LEG_MOTOR_KIKE_POSITION;
       leg_is_enabled = 1;
       immediate_move = 1; // 标记为立即移动
+      break;
+
+    case LEG_MANUAL_UP:
+      // 手动控制腿部缓慢上升
+      DMMotorEnable(chassis->leg_motor[0]);
+      DMMotorEnable(chassis->leg_motor[1]);
+      leg_is_enabled = 1;
+
+
+      // 获取当前位置作为起点
+      if (leg_current_position_left == 0.0f) {
+        leg_current_position_left = chassis->leg_motor[0]->measure.total_angle;
+      }
+      if (leg_current_position_right == 0.0f) {
+        leg_current_position_right = chassis->leg_motor[1]->measure.total_angle;
+      }
+
+      // 缓慢增加腿部位置，限制最大值
+      leg_current_position_left += LEG_SPEED_RAMP_RATE;
+      leg_current_position_right -= LEG_SPEED_RAMP_RATE;
+
+      // 限制最大位置为KIKE位置
+      if (leg_current_position_left > LEFT_LEG_MOTOR_KIKE_POSITION) {
+        leg_current_position_left = LEFT_LEG_MOTOR_KIKE_POSITION;
+      }
+      if (leg_current_position_right < RIGHT_LEG_MOTOR_KIKE_POSITION) {
+        leg_current_position_right = RIGHT_LEG_MOTOR_KIKE_POSITION;
+      }
+
+      target_position_left = leg_current_position_left;
+      target_position_right = leg_current_position_right;
+      break;
+    case LEG_HOLD:
+      // 保持当前腿部位置
+      DMMotorEnable(chassis->leg_motor[0]);
+      DMMotorEnable(chassis->leg_motor[1]);
+      leg_is_enabled = 1;
+      immediate_move = 1; // 直接移动到当前保持位置
+
+      // 获取当前位置作为目标
+      if (leg_current_position_left == 0.0f) {
+        leg_current_position_left = chassis->leg_motor[0]->measure.total_angle;
+      }
+      if (leg_current_position_right == 0.0f) {
+        leg_current_position_right = chassis->leg_motor[1]->measure.total_angle;
+      }
+
+      // 目标位置就是当前位置
+      target_position_left = leg_current_position_left;
+      target_position_right = leg_current_position_right;
+      break;
+
+    case LEG_MANUAL_DOWN:
+      // 手动控制腿部缓慢下降
+      DMMotorEnable(chassis->leg_motor[0]);
+      DMMotorEnable(chassis->leg_motor[1]);
+      leg_is_enabled = 1;
+      immediate_move = 1; // 直接移动到新位置
+
+      // 获取当前位置作为起点
+      if (leg_current_position_left == 0.0f) {
+        leg_current_position_left = chassis->leg_motor[0]->measure.total_angle;
+      }
+      if (leg_current_position_right == 0.0f) {
+        leg_current_position_right = chassis->leg_motor[1]->measure.total_angle;
+      }
+
+      // 缓慢减少腿部位置，限制最小值
+      leg_current_position_left -= LEG_SPEED_RAMP_RATE;
+      leg_current_position_right += LEG_SPEED_RAMP_RATE;
+
+      // 限制最小位置为NORMAL位置
+      if (leg_current_position_left < LEFT_LEG_MOTOR_NORMAL_POSITION) {
+        leg_current_position_left = LEFT_LEG_MOTOR_NORMAL_POSITION;
+      }
+      if (leg_current_position_right > RIGHT_LEG_MOTOR_NORMAL_POSITION) {
+        leg_current_position_right = RIGHT_LEG_MOTOR_NORMAL_POSITION;
+      }
+
+      target_position_left = leg_current_position_left;
+      target_position_right = leg_current_position_right;
       break;
   }
 

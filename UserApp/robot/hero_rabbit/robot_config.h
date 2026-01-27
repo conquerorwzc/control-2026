@@ -40,10 +40,10 @@
 #define GYRO2GIMBAL_DIR_PITCH 1  // 陀螺仪数据相较于云台的pitch的方向,1为相同,-1为相反
 #define GYRO2GIMBAL_DIR_ROLL 1   // 陀螺仪数据相较于云台的roll的方向,1为相同,-1为相反
 // 腿部电机位置定义
-#define LEFT_LEG_MOTOR_NORMAL_POSITION -0.999f   // 腿部电机常规位置值
+#define LEFT_LEG_MOTOR_NORMAL_POSITION -0.799f   // 腿部电机常规位置值
 #define LEFT_LEG_MOTOR_RAISE_POSITION  -0.3450f  // 腿部电机抬起位置值
 #define LEFT_LEG_MOTOR_KIKE_POSITION -0.190f     // 腿部电机踢脚位置值
-#define RIGHT_LEG_MOTOR_NORMAL_POSITION -0.008f   // 腿部电机常规位置值
+#define RIGHT_LEG_MOTOR_NORMAL_POSITION -0.248f   // 腿部电机常规位置值
 #define RIGHT_LEG_MOTOR_RAISE_POSITION  -0.651f  // 腿部电机抬起位置值
 #define RIGHT_LEG_MOTOR_KIKE_POSITION -0.841f  // 腿部电机踢脚位置值
 
@@ -127,7 +127,7 @@
           },                                                                                                   \
       .motor_type = M3508,                                                                                     \
   })
-#define LEG_MOTOR_CONFIG(handle, id_tx, id_rx)                                                                 \
+#define LEG_MOTOR_CONFIG(handle, id_tx, id_rx,direction)                                                        \
   ((Motor_Init_Config_s){                                                                                      \
       .can_init_config =                                                                                       \
           {                                                                                                    \
@@ -139,12 +139,12 @@
           {                                                                                                    \
               .speed_PID =                                                                                     \
                   {                                                                                            \
-                      .Kp = 1.2,                                                                               \
+                      .Kp = 5,                                                                               \
                                                                                                                \
-                      .Kd = 0,                                                                                 \
+                      .Kd = 0.01,                                                                                 \
                                                                                                                \
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
-                      .MaxOut = 20.0,                                                                          \
+                      .MaxOut = 28.0,                                                                          \
                   },                                                                                           \
               .angle_PID =                                                                                     \
                   {                                                                                            \
@@ -160,11 +160,12 @@
               .speed_feedback_source = MOTOR_FEED,                                                             \
               .outer_loop_type = ANGLE_LOOP,                                                                   \
               .close_loop_type = SPEED_LOOP | ANGLE_LOOP,                                                      \
-              .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,                                                    \
-              .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,                                                    \
+              .motor_reverse_flag = direction,                                                    \
+              .feedback_reverse_flag = direction,                                                    \
           },                                                                                                   \
-      .motor_type = J4310,                                                                                     \
+      .motor_type = J4340,                                                                                     \
   })
+
 
 static Chassis_Init_Config_s chassis_init_config = {
     .chassis_param =
@@ -188,8 +189,8 @@ static Chassis_Init_Config_s chassis_init_config = {
     .wheel_motor_config[1] = FRONT_WHEEL_MOTOR_CONFIG(&hcan1, 4),
     .wheel_motor_config[2] = REAR_WHEEL_MOTOR_CONFIG(&hcan1, 2),
     .wheel_motor_config[3] = REAR_WHEEL_MOTOR_CONFIG(&hcan1, 3),
-    .leg_motor_config[0]= LEG_MOTOR_CONFIG(&hcan3, 2, 0x12),
-    .leg_motor_config[1]= LEG_MOTOR_CONFIG(&hcan3, 1, 1),
+    .leg_motor_config[0]= LEG_MOTOR_CONFIG(&hcan3, 2, 0x12,0),
+    .leg_motor_config[1]= LEG_MOTOR_CONFIG(&hcan3, 1, 1,0),
     // 跟随PID
     .follow_pid =
         {

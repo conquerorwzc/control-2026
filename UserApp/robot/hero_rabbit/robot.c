@@ -94,14 +94,15 @@ static void RemoteControlSet() {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
   }
   if (switch_is_down(rc_data[TEMP].rc.switch_right)) {
-    // 右下：设置腿部电机状态NORMAL
-    chassis_ctrl_cmd->leg_mode = LEG_NORMAL;
+    // 右下：腿部缓慢下降
+    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_DOWN;
   } else if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
-    // 右中：设置腿部电机状态为RAISE
-    chassis_ctrl_cmd->leg_mode = LEG_RAISE;
+    chassis_ctrl_cmd->leg_mode = LEG_HOLD;
+    // 右中：保持当前腿部位置不变（不改变之前的腿部模式）
+    // 保留当前模式，不修改leg_mode
   } else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
-    // 右上：设置腿部电机状态为抬起位置
-    chassis_ctrl_cmd->leg_mode = LEG_KIKE;
+    // 右上：腿部缓慢上升，最大到kike位置
+    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_UP;
   }
 
   //左[中],云台启动，摩擦轮启动，拨弹盘启动，准备射击
@@ -140,6 +141,7 @@ static void RemoteControlSet() {
   } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
     gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
   }
+  // 云台PITCH轴软件限位 todo:没在云台有点不好
 
   // 底盘参数,系数需要调整
   chassis_ctrl_cmd->vx = 60.0f * (float)rc_data[TEMP].rc.rocker_l_;  // _水平方向
