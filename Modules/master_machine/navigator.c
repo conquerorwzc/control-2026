@@ -100,7 +100,6 @@ uint8_t protocol_send(UART_HandleTypeDef* huart, uint16_t pack_id, const uint8_t
       HAL_UART_DMAStop(huart);
       return 0;
     }
-    osDelay(1);
   }
 
   return 1;
