@@ -66,3 +66,36 @@ static Motor_Init_Config_s M3508_config = {
     .can_init_config.tx_id = 2,
     .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
 };
+static Motor_Init_Config_s M2006_config = {
+    .controller_param_init_config =
+    {
+        .angle_PID =
+        {
+            .Kp = 2.0f,
+            .Ki = 0.0f,
+            .Kd = 0.0f,
+            .MaxOut = 10000.0f,
+        },
+    .speed_PID = {.Kp = 2.0f,
+                  .Ki = 0.0f,
+                  .Kd = 0.0f,
+                  .Improve = PID_Integral_Limit | PID_ErrorHandle,
+                  .IntegralLimit = 0.0f,
+                  .MaxOut = 10000.0},
+},
+.controller_setting_init_config =
+    {
+        .outer_loop_type = ANGLE_LOOP,
+        .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
+        .angle_feedback_source = MOTOR_FEED,
+        .speed_feedback_source = MOTOR_FEED,
+        .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+        .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+    },
+.motor_type = M2006,
+.can_init_config =
+    {
+        .can_handle = &hcan1,
+        .tx_id = 1,
+    },
+};
