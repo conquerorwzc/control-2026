@@ -82,8 +82,8 @@ typedef struct
     Power_Param_3508_s power_param; // 3508功率模型参数，采用中科大的模型
     float forward_lift_in;          // 导杆收回位置
     float forward_lift_out;         // 导杆伸出位置
-    float backward_lift_up;         // 腿抬升收回位置
-    float backward_lift_down;       // 腿抬升伸出位置
+    float backward_lift_in;         // 腿抬升收回位置
+    float backward_lift_out;       // 腿抬升伸出位置
 } Chassis_Param_s;
 
 typedef struct

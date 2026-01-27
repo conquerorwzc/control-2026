@@ -158,7 +158,6 @@ DMMotorInstance *DMMotorInit(Motor_Init_Config_s *config)
     config->can_init_config.id = motor;
     motor->motor_can_instance = CANRegister(&config->can_init_config);
 
-
     Daemon_Init_Config_s conf = {
         .callback = DMMotorLostCallback,
         .owner_id = motor,

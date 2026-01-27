@@ -6,7 +6,8 @@
 #include "general_def.h"
 #include "user_lib.h"
 /* Private macro -------------------------------------------------------------*/
-
+#define LEFT 0
+#define RIGHT 1
 //@todo:数据待测
 /* Private variables ---------------------------------------------------------*/
 
@@ -21,8 +22,9 @@ static float lb_radius;
 static float rb_radius;
 static PIDInstance follow_pid;
 static float k0, k1, k2, k3, k4, k5; // 中科大的功率模型
-static float target_front_pos;
-static float target_rear_pos;
+static float init_angle[4];
+static float target_front_pos[2];
+static float target_rear_pos[2];
 /* Private function prototypes -----------------------------------------------*/
 static void MecanumCalculate();
 static void PowerControl();
@@ -83,6 +85,15 @@ ChassisInstance *ChassisInit(Chassis_Init_Config_s *chassis_init_config)
 
     chassis = chassis_instance;
     chassis_ctrl_cmd = &chassis->chassis_ctrl_cmd; // 在运行时初始化指针
+    while (chassis->lift_backward_motor[0]->measure.real_current == 0)
+    {
+        osDelay(10);
+    }
+    init_angle[0] = chassis->lift_backward_motor[0]->measure.total_angle;   //后左
+    init_angle[1] = chassis->lift_backward_motor[1]->measure.total_angle;   //后右
+    init_angle[2] = chassis->lift_forward_motor[0]->measure.total_angle;    //前左
+    init_angle[3] = chassis->lift_forward_motor[1]->measure.total_angle;    //前右
+
     return chassis_instance;
 }
 
@@ -257,20 +268,31 @@ void Climb_FSM()
     case CLIMB_STAGE_IDLE:
     case CLIMB_STAGE_ALL_RETRACT:
         // 【状态：全收】
-        target_front_pos = chassis_param.forward_lift_in; // 前：收
-        target_rear_pos = chassis_param.backward_lift_up; // 后：收
+        target_rear_pos[LEFT] = init_angle[0]+chassis_param.backward_lift_out; // 后：收 左
+        target_rear_pos[RIGHT] = init_angle[1]+chassis_param.backward_lift_out; // 后：收 右
+        target_front_pos[LEFT] = init_angle[2]+chassis_param.forward_lift_in; // 前：收 左
+        target_front_pos[RIGHT] = init_angle[3]+chassis_param.forward_lift_in; // 前：收 右
+
         break;
 
     case CLIMB_STAGE_BOTH_EXTEND:
         // 【状态：全伸】
-        target_front_pos = chassis_param.forward_lift_out;  // 前：伸出
-        target_rear_pos = chassis_param.backward_lift_down; // 后：伸出 (抬高)
+
+        // 前导杆伸出
+        target_front_pos[LEFT]  = init_angle[2] + chassis_param.forward_lift_out;
+        target_front_pos[RIGHT] = init_angle[3] + chassis_param.forward_lift_out;
+
+        // 后腿伸出
+        target_rear_pos[LEFT]   = init_angle[0] + chassis_param.backward_lift_out;
+        target_rear_pos[RIGHT]  = init_angle[1] + chassis_param.backward_lift_out;
         break;
 
     case CLIMB_STAGE_FRONT_RETRACT:
         // 【状态：前收后伸】
-        target_front_pos = chassis_param.forward_lift_in;   // 前：收回 (因为前轮已经踩实了)
-        target_rear_pos = chassis_param.backward_lift_down; // 后：保持伸出 (防止底盘挂到底盘边缘)
+        target_rear_pos[LEFT] = init_angle[0]+chassis_param.backward_lift_out; // 后：伸 左
+        target_rear_pos[RIGHT] = init_angle[1]+chassis_param.backward_lift_out; // 后：伸 右
+        target_front_pos[LEFT] = init_angle[2]+chassis_param.forward_lift_in; // 前：收 左
+        target_front_pos[RIGHT] = init_angle[3]+chassis_param.forward_lift_in; // 前：收 右
         break;
     }
 }
@@ -285,10 +307,11 @@ static void LimitChassisOutput()
     DJIMotorSetPIDRef(chassis->wheel_motor[1], vt_rf);
     DJIMotorSetPIDRef(chassis->wheel_motor[2], vt_lb);
     DJIMotorSetPIDRef(chassis->wheel_motor[3], vt_rb);
-    DJIMotorSetPIDRef(chassis->lift_forward_motor[0], target_front_pos);
-    DJIMotorSetPIDRef(chassis->lift_forward_motor[1], target_front_pos);
-    DJIMotorSetPIDRef(chassis->lift_backward_motor[0], target_rear_pos);
-    DJIMotorSetPIDRef(chassis->lift_backward_motor[1], target_rear_pos);
+
+    DJIMotorSetPIDRef(chassis->lift_forward_motor[LEFT], target_front_pos[LEFT]);
+    DJIMotorSetPIDRef(chassis->lift_forward_motor[RIGHT], target_front_pos[RIGHT]);
+    DJIMotorSetPIDRef(chassis->lift_backward_motor[LEFT], target_rear_pos[LEFT]);
+    DJIMotorSetPIDRef(chassis->lift_backward_motor[RIGHT], target_rear_pos[RIGHT]);
     PowerControl();
 }
 

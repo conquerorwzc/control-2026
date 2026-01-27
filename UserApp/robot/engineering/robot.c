@@ -18,7 +18,7 @@ static Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd; // 【新增】龙门架控制命令�
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last; // 遥控器数据,初始化时返回
 static float set_angle = 0;
-static void MouseKeySet();
+
 
 int b = 0;
 static float angle = 0;
@@ -30,14 +30,11 @@ static Garb_Param_s grab_param;
 static void Gantry_Limit(Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd, const Gantry_Param_s *gantry_param);
 static void Grab_Limit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, const Gantry_Param_s *gantry_param);
 static void RemoteControlSet();
-
+static void MouseKeySet();
 static void EmergencyHandler();
-
 static void CalcOffsetAngle();
 void RobotInit();
-
 void RobotCMDTask();
-
 void RobotTask();
 
 /* Private user code ---------------------------------------------------------*/
@@ -89,8 +86,8 @@ void RobotTask()
 
     // 新增: 龙门架控制逻辑 (GantryTask)
 #if defined(ONE_BOARD) // 假设龙门架逻辑运行在主控板
-    GantryTask();
-    GrabTask();
+    // GantryTask();
+    // GrabTask();
     // grab_ctrl_cmd->grab_mode = b;
 #endif
 }
@@ -100,7 +97,7 @@ void RobotCMDTask()
 {
     CalcOffsetAngle();
     RemoteControlSet();
-    MouseKeySet();
+    // MouseKeySet();
     EmergencyHandler(); // 处理模块离线和遥控器急停等紧急情况
 }
 
@@ -153,7 +150,7 @@ static void MouseKeySet()
     default:
         break;
     }
-    switch (rc_data[TEMP].key_count[KEY_PRESS][Key_C] % 4) // C键设置底盘速度
+    switch (rc_data[TEMP].key_count[KEY_PRESS][Key_V] % 2) // C键设置底盘速度
     {
     case 0:
         chassis_ctrl_cmd->chassis_speed_buff = 10000;
@@ -161,12 +158,7 @@ static void MouseKeySet()
     case 1:
         chassis_ctrl_cmd->chassis_speed_buff = 20000;
         break;
-    case 2:
-        chassis_ctrl_cmd->chassis_speed_buff = 40000;
-        break;
-    default:
-        chassis_ctrl_cmd->chassis_speed_buff = 80000;
-        break;
+
     }
 
     if (gantry_ctrl_cmd->Gantry_mode != GANTRY_MODE_POWER_OFF&&chassis_ctrl_cmd->chassis_mode !=CHASSIS_CLIMB )
@@ -199,8 +191,8 @@ static void MouseKeySet()
                 {
                     chassis_ctrl_cmd->climb_state = CLIMB_STAGE_FRONT_RETRACT;
                 }
-                // 【V键】：第三步 (全收)
-                else if (rc_data[TEMP].key[KEY_PRESS].v)
+                // 【C键】：第三步 (全收)
+                else if (rc_data[TEMP].key[KEY_PRESS].c)
                 {
                     chassis_ctrl_cmd->climb_state = CLIMB_STAGE_ALL_RETRACT;
                 }
@@ -209,6 +201,7 @@ static void MouseKeySet()
         }
 
         break;
+
 
     case 1: // 控制机械臂
 
@@ -289,42 +282,59 @@ static void RemoteControlSet()
         chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
     }
 
-    // 左侧拨杆控制龙门架模式
-    if (gantry_ctrl_cmd != NULL)
+    // // 左侧拨杆控制龙门架模式
+    // if (gantry_ctrl_cmd != NULL)
+    // {
+    //     if (switch_is_up(rc_data[TEMP].rc.switch_left))
+    //     {
+    //         // 左[上]：遥控器控制龙门架
+    //         gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_CONTROL_REMOTE;
+    //     }
+    //     else if (switch_is_mid(rc_data[TEMP].rc.switch_left))
+    //     {
+    //         // 左[中]：龙门架锁死
+    //         gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_LOCK;
+    //     }
+    //     else if (switch_is_down(rc_data[TEMP].rc.switch_left))
+    //     {
+    //         // 左[下]：龙门架断电
+    //         gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_POWER_OFF;
+    //     }
+    //
+    //     // 遥控模式控制龙门架
+    //     if (gantry_ctrl_cmd->Gantry_mode == GANTRY_MODE_CONTROL_REMOTE)
+    //     {
+    //         if (rc_data != NULL)
+    //         {
+    //             gantry_ctrl_cmd->x += rc_data[TEMP].rc.rocker_r_ * gantry_init_config.Gantry_param.sidesway_sens_remote;
+    //             gantry_ctrl_cmd->y += rc_data[TEMP].rc.rocker_r1 * gantry_init_config.Gantry_param.stretch_sens_remote;
+    //             gantry_ctrl_cmd->z += rc_data[TEMP].rc.rocker_l1 * gantry_init_config.Gantry_param.lift_sens_remote;
+    //         }
+    //     }
+    //
+    //     // 执行龙门架限位（仅在非断电模式下）
+    //     if (gantry_ctrl_cmd->Gantry_mode != GANTRY_MODE_POWER_OFF)
+    //     {
+    //         Gantry_Limit(gantry_ctrl_cmd, &robot->gantry->Gantry_param);
+    //     }
+    // }
+
+    if (switch_is_up(rc_data[TEMP].rc.switch_left))
     {
-        if (switch_is_up(rc_data[TEMP].rc.switch_left))
-        {
-            // 左[上]：遥控器控制龙门架
-            gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_CONTROL_REMOTE;
-        }
-        else if (switch_is_mid(rc_data[TEMP].rc.switch_left))
-        {
-            // 左[中]：龙门架锁死
-            gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_LOCK;
-        }
-        else if (switch_is_down(rc_data[TEMP].rc.switch_left))
-        {
-            // 左[下]：龙门架断电
-            gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_POWER_OFF;
-        }
-
-        // 遥控模式控制龙门架
-        if (gantry_ctrl_cmd->Gantry_mode == GANTRY_MODE_CONTROL_REMOTE)
-        {
-            if (rc_data != NULL)
-            {
-                gantry_ctrl_cmd->x += rc_data[TEMP].rc.rocker_r_ * gantry_init_config.Gantry_param.sidesway_sens_remote;
-                gantry_ctrl_cmd->y += rc_data[TEMP].rc.rocker_r1 * gantry_init_config.Gantry_param.stretch_sens_remote;
-                gantry_ctrl_cmd->z += rc_data[TEMP].rc.rocker_l1 * gantry_init_config.Gantry_param.lift_sens_remote;
-            }
-        }
-
-        // 执行龙门架限位（仅在非断电模式下）
-        if (gantry_ctrl_cmd->Gantry_mode != GANTRY_MODE_POWER_OFF)
-        {
-            Gantry_Limit(gantry_ctrl_cmd, &robot->gantry->Gantry_param);
-        }
+        // 左[上]：全伸
+        chassis_ctrl_cmd->climb_state = CLIMB_STAGE_BOTH_EXTEND;
     }
+    else if (switch_is_mid(rc_data[TEMP].rc.switch_left))
+    {
+        // 左[中]：只伸后腿
+        chassis_ctrl_cmd->climb_state = CLIMB_STAGE_FRONT_RETRACT;
+    }
+    else if (switch_is_down(rc_data[TEMP].rc.switch_left))
+    {
+        // 左[下]：全收
+        chassis_ctrl_cmd->climb_state = CLIMB_STAGE_ALL_RETRACT;;
+    }
+
 
     // 底盘运动控制（使用左侧摇杆）
     chassis_ctrl_cmd->vx = 60.0f * (float)rc_data[TEMP].rc.rocker_l1; // 水平方向
