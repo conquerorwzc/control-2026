@@ -298,12 +298,10 @@ static void EmergencyHandler() {
 }
 
 RobotInstance * RobotInit() {
-  if (!robot->init)
-    robot->init = 1;
-  else
+  if (robot!=NULL)
     return robot;
   //要在云台和底盘任务开始之前完成该任务的初始化
-  vTaskDelay(CAN_COMM_TASK_INIT_TIME);
+  //vTaskDelay(CAN_COMM_TASK_INIT_TIME);
   // 初始化CAN接收
   can_comm_instance = CANCommInit(&comm_config);
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
@@ -316,7 +314,7 @@ RobotInstance * RobotInit() {
 
   rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
   *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
-
+ // vTaskDelay(100);
   robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
 
    robot->super_cap = QQSuperCapInit(&super_cap_config);
@@ -332,6 +330,7 @@ RobotInstance * RobotInit() {
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   chassis_ctrl_cmd->max_power = 80;  // 随便给一个初始功率，后面应该要从裁判系统获取
+  chassis_ctrl_cmd->max_power = (uint16_t)robot->referee_data->PowerHeatData.chassis_power;
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;

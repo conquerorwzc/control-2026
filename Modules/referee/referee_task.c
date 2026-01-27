@@ -224,8 +224,9 @@ static void MyUIRefresh(Referee_Interactive_info_t *_Interactive_data)
 void MyUIInit()
 {
     robotdata=RobotInit();
-    if (!referee_recv_info->init_flag)
-        vTaskDelete(NULL); // 如果没有初始化裁判系统则直接删除ui任务
+  referee_recv_info=robotdata->referee_data;
+    // if (!referee_recv_info->init_flag)
+    //     vTaskDelete(NULL); // 如果没有初始化裁判系统则直接删除ui任务
     while (referee_recv_info->GameRobotState.robot_id == 0)
         osDelay(100); // 若还未收到裁判系统数据,等待一段时间后再检查
 
