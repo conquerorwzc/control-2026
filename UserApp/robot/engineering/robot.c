@@ -51,7 +51,7 @@ void RobotInit()
     *rc_data_last = *robot->rc_data; // 记录上一次遥控器的状态
     robot->ins_data = INS_Init(&imu_init_config);
     // robot->gantry = GantryInit(&gantry_init_config);
-    // robot->grab = GrabInit(&grab_init_config);
+    robot->grab = GrabInit(&grab_init_config);
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
     robot->chassis = ChassisInit(&chassis_init_config);
@@ -60,7 +60,7 @@ void RobotInit()
     // 初始化控制命令指针
     chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
     chassis_ctrl_cmd->max_power = 80; // 随便给一个初始功率，后面应该要从裁判系统获取
-    // grab_ctrl_cmd = &robot->grab->grab_ctrl_cmd;
+    grab_ctrl_cmd = &robot->grab->grab_ctrl_cmd;
     // 【新增】龙门架控制命令指针
     // if (robot->gantry != NULL)
     // {
@@ -68,7 +68,7 @@ void RobotInit()
     // }
 
     // gantry_param = gantry_init_config.Gantry_param;
-    // grab_param = grab_init_config.Grab_param;
+    grab_param = grab_init_config.Grab_param;
 
     rc_data = robot->rc_data;
 }
@@ -86,7 +86,7 @@ void RobotTask()
     // 新增: 龙门架控制逻辑 (GantryTask)
 #if defined(ONE_BOARD) // 假设龙门架逻辑运行在主控板
     // GantryTask();
-    // GrabTask();
+    GrabTask();
     // grab_ctrl_cmd->grab_mode = b;
 #endif
 }
@@ -98,7 +98,7 @@ void RobotCMDTask()
     RemoteControlSet();
 
 
-    // MouseKeySet();
+    MouseKeySet();
     EmergencyHandler(); // 处理模块离线和遥控器急停等紧急情况
 }
 
@@ -118,7 +118,7 @@ static void EmergencyHandler()
         robot->robot_mode = ROBOT_EMERGENCY_STOP;
         chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
         // gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_POWER_OFF;
-        // grab_ctrl_cmd->grab_mode = GRAB_POWER_OFF;
+        grab_ctrl_cmd->grab_mode = GRAB_POWER_OFF;
         LOGINFO("[CMD] emergency stop!");
     }
 }
@@ -376,21 +376,21 @@ static void Gantry_Limit(Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd, const Gantry_Param_
     else if (gantry_ctrl_cmd->z >= gantry_param->GANTRY_MAX_Z)
         gantry_ctrl_cmd->z = gantry_param->GANTRY_MAX_Z;
 
-    // 前伸
-    if (gantry_ctrl_cmd->y <= 0)
-        gantry_ctrl_cmd->y = 0;
-    else if (gantry_ctrl_cmd->y >= gantry_param->GANTRY_MAX_Y)
-        gantry_ctrl_cmd->y = gantry_param->GANTRY_MAX_Y;
+    // // 前伸
+    // if (gantry_ctrl_cmd->y <= 0)
+    //     gantry_ctrl_cmd->y = 0;
+    // else if (gantry_ctrl_cmd->y >= gantry_param->GANTRY_MAX_Y)
+    //     gantry_ctrl_cmd->y = gantry_param->GANTRY_MAX_Y;
+    //
+    // // 横移
+    // if (gantry_ctrl_cmd->x <= 0)
+    //     gantry_ctrl_cmd->x = 0;
+    // else if (gantry_ctrl_cmd->x >= gantry_param->GANTRY_MAX_X)
+    //     gantry_ctrl_cmd->x = gantry_param->GANTRY_MAX_X;
 
-    // 横移
-    if (gantry_ctrl_cmd->x <= 0)
-        gantry_ctrl_cmd->x = 0;
-    else if (gantry_ctrl_cmd->x >= gantry_param->GANTRY_MAX_X)
-        gantry_ctrl_cmd->x = gantry_param->GANTRY_MAX_X;
-
-    last_x = gantry_ctrl_cmd->x;
+    // last_x = gantry_ctrl_cmd->x;
+    // last_y = gantry_ctrl_cmd->y;
     last_z = gantry_ctrl_cmd->z;
-    last_y = gantry_ctrl_cmd->y;
 }
 
 static void CalcOffsetAngle()
