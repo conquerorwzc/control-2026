@@ -44,16 +44,6 @@ static void ChassisCtrlUpdate() {
         chassis->chassis_ctrl_cmd.leg_length -
         (float)(1 - 2 * i) * track_width * (chassis->chassis_ctrl_cmd.roll - chassis->chassis_IMU->Roll * DEGREE_2_RAD);
 
-    // if ((last_is_off_ground > leg[i]->update_flag.is_off_ground)) {
-    //   DWT_CNT = DWT_GetTimeline_s();
-    // }
-    // if ((DWT_GetTimeline_s() - DWT_CNT) > 2.0f) {
-    //   DWT_CNT = 0;
-    // } else if (DWT_CNT != 0) {
-    //   leg[i]->leg_ctrl_cmd.length_ref = 0.12;
-    // }
-    // last_is_off_ground = leg[i]->update_flag.is_off_ground;
-
     LegCtrlUpdate(leg[i], chassis->chassis_IMU);
     float leg_force_ff =
         leg_force_ff_gain * 9.8f * robot_mass / 2.0f / mcos(leg[i]->state_var.theta);  // 不超过半边重力的一半(看机器）
@@ -357,21 +347,21 @@ void ChassisTask() {
     case CHASSIS_ON:
       ChassisCtrlUpdate();
       break;
-    case CHASSIS_JUMP_READY:
-      if (chassis->jump_state == JUMP_STATE_IDLE || chassis->jump_state == JUMP_STATE_COMPRESS) {
-        chassis->jump_state = JUMP_STATE_COMPRESS;
-      }
-      ChassisJump();
-      break;
-    case CHASSIS_JUMP_START:
-      if (chassis->jump_state == JUMP_STATE_COMPRESS) {
-        if (abs(leg[0]->virtual_model.length - LEG_MIN_LENGTH) <= 0.01 &&
-            abs(leg[1]->virtual_model.length - LEG_MIN_LENGTH) <= 0.01) {
-          chassis->jump_state = JUMP_STATE_EXTEND;
-        }
-      }
-      ChassisJump();
-      break;
+    // case CHASSIS_JUMP_READY:
+    //   if (chassis->jump_state == JUMP_STATE_IDLE || chassis->jump_state == JUMP_STATE_COMPRESS) {
+    //     chassis->jump_state = JUMP_STATE_COMPRESS;
+    //   }
+    //   ChassisJump();
+    //   break;
+    // case CHASSIS_JUMP_START:
+    //   if (chassis->jump_state == JUMP_STATE_COMPRESS) {
+    //     if (abs(leg[0]->virtual_model.length - LEG_MIN_LENGTH) <= 0.01 &&
+    //         abs(leg[1]->virtual_model.length - LEG_MIN_LENGTH) <= 0.01) {
+    //       chassis->jump_state = JUMP_STATE_EXTEND;
+    //     }
+    //   }
+    //   ChassisJump();
+    //   break;
     default:
       break;
   }

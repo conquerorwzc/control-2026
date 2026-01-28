@@ -39,6 +39,9 @@ static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 static float trigger_time = 0;  // 触发时间
 static float angle;
 
+static float chassis_vx;  // x轴输入控制量
+static float chassis_vy;  // y轴输入控制量
+
 #define robot_lost_control abs(robot->chassis->chassis_IMU->Pitch) > 20.0f
 /**
  * @brief 根据gimbal app传回的当前电机角度计算和零位的误差
@@ -94,7 +97,8 @@ static void RemoteControlSet() {
     }
     if (switch_is_up(rc_data[TEMP].rc.switch_left) && switch_is_mid(rc_data_last[TEMP].rc.switch_left)) {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_JUMP_START;
-      chassis_ctrl_cmd->jump_force = JUMP_FORCE;
+      // chassis_ctrl_cmd->jump_force = JUMP_FORCE;
+      chassis_ctrl_cmd->jump_force = 0;
     }
   }
   if (!switch_is_up(rc_data[TEMP].rc.switch_right)) {
@@ -121,15 +125,15 @@ static void RemoteControlSet() {
         shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
       }
     }
+    // 云台使能,或视觉未识别到目标,纯遥控器拨杆控制
+    if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
+      // gimbal_ctrl_cmd->yaw += -0.0016f * (float)rc_data[TEMP].rc.rocker_r_;
+      // gimbal_ctrl_cmd->pitch -= 0.0003f * (float)rc_data[TEMP].rc.rocker_r1;
+    }
   } else {
     shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
     shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
-  }
-  // 云台使能,或视觉未识别到目标,纯遥控器拨杆控制
-  if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
-    gimbal_ctrl_cmd->yaw -= -0.005f * (float)rc_data[TEMP].rc.rocker_r_;
-    gimbal_ctrl_cmd->pitch += 0.002f * (float)rc_data[TEMP].rc.rocker_r1;
   }
 
   // 云台PITCH轴软件限位 todo:没在云台有点不好
@@ -139,16 +143,6 @@ static void RemoteControlSet() {
     gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
   }
 
-  // // Coordinate Transform: Gimbal 2 Chassis
-  // static float gimbal_vx, gimbal_vy;
-  // static float chassis_vx, chassis_wz_rotate, chassis_wz_heading;
-  //
-  // gimbal_vx = 30.0f * (float)rc_data[TEMP].rc.rocker_l_;
-  // gimbal_vy = 30.0f * (float)rc_data[TEMP].rc.rocker_l1;
-  //
-  // chassis_vx = sqrtf(gimbal_vx * gimbal_vx + gimbal_vy * gimbal_vy);
-  // chassis_wz_rotate = -25.0f * (float)rc_data[TEMP].rc.dial;
-
   switch (robot->robot_mode) {
     case ROBOT_CHASSIS_ROTATE:
       // chassis_ctrl_cmd->wz = TRACK_WIDTH / 2.0f * (0.0001) *
@@ -156,16 +150,16 @@ static void RemoteControlSet() {
       break;
     case ROBOT_CHASSIS_FOLLOW:
       // chassis_ctrl_cmd->wz = TRACK_WIDTH / 2.0f * (0.0001) *
-      //                        (float)rc_data[TEMP].rc.dial;  //
+      //                        (float)rc_data[TEMP].rc.dial;     //
       //                        小陀螺模式下的旋转分量，如，则在底盘任务中计算旋转分量
-      // chassis_vx = 30.0f * (float)rc_data[TEMP].rc.rocker_l_;  // _水平方向
-      // chassis_vy = 30.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 竖直方向
-      // chassis_vy = 30.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 竖直方向
-      // chassis_ctrl_cmd->wz =
-      //     // (20.0f) * (float)rc_data[TEMP].rc.rocker_r_ +
-      //     // PIDCalculate(&robot->chassis_follow_PID,
-      //     //              PI / 2.0f - atan2f(chassis_vy, chassis_vx) + chassis_ctrl_cmd->offset_angle, 0);
-      //     PIDCalculate(&robot->chassis_follow_PID, robot->chassis->chassis_IMU->YawTotalAngle, 0);
+      // chassis_vx = 30.0f * (float)rc_data[TEMP].rc.rocker_r_;  // _水平方向
+      // chassis_vy = 30.0f * (float)rc_data[TEMP].rc.rocker_r1;  // 竖直方向
+      // chassis_ctrl_cmd->wz = (-0.00f) * (float)rc_data[TEMP].rc.rocker_r_ +
+      //                        PIDCalculate(&robot->chassis_follow_PID, chassis_ctrl_cmd->offset_angle,
+      //                                     atan2f(chassis_vy, chassis_vx) - PI / 2.0f);
+      // PIDCalculate(&robot->chassis_follow_PID, robot->chassis->chassis_IMU->YawTotalAngle, 0);
+      // slope_following(sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy), &chassis_ctrl_cmd->vx,
+      //                 1.0f * robot->dt);  // 0.0045(最大3m/s)
       // break;
     case ROBOT_CHASSIS_FREE:
       static float target_angle;
