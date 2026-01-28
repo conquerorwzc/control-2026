@@ -184,7 +184,7 @@ static Shoot_Init_Config_s shoot_init_config = {
 .can_init_config =
       {
         .can_handle = &hcan2,
-        .tx_id = 7,
+        .tx_id = 4,
     },
       .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
       .controller_setting_init_config.feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
