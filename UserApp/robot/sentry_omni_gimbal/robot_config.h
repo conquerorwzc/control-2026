@@ -111,7 +111,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
         .scale = {1.0f, 1.0f, 1.0f},
         .Yaw = 0.0f,
         .Pitch = 0.0f,
-        .Roll = 0.0f
+        .Roll = 90.0f
       },
 };
 
