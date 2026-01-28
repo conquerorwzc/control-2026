@@ -104,6 +104,8 @@ void selfcontrol_data_solve(uint8_t* frame) {
     case ROBOT_INTERACTIVE_DATA_CMD_ID:  // 0x0302
         // 传入计算出的实际总长度
         parse_custom_controller_data(frame, total_frame_len, &self_control.unpacked_data);
+        // 在解析完数据后立即执行平滑处理
+        SelfControl_Smooth_Update();
         break;
     default:
         break;
@@ -126,4 +128,3 @@ SelfC* SelfControlInit(UART_HandleTypeDef* usart_handle) {
   return &self_control;
 
 }
-
