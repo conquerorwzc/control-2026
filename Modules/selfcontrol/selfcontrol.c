@@ -15,6 +15,40 @@ static USARTInstance* self_rc_usart_instance;
 static SelfC self_control;
 static Frame_Header referee_receive_header;
 
+void SelfControl_Smooth_Update(void) {
+    // alpha 决定了平滑程度。0.1f ~ 0.2f 适合 15ms -> 2ms 的转换
+    // 如果觉得跟手度不够，调大此值；如果觉得还是卡顿，调小此值。
+    static const float alpha = 0.12f;
+    static bool first_run = true;
+
+    UnpackedControllerData_t *data = &self_control.unpacked_data;
+
+    for (int i = 0; i < 3; i++) {
+        if (first_run) {
+            data->servos[i].smooth_angle = data->servos[i].angle;
+        } else {
+            // 指数平滑核心公式
+            data->servos[i].smooth_angle = (alpha * data->servos[i].angle) +
+                                           ((1.0f - alpha) * data->servos[i].smooth_angle);
+        }
+    }
+
+    for (int i = 0; i < 2; i++) {
+        if (first_run) {
+            data->pots[i].smooth_angle = data->pots[i].angle;
+        } else {
+            data->pots[i].smooth_angle = (alpha * data->pots[i].angle) +
+                                         ((1.0f - alpha) * data->pots[i].smooth_angle);
+        }
+    }
+
+    if (data->servos[0].angle != 0) first_run = false; // 确保收到数据后才停止初始化
+}
+
+UnpackedControllerData_t* GetSelfControlDataPtr(void) {
+    return &self_control.unpacked_data;
+}
+
 // 解析自定义控制器的数据包
 // 修改 selfcontrol.c 中的 parse_custom_controller_data 函数
 bool parse_custom_controller_data(const uint8_t *packed_data, uint16_t packed_size, UnpackedControllerData_t *unpacked_data) {

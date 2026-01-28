@@ -376,15 +376,16 @@ static void ProcessCustomControllerData() {
         // 将接收到的舵机角度数据映射到机械臂关节
         // 假设舵机0对应基座关节，舵机1对应肘部旋转，舵机2对应肘部俯仰
         if (robot->grab != NULL && grab_ctrl_cmd != NULL) {
+            // 使用经过指数平滑滤波的数据，使控制更加平滑
             // 设置各关节角度，根据实际机械臂结构进行映射
-            grab_ctrl_cmd->base_joint = controller_data->servos[0].angle;      // 舵机0 -> 基座关节
-            grab_ctrl_cmd->elbow_roll = controller_data->servos[1].angle;      // 舵机1 -> 肘部旋转
-            grab_ctrl_cmd->elbow_pitch = controller_data->servos[2].angle;     // 舵机2 -> 肘部俯仰
+            grab_ctrl_cmd->base_joint = controller_data->servos[0].smooth_angle;      // 舵机0 -> 基座关节 (使用平滑滤波后的数据)
+            grab_ctrl_cmd->elbow_roll = controller_data->servos[1].smooth_angle;      // 舵机1 -> 肘部旋转 (使用平滑滤波后的数据)
+            grab_ctrl_cmd->elbow_pitch = controller_data->servos[2].smooth_angle;     // 舵机2 -> 肘部俯仰 (使用平滑滤波后的数据)
             
             // 可以使用电位器数据进行额外控制
             // 例如：使用电位器0控制腕部俯仰，电位器1控制腕部旋转
-            grab_ctrl_cmd->wrist_pitch = controller_data->pots[0].angle;       // 电位器0 -> 腕部俯仰
-            grab_ctrl_cmd->wrist_roll = controller_data->pots[1].angle;        // 电位器1 -> 腕部旋转
+            grab_ctrl_cmd->wrist_pitch = controller_data->pots[0].smooth_angle;       // 电位器0 -> 腕部俯仰 (使用平滑滤波后的数据)
+            grab_ctrl_cmd->wrist_roll = controller_data->pots[1].smooth_angle;        // 电位器1 -> 腕部旋转 (使用平滑滤波后的数据)
         }
     }
 }

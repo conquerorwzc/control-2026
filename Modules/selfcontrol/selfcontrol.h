@@ -13,6 +13,7 @@
 typedef struct {
     uint8_t id;           // 舵机ID
     float angle;          // 舵机角度
+    float smooth_angle;   // 【新增】平滑后的目标
     uint8_t torque_status; // 舵机扭矩状态
     uint8_t is_online;    // 舵机在线状态
 } ServoData_t;
@@ -20,6 +21,7 @@ typedef struct {
 typedef struct {
     uint8_t id;           // 电位器ID
     float angle;          // 电位器角度
+    float smooth_angle;   // 【新增】电位器平滑值
     float voltage;        // 电位器电压
 } PotentiometerData_t;
 
@@ -49,11 +51,11 @@ typedef __packed struct {
  */
 SelfC *SelfControlInit(UART_HandleTypeDef *rc_usart_handle);
 
+void SelfControl_Smooth_Update(void); //平滑声明
 /**
  * @brief 检查遥控器是否在线,若尚未初始化也视为离线
  *
  * @return uint8_t 1:在线 0:离线
  */
-
 
 #endif  // CONTROL_2026_SELFCONTROL_H
