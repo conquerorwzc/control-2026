@@ -31,8 +31,8 @@ typedef enum {
   CHASSIS_POWER_OFF = 0,  // 电流零输入
   CHASSIS_RECOVERY,       // 一阶倒立摆
   CHASSIS_ON,             // 二阶倒立摆
-  CHASSIS_JUMP_READY,           // 跳跃
-  CHASSIS_JUMP,           // 跳跃
+  CHASSIS_JUMP_READY,     // 跳跃
+  CHASSIS_JUMP_START,     // 跳跃
 } Chassis_Mode_e;
 
 typedef enum {
@@ -40,18 +40,18 @@ typedef enum {
   JUMP_STATE_COMPRESS,  // 压缩状态（施加F）
   JUMP_STATE_EXTEND,    // 伸腿状态（准备跳跃）
   JUMP_STATE_RETRACT,   // 收腿状态
-  JUMP_STATE_LAND       // 着陆状态
 } Jump_State_e;
 
 typedef struct {
-  Chassis_Mode_e chassis_mode;
   float vx;  // 前进方向速度
   float wz;  // 旋转速度
   float roll;
   float leg_length;
   float offset_angle;  // 底盘和归中位置的夹角
+  float jump_force;
   int chassis_speed_buff;
   uint16_t max_power;  // 最大功率限制
+  Chassis_Mode_e chassis_mode;
 } Chassis_Ctrl_Cmd_s;
 
 // 机器人底盘修改的参数,单位为mm(毫米)

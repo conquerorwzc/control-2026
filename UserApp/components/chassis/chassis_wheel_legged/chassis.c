@@ -105,13 +105,10 @@ static void ChassisJump() {
       case JUMP_STATE_COMPRESS:
         leg[i]->leg_ctrl_cmd.length_ref = LEG_MIN_LENGTH;
         ChassisCtrlUpdate();
-        if (abs(leg[0]->virtual_model.length - LEG_MIN_LENGTH) <= 0.01 &&
-            abs(leg[1]->virtual_model.length - LEG_MIN_LENGTH) <= 0.01) {
-          chassis->jump_state = JUMP_STATE_EXTEND;
-        }
         break;
       case JUMP_STATE_EXTEND:
         leg[i]->leg_ctrl_cmd.length_ref = LEG_MAX_LENGTH;
+        leg[i]->leg_ctrl_cmd.F_ref = chassis_ctrl_cmd->jump_force;
         ChassisCtrlUpdate();
         if (abs(leg[0]->virtual_model.length - LEG_MAX_LENGTH) <= 0.01 &&
             abs(leg[1]->virtual_model.length - LEG_MAX_LENGTH) <= 0.01) {
@@ -120,16 +117,16 @@ static void ChassisJump() {
         break;
       case JUMP_STATE_RETRACT:
         leg[i]->leg_ctrl_cmd.length_ref = LEG_MIN_LENGTH;
+        leg[i]->leg_ctrl_cmd.F_ref = 0;
         ChassisCtrlUpdate();
         if (abs(leg[0]->virtual_model.length - LEG_MIN_LENGTH) <= 0.01 &&
             abs(leg[1]->virtual_model.length - LEG_MIN_LENGTH) <= 0.01) {
-          chassis->jump_state = JUMP_STATE_LAND;
+          chassis->jump_state = JUMP_STATE_IDLE;
         }
-        break;
-      case JUMP_STATE_LAND:
         break;
       case JUMP_STATE_IDLE:
       default:
+        ChassisCtrlUpdate();
         break;
     }
   }
@@ -353,8 +350,21 @@ void ChassisTask() {
     case CHASSIS_ON:
       ChassisCtrlUpdate();
       break;
-    case CHASSIS_JUMP:
+    case CHASSIS_JUMP_READY:
+      if (chassis->jump_state == JUMP_STATE_IDLE || chassis->jump_state == JUMP_STATE_COMPRESS) {
+        chassis->jump_state = JUMP_STATE_COMPRESS;
+      }
       ChassisJump();
+      break;
+    case CHASSIS_JUMP_START:
+      if (chassis->jump_state == JUMP_STATE_COMPRESS) {
+        if (abs(leg[0]->virtual_model.length - LEG_MIN_LENGTH) <= 0.01 &&
+            abs(leg[1]->virtual_model.length - LEG_MIN_LENGTH) <= 0.01) {
+          chassis->jump_state = JUMP_STATE_EXTEND;
+        }
+      }
+      ChassisJump();
+      break;
     default:
       break;
   }

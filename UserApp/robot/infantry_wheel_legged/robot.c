@@ -69,52 +69,62 @@ static void CalcOffsetAngle() {
  *
  */
 static void RemoteControlSet() {
-  // 右[中]，云台
+  // 右[中]，底盘使能 ROBOT_CHASSIS_FOLLOW
   if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
     chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
-    // chassis_ctrl_cmd->chassis_mode = CHASSIS_RECOVERY;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       robot->robot_mode = ROBOT_CHASSIS_ROTATE;
-    } else
+    } else {
       robot->robot_mode = ROBOT_CHASSIS_FOLLOW;
+    }
   }
-  // 右[上]，超电，保持底盘跟随云台
+  // 右[上]，底盘使能，允许跳跃 ROBOT_CHASSIS_FREE
   else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
     chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
-    // chassis_ctrl_cmd->chassis_mode = CHASSIS_RECOVERY;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       robot->robot_mode = ROBOT_CHASSIS_ROTATE;
-    } else
-      robot->robot_mode = ROBOT_CHASSIS_FREE;
-  }
-  // 左[中],云台启动，摩擦轮启动，拨弹盘启动，准备射击
-  if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
-    shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
-    // chassis_ctrl_cmd->chassis_mode = CHASSIS_RECOVERY;
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-    shoot_ctrl_cmd->friction_mode = FRICTION_ON;
-    shoot_ctrl_cmd->load_mode = LOAD_STOP;
-    // 待添加,视觉会发来和目标的误差,同样将其转化为total angle的增量进行控制
-    // ...
-  } else if (switch_is_up(rc_data[TEMP].rc.switch_left))  // 开火，发射，根据时间判断单发或者连发
-  {
-    shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
-    // chassis_ctrl_cmd->chassis_mode = CHASSIS_RECOVERY;
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-    shoot_ctrl_cmd->friction_mode = FRICTION_ON;
-    shoot_ctrl_cmd->load_mode = LOAD_STOP;
-    if (switch_is_mid(rc_data_last[TEMP].rc.switch_left)) {
-      trigger_time = DWT_GetTimeline_s();
-    }
-    if (DWT_GetTimeline_s() - trigger_time > 2.0f) {
-      shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
     } else {
-      shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
+      robot->robot_mode = ROBOT_CHASSIS_FREE;
     }
+
+    if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_JUMP_READY;
+    }
+    if (switch_is_up(rc_data[TEMP].rc.switch_left) && switch_is_mid(rc_data_last[TEMP].rc.switch_left)) {
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_JUMP_START;
+      chassis_ctrl_cmd->jump_force = JUMP_FORCE;
+    }
+  }
+  if (!switch_is_up(rc_data[TEMP].rc.switch_right)) {
+    // 左[中],云台启动，摩擦轮启动，拨弹盘启动，准备射击
+    if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
+      shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
+      gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+      shoot_ctrl_cmd->friction_mode = FRICTION_ON;
+      shoot_ctrl_cmd->load_mode = LOAD_STOP;
+      // 待添加,视觉会发来和目标的误差,同样将其转化为total angle的增量进行控制
+    }
+    // 左[上]，开火，发射，根据时间判断单发或者连发
+    else if (switch_is_up(rc_data[TEMP].rc.switch_left)) {
+      shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
+      gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+      shoot_ctrl_cmd->friction_mode = FRICTION_ON;
+      shoot_ctrl_cmd->load_mode = LOAD_STOP;
+      if (switch_is_mid(rc_data_last[TEMP].rc.switch_left)) {
+        trigger_time = DWT_GetTimeline_s();
+      }
+      if (DWT_GetTimeline_s() - trigger_time > 2.0f) {
+        shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+      } else {
+        shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
+      }
+    }
+  } else {
+    shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
+    shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
+    shoot_ctrl_cmd->load_mode = LOAD_STOP;
   }
   // 云台使能,或视觉未识别到目标,纯遥控器拨杆控制
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
@@ -279,8 +289,7 @@ static void EmergencyHandler() {
   }
   // 两switch都在下或者遥控器断连，断电
   if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)) |
-      switch_is_off(rc_data[TEMP].rc.switch_right))  // 全部失能
-  {
+      switch_is_off(rc_data[TEMP].rc.switch_right)) {
     robot->robot_mode = ROBOT_POWER_OFF;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
     chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
@@ -290,18 +299,15 @@ static void EmergencyHandler() {
     LOGERROR("[CMD] emergency stop!");
   } else {
     LOGINFO("[CMD] reinstate, robot ready");
-  }
-  if (switch_is_down(rc_data[TEMP].rc.switch_right))  // 底盘失能
-  {
+  }  // 底盘失能
+  if (switch_is_down(rc_data[TEMP].rc.switch_right)) {
     chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
-  }
-  if (switch_is_down(rc_data[TEMP].rc.switch_left))  // 发射失能
-  {
+  }  // 发射失能
+  if (switch_is_down(rc_data[TEMP].rc.switch_left)) {
     shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
     shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
   }
-  // 遥控器右侧开关为[上],恢复正常运行
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
