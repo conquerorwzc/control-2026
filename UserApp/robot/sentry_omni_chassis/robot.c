@@ -386,7 +386,6 @@ void RobotInit() {
   // robot->super_cap = SuperCapInit(&super_cap_config);
 
   robot->chassis = ChassisInit(&chassis_init_config);
-
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   chassis_ctrl_cmd->max_power = 80;  // 随便给一个初始功率，后面应该要从裁判系统获取
@@ -400,16 +399,17 @@ void RobotCMDTask() {
   CalcOffsetAngle();
   DualBoardCtrlSet();
   RemoteControlSet();
-  MouseKeySet();
+  // MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
 
 void RobotTask() {
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
-//  navigator_send(&huart1);
-  RobotCMDTask();
+  GimbalTask();
 #endif
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
+  //  navigator_send(&huart1);
+  RobotCMDTask();
   ChassisTask();
 #endif
 }
