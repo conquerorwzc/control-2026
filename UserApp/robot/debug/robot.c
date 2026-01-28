@@ -1,26 +1,56 @@
 #include "robot.h"
-#include "dmmotor.h"
+
+// #include "HI05.h"
+//#include "bsp_gpio.h"
 #include "dji_motor.h"
-#include "dmmotor.h"
 #include "general_def.h"
+#include "master_process.h"
+//#include "navigator.h"
+//#include "rm_referee.h"
 #include "robot_config.h"
+#include "super_cap.h"
 #include "user_lib.h"
 
-float target_torque = 0;
-const float reduction_ratio = 268.0f / 17.0f;
-float q2i_coeff = (3591.0f / 187.0f) / reduction_ratio / 0.3f;
+static SuperCapInstance* supercap_instance;
+// static HI05_t* hi05_instance;  // 保存HI05实例指针
 
-// static DMMotorInstance* J8009P_instance;
-static DJIMotorInstance* M3508_instance;
-float speed_ref = 0.0f;
+//referee_info_t* referee_info;
+
+static SuperCap_Init_Config_s supercab_init_config = {
+  .can_config = {
+    .can_handle = &hcan1,  // 根据实际情况选择CAN接口，英雄的h7是can1
+    .rx_id = 0x211,        // 接收ID (CAN_SUPERCAP_ID)
+    .tx_id = 0X210,        // 发送ID
+  }
+};
+
+// static GPIOInstance *gpio_5V_EN;
+// static GPIO_Init_Config_s gpio_init_config_5v = {
+//   .GPIO_Pin = POWER_5V_Pin,
+//   .GPIOx = POWER_5V_GPIO_Port,
+//   .pin_state = GPIO_PIN_SET,
+// };
 
 void RobotInit() {
-  // J8009P_instance = DMMotorInit(&J8009P_config);
-  M3508_instance = DJIMotorInit(&M3508_config);
+  supercap_instance = SuperCapInit(&supercab_init_config);
+  // hi05_instance = HI05_Init(&huart1);
+  //referee_info = RefereeInit(&huart1);
+
+
+
 }
 
 void RobotTask() {
-  // DMMotorSetPIDRef(J8009P_instance, speed_ref);
-  // M3508_instance->motor_controller.final_output = target_torque * q2i_coeff * (16384.0f / 20.0f);
-  DJIMotorSetPIDRef(M3508_instance, speed_ref);
+ // osDelay(300);
+
+  int16_t power = 50;
+   uint16_t buffer = 50;
+   uint8_t state = 1;
+
+  SuperCapSendMessage(supercap_instance, power, buffer, state);
+
+  // // 更新IMU运动加速度（在主循环中调用，避免在中断中进行大量浮点运算）
+  // if (hi05_instance != NULL) {
+  //   HI05_UpdateMotionAccel(hi05_instance);
+  // }
 }
