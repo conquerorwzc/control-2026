@@ -314,7 +314,7 @@ __attribute__((noreturn)) void DMMotorTask(void const *argument)
 
         CANTransmit(motor->motor_can_instance, 2);
 
-        osDelay(2);
+        osDelay(3);
         if (motor->daemon->temp_count == 0 || motor->measure.state == 0)
         {
             DMMotorSetMode(DM_CMD_MOTOR_MODE, motor);
