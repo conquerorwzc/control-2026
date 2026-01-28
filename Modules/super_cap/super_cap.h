@@ -10,14 +10,13 @@
 
 #include "bsp_can.h"
 
-#pragma pack(1)
 typedef struct
 {
-  uint16_t cap_v;//单位：mV
-  uint16_t out_p;//除以100以后单位是W
-  uint16_t in_p;//除以100以后单位是W
+  float cap_v;
+  uint8_t error_detect;
+  float out_p;//除以100以后单位是W
+  float in_p;//除以100以后单位是W
 } SuperCap_Measure_s;
-#pragma pack()
 
 /* 超级电容实例 */
 typedef struct

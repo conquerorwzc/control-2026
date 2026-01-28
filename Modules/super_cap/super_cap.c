@@ -17,9 +17,18 @@ static void DecodeSuperCap(CANInstance *_instance)
     SuperCap_Measure_s *Msg;
     rxbuff = _instance->rx_buff;
     Msg = &super_cap_instance->cap_msg;
-    Msg->cap_v = rxbuff[1]<<8|rxbuff[0];
-    Msg->out_p = rxbuff[3]<<8|rxbuff[2];
-    Msg->in_p = rxbuff[5]<<8|rxbuff[4];
+
+    int16_t cap_v = rxbuff[1]<<8|rxbuff[0];//单位：mV
+    Msg->error_detect = rxbuff[2];
+    int16_t out_p = rxbuff[4]<<8|rxbuff[3];//除以100以后单位是W
+    int16_t in_p = rxbuff[6]<<8|rxbuff[5];//除以100以后单位是W
+
+    Msg->cap_v = (float)cap_v/1000.0f;
+    Msg->out_p = (float)out_p/100.0f;
+    Msg->in_p = (float)in_p/100.0f;
+    // if (Msg->out_p < 0) {
+    //   Msg->out_p = 0;
+    // }
 }
 
 SuperCapInstance *SuperCapInit(SuperCap_Init_Config_s *supercap_config)

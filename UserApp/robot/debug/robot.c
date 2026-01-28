@@ -1,12 +1,12 @@
 #include "robot.h"
 
 // #include "HI05.h"
-#include "bsp_gpio.h"
+//#include "bsp_gpio.h"
 #include "dji_motor.h"
 #include "general_def.h"
 #include "master_process.h"
-#include "navigator.h"
-#include "rm_referee.h"
+//#include "navigator.h"
+//#include "rm_referee.h"
 #include "robot_config.h"
 #include "super_cap.h"
 #include "user_lib.h"
@@ -14,7 +14,7 @@
 static SuperCapInstance* supercap_instance;
 // static HI05_t* hi05_instance;  // 保存HI05实例指针
 
-referee_info_t* referee_info;
+//referee_info_t* referee_info;
 
 static SuperCap_Init_Config_s supercab_init_config = {
   .can_config = {
@@ -24,28 +24,28 @@ static SuperCap_Init_Config_s supercab_init_config = {
   }
 };
 
-static GPIOInstance *gpio_5V_EN;
-static GPIO_Init_Config_s gpio_init_config_5v = {
-  .GPIO_Pin = POWER_5V_Pin,
-  .GPIOx = POWER_5V_GPIO_Port,
-  .pin_state = GPIO_PIN_SET,
-};
+// static GPIOInstance *gpio_5V_EN;
+// static GPIO_Init_Config_s gpio_init_config_5v = {
+//   .GPIO_Pin = POWER_5V_Pin,
+//   .GPIOx = POWER_5V_GPIO_Port,
+//   .pin_state = GPIO_PIN_SET,
+// };
 
 void RobotInit() {
   supercap_instance = SuperCapInit(&supercab_init_config);
   // hi05_instance = HI05_Init(&huart1);
-  referee_info = RefereeInit(&huart1);
+  //referee_info = RefereeInit(&huart1);
 
 
 
 }
 
 void RobotTask() {
-  osDelay(300);
+ // osDelay(300);
 
-  int16_t power = ;
-  uint16_t buffer = 50;
-  uint8_t state = 1;
+  int16_t power = 50;
+   uint16_t buffer = 50;
+   uint8_t state = 1;
 
   SuperCapSendMessage(supercap_instance, power, buffer, state);
 
