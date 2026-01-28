@@ -18,7 +18,7 @@ static Frame_Header referee_receive_header;
 void SelfControl_Smooth_Update(void) {
     // alpha 决定了平滑程度。0.1f ~ 0.2f 适合 15ms -> 2ms 的转换
     // 如果觉得跟手度不够，调大此值；如果觉得还是卡顿，调小此值。
-    static const float alpha = 0.12f;
+    static const float alpha = 0.25f;
     static bool first_run = true;
 
     UnpackedControllerData_t *data = &self_control.unpacked_data;

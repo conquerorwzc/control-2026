@@ -105,7 +105,7 @@ void RobotCMDTask()
 {
     CalcOffsetAngle();
     RemoteControlSet();
-    MouseKeySet();
+    //MouseKeySet();
     ProcessCustomControllerData(); // 处理自定义控制器数据
     EmergencyHandler(); // 处理模块离线和遥控器急停等紧急情况
 }
