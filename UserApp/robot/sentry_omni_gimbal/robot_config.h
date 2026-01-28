@@ -71,8 +71,8 @@ static Gimbal_Init_Config_s gimbal_init_config = {
             .motor_type = GM6020,
             .can_init_config =
                 {
-                    .can_handle = &hcan1,
-                    .tx_id = 1,
+                    .can_handle = &hcan2,
+                    .tx_id = 2,
                 },
             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
         },
@@ -157,8 +157,8 @@ static Shoot_Init_Config_s shoot_init_config = {
             .target_speed = 0.0f,
             .bullet_speed_adjustment = 10.0f,
         },
-    .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan1, 2, MOTOR_DIRECTION_NORMAL),
-    .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan1, 1, MOTOR_DIRECTION_REVERSE),
+    .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan1, 4, MOTOR_DIRECTION_NORMAL),
+    .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan1, 3, MOTOR_DIRECTION_REVERSE),
   .loader_motor_config =
     {
       .controller_param_init_config =
@@ -183,8 +183,8 @@ static Shoot_Init_Config_s shoot_init_config = {
 .motor_type = M2006, //拨盘电机为M2006
 .can_init_config =
       {
-        .can_handle = &hcan1,
-        .tx_id = 4,
+        .can_handle = &hcan2,
+        .tx_id = 7,
     },
       .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
       .controller_setting_init_config.feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
