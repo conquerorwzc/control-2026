@@ -268,8 +268,8 @@ void Climb_FSM()
     case CLIMB_STAGE_IDLE:
     case CLIMB_STAGE_ALL_RETRACT:
         // 【状态：全收】
-        target_rear_pos[LEFT] = init_angle[0]+chassis_param.backward_lift_out; // 后：收 左
-        target_rear_pos[RIGHT] = init_angle[1]+chassis_param.backward_lift_out; // 后：收 右
+        target_rear_pos[LEFT] = init_angle[0]+chassis_param.backward_lift_in; // 后：收 左
+        target_rear_pos[RIGHT] = init_angle[1]+chassis_param.backward_lift_in; // 后：收 右
         target_front_pos[LEFT] = init_angle[2]+chassis_param.forward_lift_in; // 前：收 左
         target_front_pos[RIGHT] = init_angle[3]+chassis_param.forward_lift_in; // 前：收 右
 
