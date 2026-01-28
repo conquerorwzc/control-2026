@@ -13,7 +13,7 @@ static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
 static Gimbal_Ctrl_Cmd_s *gimbal_ctrl_cmd;
 static Shoot_Ctrl_Cmd_s *shoot_ctrl_cmd;
 static Vision_Receive_s* vision_recv_data;
-static navigator_recv_t* navigator_data;
+//static navigator_recv_t* navigator_data;
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 
@@ -141,11 +141,11 @@ static void RemoteControlSet() {
 
   } else if (robot->control_mode == AUTO_MODE) // 自动控制，直接收上位机控制量
   {
-    vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vy*5000;
-    //vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vx*5000;
-    vy_initial = robot->navigator_data->robot_cmd.speed_vector.vx*5000;
-    chassis_ctrl_cmd->wz = robot->navigator_data->robot_cmd.speed_vector.wz*0;
-    //gimbal_ctrl_cmd->yaw-=robot->navigator_data->robot_cmd.speed_vector.wz*0.01;
+    // vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vy*5000;
+    // //vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vx*5000;
+    // vy_initial = robot->navigator_data->robot_cmd.speed_vector.vx*5000;
+    // chassis_ctrl_cmd->wz = robot->navigator_data->robot_cmd.speed_vector.wz*0;
+    // //gimbal_ctrl_cmd->yaw-=robot->navigator_data->robot_cmd.speed_vector.wz*0.01;
   }
   *rc_data_last = *rc_data;
 }
@@ -359,6 +359,7 @@ static void EmergencyHandler() {
 
       if (switch_is_down(CanData.bytes[10]))  // 底盘失能
       {
+        robot->robot_mode = ROBOT_POWER_ON;
         chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
       }
       // 遥控器右侧开关为[上],恢复正常运行
@@ -375,7 +376,7 @@ void RobotInit() {
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
   robot->rc_data = RemoteControlInit(&huart3);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
   //robot->vision_recv_data = VisionInit(&gimbal_init_config.imu_init_config);
-  robot->navigator_data = navigator_init(&huart1);
+//  robot->navigator_data = navigator_init(&huart1);
 
   rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
   *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
@@ -390,7 +391,7 @@ void RobotInit() {
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   chassis_ctrl_cmd->max_power = 80;  // 随便给一个初始功率，后面应该要从裁判系统获取
   rc_data = robot->rc_data;
-  navigator_data  = robot->navigator_data;
+//  navigator_data  = robot->navigator_data;
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
@@ -405,7 +406,7 @@ void RobotCMDTask() {
 
 void RobotTask() {
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
-  navigator_send(&huart1);
+//  navigator_send(&huart1);
   RobotCMDTask();
 #endif
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)

@@ -159,7 +159,6 @@ static void DecodeVision(uint16_t recv_len)
 Vision_Receive_s *VisionInit(IMU_Init_Config_s* imu_init_config)
 {
     current_attitude_Cboard=INS_Init(imu_init_config);
-    current_attitude = HI05_Init(&huart1);
     USB_Init_Config_s conf = {.rx_cbk = DecodeVision};
     vis_recv_buff = USBInit(conf);
     InitParam();
