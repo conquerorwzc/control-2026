@@ -306,6 +306,13 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   wheel_reduction_ratio = chassis_init_config->leg_init_config[0].leg_param.wheel_reduction_ratio;
   q2i_coeff = (3591.0f / 187.0f) / wheel_reduction_ratio / 0.3f;
 
+  k0 = chassis_init_config->chassis_param.power_param_3508.k0;
+  k1 = chassis_init_config->chassis_param.power_param_3508.k1;
+  k2 = chassis_init_config->chassis_param.power_param_3508.k2;
+  k3 = chassis_init_config->chassis_param.power_param_3508.k3;
+  k4 = chassis_init_config->chassis_param.power_param_3508.k4;
+  k5 = chassis_init_config->chassis_param.power_param_3508.k5;
+
   PIDInit(&chassis_instance->delta_theta_PID, &chassis_init_config->delta_theta_PID_config);
   PIDInit(&chassis_instance->roll_PID, &chassis_init_config->roll_PID_config);
 

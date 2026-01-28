@@ -43,6 +43,15 @@ typedef enum {
 } Jump_State_e;
 
 typedef struct {
+  float k0;
+  float k1;
+  float k2;
+  float k3;
+  float k4;
+  float k5;
+}Power_Param_3508_s ;
+
+typedef struct {
   float vx;  // 前进方向速度
   float wz;  // 旋转速度
   float roll;
@@ -62,6 +71,7 @@ typedef struct {
   float robot_mass;
   float initial_leg_length;  // 初始腿长,单位为m(米)
   float leg_force_ff_gain;
+  Power_Param_3508_s power_param_3508;       //3508功率模型参数，采用中科大的模型
 } Chassis_Param_s;
 
 typedef struct {

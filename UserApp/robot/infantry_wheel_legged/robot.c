@@ -98,7 +98,7 @@ static void RemoteControlSet() {
     }
   }
   if (!switch_is_up(rc_data[TEMP].rc.switch_right)) {
-    // 左[中],云台启动，摩擦轮启动，拨弹盘启动，准备射击
+    // 左[中],云台启动，摩擦轮启动，准备射击
     if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
       shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
       gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;

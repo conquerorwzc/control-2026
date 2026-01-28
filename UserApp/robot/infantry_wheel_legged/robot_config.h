@@ -200,6 +200,13 @@ static Chassis_Init_Config_s chassis_init_config = {
             .track_width = TRACK_WIDTH,
             .initial_leg_length = 0.20f,  // 初始腿长,单位为m(米)
             .leg_force_ff_gain = 0.7f,
+            // 3508功率模型参数
+            .power_param_3508.k0 = 0.7441993412640775f,
+            .power_param_3508.k1 = 0.006444284468539646f,
+            .power_param_3508.k2 = 0.0001423857226262331f,
+            .power_param_3508.k3 = 0.015644430204543864f,
+            .power_param_3508.k4 = 0.1580143850678086f,
+            .power_param_3508.k5 = 2.896721772539512e-05f,
         },
     // 通过设置电机输出/反馈方向，来使腿部控制镜像对称
     .leg_init_config[0] = LEG_INIT_CONFIG(MOTOR_DIRECTION_NORMAL, MOTOR_DIRECTION_REVERSE, &hcan2, 0x02, 0x01, &hcan2,
