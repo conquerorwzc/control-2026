@@ -93,7 +93,9 @@ void DMMotorCaliEncoder(DMMotorInstance* motor);
 
 void DMMotorSetPIDRef(DMMotorInstance* motor, float pid_ref);
 
-void DMMotorTask(void const* argument);
-
-void DMMotorTaskInit();
+/**
+ * @brief  DM电机控制函数，请在 MotorControlTask 中调用
+ * @note   内部自带 2分频 (500Hz) 和 200us 延时策略
+ */
+void DMMotorControl(void);
 #endif  // !DMMOTOR

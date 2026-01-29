@@ -249,118 +249,108 @@ void DMMotorSetPIDRef(DMMotorInstance *motor, float ref)
 }
 
 //@Todo: 目前只实现了力控，更多位控PID等请自行添加
-__attribute__((noreturn)) void DMMotorTask(void const *argument)
+void DMMotorControl(void)
 {
+    static uint32_t loop_cnt = 0;
+
+    // 1. 频率控制：500Hz
+    // MotorControlTask 是 1kHz (1ms)，我们每 2 次进一次，就是 2ms (500Hz)
+    loop_cnt++;
+    if (loop_cnt % 2 != 0)
+    {
+        return; // 奇数次跳过，不发送
+    }
+
+    // 2. 发送逻辑
     float set;
     DMMotorInstance *motor;
     Motor_Control_Setting_s *setting;
     DM_Motor_Send_s motor_send_mailbox;
+    int send_in_loop_cnt = 0; // 本次循环发送计数
 
-    // 发送计数器，用于控制延时插入
-    int send_cnt = 0;
-
-    while (1)
+    // 遍历所有电机
+    for (size_t i = 0; i < idx; i++)
     {
-        // 1. 遍历所有已注册的 DM 电机
-        for (size_t i = 0; i < idx; i++)
+        motor = dm_motor_instance[i];
+        setting = &motor->motor_settings;
+
+        // PID 计算
+        set = motor->motor_controller.final_output;
+        if (setting->motor_reverse_flag == MOTOR_DIRECTION_REVERSE)
+            set *= -1;
+
+        // 协议封装 (直接复用你原来的 switch-case)
+        switch (motor->motor_type)
         {
-            motor = dm_motor_instance[i];
-            setting = &motor->motor_settings;
-
-            // --- PID 与 输出计算 (保持原逻辑) ---
-            set = motor->motor_controller.final_output;
-
-            if (setting->motor_reverse_flag == MOTOR_DIRECTION_REVERSE)
-                set *= -1;
-
-            switch (motor->motor_type)
-            {
-            case J4310:
-                LIMIT_MIN_MAX(set, DM_T_MIN_J4310, DM_T_MAX_J4310);
-                motor_send_mailbox.position_des = float_to_uint(0, DM_P_MIN_J4310, DM_P_MAX_J4310, 16);
-                motor_send_mailbox.velocity_des = float_to_uint(0, DM_V_MIN_J4310, DM_V_MAX_J4310, 12);
-                motor_send_mailbox.torque_des = float_to_uint(set, DM_T_MIN_J4310, DM_T_MAX_J4310, 12);
-                if (motor->stop_flag == MOTOR_STOP)
-                    motor_send_mailbox.torque_des = float_to_uint(0, DM_T_MIN_J4310, DM_T_MAX_J4310, 12);
-                break;
-            case H6215:
-                LIMIT_MIN_MAX(set, DM_T_MIN_H6215, DM_T_MAX_H6215);
-                motor_send_mailbox.position_des = float_to_uint(0, DM_P_MIN_H6215, DM_P_MAX_H6215, 16);
-                motor_send_mailbox.velocity_des = float_to_uint(0, DM_V_MIN_H6215, DM_V_MAX_H6215, 12);
-                motor_send_mailbox.torque_des = float_to_uint(set, DM_T_MIN_H6215, DM_T_MAX_H6215, 12);
-                if (motor->stop_flag == MOTOR_STOP)
-                    motor_send_mailbox.torque_des = float_to_uint(0, DM_T_MIN_H6215, DM_T_MAX_H6215, 12);
-                break;
-            case J8009P:
-                LIMIT_MIN_MAX(set, DM_T_MIN_J8009P, DM_T_MAX_J8009P);
-                motor_send_mailbox.position_des = float_to_uint(0, DM_P_MIN_J8009P, DM_P_MAX_J8009P, 16);
-                motor_send_mailbox.velocity_des = float_to_uint(0, DM_V_MIN_J8009P, DM_V_MAX_J8009P, 12);
-                motor_send_mailbox.torque_des = float_to_uint(set, DM_T_MIN_J8009P, DM_T_MAX_J8009P, 12);
-                if (motor->stop_flag == MOTOR_STOP)
-                    motor_send_mailbox.torque_des = float_to_uint(0, DM_T_MIN_J8009P, DM_T_MAX_J8009P, 12);
-                break;
-            case J4340:
-                LIMIT_MIN_MAX(set, DM_T_MIN_J4340, DM_T_MAX_J4340);
-                motor_send_mailbox.position_des = float_to_uint(0, DM_P_MIN_J4340, DM_P_MAX_J4340, 16);
-                motor_send_mailbox.velocity_des = float_to_uint(0, DM_V_MIN_J4340, DM_V_MAX_J4340, 12);
-                motor_send_mailbox.torque_des = float_to_uint(set, DM_T_MIN_J4340, DM_T_MAX_J4340, 12);
-                if (motor->stop_flag == MOTOR_STOP)
-                    motor_send_mailbox.torque_des = float_to_uint(0, DM_T_MIN_J4340, DM_T_MAX_J4340, 12);
-                break;
-            default:
-                break;
-            }
-
-            // 填充发送 Buffer
-            motor_send_mailbox.Kp = 0;
-            motor_send_mailbox.Kd = 0;
-
-            motor->motor_can_instance->tx_buff[0] = (uint8_t)(motor_send_mailbox.position_des >> 8);
-            motor->motor_can_instance->tx_buff[1] = (uint8_t)(motor_send_mailbox.position_des);
-            motor->motor_can_instance->tx_buff[2] = (uint8_t)(motor_send_mailbox.velocity_des >> 4);
-            motor->motor_can_instance->tx_buff[3] =
-                (uint8_t)(((motor_send_mailbox.velocity_des & 0xF) << 4) | (motor_send_mailbox.Kp >> 8));
-            motor->motor_can_instance->tx_buff[4] = (uint8_t)(motor_send_mailbox.Kp);
-            motor->motor_can_instance->tx_buff[5] = (uint8_t)(motor_send_mailbox.Kd >> 4);
-            motor->motor_can_instance->tx_buff[6] =
-                (uint8_t)(((motor_send_mailbox.Kd & 0xF) << 4) | (motor_send_mailbox.torque_des >> 8));
-            motor->motor_can_instance->tx_buff[7] = (uint8_t)(motor_send_mailbox.torque_des);
-
-            CANTransmit(motor->motor_can_instance, 1);
-
-            send_cnt++;
-            // 每发送 2 个电机，插入 200us 延时 ，参考dm文档
-            // 如果只有1个CAN口带6个电机，这个延时是必须的
-            if (send_cnt % 2 == 0)
-            {
-                DWT_Delay(0.0002f); // 200us = 0.0002s
-            }
+        case J4310:
+             LIMIT_MIN_MAX(set, DM_T_MIN_J4310, DM_T_MAX_J4310);
+             motor_send_mailbox.position_des = float_to_uint(0, DM_P_MIN_J4310, DM_P_MAX_J4310, 16);
+             motor_send_mailbox.velocity_des = float_to_uint(0, DM_V_MIN_J4310, DM_V_MAX_J4310, 12);
+             motor_send_mailbox.torque_des = float_to_uint(set, DM_T_MIN_J4310, DM_T_MAX_J4310, 12);
+             if (motor->stop_flag == MOTOR_STOP)
+                 motor_send_mailbox.torque_des = float_to_uint(0, DM_T_MIN_J4310, DM_T_MAX_J4310, 12);
+             break;
+        case H6215:
+             LIMIT_MIN_MAX(set, DM_T_MIN_H6215, DM_T_MAX_H6215);
+             motor_send_mailbox.position_des = float_to_uint(0, DM_P_MIN_H6215, DM_P_MAX_H6215, 16);
+             motor_send_mailbox.velocity_des = float_to_uint(0, DM_V_MIN_H6215, DM_V_MAX_H6215, 12);
+             motor_send_mailbox.torque_des = float_to_uint(set, DM_T_MIN_H6215, DM_T_MAX_H6215, 12);
+             if (motor->stop_flag == MOTOR_STOP)
+                 motor_send_mailbox.torque_des = float_to_uint(0, DM_T_MIN_H6215, DM_T_MAX_H6215, 12);
+             break;
+        case J8009P:
+             LIMIT_MIN_MAX(set, DM_T_MIN_J8009P, DM_T_MAX_J8009P);
+             motor_send_mailbox.position_des = float_to_uint(0, DM_P_MIN_J8009P, DM_P_MAX_J8009P, 16);
+             motor_send_mailbox.velocity_des = float_to_uint(0, DM_V_MIN_J8009P, DM_V_MAX_J8009P, 12);
+             motor_send_mailbox.torque_des = float_to_uint(set, DM_T_MIN_J8009P, DM_T_MAX_J8009P, 12);
+             if (motor->stop_flag == MOTOR_STOP)
+                 motor_send_mailbox.torque_des = float_to_uint(0, DM_T_MIN_J8009P, DM_T_MAX_J8009P, 12);
+             break;
+        case J4340:
+             LIMIT_MIN_MAX(set, DM_T_MIN_J4340, DM_T_MAX_J4340);
+             motor_send_mailbox.position_des = float_to_uint(0, DM_P_MIN_J4340, DM_P_MAX_J4340, 16);
+             motor_send_mailbox.velocity_des = float_to_uint(0, DM_V_MIN_J4340, DM_V_MAX_J4340, 12);
+             motor_send_mailbox.torque_des = float_to_uint(set, DM_T_MIN_J4340, DM_T_MAX_J4340, 12);
+             if (motor->stop_flag == MOTOR_STOP)
+                 motor_send_mailbox.torque_des = float_to_uint(0, DM_T_MIN_J4340, DM_T_MAX_J4340, 12);
+             break;
+        default:
+             break;
         }
 
-        // 复位计数器
-        send_cnt = 0;
+        // 填充 Buffer
+        motor_send_mailbox.Kp = 0;
+        motor_send_mailbox.Kd = 0;
 
+        motor->motor_can_instance->tx_buff[0] = (uint8_t)(motor_send_mailbox.position_des >> 8);
+        motor->motor_can_instance->tx_buff[1] = (uint8_t)(motor_send_mailbox.position_des);
+        motor->motor_can_instance->tx_buff[2] = (uint8_t)(motor_send_mailbox.velocity_des >> 4);
+        motor->motor_can_instance->tx_buff[3] = (uint8_t)(((motor_send_mailbox.velocity_des & 0xF) << 4) | (motor_send_mailbox.Kp >> 8));
+        motor->motor_can_instance->tx_buff[4] = (uint8_t)(motor_send_mailbox.Kp);
+        motor->motor_can_instance->tx_buff[5] = (uint8_t)(motor_send_mailbox.Kd >> 4);
+        motor->motor_can_instance->tx_buff[6] = (uint8_t)(((motor_send_mailbox.Kd & 0xF) << 4) | (motor_send_mailbox.torque_des >> 8));
+        motor->motor_can_instance->tx_buff[7] = (uint8_t)(motor_send_mailbox.torque_des);
 
-        for(size_t i = 0; i < idx; i++) {
-            motor = dm_motor_instance[i];
-            if (motor->daemon->temp_count == 0 || motor->measure.state == 0)
-            {
-                DMMotorSetMode(DM_CMD_MOTOR_MODE, motor);
+        // 发送
+        CANTransmit(motor->motor_can_instance, 1);
 
-            }
+        // 关键延时策略：每2帧延时200us
+        send_in_loop_cnt++;
+        if (send_in_loop_cnt % 2 == 0)
+        {
+            DWT_Delay(0.0002f);
         }
-        osDelay(2);
+    }
+
+    // 守护/模式重置逻辑 (每 500Hz 跑一次)
+    for(size_t i = 0; i < idx; i++) {
+        motor = dm_motor_instance[i];
+        if (motor->daemon->temp_count == 0 || motor->measure.state == 0)
+        {
+             DMMotorSetMode(DM_CMD_MOTOR_MODE, motor);
+             // 初始化指令也稍微延时一下，防堵
+             DWT_Delay(0.0001f);
+        }
     }
 }
 
-void DMMotorTaskInit()
-{
-    // 如果没有注册电机，直接返回
-    if (!idx)
-        return;
-
-    // 创建一个名为 "dm_all" 的单一任务来管理所有 DM 电机
-    // 优先级 Normal，栈大小 128 (如果任务挂掉可以适当调大)
-    osThreadDef(dm_all, DMMotorTask, osPriorityNormal, 0, 512);
-    osThreadCreate(osThread(dm_all), NULL);
-}

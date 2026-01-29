@@ -137,9 +137,9 @@
             {                                                                                                          \
                 .angle_feedback_source = MOTOR_FEED,                                                                   \
                 .speed_feedback_source = MOTOR_FEED,                                                                   \
-                .outer_loop_type = ANGLE_LOOP,                                                                         \
+                .outer_loop_type = ANGLE_LOOP,                                                                           \
                 .close_loop_type = ANGLE_LOOP | SPEED_LOOP,                                                                         \
-                .motor_reverse_flag = direction,                                                                       \
+                .motor_reverse_flag = direction,                                                                     \
                 .feedback_reverse_flag = direction,                                                                    \
             },                                                                                                         \
         .motor_type = M2006,                                                                                           \
