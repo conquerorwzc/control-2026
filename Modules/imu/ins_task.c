@@ -30,6 +30,7 @@ static IMU_Init_Config_s IMU_Param;
 static PIDInstance TempCtrl = {0};
 static osThreadId insTaskHandle;
 
+// body2earth
 const float xb[3] = {1, 0, 0};
 const float yb[3] = {0, 1, 0};
 const float zb[3] = {0, 0, 1};
@@ -65,12 +66,13 @@ static void InitQuaternion(float *init_q4) {
   // 读取100次加速度计数据,取平均值作为初始值
   for (uint8_t i = 0; i < 254; ++i) {
     BMI088_Read(&BMI088);
-    acc_init[X] += BMI088.Accel[X];
-    acc_init[Y] += BMI088.Accel[Y];
-    acc_init[Z] += BMI088.Accel[Z];
+    IMU_Param_Correction(&IMU_Param, BMI088.Gyro, BMI088.Accel);
+    acc_init[X] += BMI088.Accel[X];  // X轴不变
+    acc_init[Y] += BMI088.Accel[Y];  // Y轴取反
+    acc_init[Z] += BMI088.Accel[Z];  // Z轴取反
     DWT_Delay(0.001);
   }
-  for (uint8_t i = 0; i < 3; ++i) acc_init[i] /= 100;
+  for (uint8_t i = 0; i < 3; ++i) acc_init[i] /= 254;
   Norm3d(acc_init);
   // 计算原始加速度矢量和导航系重力加速度矢量的夹角
   float angle = acosf(Dot3d(acc_init, gravity_norm));
@@ -149,13 +151,13 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
 
   // 手动计算加速度缩放因子，因为我们跳过了完整的校准过程
   BMI088.AccelScale = 9.81f / BMI088.gNorm;
-  IMU_Param.scale[X] = 1;
-  IMU_Param.scale[Y] = 1;
-  IMU_Param.scale[Z] = 1;
-  IMU_Param.Yaw = 0;
-  IMU_Param.Pitch = 0;
-  IMU_Param.Roll = 0;
-  IMU_Param.flag = 1;
+  IMU_Param.scale[X] = imu_init_config->scale[X];
+  IMU_Param.scale[Y] = imu_init_config->scale[Y];
+  IMU_Param.scale[Z] = imu_init_config->scale[Z];
+  IMU_Param.Yaw = imu_init_config->Yaw;
+  IMU_Param.Pitch = imu_init_config->Pitch;
+  IMU_Param.Roll = imu_init_config->Roll;
+  IMU_Param.flag = imu_init_config->flag;
   // BMI088CalibrateGyroForDebug(BMI,1000);
   float init_quaternion[4] = {0};
   InitQuaternion(init_quaternion);
@@ -289,42 +291,46 @@ static void IMU_Param_Correction(IMU_Init_Config_s *param, float gyro[3], float 
   static float lastYawOffset, lastPitchOffset, lastRollOffset;
   static float c_11, c_12, c_13, c_21, c_22, c_23, c_31, c_32, c_33;
   float cosPitch, cosYaw, cosRoll, sinPitch, sinYaw, sinRoll;
-
+  // 检查角度是否发生变化，或强制刷新标志位置位
   if (fabsf(param->Yaw - lastYawOffset) > 0.001f || fabsf(param->Pitch - lastPitchOffset) > 0.001f ||
       fabsf(param->Roll - lastRollOffset) > 0.001f || param->flag) {
+    // 角度转弧度并计算三角函数
     cosYaw = arm_cos_f32(param->Yaw / 57.295779513f);
     cosPitch = arm_cos_f32(param->Pitch / 57.295779513f);
     cosRoll = arm_cos_f32(param->Roll / 57.295779513f);
     sinYaw = arm_sin_f32(param->Yaw / 57.295779513f);
     sinPitch = arm_sin_f32(param->Pitch / 57.295779513f);
     sinRoll = arm_sin_f32(param->Roll / 57.295779513f);
-
-    // 1.yaw(alpha) 2.pitch(beta) 3.roll(gamma)
-    c_11 = cosYaw * cosRoll + sinYaw * sinPitch * sinRoll;
-    c_12 = cosPitch * sinYaw;
-    c_13 = cosYaw * sinRoll - cosRoll * sinYaw * sinPitch;
-    c_21 = cosYaw * sinPitch * sinRoll - cosRoll * sinYaw;
-    c_22 = cosYaw * cosPitch;
-    c_23 = -sinYaw * sinRoll - cosYaw * cosRoll * sinPitch;
-    c_31 = -cosPitch * sinRoll;
-    c_32 = sinPitch;
+    /*
+       旋转顺序: Yaw(Z) -> Pitch(Y) -> Roll(X)
+       矩阵构造 R = Rz(Yaw) * Ry(Pitch) * Rx(Roll)
+    */
+    // 第一行 (输出 X)
+    c_11 = cosYaw * cosPitch;
+    c_12 = cosYaw * sinPitch * sinRoll - sinYaw * cosRoll;
+    c_13 = cosYaw * sinPitch * cosRoll + sinYaw * sinRoll;
+    // 第二行 (输出 Y)
+    c_21 = sinYaw * cosPitch;
+    c_22 = sinYaw * sinPitch * sinRoll + cosYaw * cosRoll;
+    c_23 = sinYaw * sinPitch * cosRoll - cosYaw * sinRoll;
+    // 第三行 (输出 Z)
+    c_31 = -sinPitch;
+    c_32 = cosPitch * sinRoll;
     c_33 = cosPitch * cosRoll;
     param->flag = 0;
   }
+  // 应用旋转矩阵到 Gyro
   float gyro_temp[3];
   for (uint8_t i = 0; i < 3; ++i) gyro_temp[i] = gyro[i] * param->scale[i];
-
   gyro[X] = c_11 * gyro_temp[X] + c_12 * gyro_temp[Y] + c_13 * gyro_temp[Z];
   gyro[Y] = c_21 * gyro_temp[X] + c_22 * gyro_temp[Y] + c_23 * gyro_temp[Z];
   gyro[Z] = c_31 * gyro_temp[X] + c_32 * gyro_temp[Y] + c_33 * gyro_temp[Z];
-
+  // 应用旋转矩阵到 Accel
   float accel_temp[3];
-  for (uint8_t i = 0; i < 3; ++i) accel_temp[i] = accel[i];
-
+  for (uint8_t i = 0; i < 3; ++i) accel_temp[i] = accel[i] * param->scale[i];
   accel[X] = c_11 * accel_temp[X] + c_12 * accel_temp[Y] + c_13 * accel_temp[Z];
   accel[Y] = c_21 * accel_temp[X] + c_22 * accel_temp[Y] + c_23 * accel_temp[Z];
   accel[Z] = c_31 * accel_temp[X] + c_32 * accel_temp[Y] + c_33 * accel_temp[Z];
-
   lastYawOffset = param->Yaw;
   lastPitchOffset = param->Pitch;
   lastRollOffset = param->Roll;
@@ -385,21 +391,19 @@ void EularAngleToQuaternion(float Yaw, float Pitch, float Roll, float *q) {
 }
 
 uint8_t INS_GetAttitude(attitude_t *attitude) {
-  if (!INS.init) {
+  if (attitude == NULL || !INS.init) {
     return 0;
   }
+
   // 复制姿态数据
-  attitude->Gyro[0] = INS.Gyro[0];
-  attitude->Gyro[1] = INS.Gyro[1];
-  attitude->Gyro[2] = INS.Gyro[2];
-
-  attitude->Accel[0] = INS.Accel[0];
-  attitude->Accel[1] = INS.Accel[1];
-  attitude->Accel[2] = INS.Accel[2];
-
   attitude->Yaw = INS.Yaw;
   attitude->Pitch = INS.Pitch;
   attitude->Roll = INS.Roll;
   attitude->YawTotalAngle = INS.YawTotalAngle;
+  // 如果需要角速度数据也可以复制
+  attitude->Gyro[0] = INS.Gyro[0];
+  attitude->Gyro[1] = INS.Gyro[1];
+  attitude->Gyro[2] = INS.Gyro[2];
+
   return 1;
 }

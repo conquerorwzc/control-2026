@@ -205,6 +205,7 @@ uint8_t CANTransmit(CANInstance *_instance, float timeout) {
   }
   return 1;  // 发送成功
 }
+
 void CANSetDLC(CANInstance *_instance, uint8_t length) {
   // 发送长度错误!检查调用参数是否出错,或出现野指针/越界访问
 #ifdef STM32F407xx

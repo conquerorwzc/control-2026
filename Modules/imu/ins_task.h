@@ -98,12 +98,6 @@ void INS_Task(void);
  */
 void StartINSTASK(void const *argument);
 
-/**
- * @brief 获取姿态信息
- *
- * @param attitude
- * @return uint8_t
- */
 uint8_t INS_GetAttitude(attitude_t *attitude);
 
 /**
