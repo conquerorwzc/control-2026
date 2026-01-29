@@ -136,16 +136,16 @@ static void RemoteControlSet() {
           5.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
     }
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
-      chassis_ctrl_cmd->wz =(15.0f) *(float)rc_data[TEMP].rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
+      chassis_ctrl_cmd->wz =(20.0f) *(float)rc_data[TEMP].rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
     }
 
   } else if (robot->control_mode == AUTO_MODE) // 自动控制，直接收上位机控制量
   {
-    // vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vy*5000;
-    // //vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vx*5000;
-    // vy_initial = robot->navigator_data->robot_cmd.speed_vector.vx*5000;
-    // chassis_ctrl_cmd->wz = robot->navigator_data->robot_cmd.speed_vector.wz*0;
-    // //gimbal_ctrl_cmd->yaw-=robot->navigator_data->robot_cmd.speed_vector.wz*0.01;
+    vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vy*5000;
+    //vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vx*5000;
+    vy_initial = robot->navigator_data->robot_cmd.speed_vector.vx*5000;
+    chassis_ctrl_cmd->wz = robot->navigator_data->robot_cmd.speed_vector.wz*0;
+    //gimbal_ctrl_cmd->yaw-=robot->navigator_data->robot_cmd.speed_vector.wz*0.01;
   }
   *rc_data_last = *rc_data;
 }
@@ -376,7 +376,7 @@ void RobotInit() {
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
   robot->rc_data = RemoteControlInit(&huart3);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
   //robot->vision_recv_data = VisionInit(&gimbal_init_config.imu_init_config);
-//  robot->navigator_data = navigator_init(&huart1);
+  robot->navigator_data = navigator_init(&huart1);
 
   rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
   *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
@@ -408,7 +408,7 @@ void RobotTask() {
   GimbalTask();
 #endif
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
-  //  navigator_send(&huart1);
+  navigator_send(&huart1);
   RobotCMDTask();
   ChassisTask();
 #endif
