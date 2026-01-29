@@ -17,6 +17,7 @@ static Gimbal_Ctrl_Cmd_s *gimbal_ctrl_cmd;
 static Shoot_Ctrl_Cmd_s *shoot_ctrl_cmd;
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
+static Vision_Receive_s* vision_recv_data;
 
 /* Intermediate variables calculated by private functions */
 static float trigger_time = 0;  // 触发时间
@@ -136,12 +137,9 @@ static void RemoteControlSet() {
   }
 
   // 云台PITCH轴软件限位 todo:没在云台有点不好
-  if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
-    gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
-  } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
-    gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
-  }
-  // 云台PITCH轴软件限位 todo:没在云台有点不好
+
+
+
 
   // 底盘参数,系数需要调整
   chassis_ctrl_cmd->vx = 60.0f * (float)rc_data[TEMP].rc.rocker_l_;  // _水平方向
@@ -164,7 +162,7 @@ static void RemoteControlSet() {
   *rc_data_last = *rc_data;
 }
 
-#if 0
+
 /**
  * @brief 输入为键鼠时模式和控制量设置
  *
@@ -238,7 +236,7 @@ static void MouseKeySet() {
       break;
   }
 }
-#endif
+
 
 /**
  * @brief  紧急停止,包括遥控器左上侧拨轮打满/重要模块离线/双板通信失效等
@@ -292,6 +290,7 @@ void RobotInit() {
   // robot->super_cap = SuperCapInit(&super_cap_config);
 
  #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
+  vision_recv_data=VisionInit(&gimbal_init_config.imu_init_config);
    robot->gimbal = GimbalInit(&gimbal_init_config);
    robot->shoot = ShootInit(&shoot_init_config);
 #endif
@@ -315,16 +314,17 @@ void RobotCMDTask() {
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
   CalcOffsetAngle();
   RemoteControlSet();
-  //MouseKeySet();
+  MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
 
 void RobotTask() {
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
-  VisionSend();
+
   RobotCMDTask();
   GimbalTask();
   ShootTask();
+  VisionSend();
 #endif
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)

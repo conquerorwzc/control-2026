@@ -229,7 +229,7 @@ static Shoot_Init_Config_s shoot_init_config = {
             .friction_num = 3,                            // 摩擦轮数量
             .friction_speed = 26800.0f,                   // 摩擦轮速度
                                                           //注：新弹丸慢一点（25800），旧弹丸快一点（26800-27000）
-            .friction_coefficients = {1.0f, 1.0f, 1.1f},  // 摩擦轮速度比例系数
+            .friction_coefficients = {1.0f, -1.0f, 1.1f},  // 摩擦轮速度比例系数
             .deadtime_burstfire = 500,
             .deadtime_onebullet = 1000,
             .target_speed = 12.0f,
@@ -264,8 +264,8 @@ static Shoot_Init_Config_s shoot_init_config = {
             .motor_type = M3508,
             .can_init_config =
                 {
-                    .can_handle = &hcan3,
-                    .tx_id = 3,
+                    .can_handle = &hcan1,
+                    .tx_id = 5,
                 },
             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
             .controller_setting_init_config.feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
