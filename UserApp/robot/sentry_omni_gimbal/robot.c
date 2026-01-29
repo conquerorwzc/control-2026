@@ -307,7 +307,7 @@ void RobotInit() {
 #ifdef STM32F407xx
   robot->rc_data = RemoteControlInit(&huart3);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
   robot->vision_recv_data = VisionInit(&gimbal_init_config.imu_init_config);
-  robot->navigator_data = navigator_init(&huart1);
+  // robot->navigator_data = navigator_init(&huart1);
 #elifdef STM32H723XX
   robot->rc_data = RemoteControlInit(&huart5);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
 #endif
@@ -350,7 +350,7 @@ void RobotCMDTask() {
 void RobotTask() {
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
   Gimbal_CANCommSend();
-  navigator_send(&huart1);
+  // navigator_send(&huart1);
   VisionSend();
   RobotCMDTask();
   GimbalTask();
