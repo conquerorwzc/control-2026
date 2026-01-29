@@ -225,11 +225,10 @@ void MyUIInit()
 {
   robotdata=RobotGet();
   referee_recv_info=robotdata->referee_data;
-    // if (!referee_recv_info->init_flag)
-    //     vTaskDelete(NULL); // 如果没有初始化裁判系统则直接删除ui任务
+     // if (!referee_recv_info->init_flag)
+     //     vTaskDelete(NULL); // 如果没有初始化裁判系统则直接删除ui任务
     while (referee_recv_info->GameRobotState.robot_id == 0)
         osDelay(100); // 若还未收到裁判系统数据,等待一段时间后再检查
-
     DeterminRobotID();                                            // 确定ui要发送到的目标客户端
     UIDelete(&referee_recv_info->referee_id, UI_Data_Del_ALL, 0); // 清空UI
 

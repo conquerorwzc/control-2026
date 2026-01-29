@@ -341,6 +341,7 @@ RobotInstance * RobotInit() {
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
 void RobotCMDTask() {
   chassis_ctrl_cmd->max_power = robot->referee_data->GameRobotState.chassis_power_limit;
+  //chassis_ctrl_cmd->max_power = (uint16_t)robot->referee_data->PowerHeatData.chassis_power;
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角             ,不需要传参,通过static私有变量完成
   CalcOffsetAngle();
   //RemoteControlSet();
