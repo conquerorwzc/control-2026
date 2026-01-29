@@ -29,9 +29,14 @@
 
 // 云台参数
 #define YAW_CHASSIS_ALIGN_ECD 2220
-#define PITCH_HORIZON_ECD 5748  // 云台处于水平位置时编码器值,若对云台有机械改动需要修改
-#define PITCH_MAX_ANGLE 11.0f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
-#define PITCH_MIN_ANGLE -12.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define PITCH_HORIZON_ECD 490  // 云台处于水平位置时编码器值,若对云台有机械改动需要修改
+#define PITCH_MAX_ANGLE -38.0f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define PITCH_MIN_ANGLE 8.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define PITCH_HORIZON_ecd 4230
+
+// 添加基于编码器的限位值定义
+#define PITCH_MAX_ECD 4365      // pitch轴最大编码器值限位
+#define PITCH_MIN_ECD 3430      // pitch轴最小编码器值限位
 
 // 私有宏,自动将编码器转换成角度值
 #define YAW_ALIGN_ANGLE 47.5                                         // hero的计算比较特殊，直接从读出来
@@ -40,10 +45,10 @@
 #define GYRO2GIMBAL_DIR_PITCH 1  // 陀螺仪数据相较于云台的pitch的方向,1为相同,-1为相反
 #define GYRO2GIMBAL_DIR_ROLL 1   // 陀螺仪数据相较于云台的roll的方向,1为相同,-1为相反
 // 腿部电机位置定义
-#define LEFT_LEG_MOTOR_NORMAL_POSITION -0.999f   // 腿部电机常规位置值
+#define LEFT_LEG_MOTOR_NORMAL_POSITION -0.799f   // 腿部电机常规位置值
 #define LEFT_LEG_MOTOR_RAISE_POSITION  -0.3450f  // 腿部电机抬起位置值
 #define LEFT_LEG_MOTOR_KIKE_POSITION -0.190f     // 腿部电机踢脚位置值
-#define RIGHT_LEG_MOTOR_NORMAL_POSITION -0.048f   // 腿部电机常规位置值
+#define RIGHT_LEG_MOTOR_NORMAL_POSITION -0.248f   // 腿部电机常规位置值
 #define RIGHT_LEG_MOTOR_RAISE_POSITION  -0.651f  // 腿部电机抬起位置值
 #define RIGHT_LEG_MOTOR_KIKE_POSITION -0.841f  // 腿部电机踢脚位置值
 
@@ -203,7 +208,7 @@ static Chassis_Init_Config_s chassis_init_config = {
         },
     .external_imu=
        {
-           .can_id=0x11,
+           .can_id=0x01,
            .mst_id=0x11,
            .can_handle = &hfdcan3,
          }
@@ -217,9 +222,9 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                     {
-                      .Kp = 0.8f,
+                      .Kp = 2.3f,
                       .Ki = 0.0f,
-                      .Kd = 0.04f,
+                      .Kd = 0.055f,
                       .Kf = 2000.0f,
                       .DeadBand = 0.1f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
@@ -252,7 +257,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 1.0f,
+                            .Kp = 3.0f,
                             .Ki = 0.0f,
                             .Kd = 0.02f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
@@ -326,7 +331,7 @@ static Shoot_Init_Config_s shoot_init_config = {
             .num_per_circle = 6,                          // 拨盘一圈的装载量
             .loader_direction = -1,                       // 拨盘旋转方向,1为正向，-1为反向
             .friction_num = 3,                            // 摩擦轮数量
-            .friction_speed = 60000.0f,                   // 摩擦轮速度
+            .friction_speed = 26000.0f,                   // 摩擦轮速度
             .friction_coefficients = {1.0f, -1.0f, 1.1f},  // 摩擦轮速度比例系数
             .deadtime_burstfire = 500,
             .deadtime_onebullet = 1000,
