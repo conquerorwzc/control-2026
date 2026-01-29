@@ -33,8 +33,8 @@
 // 云台参数
 #define YAW_CHASSIS_ALIGN_ECD 4760  // 云台和底盘对齐指向相同方向时的电机编码器值,若对云台有机械改动需要修改
 #define PITCH_HORIZON_ECD 2900      // 云台处于水平位置时编码器值,若对云台有机械改动需要修改
-#define PITCH_MAX_ANGLE 10.0f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
-#define PITCH_MIN_ANGLE -10.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define PITCH_MAX_ANGLE 30.0f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define PITCH_MIN_ANGLE -30.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
 
 // 私有宏,自动将编码器转换成角度值
 #define YAW_ALIGN_ANGLE (YAW_CHASSIS_ALIGN_ECD * ECD_ANGLE_COEF_DJI) // 对齐时的角度,0-360
@@ -74,7 +74,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                     .can_handle = &hcan2,
                     .tx_id = 2,
                 },
-            .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+            .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
         },
     .pitch_motor_config =
         {
@@ -82,7 +82,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                     {
-                      .Kp = 0.2f,
+                      .Kp = 1.0f,
                       .Ki = 0.0f,
                       .Kd = 0.0f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
@@ -104,14 +104,14 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                     .can_handle = &hcan1,
                     .tx_id = 2,
                 },
-            .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+            .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
         },
     .imu_init_config = {
         .flag = 1,
         .scale = {1.0f, 1.0f, 1.0f},
-        .Yaw = 0.0f,
+        .Yaw = -90.0f,
         .Pitch = 0.0f,
-        .Roll = 90.0f
+        .Roll = 0.0f
       },
 };
 
