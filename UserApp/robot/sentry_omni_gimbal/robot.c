@@ -110,6 +110,7 @@ static void RemoteControlSet() {
     }
     else if (robot->control_mode == AUTO_MODE) // 自动控制，直接接收上位机控制量
     {
+      gimbal_ctrl_cmd->gimbal_mode=GIMBAL_VISION;
     //   vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vy*5000;
     //   //vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vx*5000;
     //   vy_initial = robot->navigator_data->robot_cmd.speed_vector.vx*5000;
@@ -330,7 +331,7 @@ void RobotInit() {
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;
-  navigator_data  = robot->navigator_data;
+  // navigator_data  = robot->navigator_data;
   vision_recv_data=VisionInit(&gimbal_init_config.imu_init_config);
   can_comm_instance = CANCommInit(&comm_config);
 }
@@ -346,11 +347,11 @@ void RobotCMDTask() {
 
 void RobotTask() {
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
-  VisionSend();
   RobotCMDTask();
+  Gimbal_CANCommSend();
+  VisionSend();
   GimbalTask();
   ShootTask();
-  Gimbal_CANCommSend();
 #endif
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
