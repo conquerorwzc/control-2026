@@ -133,7 +133,7 @@ static void RemoteControlSet() {
     vy_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // l1竖直方向
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
       chassis_ctrl_cmd->wz =
-          5.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
+          20.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
     }
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
       chassis_ctrl_cmd->wz =(20.0f) *(float)rc_data[TEMP].rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
@@ -299,10 +299,11 @@ static void DualBoardCtrlSet() {
         CanData.bytes[i] = received_data[i];
       rc_data[TEMP].rc.rocker_l_=CanData.value16[0];//todo:后面chassis改改把负号去掉
       rc_data[TEMP].rc.rocker_l1=CanData.value16[1];
+      rc_data[TEMP].rc.rocker_r_=CanData.value16[2];
       //if (CanData.value16[2]>=0)
       // chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)-CanData.value16[2]/50.0f))*CanData.value16[2];
       // else chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)CanData.value16[2]/50.0f))*CanData.value16[2];
-      chassis_ctrl_cmd->wz=42.0f*CanData.value16[3];
+      rc_data[TEMP].rc.dial=CanData.value16[3];
       if (switch_is_mid(CanData.bytes[10])) {
         //gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
         if (CanData.value16[3] > 20) {
@@ -388,7 +389,7 @@ void RobotInit() {
   robot->chassis = ChassisInit(&chassis_init_config);
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
-  chassis_ctrl_cmd->max_power = 80;  // 随便给一个初始功率，后面应该要从裁判系统获取
+  chassis_ctrl_cmd->max_power = 120;  // 随便给一个初始功率，后面应该要从裁判系统获取
   rc_data = robot->rc_data;
 //  navigator_data  = robot->navigator_data;
 }
