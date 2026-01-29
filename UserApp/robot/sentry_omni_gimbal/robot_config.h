@@ -153,7 +153,7 @@ static Shoot_Init_Config_s shoot_init_config = {
             .friction_speed = 7500.0f,                   // 摩擦轮速度
             .friction_coefficients = {1.0f, 1.0f},  // 摩擦轮速度比例系数
               .deadtime_burstfire = 150,
-            .deadtime_onebullet = 5000,
+            .deadtime_onebullet = 500,
             .target_speed = 0.0f,
             .bullet_speed_adjustment = 10.0f,
         },
@@ -165,9 +165,9 @@ static Shoot_Init_Config_s shoot_init_config = {
       {
         .angle_PID =
         {
-          .Kp = 150.0f,
+          .Kp = 70.0f,
           .Ki = 0.0f,
-          .Kd = 0.2f,
+          .Kd = 1.5f,
           .MaxOut = 20000.0f,
       },
   .speed_PID =
