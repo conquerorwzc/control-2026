@@ -241,16 +241,15 @@ static void LimitChassisOutput() {
     VAL_LIMIT(leg[i]->real_model.T, -2.45f, 2.45f);
     // DMMotorSetRef(leg[i]->joint_motor[0], leg[i]->real_model.Tp_1);
     // DMMotorSetRef(leg[i]->joint_motor[1], leg[i]->real_model.Tp_2);
-    DMMotorSetRef(leg[0]->joint_motor[1], 0);
-    DMMotorSetRef(leg[0]->joint_motor[0], 0);
+    DMMotorSetRef(leg[i]->joint_motor[1], 0);
+    DMMotorSetRef(leg[i]->joint_motor[0], 0);
     // DMMotorSetRef(leg[1]->joint_motor[0], leg[1]->real_model.Tp_1);
     // DMMotorSetRef(leg[1]->joint_motor[1], leg[1]->real_model.Tp_2);
-    // DMMotorSetRef(leg[i]->joint_motor[0], 0);
-    // DMMotorSetRef(leg[i]->joint_motor[1], 0);
     if (leg[i]->update_flag.is_off_ground) {
       DJIMotorSetRef(leg[i]->wheel_motor, 0);
     } else {
       DJIMotorSetRef(leg[i]->wheel_motor, leg[i]->real_model.T * q2i_coeff * (16384.0f / 20.0f));
+      // DJIMotorSetRef(leg[i]->wheel_motor, 0);
     }
     // DJIMotorSetRef(leg[0]->wheel_motor, 0);
     // DJIMotorSetRef(leg[i]->wheel_motor, ref);
