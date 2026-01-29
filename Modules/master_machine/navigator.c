@@ -101,7 +101,6 @@ uint8_t protocol_send(UART_HandleTypeDef* huart, uint16_t pack_id, const uint8_t
       return 0;
     }
   }
-
   return 1;
 }
 
