@@ -26,6 +26,58 @@ static void MotorTask();                                      // 电机任务函
 static void Grab_Position_Calculate(GrabInstance *grab);      // 计算电机目标位置
 
 /* Private user code ---------------------------------------------------------*/
+
+/**
+ * @brief 通用电机堵转校准处理器
+ * @param motor 电机实例指针，用于读取 PID 报错状态
+ * @param cali 校准数据结构体指针，记录状态和极值
+ * @param target_ptr 电机控制目标值的变量地址，校准时将直接修改该值
+ */
+static void Execute_Motor_Calibration(DJIMotorInstance *motor, Motor_Cali_Data_s *cali, float *target_ptr)
+{
+    if (cali->state == CALI_IDLE || cali->state == CALI_SUCCESS) return;
+
+    PIDInstance *pid = &motor->motor_controller.angle_PID;
+    // 强制开启堵转检测环节
+    pid->Improve |= PID_ErrorHandle;
+
+    switch (cali->state)
+    {
+    case CALI_FIND_MIN:
+        // 缓慢步进减小目标值，寻找物理 0 点
+        *target_ptr -= 1.0f;
+
+        // 检查 controller.c 计算出的堵转错误
+        if (pid->ERRORHandler.ERRORType == PID_MOTOR_BLOCKED_ERROR)
+        {
+            cali->min_total_angle = motor->measure.total_angle;
+            // 清除报错状态，准备寻找反向限位
+            pid->ERRORHandler.ERRORType = PID_ERROR_NONE;
+            pid->ERRORHandler.ERRORCount = 0;
+            cali->state = CALI_FIND_MAX;
+        }
+        break;
+
+    case CALI_FIND_MAX:
+        // 缓慢步进增加目标值，寻找物理 180 点
+        *target_ptr += 1.0f;
+
+        if (pid->ERRORHandler.ERRORType == PID_MOTOR_BLOCKED_ERROR)
+        {
+            cali->max_total_angle = motor->measure.total_angle;
+            cali->range = cali->max_total_angle - cali->min_total_angle;
+
+            pid->ERRORHandler.ERRORType = PID_ERROR_NONE;
+            pid->ERRORHandler.ERRORCount = 0;
+            cali->state = CALI_SUCCESS;
+        }
+        break;
+
+    default:
+        break;
+    }
+}
+
 /**
  * @brief 初始化机械臂
  */
@@ -82,7 +134,28 @@ void GrabTask()
 {
     grab_ctrl_cmd = &grab->grab_ctrl_cmd;
     GrabCmdTask();
-    Grab_Position_Calculate(grab);
+    Execute_Motor_Calibration(grab->actuator->grab_djimotor[0],
+                                  &grab->actuator->wrist_cali,
+                                  &grab->actuator->R_target);
+    // --- 目标位置解算 ---
+    if (grab->actuator->wrist_cali.state == CALI_SUCCESS)
+    {
+        // 如果校准完成，将 wrist_pitch (0~180) 映射到校准得到的 range 空间
+        float pitch_input = grab->actuator->wrist_pitch;
+        // 简单限幅
+        if (pitch_input < 0) pitch_input = 0;
+        if (pitch_input > 180.0f) pitch_input = 180.0f;
+
+        grab->actuator->R_target = grab->actuator->wrist_cali.min_total_angle +
+                                   (pitch_input / 180.0f) * grab->actuator->wrist_cali.range;
+    }
+    else if (grab->actuator->wrist_cali.state == CALI_IDLE)
+    {
+        // 未校准状态下执行原有的计算公式
+        Grab_Position_Calculate(grab);
+    }
+    // 注意：正在校准时 (FIND_MIN/MAX)，R_target 会在 Execute_Motor_Calibration 中被步进修改
+
     MotorTask();
 }
 static void GrabCmdTask()
