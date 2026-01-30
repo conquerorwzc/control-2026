@@ -276,11 +276,11 @@ void Gimbal_CANCommSend()
     return;
   }
 
-  transmit_data.value = rc_data->rc.rocker_l_;//+ rc_data[TEMP].key[KEY_PRESS].w * 660 - rc_data[TEMP].key[KEY_PRESS].s * 660;
+  transmit_data.value = rc_data->rc.rocker_l_ + rc_data[TEMP].key[KEY_PRESS].d * 660 - rc_data[TEMP].key[KEY_PRESS].a * 660;
   board_can_comm_data.tx_buff[0] = transmit_data.bytes[0];
   board_can_comm_data.tx_buff[1] = transmit_data.bytes[1];
 
-  transmit_data.value = rc_data->rc.rocker_l1;// + rc_data[TEMP].key[KEY_PRESS].a * 660 - rc_data[TEMP].key[KEY_PRESS]. * 660;
+  transmit_data.value = rc_data->rc.rocker_l1 + rc_data[TEMP].key[KEY_PRESS].w * 660 - rc_data[TEMP].key[KEY_PRESS].s * 660;
   board_can_comm_data.tx_buff[2] = transmit_data.bytes[0];
   board_can_comm_data.tx_buff[3] = transmit_data.bytes[1];
 
