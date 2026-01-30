@@ -64,19 +64,19 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                             .Ki = 0.00f,
                             .Kd = 0.00f,
                             .MaxOut = 20.0f,  //25
-                            .DeadBand = 0.01f,
+                            .DeadBand = 0.00f,
                             .Improve = PID_Integral_Limit,
                             .IntegralLimit = 0.0f,  //5
                         },
                     .speed_PID =
                         {
                             .Kp = 1.0f,  // 0.5
-                            .Ki = 3.0f,  // 0.1
+                            .Ki = 0.1f,  // 0.1
                             .Kd = 0.00f,
                             .MaxOut = 11.0f,  //8
-                            .DeadBand = 0.01f,
+                            .DeadBand = 0.0f,
                             .Improve = PID_Integral_Limit,
-                            .IntegralLimit = 0.5f,
+                            .IntegralLimit = 1.5f,
                         },
                 },
             .controller_setting_init_config =
