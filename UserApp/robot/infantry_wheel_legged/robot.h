@@ -13,7 +13,9 @@
 #ifndef ONE_BOARD
 #pragma pack(1)
 typedef struct {
-  attitude_t chassis_imu_data;
+  float Roll;           // 横滚角(绕X轴旋转) 单位: °
+  float Pitch;          // 俯仰角(绕Y轴旋转) 单位: °
+  float YawTotalAngle;  // Yaw轴累计转过的总角度，可用于多圈控制 单位: °
   // 后续增加底盘的真实速度
   // float real_vx;
   // float real_vy;

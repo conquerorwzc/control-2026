@@ -44,10 +44,10 @@
 #define JUMP_FORCE ROBOT_MASS * 9.8f / 2.0f * (1.0f + (TARGET_JUMP_HEIGHT - DELTA_LEG_LENGTH) / DELTA_LEG_LENGTH)
 
 // 云台参数
-#define YAW_CHASSIS_ALIGN_ECD 655  // 云台和底盘对齐指向相同方向时的电机编码器值,若对云台有机械改动需要修改
-#define PITCH_HORIZON_ECD 3494     // 云台处于水平位置时编码器值,若对云台有机械改动需要修改
-#define PITCH_MAX_ANGLE 20.0f      // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
-#define PITCH_MIN_ANGLE -20.0f     // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define YAW_CHASSIS_ALIGN_ECD 5075  // 云台和底盘对齐指向相同方向时的电机编码器值,若对云台有机械改动需要修改
+#define PITCH_HORIZON_ECD 4215      // 云台处于水平位置时编码器值,若对云台有机械改动需要修改
+#define PITCH_MAX_ANGLE 20.0f       // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define PITCH_MIN_ANGLE -20.0f      // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
 // 私有宏,自动将编码器转换成角度值
 #define YAW_ALIGN_ANGLE (YAW_CHASSIS_ALIGN_ECD * ECD_ANGLE_COEF_DJI)  // 对齐时的角度,0-360
 #define PTICH_HORIZON_ANGLE (PITCH_HORIZON_ECD * ECD_ANGLE_COEF_DJI)  // pitch水平时电机的角度,0-360
@@ -243,30 +243,30 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 2.5f,
+                            .Kp = 0.3f,
                             .Ki = 0.0f,
                             .Kd = 0.0f,
-                            .DeadBand = 0.01f,
+                            .DeadBand = 0.1f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                             .IntegralLimit = 5.0f,
-                            .MaxOut = 25.0f,
+                            .MaxOut = 22.0f,
                         },
                     .speed_PID =
                         {
-                            .Kp = -3000.0f,
-                            .Ki = -400.0f,
+                            .Kp = -6000.0f,
+                            .Ki = -100.0f,
                             .Kd = 0.0f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                             .IntegralLimit = 12000.0f,
-                            .MaxOut = 20000.0f,
+                            .MaxOut = 25000.0f,
                         },
 
                 },
             .motor_type = GM6020,
             .can_init_config =
                 {
-                    .can_handle = &hcan1,
-                    .tx_id = 2,
+                    .can_handle = &hcan2,
+                    .tx_id = 6,
                 },
             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
         },
@@ -276,29 +276,28 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 2.0f,
+                            .Kp = 1.0f,
                             .Ki = 0.0f,
                             .Kd = 0.0f,
-                            .DeadBand = 0.01f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                             .IntegralLimit = 5.0f,
                             .MaxOut = 25.0f,
                         },
                     .speed_PID =
                         {
-                            .Kp = -3000.0f,
-                            .Ki = -300.0f,
+                            .Kp = -5000.0f,
+                            .Ki = -200.0f,
                             .Kd = 0.0f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                             .IntegralLimit = 12000.0f,
-                            .MaxOut = 20000.0f,
+                            .MaxOut = 28000.0f,
                         },
                 },
             .motor_type = GM6020,
             .can_init_config =
                 {
-                    .can_handle = &hcan2,
-                    .tx_id = 1,
+                    .can_handle = &hcan1,
+                    .tx_id = 2,
                 },
             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
         },
@@ -389,13 +388,21 @@ static Shoot_Init_Config_s shoot_init_config = {
 };
 
 static PID_Init_Config_s chassis_follow_PID_config = {
-    .Kp = 2.0f,
+    .Kp = 0.06f,
     .Ki = 0.0f,
-    .Kd = 0.2f,
+    .Kd = 0.01f,
     .IntegralLimit = 0.1f,
     .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
     .MaxOut = 2.0f,
 };
+// static PID_Init_Config_s chassis_follow_PID_config = {
+//   .Kp = 1.5f,
+//   .Ki = 0.0f,
+//   .Kd = 0.2f,
+//   .IntegralLimit = 0.1f,
+//   .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+//   .MaxOut = 2.0f,
+// };
 
 static SuperCap_Init_Config_s super_cap_config = {
     .can_config = {

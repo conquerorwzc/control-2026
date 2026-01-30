@@ -11,31 +11,24 @@
 
 #define DM_P_MIN_J4310 (-12.5f)
 #define DM_P_MAX_J4310 12.5f
-#define DM_V_MIN_J4310 (-30.0f)
+#define DM_V_MIN_J4310 (-30.0f)  // J4310 30.0f J8009P 45.0f
 #define DM_V_MAX_J4310 30.0f
-#define DM_T_MIN_J4310 (-10.0f)
+#define DM_T_MIN_J4310 (-10.0f)  // J4310 10.0f J8009P 54.0f
 #define DM_T_MAX_J4310 10.0f
 
-#define DM_P_MIN_H6215 (-12.5f)
-#define DM_P_MAX_H6215 12.5f
-#define DM_V_MIN_H6215 (-30.0f)
-#define DM_V_MAX_H6215 30.0f
-#define DM_T_MIN_H6215 (-10.0f)
-#define DM_T_MAX_H6215 10.0f
+#define DM_P_MIN_H6215 (-12.0f)
+#define DM_P_MAX_H6215 12.0f
+#define DM_V_MIN_H6215 (-45.0f)  // J4310 30.0f J8009P 45.0f
+#define DM_V_MAX_H6215 45.0f
+#define DM_T_MIN_H6215 (-18.0f)  // J4310 10.0f J8009P 54.0f
+#define DM_T_MAX_H6215 18.0f
 
 #define DM_P_MIN_J8009P (-12.5f)
 #define DM_P_MAX_J8009P 12.5f
-#define DM_V_MIN_J8009P (-45.0f)
+#define DM_V_MIN_J8009P (-45.0f)  // J4310 30.0f J8009P 45.0f
 #define DM_V_MAX_J8009P 45.0f
-#define DM_T_MIN_J8009P (-54.0f)
+#define DM_T_MIN_J8009P (-54.0f)  // J4310 10.0f J8009P 54.0f
 #define DM_T_MAX_J8009P 54.0f
-
-#define DM_P_MIN_J4340 (-12.5f)
-#define DM_P_MAX_J4340 12.5f
-#define DM_V_MIN_J4340 (-10.0f)
-#define DM_V_MAX_J4340 10.0f
-#define DM_T_MIN_J4340 (-28.0f)
-#define DM_T_MAX_J4340 28.0f
 
 typedef struct {
   uint8_t id;
@@ -93,9 +86,7 @@ void DMMotorCaliEncoder(DMMotorInstance* motor);
 
 void DMMotorSetPIDRef(DMMotorInstance* motor, float pid_ref);
 
-/**
- * @brief  DM电机控制函数，请在 MotorControlTask 中调用
- * @note   内部自带 2分频 (500Hz) 和 200us 延时策略
- */
-void DMMotorControl(void);
+void DMMotorTask(void const* argument);
+
+void DMMotorTaskInit();
 #endif  // !DMMOTOR

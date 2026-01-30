@@ -39,8 +39,11 @@ static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 static float trigger_time = 0;  // 触发时间
 static float angle;
 
-static float chassis_vx;  // x轴输入控制量
-static float chassis_vy;  // y轴输入控制量
+static float chassis_vx;         // x轴输入控制量
+static float chassis_vy;         // y轴输入控制量
+static float input_mag;          // 输入的模值
+static float follow_err;         // follow最终计算出的角度误差
+static float align_attenuation;  // 对齐时的衰减系数
 
 #define robot_lost_control abs(robot->chassis->chassis_IMU->Pitch) > 20.0f
 /**
@@ -127,15 +130,16 @@ static void RemoteControlSet() {
     }
     // 云台使能,或视觉未识别到目标,纯遥控器拨杆控制
     if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
-      // gimbal_ctrl_cmd->yaw += -0.0016f * (float)rc_data[TEMP].rc.rocker_r_;
-      // gimbal_ctrl_cmd->pitch -= 0.0003f * (float)rc_data[TEMP].rc.rocker_r1;
+      gimbal_ctrl_cmd->pitch -= 0.0003f * (float)rc_data[TEMP].rc.rocker_r1;
     }
   } else {
     shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
     shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
   }
-
+  if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
+    gimbal_ctrl_cmd->yaw += -0.0005f * (float)rc_data[TEMP].rc.rocker_r_;
+  }
   // 云台PITCH轴软件限位 todo:没在云台有点不好
   if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
     gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
@@ -148,25 +152,61 @@ static void RemoteControlSet() {
       // chassis_ctrl_cmd->wz = TRACK_WIDTH / 2.0f * (0.0001) *
       //                        (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如，则在底盘任务中计算旋转分量
       break;
+
+    // --- 核心修改区域 START ---
     case ROBOT_CHASSIS_FOLLOW:
-      // chassis_ctrl_cmd->wz = TRACK_WIDTH / 2.0f * (0.0001) *
-      //                        (float)rc_data[TEMP].rc.dial;     //
-      //                        小陀螺模式下的旋转分量，如，则在底盘任务中计算旋转分量
-      // chassis_vx = 30.0f * (float)rc_data[TEMP].rc.rocker_r_;  // _水平方向
-      // chassis_vy = 30.0f * (float)rc_data[TEMP].rc.rocker_r1;  // 竖直方向
-      // chassis_ctrl_cmd->wz = (-0.00f) * (float)rc_data[TEMP].rc.rocker_r_ +
-      //                        PIDCalculate(&robot->chassis_follow_PID, chassis_ctrl_cmd->offset_angle,
-      //                                     atan2f(chassis_vy, chassis_vx) - PI / 2.0f);
-      // PIDCalculate(&robot->chassis_follow_PID, robot->chassis->chassis_IMU->YawTotalAngle, 0);
-      // slope_following(sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy), &chassis_ctrl_cmd->vx,
+      // 1. 获取输入
+      chassis_vx = 0.0025f * (float)rc_data[TEMP].rc.rocker_l_;  // 水平分量
+      chassis_vy = 0.0025f * (float)rc_data[TEMP].rc.rocker_l1;  // 垂直分量
+      input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
+
+      // 2. 运动逻辑
+      if (input_mag > 0.0005f) {
+        //  (Error = Target - Current)
+        follow_err = (atan2f(chassis_vy, chassis_vx) - PI / 2.0f) * RAD_2_DEGREE - chassis_ctrl_cmd->offset_angle;
+
+        // (C) 角度归一化 (-180 ~ 180)，处理过零点问题
+        while (follow_err > 180.0f) follow_err -= 360.0f;
+        while (follow_err < -180.0f) follow_err += 360.0f;
+
+        // (D) 倒车优化 (如果误差 > 90度，则反向行驶)
+        if (abs(follow_err) > 90.0f) {
+          if (follow_err > 0.0f)
+            follow_err -= 180.0f;
+          else
+            follow_err += 180.0f;
+          input_mag = -input_mag;  // 速度反向
+        }
+        // PID(Measure=0, Target=Error) 等价于 PID(Error)
+        chassis_ctrl_cmd->wz =
+            -0.0035f * (float)rc_data[TEMP].rc.rocker_r_ + PIDCalculate(&robot->chassis_follow_PID, -follow_err, 0);
+        ;
+
+      } else {
+        // 静止回正逻辑：让底盘车头自动转回云台方向 (Offset -> 0)
+        // 此时 PID(Measure=Offset, Target=0)
+        chassis_ctrl_cmd->wz = -0.0035f * (float)rc_data[TEMP].rc.rocker_r_ +
+                               PIDCalculate(&robot->chassis_follow_PID, chassis_ctrl_cmd->offset_angle, 0);
+      }
+      align_attenuation = cosf(follow_err * (PI / 180.0f));
+      if (align_attenuation < 0) align_attenuation = 0;  // 防御性保护
+      input_mag *= align_attenuation * align_attenuation * align_attenuation;
+
+      // if (abs(follow_err) > 5) align_attenuation = 0;  // 防御性保护
+      // input_mag *= align_attenuation;
+
+      // slope_following(input_mag, &chassis_ctrl_cmd->vx,
       //                 1.0f * robot->dt);  // 0.0045(最大3m/s)
-      // break;
+      chassis_ctrl_cmd->vx = input_mag;
+      break;
     case ROBOT_CHASSIS_FREE:
-      static float target_angle;
-      target_angle += (-0.25f) * (float)rc_data[TEMP].rc.rocker_r_ * robot->dt;
-      chassis_ctrl_cmd->wz =
-          -0.0015f * (float)rc_data[TEMP].rc.rocker_r_ +
-          PIDCalculate(&robot->chassis_follow_PID, robot->chassis->chassis_IMU->YawTotalAngle, target_angle);
+      // static float target_angle;
+      // target_angle += (-0.25f) * (float)rc_data[TEMP].rc.rocker_r_ * robot->dt;
+      // chassis_ctrl_cmd->wz =
+      //     -0.0015f * (float)rc_data[TEMP].rc.rocker_r_ +
+      //     PIDCalculate(&robot->chassis_follow_PID, robot->chassis->chassis_IMU->YawTotalAngle, target_angle);
+      chassis_ctrl_cmd->wz = -0.0035f * (float)rc_data[TEMP].rc.rocker_r_ +
+                             PIDCalculate(&robot->chassis_follow_PID, chassis_ctrl_cmd->offset_angle, 0);
       chassis_ctrl_cmd->vx = (0.0025f) * (float)rc_data[TEMP].rc.rocker_r1;
       // slope_following((0.0021f) * (float)rc_data[TEMP].rc.rocker_r1, &chassis_ctrl_cmd->vx, 3.5f * robot->dt);
       // slope_following((0.004f) * (float)rc_data[TEMP].rc.rocker_r1, &chassis_ctrl_cmd->vx,
@@ -291,6 +331,7 @@ static void EmergencyHandler() {
     shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
     LOGERROR("[CMD] emergency stop!");
+
   } else {
     LOGINFO("[CMD] reinstate, robot ready");
   }  // 底盘失能
@@ -315,10 +356,16 @@ void RobotCMDTask() {
 #if defined(GIMBAL_BOARD)
   chassis_fetch_data->chassis_ctrl_cmd = *chassis_ctrl_cmd;
   *chassis_upload_data = *(Chassis_Upload_Data_s *)CANCommGet(robot->can_comm);
+  robot->chassis->chassis_IMU->Roll = chassis_upload_data->Roll;
+  robot->chassis->chassis_IMU->Pitch = chassis_upload_data->Pitch;
+  robot->chassis->chassis_IMU->YawTotalAngle = chassis_upload_data->YawTotalAngle;
   CANCommSend(robot->can_comm, (void *)chassis_fetch_data);
 #endif
 #elif defined(CHASSIS_BOARD)
-  INS_GetAttitude(&chassis_upload_data->chassis_imu_data);
+  chassis_upload_data->Pitch = robot->chassis->chassis_IMU->Pitch;
+  chassis_upload_data->Roll = robot->chassis->chassis_IMU->Roll;
+  chassis_upload_data->YawTotalAngle = robot->chassis->chassis_IMU->YawTotalAngle;
+
   *chassis_fetch_data = *(Chassis_Fetch_Data_s *)CANCommGet(robot->can_comm);
   robot->chassis->chassis_ctrl_cmd = chassis_fetch_data->chassis_ctrl_cmd;
   CANCommSend(robot->can_comm, (void *)chassis_upload_data);
@@ -354,6 +401,7 @@ void RobotInit() {
   chassis_upload_data = robot->chassis_upload_data;
   chassis_fetch_data = robot->chassis_fetch_data;
   robot->chassis = (ChassisInstance *)zmalloc(sizeof(ChassisInstance));
+  robot->chassis->chassis_IMU = (INS_t *)zmalloc(sizeof(INS_t));
   robot->can_comm = CANCommInit(&gimbal_comm_conf);
 #endif
 
@@ -378,7 +426,7 @@ void RobotTask() {
   robot->dt = DWT_GetDeltaT(&robot->DWT_CNT);
   RobotCMDTask();
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
-  // GimbalTask();
+  GimbalTask();
   // ShootTask();
 #endif
 

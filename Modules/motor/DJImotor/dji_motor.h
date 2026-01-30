@@ -127,6 +127,4 @@ void DJIMotorSetRef(DJIMotorInstance* motor, float ref);
  */
 void DJIMotorTask();
 
-void DJIMotorCANTransmit();
-
 #endif  // !DJI_MOTOR_H

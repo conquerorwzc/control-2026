@@ -91,11 +91,11 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
   if (hibernate_time + dead_time > DWT_GetTimeline_ms()) return;
   ;
 
+  if (shoot->loader_motor->motor_controller.speed_PID.ERRORHandler.ERRORType == PID_MOTOR_BLOCKED_ERROR) {
+    shoot->loader_motor->motor_controller.speed_PID.ERRORHandler.ERRORType = PID_ERROR_NONE;  // 清空标志位
+    shoot_ctrl_cmd->load_mode = LOAD_REVERSE;
+  }
 
-  // if (shoot->loader_motor->motor_controller.speed_PID.ERRORHandler.ERRORType == PID_MOTOR_BLOCKED_ERROR) {
-  //   shoot->loader_motor->motor_controller.speed_PID.ERRORHandler.ERRORType = PID_ERROR_NONE;  // 清空标志位
-  //   shoot_ctrl_cmd->load_mode = LOAD_REVERSE;
-  // }
   // 若不在休眠状态,根据robotCMD传来的控制模式进行拨盘电机参考值设定和模式切换
   switch (shoot_ctrl_cmd->load_mode) {
     // 停止拨盘

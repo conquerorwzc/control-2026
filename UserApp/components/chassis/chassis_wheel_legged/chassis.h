@@ -98,6 +98,13 @@ typedef struct {
 } ChassisInstance;
 
 /**
+ * @brief 完整初始化底盘实例的所有内存，包括底盘自身、腿部和IMU
+ * @param chassis_instance 底盘实例指针
+ * @param chassis_init_config 底盘初始化配置
+ */
+void ChassisFullInitStruct(ChassisInstance* chassis_instance, Chassis_Init_Config_s* chassis_init_config);
+
+/**
  * @brief 底盘应用初始化,请在开启rtos之前调用(目前会被RobotInit()调用)
  *
  */
