@@ -306,7 +306,7 @@ static void DualBoardCtrlSet() {
       rc_data[TEMP].rc.dial=CanData.value16[3];
       if (switch_is_mid(CanData.bytes[10])) {
         //gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-        if (CanData.value16[3] > 20) {
+        if (abs(CanData.value16[3]) > 20) {
           chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
         } else
           chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
