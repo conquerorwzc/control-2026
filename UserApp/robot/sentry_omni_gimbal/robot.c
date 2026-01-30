@@ -284,11 +284,11 @@ void Gimbal_CANCommSend()
   board_can_comm_data.tx_buff[2] = transmit_data.bytes[0];
   board_can_comm_data.tx_buff[3] = transmit_data.bytes[1];
 
-  transmit_data.value = rc_data->rc.rocker_r_;
+  transmit_data.value = rc_data->rc.rocker_r_ + rc_data[TEMP].mouse.x * 2.0f;
   board_can_comm_data.tx_buff[4] = transmit_data.bytes[0];
   board_can_comm_data.tx_buff[5] = transmit_data.bytes[1];
 
-  transmit_data.value = rc_data->rc.dial;
+  transmit_data.value = rc_data->rc.dial + rc_data[TEMP].key[KEY_PRESS].q*300;
   board_can_comm_data.tx_buff[6] = transmit_data.bytes[0];
   board_can_comm_data.tx_buff[7] = transmit_data.bytes[1];
 
