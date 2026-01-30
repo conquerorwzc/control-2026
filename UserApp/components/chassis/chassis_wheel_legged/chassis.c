@@ -179,7 +179,6 @@ static void PowerControl() {
   float k[2] = {0.0f};        // 约束条件：T_speed = k * T_yaw 和 T_yaw_target = k * T_speed_target
   float k_speed[2] = {1.0f};  // speed分量的衰减系数
   float k_yaw[2] = {1.0f};    // yaw分量的衰减系数
-  float T_speed_target[2] = {0.0f};
   float T_yaw_target[2] = {0.0f};
 
   // 功率超限时进行动态调整

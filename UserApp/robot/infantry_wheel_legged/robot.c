@@ -45,6 +45,13 @@ static float input_mag;          // 输入的模值
 static float follow_err;         // follow最终计算出的角度误差
 static float align_attenuation;  // 对齐时的衰减系数
 
+//小陀螺相关参数
+static float rotate_frequency;  // 小陀螺旋转的频率
+static float rotate_time;       // 小陀螺旋转时长
+static float rotate_omega;      // 小陀螺旋转角速度
+static float rotate_T;          // 小陀螺旋转周期
+static int rotate_T_flag;       // 小陀螺旋转周期标志，0表示在前二分之一个周期，1表示在后二分之一个周期
+
 #define robot_lost_control abs(robot->chassis->chassis_IMU->Pitch) > 20.0f
 /**
  * @brief 根据gimbal app传回的当前电机角度计算和零位的误差
@@ -149,8 +156,40 @@ static void RemoteControlSet() {
 
   switch (robot->robot_mode) {
     case ROBOT_CHASSIS_ROTATE:
-      // chassis_ctrl_cmd->wz = TRACK_WIDTH / 2.0f * (0.0001) *
-      //                        (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如，则在底盘任务中计算旋转分量
+      // 小陀螺转速/频率设置
+      rotate_frequency = 0.1f;
+
+      // 小陀螺原地旋转
+      rotate_omega = rotate_frequency * 2.0f * PI;
+      chassis_ctrl_cmd->wz = rotate_omega;
+
+      // 设置目标速度(vx,vy)
+      chassis_vx = 0.001f * (float)rc_data[TEMP].rc.rocker_r_;
+      chassis_vy = 0.001f * (float)rc_data[TEMP].rc.rocker_r1;
+
+      // 获取当前所在的二分之一个周期
+      rotate_T = 2.0f * PI / rotate_omega;
+      rotate_T_flag = 0;
+      rotate_time += robot->dt;
+      if (rotate_time >= rotate_T) rotate_T_flag = (rotate_T_flag + 1) % 2;
+
+      // 每个二分之一周期做对应处理
+      switch (rotate_T_flag) {
+        case 0:  // 在前半个周期时
+          chassis_ctrl_cmd->wz += PIDCalculate(&robot->chassis_follow_PID, chassis_ctrl_cmd->offset_angle,
+                                               atan2f(chassis_vy, chassis_vx) - PI / 2.0f);
+          slope_following(sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy), &chassis_ctrl_cmd->vx,
+                          1.0f * robot->dt);
+          break;
+        case 1:  // 在后半个周期时
+          chassis_ctrl_cmd->wz += PIDCalculate(&robot->chassis_follow_PID, chassis_ctrl_cmd->offset_angle,
+                                               PI / 2.0f - atan2f(chassis_vy, chassis_vx));
+          slope_following(-1.0f * sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy), &chassis_ctrl_cmd->vx,
+                          1.0f * robot->dt);
+          break;
+        default:
+          break;
+      }
       break;
 
     // --- 核心修改区域 START ---
