@@ -71,7 +71,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                     .speed_PID =
                         {
                             .Kp = 1.5f,  // 0.5
-                            .Ki = 0.1f,  // 0.1
+                            .Ki = 0.01f,  // 0.1
                             .Kd = 0.00f,
                             .MaxOut = 11.0f,  //8
                             .DeadBand = 0.0f,
