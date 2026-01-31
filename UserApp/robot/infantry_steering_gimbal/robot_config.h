@@ -70,7 +70,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                         },
                     .speed_PID =
                         {
-                            .Kp = 1.0f,  // 0.5
+                            .Kp = 1.5f,  // 0.5
                             .Ki = 0.1f,  // 0.1
                             .Kd = 0.00f,
                             .MaxOut = 11.0f,  //8
@@ -93,7 +93,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .can_handle = &hcan2,
                     .tx_id = 0x01,      //0x01
-                    .rx_id = 0x206,     //0x206
+                    .rx_id = 0x206,     //0x206Ò
                 },
         },
   .imu_init_config = {

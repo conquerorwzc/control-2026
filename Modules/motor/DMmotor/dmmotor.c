@@ -37,7 +37,8 @@ static void DMMotorDecode(CANInstance* motor_can) {
   DMMotorInstance* motor = (DMMotorInstance*)motor_can->id;
   DM_Motor_Measure_s* measure = &(motor->measure);  // 将can实例中保存的id转换成电机实例的指针
   Motor_Control_Setting_s* motor_setting = &(motor->motor_settings);
-
+  measure->state = rxbuff[0]>>4;
+  if (measure->state == 1)
   DaemonReload(motor->daemon);
   motor->dt = DWT_GetDeltaT(&motor->feed_cnt);
 
@@ -114,8 +115,8 @@ static void DMMotorDecode(CANInstance* motor_can) {
 
 // todo: 会跟控制抢，有概率控不了电机
 static void DMMotorLostCallback(void* motor_ptr) {
-  // DMMotorSetMode(DM_CMD_MOTOR_MODE, motor_ptr);
-  // DWT_Delay(0.1);
+  DMMotorSetMode(DM_CMD_MOTOR_MODE, motor_ptr);
+  DWT_Delay(0.1);
 }
 
 void DMMotorCaliEncoder(DMMotorInstance* motor) {
