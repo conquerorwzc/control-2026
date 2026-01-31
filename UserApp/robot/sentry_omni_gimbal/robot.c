@@ -144,7 +144,7 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
 
         gimbal_ctrl_cmd->yaw=vision_recv_data->gimbal_receive.yaw;
         gimbal_ctrl_cmd->pitch=vision_recv_data->gimbal_receive.pitch;
-        shoot_ctrl_cmd->load_mode=vision_recv_data->shoot_receive.fire_flag;
+        // shoot_ctrl_cmd->load_mode=vision_recv_data->shoot_receive.fire_flag;
       }
       else
         gimbal_ctrl_cmd->gimbal_mode=GIMBAL_ON;      //人工操控模式
