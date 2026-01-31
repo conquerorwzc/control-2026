@@ -45,7 +45,7 @@ static float input_mag;          // 输入的模值
 static float follow_err;         // follow最终计算出的角度误差
 static float align_attenuation;  // 对齐时的衰减系数
 
-#define robot_lost_control abs(robot->chassis->chassis_IMU->Pitch) > 20.0f
+#define robot_lost_control abs(robot->chassis->chassis_IMU->Pitch) > 13.0f
 /**
  * @brief 根据gimbal app传回的当前电机角度计算和零位的误差
  *        单圈绝对角度的范围是0~360,说明文档中有图示
@@ -153,23 +153,22 @@ static void RemoteControlSet() {
       //                        (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如，则在底盘任务中计算旋转分量
       break;
 
-    // --- 核心修改区域 START ---
     case ROBOT_CHASSIS_FOLLOW:
-      // 1. 获取输入
+      // 获取输入
       chassis_vx = 0.0025f * (float)rc_data[TEMP].rc.rocker_l_;  // 水平分量
       chassis_vy = 0.0025f * (float)rc_data[TEMP].rc.rocker_l1;  // 垂直分量
       input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
 
-      // 2. 运动逻辑
+      // 运动逻辑
       if (input_mag > 0.0005f) {
-        //  (Error = Target - Current)
+        // (Error = Target - Current)
         follow_err = (atan2f(chassis_vy, chassis_vx) - PI / 2.0f) * RAD_2_DEGREE - chassis_ctrl_cmd->offset_angle;
 
-        // (C) 角度归一化 (-180 ~ 180)，处理过零点问题
+        // 角度归一化 (-180 ~ 180)，处理过零点问题
         while (follow_err > 180.0f) follow_err -= 360.0f;
         while (follow_err < -180.0f) follow_err += 360.0f;
 
-        // (D) 倒车优化 (如果误差 > 90度，则反向行驶)
+        // 倒车优化 (如果误差 > 90度，则反向行驶)
         if (abs(follow_err) > 90.0f) {
           if (follow_err > 0.0f)
             follow_err -= 180.0f;
@@ -177,7 +176,6 @@ static void RemoteControlSet() {
             follow_err += 180.0f;
           input_mag = -input_mag;  // 速度反向
         }
-        // PID(Measure=0, Target=Error) 等价于 PID(Error)
         chassis_ctrl_cmd->wz =
             -0.0035f * (float)rc_data[TEMP].rc.rocker_r_ + PIDCalculate(&robot->chassis_follow_PID, -follow_err, 0);
         ;
@@ -195,8 +193,8 @@ static void RemoteControlSet() {
       // if (abs(follow_err) > 5) align_attenuation = 0;  // 防御性保护
       // input_mag *= align_attenuation;
 
-      // slope_following(input_mag, &chassis_ctrl_cmd->vx,
-      //                 1.0f * robot->dt);  // 0.0045(最大3m/s)
+      slope_following(input_mag, &chassis_ctrl_cmd->vx,
+                      1.0f * robot->dt);  // 0.0045(最大3m/s)
       chassis_ctrl_cmd->vx = input_mag;
       break;
     case ROBOT_CHASSIS_FREE:

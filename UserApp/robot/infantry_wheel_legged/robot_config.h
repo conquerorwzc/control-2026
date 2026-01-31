@@ -388,7 +388,7 @@ static Shoot_Init_Config_s shoot_init_config = {
 };
 
 static PID_Init_Config_s chassis_follow_PID_config = {
-    .Kp = 0.06f,
+    .Kp = 0.05f,
     .Ki = 0.0f,
     .Kd = 0.01f,
     .IntegralLimit = 0.1f,
