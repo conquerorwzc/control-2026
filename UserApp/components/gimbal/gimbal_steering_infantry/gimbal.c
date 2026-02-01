@@ -85,14 +85,17 @@ void GimbalTask() {
     // }
 
     if (disable_2_enable_flag==0) {
-      //校准
+      //重新使能后yaw屏蔽失能时的控制，pitch回中
       gimbal_ctrl_cmd->yaw=gimbal->gimbal_IMU_data->YawTotalAngle;
+      gimbal_ctrl_cmd->pitch=0;
       disable_2_enable_flag=1;
     }
 
     // 调用核心控制函数
     DJIMotorSetPIDRef(gimbal->yaw_motor, gimbal_ctrl_cmd->yaw);  // yaw和pitch会在robot_cmd中处理好多圈和单圈GimbalMotorAbsoluteAngleControl(gimbal);
     DMMotorSetPIDRef(gimbal->pitch_motor, gimbal_ctrl_cmd->pitch);
+    //gimbal_ctrl_cmd->pitch=10.0f*sinf((float)HAL_GetTick()/100.0f);
+    //DMMotorSetPIDRef(gimbal->pitch_motor, 20.0f*powf(sinf((float)HAL_GetTick()/100.0f),3)-5.0f);
   }
   // 在合适的地方添加pitch重力补偿前馈力矩
   // 根据IMU姿态/pitch电机角度反馈计算出当前配重下的重力矩
