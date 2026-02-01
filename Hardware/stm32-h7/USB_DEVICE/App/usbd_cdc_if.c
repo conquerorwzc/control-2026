@@ -270,8 +270,6 @@ static int8_t CDC_Receive_HS(uint8_t* Buf, uint32_t *Len)
   if (rx_cbk) {
     rx_cbk(*Len);
 
-  if(rx_cbk)
-    rx_cbk(*Len);
   return (USBD_OK);
 
   }
