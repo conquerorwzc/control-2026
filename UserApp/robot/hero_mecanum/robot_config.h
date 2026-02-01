@@ -153,9 +153,9 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 1.5f,
+                            .Kp = 2.5f,
                             .Ki = 0.0f,
-                            .Kd = 0.02f,
+                            .Kd = 0.05f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                             .IntegralLimit = 5.0f,
                             .MaxOut = 25.0f,
@@ -167,7 +167,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                             .Kd = 0.0f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                             .IntegralLimit = 12000.0f,
-                            .MaxOut = 26000.0f,
+                            .MaxOut = 30000.0f,
                         },
                 },
             .motor_type = GM6020,

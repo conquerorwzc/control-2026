@@ -18,7 +18,8 @@ static Shoot_Ctrl_Cmd_s *shoot_ctrl_cmd;
 static Vision_Receive_s* vision_recv_data;
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
-
+// 添加一个变量记录上次右上拨杆的状态，用于检测状态变化
+static uint8_t last_switch_right_up = 0;
 /* Intermediate variables calculated by private functions */
 static float trigger_time = 0;  // 触发时间
 static float x_speed_time=0;  //x方向加速触发时间
@@ -58,12 +59,39 @@ uint8_t has_non_zero_data(const Vision_Receive_s* data) {
          (data->gimbal_receive.yaw != 0) ||
          (data->shoot_receive.fire_flag != 0);
 }
+static void RobotTurnAround() {
+  // 调用底盘掉头功能，实现行驶方向调转
+  ChassisTurnAround();
+
+
+}
+static void GimbalTurnAround() {
+  if (gimbal_ctrl_cmd != NULL) {
+    // 云台需要旋转180度以适应车辆方向的改变
+    // 由于机械设计，车头和车尾方向时云台电机的ECD相同
+    // 所以只需简单地将目标yaw角度加上180度
+    gimbal_ctrl_cmd->yaw += 180.0f;
+
+    // 将角度规范化到-180到180度范围内
+    if (gimbal_ctrl_cmd->yaw > 180.0f) {
+      gimbal_ctrl_cmd->yaw -= 360.0f;
+    } else if (gimbal_ctrl_cmd->yaw < -180.0f) {
+      gimbal_ctrl_cmd->yaw += 360.0f;
+    }
+  }
+}
 /**
  * @brief 根据gimbal app传回的当前电机角度计算和零位的误差
  *        单圈绝对角度的范围是0~360,说明文档中有图示
  *
  */
 static void CalcOffsetAngle() {
+  // 检查是否正在掉头过程中，如果是则保持offset_angle不变
+  if (IsChassisInTurnAroundProcess()) {
+    // 在掉头过程中，不更新offset_angle，保持当前值
+    return;
+  }
+
   angle = ((uint16_t)robot->gimbal->yaw_motor->measure.angle_single_round +
            (uint16_t)robot->gimbal->yaw_motor->measure.total_round % 2 * 360.0f) /
           2.0f;
@@ -81,32 +109,39 @@ static void CalcOffsetAngle() {
  *
  */
 static void RemoteControlSet() {
+  // 检测遥控器右上拨杆状态变化，仅在状态从非上变为上时执行掉头
+  uint8_t current_switch_right_up = switch_is_up(rc_data[TEMP].rc.switch_right);
+  if (current_switch_right_up && !last_switch_right_up) {
+    RobotTurnAround();
+    chassis_ctrl_cmd->offset_angle-= 180.0f;
+    if (chassis_ctrl_cmd->offset_angle < 0.0f) {
+      chassis_ctrl_cmd->offset_angle += 360.0f;
+    }
+  }
+  // 更新上次状态
+  last_switch_right_up = current_switch_right_up;
   // 右[中]，云台
   if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+      if (!IsChassisInTurnAroundProcess()) {
+        chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+      }
     } else
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
-  }
-  // 右[上]，超电，保持底盘跟随云台
-  else if (switch_is_up(rc_data[TEMP].rc.switch_left)) {
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-    if (abs(rc_data[TEMP].rc.dial) > 20) {
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
-    } else
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+      if (!IsChassisInTurnAroundProcess()) {
+        chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+      }
   }
   if (switch_is_down(rc_data[TEMP].rc.switch_right)) {
     // 右下：腿部缓慢下降
     chassis_ctrl_cmd->leg_mode = LEG_MANUAL_DOWN;
   } else if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
-    chassis_ctrl_cmd->leg_mode = LEG_HOLD;
+    chassis_ctrl_cmd->leg_mode = LEG_CRUISE;
     // 右中：保持当前腿部位置不变（不改变之前的腿部模式）
     // 保留当前模式，不修改leg_mode
   } else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
     // 右上：腿部缓慢上升，最大到kike位置
-    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_UP;
+    chassis_ctrl_cmd->leg_mode = LEG_CRUISE;
   }
 
   //左[中],云台启动，摩擦轮启动，拨弹盘启动，准备射击
@@ -323,6 +358,7 @@ void RobotInit() {
   vision_recv_data=VisionInit(&gimbal_init_config.imu_init_config);
   gpio_5V_EN = GPIORegister(&gpio_init_config_5v);
   GPIOSet(gpio_5V_EN);
+  SetGimbalTurnAroundFunc(GimbalTurnAround);
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */

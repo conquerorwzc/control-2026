@@ -40,6 +40,7 @@ typedef enum {
   CHASSIS_POWER_OFF = 0,    // 电流零输入
   CHASSIS_ROTATE,            // 小陀螺模式
   CHASSIS_FOLLOW,            // 跟随模式，底盘叠加角度环控制
+  CHASSIS_TURNAROUND,
 } Chassis_Mode_e;
 typedef enum {
   LEG_DISABLE = 0,        // 腿部电机失能
@@ -49,6 +50,8 @@ typedef enum {
   LEG_MANUAL_UP,          // 手动上升
   LEG_MANUAL_DOWN,        // 手动下降
   LEG_HOLD,
+  LEG_CRUISE,
+  LEG_IN_AIR,
 } Leg_Mode_e;
 typedef struct {
   // 控制部分
@@ -109,7 +112,9 @@ typedef struct {
  *
  */
 ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config);
-
+void SetGimbalTurnAroundFunc(void (*func)(void));
+void ChassisTurnAround();
+uint8_t IsChassisInTurnAroundProcess();
 /**
  * @brief 底盘应用任务,放入实时系统以一定频率运行
  *
