@@ -37,9 +37,10 @@
 #include "dmmotor.h"
 #include "external_imu/external_imu.h"
 typedef enum {
-  CHASSIS_POWER_OFF = 0,    // 电流零输入
+  CHASSIS_POWER_OFF = 0,     // 电流零输入
   CHASSIS_ROTATE,            // 小陀螺模式
   CHASSIS_FOLLOW,            // 跟随模式，底盘叠加角度环控制
+  CHASSIS_FOLLOW_REAR_END,   // 掉头模式,跟随车辆尾部
 } Chassis_Mode_e;
 typedef enum {
   LEG_DISABLE = 0,        // 腿部电机失能

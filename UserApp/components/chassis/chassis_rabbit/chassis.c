@@ -18,6 +18,9 @@ static float lf_radius;
 static float rf_radius;
 static float lb_radius;
 static float rb_radius;
+static float follow_angle=0;//底盘跟随目标角度
+static float normal_follow_tick;//记录最后一次follow前方的时间戳
+static float reverse_follow_tick;//记录最后一次follow后方的时间戳
 static PIDInstance follow_pid;
 static float k0,k1,k2,k3,k4,k5;       //中科大的功率模型
 // 添加腿部电机目标位置和当前位置变量
@@ -643,7 +646,34 @@ void ChassisTask() {
   switch (chassis_ctrl_cmd->chassis_mode)
   {
     case CHASSIS_FOLLOW: // 跟随云台,不单独设置pid,以误差角度平方为速度输出
-      chassis_ctrl_cmd->wz+=PIDCalculate(&follow_pid,chassis_ctrl_cmd->offset_angle,0);
+      normal_follow_tick=DWT_GetTimeline_ms();
+      follow_angle=0.f ;//跟随正前方
+      //跳变处理
+      if (follow_angle-chassis_ctrl_cmd->offset_angle>=180.f) {
+        follow_angle+=360.0f;
+      }
+      else if(follow_angle-chassis_ctrl_cmd->offset_angle<=-180.f) {
+        follow_angle-=360.0f;
+      }
+       //如果状态是刚从follow_rear_ecd切换过来，那么等待500ms再算follow_pid，其他模式切过来直接算就行，todo可以将500写入config
+      if (DWT_GetTimeline_ms()-reverse_follow_tick>=500) {
+        chassis_ctrl_cmd->wz+=PIDCalculate(&follow_pid,chassis_ctrl_cmd->offset_angle,follow_angle);
+      }
+      break;
+    case CHASSIS_FOLLOW_REAR_END: // 跟随云台,不单独设置pid,以误差角度平方为速度输出
+      reverse_follow_tick=DWT_GetTimeline_ms();
+      follow_angle=180.f ;//跟随车辆后方
+      //跳变处理
+      if (follow_angle-chassis_ctrl_cmd->offset_angle>=180.f) {
+        follow_angle+=360.0f;
+      }
+      else if(follow_angle-chassis_ctrl_cmd->offset_angle<=-180.f) {
+        follow_angle-=360.0f;
+      }
+      //如果状态是刚从follow切换过来，那么等待500ms再算follow_pid，其他模式切过来直接算就行，todo可以将500写入config
+      if (DWT_GetTimeline_ms()-normal_follow_tick>=500) {
+        chassis_ctrl_cmd->wz+=PIDCalculate(&follow_pid,chassis_ctrl_cmd->offset_angle,follow_angle);
+      }
       break;
     case CHASSIS_ROTATE: // 自旋,同时保持全向机动;当前wz维持定值,后续增加不规则的变速策略
       // chassis_cmd_recv.wz = 4000;
