@@ -74,9 +74,11 @@ static void ChassisRecovery() {
     leg[i]->real_model.Tp_1 = leg[i]->joint_motor[0]->motor_controller.final_output;
     leg[i]->real_model.Tp_2 = leg[i]->joint_motor[1]->motor_controller.final_output;
     leg[i]->update_flag.is_controlled = 1;  // todo: 可以看看哪个好
-    // 没收完腿不动轮毂, 防止位移项错误累加
-    if (abs((leg[i]->joint_motor[0]->measure.position - (-0.1f))) <= 0.5f &&
-        abs(leg[i]->joint_motor[1]->measure.position - (0.1f)) <= 0.5f) {
+    // 没收完两条腿不动轮毂, 防止位移项错误累加
+    if (abs((leg[0]->joint_motor[0]->measure.position - (-0.1f))) <= 0.5f &&
+        abs(leg[0]->joint_motor[1]->measure.position - (0.1f)) <= 0.5f &&
+        abs((leg[1]->joint_motor[0]->measure.position - (-0.1f))) <= 0.5f &&
+        abs(leg[1]->joint_motor[1]->measure.position - (0.1f)) <= 0.5f) {
       leg[i]->leg_ctrl_cmd.x_d_ref = chassis->chassis_ctrl_cmd.vx;
       LegCtrlUpdate(leg[i], chassis->chassis_IMU);
       leg[i]->real_model.T -= (float)(1 - 2 * i) * chassis->chassis_ctrl_cmd.wz;

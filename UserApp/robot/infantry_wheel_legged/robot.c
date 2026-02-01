@@ -154,6 +154,7 @@ static void RemoteControlSet() {
       break;
 
     case ROBOT_CHASSIS_FOLLOW:
+#if (!defined(ONE_BOARD))
       // 获取输入
       chassis_vx = 0.0025f * (float)rc_data[TEMP].rc.rocker_l_;  // 水平分量
       chassis_vy = 0.0025f * (float)rc_data[TEMP].rc.rocker_l1;  // 垂直分量
@@ -197,23 +198,24 @@ static void RemoteControlSet() {
                       1.0f * robot->dt);  // 0.0045(最大3m/s)
       chassis_ctrl_cmd->vx = input_mag;
       break;
+#endif
     case ROBOT_CHASSIS_FREE:
-      // static float target_angle;
-      // target_angle += (-0.25f) * (float)rc_data[TEMP].rc.rocker_r_ * robot->dt;
-      // chassis_ctrl_cmd->wz =
-      //     -0.0015f * (float)rc_data[TEMP].rc.rocker_r_ +
-      //     PIDCalculate(&robot->chassis_follow_PID, robot->chassis->chassis_IMU->YawTotalAngle, target_angle);
+#if defined(ONE_BOARD)
+      static float target_angle;
+      target_angle += (-0.25f) * (float)rc_data[TEMP].rc.rocker_r_ * robot->dt;
+      chassis_ctrl_cmd->wz =
+          -0.0015f * (float)rc_data[TEMP].rc.rocker_r_ +
+          PIDCalculate(&robot->chassis_follow_PID, robot->chassis->chassis_IMU->YawTotalAngle, target_angle);
+      // chassis_ctrl_cmd->vx = (0.0025f) * (float)rc_data[TEMP].rc.rocker_r1;
+#else
       chassis_ctrl_cmd->wz = -0.0035f * (float)rc_data[TEMP].rc.rocker_r_ +
                              PIDCalculate(&robot->chassis_follow_PID, chassis_ctrl_cmd->offset_angle, 0);
       chassis_ctrl_cmd->vx = (0.0025f) * (float)rc_data[TEMP].rc.rocker_r1;
-      // slope_following((0.0021f) * (float)rc_data[TEMP].rc.rocker_r1, &chassis_ctrl_cmd->vx, 3.5f * robot->dt);
-      // slope_following((0.004f) * (float)rc_data[TEMP].rc.rocker_r1, &chassis_ctrl_cmd->vx,
-      //                 1.0f * robot->dt);  // 0.0045(最大3m/s)
-      // slope_following((0.002f) * (float)rc_data[TEMP].rc.rocker_r1, &chassis_ctrl_cmd->vx, 4.0f * robot->dt);
-      // chassis_ctrl_cmd->leg_length_d = (float)rc_data[TEMP].rc.rocker_l1;
-      // chassis_ctrl_cmd->roll = (float)rc_data[TEMP].rc.rocker_l_;
+#endif
+      slope_following((0.0045f) * (float)rc_data[TEMP].rc.rocker_r1, &chassis_ctrl_cmd->vx,
+                      1.5f * robot->dt);  // 0.0045(最大3m/s)
+      chassis_ctrl_cmd->roll = 0.0004f * (float)rc_data[TEMP].rc.rocker_l_ * (abs(rc_data[TEMP].rc.rocker_l_) > 10);
       chassis_ctrl_cmd->leg_length += 0.0000005f * (float)rc_data[TEMP].rc.rocker_l1;
-      // chassis_ctrl_cmd->roll += 0.002f * (float)rc_data[TEMP].rc.rocker_l_;
 
       if (chassis_ctrl_cmd->leg_length > LEG_MAX_LENGTH) {
         chassis_ctrl_cmd->leg_length = LEG_MAX_LENGTH;
@@ -346,12 +348,12 @@ static void EmergencyHandler() {
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
 void RobotCMDTask() {
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
-  CalcOffsetAngle();
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
   RemoteControlSet();
   // MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 #if defined(GIMBAL_BOARD)
+  CalcOffsetAngle();
   chassis_fetch_data->chassis_ctrl_cmd = *chassis_ctrl_cmd;
   *chassis_upload_data = *(Chassis_Upload_Data_s *)CANCommGet(robot->can_comm);
   robot->chassis->chassis_IMU->Roll = chassis_upload_data->Roll;
@@ -383,17 +385,16 @@ void RobotInit() {
 #elif defined(STM32H7)
   robot->rc_data = RemoteControlInit(&huart5);
 #endif
-
   rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));  // 分配独立内存空间，与robot->rc_data区分开
   *rc_data_last = *robot->rc_data;                         // 记录上一次遥控器的状态，传值确保内存空间独立
 
-  robot->gimbal = GimbalInit(&gimbal_init_config);
-  robot->shoot = ShootInit(&shoot_init_config);
   PIDInit(&robot->chassis_follow_PID, &chassis_follow_PID_config);
-  gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
-  shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;
 #if defined(GIMBAL_BOARD)
+  robot->gimbal = GimbalInit(&gimbal_init_config);
+  robot->shoot = ShootInit(&shoot_init_config);
+  gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
+  shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   robot->chassis_upload_data = (Chassis_Upload_Data_s *)zmalloc(sizeof(Chassis_Upload_Data_s));
   robot->chassis_fetch_data = (Chassis_Fetch_Data_s *)zmalloc(sizeof(Chassis_Fetch_Data_s));
   chassis_upload_data = robot->chassis_upload_data;
@@ -402,8 +403,9 @@ void RobotInit() {
   robot->chassis->chassis_IMU = (INS_t *)zmalloc(sizeof(INS_t));
   robot->can_comm = CANCommInit(&gimbal_comm_conf);
 #endif
+#endif
 
-#elif defined(ONE_BOARD) || defined(CHASSIS_BOARD)
+#if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   // robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
   // robot->super_cap = SuperCapInit(&super_cap_config);
   robot->chassis = ChassisInit(&chassis_init_config);
@@ -424,7 +426,7 @@ void RobotTask() {
   robot->dt = DWT_GetDeltaT(&robot->DWT_CNT);
   RobotCMDTask();
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
-  GimbalTask();
+  // GimbalTask();
   // ShootTask();
 #endif
 

@@ -93,6 +93,7 @@ typedef struct {
   Leg_Cali_Mode_e leg_cali_mode;
   Leg_Param_s leg_param;
   float LQR_K_Coefficient[2][6][4];  // [2腿][6状态变量][4多项式系数]
+  float MPC_K_Coefficient[2][6][4];  // MPC 拟合系数 [2输入][6状态][4指数系数 a,b,c,d]
   PID_Init_Config_s phi_PID_config;
   PID_Init_Config_s length_PID_config;
   PID_Init_Config_s length_d_PID_config;
@@ -109,10 +110,12 @@ typedef struct {
   Real_Model_t real_model;
   Virtual_Model_t virtual_model;
   State_Var_t state_var;
+  State_Var_t last_state_var;
   Observer_Var_t observer_var;
 
   float J[2][2];
   float LQR_K[2][6];
+  float MPC_K[2][6];
   uint32_t DWT_CNT;
   float dt;
 

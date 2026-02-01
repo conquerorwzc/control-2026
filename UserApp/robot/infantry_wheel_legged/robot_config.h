@@ -113,84 +113,96 @@
           },                                                                                                   \
   }
 
-#define LEG_INIT_CONFIG(joint_motor_reverse, wheel_motor_reverse, joint_can_0, joint_tx_0, joint_rx_0, joint_can_1, \
-                        joint_tx_1, joint_rx_1, wheel_can, wheel_tx, wheel_rx)                                      \
-  {                                                                                                                 \
-      /* 腿部五连杆长度, 单位是M */                                                                                 \
-      .leg_param =                                                                                                  \
-          {                                                                                                         \
-              .rod_length[0] = 0.170,                                                                               \
-              .rod_length[1] = 0.285,                                                                               \
-              .rod_length[2] = 0.285,                                                                               \
-              .rod_length[3] = 0.170,                                                                               \
-              .rod_length[4] = 0.160,                                                                               \
-              .joint_motor_zero_offset[0] = 9.97 * DEGREE_2_RAD + PI,                                               \
-              .joint_motor_zero_offset[1] = -9.97 * DEGREE_2_RAD,                                                   \
-              .wheel_radius = 0.077f,                                                                               \
-              .wheel_reduction_ratio = 268.0f / 17.0f,                                                              \
-          },                                                                                                        \
-      .LQR_K_Coefficient = {{{441.551183998361f, -317.100694010089f, -53.2860355048048f, 1.0214711522511f},         \
-                             {93.5746418306052f, -88.7046183868486f, -2.84761011769104f, 0.230147123100247f},       \
-                             {112.446285029707f, -57.2575125663828f, -24.8577632209981f, 1.95943652888061f},        \
-                             {113.244561314235f, -62.595210948033f, -23.4098939988008f, 1.28451877386627f},         \
-                             {-137.916111560284f, 225.955829263684f, -159.077588007052f, 56.2968935152272f},        \
-                             {-19.5404161915262f, 21.9672214664995f, -11.2651499943364f, 3.88964852977064f}},       \
-                            {{5.23228400555349f, -165.663228396468f, 127.410002451317f, -6.44184925503793f},        \
-                             {-19.220141905894f, -11.5718592995644f, 20.9346174463876f, -0.980748386909695f},       \
-                             {51.7053107398254f, -92.8306075109487f, 44.961091154552f, -0.902359796170954f},        \
-                             {60.3366240178356f, -100.741571780561f, 48.3833222646449f, -1.54959058953633f},        \
-                             {619.991461394924f, -698.160707752117f, 298.821820969453f, 61.4544063768443f},         \
-                             {17.0573479696088f, -20.6180593973892f, 10.2480958411851f, 4.62769177087231f}}},       \
-      .length_PID_config =                                                                                          \
-          {                                                                                                         \
-              .Kp = 750.0f,                                                                                         \
-              .Ki = 0.0f,                                                                                           \
-              .Kd = 120.0f,                                                                                         \
-              .MaxOut = 90.0f,                                                                                      \
-              .DeadBand = 0.01f,                                                                                    \
-              .Improve = PID_IMPROVE_NONE,                                                                          \
-              .IntegralLimit = 0.0f,                                                                                \
-          },                                                                                                        \
-      .length_d_PID_config =                                                                                        \
-          {                                                                                                         \
-              .Kp = 10.0f,                                                                                          \
-              .Ki = 0.0f,                                                                                           \
-              .Kd = 120.0f,                                                                                         \
-              .MaxOut = 90.0f,                                                                                      \
-              .DeadBand = 0.01f,                                                                                    \
-              .Improve = PID_IMPROVE_NONE,                                                                          \
-              .IntegralLimit = 0.0f,                                                                                \
-          },                                                                                                        \
-      .phi_PID_config =                                                                                             \
-          {                                                                                                         \
-              .Kp = 1.0f,                                                                                           \
-              .Ki = 0.1f,                                                                                           \
-              .Kd = 0.0f,                                                                                           \
-              .MaxOut = 0.4f,                                                                                       \
-              .DeadBand = 0.005f,                                                                                   \
-              .Improve = PID_Integral_Limit,                                                                        \
-              .IntegralLimit = 0.2f,                                                                                \
-          },                                                                                                        \
-      .joint_motor_config[0] =                                                                                      \
-          JOINT_MOTOR_CONFIG(joint_motor_reverse, joint_motor_reverse, joint_can_0, joint_tx_0, joint_rx_0),        \
-      .joint_motor_config[1] =                                                                                      \
-          JOINT_MOTOR_CONFIG(joint_motor_reverse, joint_motor_reverse, joint_can_1, joint_tx_1, joint_rx_1),        \
-      .wheel_motor_config =                                                                                         \
-          {                                                                                                         \
-              .controller_setting_init_config =                                                                     \
-                  {                                                                                                 \
-                      .motor_reverse_flag = wheel_motor_reverse,                                                    \
-                      .feedback_reverse_flag = wheel_motor_reverse,                                                 \
-                  },                                                                                                \
-              .motor_type = M3508,                                                                                  \
-              .can_init_config =                                                                                    \
-                  {                                                                                                 \
-                      .can_handle = wheel_can,                                                                      \
-                      .tx_id = wheel_tx,                                                                            \
-                      .rx_id = wheel_rx,                                                                            \
-                  },                                                                                                \
-          },                                                                                                        \
-      .leg_cali_mode = LEG_PRE_CALI_MODE,                                                                           \
+#define LEG_INIT_CONFIG(joint_motor_reverse, wheel_motor_reverse, joint_can_0, joint_tx_0, joint_rx_0, joint_can_1,  \
+                        joint_tx_1, joint_rx_1, wheel_can, wheel_tx, wheel_rx)                                       \
+  {                                                                                                                  \
+      /* 腿部五连杆长度, 单位是M */                                                                                  \
+      .leg_param =                                                                                                   \
+          {                                                                                                          \
+              .rod_length[0] = 0.170,                                                                                \
+              .rod_length[1] = 0.285,                                                                                \
+              .rod_length[2] = 0.285,                                                                                \
+              .rod_length[3] = 0.170,                                                                                \
+              .rod_length[4] = 0.160,                                                                                \
+              .joint_motor_zero_offset[0] = 9.97 * DEGREE_2_RAD + PI,                                                \
+              .joint_motor_zero_offset[1] = -9.97 * DEGREE_2_RAD,                                                    \
+              .wheel_radius = 0.077f,                                                                                \
+              .wheel_reduction_ratio = 268.0f / 17.0f,                                                               \
+          },                                                                                                         \
+      .LQR_K_Coefficient = {{{82.6143112355004f, 9.67752867116727f, -117.225104906465f, 5.24538106252885f},          \
+                             {46.8229851507458f, -45.6657680555952f, -7.77292294849185f, 0.639985767267071f},        \
+                             {-216.298980183704f, 249.704678455205f, -106.962208787748f, 7.33066597176928f},         \
+                             {-166.174430746875f, 200.658446324831f, -95.2665899433541f, 6.06226234299646f},         \
+                             {169.114973215124f, -96.2955378339343f, -18.2094350057237f, 22.6864621598853f},         \
+                             {23.5235874831175f, -18.2644110550217f, 2.07341025458014f, 1.85024967815216f}},         \
+                            {{1399.99272596623f, -1411.39691219392f, 482.246281539994f, -17.1260414869022f},         \
+                             {126.841204151155f, -147.692988004298f, 66.779398371881f, -2.74238708872161f},          \
+                             {1079.07348785809f, -911.787256019564f, 218.0760586611f, 5.30819276052846f},            \
+                             {999.668326335736f, -862.432005488912f, 217.573062586919f, 3.22677658222494f},          \
+                             {271.731431234035f, -470.819114338777f, 270.860025220502f, 11.9777087514944f},          \
+                             {-61.0680000611863f, 31.995852183443f, 4.01577994344054f, 0.719114423611903f}}},        \
+      .MPC_K_Coefficient = {{{-19.964413935061f, 0.000000014900f, 0.000000000000f, 0.000000014900f},                 \
+                             {48.045231765628f, -0.161104709683f, -48.059562251094f, -0.010176171521f},              \
+                             {-2.657559177620f, 0.000000014657f, 0.000000000000f, 0.000000014657f},                  \
+                             {-3.095250754958f, 0.000000014774f, 0.000000000000f, 0.000000014774f},                  \
+                             {0.785742532578f, -0.629089248330f, 2.300314317127f, -5.401136450986f},                 \
+                             {0.455548512191f, -0.903210870788f, 0.874720592861f, -5.834876833484f}},                \
+                            {{4.689666292705f, 0.000000000000f, 0.000000000000f, 0.000000000000f},                   \
+                             {0.573250110905f, 0.086041814207f, -0.412114777230f, -10.008944371960f},                \
+                             {2.429019088693f, -4.924254257735f, 0.581772398279f, -0.216840169899f},                 \
+                             {2.383558127622f, -5.186819584048f, 0.822772465163f, -0.463575284549f},                 \
+                             {2.817318068018f, 0.000000014901f, 0.000000000000f, 0.000000014901f},                   \
+                             {15497466.461714681238f, 0.000000035548f, -15497465.588887883350f, -0.000000020647f}}}, \
+      .length_PID_config =                                                                                           \
+          {                                                                                                          \
+              .Kp = 750.0f,                                                                                          \
+              .Ki = 0.0f,                                                                                            \
+              .Kd = 120.0f,                                                                                          \
+              .MaxOut = 90.0f,                                                                                       \
+              .DeadBand = 0.01f,                                                                                     \
+              .Improve = PID_IMPROVE_NONE,                                                                           \
+              .IntegralLimit = 0.0f,                                                                                 \
+          },                                                                                                         \
+      .length_d_PID_config =                                                                                         \
+          {                                                                                                          \
+              .Kp = 10.0f,                                                                                           \
+              .Ki = 0.0f,                                                                                            \
+              .Kd = 120.0f,                                                                                          \
+              .MaxOut = 90.0f,                                                                                       \
+              .DeadBand = 0.01f,                                                                                     \
+              .Improve = PID_IMPROVE_NONE,                                                                           \
+              .IntegralLimit = 0.0f,                                                                                 \
+          },                                                                                                         \
+      .phi_PID_config =                                                                                              \
+          {                                                                                                          \
+              .Kp = 1.0f,                                                                                            \
+              .Ki = 0.1f,                                                                                            \
+              .Kd = 0.0f,                                                                                            \
+              .MaxOut = 0.4f,                                                                                        \
+              .DeadBand = 0.005f,                                                                                    \
+              .Improve = PID_Integral_Limit,                                                                         \
+              .IntegralLimit = 0.2f,                                                                                 \
+          },                                                                                                         \
+      .joint_motor_config[0] =                                                                                       \
+          JOINT_MOTOR_CONFIG(joint_motor_reverse, joint_motor_reverse, joint_can_0, joint_tx_0, joint_rx_0),         \
+      .joint_motor_config[1] =                                                                                       \
+          JOINT_MOTOR_CONFIG(joint_motor_reverse, joint_motor_reverse, joint_can_1, joint_tx_1, joint_rx_1),         \
+      .wheel_motor_config =                                                                                          \
+          {                                                                                                          \
+              .controller_setting_init_config =                                                                      \
+                  {                                                                                                  \
+                      .motor_reverse_flag = wheel_motor_reverse,                                                     \
+                      .feedback_reverse_flag = wheel_motor_reverse,                                                  \
+                  },                                                                                                 \
+              .motor_type = M3508,                                                                                   \
+              .can_init_config =                                                                                     \
+                  {                                                                                                  \
+                      .can_handle = wheel_can,                                                                       \
+                      .tx_id = wheel_tx,                                                                             \
+                      .rx_id = wheel_rx,                                                                             \
+                  },                                                                                                 \
+          },                                                                                                         \
+      .leg_cali_mode = LEG_PRE_CALI_MODE,                                                                            \
   }
 
 static Chassis_Init_Config_s chassis_init_config = {
@@ -387,22 +399,22 @@ static Shoot_Init_Config_s shoot_init_config = {
         },
 };
 
+// static PID_Init_Config_s chassis_follow_PID_config = {
+//     .Kp = 0.05f,
+//     .Ki = 0.0f,
+//     .Kd = 0.01f,
+//     .IntegralLimit = 0.1f,
+//     .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+//     .MaxOut = 2.0f,
+// };
 static PID_Init_Config_s chassis_follow_PID_config = {
-    .Kp = 0.05f,
+    .Kp = 1.5f,
     .Ki = 0.0f,
-    .Kd = 0.01f,
+    .Kd = 0.2f,
     .IntegralLimit = 0.1f,
     .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
     .MaxOut = 2.0f,
 };
-// static PID_Init_Config_s chassis_follow_PID_config = {
-//   .Kp = 1.5f,
-//   .Ki = 0.0f,
-//   .Kd = 0.2f,
-//   .IntegralLimit = 0.1f,
-//   .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-//   .MaxOut = 2.0f,
-// };
 
 static SuperCap_Init_Config_s super_cap_config = {
     .can_config = {

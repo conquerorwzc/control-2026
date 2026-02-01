@@ -64,7 +64,7 @@ static void InitQuaternion(float *init_q4) {
   float gravity_norm[3] = {0, 0, 1};  // 导航系重力加速度矢量,归一化后为(0,0,1)
   float axis_rot[3] = {0};            // 旋转轴
   // 读取100次加速度计数据,取平均值作为初始值
-  for (uint8_t i = 0; i < 254; ++i) {
+  for (uint8_t i = 0; i < 100; ++i) {
     BMI088_Read(&BMI088);
     IMU_Param_Correction(&IMU_Param, BMI088.Gyro, BMI088.Accel);
     acc_init[X] += BMI088.Accel[X];  // X轴不变
@@ -72,7 +72,7 @@ static void InitQuaternion(float *init_q4) {
     acc_init[Z] += BMI088.Accel[Z];  // Z轴取反
     DWT_Delay(0.001);
   }
-  for (uint8_t i = 0; i < 3; ++i) acc_init[i] /= 254;
+  for (uint8_t i = 0; i < 3; ++i) acc_init[i] /= 100;
   Norm3d(acc_init);
   // 计算原始加速度矢量和导航系重力加速度矢量的夹角
   float angle = acosf(Dot3d(acc_init, gravity_norm));
@@ -161,7 +161,9 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
   // BMI088CalibrateGyroForDebug(BMI,1000);
   float init_quaternion[4] = {0};
   InitQuaternion(init_quaternion);
-  IMU_QuaternionEKF_Init(init_quaternion, 10, 0.001, 1000000, 1, 0);
+  // 改进的初始化方式：使用更稳定的四元数初始化
+  //float init_quaternion[4] = {1.0f, 0.0f, 0.0f, 0.0f};  // 单位四元数
+  IMU_QuaternionEKF_Init(init_quaternion, 10, 0.001f, 10000000, 0.9996f, 0.0085f);  // 增加测量噪声，启用渐消因子和低通滤波
   // imu heat init
   PID_Init_Config_s config = {.MaxOut = 2000,
                               .IntegralLimit = 300,
@@ -173,7 +175,7 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
   PIDInit(&TempCtrl, &config);
 
   // noise of accel is relatively big and of high freq,thus lpf is used
-  INS.AccelLPF = 0.00085;
+  INS.AccelLPF = 0.0085;
   DWT_GetDeltaT(&INS_DWT_Count);
   // 创建INS任务
   osThreadDef(instask, StartINSTASK, osPriorityAboveNormal, 0, 1024);
@@ -184,7 +186,7 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
 /* 注意以1kHz的频率运行此任务 */
 void INS_Task(void) {
   static uint32_t count = 0;
-  const float gravity[3] = {0, 0, 9.81f};
+  const float gravity[3] = {0, 0, 9.81f};  // 使用本地重力加速度值
 
   dt = DWT_GetDeltaT(&INS_DWT_Count);
   t += dt;
@@ -200,7 +202,7 @@ void INS_Task(void) {
     INS.Gyro[Y] = BMI088.Gyro[Y];
     INS.Gyro[Z] = BMI088.Gyro[Z];
 
-    // demo function,用于修正安装误差,可以不管,本demo暂时没用
+    // 修正安装误差
     IMU_Param_Correction(&IMU_Param, INS.Gyro, INS.Accel);
 
     // 计算重力加速度矢量和b系的XY两轴的夹角,可用作功能扩展,本demo暂时没用

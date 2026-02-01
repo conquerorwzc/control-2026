@@ -31,9 +31,8 @@ function generate_LQR_C_code()
         end
     end
     
-    % 打印C代码
+    % 打印C代码到命令行 (为了视觉效果，这里保留换行)
     fprintf('.LQR_K_Coefficient = {\n');
-    
     for i = 1:rows
         fprintf('    {');
         for j = 1:cols
@@ -50,21 +49,20 @@ function generate_LQR_C_code()
                 fprintf(',      \\\n     ');
             end
         end
-        
         if i < rows
             fprintf('},      \\\n');
         else
             fprintf('}},     \\\n');
         end
     end
-    
     fprintf('\n');
     
-    % 保存到剪贴板
+    % 保存到剪贴板 (已修复末尾多余空行的问题)
     clipboard_text = generate_clipboard_text(coefficients, rows, cols);
     clipboard('copy', clipboard_text);
     fprintf('代码已复制到剪贴板！\n');
 end
+
 function text = generate_clipboard_text(coefficients, rows, cols)
     text = sprintf('.LQR_K_Coefficient = {\\\n');
     
@@ -88,7 +86,8 @@ function text = generate_clipboard_text(coefficients, rows, cols)
         if i < rows
             text = [text, sprintf('},      \\\n')];
         else
-            text = [text, sprintf('}},     \\\n')];
+            % 【修改处】: 这里去掉了最后的 \n，只保留了反斜杠
+            text = [text, sprintf('}},     \\')];
         end
     end
 end
