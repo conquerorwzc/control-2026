@@ -44,6 +44,12 @@ static uint32_t shoot_line_location[10] = {540, 960, 490, 515, 565};
 //new
 // 定义用于UI更新的数据结构
 
+// 云台俯仰角表盘
+static Graph_Data_t UI_pitch_ticks[20];     // 刻度线
+static String_Data_t UI_pitch_labels[20];   // 刻度标签
+static Graph_Data_t UI_pitch_needle;       // 指针
+static String_Data_t UI_pitch_value;       // 当前角度值显示
+
 
 typedef enum
 {
@@ -77,6 +83,7 @@ typedef struct
     Friction_Mode_e friction_mode;  // 摩擦轮关闭
     lid_mode_e lid_mode;            // 弹舱盖打开
     Chassis_Power_Data_s Chassis_Power_Data; // 功率控制
+    float pitch_angle; // 云台俯仰角
 
     // 上一次的模式，用于flag判断
     Chassis_Mode_e chassis_last_mode;
@@ -85,6 +92,7 @@ typedef struct
     Friction_Mode_e friction_last_mode;
     lid_mode_e lid_last_mode;   
     Chassis_Power_Data_s Chassis_last_Power_Data;
+    float last_pitch_angle; // 上一次的俯仰角
 } Referee_Interactive_info_t;
 
 static Referee_Interactive_info_t interactive_data;
@@ -126,6 +134,13 @@ static void UIChangeCheck(Referee_Interactive_info_t *_Interactive_data)
     {
         _Interactive_data->Referee_Interactive_Flag.Power_flag = 1;
         _Interactive_data->Chassis_last_Power_Data.chassis_power_mx = _Interactive_data->Chassis_Power_Data.chassis_power_mx;
+    }
+
+    // 俯仰角变化
+    if (fabsf(_Interactive_data->pitch_angle - _Interactive_data->last_pitch_angle) > 0.1f)
+    {
+      _Interactive_data->Referee_Interactive_Flag.pitch_flag = 1;
+      _Interactive_data->last_pitch_angle = _Interactive_data->pitch_angle;
     }
 }
 
@@ -277,6 +292,191 @@ void MyUIInit()
     // 能量条初始状态
     UILineDraw(&UI_Energy[2], "sd6", UI_Graph_ADD, 8, UI_Color_Pink, 30, 720, 160, 1020, 160);
     UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_Energy[1], UI_Energy[2]);
+
+    // 俯仰角仪表盘刻度线和指针初始化
+    uint32_t center_x = 960;  // 圆心X坐标
+    uint32_t center_y = 540;  // 圆心Y坐标
+    uint32_t radius = 394;    // 半径
+
+    // 主刻度：50、70、90、110、130度
+    const int main_ticks[] = {50, 70, 90, 110, 130};
+    const char* main_labels[] = {"50", "70", "90", "110", "130"};
+    // 中间小刻度：60、80、100、120度
+    const int sub_ticks[] = {60, 80, 100, 120};
+
+    // 绘制主刻度线和标签
+    for (int i = 0; i < 5; i++) {
+      // 角度转换：UI角度 = 实际角度 - 90
+      float ui_angle = 90.0f - (float)main_ticks[i];
+      float angle_rad = ui_angle * 3.1415926535f / 180.0f;
+      uint32_t tick_length = 27; // 主刻度线长度
+
+      // 计算刻度线位置 //u
+      int32_t start_x = center_x + (int32_t)(radius * cosf(angle_rad));
+      int32_t start_y = center_y - (int32_t)(radius * sinf(angle_rad));
+      int32_t end_x = center_x + (int32_t)((radius - tick_length) * cosf(angle_rad));
+      int32_t end_y = center_y - (int32_t)((radius - tick_length) * sinf(angle_rad));
+
+      // 绘制主刻度线
+      char graph_name[3] = {0};
+      graph_name[0] = 'p';
+      graph_name[1] = 't';
+      graph_name[2] = '0' + i;
+
+      UILineDraw(&UI_pitch_ticks[i], graph_name, UI_Graph_ADD, 8, UI_Color_White,
+                 7, start_x, start_y, end_x, end_y);
+
+      // 绘制主刻度标签
+      // int32_t label_x = center_x + (int32_t)((radius - tick_length - 25) * cosf(angle_rad)) - 8;
+      // int32_t label_y = center_y - (int32_t)((radius - tick_length - 25) * sinf(angle_rad)) - 6;
+      // 绘制主刻度标签
+      // 方案3：根据角度动态计算标签位置，使标签贴合刻度线
+      int32_t label_x, label_y;
+
+      // 1. 计算标签基准位置（在刻度线末端）
+      int32_t label_distance = radius - tick_length - 25;  // 标签离圆心的距离
+      int32_t base_x = center_x + (int32_t)(label_distance * cosf(angle_rad));
+      int32_t base_y = center_y - (int32_t)(label_distance * sinf(angle_rad));
+
+      // 2. 估算文本大小（根据你的12号字体）
+      int32_t text_width = 18;  // "130"这样的3个字符，每个大约6像素
+      int32_t text_height = 12; // 12号字体高度大约12像素
+
+      // 3. 根据角度动态调整标签位置
+      // 使用cos和sin值判断刻度线的方向
+      float cos_val = cosf(angle_rad);
+      float sin_val = sinf(angle_rad);
+
+      // 水平方向调整
+      if (cos_val > 0.7f) { // 右侧（cos接近1）
+        // 右侧刻度：文本应该左对齐，让文本在刻度线左边
+        label_x = base_x - text_width;  // 文本宽度向左偏移
+      } else if (cos_val < -0.7f) { // 左侧（cos接近-1）
+        // 左侧刻度：文本应该右对齐
+        label_x = base_x;  // 从基准点开始
+      } else if (cos_val > 0.3f) { // 右偏中
+        // 稍微向右偏：文本中心对齐
+        label_x = base_x - text_width / 2;
+      } else if (cos_val < -0.3f) { // 左偏中
+        // 稍微向左偏：文本中心对齐
+        label_x = base_x - text_width / 2;
+      } else { // 中间区域（cos接近0）
+        // 正上方或正下方：文本居中对齐
+        label_x = base_x - text_width / 2;
+      }
+
+      // 垂直方向调整
+      if (sin_val > 0.7f) { // 上方（sin接近1）
+        // 上方刻度：文本应该在刻度线下方
+        label_y = base_y;  // 从基准点开始（文本顶部在基准点）
+      } else if (sin_val < -0.7f) { // 下方（sin接近-1）
+        // 下方刻度：文本应该在刻度线上方
+        label_y = base_y - text_height;  // 向上偏移文本高度
+      } else if (sin_val > 0.3f) { // 上偏中
+        // 稍微向上偏：文本垂直居中
+        label_y = base_y - text_height / 2;
+      } else if (sin_val < -0.3f) { // 下偏中
+        // 稍微向下偏：文本垂直居中
+        label_y = base_y - text_height / 2;
+      } else { // 中间区域（sin接近0）
+        // 正左或正右：文本垂直居中
+        label_y = base_y - text_height / 2;
+      }
+
+      // 4. 微调：根据具体刻度进一步优化
+      switch (main_ticks[i]) {
+        case 50:  // 左上区域
+          label_x -= 2;  // 稍微向左调整
+          label_y += 4;  // 稍微向下调整
+          break;
+        case 70:  // 左中上
+          label_x -= 1;
+          label_y += 2;
+          break;
+        case 90:  // 正右
+          // 已经调整得很好，保持
+          break;
+        case 110: // 右中下
+          label_x -= 1;
+          label_y -= 2;
+          break;
+        case 130: // 右下
+          label_x -= 2;
+          label_y -= 4;
+          break;
+      }
+
+      char label_name[3] = {0};
+      label_name[0] = 'p';
+      label_name[1] = 'l';
+      label_name[2] = '0' + i;
+
+      UICharDraw(&UI_pitch_labels[i], label_name, UI_Graph_ADD, 8, UI_Color_White,
+                 12, 2, label_x, label_y, main_labels[i]);
+    }
+
+    // 绘制中间小刻度线（60、80、100、120度）
+    for (int i = 0; i < 4; i++) {
+      float ui_angle = 90.0f - (float)sub_ticks[i];
+      float angle_rad = ui_angle * 3.1415926535f / 180.0f;
+      uint32_t tick_length = 13; // 小刻度线长度
+
+      int32_t start_x = center_x + (int32_t)(radius * cosf(angle_rad));
+      int32_t start_y = center_y - (int32_t)(radius * sinf(angle_rad));
+      int32_t end_x = center_x + (int32_t)((radius - tick_length) * cosf(angle_rad));
+      int32_t end_y = center_y - (int32_t)((radius - tick_length) * sinf(angle_rad));
+
+      // 绘制小刻度线
+      char graph_name[3] = {0};
+      graph_name[0] = 'p';
+      graph_name[1] = 's';
+      graph_name[2] = '0' + i;
+
+      static Graph_Data_t UI_sub_ticks[4];
+      UILineDraw(&UI_sub_ticks[i], graph_name, UI_Graph_ADD, 8, UI_Color_White,
+                 7, start_x, start_y, end_x, end_y);
+      UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_sub_ticks[i]);
+
+      // 绘制短刻度标签
+      // int32_t label_x = center_x + (int32_t)((radius - tick_length - 25) * cosf(angle_rad)) - 6;
+      // int32_t label_y = center_y - (int32_t)((radius - tick_length - 25) * sinf(angle_rad)) - 5;
+      //
+      // char label_name[3] = {0};
+      // label_name[0] = 'p';
+      // label_name[1] = 'b';  // 'b' for sub label
+      // label_name[2] = '0' + i;
+      //
+      // // 创建标签文本
+      // char sub_label_text[4];
+      // snprintf(sub_label_text, sizeof(sub_label_text), "%d", sub_ticks[i]);
+      //
+      // // 使用UI_pitch_labels数组的后面4个元素（假设有9个元素）
+      // // 或者如果你不想用UI_pitch_labels，可以这样：
+      // UICharDraw(&UI_pitch_labels[5 + i], label_name, UI_Graph_ADD, 8, UI_Color_White,
+      //            12, 2, label_x, label_y, sub_label_text);
+      // UICharRefresh(&referee_recv_info->referee_id, UI_pitch_labels[5 + i]);
+    }
+
+    // 发送主刻度线和标签
+    for (int i = 0; i < 5; i++) {
+      UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_pitch_ticks[i]);
+      UICharRefresh(&referee_recv_info->referee_id, UI_pitch_labels[i]);
+    }
+
+    // 初始化指针（指向90度，即正右方）
+    // float ui_angle_90 = 90.0f - 90.0f;
+    // float angle_rad_90 = ui_angle_90 * 3.1415926535f / 180.0f;
+    // uint32_t needle_end_x = center_x + (uint32_t)(radius * cosf(angle_rad_90));
+    // uint32_t needle_end_y = center_y - (uint32_t)(radius * sinf(angle_rad_90));
+    //
+    // UILineDraw(&UI_pitch_needle, "pn0", UI_Graph_ADD, 9, UI_Color_White,
+    //            7, center_x, center_y, needle_end_x, needle_end_y);
+    // UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_pitch_needle);
+
+    // 初始化角度值显示（放在圆心下方）
+    UICharDraw(&UI_pitch_value, "pv0", UI_Graph_ADD, 9, UI_Color_White,
+               18, 3, center_x - 30, center_y + 50, "90.0°");
+    UICharRefresh(&referee_recv_info->referee_id, UI_pitch_value);
 }
 
 // 实现缺失的UITask函数
