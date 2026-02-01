@@ -15,6 +15,7 @@ static RobotInstance *robot;
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
 static Gimbal_Ctrl_Cmd_s *gimbal_ctrl_cmd;
 static Shoot_Ctrl_Cmd_s *shoot_ctrl_cmd;
+static Vision_Receive_s* vision_recv_data;
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 
@@ -25,6 +26,9 @@ static float y_speed_time=0;  //y方向加速触发时间
 static float vx_initial;   //x轴输入控制量
 static float vy_initial;   //y轴输入控制量
 static float angle;
+
+float new_max_pitch=0.0f;
+float new_min_pitch=0.0f;
 
 external_imu_t *external_imu_instance;
 
@@ -94,14 +98,15 @@ static void RemoteControlSet() {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
   }
   if (switch_is_down(rc_data[TEMP].rc.switch_right)) {
-    // 右下：设置腿部电机状态NORMAL
-    chassis_ctrl_cmd->leg_mode = LEG_NORMAL;
+    // 右下：腿部缓慢下降
+    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_DOWN;
   } else if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
-    // 右中：设置腿部电机状态为RAISE
-    chassis_ctrl_cmd->leg_mode = LEG_RAISE;
+    chassis_ctrl_cmd->leg_mode = LEG_HOLD;
+    // 右中：保持当前腿部位置不变（不改变之前的腿部模式）
+    // 保留当前模式，不修改leg_mode
   } else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
-    // 右上：设置腿部电机状态为抬起位置
-    chassis_ctrl_cmd->leg_mode = LEG_KIKE;
+    // 右上：腿部缓慢上升，最大到kike位置
+    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_UP;
   }
 
   //左[中],云台启动，摩擦轮启动，拨弹盘启动，准备射击
@@ -130,17 +135,29 @@ static void RemoteControlSet() {
   }
   // 云台使能,或视觉未识别到目标,纯遥控器拨杆控制
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
-    gimbal_ctrl_cmd->yaw -= -0.003f * (float)rc_data[TEMP].rc.rocker_r_;
+    gimbal_ctrl_cmd->yaw += -0.003f * (float)rc_data[TEMP].rc.rocker_r_;
     gimbal_ctrl_cmd->pitch += 0.0006f * (float)rc_data[TEMP].rc.rocker_r1;
   }
+  int16_t current_pitch_ecd = (int16_t)robot->gimbal->pitch_motor->measure.ecd;
 
-  // 云台PITCH轴软件限位 todo:没在云台有点不好
-  if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
-    gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
-  } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
-    gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
-  }
-
+  // 通过编码器差值计算实际pitch角度
+  float relative_pitch_angle = (current_pitch_ecd- PITCH_HORIZON_ecd-(robot->gimbal->gimbal_IMU_data->Pitch/ECD_ANGLE_COEF_DJI)) * ECD_ANGLE_COEF_DJI;
+  new_max_pitch= PITCH_MAX_ANGLE - relative_pitch_angle;
+  new_min_pitch= PITCH_MIN_ANGLE - relative_pitch_angle;
+      // 当腿部抬起时，使用编码器解算的角度进行限位，防止机械碰撞
+      if (gimbal_ctrl_cmd->pitch < new_max_pitch) {
+          // 如果实际角度超过上限，限制目标角度
+          gimbal_ctrl_cmd->pitch = new_max_pitch;
+      } else if (gimbal_ctrl_cmd->pitch > new_min_pitch) {
+          // 如果实际角度低于下限，限制目标角度
+          gimbal_ctrl_cmd->pitch = new_min_pitch;
+      }
+  // // // 云台PITCH轴软件限位 todo:没在云台有点不好
+  // // else if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
+  // //   gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
+  // // } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
+  // //   gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
+  // }
   // 底盘参数,系数需要调整
   chassis_ctrl_cmd->vx = 60.0f * (float)rc_data[TEMP].rc.rocker_l_;  // _水平方向
   chassis_ctrl_cmd->vy = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 1数值方向
@@ -290,7 +307,7 @@ void RobotInit() {
   // robot->super_cap = SuperCapInit(&super_cap_config);
 
  #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
-//   robot->gimbal = GimbalInit(&gimbal_init_config);
+   robot->gimbal = GimbalInit(&gimbal_init_config);
    robot->shoot = ShootInit(&shoot_init_config);
 #endif
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
@@ -303,7 +320,7 @@ void RobotInit() {
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;
-
+  vision_recv_data=VisionInit(&gimbal_init_config.imu_init_config);
   gpio_5V_EN = GPIORegister(&gpio_init_config_5v);
   GPIOSet(gpio_5V_EN);
 }
@@ -313,7 +330,7 @@ void RobotCMDTask() {
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
   CalcOffsetAngle();
   RemoteControlSet();
-  // MouseKeySet();
+  //MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
 

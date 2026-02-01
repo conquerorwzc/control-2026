@@ -104,6 +104,7 @@ __attribute__((noreturn)) void StartROBOTTASK(void const *argument) {
   // 200Hz-500Hz,若有额外的控制任务如平衡步兵可能需要提升至1kHz
   for (;;) {
     robot_start = DWT_GetTimeline_ms();
+    VisionSend();
     RobotTask();
     robot_dt = DWT_GetTimeline_ms() - robot_start;
     if (robot_dt > 2) LOGERROR("[freeRTOS] ROBOT core Task is being DELAY! dt = [%f]", &robot_dt);

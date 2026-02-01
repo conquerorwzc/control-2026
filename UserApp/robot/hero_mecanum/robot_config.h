@@ -30,7 +30,7 @@
 // 云台参数
 #define YAW_CHASSIS_ALIGN_ECD 5326
 #define PITCH_HORIZON_ECD 5748  // 云台处于水平位置时编码器值,若对云台有机械改动需要修改
-#define PITCH_MAX_ANGLE 12.3f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define PITCH_MAX_ANGLE 12.3f   // 云    台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
 #define PITCH_MIN_ANGLE -18.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
 
 // 私有宏,自动将编码器转换成角度值
@@ -153,7 +153,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 3.0f,
+                            .Kp = 1.5f,
                             .Ki = 0.0f,
                             .Kd = 0.02f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
@@ -229,7 +229,7 @@ static Shoot_Init_Config_s shoot_init_config = {
             .friction_num = 3,                            // 摩擦轮数量
             .friction_speed = 26800.0f,                   // 摩擦轮速度
                                                           //注：新弹丸慢一点（25800），旧弹丸快一点（26800-27000）
-            .friction_coefficients = {1.0f, 1.0f, 1.1f},  // 摩擦轮速度比例系数
+            .friction_coefficients = {1.0f, -1.0f, 1.1f},  // 摩擦轮速度比例系数
             .deadtime_burstfire = 500,
             .deadtime_onebullet = 1000,
             .target_speed = 12.0f,
@@ -264,8 +264,8 @@ static Shoot_Init_Config_s shoot_init_config = {
             .motor_type = M3508,
             .can_init_config =
                 {
-                    .can_handle = &hcan3,
-                    .tx_id = 3,
+                    .can_handle = &hcan1,
+                    .tx_id = 5,
                 },
             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
             .controller_setting_init_config.feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,

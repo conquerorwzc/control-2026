@@ -28,6 +28,7 @@
 *          motor[1] - Right Front Wheel
 *          motor[2] - Left Rear Wheel
 *          motor[3] - Right Rear Wheel
+*          腿：0左 1右
 ******************************************************************************
 */
 #pragma once
@@ -45,6 +46,9 @@ typedef enum {
   LEG_NORMAL,             // 常规位置
   LEG_RAISE,              // 抬起位置
   LEG_KIKE,
+  LEG_MANUAL_UP,          // 手动上升
+  LEG_MANUAL_DOWN,        // 手动下降
+  LEG_HOLD,
 } Leg_Mode_e;
 typedef struct {
   // 控制部分
