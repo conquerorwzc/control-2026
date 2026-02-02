@@ -50,6 +50,8 @@ typedef enum {
   LEG_MANUAL_UP,          // 手动上升
   LEG_MANUAL_DOWN,        // 手动下降
   LEG_HOLD,
+  LEG_CRUISE,
+  LEG_IN_AIR,
 } Leg_Mode_e;
 typedef struct {
   // 控制部分

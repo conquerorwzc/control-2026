@@ -209,7 +209,38 @@ static void LegControl() {
   const float LEG_SPEED_RAMP_RATE = 0.0005f; // 位置渐变速率
   int leg_is_enabled = 0;
   int immediate_move = 0; // 是否立即移动标志
+  //uint8_t is_off_ground = DetectOffGround(chassis);
 
+  // 根据离地检测结果更新腿部状态
+  if (chassis_ctrl_cmd->leg_mode ==LEG_IN_AIR) {
+    // 检测到离地，切换到飞坡补偿模式
+    SlopeCompensationControl();
+    // 硬化PID参数
+    //AdjustLegPID(1); // 硬化PID
+    // 第一次进入飞坡补偿模式时，备份原始PID参数
+    if (original_left_pid_config.Kp == 0.0f) { // 检查是否已备份
+      // 从实际运行的PID参数获取原始值
+      original_left_pid_config.Kp = chassis->leg_motor[0]->motor_controller.angle_PID.Kp;
+      original_left_pid_config.Ki = chassis->leg_motor[0]->motor_controller.angle_PID.Ki;
+      original_left_pid_config.Kd = chassis->leg_motor[0]->motor_controller.angle_PID.Kd;
+      original_left_pid_config.IntegralLimit = chassis->leg_motor[0]->motor_controller.angle_PID.IntegralLimit;
+      original_left_pid_config.MaxOut = chassis->leg_motor[0]->motor_controller.angle_PID.MaxOut;
+      original_left_pid_config.Improve = chassis->leg_motor[0]->motor_controller.angle_PID.Improve;
+
+      original_right_pid_config.Kp = chassis->leg_motor[1]->motor_controller.angle_PID.Kp;
+      original_right_pid_config.Ki = chassis->leg_motor[1]->motor_controller.angle_PID.Ki;
+      original_right_pid_config.Kd = chassis->leg_motor[1]->motor_controller.angle_PID.Kd;
+      original_right_pid_config.IntegralLimit = chassis->leg_motor[1]->motor_controller.angle_PID.IntegralLimit;
+      original_right_pid_config.MaxOut = chassis->leg_motor[1]->motor_controller.angle_PID.MaxOut;
+      original_right_pid_config.Improve = chassis->leg_motor[1]->motor_controller.angle_PID.Improve;
+    }
+  }
+
+  // 如果处于飞坡补偿模式，执行补偿控制
+  if (chassis_ctrl_cmd->leg_mode == LEG_IN_AIR) {
+    SlopeCompensationControl();
+    return; // 直接返回，不执行下面的普通控制逻辑
+  }
   switch (chassis_ctrl_cmd->leg_mode) {
     case LEG_DISABLE:
       // 停止腿部电机
@@ -226,11 +257,10 @@ static void LegControl() {
       leg_is_enabled = 1;
       // 从KIKE位置回到NORMAL位置也应该一步到位
 
-       if (fabsf(leg_current_position_left - LEFT_LEG_MOTOR_KIKE_POSITION) < 0.05f &&
-                 fabsf(leg_current_position_right - RIGHT_LEG_MOTOR_KIKE_POSITION) < 0.05f) {
+
         // 如果当前处于KIKE位置，则标记为立即移动
-        immediate_move = 1;
-                 }
+      immediate_move = 1;
+
       break;
 
     case LEG_RAISE:
