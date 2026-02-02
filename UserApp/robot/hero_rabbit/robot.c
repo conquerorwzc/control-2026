@@ -26,7 +26,8 @@ static float y_speed_time=0;  //y方向加速触发时间
 static float vx_initial;   //x轴输入控制量
 static float vy_initial;   //y轴输入控制量
 static float angle;
-
+// 添加一个变量记录上次右上拨杆的状态，用于检测状态变化
+static uint8_t last_switch_right_up = 0;
 float new_max_pitch=0.0f;
 float new_min_pitch=0.0f;
 
@@ -81,6 +82,21 @@ static void CalcOffsetAngle() {
  *
  */
 static void RemoteControlSet() {
+  // 检测遥控器右上拨杆状态变化，仅在状态从非上变为上时执行掉头
+  uint8_t current_switch_right_up = switch_is_up(rc_data[TEMP].rc.switch_right);
+  if (current_switch_right_up && !last_switch_right_up) {
+   gimbal_ctrl_cmd->yaw+=180.0f;
+
+    // 将角度规范化到-180到180度范围内
+    if (gimbal_ctrl_cmd->yaw > 180.0f) {
+      gimbal_ctrl_cmd->yaw -= 360.0f;
+    } else if (gimbal_ctrl_cmd->yaw < -180.0f) {
+      gimbal_ctrl_cmd->yaw += 360.0f;
+    }
+
+  }
+  // 更新上次状态
+  last_switch_right_up = current_switch_right_up;
   // 右[中]，云台
   if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
@@ -99,14 +115,15 @@ static void RemoteControlSet() {
   }
   if (switch_is_down(rc_data[TEMP].rc.switch_right)) {
     // 右下：腿部缓慢下降
-    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_DOWN;
+    chassis_ctrl_cmd->leg_mode = LEG_NORMAL;
   } else if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
     chassis_ctrl_cmd->leg_mode = LEG_HOLD;
     // 右中：保持当前腿部位置不变（不改变之前的腿部模式）
     // 保留当前模式，不修改leg_mode
   } else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
     // 右上：腿部缓慢上升，最大到kike位置
-    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_UP;
+    chassis_ctrl_cmd->wz=0.0f;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW_REAR_END;
   }
 
   //左[中],云台启动，摩擦轮启动，拨弹盘启动，准备射击
@@ -179,7 +196,7 @@ static void RemoteControlSet() {
   *rc_data_last = *rc_data;
 }
 
-#if 0
+
 /**
  * @brief 输入为键鼠时模式和控制量设置
  *
@@ -253,7 +270,7 @@ static void MouseKeySet() {
       break;
   }
 }
-#endif
+
 
 /**
  * @brief  紧急停止,包括遥控器左上侧拨轮打满/重要模块离线/双板通信失效等

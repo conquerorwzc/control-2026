@@ -65,90 +65,90 @@ static void AdjustLegPID(uint8_t harden) {
  * @param chassis 指向底盘实例的指针
  * @retval 1: 离地, 0: 接地
  */
-static int DetectOffGround(ChassisInstance* chassis) {
-  // 静态变量用于连续检测计数
-  static uint8_t off_ground_counter = 0;
-  static uint8_t grounded_counter = 0;
-  static uint8_t current_state = 0;  // 当前稳定状态
-  // 1. 通过腿部电机力矩判断
-  float left_leg_torque = fabsf(chassis->leg_motor[0]->measure.torque);
-  float right_leg_torque = fabsf(chassis->leg_motor[1]->measure.torque);
-  float avg_leg_torque = (left_leg_torque + right_leg_torque) / 2.0f;
-
-  // 2. 通过外部IMU的加速度数据判断
-  float acc_z = 0.0f;
-  if (chassis->chassis_external_imu != NULL) {
-    acc_z = chassis->chassis_external_imu->accel[1]; // Z轴加速度
-  }
-
-  // 3. 通过轮子电机电流辅助判断
-  float wheel_current_sum = 0.0f;
-  for (int i = 1; i < 3; i++) {
-    wheel_current_sum += fabsf(chassis->wheel_motor[i]->measure.real_current);
-  }
-  //只看腿下面的电机
-  float avg_wheel_current = wheel_current_sum / 2.0f;
-
-  // 4. 多参数综合判断
-  uint8_t current_based_detection = 0;
-  uint8_t acc_based_detection = 0;
-  uint8_t combined_detection = 0;
-
-  // 电流基础检测：腿部电机电流较低可能表示离地（负载减小）
-  float torque_threshold = 5.0f; // 可调节的电流阈值，根据实际测试调整
-  if (avg_leg_torque < torque_threshold) {
-    current_based_detection = 1;
-  }
-
-  // 加速度检测：Z轴加速度偏离重力加速度可能表示离地或着陆冲击
-  float acc_threshold_low = 6.0f;   // 下阈值
-  if (fabsf(acc_z) < acc_threshold_low ) {
-    acc_based_detection = 1;
-  }
-
-  // 轮子电流辅助判断：离地时轮子无阻力，电流可能较低
-  float wheel_current_threshold = 2000.0f;
-  uint8_t wheel_current_support = 0;
-  if (avg_wheel_current < wheel_current_threshold) {
-    wheel_current_support = 1;
-  }
-
-  // 综合判断：腿部力矩低 + (加速度异常 或 轮子电流低)
-  if (current_based_detection && (acc_based_detection || wheel_current_support)) {
-    combined_detection = 1;
-  }
-  // 或者：加速度异常 + 轮子电流低
-  else if (acc_based_detection && wheel_current_support) {
-    combined_detection = 1;
-  }
-  if (combined_detection) {
-    off_ground_counter++;
-    grounded_counter = 0;  // 重置接地计数器
-    if (off_ground_counter >= 5) {  // 连续5次检测到离地才切换状态
-      current_state = 1;
-      off_ground_counter = 0;  // 重置计数器
-    }
-  } else {
-    grounded_counter++;
-    off_ground_counter = 0;  // 重置离地计数器
-    if (grounded_counter >= 5) {  // 连续5次检测到接地才切换状态
-      current_state = 0;
-      grounded_counter = 0;  // 重置计数器
-    }
-  }
-
-  return current_state;
-}
+// static int DetectOffGround(ChassisInstance* chassis) {
+//   // 静态变量用于连续检测计数
+//   static uint8_t off_ground_counter = 0;
+//   static uint8_t grounded_counter = 0;
+//   static uint8_t current_state = 0;  // 当前稳定状态
+//   // 1. 通过腿部电机力矩判断
+//   float left_leg_torque = fabsf(chassis->leg_motor[0]->measure.torque);
+//   float right_leg_torque = fabsf(chassis->leg_motor[1]->measure.torque);
+//   float avg_leg_torque = (left_leg_torque + right_leg_torque) / 2.0f;
+//
+//   // 2. 通过外部IMU的加速度数据判断
+//   float acc_z = 0.0f;
+//   if (chassis->chassis_external_imu != NULL) {
+//     acc_z = chassis->chassis_external_imu->accel[2]; // Z轴加速度
+//   }
+//
+//   // 3. 通过轮子电机电流辅助判断
+//   float wheel_current_sum = 0.0f;
+//   for (int i = 1; i < 3; i++) {
+//     wheel_current_sum += fabsf(chassis->wheel_motor[i]->measure.real_current);
+//   }
+//   //只看腿下面的电机
+//   float avg_wheel_current = wheel_current_sum / 2.0f;
+//
+//   // 4. 多参数综合判断
+//   uint8_t current_based_detection = 0;
+//   uint8_t acc_based_detection = 0;
+//   uint8_t combined_detection = 0;
+//
+//   // 电流基础检测：腿部电机电流较低可能表示离地（负载减小）
+//   float torque_threshold = 5.0f; // 可调节的电流阈值，根据实际测试调整
+//   if (avg_leg_torque < torque_threshold) {
+//     current_based_detection = 1;
+//   }
+//
+//   // 加速度检测：Z轴加速度偏离重力加速度可能表示离地或着陆冲击
+//   float acc_threshold_low = 6.0f;   // 下阈值
+//   if (fabsf(acc_z) < acc_threshold_low ) {
+//     acc_based_detection = 1;
+//   }
+//
+//   // 轮子电流辅助判断：离地时轮子无阻力，电流可能较低
+//   float wheel_current_threshold = 2000.0f;
+//   uint8_t wheel_current_support = 0;
+//   if (avg_wheel_current < wheel_current_threshold) {
+//     wheel_current_support = 1;
+//   }
+//
+//   // 综合判断：腿部力矩低 + (加速度异常 或 轮子电流低)
+//   if (current_based_detection && (acc_based_detection || wheel_current_support)) {
+//     combined_detection = 1;
+//   }
+//   // 或者：加速度异常 + 轮子电流低
+//   else if (acc_based_detection && wheel_current_support) {
+//     combined_detection = 1;
+//   }
+//   if (combined_detection) {
+//     off_ground_counter++;
+//     grounded_counter = 0;  // 重置接地计数器
+//     if (off_ground_counter >= 5) {  // 连续5次检测到离地才切换状态
+//       current_state = 1;
+//       off_ground_counter = 0;  // 重置计数器
+//     }
+//   } else {
+//     grounded_counter++;
+//     off_ground_counter = 0;  // 重置离地计数器
+//     if (grounded_counter >= 5) {  // 连续5次检测到接地才切换状态
+//       current_state = 0;
+//       grounded_counter = 0;  // 重置计数器
+//     }
+//   }
+//
+//   return current_state;
+// }
 static void CalculateEulerCompensation(ChassisInstance* chassis, float* compensation_x, float* compensation_y) {
   if (chassis->chassis_external_imu != NULL) {
     // 使用外部IMU的欧拉角数据计算补偿
-    float roll = chassis->chassis_external_imu->roll;  // 横滚角
-    float pitch = chassis->chassis_external_imu->pitch; // 俯仰角
+    float roll = chassis->chassis_external_imu->pitch;
+    float pitch = chassis->chassis_external_imu->roll;
 
     // 根据欧拉角计算腿部位置补偿
     // 这里假设一定的补偿系数，可根据实际效果调整
-    float roll_compensation_factor = 0.02f;  // 横滚补偿系数
-    float pitch_compensation_factor = 0.02f; // 俯仰补偿系数
+    float roll_compensation_factor = 0.005f;  // 横滚补偿系数
+    float pitch_compensation_factor = 0.01f; // 俯仰补偿系数
 
     *compensation_x = pitch * pitch_compensation_factor;  // 俯仰影响前后腿
     *compensation_y = roll * roll_compensation_factor;    // 横滚影响左右腿差异
@@ -166,11 +166,28 @@ static void SlopeCompensationControl() {
     // 计算基于欧拉角的补偿
     float compensation_x, compensation_y;
     CalculateEulerCompensation(chassis, &compensation_x, &compensation_y);
-
+    if (fabsf(compensation_x)>0.2) {
+      compensation_x = (compensation_x > 0) ? 0.2f : -0.2f;
+    }
+    if (fabsf(compensation_y)>0.2) {
+      compensation_y = (compensation_y > 0) ? 0.2f : -0.2f;
+    }
     // 应用补偿到腿部目标位置
-    float target_left = LEFT_LEG_MOTOR_NORMAL_POSITION + compensation_y;
-    float target_right = RIGHT_LEG_MOTOR_NORMAL_POSITION - compensation_y;
-
+    float target_left = LEFT_LEG_MOTOR_CRUISE_POSITION - compensation_x+ compensation_y;
+    float target_right = RIGHT_LEG_MOTOR_CRUISE_POSITION  + compensation_x+ compensation_y;
+    if (target_left < LEFT_LEG_MOTOR_NORMAL_POSITION) {
+      target_left = LEFT_LEG_MOTOR_NORMAL_POSITION;
+    }
+    if (target_right > RIGHT_LEG_MOTOR_NORMAL_POSITION) {
+      target_right = RIGHT_LEG_MOTOR_NORMAL_POSITION;
+    }
+    // 限制最大位置为KIKE位置
+    if (target_left> LEFT_LEG_MOTOR_KIKE_POSITION) {
+      target_left = LEFT_LEG_MOTOR_KIKE_POSITION;
+    }
+    if (target_right < RIGHT_LEG_MOTOR_KIKE_POSITION) {
+      target_right = RIGHT_LEG_MOTOR_KIKE_POSITION;
+    }
     // 设置腿部电机目标
     DMMotorSetPIDRef(chassis->leg_motor[0], target_left);
     DMMotorSetPIDRef(chassis->leg_motor[1], target_right);
@@ -650,10 +667,10 @@ void ChassisTask() {
       follow_angle=0.f ;//跟随正前方
       //跳变处理
       if (follow_angle-chassis_ctrl_cmd->offset_angle>=180.f) {
-        follow_angle+=360.0f;
+        follow_angle-=360.0f;
       }
       else if(follow_angle-chassis_ctrl_cmd->offset_angle<=-180.f) {
-        follow_angle-=360.0f;
+        follow_angle+=360.0f;
       }
        //如果状态是刚从follow_rear_ecd切换过来，那么等待500ms再算follow_pid，其他模式切过来直接算就行，todo可以将500写入config
       if (DWT_GetTimeline_ms()-reverse_follow_tick>=500) {
