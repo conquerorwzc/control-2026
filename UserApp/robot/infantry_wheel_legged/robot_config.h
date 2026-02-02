@@ -416,6 +416,15 @@ static PID_Init_Config_s chassis_follow_PID_config = {
     .MaxOut = 2.0f,
 };
 
+static PID_Init_Config_s chassis_rotate_PID_config = {
+    .Kp = 1.0f,
+    .Ki = 0.0f,
+    .Kd = 0.0f,
+    .IntegralLimit = 1.5f,
+    .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+    .MaxOut = 3.0f,
+};
+
 static SuperCap_Init_Config_s super_cap_config = {
     .can_config = {
         .can_handle = &hcan1,

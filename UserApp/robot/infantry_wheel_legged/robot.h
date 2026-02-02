@@ -16,6 +16,7 @@ typedef struct {
   float Roll;           // 横滚角(绕X轴旋转) 单位: °
   float Pitch;          // 俯仰角(绕Y轴旋转) 单位: °
   float YawTotalAngle;  // Yaw轴累计转过的总角度，可用于多圈控制 单位: °
+  float YawSpeed;//yaw角速度，单位: rad/s
   // 后续增加底盘的真实速度
   // float real_vx;
   // float real_vy;
@@ -51,6 +52,7 @@ typedef struct {
   ShootInstance* shoot;
 
   PIDInstance chassis_follow_PID;
+  PIDInstance chassis_rotate_PID;
 
 #ifndef ONE_BOARD
   Chassis_Upload_Data_s* chassis_upload_data;  // 此处chassis定义为chassis_board, 而非chassis模组, 故所有处理在robot中

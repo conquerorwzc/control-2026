@@ -45,6 +45,10 @@ static float input_mag;          // 输入的模值
 static float follow_err;         // follow最终计算出的角度误差
 static float align_attenuation;  // 对齐时的衰减系数
 
+// 小陀螺相关参数
+static float rotate_frequency;  // 小陀螺旋转的频率
+static float rotate_omega;      // 小陀螺旋转角速度
+
 #define robot_lost_control abs(robot->chassis->chassis_IMU->Pitch) > 13.0f
 /**
  * @brief 根据gimbal app传回的当前电机角度计算和零位的误差
@@ -149,8 +153,28 @@ static void RemoteControlSet() {
 
   switch (robot->robot_mode) {
     case ROBOT_CHASSIS_ROTATE:
-      // chassis_ctrl_cmd->wz = TRACK_WIDTH / 2.0f * (0.0001) *
-      //                        (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如，则在底盘任务中计算旋转分量
+      // 小陀螺频率设置
+      rotate_frequency = 0.75f;
+
+      // 小陀螺原地旋转
+      rotate_omega = rotate_frequency * 2.0f * PI;
+      chassis_ctrl_cmd->wz =
+          PIDCalculate(&robot->chassis_rotate_PID, robot->chassis->chassis_IMU->Gyro[2], rotate_omega);
+
+      // 设置目标速度矢量(vx,vy)
+      chassis_vx = 0.0025f * (float)rc_data[TEMP].rc.rocker_l_;
+      chassis_vy = 0.0025f * (float)rc_data[TEMP].rc.rocker_l1;
+      input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);  // 速度的模
+
+      // 转换角度坐标系
+      float target_angle_to_gimbal = atan2f(chassis_vy, chassis_vx);  // 目标方向矢量与云台正方向方向夹角
+      float target_angle_to_chassis = target_angle_to_gimbal + chassis_ctrl_cmd->offset_angle;
+
+      // 相位补偿，单位是rad
+      float phase_compensation = 0.5f;
+      // 正弦速度调制
+      chassis_ctrl_cmd->vx = input_mag * sinf(target_angle_to_chassis + phase_compensation);
+
       break;
 
     case ROBOT_CHASSIS_FOLLOW:
@@ -359,12 +383,15 @@ void RobotCMDTask() {
   robot->chassis->chassis_IMU->Roll = chassis_upload_data->Roll;
   robot->chassis->chassis_IMU->Pitch = chassis_upload_data->Pitch;
   robot->chassis->chassis_IMU->YawTotalAngle = chassis_upload_data->YawTotalAngle;
+  robot->chassis->chassis_IMU->Gyro[2] = chassis_upload_data->YawSpeed;
+
   CANCommSend(robot->can_comm, (void *)chassis_fetch_data);
 #endif
 #elif defined(CHASSIS_BOARD)
   chassis_upload_data->Pitch = robot->chassis->chassis_IMU->Pitch;
   chassis_upload_data->Roll = robot->chassis->chassis_IMU->Roll;
   chassis_upload_data->YawTotalAngle = robot->chassis->chassis_IMU->YawTotalAngle;
+  chassis_upload_data->YawSpeed = robot->chassis->chassis_IMU->Gyro[2];
 
   *chassis_fetch_data = *(Chassis_Fetch_Data_s *)CANCommGet(robot->can_comm);
   robot->chassis->chassis_ctrl_cmd = chassis_fetch_data->chassis_ctrl_cmd;
@@ -389,6 +416,7 @@ void RobotInit() {
   *rc_data_last = *robot->rc_data;                         // 记录上一次遥控器的状态，传值确保内存空间独立
 
   PIDInit(&robot->chassis_follow_PID, &chassis_follow_PID_config);
+  PIDInit(&robot->chassis_rotate_PID, &chassis_rotate_PID_config);
   rc_data = robot->rc_data;
 #if defined(GIMBAL_BOARD)
   robot->gimbal = GimbalInit(&gimbal_init_config);

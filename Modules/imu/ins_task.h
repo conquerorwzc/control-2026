@@ -26,7 +26,7 @@
 #define INS_TASK_PERIOD 1
 
 typedef struct {
-  float Gyro[3];   // 三个轴的角速度数据 [0]-Pitch方向 [1]-Roll方向 [2]-Yaw方向 单位: °/s
+  float Gyro[3];   // 三个轴的角速度数据 [0]-Pitch方向 [1]-Roll方向 [2]-Yaw方向 单位: rad/s
   float Accel[3];  // 三个轴的加速度数据 [0]-X方向 [1]-Y方向 [2]-Z方向 单位: m/s^2
   // float Ang_accel[3]; // 加角速度数据
 
