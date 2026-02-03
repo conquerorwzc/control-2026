@@ -132,10 +132,10 @@ static void RemoteControlSet() {
   chassis_ctrl_cmd->vy = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // l1竖直方向
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
     chassis_ctrl_cmd->wz =
-        5.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
+        60.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
   }
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
-    chassis_ctrl_cmd->wz =(15.0f) *(float)rc_data[TEMP].rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
+    chassis_ctrl_cmd->wz =(35.0f) *(float)rc_data[TEMP].rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
   }
 
   // 射频控制,固定每秒1发,后续可以根据左侧拨轮的值大小切换射频,
@@ -382,7 +382,7 @@ void RobotInit() {
   // 初始化控制命令指针
   //chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   chassis_ctrl_cmd=(Chassis_Ctrl_Cmd_s*)zmalloc(sizeof(Chassis_Ctrl_Cmd_s));
-  chassis_ctrl_cmd->max_power = 80;  // 随便给一个初始功率，后面应该要从裁判系统获取
+  chassis_ctrl_cmd->max_power = 280;  // 随便给一个初始功率，后面应该要从裁判系统获取
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;
@@ -407,27 +407,27 @@ void RobotTask() {
   GimbalTask();
   ShootTask();
   //Steering_CANCommSend(can_comm_instance, rc_data);
-  transmit_data.value = rc_data->rc.rocker_l_;
-  board_can_comm_data.tx_buff[0] = transmit_data.bytes[0];
-  board_can_comm_data.tx_buff[1] = transmit_data.bytes[1];
-
-  transmit_data.value = rc_data->rc.rocker_l1;
-  board_can_comm_data.tx_buff[2] = transmit_data.bytes[0];
-  board_can_comm_data.tx_buff[3] = transmit_data.bytes[1];
-
-  transmit_data.value = rc_data->rc.rocker_r_;
-  board_can_comm_data.tx_buff[4] = transmit_data.bytes[0];
-  board_can_comm_data.tx_buff[5] = transmit_data.bytes[1];
-
-  transmit_data.value = rc_data->rc.dial;
-  board_can_comm_data.tx_buff[6] = transmit_data.bytes[0];
-  board_can_comm_data.tx_buff[7] = transmit_data.bytes[1];
-
-  transmit_data.value = (int16_t)robot->gimbal->yaw_motor->measure.angle_single_round;
-  board_can_comm_data.tx_buff[8] = transmit_data.bytes[0];
-  board_can_comm_data.tx_buff[9] = transmit_data.bytes[1];
-
-  board_can_comm_data.tx_buff[10] = rc_data->rc.switch_right;
+  // transmit_data.value = rc_data->rc.rocker_l_;
+  // board_can_comm_data.tx_buff[0] = transmit_data.bytes[0];
+  // board_can_comm_data.tx_buff[1] = transmit_data.bytes[1];
+  //
+  // transmit_data.value = rc_data->rc.rocker_l1;
+  // board_can_comm_data.tx_buff[2] = transmit_data.bytes[0];
+  // board_can_comm_data.tx_buff[3] = transmit_data.bytes[1];
+  //
+  // transmit_data.value = rc_data->rc.rocker_r_;
+  // board_can_comm_data.tx_buff[4] = transmit_data.bytes[0];
+  // board_can_comm_data.tx_buff[5] = transmit_data.bytes[1];
+  //
+  // transmit_data.value = rc_data->rc.dial;
+  // board_can_comm_data.tx_buff[6] = transmit_data.bytes[0];
+  // board_can_comm_data.tx_buff[7] = transmit_data.bytes[1];
+  //
+  // transmit_data.value = (int16_t)robot->gimbal->yaw_motor->measure.angle_single_round;
+  // board_can_comm_data.tx_buff[8] = transmit_data.bytes[0];
+  // board_can_comm_data.tx_buff[9] = transmit_data.bytes[1];
+  //
+  // board_can_comm_data.tx_buff[10] = rc_data->rc.switch_right;
 
   CANCommSend(can_comm_instance, (uint8_t*)chassis_ctrl_cmd);
 

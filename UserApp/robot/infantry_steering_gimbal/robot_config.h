@@ -5,7 +5,7 @@
 #include "shoot.h"
 
 #define BOARD_TX_ID 0x10
-#define BOARD_RX_ID 0x11
+#define BOARD_RX_ID 0x311
 
 // 云台参数
 #define YAW_CHASSIS_ALIGN_ECD 1570
@@ -189,8 +189,8 @@ static Shoot_Init_Config_s shoot_init_config = {
 };
 
 static CANComm_Init_Config_s comm_config = {
-  .recv_data_len = 24,        // 接收数据长度，根据实际需求调整
-  .send_data_len = 24,        // 发送数据长度，根据实际需求调整
+  .recv_data_len = 12,        // 接收数据长度，根据实际需求调整
+  .send_data_len = 26,        // 发送数据长度，根据实际需求调整
   .daemon_count = 1000,      // 看门狗重载计数，根据实际需求调整
   .can_config = {
     .can_handle = &hcan1,  // 假设使用CAN1，根据实际使用的CAN句柄调整
