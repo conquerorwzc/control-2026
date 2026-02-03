@@ -35,7 +35,7 @@ typedef enum {
   CHASSIS_ROTATE,            // 小陀螺模式
   CHASSIS_FOLLOW,            // 跟随模式，底盘叠加角度环控制
 } Chassis_Mode_e;
-
+#pragma pack(1)
 typedef struct {
   // 控制部分
   float vx;            // 前进方向速度
@@ -49,7 +49,7 @@ typedef struct {
   //  ...
 
 } Chassis_Ctrl_Cmd_s;
-
+#pragma pack()
 typedef struct {
   float k0;
   float k1;

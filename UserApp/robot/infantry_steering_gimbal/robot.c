@@ -44,16 +44,29 @@ uint8_t has_non_zero_data(const Vision_Receive_s* data) {
          (data->gimbal_receive.yaw != 0) ||
          (data->shoot_receive.fire_flag != 0);
 }
+// static void CalcOffsetAngle() {
+//   angle = (uint16_t)robot->gimbal->yaw_motor->measure.angle_single_round;
+//   float delta =YAW_ALIGN_ANGLE - angle;
+//   chassis_ctrl_cmd->offset_angle = delta;
+//
+//   if (chassis_ctrl_cmd->offset_angle > 180.0f) {
+//     chassis_ctrl_cmd->offset_angle -= 360.0f;
+//   } else if (chassis_ctrl_cmd->offset_angle <= -180.0f) {
+//     chassis_ctrl_cmd->offset_angle += 360.0f;
+//   }
+// }
 static void CalcOffsetAngle() {
   angle = (uint16_t)robot->gimbal->yaw_motor->measure.angle_single_round;
-  float delta =YAW_ALIGN_ANGLE - angle;
-  chassis_ctrl_cmd->offset_angle = delta;
-
-  if (chassis_ctrl_cmd->offset_angle > 180.0f) {
-    chassis_ctrl_cmd->offset_angle -= 360.0f;
-  } else if (chassis_ctrl_cmd->offset_angle <= -180.0f) {
-    chassis_ctrl_cmd->offset_angle += 360.0f;
+  float delta = angle-YAW_ALIGN_ANGLE;
+  if (delta > 180.0f) {
+    delta -= 360.0f;
+  } else if (delta <= -180.0f) {
+    delta += 360.0f;
   }
+  if (abs(delta) < 2.0f) {
+    delta =0.0f;
+  }
+   chassis_ctrl_cmd->offset_angle = delta;
 }
 /**
  * @brief 控制输入为遥控器(调试时)的模式和控制量设置
@@ -367,7 +380,8 @@ void RobotInit() {
 #endif
 
   // 初始化控制命令指针
-  chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
+  //chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
+  chassis_ctrl_cmd=(Chassis_Ctrl_Cmd_s*)zmalloc(sizeof(Chassis_Ctrl_Cmd_s));
   chassis_ctrl_cmd->max_power = 80;  // 随便给一个初始功率，后面应该要从裁判系统获取
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
@@ -381,7 +395,8 @@ void RobotCMDTask() {
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
   CalcOffsetAngle();
   RemoteControlSet();
-  MouseKeySet();
+  if (rc_data->rc.rocker_l1==0&&rc_data->rc.rocker_r1==0&&rc_data->rc.rocker_l_==0&&rc_data->rc.rocker_r_==0)
+    MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
 
@@ -414,7 +429,7 @@ void RobotTask() {
 
   board_can_comm_data.tx_buff[10] = rc_data->rc.switch_right;
 
-  CANCommSend(can_comm_instance, board_can_comm_data.tx_buff);
+  CANCommSend(can_comm_instance, (uint8_t*)chassis_ctrl_cmd);
 
 #endif
 
