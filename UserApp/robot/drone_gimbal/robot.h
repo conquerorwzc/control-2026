@@ -27,6 +27,7 @@ typedef struct {
 
   // --- 辅助变量 ---
   bool is_first_loop;
+  bool safety_lock;
 
   // --- 串级 PID 反馈接口 ---
   // 这两个变量用于把处理后的 IMU 数据“喂”给电机控制器的外环

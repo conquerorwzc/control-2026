@@ -22,10 +22,11 @@
 // =============================================================
 
 // 云台机械中值与限位
-#define YAW_CHASSIS_ALIGN_ECD 5326
-#define PITCH_HORIZON_ECD 5748
-#define PITCH_MAX_ANGLE 30.0f   // 根据你的逻辑修改了限位
-#define PITCH_MIN_ANGLE 0.0f
+#define YAW_CHASSIS_ALIGN_ECD 2689
+#define PITCH_HORIZON_ECD 4677
+#define YAW_ECD_MIN 2100
+#define YAW_ECD_MAX 3300
+#define RC_ESTOP_THRESHOLD 600    // 定义急停阈值 (摇杆最大值通常是 660)
 
 // 云台初始化结构体
 static Gimbal_Init_Config_s gimbal_init_config = {
@@ -33,16 +34,16 @@ static Gimbal_Init_Config_s gimbal_init_config = {
     .yaw_motor_config = {
         .controller_param_init_config = {
             .angle_PID = {
-                .Kp = 1.2f,//8
-                .Ki = 0.0f,
-                .Kd = 0.0f,
+                .Kp = 0.3f,//1.2
+                .Ki = 0.1f,
+                .Kd = 0.03f,
                 .MaxOut = 30.0f,
             },
             .speed_PID = {
-                .Kp = 850.0f,//3000
-                .Ki = 25.0f,
+                .Kp = 1200.0f,//1200
+                .Ki = 25.0,//25.0
                 .Kd = 0.0f,
-                .MaxOut =  28000.0f,
+                .MaxOut =  20000.0f,
                 .IntegralLimit = 12000.0f,
             },
         },
@@ -61,23 +62,23 @@ static Gimbal_Init_Config_s gimbal_init_config = {
     .pitch_motor_config = {
         .controller_param_init_config = {
             .angle_PID = {
-                .Kp = 0.8f,       // 6
+                .Kp = 0.5f,       // 1.2
                 .Ki = 0.0f,
-                .Kd = 0.0f,
+                .Kd = 0.005f,
                 .MaxOut = 25.0f, // 限制最大速度
             },
             .speed_PID = {
-                .Kp = 2500.0f,    // 4500
-                .Ki = 15.0f,     // 150
+                .Kp = 2000.0f,    // 2750
+                .Ki = 15.0f,     // 15
                 .Kd = 0.0f,
-                .MaxOut =  28000.0f,
+                .MaxOut =  20000.0f,
                 .IntegralLimit = 12000.0f,
             },
         },
         .motor_type = GM6020,
         .can_init_config = { .can_handle = &hcan1, .tx_id = 5 },
         .controller_setting_init_config = {
-            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
             // 开启串级双环控制
             .outer_loop_type = ANGLE_LOOP,
             .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
@@ -101,8 +102,8 @@ static Gimbal_Init_Config_s gimbal_init_config = {
           {                                          \
               .speed_PID =                           \
                   {                                  \
-                      .Kp = 0.5f,                    \
-                      .Ki = 0.0f,                    \
+                      .Kp = 1.2f,                    \
+                      .Ki = 0.1f,                    \
                       .Kd = 0.0f,                    \
                       .Improve = PID_Integral_Limit, \
                       .IntegralLimit = 10000.0f,     \
@@ -133,7 +134,7 @@ static Shoot_Init_Config_s shoot_init_config = {
             .num_per_circle = 8,              // 拨盘一圈的装载量
             .loader_direction = -1,            // 拨盘旋转方向,1为正向，-1为反向
             .friction_num = 2,                // 摩擦轮数量
-            .friction_speed = 28000.0f,    // 设置目标转速
+            .friction_speed = 37000.0f,    // 设置目标转速
             .friction_coefficients[0] = -1.0f,
             .friction_coefficients[1] = 1.0f,
         },
