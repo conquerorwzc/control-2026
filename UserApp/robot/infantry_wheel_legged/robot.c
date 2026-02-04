@@ -47,10 +47,7 @@ static float align_attenuation;  // 对齐时的衰减系数
 
 // 小陀螺相关参数
 static float rotate_frequency;  // 小陀螺旋转的频率
-static float rotate_time;       // 小陀螺旋转时长
 static float rotate_omega;      // 小陀螺旋转角速度
-static float rotate_T;          // 小陀螺旋转周期
-static int rotate_T_flag;       // 小陀螺旋转周期标志，0表示在前二分之一个周期，1表示在后二分之一个周期
 
 #define robot_lost_control abs(robot->chassis->chassis_IMU->Pitch) > 13.0f
 /**
@@ -156,42 +153,30 @@ static void RemoteControlSet() {
 
   switch (robot->robot_mode) {
     case ROBOT_CHASSIS_ROTATE:
-      // // 小陀螺转速/频率设置
-      // rotate_frequency = 0.1f;
-      //
-      // // 小陀螺原地旋转
-      // rotate_omega = rotate_frequency * 2.0f * PI;
-      // chassis_ctrl_cmd->wz = rotate_omega;
-      //
-      // // 设置目标速度(vx,vy)
-      // chassis_vx = 0.001f * (float)rc_data[TEMP].rc.rocker_r_;
-      // chassis_vy = 0.001f * (float)rc_data[TEMP].rc.rocker_r1;
-      //
-      // // 获取当前所在的二分之一个周期
-      // rotate_T = 2.0f * PI / rotate_omega;
-      // rotate_T_flag = 0;
-      // rotate_time += robot->dt;
-      // if (rotate_time >= rotate_T) rotate_T_flag = (rotate_T_flag + 1) % 2;
-      //
-      // // 每个二分之一周期做对应处理
-      // switch (rotate_T_flag) {
-      //   case 0:  // 在前半个周期时
-      //     chassis_ctrl_cmd->wz += PIDCalculate(&robot->chassis_follow_PID, chassis_ctrl_cmd->offset_angle,
-      //                                          atan2f(chassis_vy, chassis_vx) - PI / 2.0f);
-      //     slope_following(sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy), &chassis_ctrl_cmd->vx,
-      //                     1.0f * robot->dt);
-      //     break;
-      //   case 1:  // 在后半个周期时
-      //     chassis_ctrl_cmd->wz += PIDCalculate(&robot->chassis_follow_PID, chassis_ctrl_cmd->offset_angle,
-      //                                          PI / 2.0f - atan2f(chassis_vy, chassis_vx));
-      //     slope_following(-1.0f * sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy), &chassis_ctrl_cmd->vx,
-      //                     1.0f * robot->dt);
-      //     break;
-      //   default:
-      //     break;
-      // }
-      // break;
-      //
+      // 小陀螺频率设置
+      rotate_frequency = 0.75f;
+
+      // 小陀螺原地旋转
+      rotate_omega = rotate_frequency * 2.0f * PI;
+      chassis_ctrl_cmd->wz =
+          PIDCalculate(&robot->chassis_rotate_PID, robot->chassis->chassis_IMU->Gyro[2], rotate_omega);
+
+      // 设置目标速度矢量(vx,vy)
+      chassis_vx = 0.0025f * (float)rc_data[TEMP].rc.rocker_l_;
+      chassis_vy = 0.0025f * (float)rc_data[TEMP].rc.rocker_l1;
+      input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);  // 速度的模
+
+      // 转换角度坐标系
+      float target_angle_to_gimbal = atan2f(chassis_vy, chassis_vx);  // 目标方向矢量与云台正方向方向夹角
+      float target_angle_to_chassis = target_angle_to_gimbal + chassis_ctrl_cmd->offset_angle * DEGREE_2_RAD;
+
+      // 相位补偿，单位是rad
+      float phase_compensation = 0.5f;
+      // 正弦速度调制
+      chassis_ctrl_cmd->vx = input_mag * sinf(target_angle_to_chassis + phase_compensation);
+
+      break;
+
     case ROBOT_CHASSIS_FOLLOW:
 #if (!defined(ONE_BOARD))
       // 获取输入
@@ -399,12 +384,15 @@ void RobotCMDTask() {
   robot->chassis->chassis_IMU->Roll = chassis_upload_data->Roll;
   robot->chassis->chassis_IMU->Pitch = chassis_upload_data->Pitch;
   robot->chassis->chassis_IMU->YawTotalAngle = chassis_upload_data->YawTotalAngle;
+  robot->chassis->chassis_IMU->Gyro[2] = chassis_upload_data->YawSpeed;
+
   CANCommSend(robot->can_comm, (void *)chassis_fetch_data);
 #endif
 #elif defined(CHASSIS_BOARD)
   chassis_upload_data->Pitch = robot->chassis->chassis_IMU->Pitch;
   chassis_upload_data->Roll = robot->chassis->chassis_IMU->Roll;
   chassis_upload_data->YawTotalAngle = robot->chassis->chassis_IMU->YawTotalAngle;
+  chassis_upload_data->YawSpeed = robot->chassis->chassis_IMU->Gyro[2];
 
   *chassis_fetch_data = *(Chassis_Fetch_Data_s *)CANCommGet(robot->can_comm);
   robot->chassis->chassis_ctrl_cmd = chassis_fetch_data->chassis_ctrl_cmd;
@@ -426,6 +414,7 @@ void RobotInit() {
   *rc_data_last = *robot->rc_data;                         // 记录上一次遥控器的状态，传值确保内存空间独立
 
   PIDInit(&robot->chassis_follow_PID, &chassis_follow_PID_config);
+  PIDInit(&robot->chassis_rotate_PID, &chassis_rotate_PID_config);
   rc_data = robot->rc_data;
 #if defined(GIMBAL_BOARD)
   robot->gimbal = GimbalInit(&gimbal_init_config);
