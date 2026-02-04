@@ -25,8 +25,8 @@ static DaemonInstance *vision_daemon_instance;
 
 static  Vision_Receive_s recv_data;//接收数据
 static  Vision_Send_s send_data;//发送数据
-// static  INS_t* current_attitude;
-static HI05_t* current_attitude;
+static  INS_t* current_attitude;
+// static HI05_t* current_attitude;
 static INS_t* current_attitude_Cboard;
 
 //打包，注册
@@ -54,7 +54,7 @@ void UpdateGimbalAttitude(Vision_Send_s *vision_send) {
 
   vision_send->gimbal_send.yaw=current_attitude_Cboard->Yaw;
   vision_send->gimbal_send.pitch = current_attitude_Cboard->Pitch;
-  vision_send->gimbal_send.roll = current_attitude->roll;
+  vision_send->gimbal_send.roll = current_attitude_Cboard->Roll;
   vision_send->gimbal_send.mode=0;
   vision_send->gimbal_send.color=0;
   vision_send->shoot_send.bullet_speed=21;
