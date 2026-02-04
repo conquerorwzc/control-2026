@@ -34,14 +34,14 @@ static Gimbal_Init_Config_s gimbal_init_config = {
     .yaw_motor_config = {
         .controller_param_init_config = {
             .angle_PID = {
-                .Kp = 0.3f,//1.2
+                .Kp = 0.4f,//1.2
                 .Ki = 0.1f,
                 .Kd = 0.03f,
                 .MaxOut = 30.0f,
             },
             .speed_PID = {
-                .Kp = 1200.0f,//1200
-                .Ki = 25.0,//25.0
+                .Kp = 2100.0f,//1200
+                .Ki = 90.0,//25.0
                 .Kd = 0.0f,
                 .MaxOut =  20000.0f,
                 .IntegralLimit = 12000.0f,
@@ -68,8 +68,8 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 .MaxOut = 25.0f, // 限制最大速度
             },
             .speed_PID = {
-                .Kp = 2000.0f,    // 2750
-                .Ki = 15.0f,     // 15
+                .Kp = 2500.0f,    // 2750
+                .Ki = 50.0f,     // 15
                 .Kd = 0.0f,
                 .MaxOut =  20000.0f,
                 .IntegralLimit = 12000.0f,
@@ -102,8 +102,8 @@ static Gimbal_Init_Config_s gimbal_init_config = {
           {                                          \
               .speed_PID =                           \
                   {                                  \
-                      .Kp = 1.2f,                    \
-                      .Ki = 0.1f,                    \
+                      .Kp = 1.5f,                    \
+                      .Ki = 0.35f,                    \
                       .Kd = 0.0f,                    \
                       .Improve = PID_Integral_Limit, \
                       .IntegralLimit = 10000.0f,     \

@@ -57,100 +57,119 @@ static void RobotControlLogic(void) {
   robot->pitch_imu_feed = current_pitch;
 
   // ==========================================================
-  // 2. 右侧拨杆逻辑：总电源与安全 (最高优先级)
+  // 2. 安全与模式裁决 (右侧拨杆)
   // ==========================================================
-  // 下: 熄火 / 急停 / 上锁
-  // 中: 启动 / 解锁
-  // 上: 启动状态下反转 (逻辑在后面处理)
-
+  // [规则1] 右侧拨杆下 -> 强制上锁
   if (switch_is_down(robot->rc->rc.switch_right)) {
-    robot->safety_lock = true; // 拨到下，立刻上锁
+    robot->safety_lock = true;
   }
+  // [规则2] 只有拨回中间，才尝试解锁
   else if (switch_is_mid(robot->rc->rc.switch_right)) {
-    robot->safety_lock = false; // 只有拨回中间，才解锁
+    robot->safety_lock = false;
   }
-  // 注意：如果直接从“下”拨到“上”，safety_lock 依然是 true，防止误触反转
 
-  // 锁定状态执行逻辑
+  // [执行锁定]
   if (robot->safety_lock) {
     cmd->gimbal_mode = GIMBAL_POWER_OFF;
     cmd->yaw = current_yaw;
     cmd->pitch = current_pitch;
-
-    // 强制关停发射
     if(robot->shoot) {
       robot->shoot->shoot_ctrl_cmd.shoot_mode = SHOOT_OFF;
       robot->shoot->shoot_ctrl_cmd.friction_mode = FRICTION_OFF;
       robot->shoot->shoot_ctrl_cmd.load_mode = LOAD_STOP;
     }
-    return; // 这里的 return 保证了熄火时绝对没有任何动作
+    return;
   }
 
   // ==========================================================
-  // 3. 正常运行逻辑 (已解锁)
+  // 3. 运行逻辑 (已解锁)
   // ==========================================================
   cmd->gimbal_mode = GIMBAL_ON;
 
-  // --- A. 云台控制 (摇杆) ---
   float target_yaw = cmd->yaw;
   float target_pitch = cmd->pitch;
+  float yaw_step = 0.0f;
+  float pitch_step = 0.0f;
 
-  float rc_yaw_raw = (float)robot->rc->rc.rocker_l_;
-  float rc_pitch_raw = (float)robot->rc->rc.rocker_r1;
-
-  if (fabsf(rc_yaw_raw) < 10.0f) rc_yaw_raw = 0.0f;
-  if (fabsf(rc_pitch_raw) < 10.0f) rc_pitch_raw = 0.0f;
-
-  float yaw_step = (rc_yaw_raw / 660.0f) * 0.12f;
-  float pitch_step = -(rc_pitch_raw / 660.0f) * 0.12f;
-
-  // --- B. 发射控制 (左侧拨杆) ---
-  // 初始化指令
+  // 发射指令缓存
   uint8_t shoot_mode = SHOOT_ON;
   uint8_t friction_cmd = FRICTION_OFF;
   uint8_t load_cmd = LOAD_STOP;
 
-  if (switch_is_down(robot->rc->rc.switch_left)) {
-    // [左下]: 停止
-    friction_cmd = FRICTION_OFF;
-    load_cmd = LOAD_STOP;
-  }
-  else if (switch_is_mid(robot->rc->rc.switch_left)) {
-    // [左中]: 待机 (只开摩擦轮)
-    friction_cmd = FRICTION_ON;
-    load_cmd = LOAD_STOP;
-  }
-  else if (switch_is_up(robot->rc->rc.switch_left)) {
-    // [左上]: 开火 (摩擦轮 + 拨弹)
-    friction_cmd = FRICTION_ON;
-    load_cmd = LOAD_BURSTFIRE;
+  // ----------------------------------------------------------
+  // [模式 A]: 键鼠模式 (右侧开关【上】)
+  // ----------------------------------------------------------
+  if (switch_is_up(robot->rc->rc.switch_right)) {
+
+    // >>> 3.1 鼠标控制云台 <<<
+    yaw_step   += (float)robot->rc->mouse.x * 0.0005f;
+    pitch_step += (float)robot->rc->mouse.y * 0.001f;
+
+    // >>> 3.2 Q键开关摩擦轮 (Toggle逻辑) <<<
+    static bool key_friction_active = false;
+    static uint8_t last_q_press = 0;
+
+    if (robot->rc->key_count[KEY_PRESS][Key_Q] != last_q_press) {
+      key_friction_active = !key_friction_active;
+      last_q_press = robot->rc->key_count[KEY_PRESS][Key_Q];
+    }
+    friction_cmd = key_friction_active ? FRICTION_ON : FRICTION_OFF;
+
+    // >>> 3.3 R键反转 (Unjam) <<<
+    if (robot->rc->key[KEY_PRESS].r) {
+      load_cmd = LOAD_REVERSE;
+    }
+    // >>> 3.4 鼠标左键开火 <<<
+    else if (key_friction_active && robot->rc->mouse.press_l) {
+      load_cmd = LOAD_BURSTFIRE;
+    }
+    else {
+      load_cmd = LOAD_STOP;
+    }
   }
 
-  // --- C. 反转退弹 (右侧拨杆-上) ---
-  // 前提：必须已经解锁 (safety_lock == false)，这在前面已经保证了
-  if (switch_is_up(robot->rc->rc.switch_right)) {
-    // 强制覆盖拨弹指令为反转
-    load_cmd = LOAD_REVERSE;
-    // 摩擦轮状态保持左侧拨杆的设定 (通常是为了把卡住的子弹喷出来，或者仅仅是退回弹仓)
+  // ----------------------------------------------------------
+  // [模式 B]: 遥控器模式 (右侧开关【中】)
+  // ----------------------------------------------------------
+  else {
+    // >>> 3.5 摇杆控制云台 <<<
+    float rc_yaw_raw = (float)robot->rc->rc.rocker_l_;
+    float rc_pitch_raw = (float)robot->rc->rc.rocker_r1;
+
+    if (fabsf(rc_yaw_raw) < 10.0f) rc_yaw_raw = 0.0f;
+    if (fabsf(rc_pitch_raw) < 10.0f) rc_pitch_raw = 0.0f;
+
+    yaw_step = (rc_yaw_raw / 660.0f) * 0.06f;
+    pitch_step = -(rc_pitch_raw / 660.0f) * 0.06f;
+
+    // >>> 3.6 左侧拨杆控制发射 <<<
+    if (switch_is_down(robot->rc->rc.switch_left)) {
+      friction_cmd = FRICTION_OFF;
+      load_cmd = LOAD_STOP;
+    }
+    else if (switch_is_mid(robot->rc->rc.switch_left)) {
+      friction_cmd = FRICTION_ON;
+      load_cmd = LOAD_STOP;
+    }
+    else if (switch_is_up(robot->rc->rc.switch_left)) {
+      friction_cmd = FRICTION_ON;
+      load_cmd = LOAD_BURSTFIRE;
+    }
   }
 
   // ==========================================================
   // 4. 执行控制与限位
   // ==========================================================
-
-  // 下发发射指令
   if (robot->shoot) {
     robot->shoot->shoot_ctrl_cmd.shoot_mode = shoot_mode;
     robot->shoot->shoot_ctrl_cmd.friction_mode = friction_cmd;
     robot->shoot->shoot_ctrl_cmd.load_mode = load_cmd;
   }
 
-  // ECD 物理限位
   if (ecd < 2000 && yaw_step < 0) yaw_step = 0;
   if (ecd > 3400 && yaw_step > 0) yaw_step = 0;
 
   target_yaw += yaw_step;
-
   target_pitch += pitch_step;
   LimitTarget(&target_pitch, 0.0f, 28.0f);
 
