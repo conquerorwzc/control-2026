@@ -168,7 +168,7 @@ static void RemoteControlSet() {
 
       // 转换角度坐标系
       float target_angle_to_gimbal = atan2f(chassis_vy, chassis_vx);  // 目标方向矢量与云台正方向方向夹角
-      float target_angle_to_chassis = target_angle_to_gimbal + chassis_ctrl_cmd->offset_angle;
+      float target_angle_to_chassis = target_angle_to_gimbal + chassis_ctrl_cmd->offset_angle * DEGREE_2_RAD;
 
       // 相位补偿，单位是rad
       float phase_compensation = 0.5f;
