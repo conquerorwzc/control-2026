@@ -36,14 +36,7 @@ for step = 1: length(L0s)
     equ3 = Im*phi_dd-Pm*l*sin(phi)-Nm*l*cos(phi)-Tp;
     %3.3通过上述受力和力矩方程解出x2,theta2,phi2
     [x_dd,theta_dd,phi_dd]=solve(equ1,equ2,equ3,x_dd,theta_dd,phi_dd);
-    
 
-
-
-
-
-
-    
     %4雅可比矩阵
     %A矩阵描述X_dot矩阵与X矩阵的关系的
     JA = jacobian([theta_d;theta_dd;x_d;x_dd;phi_d;phi_dd],[theta theta_d x x_d phi phi_d]);
@@ -66,7 +59,7 @@ for step = 1: length(L0s)
     % 山海机甲参数？
     % LQR_Q = diag([10 10 2068 914 6394 10]);
     % LQR_R = diag([10 1]);
-    LQR_Q = diag([10 10 2068 914 6394 10]);
+    LQR_Q = diag([10 10 500 100 5000 10]);
     LQR_R = diag([10 1]);
     % 能用 不太抖
     % LQR_Q = diag([1 1 500 100 5000 1]);

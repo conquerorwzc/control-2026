@@ -86,7 +86,6 @@ typedef struct {
 typedef struct {
   float x_ref, x_d_ref;
   float length_ref, length_d_ref;
-  float F_ref;
 } Leg_Ctrl_Cmd_t;
 
 typedef struct {

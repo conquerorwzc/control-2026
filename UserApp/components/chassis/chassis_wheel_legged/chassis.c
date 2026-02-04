@@ -7,6 +7,8 @@
  */
 #include "chassis.h"
 
+#include <math.h>
+
 #include "arm_math.h"
 #include "bsp_dwt.h"
 #include "general_def.h"
@@ -25,6 +27,7 @@ static float q2i_coeff;
 // robot param
 static float robot_mass;
 static float track_width;
+static float leg_force_ff;
 static float leg_force_ff_gain;
 static float wheel_radius;
 static float wheel_reduction_ratio;
@@ -38,17 +41,27 @@ static void ChassisCtrlUpdate() {
 
   for (int i = 0; i < 2; i++) {
     leg[i]->update_flag.is_controlled = chassis->chassis_ctrl_cmd.vx != 0;
-    // leg[i]->update_flag.is_controlled = 1;
     leg[i]->leg_ctrl_cmd.x_d_ref = chassis->chassis_ctrl_cmd.vx;
-    leg[i]->leg_ctrl_cmd.length_ref =
-        chassis->chassis_ctrl_cmd.leg_length -
-        (float)(1 - 2 * i) * track_width * (chassis->chassis_ctrl_cmd.roll - chassis->chassis_IMU->Roll * DEGREE_2_RAD);
-
+    if (chassis->jump_state == JUMP_STATE_IDLE) {
+      leg[i]->leg_ctrl_cmd.length_ref =
+          chassis->chassis_ctrl_cmd.leg_length -
+          (float)(1 - 2 * i) * track_width *
+              (chassis->chassis_ctrl_cmd.roll - chassis->chassis_IMU->Roll * DEGREE_2_RAD);
+    } else {
+      leg[i]->leg_ctrl_cmd.length_ref =
+          leg[i]->leg_ctrl_cmd.length_ref -
+          (float)(1 - 2 * i) * track_width *
+              (chassis->chassis_ctrl_cmd.roll - chassis->chassis_IMU->Roll * DEGREE_2_RAD);
+    }
     LegCtrlUpdate(leg[i], chassis->chassis_IMU);
-    float leg_force_ff =
-        leg_force_ff_gain * 9.8f * robot_mass / 2.0f / mcos(leg[i]->state_var.theta);  // 不超过半边重力的一半(看机器）
+    if (chassis->jump_state == JUMP_STATE_EXTEND) {
+      leg_force_ff = chassis_ctrl_cmd->jump_force;
+    } else {
+      leg_force_ff = leg_force_ff_gain * 9.8f * robot_mass / 2.0f /
+                     mcos(leg[i]->state_var.theta);  // 不超过半边重力的一半(看机器）
+    }
     leg[i]->virtual_model.F += leg_force_ff - (float)(1 - 2 * i) * chassis->roll_comp;
-    VAL_LIMIT(leg[i]->virtual_model.F, -500.0f, 500.0f);
+    VAL_LIMIT(leg[i]->virtual_model.F, -1500.0f, 1500.0f);
     leg[i]->real_model.T -= (float)(1 - 2 * i) * chassis->chassis_ctrl_cmd.wz;
   }
 
@@ -91,36 +104,37 @@ static void ChassisRecovery() {
 }
 
 static void ChassisJump() {
-  for (int i = 0; i < 2; i++) {
-    leg[i]->leg_ctrl_cmd.length_ref = 0.385;
-    switch (chassis->jump_state) {
-      case JUMP_STATE_COMPRESS:
+  switch (chassis->jump_state) {
+    case JUMP_STATE_COMPRESS:
+      for (int i = 0; i < 2; i++) {
         leg[i]->leg_ctrl_cmd.length_ref = LEG_MIN_LENGTH;
-        ChassisCtrlUpdate();
-        break;
-      case JUMP_STATE_EXTEND:
+      }
+      ChassisCtrlUpdate();
+      break;
+    case JUMP_STATE_EXTEND:
+      for (int i = 0; i < 2; i++) {
         leg[i]->leg_ctrl_cmd.length_ref = LEG_MAX_LENGTH;
-        leg[i]->leg_ctrl_cmd.F_ref = chassis_ctrl_cmd->jump_force;
-        ChassisCtrlUpdate();
-        if (abs(leg[0]->virtual_model.length - LEG_MAX_LENGTH) <= 0.01 &&
-            abs(leg[1]->virtual_model.length - LEG_MAX_LENGTH) <= 0.01) {
-          chassis->jump_state = JUMP_STATE_RETRACT;
-        }
-        break;
-      case JUMP_STATE_RETRACT:
+      }
+      ChassisCtrlUpdate();
+      if (fabs(leg[0]->virtual_model.length - LEG_MAX_LENGTH) <= 0.05 &&
+          fabs(leg[1]->virtual_model.length - LEG_MAX_LENGTH) <= 0.05) {
+        chassis->jump_state = JUMP_STATE_RETRACT;
+      }
+      break;
+    case JUMP_STATE_RETRACT:
+      for (int i = 0; i < 2; i++) {
         leg[i]->leg_ctrl_cmd.length_ref = LEG_MIN_LENGTH;
-        leg[i]->leg_ctrl_cmd.F_ref = 0;
-        ChassisCtrlUpdate();
-        if (abs(leg[0]->virtual_model.length - LEG_MIN_LENGTH) <= 0.01 &&
-            abs(leg[1]->virtual_model.length - LEG_MIN_LENGTH) <= 0.01) {
-          chassis->jump_state = JUMP_STATE_IDLE;
-        }
-        break;
-      case JUMP_STATE_IDLE:
-      default:
-        ChassisCtrlUpdate();
-        break;
-    }
+      }
+      ChassisCtrlUpdate();
+      if (fabs(leg[0]->virtual_model.length - LEG_MIN_LENGTH) <= 0.05 &&
+          fabs(leg[1]->virtual_model.length - LEG_MIN_LENGTH) <= 0.05) {
+        chassis->jump_state = JUMP_STATE_IDLE;
+      }
+      break;
+    case JUMP_STATE_IDLE:
+    default:
+      ChassisCtrlUpdate();
+      break;
   }
 }
 
@@ -328,6 +342,7 @@ void ChassisTask() {
       DMMotorStop(chassis->leg[i]->joint_motor[1]);
       DJIMotorStop(chassis->leg[i]->wheel_motor);
     }
+    chassis->jump_state = JUMP_STATE_IDLE;
   } else {
     // 正常工作
     for (int i = 0; i < 2; i++) {
@@ -343,25 +358,27 @@ void ChassisTask() {
   switch (chassis->chassis_ctrl_cmd.chassis_mode) {
     case CHASSIS_RECOVERY:
       ChassisRecovery();
+      chassis->jump_state = JUMP_STATE_IDLE;
       break;
     case CHASSIS_ON:
       ChassisCtrlUpdate();
+      chassis->jump_state = JUMP_STATE_IDLE;
       break;
-    // case CHASSIS_JUMP_READY:
-    //   if (chassis->jump_state == JUMP_STATE_IDLE || chassis->jump_state == JUMP_STATE_COMPRESS) {
-    //     chassis->jump_state = JUMP_STATE_COMPRESS;
-    //   }
-    //   ChassisJump();
-    //   break;
-    // case CHASSIS_JUMP_START:
-    //   if (chassis->jump_state == JUMP_STATE_COMPRESS) {
-    //     if (abs(leg[0]->virtual_model.length - LEG_MIN_LENGTH) <= 0.01 &&
-    //         abs(leg[1]->virtual_model.length - LEG_MIN_LENGTH) <= 0.01) {
-    //       chassis->jump_state = JUMP_STATE_EXTEND;
-    //     }
-    //   }
-    //   ChassisJump();
-    //   break;
+    case CHASSIS_JUMP_READY:
+      if (chassis->jump_state == JUMP_STATE_IDLE || chassis->jump_state == JUMP_STATE_COMPRESS) {
+        chassis->jump_state = JUMP_STATE_COMPRESS;
+      }
+      ChassisJump();
+      break;
+    case CHASSIS_JUMP_START:
+      if (chassis->jump_state == JUMP_STATE_COMPRESS) {
+        if (fabs(leg[0]->virtual_model.length - LEG_MIN_LENGTH) <= 0.02 &&
+            fabs(leg[1]->virtual_model.length - LEG_MIN_LENGTH) <= 0.02) {
+          chassis->jump_state = JUMP_STATE_EXTEND;
+        }
+      }
+      ChassisJump();
+      break;
     default:
       break;
   }

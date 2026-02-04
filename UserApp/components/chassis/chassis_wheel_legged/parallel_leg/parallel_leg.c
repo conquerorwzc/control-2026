@@ -333,6 +333,5 @@ void LegCtrlUpdate(LegInstance* leg, INS_t* imu) {
   leg->last_state_var = leg->state_var;
 
   leg->virtual_model.F =
-      leg->leg_ctrl_cmd.F_ref +
       PIDCalculate(&leg->virtual_model.length_PID, leg->virtual_model.length, leg->leg_ctrl_cmd.length_ref);
 }

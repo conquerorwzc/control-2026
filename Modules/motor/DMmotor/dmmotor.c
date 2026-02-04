@@ -37,8 +37,6 @@ static void DMMotorDecode(CANInstance* motor_can) {
   DMMotorInstance* motor = (DMMotorInstance*)motor_can->id;
   DM_Motor_Measure_s* measure = &(motor->measure);  // 将can实例中保存的id转换成电机实例的指针
   Motor_Control_Setting_s* motor_setting = &(motor->motor_settings);
-
-  DaemonReload(motor->daemon);
   motor->dt = DWT_GetDeltaT(&motor->feed_cnt);
 
   // 先保存当前位置作为上一次位置
@@ -80,10 +78,18 @@ static void DMMotorDecode(CANInstance* motor_can) {
     default:
       break;
   }
+  measure->id = rxbuff[0] & 0x0F;            // 低4位是电机ID
+  measure->state = (rxbuff[0] >> 4) & 0x0F;  // 高4位是错误码
 
   measure->T_Mos = (float)rxbuff[6];
   measure->T_Rotor = (float)rxbuff[7];
 
+  if (motor_setting->feedback_reverse_flag == FEEDBACK_DIRECTION_REVERSE) {
+    measure->position = -measure->position;
+    measure->velocity = -measure->velocity;
+    measure->torque = -measure->torque;
+    measure->total_angle = -measure->total_angle;
+  }
   // 多圈角度计算,前提是假设两次采样间电机转过的角度小于12.5弧度
   // DM电机的position范围是-12.5到12.5弧度，跳变点在12.5和-12.5之间
   if (measure->position - measure->last_position > 12.5f)  // 从负值(-12.5)变成正值(12.5)，电机逆向旋转过边界
@@ -92,18 +98,16 @@ static void DMMotorDecode(CANInstance* motor_can) {
     measure->total_round++;
   measure->total_angle = measure->total_round * 2.0f * 12.5f + measure->position;
 
-  if (motor_setting->feedback_reverse_flag == FEEDBACK_DIRECTION_REVERSE) {
-    measure->position = -measure->position;
-    measure->velocity = -measure->velocity;
-    measure->torque = -measure->torque;
-    measure->total_angle = -measure->total_angle;
+  if (measure->state != 0) {
+    DaemonReload(motor->daemon);
   }
 }
 
 // todo: 会跟控制抢，有概率控不了电机
 static void DMMotorLostCallback(void* motor_ptr) {
-  // DMMotorSetMode(DM_CMD_MOTOR_MODE, motor_ptr);
-  // DWT_Delay(0.1);
+  DMMotorSetMode(DM_CMD_MOTOR_MODE, motor_ptr);
+  DWT_Delay(0.1);
+  // DWT_Delay(0.0001f);
 }
 
 void DMMotorCaliEncoder(DMMotorInstance* motor) {

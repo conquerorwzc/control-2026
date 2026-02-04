@@ -30,6 +30,13 @@
 #define DM_T_MIN_J8009P (-54.0f)  // J4310 10.0f J8009P 54.0f
 #define DM_T_MAX_J8009P 54.0f
 
+#define DM_P_MIN_J4340 (-12.5f)
+#define DM_P_MAX_J4340 12.5f
+#define DM_V_MIN_J4340 (-10.0f)
+#define DM_V_MAX_J4340 10.0f
+#define DM_T_MIN_J4340 (-28.0f)
+#define DM_T_MAX_J4340 28.0f
+
 typedef struct {
   uint8_t id;
   uint8_t state;
