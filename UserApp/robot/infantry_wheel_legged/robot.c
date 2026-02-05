@@ -464,8 +464,8 @@ void RobotTask() {
   RobotCMDTask();
   VOFATask();
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
-  GimbalTask();
-  ShootTask();
+  // GimbalTask();
+  // ShootTask();
 #endif
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
