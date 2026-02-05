@@ -49,6 +49,16 @@ static float align_attenuation;  // 对齐时的衰减系数
 static float rotate_frequency;  // 小陀螺旋转的频率
 static float rotate_omega;      // 小陀螺旋转角速度
 
+//vofa数据
+float visualized_data[20];
+
+void VOFATask() {
+  visualized_data[0] = robot->chassis->chassis_IMU->Yaw;
+  visualized_data[1] = robot->chassis->chassis_IMU->Pitch;
+  visualized_data[2] = robot->chassis->chassis_IMU->Roll;
+  VOFAJustFloatSend(visualized_data,20);
+}
+
 #define robot_lost_control abs(robot->chassis->chassis_IMU->Pitch) > 13.0f
 /**
  * @brief 根据gimbal app传回的当前电机角度计算和零位的误差
@@ -446,14 +456,16 @@ void RobotInit() {
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   chassis_ctrl_cmd->leg_length = chassis_init_config.chassis_param.initial_leg_length;  // 初始腿长
   DWT_GetDeltaT(&robot->DWT_CNT);
+  VOFAInit(&huart1);
 }
 
 void RobotTask() {
   robot->dt = DWT_GetDeltaT(&robot->DWT_CNT);
   RobotCMDTask();
+  VOFATask();
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
-  // GimbalTask();
-  // ShootTask();
+  GimbalTask();
+  ShootTask();
 #endif
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)

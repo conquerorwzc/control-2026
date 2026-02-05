@@ -288,16 +288,16 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 2.2f,
+                            .Kp = 2.0f,
                             .Ki = 0.0f,
-                            .Kd = 0.0f,
+                            .Kd = 0.01f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                             .IntegralLimit = 5.0f,
                             .MaxOut = 25.0f,
                         },
                     .speed_PID =
                         {
-                            .Kp = -3500.0f,
+                            .Kp = -3000.0f,
                             .Ki = -300.0f,
                             .Kd = 0.0f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
@@ -322,7 +322,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
               .speed_PID =                                                     \
                   {                                                            \
                       .Kp = 1.5f,                                              \
-                      .Ki = 0.3f,                                              \
+                      .Ki = 0.2f,                                              \
                       .Kd = 0.0f,                                             \
                       .Improve = PID_Integral_Limit,                           \
                       .IntegralLimit = 10000.0f,                               \
@@ -354,9 +354,9 @@ static Shoot_Init_Config_s shoot_init_config = {
             .num_per_circle = NUM_PER_CIRCLE,                  // 拨盘一圈的装载量
             .loader_direction = 1,                             // 拨盘旋转方向,1为正向，-1为反向
             .friction_num = 2,                                 // 摩擦轮数量
-            .friction_speed = 37000.0f,                        // 摩擦轮速度
+            .friction_speed = 35000.0f,                        // 摩擦轮速度
             .friction_coefficients = {1.0f, -1.0f},            // 摩擦轮速度比例系数
-            .deadtime_burstfire = 500,
+            .deadtime_burstfire = 200,
             .deadtime_onebullet = 500,
             .target_speed = 0.0f,
             .bullet_speed_adjustment = 10.0f,
