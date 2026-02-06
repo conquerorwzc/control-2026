@@ -13,7 +13,7 @@ static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
 static Gimbal_Ctrl_Cmd_s *gimbal_ctrl_cmd;
 static Shoot_Ctrl_Cmd_s *shoot_ctrl_cmd;
 static Vision_Receive_s* vision_recv_data;
-//static navigator_recv_t* navigator_data;
+static navigator_recv_t* navigator_data;
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 
@@ -391,7 +391,7 @@ void RobotInit() {
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   chassis_ctrl_cmd->max_power = 120;  // 随便给一个初始功率，后面应该要从裁判系统获取
   rc_data = robot->rc_data;
-//  navigator_data  = robot->navigator_data;
+  navigator_data  = robot->navigator_data;
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
