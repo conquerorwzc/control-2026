@@ -7,6 +7,7 @@
 // #include "rm_referee.h"
 #include "can_comm.h"
 #include "super_cap.h"
+#include  "vofa.h"
 
 // todo: add vision_module
 
@@ -16,7 +17,7 @@ typedef struct {
   float Roll;           // 横滚角(绕X轴旋转) 单位: °
   float Pitch;          // 俯仰角(绕Y轴旋转) 单位: °
   float YawTotalAngle;  // Yaw轴累计转过的总角度，可用于多圈控制 单位: °
-  float YawSpeed;//yaw角速度，单位: rad/s
+  float YawSpeed;       // yaw角速度，单位: rad/s
   // 后续增加底盘的真实速度
   // float real_vx;
   // float real_vy;
@@ -45,6 +46,8 @@ typedef struct {
 
   RC_ctrl_t* rc_data;  // 遥控器数据,初始化时返回
   // referee_info_t* referee_data;     // 用于获取裁判系统的数据
+
+  float offset_angle;
 
   SuperCapInstance* super_cap;
   ChassisInstance* chassis;

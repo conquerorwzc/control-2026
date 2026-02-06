@@ -21,7 +21,7 @@ MPC_Ks_Data = zeros(2, 6, length(L0s));
 % MPC 权重参数 (核心调参区)
 % Q: 惩罚状态增量 (Delta x) -> 越大越抑制状态突变
 % R: 惩罚控制增量 (Delta u) -> 越大控制越柔顺
-Q_MPC = diag([10, 1, 50, 10, 50, 1]); 
+Q_MPC = diag([10, 1, 10, 10, 10, 1]); 
 R_MPC = diag([5, 5]); 
 
 Ts = 0.002; % 控制周期 2ms (500Hz) 或 1ms (1kHz)，需与单片机一致

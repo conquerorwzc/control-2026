@@ -91,3 +91,5 @@ function text = generate_clipboard_text(coefficients, rows, cols)
         end
     end
 end
+
+ 

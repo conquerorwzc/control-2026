@@ -42,6 +42,7 @@ static void ChassisCtrlUpdate() {
   for (int i = 0; i < 2; i++) {
     leg[i]->update_flag.is_controlled = chassis->chassis_ctrl_cmd.vx != 0;
     leg[i]->leg_ctrl_cmd.x_d_ref = chassis->chassis_ctrl_cmd.vx;
+    leg[i]->leg_ctrl_cmd.theta_ref = chassis->chassis_ctrl_cmd.theta_ff;
     if (chassis->jump_state == JUMP_STATE_IDLE) {
       leg[i]->leg_ctrl_cmd.length_ref =
           chassis->chassis_ctrl_cmd.leg_length -
@@ -86,7 +87,7 @@ static void ChassisRecovery() {
     DMMotorSetPIDRef(leg[i]->joint_motor[1], 0.1);
     leg[i]->real_model.Tp_1 = leg[i]->joint_motor[0]->motor_controller.final_output;
     leg[i]->real_model.Tp_2 = leg[i]->joint_motor[1]->motor_controller.final_output;
-    leg[i]->update_flag.is_controlled = 1;  // todo: 可以看看哪个好
+    leg[i]->update_flag.is_controlled = 0;  // todo: 可以看看哪个好
     // 没收完两条腿不动轮毂, 防止位移项错误累加
     if (abs((leg[0]->joint_motor[0]->measure.position - (-0.1f))) <= 0.5f &&
         abs(leg[0]->joint_motor[1]->measure.position - (0.1f)) <= 0.5f &&
@@ -306,8 +307,8 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   robot_mass = chassis_init_config->chassis_param.robot_mass;
   track_width = chassis_init_config->chassis_param.track_width;
   leg_force_ff_gain = chassis_init_config->chassis_param.leg_force_ff_gain;
-  wheel_radius = chassis_init_config->leg_init_config[0].leg_param.wheel_radius;
-  wheel_reduction_ratio = chassis_init_config->leg_init_config[0].leg_param.wheel_reduction_ratio;
+  wheel_radius = chassis_init_config->leg_init_config[0].param.wheel_radius;
+  wheel_reduction_ratio = chassis_init_config->leg_init_config[0].param.wheel_reduction_ratio;
   q2i_coeff = (3591.0f / 187.0f) / wheel_reduction_ratio / 0.3f;
 
   k0 = chassis_init_config->chassis_param.power_param_3508.k0;

@@ -75,6 +75,19 @@ void MatInit(mat *m, uint8_t row, uint8_t col);
 #define VAL_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define VAL_MAX(a, b) ((a) > (b) ? (a) : (b))
 
+typedef struct {
+  // --- 状态变量 ---
+  float planning_v;  // 规划速度
+  float expected_a;  // 期望加速度
+  // --- 参数配置 ---
+  float max_v;       // 物理最大速度 (如 3.0 m/s)
+  float max_accel;   // 最大转矩区加速度 (如 5.0 m/s^2)
+  float base_speed;  // 基速 (转折点速度) (如 1.0 m/s)
+  // 意味着 0~1m/s 期间你可以满加速度，超过 1m/s 后加速度开始按 1/v 衰减
+
+  float max_decel;  // 刹车加速度 (如 4.0 m/s^2)
+} Ramp_Controller_t;
+
 /**
  * @brief ??????????,??????????????????
  *
@@ -103,6 +116,8 @@ float theta_format(float Ang);
 int float_rounding(float raw);
 
 void slope_following(float target, float *set, float acc_d);
+
+float ramp_controller_update(Ramp_Controller_t *ramp, float input_v, float dt);
 
 float *Norm3d(float *v);
 
