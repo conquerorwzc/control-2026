@@ -13,7 +13,7 @@ static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
 static Gimbal_Ctrl_Cmd_s *gimbal_ctrl_cmd;
 static Shoot_Ctrl_Cmd_s *shoot_ctrl_cmd;
 static Vision_Receive_s* vision_recv_data;
-static navigator_recv_t* navigator_data;
+// static navigator_recv_t* navigator_data;
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 
@@ -129,14 +129,14 @@ static void RemoteControlSet() {
   // 底盘控制部分,系数需要调整
   if (robot->control_mode == MANUAL_MODE)//手动控制，遥控器控制量
    {
-    vx_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l_;  // l_水平方向
-    vy_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // l1竖直方向
+    vx_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l_;  // l_水平方向，最大660*60=39600
+    vy_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // l1竖直方向，最大660*60
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
       chassis_ctrl_cmd->wz =
           20.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
     }
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
-      chassis_ctrl_cmd->wz =(20.0f) *(float)rc_data[TEMP].rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
+      chassis_ctrl_cmd->wz =(1.0f) *(float)rc_data[TEMP].rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
     }
 
   } else if (robot->control_mode == AUTO_MODE) // 自动控制，直接收上位机控制量
@@ -304,6 +304,8 @@ static void DualBoardCtrlSet() {
       // chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)-CanData.value16[2]/50.0f))*CanData.value16[2];
       // else chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)CanData.value16[2]/50.0f))*CanData.value16[2];
       rc_data[TEMP].rc.dial=CanData.value16[3];
+      rc_data[TEMP].rc.switch_right = CanData.value16[5];
+
       if (switch_is_mid(CanData.bytes[10])) {
         //gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
         if (abs(CanData.value16[3]) > 20) {
@@ -314,6 +316,7 @@ static void DualBoardCtrlSet() {
     }
   }
 }
+
 /**
  * @brief  紧急停止,包括遥控器左上侧拨轮打满/重要模块离线/双板通信失效等
  *         停止的阈值'300'待修改成合适的值,或改为开关控制.
@@ -391,7 +394,7 @@ void RobotInit() {
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   chassis_ctrl_cmd->max_power = 120;  // 随便给一个初始功率，后面应该要从裁判系统获取
   rc_data = robot->rc_data;
-  navigator_data  = robot->navigator_data;
+  // navigator_data  = robot->navigator_data;
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
