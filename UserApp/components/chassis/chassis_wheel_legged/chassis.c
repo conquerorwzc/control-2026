@@ -76,7 +76,6 @@ static void ChassisCtrlUpdate() {
 
 /**
  * @brief 倒地自启
- * @todo 没测过
  */
 static void ChassisRecovery() {
   for (int i = 0; i < 2; i++) {
