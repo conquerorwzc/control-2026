@@ -305,16 +305,103 @@ static void RemoteControlSet() {
 
 #if 1
 /**
- * @brief 键鼠控制逻辑 - 适配轮腿机器人
- * @note  需在 RobotCMDTask 中调用
+ * @brief 键鼠控制逻辑 (适配轮腿机器人)
  *
+ * [鼠标控制 - 瞄准与射击]
+ * -----------------------------------------------------------------------------------------
+ * 鼠标[移动]       : 控制云台 Pitch/Yaw 轴运动
+ * 鼠标[左键]       : 射击 (配合 E 键切换模式)
+ *                  - 模式1: 单发 (长按 >1s 自动转连发)
+ *                  - 模式2: 纯连发
+ * 鼠标[右键](按住) : 开启视觉自瞄 (GIMBAL_VISION)，松开恢复手动
+ *
+ * [基础移动 - WASD]
+ * -----------------------------------------------------------------------------------------
+ * [W] / [S]          : 底盘 前进 / 后退 (经过斜坡防摔处理)
+ * [A] / [D]          :
+ *                  - Follow/Rotate模式: 左右平移
+ *                  - Free模式: 底盘左右旋转 (Yaw转向)
+ *
+ * [功能模式切换]
+ * -----------------------------------------------------------------------------------------
+ * [V]              : 切换 [小陀螺模式] (Spinning) / [跟随/自由模式]
+ * [Q]              : 开关 [摩擦轮] (只有开启摩擦轮才能射击)
+ * [R]              : [倒地复位] (Recovery)，倒地后按下尝试站立
+ * [Z]              : [跳跃] 控制
+ *                  - 第一次按: 进入跳跃准备 (JUMP_READY)
+ *                  - 第二次按: 执行跳跃 (JUMP_START)
+ * [E]              : 切换 [单发/连发] 逻辑
+ *
+ * [姿态与高度控制]
+ * -----------------------------------------------------------------------------------------
+ * [F]              : 增加腿长 (站起)
+ * [Ctrl]           : 减小腿长 (蹲下)
+ * [Shift + Ctrl]   : 机身向左侧倾 (Roll Left)
+ * [Shift + F]      : 机身向右侧倾 (Roll Right)
+ * [Shift + R]      : 机身侧倾复位 (Roll Reset)
+ *
+ * [参数动态调整]
+ * -----------------------------------------------------------------------------------------
+ * [C]              : 切换 [底盘速度系数] (1.0 -> 1.5 -> 2.0 -> 3.0)
+ * [Shift + C]      : 切换 [小陀螺旋转频率] (1.0 -> 1.5 -> 2.0 -> 4.0)
+ * [Ctrl + C]       : 切换 [弹丸射速] (15m/s -> 18m/s -> 30m/s)
+ *
+ * @note 需在 RobotCMDTask 中调用
  */
 static void MouseKeySet() {
+  static float speed_coff = 1.0f;   // 速度系数
+  static float ratate_coff = 1.0f;  // 小陀螺旋转频率系数
+
   // 1. 基础初始化
   chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
   gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
 
-  // 2. 鼠标控制云台
+  // 2. 云台
+  // 2.1 [右键]按住开启自瞄
+  if (rc_data[TEMP].mouse.press_r) {
+    if (has_non_zero_data(vision_recv_data) == 1) {
+      gimbal_ctrl_cmd->gimbal_mode = GIMBAL_VISION;  // 右键自瞄开启
+      gimbal_ctrl_cmd->yaw = vision_recv_data->gimbal_receive.yaw;
+      gimbal_ctrl_cmd->pitch = vision_recv_data->gimbal_receive.pitch;
+      // 如果自瞄需要自动开火，取消下面注释
+      // shoot_ctrl_cmd->load_mode = vision_recv_data->shoot_receive.fire_flag;
+    } else {
+      gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;  // 没识别到目标，保持手动
+    }
+  } else {
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;  // 松开右键，手动模式
+  }
+
+  // 2.2 射击控制逻辑,[左键]射击
+  if (rc_data[TEMP].mouse.press_l) {
+    // [E]键切换单发或连发
+    switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 2) {
+      case 0:  // 模式1:单发 + 长按1秒变连发
+        // 校验：1.摩擦轮开启  2.(自瞄开火标志有效 或 右键未处于自瞄状态)
+        if (shoot_ctrl_cmd->friction_mode == FRICTION_ON &&
+            (vision_recv_data->shoot_receive.fire_flag || rc_data[TEMP].mouse.press_r % 2 == 0)) {
+          // 默认先设为单发
+          shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
+          // 检查按下的持续时间 (当前时间 - 上次松开的时间/按下起始时间),超过1秒，覆盖为连发
+          if (DWT_GetTimeline_s() - trigger_time > 1.0f) {
+            shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+          }
+        }
+        break;
+      default:  // 模式2:纯连发
+        if (shoot_ctrl_cmd->friction_mode == FRICTION_ON) {
+          shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+        }
+        break;
+    }
+  } else {
+    //  鼠标左键松开时
+    shoot_ctrl_cmd->load_mode = LOAD_STOP;
+    // 记录松开时间
+    trigger_time = DWT_GetTimeline_s();
+  }
+
+  // 2.3鼠标云台控制
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
     gimbal_ctrl_cmd->yaw -= (float)rc_data[TEMP].mouse.x * 0.007f;    // X轴灵敏度
     gimbal_ctrl_cmd->pitch += (float)rc_data[TEMP].mouse.y * 0.003f;  // Y轴灵敏度
@@ -359,17 +446,8 @@ static void MouseKeySet() {
     }
     key_last.q = rc_data[TEMP].key_count[KEY_PRESS][Key_Q];
   }
-  // 鼠标左键射击
-  if (rc_data[TEMP].mouse.press_l) {
-    shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;  // 连发
-  } else {
-    shoot_ctrl_cmd->load_mode = LOAD_STOP;
-  }
-
-  // 4.速度系数 todo:具体数值要测试
-  static float speed_coff;
-  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_C] % 4)  // C键设置底盘速度系数
-  {
+  // [C] 设置底盘速度系数 todo:具体数值要测试
+  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_C] % 4) {
     case 0:
       speed_coff = 1.0f;
       break;
@@ -385,8 +463,36 @@ static void MouseKeySet() {
     default:
       break;
   }
-
-  // 5. 核心运动算法
+  // [ctrl+C] 键设置弹速 todo:具体数值要测试
+  switch (rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL][Key_C] % 3) {
+    case 0:
+      shoot_ctrl_cmd->bullet_speed = 15;
+      break;
+    case 1:
+      shoot_ctrl_cmd->bullet_speed = 18;
+      break;
+    default:
+      shoot_ctrl_cmd->bullet_speed = 30;
+      break;
+  }
+  // [shift+C]键设置小陀螺频率 todo:具体数值要测试
+  switch (rc_data[TEMP].key_count[KEY_PRESS_WITH_SHIFT][Key_C] % 4) {
+    case 0:
+      ratate_coff = 1.0f;
+      break;
+    case 1:
+      ratate_coff = 1.5f;
+      break;
+    case 2:
+      ratate_coff = 2.0f;
+      break;
+    case 3:
+      ratate_coff = 4.0f;
+      break;
+    default:
+      break;
+  }
+  // 4. 核心运动算法
   //  确定 Robot Mode
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_RECOVERY || chassis_ctrl_cmd->chassis_mode == CHASSIS_JUMP_READY ||
       chassis_ctrl_cmd->chassis_mode == CHASSIS_JUMP_START) {
@@ -399,23 +505,8 @@ static void MouseKeySet() {
   // 处理对应模式
   switch (robot->robot_mode) {
     case ROBOT_CHASSIS_ROTATE:
-      // shift+C键设置小陀螺频率 todo:具体数值要测试
-      switch (rc_data[TEMP].key_count[KEY_PRESS_WITH_SHIFT][Key_C] % 4) {
-        case 0:
-          rotate_frequency = 0.5f;
-          break;
-        case 1:
-          rotate_frequency = 0.75f;
-          break;
-        case 2:
-          rotate_frequency = 1.0f;
-          break;
-        case 3:
-          rotate_frequency = 2.0f;
-          break;
-        default:
-          break;
-      }
+      // 小陀螺旋转频率设置
+      rotate_frequency = 0.5f * ratate_coff;
 
       // 小陀螺原地旋转
       rotate_omega = rotate_frequency * 2.0f * PI;
@@ -547,7 +638,7 @@ static void MouseKeySet() {
       else
         chassis_ctrl_cmd->vx = 0.0f;
 
-      // shift+ctrl左倾，shift+F右倾,shift+R还原
+      // [shift+ctrl]左倾，[shift+F]右倾,[shift+R]还原
       if (rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].ctrl)
         chassis_ctrl_cmd->roll -= 0.0002f;
       else if (rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].f)
