@@ -70,6 +70,8 @@ typedef struct {
   float track_width;
   float robot_mass;
   float initial_leg_length;  // 初始腿长,单位为m(米)
+  float leg_min_length;      // 腿长下限,单位为m(米)
+  float leg_max_length;      // 腿长上限,单位为m(米)
   float leg_force_ff_gain;
   Power_Param_3508_s power_param_3508;  // 3508功率模型参数，采用中科大的模型
 } Chassis_Param_s;

@@ -3,6 +3,7 @@ CompileFlags:
     -Wall,
     -Wextra
   ]
+  CompilationDatabase: cmake-build-debug
   
 Diagnostics:
   ClangTidy:

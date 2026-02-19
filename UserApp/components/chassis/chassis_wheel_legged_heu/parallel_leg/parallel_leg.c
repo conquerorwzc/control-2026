@@ -319,8 +319,8 @@ void LegCtrlUpdate(LegInstance* leg, INS_t* imu) {
   }
 
   // 合成虚拟关节力矩
-  leg->virtual_model.Tp = vm->Tp_LQR;
-  // leg->virtual_model.Tp = vm->Tp_LQR - vm->Tp_MPC;
+  // leg->virtual_model.Tp = vm->Tp_LQR;
+  leg->virtual_model.Tp = vm->Tp_LQR - vm->Tp_MPC;
 
   // 腿长 PID
   leg->virtual_model.F =

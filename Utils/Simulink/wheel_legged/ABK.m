@@ -81,7 +81,10 @@ function Generate_LQR_Integrated()
     % LQR_R = diag([10 1]);
 
     % 飞坡
-    LQR_Q = diag([10 10 500 100 25000 10]);
+    % LQR_Q = diag([10 10 500 100 25000 10]);
+    % LQR_R = diag([10 1]);
+
+    LQR_Q = diag([10 10 500 100 6000 10]);
     LQR_R = diag([10 1]);
     % 能用 不太抖
     % LQR_Q = diag([1 1 500 100 5000 1]);

@@ -92,8 +92,13 @@ build
 JLinkLog.txt
 *.jlink
 
-# cmake build directory
-cmake-build-debug-stm32/
+# IDE / Editor
+.cursor/
+.idea/
+.vscode/
+.history/
 
-/Debug/Ozone/control-2026-h7.jdebug
-/Debug/Ozone/control-2026-h7.jdebug.user
+# cmake build directory
+cmake-build-debug/
+
+*.jdebug.user

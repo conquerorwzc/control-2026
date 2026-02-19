@@ -20,20 +20,20 @@
 #include "robot_config.h"
 #include "user_lib.h"
 
-static RobotInstance *robot;
+static RobotInstance* robot;
 
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
-static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
-static Gimbal_Ctrl_Cmd_s *gimbal_ctrl_cmd;
-static Shoot_Ctrl_Cmd_s *shoot_ctrl_cmd;
+static Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd;
+static Gimbal_Ctrl_Cmd_s* gimbal_ctrl_cmd;
+static Shoot_Ctrl_Cmd_s* shoot_ctrl_cmd;
 
 #if !defined(ONE_BOARD)
-static Chassis_Upload_Data_s *chassis_upload_data;
-static Chassis_Fetch_Data_s *chassis_fetch_data;
+static Chassis_Upload_Data_s* chassis_upload_data;
+static Chassis_Fetch_Data_s* chassis_fetch_data;
 #endif
 
-static RC_ctrl_t *rc_data;
-static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
+static RC_ctrl_t* rc_data;
+static RC_ctrl_t* rc_data_last;  // 遥控器数据,初始化时返回
 
 /* Intermediate variables calculated by private functions */
 static float trigger_time = 0;  // 触发时间
@@ -49,20 +49,29 @@ static float align_attenuation;  // 对齐时的衰减系数
 static float rotate_frequency;  // 小陀螺旋转的频率
 static float rotate_omega;      // 小陀螺旋转角速度
 
-//vofa数据
+// vofa数据
 float visualized_data[20];
 
 void VOFATask() {
-  visualized_data[0] = robot->chassis->chassis_IMU->Yaw;
-  visualized_data[1] = robot->chassis->chassis_IMU->Pitch;
-  visualized_data[2] = robot->chassis->chassis_IMU->Roll;
-  VOFAJustFloatSend(visualized_data,20);
+  // visualized_data[0] = robot->chassis->leg[0]->joint_motor[0]->measure.torque;
+  // visualized_data[1] = robot->chassis->leg[0]->joint_motor[1]->measure.torque;
+  // visualized_data[2] = robot->chassis->leg[1]->joint_motor[0]->measure.torque;
+  // visualized_data[3] = robot->chassis->leg[1]->joint_motor[1]->measure.torque;
+  visualized_data[0] = robot->chassis_follow_PID.Measure;
+  visualized_data[1] = robot->chassis_follow_PID.Ref;
+
+  // visualized_data[1] = robot->chassis->chassis_IMU->Yaw;
+  // visualized_data[0] = robot->chassis->chassis_IMU->Yaw;
+  // visualized_data[1] = robot->chassis->leg[1]->state_var.theta;
+  // visualized_data[2] = robot->chassis->leg[1]->state_var.theta_d;
+  // visualized_data[3] = robot->chassis->leg[1]->state_var.phi;
+  // visualized_data[4] = robot->chassis->leg[1]->state_var.phi_d;
+  // visualized_data[5] = robot->chassis->leg[1]->state_var.x_d;
+  VOFAJustFloatSend(visualized_data, 20);
 }
 
-
-
 static Ramp_Controller_t chassis_ramp = {
-    .planning_v = 0.0f, .max_v = 2.5f, .max_accel = 4.0f, .base_speed = 0.3f, .max_decel = 5.5f};
+    .planning_v = 0.0f, .max_v = 2.5f, .max_accel = 2.0f, .base_speed = 0.3f, .max_decel = 5.5f};
 
 #define robot_lost_control abs(robot->chassis->chassis_IMU->Pitch) > 13.0f
 /**
@@ -257,7 +266,7 @@ static void RemoteControlSet() {
       chassis_ctrl_cmd->vx =
           -ramp_controller_update(&chassis_ramp, (0.0045f) * (float)rc_data[TEMP].rc.rocker_r1, robot->dt);
       // chassis_ctrl_cmd->vx = (0.0025f) * (float)rc_data[TEMP].rc.rocker_r1;
-      // chassis_ctrl_cmd->theta_ff = chassis_ramp.expected_a / 9.81f;
+      chassis_ctrl_cmd->theta_ff = chassis_ramp.expected_a / 9.81f;
 
       chassis_ctrl_cmd->roll = 0.0004f * (float)rc_data[TEMP].rc.rocker_l_ * (abs(rc_data[TEMP].rc.rocker_l_) > 10);
       chassis_ctrl_cmd->leg_length += 0.0000005f * (float)rc_data[TEMP].rc.rocker_l1;
@@ -400,13 +409,13 @@ void RobotCMDTask() {
 #if defined(GIMBAL_BOARD)
   CalcOffsetAngle();
   chassis_fetch_data->chassis_ctrl_cmd = *chassis_ctrl_cmd;
-  *chassis_upload_data = *(Chassis_Upload_Data_s *)CANCommGet(robot->can_comm);
+  *chassis_upload_data = *(Chassis_Upload_Data_s*)CANCommGet(robot->can_comm);
   robot->chassis->chassis_IMU->Roll = chassis_upload_data->Roll;
   robot->chassis->chassis_IMU->Pitch = chassis_upload_data->Pitch;
   robot->chassis->chassis_IMU->YawTotalAngle = chassis_upload_data->YawTotalAngle;
   robot->chassis->chassis_IMU->Gyro[2] = chassis_upload_data->YawSpeed;
 
-  CANCommSend(robot->can_comm, (void *)chassis_fetch_data);
+  CANCommSend(robot->can_comm, (void*)chassis_fetch_data);
 #endif
 #elif defined(CHASSIS_BOARD)
   chassis_upload_data->Pitch = robot->chassis->chassis_IMU->Pitch;
@@ -414,14 +423,14 @@ void RobotCMDTask() {
   chassis_upload_data->YawTotalAngle = robot->chassis->chassis_IMU->YawTotalAngle;
   chassis_upload_data->YawSpeed = robot->chassis->chassis_IMU->Gyro[2];
 
-  *chassis_fetch_data = *(Chassis_Fetch_Data_s *)CANCommGet(robot->can_comm);
+  *chassis_fetch_data = *(Chassis_Fetch_Data_s*)CANCommGet(robot->can_comm);
   robot->chassis->chassis_ctrl_cmd = chassis_fetch_data->chassis_ctrl_cmd;
-  CANCommSend(robot->can_comm, (void *)chassis_upload_data);
+  CANCommSend(robot->can_comm, (void*)chassis_upload_data);
 #endif
 }
 
 void RobotInit() {
-  robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
+  robot = (RobotInstance*)zmalloc(sizeof(RobotInstance));
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
 
   // 遥控器初始化
@@ -430,8 +439,8 @@ void RobotInit() {
 #elif defined(STM32H7)
   robot->rc_data = RemoteControlInit(&huart5);
 #endif
-  rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));  // 分配独立内存空间，与robot->rc_data区分开
-  *rc_data_last = *robot->rc_data;                         // 记录上一次遥控器的状态，传值确保内存空间独立
+  rc_data_last = (RC_ctrl_t*)zmalloc(sizeof(RC_ctrl_t));  // 分配独立内存空间，与robot->rc_data区分开
+  *rc_data_last = *robot->rc_data;                        // 记录上一次遥控器的状态，传值确保内存空间独立
 
   PIDInit(&robot->chassis_follow_PID, &chassis_follow_PID_config);
   // PIDInit(&robot->chassis_rotate_PID, &chassis_rotate_PID_config);
@@ -441,12 +450,12 @@ void RobotInit() {
   robot->shoot = ShootInit(&shoot_init_config);
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
-  robot->chassis_upload_data = (Chassis_Upload_Data_s *)zmalloc(sizeof(Chassis_Upload_Data_s));
-  robot->chassis_fetch_data = (Chassis_Fetch_Data_s *)zmalloc(sizeof(Chassis_Fetch_Data_s));
+  robot->chassis_upload_data = (Chassis_Upload_Data_s*)zmalloc(sizeof(Chassis_Upload_Data_s));
+  robot->chassis_fetch_data = (Chassis_Fetch_Data_s*)zmalloc(sizeof(Chassis_Fetch_Data_s));
   chassis_upload_data = robot->chassis_upload_data;
   chassis_fetch_data = robot->chassis_fetch_data;
-  robot->chassis = (ChassisInstance *)zmalloc(sizeof(ChassisInstance));
-  robot->chassis->chassis_IMU = (INS_t *)zmalloc(sizeof(INS_t));
+  robot->chassis = (ChassisInstance*)zmalloc(sizeof(ChassisInstance));
+  robot->chassis->chassis_IMU = (INS_t*)zmalloc(sizeof(INS_t));
   robot->can_comm = CANCommInit(&gimbal_comm_conf);
 #endif
 #endif
@@ -456,8 +465,8 @@ void RobotInit() {
   // robot->super_cap = SuperCapInit(&super_cap_config);
   robot->chassis = ChassisInit(&chassis_init_config);
 #if defined(CHASSIS_BOARD)
-  robot->chassis_upload_data = (Chassis_Upload_Data_s *)zmalloc(sizeof(Chassis_Upload_Data_s));
-  robot->chassis_fetch_data = (Chassis_Fetch_Data_s *)zmalloc(sizeof(Chassis_Fetch_Data_s));
+  robot->chassis_upload_data = (Chassis_Upload_Data_s*)zmalloc(sizeof(Chassis_Upload_Data_s));
+  robot->chassis_fetch_data = (Chassis_Fetch_Data_s*)zmalloc(sizeof(Chassis_Fetch_Data_s));
   chassis_upload_data = robot->chassis_upload_data;
   chassis_fetch_data = robot->chassis_fetch_data;
   robot->can_comm = CANCommInit(&chassis_comm_conf);  // can comm初始化
@@ -466,11 +475,13 @@ void RobotInit() {
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   chassis_ctrl_cmd->leg_length = chassis_init_config.chassis_param.initial_leg_length;  // 初始腿长
   DWT_GetDeltaT(&robot->DWT_CNT);
+  VOFAInit(&huart1);
 }
 
 void RobotTask() {
   robot->dt = DWT_GetDeltaT(&robot->DWT_CNT);
   RobotCMDTask();
+  VOFATask();
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
   // GimbalTask();
   // ShootTask();
