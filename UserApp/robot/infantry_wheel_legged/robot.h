@@ -46,15 +46,14 @@ typedef enum {
 // 静态变量用于边沿检测
 static struct {
   uint8_t q;      // 摩擦轮开关
-  uint8_t r;      // 倒地恢复
-  uint8_t z;      // 跳跃
+  uint8_t space;  // 跳跃
   uint8_t v;      // 小陀螺模式切换
   uint8_t shift;  // 加速
-} key_last;
+} key_last_count;
 
 typedef struct {
-  Robot_Mode_e robot_mode;      // 机器人整体工作状态
-  RC_ctrl_t* rc_data;           // 遥控器数据,初始化时返回
+  Robot_Mode_e robot_mode;  // 机器人整体工作状态
+  RC_ctrl_t* rc_data;       // 遥控器数据,初始化时返回
   // referee_info_t* referee_data;     // 用于获取裁判系统的数据
   float offset_angle;
   SuperCapInstance* super_cap;

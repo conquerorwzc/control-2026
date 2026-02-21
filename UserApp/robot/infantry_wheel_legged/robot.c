@@ -324,12 +324,11 @@ static void RemoteControlSet() {
  *
  * [功能模式切换]
  * -----------------------------------------------------------------------------------------
- * [V]              : 切换 [小陀螺模式] (Spinning) / [跟随/自由模式]
+ * [V]              : 切换 [小陀螺模式]/ [跟随/自由模式]
  * [Q]              : 开关 [摩擦轮] (只有开启摩擦轮才能射击)
- * [R]              : [倒地复位] (Recovery)，倒地后按下尝试站立
- * [Z]              : [跳跃] 控制
- *                  - 第一次按: 进入跳跃准备 (JUMP_READY)
- *                  - 第二次按: 执行跳跃 (JUMP_START)
+ * [Space]          : [跳跃] 控制
+ *                  - 按下: 进入跳跃准备 (JUMP_READY)
+ *                  - 松开: 执行跳跃 (JUMP_START)
  * [E]              : 切换 [单发/连发] 逻辑
  *
  * [姿态与高度控制]
@@ -343,14 +342,15 @@ static void RemoteControlSet() {
  * [参数动态调整]
  * -----------------------------------------------------------------------------------------
  * [C]              : 切换 [底盘速度系数] (1.0 -> 1.5 -> 2.0 -> 3.0)
- * [Shift + C]      : 切换 [小陀螺旋转频率] (1.0 -> 1.5 -> 2.0 -> 4.0)
- * [Ctrl + C]       : 切换 [弹丸射速] (15m/s -> 18m/s -> 30m/s)
+ * [Ctrl + C]      : 切换 [小陀螺旋转频率] (1.0 -> 1.5 -> 2.0 -> 4.0)
+ * [Shift + C]       : 切换 [弹丸射速] (15m/s -> 18m/s -> 30m/s)
  *
  * @note 需在 RobotCMDTask 中调用
  */
 static void MouseKeySet() {
-  static float speed_coff = 1.0f;   // 速度系数
-  static float ratate_coff = 1.0f;  // 小陀螺旋转频率系数
+  static float speed_coff = 1.0f;     // 速度系数
+  static float ratate_coff = 1.0f;    // 小陀螺旋转频率系数
+  static uint8_t space_key_last = 0;  // 记录上一次Space键状态
 
   // 1. 基础初始化
   chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
@@ -414,29 +414,26 @@ static void MouseKeySet() {
 
   // 3. 功能键触发 (逻辑/状态切换)
   // [V] 键切换小陀螺
-  if (rc_data[TEMP].key_count[KEY_PRESS][Key_V] != key_last.v) {
+  if (rc_data[TEMP].key_count[KEY_PRESS][Key_V] != key_last_count.v) {
     is_rotate_mode = !is_rotate_mode;
-    key_last.v = rc_data[TEMP].key_count[KEY_PRESS][Key_V];
+    key_last_count.v = rc_data[TEMP].key_count[KEY_PRESS][Key_V];
   }
-  // [Z] 键跳跃逻辑 (双击)
-  if (rc_data[TEMP].key_count[KEY_PRESS][Key_Z] != key_last.z) {
-    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_JUMP_READY) {
-      // 再次按Z起跳
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_JUMP_START;
-      chassis_ctrl_cmd->jump_force = 15 * JUMP_FORCE;
-    } else {
-      // 第一次按Z准备
+  // [Space] 键跳跃逻辑
+  if (rc_data[TEMP].key[KEY_PRESS].space != space_key_last) {
+    if (rc_data[TEMP].key[KEY_PRESS].space) {
+      // Space键按下 - 进入JUMP_READY
       chassis_ctrl_cmd->chassis_mode = CHASSIS_JUMP_READY;
+    } else {
+      // Space键松开 - 执行JUMP_START
+      if (chassis_ctrl_cmd->chassis_mode == CHASSIS_JUMP_READY) {
+        chassis_ctrl_cmd->chassis_mode = CHASSIS_JUMP_START;
+        chassis_ctrl_cmd->jump_force = 15 * JUMP_FORCE;
+      }
     }
-    key_last.z = rc_data[TEMP].key_count[KEY_PRESS][Key_Z];
-  }
-  // [R] 键倒地恢复
-  if (rc_data[TEMP].key_count[KEY_PRESS][Key_R] != key_last.r) {
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_RECOVERY;
-    key_last.r = rc_data[TEMP].key_count[KEY_PRESS][Key_R];
+    space_key_last = rc_data[TEMP].key[KEY_PRESS].space;  // 更新状态
   }
   // [Q] 摩擦轮开关
-  if (rc_data[TEMP].key_count[KEY_PRESS][Key_Q] != key_last.q) {
+  if (rc_data[TEMP].key_count[KEY_PRESS][Key_Q] != key_last_count.q) {
     if (shoot_ctrl_cmd->friction_mode == FRICTION_ON) {
       shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
       shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
@@ -444,7 +441,7 @@ static void MouseKeySet() {
       shoot_ctrl_cmd->friction_mode = FRICTION_ON;
       shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
     }
-    key_last.q = rc_data[TEMP].key_count[KEY_PRESS][Key_Q];
+    key_last_count.q = rc_data[TEMP].key_count[KEY_PRESS][Key_Q];
   }
   // [C] 设置底盘速度系数 todo:具体数值要测试
   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_C] % 4) {
@@ -463,8 +460,8 @@ static void MouseKeySet() {
     default:
       break;
   }
-  // [ctrl+C] 键设置弹速 todo:具体数值要测试
-  switch (rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL][Key_C] % 3) {
+  // [Shift+C] 键设置弹速 todo:具体数值要测试
+  switch (rc_data[TEMP].key_count[KEY_PRESS_WITH_SHIFT][Key_C] % 3) {
     case 0:
       shoot_ctrl_cmd->bullet_speed = 15;
       break;
@@ -475,8 +472,8 @@ static void MouseKeySet() {
       shoot_ctrl_cmd->bullet_speed = 30;
       break;
   }
-  // [shift+C]键设置小陀螺频率 todo:具体数值要测试
-  switch (rc_data[TEMP].key_count[KEY_PRESS_WITH_SHIFT][Key_C] % 4) {
+  // [Ctrl+C]键设置小陀螺频率 todo:具体数值要测试
+  switch (rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL][Key_C] % 4) {
     case 0:
       ratate_coff = 1.0f;
       break;
