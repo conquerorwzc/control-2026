@@ -25,14 +25,17 @@ static float k0, k1, k2, k3, k4, k5; // 中科大的功率模型
 static float init_angle[4];
 static float target_front_pos[2];
 static float target_rear_pos[2];
-//@todo：极性没确定
-static int16_t cali_current = -1500;
-static uint16_t block_cnt = 0;
+static uint16_t cali_block_cnt[4] = {0, 0, 0, 0};
+static uint8_t  cali_done[4]      = {0, 0, 0, 0};
+static uint8_t  all_cali_done     = 0;
+static const int16_t CALI_CURRENT = -1500; // @todo：标定电流极性没确定
+
 /* Private function prototypes -----------------------------------------------*/
 static void MecanumCalculate();
 static void PowerControl();
 static void EstimateSpeed();
 static void LimitChassisOutput();
+static void ChassisCalibrationTask(void);
 ChassisInstance *ChassisInit(Chassis_Init_Config_s *chassis_init_config);
 void ChassisTask();
 void Climb_FSM();
@@ -87,75 +90,43 @@ ChassisInstance *ChassisInit(Chassis_Init_Config_s *chassis_init_config)
     }
 
     chassis = chassis_instance;
-    chassis_ctrl_cmd = &chassis->chassis_ctrl_cmd; // 在运行时初始化指针
 
-    // 等待电机上线
-    while (chassis->lift_backward_motor[0]->measure.real_current == 0)
+    // 初始化cmd
+    chassis_ctrl_cmd = &chassis->chassis_ctrl_cmd;
+    chassis_ctrl_cmd->backward_lift_in = chassis_param.backward_lift_in;
+    chassis_ctrl_cmd->backward_lift_out = chassis_param.backward_lift_out;
+    chassis_ctrl_cmd->forward_lift_out = chassis_param.forward_lift_out;
+    chassis_ctrl_cmd->forward_lift_in = chassis_param.forward_lift_in;
+
+    while (chassis->lift_backward_motor[0]->measure.temperature == 0 ||
+            chassis->lift_backward_motor[1]->measure.temperature == 0 ||
+            chassis->lift_forward_motor[0]->measure.temperature == 0 ||
+            chassis->lift_forward_motor[1]->measure.temperature == 0)
     {
-        osDelay(10);
+        osDelay(2);
     }
-
-    // 开始自动收腿标定零点
-
-    // 直接输出恒定电流，绕开PID
-    for (int i = 0; i < 2; i++) {
-        DJIMotorEnable(chassis->lift_forward_motor[i]);
-        DJIMotorEnable(chassis->lift_backward_motor[i]);
-    }
-
-    // 持续施加电流，直到检测到速度接近0且维持一段时间（即已经完全收紧堵转）
-    // 50次 * 10ms = 0.5秒堵转确认时间
-    while (block_cnt < 50)
-    {
-        for (int i = 0; i < 2; i++) {
-            DJIMotorSetRef(chassis->lift_forward_motor[i], cali_current);
-            DJIMotorSetRef(chassis->lift_backward_motor[i], cali_current);
-        }
-
-        osDelay(10);
-
-        // 获取当前四个电机的转速 (如果你的减速比较大，堵转时转速应非常接近0)
-        float lf_spd = chassis->lift_forward_motor[0]->measure.speed_aps;
-        float rf_spd = chassis->lift_forward_motor[1]->measure.speed_aps;
-        float lb_spd = chassis->lift_backward_motor[0]->measure.speed_aps;
-        float rb_spd = chassis->lift_backward_motor[1]->measure.speed_aps;
-
-        // 判断四个抬升电机的转速是否都接近0 (阈值 20 可视情况调大或调小)
-        if (abs(lf_spd) < 20 && abs(rf_spd) < 20 && abs(lb_spd) < 20 && abs(rb_spd) < 20)
-        {
-            block_cnt++; // 速度接近0，累加堵转时间
-        }
-        else
-        {
-            block_cnt = 0; // 如果中途还在动，计数器清零
-        }
-    }
-
-    // 堵转确认结束，说明已经顶到了机械限位，此时的角度即为机械零点
-    init_angle[0] = chassis->lift_backward_motor[0]->measure.total_angle;   //后左
-    init_angle[1] = chassis->lift_backward_motor[1]->measure.total_angle;   //后右
-    init_angle[2] = chassis->lift_forward_motor[0]->measure.total_angle;    //前左
-    init_angle[3] = chassis->lift_forward_motor[1]->measure.total_angle;    //前右
-
-    // 立刻将当前位置设为控制的目标位置，防止接下来切换回位置环时电机发生猛烈跳动
-    target_rear_pos[0]  = init_angle[0];
-    target_rear_pos[1]  = init_angle[1];
-    target_front_pos[0] = init_angle[2];
-    target_front_pos[1] = init_angle[3];
-
-    // 清空一下 final_output，防止遗留的电流扰动
-    for (int i = 0; i < 2; i++) {
-        DJIMotorSetRef(chassis->lift_forward_motor[i], 0);
-        DJIMotorSetRef(chassis->lift_backward_motor[i], 0);
-    }
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_CALIBRATING;
 
     return chassis_instance;
-
 }
 
 /* 机器人底盘控制核心任务 */
 void ChassisTask()
 {
+    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CALIBRATING)
+    {
+        // 标定期间，轮电机断电，抬升电机上电
+        for (int i = 0; i < 4; i++) DJIMotorStop(chassis->wheel_motor[i]);
+        for (int i = 0; i < 2; i++) {
+            DJIMotorEnable(chassis->lift_forward_motor[i]);
+            DJIMotorEnable(chassis->lift_backward_motor[i]);
+        }
+
+        // 执行非阻塞标定逻辑
+        ChassisCalibrationTask();
+        return; // 标定期间，直接 return，不执行下方正常的底盘解算和输出
+    }
+
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_POWER_OFF)
     {
         // 如果出现重要模块离线或遥控器设置为急停,让电机停止
@@ -324,10 +295,10 @@ void Climb_FSM()
     case CLIMB_STAGE_IDLE:
     case CLIMB_STAGE_ALL_RETRACT:
         // 【状态：全收】
-        target_rear_pos[LEFT] = init_angle[0]+chassis_param.backward_lift_in; // 后：收 左
-        target_rear_pos[RIGHT] = init_angle[1]+chassis_param.backward_lift_in; // 后：收 右
-        target_front_pos[LEFT] = init_angle[2]+chassis_param.forward_lift_in; // 前：收 左
-        target_front_pos[RIGHT] = init_angle[3]+chassis_param.forward_lift_in; // 前：收 右
+        target_rear_pos[LEFT] = init_angle[0] + chassis_ctrl_cmd->backward_lift_in;  // 后：收 左
+        target_rear_pos[RIGHT] = init_angle[1] + chassis_ctrl_cmd->backward_lift_in; // 后：收 右
+        target_front_pos[LEFT] = init_angle[2] + chassis_ctrl_cmd->forward_lift_in;  // 前：收 左
+        target_front_pos[RIGHT] = init_angle[3] + chassis_ctrl_cmd->forward_lift_in; // 前：收 右
 
         break;
 
@@ -335,24 +306,106 @@ void Climb_FSM()
         // 【状态：全伸】
 
         // 前导杆伸出
-        target_front_pos[LEFT]  = init_angle[2] + chassis_param.forward_lift_out;
-        target_front_pos[RIGHT] = init_angle[3] + chassis_param.forward_lift_out;
+        target_front_pos[LEFT] = init_angle[2] + chassis_ctrl_cmd->forward_lift_out;
+        target_front_pos[RIGHT] = init_angle[3] + chassis_ctrl_cmd->forward_lift_out;
 
         // 后腿伸出
-        target_rear_pos[LEFT]   = init_angle[0] + chassis_param.backward_lift_out;
-        target_rear_pos[RIGHT]  = init_angle[1] + chassis_param.backward_lift_out;
+        target_rear_pos[LEFT] = init_angle[0] + chassis_ctrl_cmd->backward_lift_out;
+        target_rear_pos[RIGHT] = init_angle[1] + chassis_ctrl_cmd->backward_lift_out;
         break;
 
     case CLIMB_STAGE_FRONT_RETRACT:
         // 【状态：前收后伸】
-        target_rear_pos[LEFT] = init_angle[0]+chassis_param.backward_lift_out; // 后：伸 左
-        target_rear_pos[RIGHT] = init_angle[1]+chassis_param.backward_lift_out; // 后：伸 右
-        target_front_pos[LEFT] = init_angle[2]+chassis_param.forward_lift_in; // 前：收 左
-        target_front_pos[RIGHT] = init_angle[3]+chassis_param.forward_lift_in; // 前：收 右
+        target_rear_pos[LEFT] = init_angle[0] + chassis_ctrl_cmd->backward_lift_out;  // 后：伸 左
+        target_rear_pos[RIGHT] = init_angle[1] + chassis_ctrl_cmd->backward_lift_out; // 后：伸 右
+        target_front_pos[LEFT] = init_angle[2] + chassis_ctrl_cmd->forward_lift_in;   // 前：收 左
+        target_front_pos[RIGHT] = init_angle[3] + chassis_ctrl_cmd->forward_lift_in;  // 前：收 右
         break;
     }
 }
 
+/**
+ * @brief 非阻塞式的底盘抬升零点标定任务
+ * @note  依赖 ChassisTask 的周期性调用 (当前随 StartROBOTTASK 500Hz 运行)
+ */
+static void ChassisCalibrationTask(void)
+{
+    if (all_cali_done) return; // 防御性判断
+
+    // 超时保护 (500Hz 下，1500次 = 3秒)
+    static uint16_t timeout_cnt = 0;
+    timeout_cnt++;
+    if (timeout_cnt > 1500)
+    {
+        chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
+        for (int i = 0; i < 2; i++) {
+            DJIMotorSetRef(chassis->lift_backward_motor[i], 0);
+            DJIMotorSetRef(chassis->lift_forward_motor[i], 0);
+        }
+        LOGERROR("[Chassis] Calibration TIMEOUT! Power off for safety!");
+        return;
+    }
+
+    // 读取4个电机的当前速度
+    float spd[4];
+    spd[0] = chassis->lift_backward_motor[0]->measure.speed_aps;
+    spd[1] = chassis->lift_backward_motor[1]->measure.speed_aps;
+    spd[2] = chassis->lift_forward_motor[0]->measure.speed_aps;
+    spd[3] = chassis->lift_forward_motor[1]->measure.speed_aps;
+
+    // 分别处理每个电机，独立防烧毁
+    for (int i = 0; i < 4; i++)
+    {
+        if (!cali_done[i])
+        {
+            // 给定恒定标定电流，绕开PID直接输出力矩
+            if (i < 2) DJIMotorSetRef(chassis->lift_backward_motor[i], CALI_CURRENT);
+            else       DJIMotorSetRef(chassis->lift_forward_motor[i-2], CALI_CURRENT);
+
+            // 堵转检测 (使用 fabsf 防范类型错误)
+            if (fabsf(spd[i]) < 20.0f)
+            {
+                cali_block_cnt[i]++;
+
+                // RTOS 以 500Hz 运行，250 次恰好等于 0.5s
+                if (cali_block_cnt[i] > 250)
+                {
+                    cali_done[i] = 1; // 标记此电机标定完成
+
+                    // 立刻给该电机断电/清零，保护机械结构！
+                    if (i < 2) DJIMotorSetRef(chassis->lift_backward_motor[i], 0);
+                    else       DJIMotorSetRef(chassis->lift_forward_motor[i-2], 0);
+                }
+            }
+            else
+            {
+                cali_block_cnt[i] = 0; // 只要动了，计数器就清零
+            }
+        }
+    }
+
+    // 检查是否4个电机都标定完毕
+    all_cali_done = cali_done[0] && cali_done[1] && cali_done[2] && cali_done[3];
+
+    if (all_cali_done)
+    {
+        // 记录各自的物理零点
+        init_angle[0] = chassis->lift_backward_motor[0]->measure.total_angle; // 后左
+        init_angle[1] = chassis->lift_backward_motor[1]->measure.total_angle; // 后右
+        init_angle[2] = chassis->lift_forward_motor[0]->measure.total_angle;  // 前左
+        init_angle[3] = chassis->lift_forward_motor[1]->measure.total_angle;  // 前右
+
+        // 立刻将零点设置为当前目标点，防止切回正常模式时跳变
+        target_rear_pos[0]  = init_angle[0];
+        target_rear_pos[1]  = init_angle[1];
+        target_front_pos[0] = init_angle[2];
+        target_front_pos[1] = init_angle[3];
+
+        // 标定彻底结束，进入断电待命模式（等待遥控器拨杆切入正常运行模式）
+        chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
+        LOGINFO("[Chassis] Calibration done! Zero points recorded.");
+    }
+}
 /**
  * @brief 预测电机功率并进行限制
  *

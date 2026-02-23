@@ -97,7 +97,6 @@ void RobotCMDTask()
     CalcOffsetAngle();
     RemoteControlSet();
 
-
     MouseKeySet();
     EmergencyHandler(); // 处理模块离线和遥控器急停等紧急情况
 }
@@ -111,15 +110,27 @@ void RobotCMDTask()
  */
 static void EmergencyHandler()
 {
-    // 遥控器不在线的时候停止所有电机
-    if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)) ||
-        !RemoteControlIsOnline())
+    //最高优先级：人为手动急停（遥控器左右双拨杆打下）
+    if (switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left))
     {
         robot->robot_mode = ROBOT_EMERGENCY_STOP;
         chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
-        // gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_POWER_OFF;
         grab_ctrl_cmd->grab_mode = GRAB_POWER_OFF;
-        LOGINFO("[CMD] emergency stop!");
+        LOGINFO("[CMD] emergency stop by user!");
+        return;
+    }
+
+    // 如果正在标定，跳过掉线保护
+    // 防止刚开机遥控器还没连上，标定就被强行打断
+    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CALIBRATING) return;
+
+    // 正常运行时的掉线保护
+    if (!RemoteControlIsOnline())
+    {
+        robot->robot_mode = ROBOT_EMERGENCY_STOP;
+        chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
+        grab_ctrl_cmd->grab_mode = GRAB_POWER_OFF;
+        LOGINFO("[CMD] emergency stop by offline!");
     }
 }
 
@@ -133,6 +144,8 @@ static void MouseKeySet()
     {
         return;
     }
+    // 标定期间屏蔽键鼠控制
+    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CALIBRATING) return;
 
     if (rc_data[TEMP].rc.dial != 0 || rc_data[TEMP].rc.rocker_l1 != 0 || rc_data[TEMP].rc.rocker_l_ != 0 ||
         rc_data[TEMP].rc.rocker_r1 != 0 || rc_data[TEMP].rc.rocker_r_ != 0)
@@ -178,24 +191,14 @@ static void MouseKeySet()
                                    rc_data[TEMP].key[KEY_PRESS].s * chassis_ctrl_cmd->chassis_speed_buff;
             chassis_ctrl_cmd->wz = 0;
             // set_angle += -rc_data[TEMP].mouse.x * 0.001;
-            // 如果在底盘爬楼梯模式
+            // 如果在底盘爬楼梯模式,只有字母键被按下
             if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB && rc_data[TEMP].key[KEY_PRESS].keys != 0 &&
                 rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].keys == 0)
             {
-                if (rc_data[TEMP].key[KEY_PRESS].z)
-                {
-                    chassis_ctrl_cmd->climb_state = CLIMB_STAGE_BOTH_EXTEND;
-                }
-                // 【X键】：第二步 (收前腿)
-                else if (rc_data[TEMP].key[KEY_PRESS].x)
-                {
-                    chassis_ctrl_cmd->climb_state = CLIMB_STAGE_FRONT_RETRACT;
-                }
-                // 【C键】：第三步 (全收)
-                else if (rc_data[TEMP].key[KEY_PRESS].c)
-                {
-                    chassis_ctrl_cmd->climb_state = CLIMB_STAGE_ALL_RETRACT;
-                }
+                chassis_ctrl_cmd->backward_lift_out += rc_data[TEMP].key[KEY_PRESS].x * 0.1;
+                chassis_ctrl_cmd->backward_lift_out -= rc_data[TEMP].key[KEY_PRESS].z * 0.1;
+                chassis_ctrl_cmd->backward_lift_out += rc_data[TEMP].key[KEY_PRESS].v * 0.1;
+                chassis_ctrl_cmd->backward_lift_out -= rc_data[TEMP].key[KEY_PRESS].c * 0.1;
             }
         }
 
@@ -255,6 +258,12 @@ static void MouseKeySet()
  */
 static void RemoteControlSet()
 {
+    // 标定期间屏蔽遥控器模式切换
+    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CALIBRATING)
+    {
+        *rc_data_last = *rc_data; // 保持数据更新
+        return;
+    }
     // 右侧拨杆控制底盘模式
     if (switch_is_mid(rc_data[TEMP].rc.switch_right))
     {
@@ -333,7 +342,6 @@ static void RemoteControlSet()
         {
             // 左[下]：全收
             chassis_ctrl_cmd->climb_state = CLIMB_STAGE_ALL_RETRACT;
-
         }
     }
 

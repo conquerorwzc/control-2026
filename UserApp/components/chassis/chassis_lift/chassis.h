@@ -35,7 +35,9 @@ typedef enum
     CHASSIS_POWER_OFF = 0, // 电流零输入
     CHASSIS_FOLLOW,        // 跟随模式，底盘叠加角度环控制
     CHASSIS_CLIMB,
+    CHASSIS_CALIBRATING,   // 底盘初始化标定模式
 } Chassis_Mode_e;
+
 typedef enum
 {
     CLIMB_STAGE_IDLE = 0,      // 平地/复位状态 (全收)
@@ -43,6 +45,7 @@ typedef enum
     CLIMB_STAGE_FRONT_RETRACT, // 阶段2: 只收前 (前轮已上，屁股还抬着)
     CLIMB_STAGE_ALL_RETRACT    // 阶段3: 全收 (上完台阶/复位)
 } ClimbState_e;
+
 typedef struct
 {
     // 控制部分
@@ -55,6 +58,10 @@ typedef struct
     int chassis_speed_buff;
     uint16_t max_power;  // 最大功率限制
     int16_t lift_height; // 抬升高度
+    float forward_lift_in;          // 导杆收回位置
+    float forward_lift_out;         // 导杆伸出位置
+    float backward_lift_in;         // 腿抬升收回位置
+    float backward_lift_out;       // 腿抬升伸出位置
                          // UI部分
                          //  ...
 
