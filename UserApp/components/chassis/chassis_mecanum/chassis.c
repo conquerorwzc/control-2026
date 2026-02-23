@@ -70,6 +70,7 @@ static void PowerControl() {
       initial_total_power += initial_give_power[i];
     }
   }
+
   // 功率超限时进行动态调整
   if (initial_total_power > (float)chassis_ctrl_cmd->max_power) {
     float power_scale = (float)chassis_ctrl_cmd->max_power / initial_total_power;  // 削减功率比例
@@ -77,6 +78,7 @@ static void PowerControl() {
     // 计算缩放后的功率目标
     for (int i = 0; i < 4; i++) {
       scaled_give_power[i] = initial_give_power[i] * power_scale;
+      chassis->wheel_motor[i]->scaled_give_power = scaled_give_power[i];
     }
 
     // 重新计算每个电机的电流参考值
