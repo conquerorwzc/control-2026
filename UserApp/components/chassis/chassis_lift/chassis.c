@@ -25,6 +25,9 @@ static float k0, k1, k2, k3, k4, k5; // 中科大的功率模型
 static float init_angle[4];
 static float target_front_pos[2];
 static float target_rear_pos[2];
+//@todo：极性没确定
+static int16_t cali_current = -1500;
+static uint16_t block_cnt = 0;
 /* Private function prototypes -----------------------------------------------*/
 static void MecanumCalculate();
 static void PowerControl();
@@ -85,16 +88,70 @@ ChassisInstance *ChassisInit(Chassis_Init_Config_s *chassis_init_config)
 
     chassis = chassis_instance;
     chassis_ctrl_cmd = &chassis->chassis_ctrl_cmd; // 在运行时初始化指针
+    // ------------------ 替换原有的获取 init_angle 逻辑 ------------------
+
+    // 等待电机上线
     while (chassis->lift_backward_motor[0]->measure.real_current == 0)
     {
         osDelay(10);
     }
+
+    // 开始自动收腿标定零点
+
+    // 直接输出恒定电流，绕开PID
+    for (int i = 0; i < 2; i++) {
+        DJIMotorEnable(chassis->lift_forward_motor[i]);
+        DJIMotorEnable(chassis->lift_backward_motor[i]);
+    }
+
+    // 持续施加电流，直到检测到速度接近0且维持一段时间（即已经完全收紧堵转）
+    // 50次 * 10ms = 0.5秒堵转确认时间
+    while (block_cnt < 50)
+    {
+        for (int i = 0; i < 2; i++) {
+            DJIMotorSetRef(chassis->lift_forward_motor[i], cali_current);
+            DJIMotorSetRef(chassis->lift_backward_motor[i], cali_current);
+        }
+
+        osDelay(10);
+
+        // 获取当前四个电机的转速 (如果你的减速比较大，堵转时转速应非常接近0)
+        float lf_spd = chassis->lift_forward_motor[0]->measure.speed_aps;
+        float rf_spd = chassis->lift_forward_motor[1]->measure.speed_aps;
+        float lb_spd = chassis->lift_backward_motor[0]->measure.speed_aps;
+        float rb_spd = chassis->lift_backward_motor[1]->measure.speed_aps;
+
+        // 判断四个抬升电机的转速是否都接近0 (阈值 20 可视情况调大或调小)
+        if (abs(lf_spd) < 20 && abs(rf_spd) < 20 && abs(lb_spd) < 20 && abs(rb_spd) < 20)
+        {
+            block_cnt++; // 速度接近0，累加堵转时间
+        }
+        else
+        {
+            block_cnt = 0; // 如果中途还在动，计数器清零
+        }
+    }
+
+    // 堵转确认结束，说明已经顶到了机械限位，此时的角度即为机械零点
     init_angle[0] = chassis->lift_backward_motor[0]->measure.total_angle;   //后左
     init_angle[1] = chassis->lift_backward_motor[1]->measure.total_angle;   //后右
     init_angle[2] = chassis->lift_forward_motor[0]->measure.total_angle;    //前左
     init_angle[3] = chassis->lift_forward_motor[1]->measure.total_angle;    //前右
 
+    // 立刻将当前位置设为控制的目标位置，防止接下来切换回位置环时电机发生猛烈跳动
+    target_rear_pos[0]  = init_angle[0];
+    target_rear_pos[1]  = init_angle[1];
+    target_front_pos[0] = init_angle[2];
+    target_front_pos[1] = init_angle[3];
+
+    // 清空一下 final_output，防止遗留的电流扰动
+    for (int i = 0; i < 2; i++) {
+        DJIMotorSetRef(chassis->lift_forward_motor[i], 0);
+        DJIMotorSetRef(chassis->lift_backward_motor[i], 0);
+    }
+
     return chassis_instance;
+
 }
 
 /* 机器人底盘控制核心任务 */
