@@ -154,10 +154,10 @@ static void MouseKeySet()
     switch (rc_data[TEMP].key_count[KEY_PRESS][Key_V] % 2) // C键设置底盘速度
     {
     case 0:
-        chassis_ctrl_cmd->chassis_speed_buff = 10000;
+        chassis_ctrl_cmd->chassis_speed_buff = 30000;
         break;
     case 1:
-        chassis_ctrl_cmd->chassis_speed_buff = 20000;
+        chassis_ctrl_cmd->chassis_speed_buff = 40000;
         break;
     }
 

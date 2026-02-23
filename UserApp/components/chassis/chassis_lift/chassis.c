@@ -88,7 +88,6 @@ ChassisInstance *ChassisInit(Chassis_Init_Config_s *chassis_init_config)
 
     chassis = chassis_instance;
     chassis_ctrl_cmd = &chassis->chassis_ctrl_cmd; // 在运行时初始化指针
-    // ------------------ 替换原有的获取 init_angle 逻辑 ------------------
 
     // 等待电机上线
     while (chassis->lift_backward_motor[0]->measure.real_current == 0)
