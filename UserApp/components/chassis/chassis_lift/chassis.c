@@ -184,7 +184,7 @@ void ChassisTask()
         chassis_ctrl_cmd->wz += PIDCalculate(&follow_pid, chassis_ctrl_cmd->offset_angle, 0);
         break;
     case CHASSIS_CLIMB: // 进入底盘抬升爬楼梯状态
-        chassis_ctrl_cmd->wz = 0;
+        chassis_ctrl_cmd->wz += PIDCalculate(&follow_pid, chassis_ctrl_cmd->offset_angle, 0);
         Climb_FSM();
         break;
     default:
