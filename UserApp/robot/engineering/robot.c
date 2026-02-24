@@ -111,26 +111,14 @@ void RobotCMDTask()
 static void EmergencyHandler()
 {
     //最高优先级：人为手动急停（遥控器左右双拨杆打下）
-    if (switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left))
+    if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)) ||
+       !RemoteControlIsOnline())
     {
         robot->robot_mode = ROBOT_EMERGENCY_STOP;
         chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
+        // gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_POWER_OFF;
         grab_ctrl_cmd->grab_mode = GRAB_POWER_OFF;
-        LOGINFO("[CMD] emergency stop by user!");
-        return;
-    }
-
-    // 如果正在标定，跳过掉线保护
-    // 防止刚开机遥控器还没连上，标定就被强行打断
-    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CALIBRATING) return;
-
-    // 正常运行时的掉线保护
-    if (!RemoteControlIsOnline())
-    {
-        robot->robot_mode = ROBOT_EMERGENCY_STOP;
-        chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
-        grab_ctrl_cmd->grab_mode = GRAB_POWER_OFF;
-        LOGINFO("[CMD] emergency stop by offline!");
+        LOGINFO("[CMD] emergency stop!");
     }
 }
 
