@@ -9,7 +9,8 @@
 #include "user_lib.h"
 
 /* Private define ------------------------------------------------------------*/
-
+// 0.3s消抖阈值 (基于2ms的任务周期: 300ms / 2ms = 150)
+#define SWITCH_STABLE_TICKS 150
 /* Intermediate variables calculated by private functions */
 static RobotInstance *robot;
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
@@ -314,22 +315,40 @@ static void RemoteControlSet()
     //         Gantry_Limit(gantry_ctrl_cmd, &robot->gantry->Gantry_param);
     //     }
     // }
+
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB)
     {
-        if (switch_is_up(rc_data[TEMP].rc.switch_left))
+        // 获取当前拨杆的瞬时状态
+        uint8_t current_switch = rc_data[TEMP].rc.switch_left;
+        static uint8_t last_switch = 0;       // 上一次的拨杆位置
+        static uint32_t switch_stable_cnt = 0; // 稳定计时器
+
+        if (current_switch == last_switch)
         {
-            // 左[上]：全伸
-            chassis_ctrl_cmd->climb_state = CLIMB_STAGE_BOTH_EXTEND;
+            // 如果拨杆位置没变，累加计数
+            switch_stable_cnt++;
+
+            // 当达到 0.3s 的稳定时间时，执行状态切换
+            if (switch_stable_cnt >= SWITCH_STABLE_TICKS)
+            {
+                if (switch_is_up(current_switch)) {
+                    chassis_ctrl_cmd->climb_state = CLIMB_STAGE_BOTH_EXTEND;
+                }
+                else if (switch_is_mid(current_switch)) {
+                    chassis_ctrl_cmd->climb_state = CLIMB_STAGE_FRONT_RETRACT;
+                }
+                else if (switch_is_down(current_switch)) {
+                    chassis_ctrl_cmd->climb_state = CLIMB_STAGE_ALL_RETRACT;
+                }
+                // 达到阈值后可以停止累加，防止溢出（虽然 0.3s 很短，建议保持 count）
+                switch_stable_cnt = SWITCH_STABLE_TICKS;
+            }
         }
-        else if (switch_is_mid(rc_data[TEMP].rc.switch_left))
+        else
         {
-            // 左[中]：只伸后腿
-            chassis_ctrl_cmd->climb_state = CLIMB_STAGE_FRONT_RETRACT;
-        }
-        else if (switch_is_down(rc_data[TEMP].rc.switch_left))
-        {
-            // 左[下]：全收
-            chassis_ctrl_cmd->climb_state = CLIMB_STAGE_ALL_RETRACT;
+            // 拨杆位置一旦变化，立即重置计数器，并记录当前位置
+            last_switch = current_switch;
+            switch_stable_cnt = 0;
         }
     }
 

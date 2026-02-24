@@ -108,10 +108,10 @@ ChassisInstance *ChassisInit(Chassis_Init_Config_s *chassis_init_config)
     chassis_ctrl_cmd->forward_lift_in = chassis_param.forward_lift_in;
 
 
-    while (chassis->lift_backward_motor[0]->measure.real_current == 0)
-    {
-        osDelay(10);
-    }
+    // while (chassis->lift_backward_motor[0]->measure.real_current == 0)
+    // {
+    //     osDelay(10);
+    // }
 
     chassis_ctrl_cmd->chassis_mode = CHASSIS_CALIBRATING;
 
