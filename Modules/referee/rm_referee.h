@@ -56,6 +56,7 @@ typedef struct
 	uint32_t lid_flag : 1;
 	uint32_t friction_flag : 1;
 	uint32_t Power_flag : 1;
+        uint32_t pitch_flag : 1;
 } Referee_Interactive_Flag_t;
 
 
