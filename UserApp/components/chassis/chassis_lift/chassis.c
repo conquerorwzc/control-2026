@@ -28,14 +28,22 @@ static float target_rear_pos[2];
 static uint16_t cali_block_cnt[4] = {0, 0, 0, 0};
 static uint8_t  cali_done[4]      = {0, 0, 0, 0};
 static uint8_t  all_cali_done     = 0;
-static const int16_t CALI_CURRENT = -1500; // @todo：标定电流极性没确定
-
+static const int16_t cali_current = -1500;
+static uint8_t  is_max_calibrated      = 0;             // 是否已经完成最大行程标定
+static uint16_t max_cali_block_cnt[4]  = {0, 0, 0, 0};
+static uint8_t  max_cali_done[4]       = {0, 0, 0, 0};
+static float    max_angle[4]           = {0, 0, 0, 0};  // 记录顶到头的极限角度
+// 伸出标定电流，方向必须与收腿标定电流相反！
+static const int16_t max_cali_current  = 1500;
+// 统一比例系数，留出 2% 的安全软限位防撞墙
+static const float   extend_safe_ratio = 0.98f;
 /* Private function prototypes -----------------------------------------------*/
 static void MecanumCalculate();
 static void PowerControl();
 static void EstimateSpeed();
 static void LimitChassisOutput();
 static void ChassisCalibrationTask(void);
+static void MaxExtensionCalibrationTask(void);
 ChassisInstance *ChassisInit(Chassis_Init_Config_s *chassis_init_config);
 void ChassisTask();
 void Climb_FSM();
@@ -98,13 +106,12 @@ ChassisInstance *ChassisInit(Chassis_Init_Config_s *chassis_init_config)
     chassis_ctrl_cmd->forward_lift_out = chassis_param.forward_lift_out;
     chassis_ctrl_cmd->forward_lift_in = chassis_param.forward_lift_in;
 
-    while (chassis->lift_backward_motor[0]->measure.temperature == 0 ||
-            chassis->lift_backward_motor[1]->measure.temperature == 0 ||
-            chassis->lift_forward_motor[0]->measure.temperature == 0 ||
-            chassis->lift_forward_motor[1]->measure.temperature == 0)
+
+    while (chassis->lift_backward_motor[0]->measure.real_current == 0)
     {
-        osDelay(2);
+        osDelay(10);
     }
+
     chassis_ctrl_cmd->chassis_mode = CHASSIS_CALIBRATING;
 
     return chassis_instance;
@@ -125,6 +132,19 @@ void ChassisTask()
         // 执行非阻塞标定逻辑
         ChassisCalibrationTask();
         return; // 标定期间，直接 return，不执行下方正常的底盘解算和输出
+    }
+    //如果未标定全伸展尺寸，则进入全伸展的标定
+    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB &&
+        chassis_ctrl_cmd->climb_state == CLIMB_STAGE_BOTH_EXTEND &&
+        !is_max_calibrated)
+    {
+        for (int i = 0; i < 4; i++) DJIMotorStop(chassis->wheel_motor[i]);
+        for (int i = 0; i < 2; i++) {
+            DJIMotorEnable(chassis->lift_forward_motor[i]);
+            DJIMotorEnable(chassis->lift_backward_motor[i]);
+        }
+        MaxExtensionCalibrationTask();
+        return;
     }
 
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_POWER_OFF)
@@ -289,6 +309,16 @@ static void PowerControl()
  */
 void Climb_FSM()
 {
+    const float MAX_SAFE_REAR_EXTEND  = chassis_param.backward_lift_out; // 后腿绝对物理极限
+    const float MAX_SAFE_FRONT_EXTEND = chassis_param.forward_lift_out;  // 前腿绝对物理极限
+
+    if (chassis_ctrl_cmd->backward_lift_out > MAX_SAFE_REAR_EXTEND) {
+        chassis_ctrl_cmd->backward_lift_out = MAX_SAFE_REAR_EXTEND;
+    }
+    if (chassis_ctrl_cmd->forward_lift_out > MAX_SAFE_FRONT_EXTEND) {
+        chassis_ctrl_cmd->forward_lift_out = MAX_SAFE_FRONT_EXTEND;
+    }
+
     switch (chassis->chassis_ctrl_cmd.climb_state)
     {
 
@@ -359,8 +389,8 @@ static void ChassisCalibrationTask(void)
         if (!cali_done[i])
         {
             // 给定恒定标定电流，绕开PID直接输出力矩
-            if (i < 2) DJIMotorSetRef(chassis->lift_backward_motor[i], CALI_CURRENT);
-            else       DJIMotorSetRef(chassis->lift_forward_motor[i-2], CALI_CURRENT);
+            if (i < 2) DJIMotorSetRef(chassis->lift_backward_motor[i], cali_current);
+            else       DJIMotorSetRef(chassis->lift_forward_motor[i-2], cali_current);
 
             // 堵转检测 (使用 fabsf 防范类型错误)
             if (fabsf(spd[i]) < 20.0f)
@@ -406,6 +436,94 @@ static void ChassisCalibrationTask(void)
         LOGINFO("[Chassis] Calibration done! Zero points recorded.");
     }
 }
+/**
+ * @brief 最大伸展行程动态标定任务 (首次爬楼时触发)
+ */
+static void MaxExtensionCalibrationTask(void)
+{
+    if (is_max_calibrated) return;
+
+    // 超时保护 (伸出行程较长，给 8 秒钟超时判定)
+    static uint16_t timeout_cnt = 0;
+    timeout_cnt++;
+    if (timeout_cnt > 6000)
+    {
+        chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
+        for (int i = 0; i < 2; i++) {
+            DJIMotorSetRef(chassis->lift_backward_motor[i], 0);
+            DJIMotorSetRef(chassis->lift_forward_motor[i], 0);
+        }
+        LOGERROR("[Chassis] Max Extension CALI TIMEOUT! Power off!");
+        return;
+    }
+
+    float spd[4];
+    spd[0] = chassis->lift_backward_motor[0]->measure.speed_aps;
+    spd[1] = chassis->lift_backward_motor[1]->measure.speed_aps;
+    spd[2] = chassis->lift_forward_motor[0]->measure.speed_aps;
+    spd[3] = chassis->lift_forward_motor[1]->measure.speed_aps;
+
+    uint8_t current_all_done = 1;
+
+    for (int i = 0; i < 4; i++)
+    {
+        if (!max_cali_done[i])
+        {
+            current_all_done = 0;
+
+            if (i < 2) DJIMotorSetRef(chassis->lift_backward_motor[i], max_cali_current);
+            else       DJIMotorSetRef(chassis->lift_forward_motor[i-2], max_cali_current);
+
+            // 堵转检测
+            if (fabsf(spd[i]) < 20.0f)
+            {
+                max_cali_block_cnt[i]++;
+                if (max_cali_block_cnt[i] > 250)
+                {
+                    max_cali_done[i] = 1;
+
+                    if (i == 0) max_angle[0] = chassis->lift_backward_motor[0]->measure.total_angle;
+                    if (i == 1) max_angle[1] = chassis->lift_backward_motor[1]->measure.total_angle;
+                    if (i == 2) max_angle[2] = chassis->lift_forward_motor[0]->measure.total_angle;
+                    if (i == 3) max_angle[3] = chassis->lift_forward_motor[1]->measure.total_angle;
+
+                    if (i < 2) DJIMotorSetRef(chassis->lift_backward_motor[i], 0);
+                    else       DJIMotorSetRef(chassis->lift_forward_motor[i-2], 0);
+                }
+            }
+            else
+            {
+                max_cali_block_cnt[i] = 0;
+            }
+        }
+    }
+
+    if (current_all_done)
+    {
+        // 计算绝对行程
+        float rear_stroke_l  = fabsf(max_angle[0] - init_angle[0]);
+        float rear_stroke_r  = fabsf(max_angle[1] - init_angle[1]);
+        float front_stroke_l = fabsf(max_angle[2] - init_angle[2]);
+        float front_stroke_r = fabsf(max_angle[3] - init_angle[3]);
+
+        // 木桶效应：取短板
+        float rear_min_stroke  = fminf(rear_stroke_l, rear_stroke_r);
+        float front_min_stroke = fminf(front_stroke_l, front_stroke_r);
+
+        // 提取符号极性
+        float rear_sign  = (max_angle[0] > init_angle[0]) ? 1.0f : -1.0f;
+        float front_sign = (max_angle[2] > init_angle[2]) ? 1.0f : -1.0f;
+
+        // 乘以 98% 比例系数覆写目标值
+        chassis_ctrl_cmd->backward_lift_out = rear_sign * rear_min_stroke * extend_safe_ratio;
+        chassis_ctrl_cmd->forward_lift_out  = front_sign * front_min_stroke * extend_safe_ratio;
+
+        is_max_calibrated = 1;
+        LOGINFO("[Chassis] Max Extend Cali Done! Safe Rear: %f, Safe Front: %f",
+                chassis_ctrl_cmd->backward_lift_out, chassis_ctrl_cmd->forward_lift_out);
+    }
+}
+
 /**
  * @brief 预测电机功率并进行限制
  *

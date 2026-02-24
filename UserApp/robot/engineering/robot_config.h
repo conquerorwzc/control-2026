@@ -83,7 +83,7 @@
                      .Kd = 0,                                                                                          \
                      .IntegralLimit = 0,                                                                               \
                      .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,          \
-                     .MaxOut = 2000.0f,                                                                                \
+                     .MaxOut = 1600.0f,                                                                                \
                  },                                                                                                    \
              .speed_PID =                                                                                               \
                  {                                                                                                     \
@@ -167,9 +167,9 @@ static Chassis_Init_Config_s chassis_init_config = {
             .power_param.k5 = 2.896721772539512e-05f,
 
             .forward_lift_in = 0,
-            .forward_lift_out = 12000.0f,
-            .backward_lift_in = 0,
-            .backward_lift_out = 590000.0f,
+            .forward_lift_out = 13000.0f,
+            .backward_lift_in = 1500.0f,
+            .backward_lift_out = 585000.0f,
 
         },
     .wheel_motor_config[0] = WHEEL_MOTOR_CONFIG(&hcan3, 1),

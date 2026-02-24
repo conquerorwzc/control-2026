@@ -38,11 +38,11 @@ GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config)
 
     grab_instance->actuator->grab_djimotor[0] = DJIMotorInit(&Grab_init_config->Grab_motor_config[3]);
     grab_instance->actuator->grab_djimotor[1] = DJIMotorInit(&Grab_init_config->Grab_motor_config[4]);
-
-    while (grab_instance->actuator->grab_djimotor[1]->measure.real_current == 0)
-    {
-        osDelay(10);
-    }
+    //
+    // while (grab_instance->actuator->grab_djimotor[1]->measure.real_current == 0)
+    // {
+    //     osDelay(10);
+    // }
     // 在没有上电的情况下先不发使能帧给dm电机，即不初始化
     grab_instance->actuator->grab_dmmotor[0] = DMMotorInit(&Grab_init_config->Grab_motor_config[5]); // v2
     grab_instance->arm->grab_dmmotor[0] = DMMotorInit(&Grab_init_config->Grab_motor_config[0]);      // v3

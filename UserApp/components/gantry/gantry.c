@@ -29,18 +29,18 @@ void GantryTask(void);
  */
 void StartGantryTask(void const *argument)
 {
-    // 等待实例初始化完成
-    while (gantry_instance == NULL)
-    {
-        osDelay(10);
-    }
-
-    uint32_t wait_time = xTaskGetTickCount();
-    for (;;)
-    {
-        Gantry_Run(gantry_instance);
-        osDelayUntil(&wait_time, 1);
-    }
+    // // 等待实例初始化完成
+    // while (gantry_instance == NULL)
+    // {
+    //     osDelay(10);
+    // }
+    //
+    // uint32_t wait_time = xTaskGetTickCount();
+    // for (;;)
+    // {
+    //     Gantry_Run(gantry_instance);
+    //     osDelayUntil(&wait_time, 1);
+    // }
 }
 
 static void Gantry_Run(GantryInstance *gantry)
