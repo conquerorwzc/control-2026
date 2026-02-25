@@ -11,25 +11,31 @@
 #define RIGHT 1
 
 // ==================== 【硬件基础信息】 ====================
-#define CALI_TASK_FREQ          500.0f  // 标定任务运行频率 (Hz)
-#define GEAR_RATIO_REAR         19.2f   // 后腿减速比 (★ 换 M3508 配 C620 这里填 19.2f，原 M2006 填 36.0f)
-#define GEAR_RATIO_FRONT        36.0f   // 前腿减速比 (假设前腿依然是 M2006)
+#define CALI_TASK_FREQ          500.0f  // 标定任务运行频率 (Hz) ，在ostask里得知
+#define GEAR_RATIO_REAR         19.0f   // 后腿减速比
+#define GEAR_RATIO_FRONT        19.0f   // 前腿减速比
 
 // ==================== 【标定行为期望 (物理参数)】 ====================
 // 2.1 速度期望 (输出轴物理角速度：度/秒)
-#define SPEED_RETRACT_REAR_DEG  120.0f  // 后腿温柔收缩速度
-#define SPEED_RETRACT_FRONT_DEG 6.0f    // 前腿温柔收缩速度 (前腿太短，给慢点)
-#define SPEED_EXTEND_REAR_DEG   180.0f  // 后腿顶出爆发速度
-#define SPEED_EXTEND_FRONT_DEG  10.0f   // 前腿顶出爆发速度
+// 后腿: 20mm/s * 90度/mm = 1800 度/秒
+#define SPEED_RETRACT_REAR_DEG  1800.0f
+#define SPEED_EXTEND_REAR_DEG   1800.0f
+// 前腿: 20mm/s * 2.7度/mm = 54 度/秒
+#define SPEED_RETRACT_FRONT_DEG 54.0f
+#define SPEED_EXTEND_FRONT_DEG  54.0f
 
 // 2.2 力量离合期望 (虚拟弹簧允许拉伸的最大输出轴度数，度数越大爆发的推力越大)
-#define FORCE_ZERO_REAR_DEG     18.0f   // 后腿收缩靠墙维持力 (相当于原 15000 Ticks)
-#define FORCE_ZERO_FRONT_DEG    2.5f    // 前腿收缩靠墙维持力 (相当于原 2000 Ticks)
-#define FORCE_MAX_REAR_DEG      60.0f   // 后腿撑起车身极限力 (相当于原 50000 Ticks)
-#define FORCE_MAX_FRONT_DEG     6.0f    // 前腿撑起车身极限力 (相当于原 5000 Ticks)
+// 后腿 (丝杠): 机械优势极大，允许 2~5mm 误差即可爆发出满载推力
+#define FORCE_ZERO_REAR_DEG     180.0f   // 收缩靠墙: 允许 2mm 误差 (2*90)
+#define FORCE_MAX_REAR_DEG      450.0f   // 撑起车身: 允许 5mm 误差 (5*90)
+
+// 前腿 (齿条): 机械优势小，需要允许 5~15mm 误差让 PID 积攒出足够大的电流
+#define FORCE_ZERO_FRONT_DEG    13.5f    // 收缩靠墙: 允许 5mm 误差 (5*2.7)
+#define FORCE_MAX_FRONT_DEG     40.5f    // 撑起车身: 允许 15mm 误差 (15*2.7)
 
 // 2.3 堵转静止判定期望 (允许的最大抖动速度：度/秒)
-#define JITTER_TOLERANCE_DEG    2.5f    // 只要抖动速度小于 2.5 度/秒，就判定为彻底死点静止
+#define JITTER_TOLERANCE_REAR   90.0f    // 后腿 1mm 对应的度数
+#define JITTER_TOLERANCE_FRONT  2.7f     // 前腿 1mm 对应的度数
 
 // 2.4 判定时间窗口与安全系数
 #define CALI_TIMEOUT_SEC        25.0f   // 全局防暴走超时保护时间 (秒)
@@ -50,20 +56,18 @@
 #define ZERO_CALI_STEP_FRONT          (DEG_TO_TICKS(SPEED_RETRACT_FRONT_DEG, GEAR_RATIO_FRONT) / CALI_TASK_FREQ)
 #define MAX_CALI_STEP_REAR            (DEG_TO_TICKS(SPEED_EXTEND_REAR_DEG, GEAR_RATIO_REAR) / CALI_TASK_FREQ)
 #define MAX_CALI_STEP_FRONT           (DEG_TO_TICKS(SPEED_EXTEND_FRONT_DEG, GEAR_RATIO_FRONT) / CALI_TASK_FREQ)
-
 // 3. 滑动离合力矩推导 (转化为 Ticks 误差)
 #define ZERO_CALI_SLIP_LIMIT_REAR     DEG_TO_TICKS(FORCE_ZERO_REAR_DEG, GEAR_RATIO_REAR)
 #define ZERO_CALI_SLIP_LIMIT_FRONT    DEG_TO_TICKS(FORCE_ZERO_FRONT_DEG, GEAR_RATIO_FRONT)
 #define MAX_CALI_SLIP_LIMIT_REAR      DEG_TO_TICKS(FORCE_MAX_REAR_DEG, GEAR_RATIO_REAR)
 #define MAX_CALI_SLIP_LIMIT_FRONT     DEG_TO_TICKS(FORCE_MAX_FRONT_DEG, GEAR_RATIO_FRONT)
-
 // 4. 堵转静止容差推导 (允许抖动速度 * 判定时间 = 允许的 Ticks 波动范围)
-#define ZERO_CALI_STOP_THRES_REAR     DEG_TO_TICKS(JITTER_TOLERANCE_DEG * ZERO_CHECK_SEC, GEAR_RATIO_REAR)
-#define ZERO_CALI_STOP_THRES_FRONT    DEG_TO_TICKS(JITTER_TOLERANCE_DEG * ZERO_CHECK_SEC, GEAR_RATIO_FRONT)
-#define MAX_CALI_STOP_THRES_REAR      DEG_TO_TICKS(JITTER_TOLERANCE_DEG * MAX_CHECK_SEC, GEAR_RATIO_REAR)
-#define MAX_CALI_STOP_THRES_FRONT     DEG_TO_TICKS(JITTER_TOLERANCE_DEG * MAX_CHECK_SEC, GEAR_RATIO_FRONT)
+#define ZERO_CALI_STOP_THRES_REAR     DEG_TO_TICKS(JITTER_TOLERANCE_REAR * ZERO_CHECK_SEC, GEAR_RATIO_REAR)
+#define ZERO_CALI_STOP_THRES_FRONT    DEG_TO_TICKS(JITTER_TOLERANCE_FRONT * ZERO_CHECK_SEC, GEAR_RATIO_FRONT)
+#define MAX_CALI_STOP_THRES_REAR      DEG_TO_TICKS(JITTER_TOLERANCE_REAR * MAX_CHECK_SEC, GEAR_RATIO_REAR)
+#define MAX_CALI_STOP_THRES_FRONT     DEG_TO_TICKS(JITTER_TOLERANCE_FRONT * MAX_CHECK_SEC, GEAR_RATIO_FRONT)
 
-/* ================================================================================== */
+
 
 /* Private variables ---------------------------------------------------------*/
 
