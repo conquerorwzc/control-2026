@@ -75,10 +75,10 @@ void ShootBulletSpeedControl(void) {
 void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，因为之前哨兵是双枪管的，时代的眼泪
   if (shoot_ctrl_cmd->shoot_mode == SHOOT_OFF) {
    // for (int j = 0; j < FRICTION_NUM; j++) DJIMotorStop(shoot->friction_motor[j]);
-    friction_set=0;
+    //friction_set=0;
     DJIMotorStop(shoot->loader_motor);
     for (int j = 0; j < FRICTION_NUM; j++)
-      DJIMotorSetPIDRef(shoot->friction_motor[j], friction_coefficients[j] * friction_set);
+      DJIMotorSetPIDRef(shoot->friction_motor[j], 0);
   } else  // 恢复运行
   {
     for (int j = 0; j < FRICTION_NUM; j++) DJIMotorEnable(shoot->friction_motor[j]);
