@@ -13,6 +13,7 @@
 
 #include "bsp_can.h"
 #include "daemon.h"
+#include "stdbool.h"
 
 #define MX_CAN_COMM_COUNT 4  // 注意均衡负载,一条总线上不要挂载过多的外设
 
@@ -21,7 +22,6 @@
 #define CAN_COMM_TAIL 'e'         // 帧尾
 #define CAN_COMM_OFFSET_BYTES 4   // 's'+ datalen + 'e' + crc8
 
-//bool类型
 
 /*
 //can通信目标

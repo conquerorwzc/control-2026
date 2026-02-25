@@ -25,6 +25,7 @@ set(MCU_TYPE "stm32-f4")
 
 #set(ROBOT_TYPE "steering_infantry_gimbal")
 #set(ROBOT_TYPE "sentry_mecanum")
+set(ROBOT_TYPE "sentry_omni_chassis")
 #set(ROBOT_TYPE "engineering")
 #set(ROBOT_TYPE "infantry_wheel_legged")
 #set(ROBOT_TYPE "infantry_wheel_legged_demo")
