@@ -94,8 +94,8 @@ static void RemoteControlSet() {
     }
     // 云台使能,或视觉未识别到目标,纯遥控器拨杆控制
     if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
-      gimbal_ctrl_cmd->yaw += -0.0015f * (float)rc_data[TEMP].rc.rocker_r_;
-      gimbal_ctrl_cmd->pitch -= 0.0008f * (float)rc_data[TEMP].rc.rocker_r1;
+      gimbal_ctrl_cmd->yaw += -0.0003f * (float)rc_data[TEMP].rc.rocker_r_;
+      gimbal_ctrl_cmd->pitch -= 0.0001f * (float)rc_data[TEMP].rc.rocker_r1;
     }
     // 云台PITCH轴软件限位 todo:没在云台有点不好
     if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
