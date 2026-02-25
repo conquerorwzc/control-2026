@@ -37,6 +37,8 @@ static void DeterminRobotID()
 
 
 static Graph_Data_t UI_shoot_line[10]; // 射击准线
+static Graph_Data_t UI_drone_width_line[2]; //车辆示宽线
+static Graph_Data_t UI_shoot_dir_circle[3]; //射击中心圆
 static Graph_Data_t UI_Energy[3];      // 电容能量条
 static String_Data_t UI_State_sta[6];  // 机器人状态,静态只需画一次
 static String_Data_t UI_Shoot_sta[3];  //射频和枪口热度,静态只需画一次
@@ -451,6 +453,17 @@ void MyUIInit()
     UILineDraw(&UI_shoot_line[3], "sl3", UI_Graph_ADD, 7, UI_Color_Yellow, 2, 810, shoot_line_location[3], 1110, shoot_line_location[3]);
     UILineDraw(&UI_shoot_line[4], "sl4", UI_Graph_ADD, 7, UI_Color_Yellow, 2, 810, shoot_line_location[4], 1110, shoot_line_location[4]);
     UIGraphRefresh(&referee_recv_info->referee_id, 5, UI_shoot_line[0], UI_shoot_line[1], UI_shoot_line[2], UI_shoot_line[3], UI_shoot_line[4]);
+
+    // 绘制车辆示宽线
+    UILineDraw(&UI_drone_width_line[0], "sl5", UI_Graph_ADD, 7, UI_Color_Green, 2, 960 - WIDTHLINE_UP, 320, 960 - WIDTHLINE_DOWN, 0);
+    UILineDraw(&UI_drone_width_line[1], "sl6", UI_Graph_ADD, 7, UI_Color_Green, 2, 960 + WIDTHLINE_DOWN, 0, 960 + WIDTHLINE_UP, 320);
+    UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_drone_width_line[0], UI_drone_width_line[1]);
+
+    // 绘制发射中心圆
+    UICircleDraw(&UI_shoot_dir_circle[0], "sc0", UI_Graph_ADD, 7, UI_Color_White, 3, 960, 540, 15);
+    //绘制车头方向指示的中心圆
+    UICircleDraw(&UI_shoot_dir_circle[1], "sc1", UI_Graph_ADD, 7, UI_Color_White, 3, 1556, 721, 76);
+    UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_shoot_dir_circle[0],  UI_shoot_dir_circle[1]);
 
     // 绘制车辆状态标志指示
     UICharDraw(&UI_State_sta[0], "ss0", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 750, "chassis:");
