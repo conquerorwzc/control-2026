@@ -9,34 +9,61 @@
 /* Private macro -------------------------------------------------------------*/
 #define LEFT 0
 #define RIGHT 1
-// 【全局运行参数】
-#define CALI_TASK_FREQ              500     // 标定任务当前的运行频率 (500Hz = 每秒执行500次)
-#define CALI_TIMEOUT_SEC            25      // 标定超时保护时间 (秒)
-#define CALI_TIMEOUT_TICKS          (CALI_TIMEOUT_SEC * CALI_TASK_FREQ) // 自动计算: 12500次
 
-// 判定静止(堵转)的时间窗口
-#define ZERO_CALI_CHECK_SEC         2       // 零点标定判定窗口 (2秒，更稳)
-#define ZERO_CALI_CHECK_TICKS       (ZERO_CALI_CHECK_SEC * CALI_TASK_FREQ)
-#define MAX_CALI_CHECK_SEC          1       // 伸展标定判定窗口 (1秒即可)
-#define MAX_CALI_CHECK_TICKS        (MAX_CALI_CHECK_SEC * CALI_TASK_FREQ)
+// ==================== 【硬件基础信息】 ====================
+#define CALI_TASK_FREQ          500.0f  // 标定任务运行频率 (Hz)
+#define GEAR_RATIO_REAR         19.2f   // 后腿减速比 (★ 换 M3508 配 C620 这里填 19.2f，原 M2006 填 36.0f)
+#define GEAR_RATIO_FRONT        36.0f   // 前腿减速比 (假设前腿依然是 M2006)
 
-// 【零点(收缩)标定参数】
-#define ZERO_CALI_STEP_REAR         200.0f  // 后腿收缩斜坡步长 (温柔回收)
-#define ZERO_CALI_STEP_FRONT        10.0f   // 前腿收缩斜坡步长
-#define ZERO_CALI_SLIP_LIMIT_REAR   15000.0f// 后腿滑动离合阈值 (防撞墙高频震荡)
-#define ZERO_CALI_SLIP_LIMIT_FRONT  2000.0f // 前腿滑动离合阈值
-#define ZERO_CALI_STOP_THRES_REAR   4000.0f // 后腿静止判定容差 (2秒内位移小于此值算停止)
-#define ZERO_CALI_STOP_THRES_FRONT  800.0f  // 前腿静止判定容差
+// ==================== 【标定行为期望 (物理参数)】 ====================
+// 2.1 速度期望 (输出轴物理角速度：度/秒)
+#define SPEED_RETRACT_REAR_DEG  120.0f  // 后腿温柔收缩速度
+#define SPEED_RETRACT_FRONT_DEG 6.0f    // 前腿温柔收缩速度 (前腿太短，给慢点)
+#define SPEED_EXTEND_REAR_DEG   180.0f  // 后腿顶出爆发速度
+#define SPEED_EXTEND_FRONT_DEG  10.0f   // 前腿顶出爆发速度
 
-// 【最大行程(伸展)标定参数】
-#define MAX_CALI_STEP_REAR          300.0f  // 后腿伸展斜坡步长 (提供足够爆发力)
-#define MAX_CALI_STEP_FRONT         15.0f   // 前腿伸展斜坡步长
-#define MAX_CALI_SLIP_LIMIT_REAR    50000.0f// 后腿撑起车体的极限力矩离合阈值
-#define MAX_CALI_SLIP_LIMIT_FRONT   5000.0f // 前腿撑起车体的极限力矩离合阈值
-#define MAX_CALI_STOP_THRES_REAR    10000.0f// 后腿伸满静止容差 (1秒内位移小于此值算停止)
-#define MAX_CALI_STOP_THRES_FRONT   2000.0f // 前腿伸满静止容差
-#define MAX_CALI_SAFE_RATIO         0.99f   // 机械限位安全保留系数 (99%)
+// 2.2 力量离合期望 (虚拟弹簧允许拉伸的最大输出轴度数，度数越大爆发的推力越大)
+#define FORCE_ZERO_REAR_DEG     18.0f   // 后腿收缩靠墙维持力 (相当于原 15000 Ticks)
+#define FORCE_ZERO_FRONT_DEG    2.5f    // 前腿收缩靠墙维持力 (相当于原 2000 Ticks)
+#define FORCE_MAX_REAR_DEG      60.0f   // 后腿撑起车身极限力 (相当于原 50000 Ticks)
+#define FORCE_MAX_FRONT_DEG     6.0f    // 前腿撑起车身极限力 (相当于原 5000 Ticks)
 
+// 2.3 堵转静止判定期望 (允许的最大抖动速度：度/秒)
+#define JITTER_TOLERANCE_DEG    2.5f    // 只要抖动速度小于 2.5 度/秒，就判定为彻底死点静止
+
+// 2.4 判定时间窗口与安全系数
+#define CALI_TIMEOUT_SEC        25.0f   // 全局防暴走超时保护时间 (秒)
+#define ZERO_CHECK_SEC          2.0f    // 零点堵转持续判定时间 (秒)
+#define MAX_CHECK_SEC           1.0f    // 伸展堵转持续判定时间 (秒)
+#define MAX_CALI_SAFE_RATIO     0.99f   // 机械限位保留系数
+
+// 公式：度数 转化为 对应电机的 Ticks (1圈=360度=8192*减速比)
+#define DEG_TO_TICKS(deg, ratio)      ((deg) * (ratio) * 8192.0f / 360.0f)
+
+// 1. 时间转 Tick 循环次数
+#define CALI_TIMEOUT_TICKS            (uint32_t)(CALI_TIMEOUT_SEC * CALI_TASK_FREQ)
+#define ZERO_CALI_CHECK_TICKS         (uint32_t)(ZERO_CHECK_SEC * CALI_TASK_FREQ)
+#define MAX_CALI_CHECK_TICKS          (uint32_t)(MAX_CHECK_SEC * CALI_TASK_FREQ)
+
+// 2. 斜坡步长推导 (Step = 期望速度转成的Ticks / 频率)
+#define ZERO_CALI_STEP_REAR           (DEG_TO_TICKS(SPEED_RETRACT_REAR_DEG, GEAR_RATIO_REAR) / CALI_TASK_FREQ)
+#define ZERO_CALI_STEP_FRONT          (DEG_TO_TICKS(SPEED_RETRACT_FRONT_DEG, GEAR_RATIO_FRONT) / CALI_TASK_FREQ)
+#define MAX_CALI_STEP_REAR            (DEG_TO_TICKS(SPEED_EXTEND_REAR_DEG, GEAR_RATIO_REAR) / CALI_TASK_FREQ)
+#define MAX_CALI_STEP_FRONT           (DEG_TO_TICKS(SPEED_EXTEND_FRONT_DEG, GEAR_RATIO_FRONT) / CALI_TASK_FREQ)
+
+// 3. 滑动离合力矩推导 (转化为 Ticks 误差)
+#define ZERO_CALI_SLIP_LIMIT_REAR     DEG_TO_TICKS(FORCE_ZERO_REAR_DEG, GEAR_RATIO_REAR)
+#define ZERO_CALI_SLIP_LIMIT_FRONT    DEG_TO_TICKS(FORCE_ZERO_FRONT_DEG, GEAR_RATIO_FRONT)
+#define MAX_CALI_SLIP_LIMIT_REAR      DEG_TO_TICKS(FORCE_MAX_REAR_DEG, GEAR_RATIO_REAR)
+#define MAX_CALI_SLIP_LIMIT_FRONT     DEG_TO_TICKS(FORCE_MAX_FRONT_DEG, GEAR_RATIO_FRONT)
+
+// 4. 堵转静止容差推导 (允许抖动速度 * 判定时间 = 允许的 Ticks 波动范围)
+#define ZERO_CALI_STOP_THRES_REAR     DEG_TO_TICKS(JITTER_TOLERANCE_DEG * ZERO_CHECK_SEC, GEAR_RATIO_REAR)
+#define ZERO_CALI_STOP_THRES_FRONT    DEG_TO_TICKS(JITTER_TOLERANCE_DEG * ZERO_CHECK_SEC, GEAR_RATIO_FRONT)
+#define MAX_CALI_STOP_THRES_REAR      DEG_TO_TICKS(JITTER_TOLERANCE_DEG * MAX_CHECK_SEC, GEAR_RATIO_REAR)
+#define MAX_CALI_STOP_THRES_FRONT     DEG_TO_TICKS(JITTER_TOLERANCE_DEG * MAX_CHECK_SEC, GEAR_RATIO_FRONT)
+
+/* ================================================================================== */
 
 /* Private variables ---------------------------------------------------------*/
 
