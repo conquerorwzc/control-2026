@@ -24,9 +24,9 @@
 //bool类型
 typedef enum
 {
-  true = 1,
-  false = 0
-} bool;
+  can_true = 1,
+  can_false = 0
+} can_bool_t;
 /*
 //can通信目标
 typedef enum

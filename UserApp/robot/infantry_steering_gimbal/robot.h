@@ -7,7 +7,7 @@
 #include "remote_control.h"
 // #include "rm_referee.h"
 #include "super_cap.h"
-#include "can_comm.h"
+//#include "can_comm.h"
 
 // todo: add vision_module
 
@@ -18,6 +18,10 @@ typedef union {
   int16_t value;
   uint8_t bytes[2];
 } Int16ToBytes;
+
+//上传数据结构体，供master_process访问
+
+
 
 typedef enum {
   ROBOT_POWER_OFF = 0,

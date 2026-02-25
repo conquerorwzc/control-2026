@@ -16,13 +16,13 @@
 #include "srm_protocol.h"
 #include "navigator.h"
 #include "ins_task.h"
+#include "robot_config.h"
 #include  "HI05.h"
 #define VISION_USE_VCP
 
 
 #ifdef VISION_USE_VCP
 static DaemonInstance *vision_daemon_instance;
-
 static  Vision_Receive_s recv_data;//接收数据
 static  Vision_Send_s send_data;//发送数据
 static  INS_t* current_attitude;
@@ -45,6 +45,7 @@ void InitParam(void) {
 
   RIGISTER_ID(send, 1, send_data.gimbal_send);
   RIGISTER_ID(send, 2, send_data.shoot_send);
+  //RIGISTER_ID(send, 3, send_data.referee_send);
 }
 
 void UpdateGimbalAttitude(Vision_Send_s *vision_send) {
@@ -61,8 +62,9 @@ void UpdateGimbalAttitude(Vision_Send_s *vision_send) {
   // vision_send->gimbal_send.roll=current_attitude->roll;
   vision_send->gimbal_send.mode=0;
   vision_send->gimbal_send.color=0;
-  vision_send->shoot_send.bullet_speed=21;
-
+  vision_send->shoot_send.bullet_speed=upload->bullet_speed;
+  //vision_send->referee_send.HP=upload->HP;
+  //vision_send->referee_send.Heat=upload->Heat;
 }
 
 

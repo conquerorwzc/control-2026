@@ -68,8 +68,15 @@ typedef struct {
 
 typedef struct
 {
+  uint16_t HP;
+  uint16_t Heat;
+} Referee_Send_s;
+
+typedef struct
+{
   Gimbal_Send_s gimbal_send;
   Shoot_Send_s shoot_send;
+  //Referee_Send_s referee_send;
 } Vision_Send_s;
 
 // typedef enum

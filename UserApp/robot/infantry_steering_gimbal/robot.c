@@ -2,10 +2,11 @@
 
 #include "components/gimbal/gimbal_steering_infantry/gimbal.h"
 #include "general_def.h"
+#include "can_comm.h"
 #include "master_process.h"
 #include "robot_config.h"
 #include "user_lib.h"
-
+upload_data* upload;
 static RobotInstance *robot;
 Int16ToBytes transmit_data;
 
@@ -86,7 +87,7 @@ static void RemoteControlSet() {
   // 右[上]，超电，保持底盘跟随云台
   else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-    chassis_ctrl_cmd->max_power = 100;
+    chassis_ctrl_cmd->max_power = 200;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
     } else
@@ -432,7 +433,7 @@ void RobotTask() {
   // board_can_comm_data.tx_buff[10] = rc_data->rc.switch_right;
 
   CANCommSend(can_comm_instance, (uint8_t*)chassis_ctrl_cmd);
-
+  upload=(upload_data*)CANCommGet(can_comm_instance);
 #endif
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)

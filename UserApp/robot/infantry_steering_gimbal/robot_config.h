@@ -3,7 +3,7 @@
 
 #include "gimbal.h"
 #include "shoot.h"
-
+#include "can_comm.h"
 #define BOARD_TX_ID 0x10
 #define BOARD_RX_ID 0x311
 
@@ -212,4 +212,12 @@ static CANInstance board_can_comm_data = {
     .DLC = 0x08,         // 数据长度8字节
   }
 };
+#pragma pack(1)
+typedef struct {
+  float bullet_speed;
+  uint16_t HP;
+  uint16_t Heat;
+} upload_data;
+#pragma pack()
+extern upload_data* upload;
 #endif  // CONTROL_2026_ROBOT_CONFIG_H
