@@ -9,7 +9,35 @@
 /* Private macro -------------------------------------------------------------*/
 #define LEFT 0
 #define RIGHT 1
-//@todo:数据待测
+// 【全局运行参数】
+#define CALI_TASK_FREQ              500     // 标定任务当前的运行频率 (500Hz = 每秒执行500次)
+#define CALI_TIMEOUT_SEC            25      // 标定超时保护时间 (秒)
+#define CALI_TIMEOUT_TICKS          (CALI_TIMEOUT_SEC * CALI_TASK_FREQ) // 自动计算: 12500次
+
+// 判定静止(堵转)的时间窗口
+#define ZERO_CALI_CHECK_SEC         2       // 零点标定判定窗口 (2秒，更稳)
+#define ZERO_CALI_CHECK_TICKS       (ZERO_CALI_CHECK_SEC * CALI_TASK_FREQ)
+#define MAX_CALI_CHECK_SEC          1       // 伸展标定判定窗口 (1秒即可)
+#define MAX_CALI_CHECK_TICKS        (MAX_CALI_CHECK_SEC * CALI_TASK_FREQ)
+
+// 【零点(收缩)标定参数】
+#define ZERO_CALI_STEP_REAR         200.0f  // 后腿收缩斜坡步长 (温柔回收)
+#define ZERO_CALI_STEP_FRONT        10.0f   // 前腿收缩斜坡步长
+#define ZERO_CALI_SLIP_LIMIT_REAR   15000.0f// 后腿滑动离合阈值 (防撞墙高频震荡)
+#define ZERO_CALI_SLIP_LIMIT_FRONT  2000.0f // 前腿滑动离合阈值
+#define ZERO_CALI_STOP_THRES_REAR   4000.0f // 后腿静止判定容差 (2秒内位移小于此值算停止)
+#define ZERO_CALI_STOP_THRES_FRONT  800.0f  // 前腿静止判定容差
+
+// 【最大行程(伸展)标定参数】
+#define MAX_CALI_STEP_REAR          300.0f  // 后腿伸展斜坡步长 (提供足够爆发力)
+#define MAX_CALI_STEP_FRONT         15.0f   // 前腿伸展斜坡步长
+#define MAX_CALI_SLIP_LIMIT_REAR    50000.0f// 后腿撑起车体的极限力矩离合阈值
+#define MAX_CALI_SLIP_LIMIT_FRONT   5000.0f // 前腿撑起车体的极限力矩离合阈值
+#define MAX_CALI_STOP_THRES_REAR    10000.0f// 后腿伸满静止容差 (1秒内位移小于此值算停止)
+#define MAX_CALI_STOP_THRES_FRONT   2000.0f // 前腿伸满静止容差
+#define MAX_CALI_SAFE_RATIO         0.99f   // 机械限位安全保留系数 (99%)
+
+
 /* Private variables ---------------------------------------------------------*/
 
 static ChassisInstance *chassis;
@@ -134,10 +162,14 @@ void ChassisTask()
         ChassisCalibrationTask();
         return; // 标定期间，直接 return，不执行下方正常的底盘解算和输出
     }
-    //如果未标定全伸展尺寸，则进入全伸展的标定
+
+
+    // 只有在：处于爬楼模式 + 处于全伸出状态 + 最大行程没标定过 + 零点已经标定
+    // 这四个条件同时满足时，才允许进入最大伸展标定
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB &&
-        chassis_ctrl_cmd->climb_state == CLIMB_STAGE_BOTH_EXTEND &&
-        !is_max_calibrated)
+            chassis_ctrl_cmd->climb_state == CLIMB_STAGE_BOTH_EXTEND &&
+            !is_max_calibrated &&
+            all_cali_done)
     {
         for (int i = 0; i < 4; i++) DJIMotorStop(chassis->wheel_motor[i]);
         for (int i = 0; i < 2; i++) {
@@ -356,23 +388,24 @@ void Climb_FSM()
 }
 
 /**
- * @brief 非阻塞式的底盘抬升零点标定任务 (引入滑动离合防震荡版)
+ * @brief 阶段一：底盘抬升零点标定任务 (收缩归零)
+ * @note  引入滑动离合防震荡与高精度位移检测
  */
 static void ChassisCalibrationTask(void)
 {
     if (all_cali_done) return;
 
-    // 超时保护：拉长到 25 秒 (12500次循环)，绝对够收到底了
-    static uint16_t timeout_cnt = 0;
+    // 1. 全局超时保护
+    static uint32_t timeout_cnt = 0;
     timeout_cnt++;
-    if (timeout_cnt > 12500)
+    if (timeout_cnt > CALI_TIMEOUT_TICKS)
     {
         chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
         for (int i = 0; i < 2; i++) {
             DJIMotorSetRef(chassis->lift_backward_motor[i], 0);
             DJIMotorSetRef(chassis->lift_forward_motor[i], 0);
         }
-        LOGERROR("[Chassis] Calibration TIMEOUT! Power off for safety!");
+        LOGERROR("[Chassis] Zero Calibration TIMEOUT! Power off for safety!");
         return;
     }
 
@@ -381,21 +414,20 @@ static void ChassisCalibrationTask(void)
     static float cali_zero_angle[4]   = {0};
     static uint8_t first_run = 1;
 
+    // 第一次进入时，目标位置对齐物理位置
     if (first_run)
     {
         cali_target_angle[0] = chassis->lift_backward_motor[0]->measure.total_angle;
         cali_target_angle[1] = chassis->lift_backward_motor[1]->measure.total_angle;
         cali_target_angle[2] = chassis->lift_forward_motor[0]->measure.total_angle;
         cali_target_angle[3] = chassis->lift_forward_motor[1]->measure.total_angle;
-
-        for(int i = 0; i < 4; i++) {
-            last_check_angle[i] = cali_target_angle[i];
-        }
+        for(int i = 0; i < 4; i++) last_check_angle[i] = cali_target_angle[i];
         first_run = 0;
     }
 
-    static uint16_t startup_grace_cnt = 0;
-    if (startup_grace_cnt < 500) startup_grace_cnt++;
+    // 启动宽限期
+    static uint32_t startup_grace_cnt = 0;
+    if (startup_grace_cnt < ZERO_CALI_CHECK_TICKS) startup_grace_cnt++;
 
     for (int i = 0; i < 4; i++)
     {
@@ -403,39 +435,32 @@ static void ChassisCalibrationTask(void)
 
         if (!cali_done[i])
         {
-            float cali_step_size = (i < 2) ? 200.0f : 10.0f;
-            cali_target_angle[i] -= cali_step_size; // 向内收缩
+            // 匀速收缩斜坡
+            float cali_step_size = (i < 2) ? ZERO_CALI_STEP_REAR : ZERO_CALI_STEP_FRONT;
+            cali_target_angle[i] -= cali_step_size;
 
             float current_angle = motor->measure.total_angle;
 
-            // =========================================================
-            // 【核心修复：滑动离合（Slip Clutch）防震荡暴走】
-            // 如果撞到了死点，实际位置不再减小，绝不让目标位置无底线地跑飞！
-            // 强行把两者的最大误差限制在 20000 以内。
-            // 这样 PID 会维持一个恒定、安全的拉力，绝不会引发高频震荡导致误判！
-            if (cali_target_angle[i] < current_angle - 20000.0f) {
-                cali_target_angle[i] = current_angle - 20000.0f;
+            // 滑动离合 (防撞墙暴走)：如果目标跑得太后，强行拉回
+            float slip_threshold = (i < 2) ? ZERO_CALI_SLIP_LIMIT_REAR : ZERO_CALI_SLIP_LIMIT_FRONT;
+            if (cali_target_angle[i] < current_angle - slip_threshold) {
+                cali_target_angle[i] = current_angle - slip_threshold;
             }
-            // =========================================================
 
             DJIMotorSetPIDRef(motor, cali_target_angle[i]);
 
-            if (startup_grace_cnt >= 500)
+            // 堵转位移结算
+            if (startup_grace_cnt >= ZERO_CALI_CHECK_TICKS)
             {
                 cali_block_cnt[i]++;
-
-                // 每隔 1.0 秒 结算一次位移
-                if (cali_block_cnt[i] > 500)
+                if (cali_block_cnt[i] > ZERO_CALI_CHECK_TICKS)
                 {
-                    // 既然解决了震荡，这里的位移容差也可以适当放宽，保证稳定触发
-                    float check_threshold = (i < 2) ? 15000.0f : 3000.0f;
-
+                    float check_threshold = (i < 2) ? ZERO_CALI_STOP_THRES_REAR : ZERO_CALI_STOP_THRES_FRONT;
                     if (fabsf(current_angle - last_check_angle[i]) < check_threshold)
                     {
                         cali_done[i] = 1;
                         cali_zero_angle[i] = current_angle;
                     }
-
                     last_check_angle[i] = current_angle;
                     cali_block_cnt[i] = 0;
                 }
@@ -443,18 +468,16 @@ static void ChassisCalibrationTask(void)
         }
         else
         {
+            // 对于已经提前收到底的腿，用零点死死锁住防掉落
             DJIMotorSetPIDRef(motor, cali_zero_angle[i]);
         }
     }
 
+    // 结算逻辑
     all_cali_done = cali_done[0] && cali_done[1] && cali_done[2] && cali_done[3];
-
     if (all_cali_done)
     {
-        init_angle[0] = cali_zero_angle[0];
-        init_angle[1] = cali_zero_angle[1];
-        init_angle[2] = cali_zero_angle[2];
-        init_angle[3] = cali_zero_angle[3];
+        for(int i = 0; i < 4; i++) init_angle[i] = cali_zero_angle[i];
 
         target_rear_pos[0]  = init_angle[0] + chassis_ctrl_cmd->backward_lift_in;
         target_rear_pos[1]  = init_angle[1] + chassis_ctrl_cmd->backward_lift_in;
@@ -463,41 +486,48 @@ static void ChassisCalibrationTask(void)
 
         chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
         first_run = 1;
-        LOGINFO("[Chassis] Calibration done! Zero points recorded.");
+        LOGINFO("[Chassis] Zero Calibration done! Zero points recorded.");
     }
 }
+
 /**
- * @brief 最大伸展行程动态标定任务 (位置环斜坡控制 - 经典纯软件堵转检测版)
+ * @brief 阶段二：最大伸展行程动态标定任务 (顶出)
+ * @note  引入带载滑动离合，无视一切震动误差
  */
 static void MaxExtensionCalibrationTask(void)
 {
     if (is_max_calibrated) return;
 
-    // 超时保护 (给足 25 秒的极限宽裕时间，12500 * 2ms = 25s)
-    static uint16_t timeout_cnt = 0;
+    // 1. 全局超时保护
+    static uint32_t timeout_cnt = 0;
     timeout_cnt++;
-    if (timeout_cnt > 12500)
+    if (timeout_cnt > CALI_TIMEOUT_TICKS)
     {
         chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
         for (int i = 0; i < 2; i++) {
             DJIMotorSetRef(chassis->lift_backward_motor[i], 0);
             DJIMotorSetRef(chassis->lift_forward_motor[i], 0);
         }
+        LOGERROR("[Chassis] Max Ext Calibration TIMEOUT!");
         return;
     }
 
     static float cali_target_angle[4] = {0};
+    static float last_check_angle[4]  = {0};
     static uint8_t first_run = 1;
 
-    // 第一次进入时，让目标位置对齐当前物理位置，防止起步抽搐
     if (first_run)
     {
         cali_target_angle[0] = chassis->lift_backward_motor[0]->measure.total_angle;
         cali_target_angle[1] = chassis->lift_backward_motor[1]->measure.total_angle;
         cali_target_angle[2] = chassis->lift_forward_motor[0]->measure.total_angle;
         cali_target_angle[3] = chassis->lift_forward_motor[1]->measure.total_angle;
+        for(int i=0; i<4; i++) last_check_angle[i] = cali_target_angle[i];
         first_run = 0;
     }
+
+    static uint32_t startup_grace_cnt = 0;
+    if (startup_grace_cnt < MAX_CALI_CHECK_TICKS) startup_grace_cnt++;
 
     uint8_t current_all_done = 1;
 
@@ -509,62 +539,45 @@ static void MaxExtensionCalibrationTask(void)
         {
             current_all_done = 0;
 
-            // ================== 参数分离与斜坡配置 ==================
-            float cali_step_size;
-            float cali_err_threshold;
-
-            if (i < 2) {
-                // 【后腿】行程大，允许的带载滞后误差放宽到 50000
-                cali_step_size = 300.0f;
-                cali_err_threshold = 50000.0f;
-            } else {
-                // 【前腿】行程小，滞后误差放到 5000
-                cali_step_size = 15.0f;
-                cali_err_threshold = 5000.0f;
-            }
-            // ========================================================
-
-            // 1. 目标角度匀速斜坡增加
+            // 匀速伸出斜坡 (这里是加号)
+            float cali_step_size = (i < 2) ? MAX_CALI_STEP_REAR : MAX_CALI_STEP_FRONT;
             cali_target_angle[i] += cali_step_size;
 
-            // 下发位置环指令
+            float current_angle = motor->measure.total_angle;
+
+            // 滑动离合 (防带载软腿/防死点暴走)：如果目标跑得太前，强行拉回
+            float slip_threshold = (i < 2) ? MAX_CALI_SLIP_LIMIT_REAR : MAX_CALI_SLIP_LIMIT_FRONT;
+            if (cali_target_angle[i] > current_angle + slip_threshold) {
+                cali_target_angle[i] = current_angle + slip_threshold;
+            }
+
             DJIMotorSetPIDRef(motor, cali_target_angle[i]);
 
-            // 2. 获取反馈与误差
-            float current_angle = motor->measure.total_angle;
-            float current_speed = motor->measure.speed_aps;
-            float pos_error = fabsf(cali_target_angle[i] - current_angle);
-
-            // 3. 软件堵转判定核心逻辑
-            // 条件 A: 误差拉得足够大 (说明 PID 真拉不动了，排除了起步阻力)
-            // 条件 B: 速度小于 60 (放宽对震动的容忍，无视电机受阻时的轻微嗡嗡声)
-            if (pos_error > cali_err_threshold && fabsf(current_speed) < 60.0f)
+            // 堵转位移结算
+            if (startup_grace_cnt >= MAX_CALI_CHECK_TICKS)
             {
                 max_cali_block_cnt[i]++;
-                // 必须持续堵转 0.6 秒 (300次)！防止半路的暂时卡涩被当成到底
-                if (max_cali_block_cnt[i] > 300)
+                if (max_cali_block_cnt[i] > MAX_CALI_CHECK_TICKS)
                 {
-                    max_cali_done[i] = 1;
-                    max_angle[i] = current_angle; // 记录极限物理死点
-
-                    // 【防倒塌机制】标定完成后，立刻把 PID 目标锁死在物理死点，强力支撑车体！
-                    DJIMotorSetPIDRef(motor, max_angle[i]);
+                    float check_threshold = (i < 2) ? MAX_CALI_STOP_THRES_REAR : MAX_CALI_STOP_THRES_FRONT;
+                    if (fabsf(current_angle - last_check_angle[i]) < check_threshold)
+                    {
+                        max_cali_done[i] = 1;
+                        max_angle[i] = current_angle;
+                    }
+                    last_check_angle[i] = current_angle;
+                    max_cali_block_cnt[i] = 0;
                 }
-            }
-            else
-            {
-                // 只要速度恢复，或者误差还没达到阈值(说明PID还在积攒力量推)，就清零计数
-                max_cali_block_cnt[i] = 0;
             }
         }
         else
         {
-            // 对于已经提前伸满的腿，每一帧都要持续下发 PID 锁死指令，撑住车体！
+            // 防软腿脱力保护：已经伸满的腿用 PID 死死锁定最大角度撑住车身！
             DJIMotorSetPIDRef(motor, max_angle[i]);
         }
     }
 
-    // 后续结算逻辑
+    // 结算逻辑与安全配置
     if (current_all_done)
     {
         float rear_stroke_l  = fabsf(max_angle[0] - init_angle[0]);
@@ -572,19 +585,20 @@ static void MaxExtensionCalibrationTask(void)
         float front_stroke_l = fabsf(max_angle[2] - init_angle[2]);
         float front_stroke_r = fabsf(max_angle[3] - init_angle[3]);
 
-        // 木桶效应保护机械干涉
+        // 木桶效应保护，取最小值
         float rear_min_stroke  = fminf(rear_stroke_l, rear_stroke_r);
         float front_min_stroke = fminf(front_stroke_l, front_stroke_r);
 
         float rear_sign  = (max_angle[0] > init_angle[0]) ? 1.0f : -1.0f;
         float front_sign = (max_angle[2] > init_angle[2]) ? 1.0f : -1.0f;
 
-        // 保留 99% 的绝对安全限位
-        chassis_ctrl_cmd->backward_lift_out = rear_sign * rear_min_stroke * 0.99f;
-        chassis_ctrl_cmd->forward_lift_out  = front_sign * front_min_stroke * 0.99f;
+        // 应用极限安全系数写入配置
+        chassis_ctrl_cmd->backward_lift_out = rear_sign * rear_min_stroke * MAX_CALI_SAFE_RATIO;
+        chassis_ctrl_cmd->forward_lift_out  = front_sign * front_min_stroke * MAX_CALI_SAFE_RATIO;
 
         is_max_calibrated = 1;
-        first_run = 1; // 标定彻底结束，重置首圈标志
+        first_run = 1;
+        LOGINFO("[Chassis] Max Ext Calibration done! Max parameters saved.");
     }
 }
 

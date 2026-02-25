@@ -103,17 +103,14 @@ void RobotCMDTask()
 }
 
 /**
- * @brief  紧急停止,包括遥控器左上侧拨轮打满/重要模块离线/双板通信失效等
- *         停止的阈值'300'待修改成合适的值,或改为开关控制.
- *
- * @todo   后续修改为遥控器离线则电机停止(关闭遥控器急停),通过给遥控器模块添加daemon实现
+ * @brief  紧急停止，人为手动急停（遥控器左右双拨杆打下）或者遥控器离线
  *
  */
 static void EmergencyHandler()
 {
-    //最高优先级：人为手动急停（遥控器左右双拨杆打下）
+    // 人为手动急停（遥控器左右双拨杆打下）或者遥控器离线
     if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)) ||
-       !RemoteControlIsOnline())
+        !RemoteControlIsOnline())
     {
         robot->robot_mode = ROBOT_EMERGENCY_STOP;
         chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
@@ -134,7 +131,8 @@ static void MouseKeySet()
         return;
     }
     // 标定期间屏蔽键鼠控制
-    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CALIBRATING) return;
+    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CALIBRATING)
+        return;
 
     if (rc_data[TEMP].rc.dial != 0 || rc_data[TEMP].rc.rocker_l1 != 0 || rc_data[TEMP].rc.rocker_l_ != 0 ||
         rc_data[TEMP].rc.rocker_r1 != 0 || rc_data[TEMP].rc.rocker_r_ != 0)
@@ -320,7 +318,7 @@ static void RemoteControlSet()
     {
         // 获取当前拨杆的瞬时状态
         uint8_t current_switch = rc_data[TEMP].rc.switch_left;
-        static uint8_t last_switch = 0;       // 上一次的拨杆位置
+        static uint8_t last_switch = 0;        // 上一次的拨杆位置
         static uint32_t switch_stable_cnt = 0; // 稳定计时器
 
         if (current_switch == last_switch)
@@ -331,13 +329,16 @@ static void RemoteControlSet()
             // 当达到 0.3s 的稳定时间时，执行状态切换
             if (switch_stable_cnt >= SWITCH_STABLE_TICKS)
             {
-                if (switch_is_up(current_switch)) {
+                if (switch_is_up(current_switch))
+                {
                     chassis_ctrl_cmd->climb_state = CLIMB_STAGE_BOTH_EXTEND;
                 }
-                else if (switch_is_mid(current_switch)) {
+                else if (switch_is_mid(current_switch))
+                {
                     chassis_ctrl_cmd->climb_state = CLIMB_STAGE_FRONT_RETRACT;
                 }
-                else if (switch_is_down(current_switch)) {
+                else if (switch_is_down(current_switch))
+                {
                     chassis_ctrl_cmd->climb_state = CLIMB_STAGE_ALL_RETRACT;
                 }
                 // 达到阈值后可以停止累加，防止溢出（虽然 0.3s 很短，建议保持 count）
