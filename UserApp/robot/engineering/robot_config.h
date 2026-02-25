@@ -117,12 +117,12 @@
         .controller_param_init_config =                                                                                \
             {.angle_PID =                                                                                              \
                  {                                                                                                     \
-                     .Kp = 6.0f,                                                                                       \
+                     .Kp = 30.0f,                                                                                       \
                      .Ki = 0,                                                                                          \
                      .Kd = 0,                                                                                          \
                      .IntegralLimit = 0,                                                                               \
                      .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,          \
-                     .MaxOut = 800.0f,                                                                                 \
+                     .MaxOut = 14000.0f,                                                                                 \
                  },                                                                                                    \
              .speed_PID =                                                                                              \
                  {                                                                                                     \
@@ -131,7 +131,7 @@
                      .Kd = 0.0f,                                                                                       \
                      .IntegralLimit = 0,                                                                               \
                      .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,          \
-                     .MaxOut = 12000.0f,                                                                               \
+                     .MaxOut = 720.0f,                                                                               \
                  }},                                                                                                   \
         .controller_setting_init_config =                                                                              \
             {                                                                                                          \

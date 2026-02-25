@@ -61,7 +61,7 @@ static Motor_Init_Config_s M3508_config = {
             .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
         },
     .motor_type = M3508,
-    .can_init_config.can_handle = &hcan2,
+    .can_init_config.can_handle = &hcan1,
     .can_init_config.tx_id = 1,
     .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
     .controller_setting_init_config.feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,

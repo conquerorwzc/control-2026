@@ -23,7 +23,7 @@ void RobotInit()
 {
     // J8009P_instance = DMMotorInit(&J8009P_config);
     M3508_instance = DJIMotorInit(&M3508_config);
-    M3508_instance_2 = DJIMotorInit(&M3508_config_2);
+    // M3508_instance_2 = DJIMotorInit(&M3508_config_2);
     // M2006_instance = DJIMotorInit(&M2006_config);
     // M2006_instance_2 = DJIMotorInit(&M2006_config_2);
 }
