@@ -77,6 +77,7 @@ static void RemoteControlSet() {
   if (switch_is_mid(rc_data[TEMP].rc.switch_right))
   {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+    chassis_ctrl_cmd->max_power = 50;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
     } else
@@ -85,6 +86,7 @@ static void RemoteControlSet() {
   // 右[上]，超电，保持底盘跟随云台
   else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+    chassis_ctrl_cmd->max_power = 100;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
     } else
@@ -382,7 +384,7 @@ void RobotInit() {
   // 初始化控制命令指针
   //chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   chassis_ctrl_cmd=(Chassis_Ctrl_Cmd_s*)zmalloc(sizeof(Chassis_Ctrl_Cmd_s));
-  chassis_ctrl_cmd->max_power = 280;  // 随便给一个初始功率，后面应该要从裁判系统获取
+  chassis_ctrl_cmd->max_power = 10;  // 随便给一个初始功率，后面应该要从裁判系统获取
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;
