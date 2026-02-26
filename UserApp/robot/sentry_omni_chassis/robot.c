@@ -72,7 +72,7 @@ static void SentryRefereeSend() {
   sentry_cmd.fields.sentry_mode= robot->sentry_mode;
   sentry_cmd.fields.activate_power_rune=1;
 
-  RefereeSend(sentry_cmd.raw_data,sizeof(sentry_cmd.raw_data));
+  SentrySend(sentry_cmd.raw_data,sizeof(sentry_cmd.raw_data));
 }
 
 /**
@@ -428,7 +428,7 @@ void RobotTask() {
   GimbalTask();
 #endif
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
-  navigator_send(&huart1);
+  // navigator_send(&huart1);
   RobotCMDTask();
   ChassisTask();
 #endif
