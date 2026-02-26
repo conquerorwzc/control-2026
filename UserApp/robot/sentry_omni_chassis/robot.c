@@ -16,6 +16,7 @@ static Vision_Receive_s* vision_recv_data;
 // static navigator_recv_t* navigator_data;
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
+static Sentry_Cmd_t sentry_cmd={0};
 
 /* Intermediate variables calculated by private functions */
 #define USECANREMOTE 1 //是否使用云台板的遥控数据
@@ -61,6 +62,19 @@ static void CalcOffsetAngle() {
   }
   chassis_ctrl_cmd->offset_angle = delta;
 }
+
+static void SentryRefereeSend() {
+  sentry_cmd.fields.confirm_respawn=1;
+  sentry_cmd.fields.confirm_instant_respawn=0;
+  sentry_cmd.fields.projectile_amount=1000;
+  sentry_cmd.fields.projectile_req_cnt=1;
+  sentry_cmd.fields.hp_req_cnt=0;
+  sentry_cmd.fields.sentry_mode= robot->sentry_mode;
+  sentry_cmd.fields.activate_power_rune=1;
+
+  RefereeSend(sentry_cmd.raw_data,sizeof(sentry_cmd.raw_data));
+}
+
 /**
  * @brief 控制输入为遥控器(调试时)的模式和控制量设置
  *
@@ -385,7 +399,7 @@ void RobotInit() {
   rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
   *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
 
-  // robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
+  robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
 
   // robot->super_cap = SuperCapInit(&super_cap_config);
 
@@ -404,6 +418,7 @@ void RobotCMDTask() {
   DualBoardCtrlSet();
   RemoteControlSet();
   MouseKeySet();
+  SentryRefereeSend();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
 
