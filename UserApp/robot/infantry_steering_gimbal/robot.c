@@ -378,6 +378,7 @@ void RobotInit() {
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
   robot->gimbal = GimbalInit(&gimbal_init_config);
   robot->shoot = ShootInit(&shoot_init_config);
+  robot->referee_data = GetReferee();
 #endif
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   robot->chassis = ChassisInit(&chassis_init_config);
@@ -406,6 +407,8 @@ void RobotCMDTask() {
 
 void RobotTask() {
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
+  upload=(upload_data*)CANCommGet(can_comm_instance);
+  robot->referee_data->ShootData.bullet_speed=upload->bullet_speed;
   VisionSend();
   RobotCMDTask();
   GimbalTask();
@@ -434,7 +437,7 @@ void RobotTask() {
   // board_can_comm_data.tx_buff[10] = rc_data->rc.switch_right;
 
   CANCommSend(can_comm_instance, (uint8_t*)chassis_ctrl_cmd);
-  upload=(upload_data*)CANCommGet(can_comm_instance);
+
 #endif
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)

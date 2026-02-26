@@ -14,9 +14,14 @@
 #include "daemon.h"
 #include "bsp_log.h"
 #include "srm_protocol.h"
+#define rfid_status_t navigator_rfid_status_t//TODO:导航和裁判系统有关键字冲突！
 #include "navigator.h"
+#undef rfid_status_t
 #include "ins_task.h"
-#include "robot_config.h"
+//#include "robot_config.h"
+#define rfid_status_t referee_rfid_status_t
+#include "rm_referee.h"
+#undef rfid_status_t
 #include  "HI05.h"
 #define VISION_USE_VCP
 
@@ -26,6 +31,7 @@ static DaemonInstance *vision_daemon_instance;
 static  Vision_Receive_s recv_data;//接收数据
 static  Vision_Send_s send_data;//发送数据
 static  INS_t* current_attitude;
+static referee_info_t* referee_info;
 // static HI05_t* current_attitude;
 
 //打包，注册
@@ -62,7 +68,7 @@ void UpdateGimbalAttitude(Vision_Send_s *vision_send) {
   // vision_send->gimbal_send.roll=current_attitude->roll;
   vision_send->gimbal_send.mode=0;
   vision_send->gimbal_send.color=0;
-  vision_send->shoot_send.bullet_speed=upload->bullet_speed;
+  vision_send->shoot_send.bullet_speed=referee_info->ShootData.bullet_speed;
   //vision_send->referee_send.HP=upload->HP;
   //vision_send->referee_send.Heat=upload->Heat;
 }
@@ -165,6 +171,7 @@ static void DecodeVision(uint16_t recv_len)
 Vision_Receive_s *VisionInit(IMU_Init_Config_s* imu_init_config)
 {
     current_attitude=INS_Init(imu_init_config);
+    referee_info=GetReferee();
     //current_attitude->Roll = HI05_Init(&huart1)->roll;
     USB_Init_Config_s conf = {.rx_cbk = DecodeVision};
     vis_recv_buff = USBInit(conf);
