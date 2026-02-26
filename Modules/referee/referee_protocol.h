@@ -182,7 +182,7 @@ typedef struct
     uint8_t level;
     uint8_t offending_robot_id;
     uint8_t count;
-}referee_warning_t;
+}ext_referee_warning_t;
 
 /* ID: 0X0201  Byte: 13    机器人状态数据 */
 typedef struct
@@ -202,9 +202,9 @@ typedef struct
 /* ID: 0X0202  Byte: 14    实时功率热量数据 */
 typedef struct
 {
-  uint16_t reserved;
-  uint16_t reserved;
-  float reserved;
+  uint16_t reserved_1;
+  uint16_t reserved_2;
+  float reserved_3;
   uint16_t buffer_energy;
   uint16_t shooter_17mm_barrel_heat;
   uint16_t shooter_42mm_barrel_heat;
@@ -267,20 +267,20 @@ typedef struct
   uint16_t projectile_allowance_42mm;  // 42mm弹丸允许发弹量
   uint16_t remaining_gold_coin;        // 剩余金币数量
   uint16_t projectile_allowance_fortress;  // 堡垒增益点提供的储备17mm弹丸允许发弹量；该值与机器人是否实际占领堡垒无关
-}projectile_allowance_t;
+}ext_projectile_allowance_t;
 
 /* ID: 0x0209  Byte:  5    RFID模块状态 */
 typedef struct
 {
   uint32_t rfid_status;  // bit 23：中心增益点（仅 RMUL 适用）...
   uint8_t rfid_status_2;  
-}rfid_status_t;
+}ext_rfid_status_t;
 
 /* ID: 0x020D  Byte:  6   哨兵自主决策信息同步  */
-typedef _packed struct {
+typedef struct {
   uint32_t sentry_info;
   uint16_t sentry_info_2;
-} sentry_info_t;
+} ext_sentry_info_t;
 
 /****************************机器人交互数据****************************/
 /* 发送的内容数据段最大为 113 检测是否超出大小限制?实际上图形段不会超，数据段最多30个，也不会超*/
