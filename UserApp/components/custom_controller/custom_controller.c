@@ -61,12 +61,12 @@ CustomController_t* CustomControllerInit(CustomController_Init_Config_s* init_co
         controller->motor_data[i].is_online = 0;
     }
     
-    // 初始化USART实例，使用USART3
+    // 初始化USART实例，使用USART6
     if (custom_controller_usart == NULL) {
         USART_Init_Config_s usart_config = {0};
         usart_config.recv_buff_size = 256;
-        extern UART_HandleTypeDef huart3;  // 声明外部USART3句柄
-        usart_config.usart_handle = &huart3;
+        extern UART_HandleTypeDef huart6;  // 声明外部USART6句柄
+        usart_config.usart_handle = &huart6;
         usart_config.module_callback = NULL;  // 如果需要接收回调可以设置
         custom_controller_usart = USARTRegister(&usart_config);
     }
