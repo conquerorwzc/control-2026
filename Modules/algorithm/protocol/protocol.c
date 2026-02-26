@@ -1,10 +1,13 @@
 #include "protocol.h"
 
 #define BUFFER_MAX_SIZE 128
+#define BUFFER_COUNT 2  // 双缓冲区
 
 #define START_CODE 0XA5
 
-static uint8_t internal_tx_buffer[BUFFER_MAX_SIZE];
+// 双缓冲区实现
+static uint8_t internal_tx_buffers[BUFFER_COUNT][BUFFER_MAX_SIZE];
+static uint8_t current_buffer_index = 0;  // 当前使用的缓冲区索引
 
 void protocol_packed(uint8_t *data,uint16_t cmd_id,uint8_t data_len,uint8_t *tx_buff,uint16_t *tx_buff_length){
 
@@ -48,7 +51,7 @@ void protocol_packed(uint8_t *data,uint16_t cmd_id,uint8_t data_len,uint8_t *tx_
         memset(&tx_buff[7], 0, fixed_data_len);
     }
     //帧尾CRC16
-    crc16 = get_CRC16_check_sum(&tx_buff[0], fixed_data_len + 7,0xFFFF);
+    crc16 = get_CRC16_check_sum(&tx_buff[0], fixed_data_len + 7, 0xFFFF);
     tx_buff[fixed_data_len + 7] = crc16 & 0xFF;
     tx_buff[fixed_data_len + 8] = (crc16 >> 8) & 0xFF;
     *tx_buff_length = total_len;
@@ -59,6 +62,14 @@ void protocol_packed(uint8_t *data,uint16_t cmd_id,uint8_t data_len,uint8_t *tx_
 
 uint8_t *custom_controller_protocol_pack(uint16_t cmd_id, uint8_t *data, uint8_t data_len, uint16_t *packed_length)
 {
-    protocol_packed(data, cmd_id, data_len, internal_tx_buffer, packed_length);
-    return internal_tx_buffer;
+    // 选择当前缓冲区
+    uint8_t *current_buffer = internal_tx_buffers[current_buffer_index];
+    
+    // 打包数据到当前缓冲区
+    protocol_packed(data, cmd_id, data_len, current_buffer, packed_length);
+    
+    // 切换到下一个缓冲区（交替使用）
+    current_buffer_index = (current_buffer_index + 1) % BUFFER_COUNT;
+    
+    return current_buffer;
 }

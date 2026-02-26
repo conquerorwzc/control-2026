@@ -159,7 +159,8 @@ void CustomController_SendAllData(CustomController_t* controller)
     uint8_t *packed_data = custom_controller_protocol_pack(CMD_ID_CUSTOM_CONTROLLER, controller_data, sizeof(controller_data), &packed_length);
     
     if (packed_data != NULL && packed_length > 0 && controller->usart_instance != NULL) {
-        // 通过UART发送打包后的数据
+        // 直接发送，双缓冲区机制确保数据安全
+        // 当DMA正在发送一个缓冲区时，CPU可以安全地准备下一个缓冲区
         USARTSend(controller->usart_instance, packed_data, packed_length, USART_TRANSFER_DMA);
     }
 }
