@@ -62,7 +62,7 @@ static bool parse_custom_controller_data(const uint8_t *packed_data, uint16_t pa
     }
 
     // 解析电位器数据 (1个电位器)
-    uint8_t pot_start = 16; // 电位器数据起始位置
+    uint8_t pot_start = 20; // 电位器数据起始位置
     
     unpacked_data->pots[0].id = data_ptr[pot_start];
     

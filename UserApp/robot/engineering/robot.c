@@ -97,7 +97,7 @@ void RobotTask()
 #if defined(ONE_BOARD) // 假设龙门架逻辑运行在主控板
     GantryTask();
     GrabTask();
-    // grab_ctrl_cmd->grab_mode = b;
+    grab_ctrl_cmd->grab_mode = b;
 #endif
 }
 
@@ -370,18 +370,18 @@ static void Gantry_Limit(Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd, const Gantry_Param_
  * @brief 处理自定义控制器数据
  */
 static void ProcessCustomControllerData() {
-    if (robot->self_control != NULL) {
-        // 直接获取电机和电位器角度数据
-        if (robot->grab != NULL && grab_ctrl_cmd != NULL) {
-            // 映射4个电机到机械臂关节 (根据实际硬件连接调整)
-            grab_ctrl_cmd->base_joint = SelfControlGetMotorAngle(robot->self_control, 0);      // 电机0 -> 基座关节
-            grab_ctrl_cmd->elbow_roll = SelfControlGetMotorAngle(robot->self_control, 1);      // 电机1 -> 肘部旋转
-            grab_ctrl_cmd->elbow_pitch = SelfControlGetMotorAngle(robot->self_control, 2);     // 电机2 -> 肘部俯仰
-            grab_ctrl_cmd->wrist_pitch = SelfControlGetMotorAngle(robot->self_control, 3);     // 电机3 -> 腕部俯仰
-            
-            // 使用电位器数据控制腕部旋转
-            grab_ctrl_cmd->wrist_roll = SelfControlGetPotAngle(robot->self_control, 0);        // 电位器0 -> 腕部旋转
-        }
+     if (robot->self_control != NULL) {
+         // 直接获取电机和电位器角度数据
+         if (robot->grab != NULL && grab_ctrl_cmd != NULL) {
+             // 映射4个电机到机械臂关节 (根据实际硬件连接调整)
+             grab_ctrl_cmd->base_joint = SelfControlGetMotorAngle(robot->self_control, 0);      // 电机0 -> 基座关节
+             grab_ctrl_cmd->elbow_roll = SelfControlGetMotorAngle(robot->self_control, 1);      // 电机1 -> 肘部旋转
+             grab_ctrl_cmd->elbow_pitch = SelfControlGetMotorAngle(robot->self_control, 2);     // 电机2 -> 肘部俯仰
+             grab_ctrl_cmd->wrist_pitch = SelfControlGetMotorAngle(robot->self_control, 3);     // 电机3 -> 腕部俯仰
+
+             // 使用电位器数据控制腕部旋转
+             grab_ctrl_cmd->wrist_roll = SelfControlGetPotAngle(robot->self_control, 0);        // 电位器0 -> 腕部旋转
+         }
     }
 }
 
