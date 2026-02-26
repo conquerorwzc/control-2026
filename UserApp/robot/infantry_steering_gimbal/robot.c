@@ -6,6 +6,7 @@
 #include "master_process.h"
 #include "robot_config.h"
 #include "user_lib.h"
+#include "rm_referee.h"
 upload_data* upload;
 static RobotInstance *robot;
 Int16ToBytes transmit_data;
@@ -87,7 +88,7 @@ static void RemoteControlSet() {
   // 右[上]，超电，保持底盘跟随云台
   else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-    chassis_ctrl_cmd->max_power = 200;
+    chassis_ctrl_cmd->max_power = 100;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
     } else
