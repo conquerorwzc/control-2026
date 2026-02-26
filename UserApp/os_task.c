@@ -18,7 +18,6 @@
 // tasks
 #include "buzzer.h"
 #include "daemon.h"
-#include "dmmotor.h"
 #include "ins_task.h"
 #include "master_process.h"
 #include "motor_task.h"
@@ -28,7 +27,6 @@
 #include "dmmotor.h"
 // bsp
 #include "bsp_init.h"
-
 
 osThreadId motorTaskHandle;
 osThreadId daemonTaskHandle;
@@ -52,8 +50,8 @@ void OSTaskInit() {
   osThreadDef(motortask, StartMOTORTASK, osPriorityBelowNormal, 0, 256);
   motorTaskHandle = osThreadCreate(osThread(motortask), NULL);
 
-  // osThreadDef(daemontask, StartDAEMONTASK, osPriorityNormal, 0, 128);
-  // daemonTaskHandle = osThreadCreate(osThread(daemontask), NULL);
+  osThreadDef(daemontask, StartDAEMONTASK, osPriorityNormal, 0, 128);
+  daemonTaskHandle = osThreadCreate(osThread(daemontask), NULL);
 
   osThreadDef(robottask, StartROBOTTASK, osPriorityNormal, 0, 1024);
   robotTaskHandle = osThreadCreate(osThread(robottask), NULL);
@@ -97,7 +95,6 @@ __attribute__((noreturn)) void StartDAEMONTASK(void const *argument) {
 __attribute__((noreturn)) void StartROBOTTASK(void const *argument) {
   static float robot_dt;
   static float robot_start;
-
   RobotInit();
   DMMotorTaskInit();
   LOGINFO("[freeRTOS] ROBOT core Task Start");

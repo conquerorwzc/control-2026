@@ -248,8 +248,8 @@ static void LegControl() {
       }
 
       // 缓慢增加腿部位置，限制最大值
-      leg_current_position_left += LEG_SPEED_RAMP_RATE;
-      leg_current_position_right -= LEG_SPEED_RAMP_RATE;
+      leg_current_position_left -= LEG_SPEED_RAMP_RATE;
+      leg_current_position_right += LEG_SPEED_RAMP_RATE;
 
       // 限制最大位置为KIKE位置
       if (leg_current_position_left > LEFT_LEG_MOTOR_KIKE_POSITION) {
@@ -298,8 +298,8 @@ static void LegControl() {
       }
 
       // 缓慢减少腿部位置，限制最小值
-      leg_current_position_left -= LEG_SPEED_RAMP_RATE;
-      leg_current_position_right += LEG_SPEED_RAMP_RATE;
+      leg_current_position_left += LEG_SPEED_RAMP_RATE;
+      leg_current_position_right -= LEG_SPEED_RAMP_RATE;
 
       // 限制最小位置为NORMAL位置
       if (leg_current_position_left < LEFT_LEG_MOTOR_NORMAL_POSITION) {
