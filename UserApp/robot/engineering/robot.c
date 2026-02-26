@@ -245,10 +245,19 @@ static void MouseKeySet()
  */
 static void RemoteControlSet()
 {
-    // 标定期间屏蔽遥控器模式切换
-    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CALIBRATING)
+    if (!robot->chassis->cali_state.all_cali_done)
     {
-        *rc_data_last = *rc_data; // 保持数据更新
+        // 遥控器在线抢接管逻辑
+        if (RemoteControlIsOnline()) {
+            chassis_ctrl_cmd->chassis_mode = CHASSIS_CALIBRATING;
+        }
+
+        // 依然保留人为急停权限
+        if (switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)) {
+            chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
+        }
+
+        *rc_data_last = *rc_data;
         return;
     }
     // 右侧拨杆控制底盘模式

@@ -83,7 +83,7 @@
                      .Kd = 0,                                                                                          \
                      .IntegralLimit = 0,                                                                               \
                      .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,          \
-                     .MaxOut = 1600.0f,                                                                                \
+                     .MaxOut = 3000.0f,                                                                                \
                  },                                                                                                    \
              .speed_PID =                                                                                              \
                  {                                                                                                     \
@@ -92,7 +92,7 @@
                      .Kd = 0,                                                                                          \
                      .IntegralLimit = 0,                                                                               \
                      .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,          \
-                     .MaxOut = 12000.0f,                                                                               \
+                     .MaxOut = 16000.0f,                                                                               \
                  }                                                                                                     \
                                                                                                                        \
             },                                                                                                         \
@@ -117,21 +117,21 @@
         .controller_param_init_config =                                                                                \
             {.angle_PID =                                                                                              \
                  {                                                                                                     \
-                     .Kp = 30.0f,                                                                                       \
+                     .Kp = 40.0f,                                                                                       \
                      .Ki = 0,                                                                                          \
                      .Kd = 0,                                                                                          \
                      .IntegralLimit = 0,                                                                               \
                      .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,          \
-                     .MaxOut = 14000.0f,                                                                                 \
+                     .MaxOut = 24000.0f,                                                                                 \
                  },                                                                                                    \
              .speed_PID =                                                                                              \
                  {                                                                                                     \
-                     .Kp = 4.0f,                                                                                       \
+                     .Kp = 5.0f,                                                                                       \
                      .Ki = 0.0f,                                                                                       \
                      .Kd = 0.0f,                                                                                       \
                      .IntegralLimit = 0,                                                                               \
                      .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,          \
-                     .MaxOut = 720.0f,                                                                               \
+                     .MaxOut = 1460.0f,                                                                               \
                  }},                                                                                                   \
         .controller_setting_init_config =                                                                              \
             {                                                                                                          \
@@ -169,7 +169,7 @@ static Chassis_Init_Config_s chassis_init_config = {
             .forward_lift_in = 0,
             .forward_lift_out = 13000.0f,
             .backward_lift_in = 1500.0f,
-            .backward_lift_out = 585000.0f,
+            .backward_lift_out = 313280.938f,
 
         },
     .wheel_motor_config[0] = WHEEL_MOTOR_CONFIG(&hcan3, 1),
@@ -179,8 +179,46 @@ static Chassis_Init_Config_s chassis_init_config = {
     .lift_forward_motor_config[0] = LIFT_FORWARD_MOTOR_CONFIG(&hcan2, 2, MOTOR_DIRECTION_NORMAL),  // 前左，0是左，1是右
     .lift_forward_motor_config[1] = LIFT_FORWARD_MOTOR_CONFIG(&hcan2, 1, MOTOR_DIRECTION_REVERSE), // 前右
     .lift_backward_motor_config[0] = LIFT_BACKWARD_MOTOR_CONFIG(&hcan2, 3, MOTOR_DIRECTION_REVERSE), // 后左
-    .lift_backward_motor_config[1] = LIFT_BACKWARD_MOTOR_CONFIG(&hcan2, 4, MOTOR_DIRECTION_REVERSE), // 后右
-    // TODO: id待确定
+    .lift_backward_motor_config[1] = {
+                    .controller_param_init_config =
+                        {
+
+                            .angle_PID =
+                                {
+                                    .Kp = 40.0f,
+                                    .Ki = 0.00f,
+                                    .Kd = 0.00f,
+                                    .MaxOut = 23600.0f,
+                                    .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+                                    .IntegralLimit = 0.0f,
+                                },
+                            .speed_PID =
+                                {
+                                    .Kp = 5.0f,
+                                    .Ki = 0.0f,
+                                    .Kd = 0.00f,
+                                    .MaxOut = 1200.0f,
+                                    .DeadBand = 0.00f,
+                                    .Improve =PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+
+                                },
+                        },
+                    .controller_setting_init_config =
+                        {
+                            .outer_loop_type = ANGLE_LOOP,
+                            .close_loop_type = ANGLE_LOOP | SPEED_LOOP ,
+                            .angle_feedback_source = MOTOR_FEED,
+                            .speed_feedback_source = MOTOR_FEED,
+                            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+                            .feedback_reverse_flag = MOTOR_DIRECTION_REVERSE,
+                        },
+                    .motor_type = M3508,
+                    .can_init_config =
+                        {
+                            .can_handle = &hcan2,
+                            .tx_id = 4,
+                        },
+                }, // 后右
     // 跟随PID
     .follow_pid =
         {

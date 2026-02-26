@@ -46,6 +46,16 @@ typedef enum
     CLIMB_STAGE_ALL_RETRACT    // 阶段3: 全收 (上完台阶/复位)
 } ClimbState_e;
 
+typedef struct {
+    uint8_t all_cali_done;     // 零点全部完成标志 (最重要的护盾判断条件)
+    uint8_t cali_done[4];      // 各腿独立零点标志 [0后左, 1后右, 2前左, 3前右]
+    float   init_angle[4];     // 零点真实物理坐标
+
+    uint8_t is_max_calibrated; // 最大行程全部完成标志
+    uint8_t max_cali_done[4];  // 各腿独立最大行程标志
+    float   max_angle[4];      // 最大极限物理坐标
+} Chassis_Cali_State_s;
+
 typedef struct
 {
     // 控制部分
@@ -105,6 +115,7 @@ typedef struct
 typedef struct
 {
     Chassis_Ctrl_Cmd_s chassis_ctrl_cmd;
+    Chassis_Cali_State_s cali_state;
     DJIMotorInstance *wheel_motor[4];          // left right forward back
     DJIMotorInstance *lift_forward_motor[2];   // 导杆电机实例
     DJIMotorInstance *lift_backward_motor[2]; // 腿抬升电机实例
