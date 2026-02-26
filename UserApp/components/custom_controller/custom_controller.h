@@ -74,12 +74,7 @@ void CustomControllerTask(CustomController_t* controller);
 float CustomControllerGetMotorAngle(const CustomController_t* controller, 
                                    uint8_t motor_index);
 
-/**
- * @brief 角度标准化(0-360度)
- * @param angle 输入角度
- * @return float 标准化后的角度
- */
-float CustomControllerNormalizeAngle(float angle);
+
 
 /**
  * @brief 发送自定义控制器的所有数据

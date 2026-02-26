@@ -7,6 +7,9 @@
 // USART3实例声明
 static USARTInstance* custom_controller_usart = NULL;
 
+/* ----------------------- 私有函数声明 ----------------------------- */
+static float DM_RadianToDegree(float radian);
+
 /* ----------------------- 公共函数实现 ----------------------------- */
 
 /**
@@ -88,7 +91,8 @@ void CustomControllerTask(CustomController_t* controller)
     
     // 读取四个电机的角度值
     if (controller->motors[0].dm_motor != NULL) {
-        controller->motor_angles[0] = controller->motors[0].dm_motor->measure.total_angle;
+        // DM电机角度转换：弧度转角度
+        controller->motor_angles[0] = DM_RadianToDegree(controller->motors[0].dm_motor->measure.total_angle);
     }
     if (controller->motors[1].dji_motor != NULL) {
         controller->motor_angles[1] = controller->motors[1].dji_motor->measure.total_angle;
@@ -118,27 +122,6 @@ float CustomControllerGetMotorAngle(const CustomController_t* controller,
     }
     return controller->motor_angles[motor_index];
 }
-
-/**
- * @brief 角度标准化(0-360度)
- * @param angle 输入角度
- * @return float 标准化后的角度
- */
-float CustomControllerNormalizeAngle(float angle)
-{
-    // 处理负角度
-    while (angle < 0.0f) {
-        angle += 360.0f;
-    }
-    
-    // 处理大于360度的角度
-    while (angle >= 360.0f) {
-        angle -= 360.0f;
-    }
-    
-    return angle;
-}
-
 
 /**
  * @brief 发送自定义控制器的所有数据
@@ -205,10 +188,22 @@ void CustomController_UpdateMotorData(CustomController_t* controller)
     
     // 更新所有电机的角度数据
     for (int i = 0; i < 4; i++) {
-        controller->motor_data[i].current_angle = CustomControllerNormalizeAngle(controller->motor_angles[i]);
+        controller->motor_data[i].current_angle = controller->motor_angles[i];
         controller->motor_data[i].present_pos = (int16_t)controller->motor_angles[i];
         // 假设电机都是在线的
         controller->motor_data[i].is_online = 1;
     }
 }
 
+/* ----------------------- 私有函数实现 ----------------------------- */
+
+/**
+ * @brief DM电机弧度转角度
+ * @param radian 弧度值
+ * @return float 角度值
+ */
+static float DM_RadianToDegree(float radian)
+{
+    // 弧度转角度：1弧度 = 180/π 度
+    return radian * 180.0f / 3.14159265359f;
+}
