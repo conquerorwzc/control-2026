@@ -400,6 +400,7 @@ void RobotInit() {
   *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
 
   robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
+  robot->sentry_mode=1;
 
   // robot->super_cap = SuperCapInit(&super_cap_config);
 
