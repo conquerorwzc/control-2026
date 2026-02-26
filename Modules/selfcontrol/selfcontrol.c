@@ -3,128 +3,125 @@
 #include "bsp_usart.h"
 #include "memory.h"
 #include "stdlib.h"
-#include "daemon.h"
 #include "bsp_log.h"
 #include <stdbool.h>
+#include <math.h>
 
-#define SELF_CONTROL_FRAME_SIZE 64u // 遥控器接收的buffer大小
+#define SELF_CONTROL_FRAME_SIZE 64u // 接收缓冲区大小
 #define ROBOT_INTERACTIVE_DATA_CMD_ID 0x0302
 
-// 遥控器拥有的串口实例,因为遥控器是单例,所以这里只有一个,就不封装了
-static USARTInstance* self_rc_usart_instance;
+// 控制器实例
 static SelfC self_control;
-static Frame_Header referee_receive_header;
+// 全局USART实例指针
+static USARTInstance* g_selfcontrol_usart = NULL;
 
-void SelfControl_Smooth_Update(void) {
-    // alpha 决定了平滑程度。0.1f ~ 0.2f 适合 15ms -> 2ms 的转换
-    // 如果觉得跟手度不够，调大此值；如果觉得还是卡顿，调小此值。
-    static const float alpha = 0.25f;
-    static bool first_run = true;
+// 角度标准化函数(下位机已实现，此处留空)
+float SelfControlNormalizeAngle(float angle) {
+    return angle;  // 直接返回原始角度
+}
 
-    UnpackedControllerData_t *data = &self_control.unpacked_data;
-
-    for (int i = 0; i < 3; i++) {
-        if (first_run) {
-            data->servos[i].smooth_angle = data->servos[i].angle;
-        } else {
-            // 指数平滑核心公式
-            data->servos[i].smooth_angle = (alpha * data->servos[i].angle) +
-                                           ((1.0f - alpha) * data->servos[i].smooth_angle);
-        }
+// 获取电机角度
+float SelfControlGetMotorAngle(const SelfC* controller, uint8_t motor_index) {
+    if (controller == NULL || motor_index >= 4) {
+        return 0.0f;
     }
+    return SelfControlNormalizeAngle(controller->unpacked_data.motors[motor_index].angle);
+}
 
-    for (int i = 0; i < 2; i++) {
-        if (first_run) {
-            data->pots[i].smooth_angle = data->pots[i].angle;
-        } else {
-            data->pots[i].smooth_angle = (alpha * data->pots[i].angle) +
-                                         ((1.0f - alpha) * data->pots[i].smooth_angle);
-        }
+// 获取电位器角度
+float SelfControlGetPotAngle(const SelfC* controller, uint8_t pot_index) {
+    if (controller == NULL || pot_index >= 1) {
+        return 0.0f;
     }
-
-    if (data->servos[0].angle != 0) first_run = false; // 确保收到数据后才停止初始化
+    return SelfControlNormalizeAngle(controller->unpacked_data.pots[pot_index].angle);
 }
 
 UnpackedControllerData_t* GetSelfControlDataPtr(void) {
     return &self_control.unpacked_data;
 }
 
-// 解析自定义控制器的数据包
-// 修改 selfcontrol.c 中的 parse_custom_controller_data 函数
-bool parse_custom_controller_data(const uint8_t *packed_data, uint16_t packed_size, UnpackedControllerData_t *unpacked_data) {
+// 解析自定义控制器数据包
+static bool parse_custom_controller_data(const uint8_t *packed_data, uint16_t packed_size, UnpackedControllerData_t *unpacked_data) {
     if (packed_data == NULL || unpacked_data == NULL) return false;
     if (packed_data[0] != 0xA5) return false;
 
     uint16_t cmd_id = ((uint16_t)packed_data[6] << 8) | packed_data[5];
     if (cmd_id != 0x0302) return false;
 
-    const uint8_t *data_ptr = &packed_data[7]; // 指向 Data 段起始位置 (0x20 处)
+    const uint8_t *data_ptr = &packed_data[7]; // 指向 Data 段起始位置
 
     if (data_ptr[0] != 0x20) return false;
 
-    // 1. 舵机解析 (逻辑保持 i*5)
-    for (int i = 0; i < 3; i++) {
-        unpacked_data->servos[i].id = data_ptr[1 + i*5];
+    // 解析电机数据 (4个电机)
+    for (int i = 0; i < 4; i++) {
+        unpacked_data->motors[i].id = data_ptr[1 + i*5];
         int16_t angle_raw = ((int16_t)data_ptr[3 + i*5] << 8) | data_ptr[2 + i*5];
-        unpacked_data->servos[i].angle = (float)angle_raw / 100.0f;
-        unpacked_data->servos[i].torque_status = data_ptr[4 + i*5];
-        unpacked_data->servos[i].is_online = data_ptr[5 + i*5];
+        unpacked_data->motors[i].angle = (float)angle_raw / 100.0f;
+        unpacked_data->motors[i].is_online = data_ptr[5 + i*5];
+        // 扭矩状态字段已移除，保留为预留字节
     }
 
-    // 2. 电位器解析 (修正起始偏移为 16)
-    for (int i = 0; i < 2; i++) {
-        // 每个电位器数据：ID(1) + Angle(2) + Volt(2) = 5字节
-        uint8_t pot_start = 16 + (i * 5); // 0x20后的第16字节开始是电位器
-
-        unpacked_data->pots[i].id = data_ptr[pot_start];
-
-        // 角度读取 (偏移 + 1 和 + 2)
-        int16_t angle_raw = ((int16_t)data_ptr[pot_start + 2] << 8) | data_ptr[pot_start + 1];
-        unpacked_data->pots[i].angle = (float)angle_raw / 100.0f;
-
-        // 电压读取 (偏移 + 3 和 + 4)
-        int16_t voltage_raw = ((int16_t)data_ptr[pot_start + 4] << 8) | data_ptr[pot_start + 3];
-        unpacked_data->pots[i].voltage = (float)voltage_raw / 100.0f;
-    }
+    // 解析电位器数据 (1个电位器)
+    uint8_t pot_start = 16; // 电位器数据起始位置
+    
+    unpacked_data->pots[0].id = data_ptr[pot_start];
+    
+    // 解析角度
+    int16_t angle_raw = ((int16_t)data_ptr[pot_start + 2] << 8) | data_ptr[pot_start + 1];
+    unpacked_data->pots[0].angle = (float)angle_raw / 100.0f;
+    
+    // 解析电压
+    int16_t voltage_raw = ((int16_t)data_ptr[pot_start + 4] << 8) | data_ptr[pot_start + 3];
+    unpacked_data->pots[0].voltage = (float)voltage_raw / 100.0f;
 
     return true;
 }
 
-// 修改 selfcontrol.c 中的 selfcontrol_data_solve 函数
+// 数据解析函数(保持原有可用逻辑)
 void selfcontrol_data_solve(uint8_t* frame) {
-    if (frame[0] != 0xA5) return;
-
-    // 从协议头提取 Data 域的实际长度
-    uint16_t data_len = frame[1] | (frame[2] << 8);
-    uint16_t total_frame_len = 7 + data_len + 2; // 头(7) + 数据 + CRC16(2)
-
-    uint16_t cmd_id = (frame[6] << 8) | frame[5];
+    uint16_t cmd_id = 0;
+    uint8_t index = 0;
+    static Frame_Header referee_receive_header;  // 保持原有变量
+    
+    memcpy(&referee_receive_header, frame, sizeof(Frame_Header));
+    index += sizeof(Frame_Header);
+    index--;
+    memcpy(&cmd_id, frame + index, sizeof(uint16_t));
+    index += sizeof(uint16_t);
 
     switch (cmd_id) {
-    case ROBOT_INTERACTIVE_DATA_CMD_ID:  // 0x0302
-        // 传入计算出的实际总长度
-        parse_custom_controller_data(frame, total_frame_len, &self_control.unpacked_data);
-        // 在解析完数据后立即执行平滑处理
-        SelfControl_Smooth_Update();
-        break;
-    default:
-        break;
+        case ROBOT_INTERACTIVE_DATA_CMD_ID:  // 自定义控制器数据(0x0302)
+            // 使用原有解析逻辑，适配新数据结构
+            parse_custom_controller_data(frame, sizeof(Frame_Header) + sizeof(uint16_t) + sizeof(self_control.unpacked_data), &self_control.unpacked_data);
+            break;
+        default:
+            break;
     }
 }
 
+// USART接收回调函数(保持原有逻辑)
 static void SelfControlRxCallback() {
-  memcpy(&self_control.selfcontrol_buff, self_rc_usart_instance->recv_buff, SELF_CONTROL_FRAME_SIZE);
-  selfcontrol_data_solve(self_control.selfcontrol_buff);
+    static USARTInstance* self_rc_usart_instance = NULL;  // 保持原有变量名
+    if (self_rc_usart_instance == NULL) {
+        extern USARTInstance* g_selfcontrol_usart;
+        self_rc_usart_instance = g_selfcontrol_usart;
+    }
+    
+    if (self_rc_usart_instance != NULL) {
+        memcpy(&self_control.selfcontrol_buff, self_rc_usart_instance->recv_buff, SELF_CONTROL_FRAME_SIZE);
+        selfcontrol_data_solve(self_control.selfcontrol_buff);
+    }
 }
 
-
+// 初始化函数(保持原有逻辑)
 SelfC* SelfControlInit(UART_HandleTypeDef* usart_handle) {
-  USART_Init_Config_s conf;
-  conf.module_callback = SelfControlRxCallback;
-  conf.usart_handle = usart_handle;
-  conf.recv_buff_size = SELF_CONTROL_FRAME_SIZE;
-  self_rc_usart_instance = USARTRegister(&conf);
+    USART_Init_Config_s conf;
+    conf.module_callback = SelfControlRxCallback;
+    conf.usart_handle = usart_handle;
+    conf.recv_buff_size = SELF_CONTROL_FRAME_SIZE;
+    
+    extern USARTInstance* g_selfcontrol_usart;
+    g_selfcontrol_usart = USARTRegister(&conf);
 
-  return &self_control;
-
+    return &self_control;
 }

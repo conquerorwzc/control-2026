@@ -1,5 +1,6 @@
 //
 // Created by zhan_ on 2025/12/2.
+// Modified for new custom controller interface
 //
 
 #ifndef CONTROL_2026_SELFCONTROL_H
@@ -9,31 +10,32 @@
 #include "main.h"
 #include "usart.h"
 
-// 定义接收和解析的数据结构
+// 电机数据结构
 typedef struct {
-    uint8_t id;           // 舵机ID
-    float angle;          // 舵机角度
-    float smooth_angle;   // 【新增】平滑后的目标
-    uint8_t torque_status; // 舵机扭矩状态
-    uint8_t is_online;    // 舵机在线状态
-} ServoData_t;
+    uint8_t id;           // 电机ID
+    float angle;          // 电机角度 (0-360度)
+    uint8_t is_online;    // 电机在线状态
+} MotorData_t;
 
+// 电位器数据结构
 typedef struct {
     uint8_t id;           // 电位器ID
-    float angle;          // 电位器角度
-    float smooth_angle;   // 【新增】电位器平滑值
+    float angle;          // 电位器角度 (0-360度)
     float voltage;        // 电位器电压
 } PotentiometerData_t;
 
+// 解析后的控制器数据
 typedef struct {
-    ServoData_t servos[3];           // 3个舵机的数据
-    PotentiometerData_t pots[2];     // 2个电位器的数据
+    MotorData_t motors[4];           // 4个电机的数据 (1个4310 + 2个3508 + 1个2006)
+    PotentiometerData_t pots[1];     // 1个电位器的数据
 } UnpackedControllerData_t;
 
-typedef struct
-{
-  uint8_t selfcontrol_buff[64]; // 遥控器接收buffer
-  UnpackedControllerData_t unpacked_data;  // 解析后的控制器数据
+// 自定义控制器实例
+typedef struct {
+    uint8_t selfcontrol_buff[64];    // 接收缓冲区
+    UnpackedControllerData_t unpacked_data;  // 解析后的数据
+    uint8_t is_initialized;          // 初始化标志
+    uint8_t is_active;               // 活跃状态
 } SelfC;
 
 typedef __packed struct {
@@ -49,13 +51,46 @@ typedef __packed struct {
  * @attention 注意分配正确的串口硬件,遥控器在C板上使用USART3
  *
  */
-SelfC *SelfControlInit(UART_HandleTypeDef *rc_usart_handle);
-
-void SelfControl_Smooth_Update(void); //平滑声明
 /**
- * @brief 检查遥控器是否在线,若尚未初始化也视为离线
- *
- * @return uint8_t 1:在线 0:离线
+ * @brief 初始化自定义控制器
+ * @param usart_handle USART句柄
+ * @return SelfC* 控制器实例指针
  */
+SelfC *SelfControlInit(UART_HandleTypeDef *usart_handle);
+
+/**
+ * @brief 数据解析函数(保持原有可用逻辑)
+ * @param frame 接收到的数据帧
+ */
+void selfcontrol_data_solve(uint8_t* frame);
+
+/**
+ * @brief 获取解析后的控制器数据指针
+ * @return UnpackedControllerData_t* 数据指针
+ */
+UnpackedControllerData_t* GetSelfControlDataPtr(void);
+
+/**
+ * @brief 获取指定电机角度
+ * @param controller 控制器实例
+ * @param motor_index 电机索引(0-3)
+ * @return float 电机角度
+ */
+float SelfControlGetMotorAngle(const SelfC* controller, uint8_t motor_index);
+
+/**
+ * @brief 获取指定电位器角度
+ * @param controller 控制器实例
+ * @param pot_index 电位器索引(0)
+ * @return float 电位器角度
+ */
+float SelfControlGetPotAngle(const SelfC* controller, uint8_t pot_index);
+
+/**
+ * @brief 角度标准化(下位机已实现此功能)
+ * @param angle 输入角度
+ * @return float 原始角度(直接返回)
+ */
+float SelfControlNormalizeAngle(float angle);
 
 #endif  // CONTROL_2026_SELFCONTROL_H
