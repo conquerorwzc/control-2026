@@ -1,5 +1,5 @@
 #include "shoot.h"
-
+#include "rm_referee.h"
 #include "bsp_dwt.h"
 #include "user_lib.h"
 
@@ -40,6 +40,7 @@ ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
   deadtime_onebullet = shoot_init_config->shoot_param.deadtime_onebullet;
   target_speed = shoot_init_config->shoot_param.target_speed;
   bullet_speed_adjustment = shoot_init_config->shoot_param.bullet_speed_adjustment;
+  //actual_bullet_speed = &GetReferee()->ShootData.bullet_speed;
   // 初始化弹速控制PID参数
 
   // 初始化弹速控制PID控制器
@@ -73,6 +74,8 @@ void ShootBulletSpeedControl(void) {
 
 /* 机器人发射机构控制核心任务 */
 void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，因为之前哨兵是双枪管的，时代的眼泪
+  actual_bullet_speed= GetReferee()->ShootData.bullet_speed;
+
   if (shoot_ctrl_cmd->shoot_mode == SHOOT_OFF) {
    // for (int j = 0; j < FRICTION_NUM; j++) DJIMotorStop(shoot->friction_motor[j]);
     //friction_set=0;
@@ -95,10 +98,11 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
   ;
 
 
-  // if (shoot->loader_motor->motor_controller.speed_PID.ERRORHandler.ERRORType == PID_MOTOR_BLOCKED_ERROR) {
-  //   shoot->loader_motor->motor_controller.speed_PID.ERRORHandler.ERRORType = PID_ERROR_NONE;  // 清空标志位
-  //   shoot_ctrl_cmd->load_mode = LOAD_REVERSE;
-  // }
+  if (shoot->loader_motor->motor_controller.speed_PID.ERRORHandler.ERRORType == PID_MOTOR_BLOCKED_ERROR&&shoot->loader_motor->motor_controller.angle_PID.ERRORHandler.ERRORType == PID_MOTOR_BLOCKED_ERROR) {
+    shoot->loader_motor->motor_controller.speed_PID.ERRORHandler.ERRORType = PID_ERROR_NONE;  // 清空标志位
+    shoot->loader_motor->motor_controller.angle_PID.ERRORHandler.ERRORType = PID_ERROR_NONE;
+    shoot_ctrl_cmd->load_mode = LOAD_REVERSE;
+  }
   // 若不在休眠状态,根据robotCMD传来的控制模式进行拨盘电机参考值设定和模式切换
   switch (shoot_ctrl_cmd->load_mode) {
     // 停止拨盘
@@ -121,6 +125,7 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
       DJIMotorOuterLoop(shoot->loader_motor, ANGLE_LOOP);  // 切换到角度环
       loader_set = shoot->loader_motor->measure.total_angle +
                    one_bullet_delta_angle * reduction_ratio_loader * loader_direction;  // 控制量增加一发弹丸的角度
+      //ShootBulletSpeedControl();
       hibernate_time = DWT_GetTimeline_ms();                                            // 记录触发指令的时间
       dead_time = deadtime_burstfire;                                                   // 弹频
       break;
