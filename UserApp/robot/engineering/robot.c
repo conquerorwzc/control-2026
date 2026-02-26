@@ -23,12 +23,13 @@ static RC_ctrl_t *rc_data_last; // 遥控器数据,初始化时返回
 static float set_angle = 0;
 static void MouseKeySet();
 
-int b = 0;
+//int b = 0;
 static float angle = 0;
 static float target_angle = 0;
 static int mouse_l_count = 0;
 static Gantry_Param_s gantry_param;
 static Garb_Param_s grab_param;
+static GrabControlMode_e grab_control_mode = GRAB_CONTROL_KEYBOARD;  // 默认为键鼠控制
 /* Private function prototypes -----------------------------------------------*/
 static void Gantry_Limit(Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd, const Gantry_Param_s *gantry_param);
 static void Grab_Limit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, const Gantry_Param_s *gantry_param);
@@ -97,7 +98,8 @@ void RobotTask()
 #if defined(ONE_BOARD) // 假设龙门架逻辑运行在主控板
     GantryTask();
     GrabTask();
-    grab_ctrl_cmd->grab_mode = b;
+    // 机械臂使能由按键G控制，在MouseKeySet()中处理
+    //grab_ctrl_cmd->grab_mode = b;
 #endif
 }
 
@@ -106,8 +108,11 @@ void RobotCMDTask()
 {
     CalcOffsetAngle();
     RemoteControlSet();
-    //MouseKeySet();
-    ProcessCustomControllerData(); // 处理自定义控制器数据
+    MouseKeySet();
+    // 只在自定义控制器模式下处理数据，避免与键鼠控制冲突
+    if (grab_control_mode == GRAB_CONTROL_CUSTOM) {
+        ProcessCustomControllerData();
+    }
     EmergencyHandler(); // 处理模块离线和遥控器急停等紧急情况
 }
 
@@ -135,6 +140,20 @@ static void MouseKeySet()
         break;
     case 1:
         grab_ctrl_cmd->grab_mode = GRAB_POWER_ON;
+        break;
+    default:
+        break;
+    }
+    
+    switch (rc_data[TEMP].key_count[KEY_PRESS][Key_F] % 2) // F键切换控制模式
+    {
+    case 0:
+        grab_control_mode = GRAB_CONTROL_KEYBOARD;
+        LOGINFO("[GRAB] Switched to keyboard control mode");
+        break;
+    case 1:
+        grab_control_mode = GRAB_CONTROL_CUSTOM;
+        LOGINFO("[GRAB] Switched to custom controller angle mode");
         break;
     default:
         break;
@@ -177,36 +196,47 @@ static void MouseKeySet()
 
     case 1: // 控制机械臂
 
-        // 用adwsqe控制机械臂
-        if (rc_data[TEMP].key[KEY_PRESS].keys != 0 && rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].keys == 0 &&
-            grab_ctrl_cmd->grab_mode == GRAB_POWER_ON)
+        // 根据当前控制模式执行不同控制逻辑
+        if (grab_control_mode == GRAB_CONTROL_KEYBOARD)
         {
-            grab_ctrl_cmd->base_joint +=
-                (rc_data[TEMP].key[KEY_PRESS].a - rc_data[TEMP].key[KEY_PRESS].d) * grab_param.base_joint_sens_keyboard;
-            grab_ctrl_cmd->elbow_pitch += (rc_data[TEMP].key[KEY_PRESS].w - rc_data[TEMP].key[KEY_PRESS].s) *
-                                          grab_param.elbow_pitch_sens_keyboard;
-            grab_ctrl_cmd->elbow_roll +=
-                (rc_data[TEMP].key[KEY_PRESS].q - rc_data[TEMP].key[KEY_PRESS].e) * grab_param.elbow_roll_sens_keyboard;
-        }
-        // 用shift+wasd控制腕部
-        else if (rc_data[TEMP].key[KEY_PRESS].keys != 0 && rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].keys != 0 &&
-                 grab_ctrl_cmd->grab_mode == GRAB_POWER_ON)
-        {
-            grab_ctrl_cmd->wrist_roll += (rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].d - rc_data[TEMP].key[KEY_PRESS].a) *
-                                         grab_param.wrist_roll_sens_keyboard;
-            grab_ctrl_cmd->wrist_pitch += (rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].w - rc_data[TEMP].key[KEY_PRESS].s) *
-                                          grab_param.wrist_pitch_sens_keyboard;
-            switch (rc_data[TEMP].key_count[KEY_PRESS_WITH_SHIFT][Key_C] % 2)
+            // 键鼠控制模式
+            // 用adwsqe控制机械臂
+            if (rc_data[TEMP].key[KEY_PRESS].keys != 0 && rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].keys == 0 &&
+                grab_ctrl_cmd->grab_mode == GRAB_POWER_ON)
             {
-            case 0:
-                grab_ctrl_cmd->torque = -0.6;
-                break;
-            case 1:
-                grab_ctrl_cmd->torque = 2;
-                break;
-            default:
-                break;
+                grab_ctrl_cmd->base_joint +=
+                    (rc_data[TEMP].key[KEY_PRESS].a - rc_data[TEMP].key[KEY_PRESS].d) * grab_param.base_joint_sens_keyboard;
+                grab_ctrl_cmd->elbow_pitch += (rc_data[TEMP].key[KEY_PRESS].w - rc_data[TEMP].key[KEY_PRESS].s) *
+                                              grab_param.elbow_pitch_sens_keyboard;
+                grab_ctrl_cmd->elbow_roll +=
+                    (rc_data[TEMP].key[KEY_PRESS].q - rc_data[TEMP].key[KEY_PRESS].e) * grab_param.elbow_roll_sens_keyboard;
             }
+            // 用shift+wasd控制腕部
+            else if (rc_data[TEMP].key[KEY_PRESS].keys != 0 && rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].keys != 0 &&
+                     grab_ctrl_cmd->grab_mode == GRAB_POWER_ON)
+            {
+                grab_ctrl_cmd->wrist_roll += (rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].d - rc_data[TEMP].key[KEY_PRESS].a) *
+                                             grab_param.wrist_roll_sens_keyboard;
+                grab_ctrl_cmd->wrist_pitch += (rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].w - rc_data[TEMP].key[KEY_PRESS].s) *
+                                              grab_param.wrist_pitch_sens_keyboard;
+                switch (rc_data[TEMP].key_count[KEY_PRESS_WITH_SHIFT][Key_C] % 2)
+                {
+                case 0:
+                    grab_ctrl_cmd->torque = -0.6;
+                    break;
+                case 1:
+                    grab_ctrl_cmd->torque = 2;
+                    break;
+                default:
+                    break;
+                }
+            }
+        }
+        else if (grab_control_mode == GRAB_CONTROL_CUSTOM)
+        {
+            // 自定义控制器角度控制模式
+            // 数据已在RobotCMDTask中处理，这里只需确保机械臂使能即可
+            // 机械臂关节角度由自定义控制器直接提供
         }
         break;
 
