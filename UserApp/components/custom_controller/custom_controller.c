@@ -52,6 +52,7 @@ CustomController_t* CustomControllerInit(CustomController_Init_Config_s* init_co
     // 初始化角度数据
     for (int i = 0; i < 4; i++) {
         controller->motor_angles[i] = 0.0f;
+        controller->zero_offset[i] = 0.0f;  // 初始化零位偏移数组
     }
     
     // 初始化电机数据
@@ -231,11 +232,6 @@ static void CalibrateMotorZeroPosition(CustomController_t* controller)
     }
     
     LOGINFO("CustomController: Starting zero position calibration...");
-    
-    // 初始化零位偏移数组
-    for (int i = 0; i < 4; i++) {
-        controller->zero_offset[i] = 0.0f;
-    }
     
     // 读取当前各电机的实际角度作为零位参考
     float current_angles[4] = {0.0f};
