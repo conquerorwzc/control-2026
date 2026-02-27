@@ -80,7 +80,13 @@ typedef enum {
   MOBILITY_POSE,
 } Sentry_Mode_e;
 
-
+typedef enum {
+  SAFETY_MODE=0,
+  PASSIVE_MODE,
+  ACTIVE_MODE,
+  CHARGING_MODE,
+  FORCED_CHARGING_MODE,
+} SuperCapMode;
 
 typedef struct {
   Robot_Mode_e robot_mode;       // 机器人工作状态
