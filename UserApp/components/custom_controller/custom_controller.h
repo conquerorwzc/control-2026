@@ -45,6 +45,7 @@ typedef struct {
     MotorUnit_t motors[4];                  // 电机单元数组
     float motor_angles[4];                  // 各电机角度反馈
     float zero_offset[4];                   // 零位偏移值
+    bool motor_online_status[4];            // 电机在线状态（用于检测断电重启）
     MotorData_t motor_data[4];              // 电机数据（用于发送）
     USARTInstance* usart_instance;          // USART通信实例
     bool is_initialized;                    // 初始化标志

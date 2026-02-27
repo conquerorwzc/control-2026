@@ -10,6 +10,7 @@ static USARTInstance* custom_controller_usart = NULL;
 /* ----------------------- 私有函数声明 ----------------------------- */
 static float DM_RadianToDegree(float radian);
 static void CalibrateMotorZeroPosition(CustomController_t* controller);
+static bool CheckMotorOnlineStatus(CustomController_t* controller);
 
 /* ----------------------- 公共函数实现 ----------------------------- */
 
@@ -53,6 +54,7 @@ CustomController_t* CustomControllerInit(CustomController_Init_Config_s* init_co
     for (int i = 0; i < 4; i++) {
         controller->motor_angles[i] = 0.0f;
         controller->zero_offset[i] = 0.0f;  // 初始化零位偏移数组
+        controller->motor_online_status[i] = false;  // 初始化在线状态
     }
     
     // 初始化电机数据
@@ -80,10 +82,10 @@ CustomController_t* CustomControllerInit(CustomController_Init_Config_s* init_co
     // 等待电机数据稳定
     osDelay(100);
     
-    // 执行零位校准
+    // 首次上电校准
     CalibrateMotorZeroPosition(controller);
     
-    LOGINFO("CustomController: Initialized with 4 motors, zero position calibrated");
+    LOGINFO("CustomController: Initialized with 4 motors, initial zero position calibrated");
     return controller;
 }
 
@@ -95,6 +97,14 @@ void CustomControllerTask(CustomController_t* controller)
 {
     if (controller == NULL || !controller->is_initialized) {
         return;
+    }
+    
+    // 检测电机在线状态变化，触发重新校准
+    bool need_recalibration = CheckMotorOnlineStatus(controller);
+    if (need_recalibration) {
+        LOGINFO("CustomController: Motor reconnected, recalibrating zero position...");
+        osDelay(100);  // 等待电机稳定
+        CalibrateMotorZeroPosition(controller);
     }
     
     // 读取四个电机的角度值并应用零位偏移
@@ -254,8 +264,62 @@ static void CalibrateMotorZeroPosition(CustomController_t* controller)
     for (int i = 0; i < 4; i++) {
         controller->zero_offset[i] = current_angles[i];
         controller->motor_angles[i] = 0.0f;  // 初始化为0
+        controller->motor_online_status[i] = true;  // 标记为在线
         LOGINFO("Motor %d zero offset set to: %.2f degrees", i+1, current_angles[i]);
     }
     
     LOGINFO("CustomController: Zero position calibration completed");
+}
+
+/**
+ * @brief 检测电机在线状态变化
+ * @param controller 控制器实例
+ * @return bool 是否需要重新校准
+ */
+static bool CheckMotorOnlineStatus(CustomController_t* controller)
+{
+    bool need_recalibration = false;
+    
+    // 检查DM4310电机
+    if (controller->motors[0].dm_motor != NULL) {
+        bool current_online = (controller->motors[0].dm_motor->measure.state == 0);  // 假设state=0表示在线
+        if (!controller->motor_online_status[0] && current_online) {
+            // 电机从离线变为在线，需要重新校准
+            need_recalibration = true;
+            LOGINFO("DM4310 motor reconnected, triggering recalibration");
+        }
+        controller->motor_online_status[0] = current_online;
+    }
+    
+    // 检查3508电机1
+    if (controller->motors[1].dji_motor != NULL) {
+        bool current_online = (controller->motors[1].dji_motor->daemon->temp_count > 0);  // 通过daemon计数判断
+        if (!controller->motor_online_status[1] && current_online) {
+            need_recalibration = true;
+            LOGINFO("M3508 motor 1 reconnected, triggering recalibration");
+        }
+        controller->motor_online_status[1] = current_online;
+    }
+    
+    // 检查3508电机2
+    if (controller->motors[2].dji_motor != NULL) {
+        bool current_online = (controller->motors[2].dji_motor->daemon->temp_count > 0);
+        if (!controller->motor_online_status[2] && current_online) {
+            need_recalibration = true;
+            LOGINFO("M3508 motor 2 reconnected, triggering recalibration");
+        }
+        controller->motor_online_status[2] = current_online;
+    }
+    
+    // 检查2006电机
+    if (controller->motors[3].dji_motor != NULL) {
+        bool current_online = (controller->motors[3].dji_motor->daemon->temp_count > 0);
+        if (!controller->motor_online_status[3] && current_online) {
+            need_recalibration = true;
+            LOGINFO("M2006 motor reconnected, triggering recalibration");
+        }
+        controller->motor_online_status[3] = current_online;
+    }
+    
+    return need_recalibration;
 }
