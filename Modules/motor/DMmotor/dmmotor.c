@@ -154,6 +154,9 @@ DMMotorInstance *DMMotorInit(Motor_Init_Config_s *config)
     motor->motor_controller.other_angle_feedback_ptr = config->controller_param_init_config.other_angle_feedback_ptr;
     motor->motor_controller.other_speed_feedback_ptr = config->controller_param_init_config.other_speed_feedback_ptr;
 
+    motor->motor_controller.speed_feedforward_ptr = config->controller_param_init_config.speed_feedforward_ptr;
+    motor->motor_controller.current_feedforward_ptr = config->controller_param_init_config.current_feedforward_ptr;
+
     config->can_init_config.can_module_callback = DMMotorDecode;
     config->can_init_config.id = motor;
     motor->motor_can_instance = CANRegister(&config->can_init_config);
