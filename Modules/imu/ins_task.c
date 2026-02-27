@@ -147,9 +147,14 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
     IMU_Temperature_Ctrl();
     DWT_Delay(0.001);
   }
-  for (uint8_t i=0;i<3;i++)
-    BMI088.GyroOffset[i]=imu_init_config->GyroOffset[i];
-  //INS_CalibrateGyroForDebug(10000);
+  //是否在线标定
+  if (imu_init_config->offset_flag==1) {
+    for (uint8_t i=0;i<3;i++)
+      BMI088.GyroOffset[i]=imu_init_config->GyroOffset[i];
+  }
+  else {
+    INS_CalibrateGyroForDebug(10000);
+  }
   //for (uint8_t i = 0; i < 3; i++) {
     //BMI088.GyroOffset[0] = 0.00253310893f;
     //BMI088.GyroOffset[1] = 0.00196733163f;
