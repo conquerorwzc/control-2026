@@ -474,7 +474,7 @@ void RobotTask() {
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   navigator_send(&huart1);
   RobotCMDTask();
-  // SuperCapControl();
+  // SuperCapControl();//
   ChassisTask();
 #endif
 }
