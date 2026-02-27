@@ -2,19 +2,35 @@
 #include "can_comm.h"
 #include "general_def.h"
 #include "robot_config.h"
+//#include "super_cap.h"
 #include "user_lib.h"
 #define USECANREMOTE 1 //是否使用云台板的遥控数据
-
+#pragma pack(1)
+typedef struct {
+  float bullet_speed;
+  uint16_t HP;
+  uint16_t Heat;
+} upload_data;
+#pragma pack()
 static RobotInstance *robot;
-
+static upload_data upload;
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
 static Gimbal_Ctrl_Cmd_s *gimbal_ctrl_cmd;
 static Shoot_Ctrl_Cmd_s *shoot_ctrl_cmd;
-
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
+float temp=24.0f;
 
+typedef enum {
+  SAFETY_MODE=0,
+  PASSIVE_MODE,
+  ACTIVE_MODE,
+  CHARGING_MODE,
+  FORCED_CHARGING_MODE,
+} SuperCapMode;
+static SuperCapMode supercap_mode = SAFETY_MODE;
+static uint8_t supercaplock=0;
 /* Intermediate variables calculated by private functions */
 static float trigger_time = 0;  // 触发时间
 static float angle=0;
@@ -26,6 +42,8 @@ typedef union {
   uint8_t bytes[64];
 } int16_t_bytes;
 int16_t_bytes CanData={0};//底盘板can接收的遥控数据
+//static SuperCapInstance* supercap_instance;
+
 // static  DJIMotorInstance* debug_motor;
 
 /**
@@ -41,7 +59,10 @@ static void CalcOffsetAngle() {
   } else if (delta <= -180.0f) {
     delta += 360.0f;
   }
-  chassis_ctrl_cmd->offset_angle = delta;
+  if (abs(delta) < 2.0f) {
+    delta =0.0f;
+  }
+ // chassis_ctrl_cmd->offset_angle = delta;
 }
 
 /**
@@ -125,32 +146,51 @@ static void RemoteControlSet() {
   *rc_data_last = *rc_data;
 }
 //解析底盘板收到的遥控数据
+//value16数组0表示左遥感横向，1表示纵向，2表示右摇杆横，3表示左侧滚轮，byte10表示右侧拨杆
 static void DualBoardCtrlSet() {
   //chassis_ctrl_cmd->wz=0;
   if (CANCommIsOnline(can_comm_instance)) {
     // 检查是否有新数据更新
-    received_data = (uint8_t*)CANCommGet(can_comm_instance);
-    // 如果收到数据，可以在这里处理
-    if (received_data != NULL) {
-      // 解析接收到的数据到全局变量
-      //memcpy(board_can_comm_data.rx_buff, received_data, 16);
+    chassis_ctrl_cmd = (Chassis_Ctrl_Cmd_s*)CANCommGet(can_comm_instance);
+    //robot->chassis->chassis_ctrl_cmd=*chassis_ctrl_cmd;
 
-      for (int i = 0; i < 24; i++)
-        CanData.bytes[i] = received_data[i];
-      chassis_ctrl_cmd->vx=60.0f*CanData.value16[0];//todo:后面chassis改改把负号去掉
-      chassis_ctrl_cmd->vy=60.0f*CanData.value16[1];
-      //if (CanData.value16[2]>=0)
-      // chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)-CanData.value16[2]/50.0f))*CanData.value16[2];
-      // else chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)CanData.value16[2]/50.0f))*CanData.value16[2];
-      chassis_ctrl_cmd->wz=42.0f*CanData.value16[2];
-      if (switch_is_mid(CanData.bytes[10])) {
-        //gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-        if (CanData.value16[3] > 20) {
-          chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
-        } else
-          chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
-      }
-    }
+    robot->chassis->chassis_ctrl_cmd.vx=chassis_ctrl_cmd->vx;
+    robot->chassis->chassis_ctrl_cmd.vy=chassis_ctrl_cmd->vy;
+    robot->chassis->chassis_ctrl_cmd.wz=chassis_ctrl_cmd->wz;
+    robot->chassis->chassis_ctrl_cmd.chassis_mode=chassis_ctrl_cmd->chassis_mode;
+    robot->chassis->chassis_ctrl_cmd.chassis_speed_buff=chassis_ctrl_cmd->chassis_speed_buff;
+    robot->chassis->chassis_ctrl_cmd.offset_angle=chassis_ctrl_cmd->offset_angle;
+    //robot->chassis->chassis_ctrl_cmd.max_power=chassis_ctrl_cmd->max_power;
+    // 如果收到数据，可以在这里处理
+    // if (received_data != NULL) {
+    //   // 解析接收到的数据到全局变量
+    //   //memcpy(board_can_comm_data.rx_buff, received_data, 16);
+    //
+    //   for (int i = 0; i < 24; i++)
+    //     CanData.bytes[i] = received_data[i];
+    //   chassis_ctrl_cmd->vx=60.0f*CanData.value16[0];//todo:后面chassis改改把负号去掉
+    //   chassis_ctrl_cmd->vy=60.0f*CanData.value16[1];
+    //   //if (CanData.value16[2]>=0)
+    //   // chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)-CanData.value16[2]/50.0f))*CanData.value16[2];
+    //   // else chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)CanData.value16[2]/50.0f))*CanData.value16[2];
+    //   //chassis_ctrl_cmd->wz=0;
+    //   chassis_ctrl_cmd->wz=35.0f*CanData.value16[2];//前馈
+    //   // temp+=secondOrderDiffFF(CanData.value16[2]);
+    //   // chassis_ctrl_cmd->wz+=temp;
+    //   if (switch_is_mid(CanData.bytes[10])) {
+    //     //gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+    //     chassis_ctrl_cmd->max_power=50;
+    //     if (abs((CanData.value16[3])) > 20) {
+    //       chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+    //       chassis_ctrl_cmd->wz = 40.0f*abs(CanData.value16[3]);
+    //     } else
+    //       chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+    //   }
+    //   else if (switch_is_up(CanData.bytes[10])) {
+    //     chassis_ctrl_cmd->max_power=350;
+    //     chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+    //   }
+    // }
   }
 }
 
@@ -285,12 +325,13 @@ static void EmergencyHandler() {
 }
 
 void RobotInit() {
+
   //要在云台和底盘任务开始之前完成该任务的初始化
   vTaskDelay(CAN_COMM_TASK_INIT_TIME);
   // 初始化CAN接收
   can_comm_instance = CANCommInit(&comm_config);
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
-
+  supercap_mode=SAFETY_MODE;
 #ifdef STM32F407xx
   robot->rc_data = RemoteControlInit(&huart3);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
 #elifdef STM32H723XX
@@ -300,9 +341,9 @@ void RobotInit() {
   rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
   *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
 
-  // robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
-
-  // robot->super_cap = SuperCapInit(&super_cap_config);
+  robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
+  robot->super_cap = SuperCapInit(&supercab_init_config);
+  // robot->super_cap = QQSuperCapInit(&super_cap_config);
 
 // #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
 //   robot->gimbal = GimbalInit(&gimbal_init_config);
@@ -310,7 +351,6 @@ void RobotInit() {
 // #endif
 
   robot->chassis = ChassisInit(&chassis_init_config);
-
 
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
@@ -324,11 +364,15 @@ void RobotInit() {
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
 void RobotCMDTask() {
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角             ,不需要传参,通过static私有变量完成
-  CalcOffsetAngle();
+  //CalcOffsetAngle();
   //RemoteControlSet();
   DualBoardCtrlSet();
   // MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
+  upload.bullet_speed=robot->referee_data->ShootData.initial_speed;
+  upload.HP=robot->referee_data->GameRobotState.current_HP;
+  upload.Heat=robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
+  CANCommSend(can_comm_instance,(uint8_t *)&upload);
 }
 
 void RobotTask() {
@@ -352,9 +396,91 @@ void RobotTask() {
 
     //底盘接收板控制任务
     RobotCMDTask();
+    //超级电容自动控制
+    switch (supercap_mode) {
+      case SAFETY_MODE:
+        if (temp>18.0f)
+          supercap_mode=PASSIVE_MODE;
+        robot->chassis->chassis_ctrl_cmd.max_power=0;
+        break;
+      case FORCED_CHARGING_MODE:
+        if (temp<8.0f)
+          supercap_mode=SAFETY_MODE;
+        if (temp>18.0f)
+          supercap_mode=PASSIVE_MODE;
+        robot->chassis->chassis_ctrl_cmd.max_power=(uint16_t)(0.4*robot->referee_data->GameRobotState.chassis_power_limit);
+        break;
+      case CHARGING_MODE:
+        if (temp<10.0f)
+          supercap_mode=FORCED_CHARGING_MODE;
+        if (temp>18.0f)
+          supercap_mode=PASSIVE_MODE;
+        robot->chassis->chassis_ctrl_cmd.max_power=robot->referee_data->GameRobotState.chassis_power_limit-(uint16_t)powf((float)robot->referee_data->GameRobotState.chassis_power_limit*0.046f,2);
+        break;
+      case PASSIVE_MODE:
+        if (chassis_ctrl_cmd->max_power==180)
+          supercap_mode=ACTIVE_MODE;
+        if (temp<12.0f)
+          supercap_mode=CHARGING_MODE;
+        robot->chassis->chassis_ctrl_cmd.max_power=robot->referee_data->GameRobotState.chassis_power_limit;
+        break;
+      case ACTIVE_MODE:
+        if (temp<12.0f)
+          supercap_mode=CHARGING_MODE;
+        if (chassis_ctrl_cmd->max_power!=180)
+          supercap_mode=PASSIVE_MODE;
+        robot->chassis->chassis_ctrl_cmd.max_power=130;
+        break;
+      default:
+        supercap_mode=SAFETY_MODE;
+    }
+    // switch (supercap_mode) {
+    //   case SAFETY_MODE:
+    //     if (robot->super_cap->cap_msg.cap_v>18.0f)
+    //       supercap_mode=PASSIVE_MODE;
+    //     robot->chassis->chassis_ctrl_cmd.max_power=0;
+    //     break;
+    //   case FORCED_CHARGING_MODE:
+    //     if (robot->super_cap->cap_msg.cap_v<8.0f)
+    //       supercap_mode=SAFETY_MODE;
+    //     if (robot->super_cap->cap_msg.cap_v>18.0f)
+    //       supercap_mode=PASSIVE_MODE;
+    //     robot->chassis->chassis_ctrl_cmd.max_power=(uint16_t)(0.4*robot->referee_data->GameRobotState.chassis_power_limit);
+    //     break;
+    //   case CHARGING_MODE:
+    //     if (robot->super_cap->cap_msg.cap_v<10.0f)
+    //       supercap_mode=FORCED_CHARGING_MODE;
+    //     if (robot->super_cap->cap_msg.cap_v>18.0f)
+    //       supercap_mode=PASSIVE_MODE;
+    //     robot->chassis->chassis_ctrl_cmd.max_power=robot->referee_data->GameRobotState.chassis_power_limit-(uint16_t)powf((float)robot->referee_data->GameRobotState.chassis_power_limit*0.04f,2);
+    //     break;
+    //   case PASSIVE_MODE:
+    //     if (chassis_ctrl_cmd->max_power==180)
+    //       supercap_mode=ACTIVE_MODE;
+    //     if (robot->super_cap->cap_msg.cap_v<12.0f)
+    //       supercap_mode=CHARGING_MODE;
+    //     robot->chassis->chassis_ctrl_cmd.max_power=robot->referee_data->GameRobotState.chassis_power_limit;
+    //     break;
+    //   case ACTIVE_MODE:
+    //     if (robot->super_cap->cap_msg.cap_v<12.0f)
+    //       supercap_mode=CHARGING_MODE;
+    //     if (chassis_ctrl_cmd->max_power!=180)
+    //       supercap_mode=PASSIVE_MODE;
+    //     robot->chassis->chassis_ctrl_cmd.max_power=180;
+    //     break;
+    //   default:
+    //     supercap_mode=SAFETY_MODE;
+    // }
+
+
     //GimbalTask();
     //ShootTask();
     ChassisTask();
+
+    SuperCapSendMessage(robot->super_cap,
+      (int16_t)robot->referee_data->GameRobotState.chassis_power_limit,
+      robot->referee_data->PowerHeatData.buffer_energy,
+      robot->referee_data->GameRobotState.power_management_chassis_output);
     //将原本motortask的can发送改到这里，和pid计算同频，减少无用发送
     //DJIMotorCANTransmit();
   }

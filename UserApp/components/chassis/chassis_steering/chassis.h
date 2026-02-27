@@ -15,7 +15,7 @@
 #define LB 1
 #define RB 2
 #define RF 3
-#define MAX_WHEEL_SPEED 50000.0f
+#define MAX_WHEEL_SPEED 35000.0f
 //底盘模式
 // typedef enum {
 //   CHASSIS_VECTOR_FOLLOW_GIMBAL_YAW,   //底盘跟随云台
@@ -40,17 +40,21 @@ typedef enum {
 //   CHASSIS_STEERING_FOLLOW_GIMBAL,    // 跟随云台
 //   CHASSIS_STEERING_SPIN              // 小陀螺模式
 // } Chassis_Steering_Mode_e;
-
+#pragma pack(1)
 // 舵轮底盘控制命令
 typedef struct {
-  float vx;                          // x方向速度
-  float vy;                          // y方向速度
-  float wz;                          // 旋转速度
-  Chassis_Mode_e chassis_mode;      // 底盘模式
-  float offset_angle;                // 与云台的夹角
-  uint16_t max_power;                // 最大功率限制
+  // 控制部分
+  float vx;            // 前进方向速度
+  float vy;            // 横移方向速度
+  float wz;            // 旋转速度
+  Chassis_Mode_e chassis_mode;
+  float offset_angle;  // 底盘和归中位置的夹角
+  int chassis_speed_buff;
+  uint16_t max_power;  // 最大功率限制
+  // UI部分
+  //  ...
 } Chassis_Ctrl_Cmd_s;
-
+#pragma pack()
 typedef struct {
   float k0;
   float k1;
@@ -59,6 +63,15 @@ typedef struct {
   float k4;
   float k5;
 }Power_Param_3508_s ;
+
+typedef struct {
+  float k0;
+  float k1;
+  float k2;
+  float k3;
+  float k4;
+  float k5;
+}Power_Param_6020_s ;
 
 // 舵轮底盘参数，这一坨是从英雄的代码抄过来的，得改，但是逆解算用不上先不管
 typedef struct {
@@ -69,6 +82,7 @@ typedef struct {
   float wheel_radius;                   // 轮子半径
   float wheel_reduction_ratio;          // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
   Power_Param_3508_s power_param;       //3508功率模型参数，采用中科大的模型
+  Power_Param_6020_s power_param_6020;
   uint16_t rudder_motor_offset[4];      // 6020舵电机零位偏移值，用于校准安装后的零偏
 } Chassis_Param_s;
 
@@ -92,7 +106,7 @@ typedef struct {
   Chassis_Ctrl_Cmd_s chassis_ctrl_cmd;
   DJIMotorInstance *wheel_motor[4];
   DJIMotorInstance *rudder_motor[4];
-  DJIMotorInstance *yaw_motor;
+  //DJIMotorInstance *yaw_motor;
   uint16_t rudder_offset[4];
 } ChassisInstance;
 /**

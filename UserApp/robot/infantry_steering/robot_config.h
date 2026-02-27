@@ -7,6 +7,7 @@
 #pragma once
 
 #include "robot.h"
+#include "super_cap.h"
 
 // 编译warning,提醒开发者修改机器人参数
 #ifndef ROBOT_CONFIG_PARAM_WARNING
@@ -93,21 +94,21 @@
           {                                                                                                    \
               .angle_PID =                                                                                     \
                   {                                                                                            \
-                      .Kp = 30,                                                                                \
+                      .Kp = 60,                                                                                \
                       .Ki = 0,                                                                                 \
-                      .Kd = 0.1,                                                                               \
+                      .Kd = 0.3,                                                                               \
                       .IntegralLimit = 960,                                                                  \
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
                       .MaxOut = 1920,                                                                          \
                   },                                                                                           \
               .speed_PID =                                                                                     \
                   {                                                                                            \
-                      .Kp = 8,                                                                                 \
-                      .Ki = 20,                                                                                \
+                      .Kp = 9,                                                                                 \
+                      .Ki = 25,                                                                                \
                       .Kd = 0,                                                                                 \
                       .IntegralLimit = 12500,                                                                   \
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
-                      .MaxOut = 25000,                                                                         \
+                      .MaxOut = 18000,                                                                         \
                   },                                                                                           \
               .current_PID =                                                                                   \
                   {                                                                                            \
@@ -148,6 +149,12 @@ static Chassis_Init_Config_s chassis_init_config = {
             .power_param.k3 = 0.015644430204543864f,
             .power_param.k4 = 0.1580143850678086f,
             .power_param.k5 = 2.896721772539512e-05f,
+          .power_param_6020.k0 = 1.0015598804886459f,
+          .power_param_6020.k1 = -0.0011271483180564656f,
+          .power_param_6020.k2 = 0.1628643511122505f,
+          .power_param_6020.k3 = 0.630911350030345f,
+          .power_param_6020.k4 = 0.001254230359389605f,
+          .power_param_6020.k5 = 7.632464718194001f,
 
             // 6020舵机电机零位偏移值，用于校准安装后的零偏
             .rudder_motor_offset = {6844, 3443,13, 3388}  // 根据实际安装情况设置每个舵机的零偏值LFLBRBRF
@@ -163,7 +170,7 @@ static Chassis_Init_Config_s chassis_init_config = {
   .yaw_motor_config=RUDDER_MOTOR_CONFIG(&hcan1, 1),
     //跟随PID
     .follow_pid={
-        .Kp = 300.0f,
+        .Kp = 250.0f,
         .Ki = 0.0f,
         .Kd = 0.0f,
         .IntegralLimit = 1000.0f,
@@ -315,12 +322,6 @@ static Chassis_Init_Config_s chassis_init_config = {
 //         },
 // };
 
-// static SuperCap_Init_Config_s super_cap_config = {
-//     .can_config = {
-//         .can_handle = &hcan2,
-//         .tx_id = 0x302,  // 超级电容默认接收id
-//         .rx_id = 0x301,  // 超级电容默认发送id,注意tx和rx在其他人看来是反的
-//     }}
 #ifndef CONTROL_2026_ROBOT_CONFIG_H
 #define CONTROL_2026_ROBOT_CONFIG_H
 
@@ -334,13 +335,13 @@ static Chassis_Init_Config_s chassis_init_config = {
 #define BOARD_RX_ID 0x219
 #else
 // 接收板配置
-#define BOARD_TX_ID 0x11
+#define BOARD_TX_ID 0x311
 #define BOARD_RX_ID 0x10
 #endif
 
 static CANComm_Init_Config_s comm_config = {
-  .recv_data_len = 24,        // 接收数据长度，根据实际需求调整
-  .send_data_len = 24,        // 发送数据长度，根据实际需求调整
+  .recv_data_len = 26,        // 接收数据长度，根据实际需求调整
+  .send_data_len = 28,        // 发送数据长度，根据实际需求调整
   .daemon_count = 10,      // 看门狗重载计数，根据实际需求调整
   .can_config = {
     .can_handle = &hcan1,  // 假设使用CAN1，根据实际使用的CAN句柄调整
@@ -362,4 +363,17 @@ static CANInstance board_can_comm_data = {
     .DLC = 0x08,         // 数据长度8字节
   }
 };
+static SuperCap_Init_Config_s supercab_init_config = {
+  .can_config = {
+    .can_handle = &hcan2,  // 根据实际情况选择CAN接口，英雄的h7是can1
+    .rx_id = 0x211,        // 接收ID (CAN_SUPERCAP_ID)
+    .tx_id = 0X210,        // 发送ID
+  }
+};
+//6020电机
+#define GM6020_K0 0.8130f
+#define GM6020_K1 -0.0005f
+#define GM6020_K2 6.0021f
+#define GM6020_K3 1.3715f
+#define GM6020_Current_To_Out (3.0f/16384.0f)
 #endif  // CONTROL_2026_ROBOT_CONFIG_H
