@@ -88,7 +88,7 @@ static void RemoteControlSet() {
   // 右[上]，超电，保持底盘跟随云台
   else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-    chassis_ctrl_cmd->max_power = 100;
+    chassis_ctrl_cmd->max_power = 180;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
     } else
