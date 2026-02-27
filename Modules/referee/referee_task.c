@@ -797,10 +797,10 @@ void MyUIInit()
 void UITask()
 {
     // 首次运行时初始化指针
-    if (referee_recv_info == NULL) {
-        referee_recv_info = RefereeInit(&huart6); // 假设使用默认串口
-    }
-    
+    // if (referee_recv_info == NULL) {
+    //     referee_recv_info = RefereeInit(&huart6); // 假设使用默认串口
+    // }
+
     // 更新交互数据（模拟从系统其他部分获取数据）
     // 这些值应该从实际的机器人系统中获取
     //interactive_data.chassis_mode = CHASSIS_NORMAL;
@@ -846,7 +846,7 @@ void UITask()
 
     // 检查是否有变化
     UIChangeCheck(&interactive_data);
-    
+
     // 执行UI刷新
     MyUIRefresh(&interactive_data);
 }
