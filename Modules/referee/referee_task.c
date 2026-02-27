@@ -410,8 +410,7 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
       // 车头方向圆弧
       if (interactive_data->Referee_Interactive_Flag.yaw_flag == 1)
       {
-          float angle_rad = interactive_data->chassis_relative_angle;
-          int yaw_deg = (int)(angle_rad * 180.0f / 3.14159f);
+          int yaw_deg = (int)interactive_data->chassis_relative_angle;
           if (yaw_deg < 0) yaw_deg += 360;
           uint32_t show1, show2;
           // 计算60°扇形的起止角度，处理跨越0°的情况
