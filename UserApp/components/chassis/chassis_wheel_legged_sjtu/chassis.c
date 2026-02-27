@@ -1,135 +1,237 @@
 /**
- * @file    chassis.h
+ * @file    chassis.c
  * @author  Enhao Zhang
- * @date    2025/8/8
+ * @date    2026/2
  * @copyright Copyright (c) SHU SRM 2026 all rights reserved
- * @brief   Parallel Wheel-Legged Chassis Module
+ * @brief   SJTU Full-Chassis Wheel-Legged Module
+ * @todo    unify motor control and value limit to fully decouple this module (also probably for imu)
  */
 #include "chassis.h"
 
 #include <math.h>
+#include <string.h>
 
-#include "arm_math.h"
-#include "bsp_dwt.h"
 #include "general_def.h"
+#include "parallel_leg.h"
 #include "speed_observer.h"
 #include "user_lib.h"
 
 static ChassisInstance* chassis;
 static LegInstance* leg[2];
-static Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd;  // 声明但不初始化
+static Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd;
 
-// 中间变量
-static float chassis_aver_v;
-static float q2i_coeff;
-
-// robot param
-static float robot_mass;
-static float track_width;
-static float leg_min_length;
-static float leg_max_length;
-static float leg_force_ff;
-static float leg_force_ff_gain;
-static float wheel_radius;
-static float wheel_reduction_ratio;
-
-// 中科大的功率模型
-static float k0, k1, k2, k3, k4, k5;
-
-static void ChassisCtrlUpdate() {
-  chassis->roll_comp =
-      PIDCalculate(&chassis->roll_PID, chassis->chassis_IMU->Roll * DEGREE_2_RAD, chassis->chassis_ctrl_cmd.roll);
-
-  for (int i = 0; i < 2; i++) {
-    leg[i]->update_flag.is_controlled = chassis->chassis_ctrl_cmd.vx != 0;
-    leg[i]->leg_ctrl_cmd.x_d_ref = chassis->chassis_ctrl_cmd.vx;
-    leg[i]->leg_ctrl_cmd.theta_ref = chassis->chassis_ctrl_cmd.theta_ff;
-    if (chassis->jump_state == JUMP_STATE_IDLE) {
-      leg[i]->leg_ctrl_cmd.length_ref =
-          chassis->chassis_ctrl_cmd.leg_length -
-          (float)(1 - 2 * i) * track_width *
-              (chassis->chassis_ctrl_cmd.roll - chassis->chassis_IMU->Roll * DEGREE_2_RAD);
-    } else {
-      leg[i]->leg_ctrl_cmd.length_ref =
-          leg[i]->leg_ctrl_cmd.length_ref -
-          (float)(1 - 2 * i) * track_width *
-              (chassis->chassis_ctrl_cmd.roll - chassis->chassis_IMU->Roll * DEGREE_2_RAD);
+/**
+ * @brief  计算LQR增益矩阵K
+ *
+ * 根据左腿长度l_l和右腿长度l_r，通过二维二次多项式插值系数coef，计算每个K[i][j]的值。
+ * K_ij(l_l, l_r) = p00 + p10*l_l + p01*l_r + p20*l_l^2 + p11*l_l*l_r + p02*l_r^2
+ *
+ * @param[out] K      计算得到的LQR增益矩阵，大小为4x10
+ * @param[in]  coef   二次多项式系数数组，每个元素为6个系数，长度共40（4 * 10）
+ * @param[in]  l_l    左腿长度
+ * @param[in]  l_r    右腿长度
+ */
+static void LQR_K_Calc(float K[4][10], const float coef[40][6], float l_l, float l_r) {
+  float l_l2 = l_l * l_l;
+  float l_r2 = l_r * l_r;
+  float l_lr = l_l * l_r;
+  for (int i = 0; i < 4; i++) {
+    for (int j = 0; j < 10; j++) {
+      int n = i * 10 + j;
+      const float* p = coef[n];
+      K[i][j] = p[0] + p[1] * l_l + p[2] * l_r + p[3] * l_l2 + p[4] * l_lr + p[5] * l_r2;
     }
-    LegCtrlUpdate(leg[i], chassis->chassis_IMU);
-    if (chassis->jump_state == JUMP_STATE_EXTEND) {
-      leg_force_ff = chassis_ctrl_cmd->jump_force;
-    } else {
-      leg_force_ff = leg_force_ff_gain * 9.8f * robot_mass / 2.0f /
-                     mcos(leg[i]->state_var.theta);  // 不超过半边重力的一半(看机器）
-    }
-    leg[i]->virtual_model.F += leg_force_ff - (float)(1 - 2 * i) * chassis->roll_comp;
-    VAL_LIMIT(leg[i]->virtual_model.F, -1500.0f, 1500.0f);
-    leg[i]->real_model.T -= (float)(1 - 2 * i) * chassis->chassis_ctrl_cmd.wz;
   }
+}
 
-  chassis->delta_theta_comp =
-      PIDCalculate(&chassis->delta_theta_PID, leg[0]->state_var.theta - leg[1]->state_var.theta, 0);
-  for (int i = 0; i < 2; i++) {
-    leg[i]->virtual_model.Tp -= (float)(1 - 2 * i) * chassis->delta_theta_comp;
-    JointTorqueUpdate(leg[i]);
-  }
+static void SpeedEstimate(void) {
+  float chassis_aver_v;
+  ObserverVarUpdate(leg[0], chassis->imu);
+  ObserverVarUpdate(leg[1], chassis->imu);
+  chassis_aver_v = (leg[0]->observer_var.vb + leg[1]->observer_var.vb) * 0.5f;
+  xvEstimateKF_Update(&chassis->vaEstimateKF, chassis->imu->MotionAccel_n[1], chassis_aver_v);
 }
 
 /**
- * @brief 倒地自启
- * @todo 没测过
+ * SJTU 状态与 VMC/IMU 映射（须与 MATLAB 线性化/推导文档约定一致）:
+ *   phi, dphi     ← chassis_IMU->YawTotalAngle (rad), IMU Gyro[2] (yaw, rad/s)
+ *   theta_b      ← IMU Pitch (rad)，俯仰角
+ *   dtheta_b      ← IMU Gyro[0] (pitch 角速度, rad/s)
+ *   theta_l       ← leg[1]->state_var.theta (左腿与 Z 负方向夹角，VMC 解算)
+ *   theta_r       ← leg[0]->state_var.theta (右腿)
+ * 若 IMU 或 VMC 的符号/零点与推导文档不一致，LQR 反馈可能反号，需在文档或测试中核对。
  */
-static void ChassisRecovery() {
+static void StateVarUpdate(void) {
+  State_Var_t* sv = &chassis->state_var;
+  INS_t* imu = chassis->imu;
+  if (chassis->update_flag.is_restart) {
+    chassis->state_var.x_b_h = 0.0f;
+    chassis->last_state_var = chassis->state_var;
+  }
+  /* x_b_h: no position sensor, keep 0 or integrate in observer path */
+  SpeedEstimate();
+  sv->v_b_h = chassis->vaEstimateKF.FilteredValue[0];
+  // 位移积分
+  if (chassis->update_flag.is_controlled || (leg[0]->update_flag.is_off_ground && leg[1]->update_flag.is_off_ground)) {
+    sv->x_b_h = 0.0f;
+  } else {
+    sv->x_b_h += ((sv->v_b_h + chassis->last_state_var.v_b_h) / 2.0f) * chassis->dt;
+  }
+  sv->phi = imu->YawTotalAngle * DEGREE_2_RAD;
+  sv->dphi = imu->Gyro[2];
+  /* Left leg = leg[1], Right leg = leg[0] */
+  sv->theta_r = leg[0]->virtual_model.theta;
+  sv->dtheta_r = leg[0]->virtual_model.theta_d;
+  sv->theta_l = leg[1]->virtual_model.theta;
+  sv->dtheta_l = leg[1]->virtual_model.theta_d;
+  sv->theta_b = imu->Pitch * DEGREE_2_RAD;
+  sv->dtheta_b = imu->Gyro[0];
+
+  chassis->last_state_var = *sv;
+}
+
+static void LocomotionController(void) {
+  State_Var_t* sv = &chassis->state_var;
+  chassis->update_flag.is_controlled = chassis_ctrl_cmd->vx != 0;
+
+  float l_l = leg[1]->virtual_model.length;
+  float l_r = leg[0]->virtual_model.length;
+  LQR_K_Calc(chassis->LQR_K, chassis->param.LQR_K_Coefficients, l_l, l_r);
+
+  // TODO: 状态误差限幅
+  float state_err[10];
+  state_err[0] = sv->x_b_h - 0.0f;
+  state_err[1] = sv->v_b_h - chassis_ctrl_cmd->vx;
+
+  state_err[2] = sv->phi - 0.0f;
+  state_err[3] = sv->dphi - chassis_ctrl_cmd->wz;
+  state_err[4] = sv->theta_l;
+  state_err[5] = sv->dtheta_l;
+  state_err[6] = sv->theta_r;
+  state_err[7] = sv->dtheta_r;
+  state_err[8] = sv->theta_b;
+  state_err[9] = sv->dtheta_b;
+
+  /* u[0] = T_{r→b} (hip torque on body, same convention as virtual_model.Tp)
+   * u[1] = T_{l→b}
+   * u[2] = T_{wr→r} (reaction on leg; motor drive torque = -T_{wr→r})
+   * u[3] = T_{wl→l} */
+  float u[4];
+  for (int i = 0; i < 4; i++) {
+    u[i] = 0.0f;
+    for (int j = 0; j < 10; j++) {
+      u[i] -= chassis->LQR_K[i][j] * state_err[j];
+    }
+  }
+  leg[0]->virtual_model.Tp = u[0];
+  leg[1]->virtual_model.Tp = u[1];
+  leg[0]->real_model.T = leg[0]->update_flag.is_off_ground ? 0.0f : -u[2];
+  leg[1]->real_model.T = leg[1]->update_flag.is_off_ground ? 0.0f : -u[3];
+}
+
+/*
+ * Force distribution (plan formulas 3.6–3.8):
+ *   F_bl,l = +F_psi + F_l + F_gravity - F_inertial   (LEFT)
+ *   F_bl,r = -F_psi + F_l + F_gravity + F_inertial   (RIGHT)
+ * F_psi = roll_comp: positive when body rolls left → boost left support.
+ */
+static void LegController(void) {
+  float f_psi = PIDCalculate(&chassis->roll_PID, chassis->imu->Roll * DEGREE_2_RAD, chassis_ctrl_cmd->roll);
+  float l_avg = (leg[0]->virtual_model.length + leg[1]->virtual_model.length) * 0.5f;
+  float f_l = PIDCalculate(&chassis->length_PID, l_avg, chassis->chassis_ctrl_cmd.leg_length);
+  float f_gravity = 0.5f * chassis->param.body_mass * 9.81f;
+  float f_inertial = 0.5f * chassis->param.body_mass * (l_avg / (2.0f * chassis->param.track_width)) *
+                     chassis->state_var.dphi * chassis->state_var.v_b_h;
+  leg[1]->virtual_model.F = f_psi + f_l + f_gravity - f_inertial;
+  leg[0]->virtual_model.F = -f_psi + f_l + f_gravity + f_inertial;
+}
+
+static void ChassisCtrlUpdate(void) {
+  float dt_raw = DWT_GetDeltaT(&chassis->DWT_CNT);
+
+  if (dt_raw > 0.05f) {
+    chassis->dt = 0.001f;
+    chassis->update_flag.is_restart = 1;
+  } else {
+    chassis->dt = dt_raw;
+    chassis->update_flag.is_restart = 0;
+  }
+
+  LegModelUpdate(leg[0], chassis->imu);
+  LegModelUpdate(leg[1], chassis->imu);
+
+  StateVarUpdate();
+  LocomotionController();
+  LegController();
+
+  if (chassis->jump_state == JUMP_STATE_EXTEND) {
+    float jump_f = chassis_ctrl_cmd->jump_force;
+    leg[0]->virtual_model.F = jump_f;
+    leg[1]->virtual_model.F = jump_f;
+  } else {
+    VAL_LIMIT(leg[0]->virtual_model.F, -1500.0f, 1500.0f);
+    VAL_LIMIT(leg[1]->virtual_model.F, -1500.0f, 1500.0f);
+  }
+
+  JointTorqueUpdate(leg[0]);
+  JointTorqueUpdate(leg[1]);
+}
+
+static void ChassisRecovery(void) {
+  // 1. 清除状态并设置外环为角度环，参考值为 -0.1/0.1，准备复位
+  chassis->update_flag.is_controlled = 0;
   for (int i = 0; i < 2; i++) {
-    // 关节收腿
+    leg[i]->update_flag.is_off_ground = 0;
+
     DMMotorOuterLoop(leg[i]->joint_motor[0], ANGLE_LOOP);
     DMMotorOuterLoop(leg[i]->joint_motor[1], ANGLE_LOOP);
-    DMMotorSetPIDRef(leg[i]->joint_motor[0], -0.1);
-    DMMotorSetPIDRef(leg[i]->joint_motor[1], 0.1);
+
+    DMMotorSetPIDRef(leg[i]->joint_motor[0], -0.1f);
+    DMMotorSetPIDRef(leg[i]->joint_motor[1], 0.1f);
+
     leg[i]->real_model.Tp_1 = leg[i]->joint_motor[0]->motor_controller.final_output;
     leg[i]->real_model.Tp_2 = leg[i]->joint_motor[1]->motor_controller.final_output;
-    leg[i]->update_flag.is_controlled = 0;  // todo: 可以看看哪个好
-    // 没收完两条腿不动轮毂, 防止位移项错误累加
-    if (abs((leg[0]->joint_motor[0]->measure.position - (-0.1f))) <= 0.5f &&
-        abs(leg[0]->joint_motor[1]->measure.position - (0.1f)) <= 0.5f &&
-        abs((leg[1]->joint_motor[0]->measure.position - (-0.1f))) <= 0.5f &&
-        abs(leg[1]->joint_motor[1]->measure.position - (0.1f)) <= 0.5f) {
-      leg[i]->leg_ctrl_cmd.x_d_ref = chassis->chassis_ctrl_cmd.vx;
-      LegCtrlUpdate(leg[i], chassis->chassis_IMU);
-      leg[i]->real_model.T -= (float)(1 - 2 * i) * chassis->chassis_ctrl_cmd.wz;
-    } else {
-      leg[i]->real_model.T = 0;
+  }
+
+  // 2. 判断所有关节是否均到达目标位，若到位则正常进行 ChassisCtrlUpdate
+  uint8_t all_in_position = 1;
+  for (int i = 0; i < 2; i++) {
+    if (fabsf(leg[i]->joint_motor[0]->measure.position - (-0.1f)) > 0.5f ||
+        fabsf(leg[i]->joint_motor[1]->measure.position - (0.1f)) > 0.5f) {
+      all_in_position = 0;
+      break;
     }
-    // 位置环下离地检测有误，需手动将标志位置零
-    leg[i]->update_flag.is_off_ground = 0;
+  }
+
+  if (all_in_position) {
+    ChassisCtrlUpdate();
+  } else {
+    // 3. 未到位则挂零轮力输出，防止不稳定
+    for (int i = 0; i < 2; i++) {
+      leg[i]->real_model.T = 0.0f;
+    }
   }
 }
 
-static void ChassisJump() {
+static void ChassisJump(void) {
   switch (chassis->jump_state) {
     case JUMP_STATE_COMPRESS:
-      for (int i = 0; i < 2; i++) {
-        leg[i]->leg_ctrl_cmd.length_ref = leg_min_length;
-      }
+      chassis->chassis_ctrl_cmd.leg_length = chassis->param.leg_min_length;
       ChassisCtrlUpdate();
       break;
     case JUMP_STATE_EXTEND:
-      for (int i = 0; i < 2; i++) {
-        leg[i]->leg_ctrl_cmd.length_ref = leg_max_length;
-      }
+      chassis->chassis_ctrl_cmd.leg_length = chassis->param.leg_max_length;
       ChassisCtrlUpdate();
-      if (fabs(leg[0]->virtual_model.length - leg_max_length) <= 0.05 &&
-          fabs(leg[1]->virtual_model.length - leg_max_length) <= 0.05) {
+      if (fabsf(leg[0]->virtual_model.length - chassis->param.leg_max_length) <= 0.05f &&
+          fabsf(leg[1]->virtual_model.length - chassis->param.leg_max_length) <= 0.05f) {
         chassis->jump_state = JUMP_STATE_RETRACT;
       }
       break;
     case JUMP_STATE_RETRACT:
-      for (int i = 0; i < 2; i++) {
-        leg[i]->leg_ctrl_cmd.length_ref = leg_min_length;
-      }
+      chassis->chassis_ctrl_cmd.leg_length = chassis->param.leg_min_length;
       ChassisCtrlUpdate();
-      if (fabs(leg[0]->virtual_model.length - leg_min_length) <= 0.05 &&
-          fabs(leg[1]->virtual_model.length - leg_min_length) <= 0.05) {
+      if (fabsf(leg[0]->virtual_model.length - chassis->param.leg_min_length) <= 0.05f &&
+          fabsf(leg[1]->virtual_model.length - chassis->param.leg_min_length) <= 0.05f) {
         chassis->jump_state = JUMP_STATE_IDLE;
       }
       break;
@@ -140,163 +242,20 @@ static void ChassisJump() {
   }
 }
 
-/**
- * @brief 功率控制
- * @todo 有待模块化,djimotor也得改改
- */
-static void PowerControl() {
-  // 获取电机角速度
-  float wheel_motor_speed_fdb[2];
-  for (int i = 0; i < 2; i++) {
-    wheel_motor_speed_fdb[i] = leg[i]->wheel_motor->measure.speed_aps;
-    wheel_motor_speed_fdb[i] *= DEGREE_2_RAD;
-  }
-
-  // 获取电机电流
-  float wheel_motor_current_fdb[2];
-  for (int i = 0; i < 2; i++) {
-    wheel_motor_current_fdb[i] = leg[i]->wheel_motor->motor_controller.final_output;
-  }
-
-  // 获取电机各力矩,之后转换为各分量实际电流值
-  float M[2];        // 轮毂力矩的平衡分量,之后转换为实际电流值
-  float T_speed[2];  // 轮毂力矩的速度分量,之后转换为实际电流值
-  float T_yaw[2];    // 轮毂力矩的yaw分量,之后转换为实际电流值
-  for (int i = 0; i < 2; i++) {
-    M[i] = leg[i]->LQR_K[0][0] * (leg[i]->state_var.theta - 0.0f) +
-           leg[i]->LQR_K[0][1] * (leg[i]->state_var.theta_d - 0.0f) +
-           leg[i]->LQR_K[0][4] * (leg[i]->state_var.phi - 0.0f) +
-           leg[i]->LQR_K[0][5] * (leg[i]->state_var.phi_d - 0.0f);
-    T_speed[i] =
-        !leg[i]->update_flag.is_controlled * leg[i]->LQR_K[0][2] * (leg[i]->state_var.x - leg[i]->leg_ctrl_cmd.x_ref) +
-        leg[i]->LQR_K[0][3] * (leg[i]->state_var.x_d - leg[i]->leg_ctrl_cmd.x_d_ref);
-    T_yaw[i] = (float)(2 * i - 1) * chassis->chassis_ctrl_cmd.wz;
-
-    // 将力矩转化为实际电流(A)
-    M[i] *= q2i_coeff;
-    T_speed[i] *= q2i_coeff;
-    T_yaw[i] *= q2i_coeff;
-  }
-
-  float initial_give_power[2] = {0.0f};  // 每个电机的初始估计功率
-  float initial_total_power = 0.0f;      // 估计初始总功率
-
-  // 计算电机当前功率
-  for (int i = 0; i < 2; i++) {
-    initial_give_power[i] =
-        k0 + k1 * wheel_motor_current_fdb[i] / (16384.0f / 20.0f) + k2 * wheel_motor_speed_fdb[i] +
-        k3 * wheel_motor_current_fdb[i] / (16384.0f / 20.0f) * wheel_motor_speed_fdb[i] +
-        k4 * wheel_motor_current_fdb[i] / (16384.0f / 20.0f) * wheel_motor_current_fdb[i] / (16384.0f / 20.0f) +
-        k5 * wheel_motor_speed_fdb[i] * wheel_motor_speed_fdb[i];
-    // 只累加正向功率
-    if (initial_give_power[i] > 0) {
-      initial_total_power += initial_give_power[i];
-    }
-  }
-
-  float k[2] = {0.0f};        // 约束条件：T_speed = k * T_yaw 和 T_yaw_target = k * T_speed_target
-  float k_speed[2] = {1.0f};  // speed分量的衰减系数
-  float k_yaw[2] = {1.0f};    // yaw分量的衰减系数
-  float T_yaw_target[2] = {0.0f};
-
-  // 功率超限时进行动态调整
-  if (initial_total_power > (float)chassis_ctrl_cmd->max_power) {
-    for (int i = 0; i < 2; i++) {
-      k[i] = T_speed[i] / T_yaw[i];
-
-      // 以T_yaw_target为x，解方程，x单位是A
-      float a = k4 * (k[i] + 1) * (k[i] + 1);
-      float b = (k1 + k3 * M[i] + 2 * k4 * M[i]) * (k[i] + 1);
-      float c = k0 + k1 * M[i] + k2 * wheel_motor_speed_fdb[i] + k3 * M[i] * wheel_motor_speed_fdb[i] +
-                k4 * M[i] * M[i] + k5 * wheel_motor_speed_fdb[i] * wheel_motor_speed_fdb[i] -
-                (float)chassis_ctrl_cmd->max_power;
-      float discriminant = b * b - 4 * a * c;  // 判别式
-      if (discriminant > 0) {
-        float sqrt_disc = sqrtf(discriminant);
-        float x1 = (-b + sqrt_disc) / (2 * a);
-        float x2 = (-b - sqrt_disc) / (2 * a);
-        if (T_yaw_target[i] > 0) {
-          T_yaw_target[i] =
-              (fabsf(x1 - T_yaw_target[i]) < fabsf(x2 - T_yaw_target[i])) ? fminf(10.0f, x1) : fminf(10.0f, x2);
-        } else {
-          T_yaw_target[i] =
-              (fabsf(x1 - T_yaw_target[i]) < fabsf(x2 - T_yaw_target[i])) ? fmaxf(-10.0f, x1) : fmaxf(-10.0f, x2);
-        }
-
-        k_yaw[i] = T_yaw_target[i] / T_yaw[i];
-        k_speed[i] = k_yaw[i];
-      } else if (discriminant == 0) {
-        T_yaw_target[i] = (-b) / (2 * a);
-
-        k_yaw[i] = T_yaw_target[i] / T_yaw[i];
-        k_speed[i] = k_yaw[i];
-      } else {
-        k_speed[i] = 0.0f;
-        k_yaw[i] = 0.0f;
-      }
-
-      // 限制衰减系数在0~1内
-      VAL_LIMIT(k_speed[i], 0.0f, 1.0f);
-      VAL_LIMIT(k_yaw[i], 0.0f, 1.0f);
-
-      leg[i]->real_model.T = M[i] + k_speed[i] * T_speed[i] + k_yaw[i] * T_yaw[i];
-    }
-  }
-}
-
-/**
- * @brief 预测电机功率并进行限制
- *
- */
-static void LimitChassisOutput() {
-  // PowerControl();
+static void LimitChassisOutput(void) {
   for (int i = 0; i < 2; i++) {
     VAL_LIMIT(leg[i]->real_model.Tp_1, -32.0f, 32.0f);
     VAL_LIMIT(leg[i]->real_model.Tp_2, -32.0f, 32.0f);
-    // VAL_LIMIT(leg[i]->real_model.Tp_1, -3.0f, 3.0f);
-    // VAL_LIMIT(leg[i]->real_model.Tp_2, -3.0f, 3.0f);
     VAL_LIMIT(leg[i]->real_model.T, -2.45f, 2.45f);
     DMMotorSetRef(leg[i]->joint_motor[0], leg[i]->real_model.Tp_1);
     DMMotorSetRef(leg[i]->joint_motor[1], leg[i]->real_model.Tp_2);
-    // DMMotorSetRef(leg[i]->joint_motor[1], 0);
-    // DMMotorSetRef(leg[i]->joint_motor[0], 0);
-    // DMMotorSetRef(leg[1]->joint_motor[0], leg[1]->real_model.Tp_1);
-    // DMMotorSetRef(leg[1]->joint_motor[1], leg[1]->real_model.Tp_2);
     if (leg[i]->update_flag.is_off_ground) {
       DJIMotorSetRef(leg[i]->wheel_motor, 0);
     } else {
-      DJIMotorSetRef(leg[i]->wheel_motor, leg[i]->real_model.T * q2i_coeff * (16384.0f / 20.0f));
-      // DJIMotorSetRef(leg[i]->wheel_motor, 0);
+      DJIMotorSetRef(leg[i]->wheel_motor, leg[i]->real_model.T * (3591.0f / 187.0f) /
+                                              chassis->leg[i]->param.wheel_reduction_ratio / 0.3f * (16384.0f / 20.0f));
     }
-    // DJIMotorSetRef(leg[0]->wheel_motor, 0);
-    // DJIMotorSetRef(leg[i]->wheel_motor, ref);
   }
-}
-
-/**
- * @brief 根据每个轮子的速度反馈,计算底盘的实际运动速度,逆运动解算
- *        对于双板的情况,考虑增加来自底盘板IMU的数据
- *
- */
-static void EstimateSpeed() {
-#if 1
-  ObserverVarUpdate(leg[0], chassis->chassis_IMU);
-  ObserverVarUpdate(leg[1], chassis->chassis_IMU);
-  chassis_aver_v = (leg[0]->observer_var.vb + leg[1]->observer_var.vb) / 2.0f;
-  xvEstimateKF_Update(&chassis->vaEstimateKF, chassis->chassis_IMU->MotionAccel_n[1], chassis_aver_v);
-  for (int i = 0; i < 2; i++) {
-    leg[i]->state_var.x_d = chassis->vaEstimateKF.FilteredValue[0];
-  }
-#else
-#define X_D_FILTER_ALPHA 0.1f
-  for (int i = 0; i < 2; i++) {
-    // 计算当前速度值
-    float current_x_d = -1 * (leg[0]->wheel_motor->measure.speed_aps + leg[1]->wheel_motor->measure.speed_aps) / 2 /
-                        wheel_reduction_ratio * DEGREE_2_RAD * wheel_radius;
-    // 应用一阶低通滤波
-    leg[i]->state_var.x_d = leg[i]->state_var.x_d * (1.0f - X_D_FILTER_ALPHA) + current_x_d * X_D_FILTER_ALPHA;
-  }
-#endif
 }
 
 ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
@@ -305,42 +264,29 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   chassis_instance->leg[0] = LegInit(&chassis_init_config->leg_init_config[0]);
   chassis_instance->leg[1] = LegInit(&chassis_init_config->leg_init_config[1]);
 
-  robot_mass = chassis_init_config->chassis_param.robot_mass;
-  track_width = chassis_init_config->chassis_param.track_width;
-  leg_min_length = chassis_init_config->chassis_param.leg_min_length;
-  leg_max_length = chassis_init_config->chassis_param.leg_max_length;
-  leg_force_ff_gain = chassis_init_config->chassis_param.leg_force_ff_gain;
-  wheel_radius = chassis_init_config->leg_init_config[0].param.wheel_radius;
-  wheel_reduction_ratio = chassis_init_config->leg_init_config[0].param.wheel_reduction_ratio;
-  q2i_coeff = (3591.0f / 187.0f) / wheel_reduction_ratio / 0.3f;
-
-  k0 = chassis_init_config->chassis_param.power_param_3508.k0;
-  k1 = chassis_init_config->chassis_param.power_param_3508.k1;
-  k2 = chassis_init_config->chassis_param.power_param_3508.k2;
-  k3 = chassis_init_config->chassis_param.power_param_3508.k3;
-  k4 = chassis_init_config->chassis_param.power_param_3508.k4;
-  k5 = chassis_init_config->chassis_param.power_param_3508.k5;
-
-  PIDInit(&chassis_instance->delta_theta_PID, &chassis_init_config->delta_theta_PID_config);
   PIDInit(&chassis_instance->roll_PID, &chassis_init_config->roll_PID_config);
-
-  chassis_instance->chassis_IMU = INS_Init(&chassis_init_config->imu_init_config);
-
+  chassis_instance->imu = INS_Init(&chassis_init_config->imu_init_config);
   xvEstimateKF_Init(&chassis_instance->vaEstimateKF);
 
+  chassis_instance->param = chassis_init_config->param;
+
   chassis_instance->jump_state = JUMP_STATE_IDLE;
+
+  chassis_instance->update_flag.is_first_update = 1;
+  chassis_instance->update_flag.is_restart = 1;
+  chassis_instance->update_flag.is_controlled = 0;
 
   chassis = chassis_instance;
   leg[0] = chassis->leg[0];
   leg[1] = chassis->leg[1];
-  chassis_ctrl_cmd = &chassis->chassis_ctrl_cmd;  // 在运行时初始化指针
+  chassis_ctrl_cmd = &chassis->chassis_ctrl_cmd;
+
+  DWT_GetDeltaT(&chassis->DWT_CNT);
   return chassis_instance;
 }
 
-/* 机器人底盘控制核心任务 */
-void ChassisTask() {
+void ChassisTask(void) {
   if (chassis->chassis_ctrl_cmd.chassis_mode == CHASSIS_POWER_OFF) {
-    // 如果出现重要模块离线或遥控器设置为急停,让电机停止
     for (int i = 0; i < 2; i++) {
       DMMotorStop(chassis->leg[i]->joint_motor[0]);
       DMMotorStop(chassis->leg[i]->joint_motor[1]);
@@ -348,16 +294,12 @@ void ChassisTask() {
     }
     chassis->jump_state = JUMP_STATE_IDLE;
   } else {
-    // 正常工作
     for (int i = 0; i < 2; i++) {
       DMMotorEnable(chassis->leg[i]->joint_motor[0]);
       DMMotorEnable(chassis->leg[i]->joint_motor[1]);
       DJIMotorEnable(chassis->leg[i]->wheel_motor);
     }
   }
-
-  // 根据电机的反馈速度和IMU(如果有)计算真实速度
-  EstimateSpeed();
 
   switch (chassis->chassis_ctrl_cmd.chassis_mode) {
     case CHASSIS_RECOVERY:
@@ -376,8 +318,8 @@ void ChassisTask() {
       break;
     case CHASSIS_JUMP_START:
       if (chassis->jump_state == JUMP_STATE_COMPRESS) {
-        if (fabs(leg[0]->virtual_model.length - leg_min_length) <= 0.02 &&
-            fabs(leg[1]->virtual_model.length - leg_min_length) <= 0.02) {
+        if (fabsf(leg[0]->virtual_model.length - chassis->param.leg_min_length) <= 0.02f &&
+            fabsf(leg[1]->virtual_model.length - chassis->param.leg_min_length) <= 0.02f) {
           chassis->jump_state = JUMP_STATE_EXTEND;
         }
       }
@@ -387,6 +329,5 @@ void ChassisTask() {
       break;
   }
 
-  // 功率控制与输出限幅
   LimitChassisOutput();
 }

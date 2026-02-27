@@ -77,7 +77,7 @@ static void ChassisCtrlUpdate() {
 
 /**
  * @brief 倒地自启
- * @todo 没测过
+ * @todo 多姿态的倒地自启
  */
 static void ChassisRecovery() {
   for (int i = 0; i < 2; i++) {
@@ -142,7 +142,7 @@ static void ChassisJump() {
 
 /**
  * @brief 功率控制
- * @todo 有待模块化,djimotor也得改改
+ * @todo 功率模型需要调整
  */
 static void PowerControl() {
   // 获取电机角速度
