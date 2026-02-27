@@ -18,6 +18,8 @@
 // 弹量上限
 #define AMMO_UPPER 500
 
+#define QQ_SUPER_CAP
+
 /**
  * @brief 初始化裁判系统交互任务(UI和多机通信)
  *

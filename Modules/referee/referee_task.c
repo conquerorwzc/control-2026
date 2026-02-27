@@ -333,6 +333,7 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
       UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_autoaim_indicator);
       interactive_data->Referee_Interactive_Flag.autoaim_flag = 0;
     }
+
     // 电容能量圆弧
       if (interactive_data->Referee_Interactive_Flag.cap_flag == 1)
       {
@@ -784,14 +785,12 @@ void MyUIInit()
     UIArcDraw(&UI_pitch_needle, "pn0", UI_Graph_ADD, 6, UI_Color_Pink, 90 - 1, 90 + 1, 45, 960, 540, 365, 365);
     UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_pitch_needle);
 
-  // UIArcDraw(&D_Arc_Power, "100", UI_Graph_ADD, 6, UI_Color_Main, 270, 310, 22, 960, 540, 370, 370);
-  // UIArcDraw(&D_Arc_Ammo, "101", UI_Graph_ADD, 6, UI_Color_Main, 230, 270, 22, 960, 535, 370, 370);
-  UILineDraw(&Line_DecoMid, "ll0", UI_Graph_ADD, 6, UI_Color_White, 7, 577, 538, 606, 538);
-  UIArcDraw(&Arc_DecoUp, "ll1", UI_Graph_ADD, 6, UI_Color_White, 310, 311, 22, 960, 540, 370, 370);
-  UIArcDraw(&Arc_DecoDown, "ll2", UI_Graph_ADD, 6, UI_Color_White, 229, 230, 22, 960, 535, 370, 370);
-  UIGraphRefresh(&referee_recv_info->referee_id, 1, Line_DecoMid);
-  UIGraphRefresh(&referee_recv_info->referee_id, 1, Arc_DecoUp);
-  UIGraphRefresh(&referee_recv_info->referee_id, 1, Arc_DecoDown);
+    UILineDraw(&Line_DecoMid, "ll0", UI_Graph_ADD, 6, UI_Color_White, 7, 577, 538, 606, 538);
+    UIGraphRefresh(&referee_recv_info->referee_id, 1, Line_DecoMid);
+    UIArcDraw(&Arc_DecoUp, "ll1", UI_Graph_ADD, 6, UI_Color_White, 310, 311, 22, 960, 540, 370, 370);
+    UIGraphRefresh(&referee_recv_info->referee_id, 1, Arc_DecoUp);
+    UIArcDraw(&Arc_DecoDown, "ll2", UI_Graph_ADD, 6, UI_Color_White, 229, 230, 22, 960, 535, 370, 370);
+    UIGraphRefresh(&referee_recv_info->referee_id, 1, Arc_DecoDown);
 }
 
 // 实现缺失的UITask函数
@@ -806,6 +805,7 @@ void UITask()
     // 这些值应该从实际的机器人系统中获取
     //interactive_data.chassis_mode = CHASSIS_NORMAL;
     interactive_data.chassis_mode = robotdata->chassis->chassis_ctrl_cmd.chassis_mode;
+  /*
     //interactive_data.gimbal_mode = GIMBAL_NORMAL;
     interactive_data.gimbal_mode = robotdata->gimbal->gimbal_ctrl_cmd.gimbal_mode;
     // interactive_data.shoot_mode = SHOOT_OFF;
@@ -817,18 +817,31 @@ void UITask()
 
     interactive_data.pitch_angle = robotdata->gimbal->gimbal_ctrl_cmd.pitch;
 
-    interactive_data.Shoot_heat = robotdata->shoot->shoot_ctrl_cmd.rest_heat;
-    interactive_data.Shoot_rate = robotdata->shoot->shoot_ctrl_cmd.shoot_rate;
+    // interactive_data.Shoot_heat = robotdata->shoot->shoot_ctrl_cmd.rest_heat;
+    // interactive_data.Shoot_rate = robotdata->shoot->shoot_ctrl_cmd.shoot_rate;
 
     // 获取新数据（根据实际 robotdata 结构修改字段名）
     // interactive_data.autoaim_mode = robotdata->gimbal->vision_mode;          // 自瞄模式
-    // interactive_data.cap_voltage = robotdata->chassis->supercap.voltage / 1000.0f;
-    // interactive_data.cap_mode = robotdata->chassis->supercap.mode;
+    interactive_data.autoaim_mode = robotdata->gimbal->gimbal_ctrl_cmd.gimbal_mode == GIMBAL_VISION ? 1 : 0;  // 自瞄模式(1为开启，0为关闭)
+
+
+    // interactive_data.cap_voltage = robotdata->super_cap->cap_msg.vol / 1000.0f;
+    // 检查使用的是哪种超级电容模块
+    #ifdef QQ_SUPER_CAP
+      interactive_data.cap_voltage = robotdata->super_cap->cap_msg.vol;  // 齐奇模块，已是伏特单位
+    #else
+      interactive_data.cap_voltage = robotdata->super_cap->cap_msg.vol / 1000.0f;  // 标准模块，需要转换为伏特
+    #endif
+
+    interactive_data.cap_mode = robotdata->super_cap->cap_msg.status;
+
     // interactive_data.bullet_left_real = robotdata->shoot->bullet_left;        // 实体弹丸剩余
+    interactive_data.bullet_left_real = referee_recv_info->ProjectileAllowance.projectile_allowance_17mm; // 实体弹丸剩余
+
     //@todo
     interactive_data.fric_speed_left = -robotdata->shoot->friction_motor[0]->measure.speed_aps; // 左摩擦轮转速（取反使向上为正）
     interactive_data.fric_speed_right = robotdata->shoot->friction_motor[1]->measure.speed_aps; // 右摩擦轮转速
-
+  */
     interactive_data.chassis_relative_angle = robotdata->chassis->chassis_ctrl_cmd.offset_angle; // 底盘相对于云台的角度
 
     // 检查是否有变化
