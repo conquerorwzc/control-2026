@@ -77,6 +77,7 @@ typedef struct {
   float Yaw;    // Yaw轴安装偏角修正 单位: °
   float Pitch;  // Pitch轴安装偏角修正 单位: °
   float Roll;   // Roll轴安装偏角修正 单位: °
+  float GyroOffset[3];
 } IMU_Init_Config_s;
 
 /**

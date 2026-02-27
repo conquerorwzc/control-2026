@@ -147,7 +147,14 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
     IMU_Temperature_Ctrl();
     DWT_Delay(0.001);
   }
-  INS_CalibrateGyroForDebug(5000);
+  for (uint8_t i=0;i<3;i++)
+    BMI088.GyroOffset[i]=imu_init_config->GyroOffset[i];
+  //INS_CalibrateGyroForDebug(10000);
+  //for (uint8_t i = 0; i < 3; i++) {
+    //BMI088.GyroOffset[0] = 0.00253310893f;
+    //BMI088.GyroOffset[1] = 0.00196733163f;
+    //BMI088.GyroOffset[2] = 0.000239364381;
+
 
   // 手动计算加速度缩放因子，因为我们跳过了完整的校准过程
   BMI088.AccelScale = 9.81f / BMI088.gNorm;
@@ -158,6 +165,7 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
   IMU_Param.Pitch = imu_init_config->Pitch;
   IMU_Param.Roll = imu_init_config->Roll;
   IMU_Param.flag = imu_init_config->flag;
+
   // BMI088CalibrateGyroForDebug(BMI,1000);
   float init_quaternion[4] = {0};
   InitQuaternion(init_quaternion);
