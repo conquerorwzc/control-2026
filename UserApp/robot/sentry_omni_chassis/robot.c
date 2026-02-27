@@ -384,8 +384,8 @@ static void EmergencyHandler() {
       // 遥控器右侧开关为[上],恢复正常运行
       break;
   }
-}
 
+}
 static void SuperCapControl() {
   switch (supercap_mode) {
     case SAFETY_MODE:
@@ -405,7 +405,7 @@ static void SuperCapControl() {
         supercap_mode=FORCED_CHARGING_MODE;
       if (robot->super_cap->cap_msg.cap_v>18.0f)
         supercap_mode=PASSIVE_MODE;
-      robot->chassis->chassis_ctrl_cmd.max_power=robot->referee_data->GameRobotState.chassis_power_limit-(uint16_t)powf((float)robot->referee_data->GameRobotState.chassis_power_limit*0.045f,2);
+      robot->chassis->chassis_ctrl_cmd.max_power=robot->referee_data->GameRobotState.chassis_power_limit-(uint16_t)powf((float)robot->referee_data->GameRobotState.chassis_power_limit*0.04f,2);
       break;
     case PASSIVE_MODE:
       if (chassis_ctrl_cmd->max_power==180)
@@ -446,7 +446,7 @@ void RobotInit() {
   robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
   robot->sentry_mode=1;
 
-  robot->super_cap = SuperCapInit(&super_cap_config);
+  // robot->super_cap = SuperCapInit(&super_cap_config);
 
   robot->chassis = ChassisInit(&chassis_init_config);
   // 初始化控制命令指针
