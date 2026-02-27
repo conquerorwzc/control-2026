@@ -61,18 +61,18 @@ static bool parse_custom_controller_data(const uint8_t *packed_data, uint16_t pa
         // 扭矩状态字段已移除，保留为预留字节
     }
 
-    // 解析电位器数据 (1个电位器)
-    uint8_t pot_start = 20; // 电位器数据起始位置
+    // 解析电位器数据 (1个电位器) - 起始位置21
+    uint8_t pot_start = 21; // 电位器数据起始位置 (电机数据1-20字节，电位器从21开始)
     
-    unpacked_data->pots[0].id = data_ptr[pot_start];
+    unpacked_data->pots[0].id = 1; // 固定ID为1
     
-    // 解析角度
-    int16_t angle_raw = ((int16_t)data_ptr[pot_start + 2] << 8) | data_ptr[pot_start + 1];
+    // 解析角度 (2字节，低字节在前，与下位机打包一致)
+    int16_t angle_raw = ((int16_t)data_ptr[pot_start + 1] << 8) | data_ptr[pot_start];
     unpacked_data->pots[0].angle = (float)angle_raw / 100.0f;
     
-    // 解析电压
-    int16_t voltage_raw = ((int16_t)data_ptr[pot_start + 4] << 8) | data_ptr[pot_start + 3];
-    unpacked_data->pots[0].voltage = (float)voltage_raw / 100.0f;
+    // 解析电压 (1字节，0-255映射到0-5V)
+    uint8_t voltage_raw = data_ptr[pot_start + 2];
+    unpacked_data->pots[0].voltage = (float)voltage_raw / 51.0f; // 255/5 = 51
 
     return true;
 }

@@ -396,7 +396,7 @@ static void Gantry_Limit(Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd, const Gantry_Param_
     last_y = gantry_ctrl_cmd->y;
 }
 
-/*
+/**
  * @brief 处理自定义控制器数据
  */
 static void ProcessCustomControllerData() {
