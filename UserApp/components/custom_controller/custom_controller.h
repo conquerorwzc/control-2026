@@ -17,6 +17,24 @@
 #include "crc_func.h"
 #include "usart.h"
 #include "bsp_usart.h"
+#include "bsp_adc.h"  // 添加ADC头文件
+
+/* ----------------------- 电位器配置结构体 ----------------------------- */
+typedef struct {
+    float min_voltage;      // 电位器最小电压值(V)
+    float max_voltage;      // 电位器最大电压值(V)
+    float min_angle;        // 对应的最小角度(度)
+    float max_angle;        // 对应的最大角度(度)
+    float filter_alpha;     // 滤波系数(0.0-1.0)
+} Potentiometer_Config_s;
+
+/* ----------------------- 电位器数据结构体 ----------------------------- */
+typedef struct {
+    ADCInstance* adc_instance;  // ADC实例
+    float current_voltage;       // 当前电压值
+    float current_angle;        // 当前角度值
+    bool is_initialized;        // 初始化标志
+} Potentiometer_Instance_s;
 
 /* ----------------------- 电机单元结构体 ----------------------------- */
 typedef struct {
@@ -30,6 +48,7 @@ typedef struct {
     Motor_Init_Config_s m3508_config_1;     // 第一个3508电机配置
     Motor_Init_Config_s m3508_config_2;     // 第二个3508电机配置
     Motor_Init_Config_s m2006_config;       // 2006电机配置
+    Potentiometer_Config_s pot_config;      // 电位器配置
 } CustomController_Init_Config_s;
 
 /* ----------------------- 电机数据结构体 ----------------------------- */
@@ -46,6 +65,7 @@ typedef struct {
     float motor_angles[4];                  // 各电机角度反馈
     float zero_offset[4];                   // 零位偏移值
     bool motor_online_status[4];            // 电机在线状态（用于检测断电重启）
+    Potentiometer_Instance_s potentiometer; // 电位器实例
     MotorData_t motor_data[4];              // 电机数据（用于发送）
     USARTInstance* usart_instance;          // USART通信实例
     bool is_initialized;                    // 初始化标志
@@ -76,7 +96,12 @@ void CustomControllerTask(CustomController_t* controller);
 float CustomControllerGetMotorAngle(const CustomController_t* controller, 
                                    uint8_t motor_index);
 
-
+/**
+ * @brief 获取电位器角度
+ * @param controller 控制器实例
+ * @return float 电位器角度
+ */
+float CustomControllerGetPotAngle(const CustomController_t* controller);
 
 /**
  * @brief 发送自定义控制器的所有数据
@@ -89,5 +114,11 @@ void CustomController_SendAllData(CustomController_t* controller);
  * @param controller 控制器实例
  */
 void CustomController_UpdateMotorData(CustomController_t* controller);
+
+/**
+ * @brief 更新电位器数据
+ * @param controller 控制器实例
+ */
+void CustomController_UpdatePotData(CustomController_t* controller);
 
 #endif // CUSTOM_CONTROLLER_H

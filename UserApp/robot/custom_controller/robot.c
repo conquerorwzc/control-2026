@@ -15,15 +15,16 @@
 static CustomController_t* angle_controller;
 
 void RobotInit() {
-    // 创建初始化配置结构体
+    // 创建初始化配置结构体，包含电位器配置
     CustomController_Init_Config_s init_config = {
         .dm4310_config = DM4310_config,
         .m3508_config_1 = M3508_config_1,
         .m3508_config_2 = M3508_config_2,
-        .m2006_config = M2006_config
+        .m2006_config = M2006_config,
+        .pot_config = POT_config  // 添加电位器配置
     };
     
-    // 初始化自定义控制器（包含电机初始化）
+    // 初始化自定义控制器（包含电机初始化和电位器初始化）
     angle_controller = CustomControllerInit(&init_config);
     if (angle_controller == NULL) {
         // 错误处理可以根据需要添加
@@ -33,10 +34,10 @@ void RobotInit() {
 
 void RobotTask() {
     if (angle_controller != NULL) {
-        // 更新电机角度数据
+        // 更新电机角度数据和电位器数据
         CustomControllerTask(angle_controller);
         
-        // 发送所有电机数据通过USART3
+        // 发送所有电机数据和电位器数据通过USART3
         CustomController_SendAllData(angle_controller);
     }
 }

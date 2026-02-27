@@ -11,6 +11,8 @@ static USARTInstance* custom_controller_usart = NULL;
 static float DM_RadianToDegree(float radian);
 static void CalibrateMotorZeroPosition(CustomController_t* controller);
 static bool CheckMotorOnlineStatus(CustomController_t* controller);
+static float VoltageToAngle(float voltage, const Potentiometer_Config_s* config);
+static void InitPotentiometer(CustomController_t* controller, const Potentiometer_Config_s* pot_config);
 
 /* ----------------------- 公共函数实现 ----------------------------- */
 
@@ -65,12 +67,15 @@ CustomController_t* CustomControllerInit(CustomController_Init_Config_s* init_co
         controller->motor_data[i].is_online = 0;
     }
     
-    // 初始化USART实例，使用USART6
+    // 初始化电位器
+    InitPotentiometer(controller, &init_config->pot_config);
+    
+    // 初始化USART实例，使用USART3
     if (custom_controller_usart == NULL) {
         USART_Init_Config_s usart_config = {0};
         usart_config.recv_buff_size = 256;
-        extern UART_HandleTypeDef huart6;  // 声明外部USART6句柄
-        usart_config.usart_handle = &huart6;
+        extern UART_HandleTypeDef huart3;  // 声明外部USART3句柄
+        usart_config.usart_handle = &huart3;
         usart_config.module_callback = NULL;  // 如果需要接收回调可以设置
         custom_controller_usart = USARTRegister(&usart_config);
     }
@@ -85,7 +90,7 @@ CustomController_t* CustomControllerInit(CustomController_Init_Config_s* init_co
     // 首次上电校准
     CalibrateMotorZeroPosition(controller);
     
-    LOGINFO("CustomController: Initialized with 4 motors, initial zero position calibrated");
+    LOGINFO("CustomController: Initialized with 4 motors and potentiometer");
     return controller;
 }
 
@@ -126,6 +131,9 @@ void CustomControllerTask(CustomController_t* controller)
         controller->motor_angles[3] = raw_angle - controller->zero_offset[3];
     }
     
+    // 更新电位器数据
+    CustomController_UpdatePotData(controller);
+    
     // 更新电机数据用于发送
     CustomController_UpdateMotorData(controller);
 }
@@ -143,6 +151,19 @@ float CustomControllerGetMotorAngle(const CustomController_t* controller,
         return 0.0f;
     }
     return controller->motor_angles[motor_index];
+}
+
+/**
+ * @brief 获取电位器角度
+ * @param controller 控制器实例
+ * @return float 电位器角度
+ */
+float CustomControllerGetPotAngle(const CustomController_t* controller)
+{
+    if (controller == NULL || !controller->is_initialized || !controller->potentiometer.is_initialized) {
+        return 0.0f;
+    }
+    return controller->potentiometer.current_angle;
 }
 
 /**
@@ -176,13 +197,20 @@ void CustomController_SendAllData(CustomController_t* controller)
         controller_data[5 + i*5] = controller->motor_data[i].is_online;
     }
     
+    // 电位器数据 - 占用3个字节（2字节角度 + 1字节电压）
+    int16_t pot_angle_value = (int16_t)(controller->potentiometer.current_angle * 100.0f);
+    controller_data[21] = pot_angle_value & 0xFF;  // 电位器角度低字节
+    controller_data[22] = (pot_angle_value >> 8) & 0xFF;  // 电位器角度高字节
+    
+    uint8_t pot_voltage_value = (uint8_t)(controller->potentiometer.current_voltage * 50.0f); // 0-3.3V映射到0-255
+    controller_data[23] = pot_voltage_value;  // 电位器电压值
+    
     // 发送数据包
     uint16_t packed_length;
     uint8_t *packed_data = custom_controller_protocol_pack(CMD_ID_CUSTOM_CONTROLLER, controller_data, sizeof(controller_data), &packed_length);
     
     if (packed_data != NULL && packed_length > 0 && controller->usart_instance != NULL) {
-        // 直接发送，双缓冲区机制确保数据安全
-        // 当DMA正在发送一个缓冲区时，CPU可以安全地准备下一个缓冲区
+        // 通过UART发送打包后的数据
         USARTSend(controller->usart_instance, packed_data, packed_length, USART_TRANSFER_DMA);
     }
 }
@@ -216,6 +244,26 @@ void CustomController_UpdateMotorData(CustomController_t* controller)
         // 假设电机都是在线的
         controller->motor_data[i].is_online = 1;
     }
+}
+
+/**
+ * @brief 更新电位器数据
+ * @param controller 控制器实例
+ */
+void CustomController_UpdatePotData(CustomController_t* controller)
+{
+    if (controller == NULL || !controller->is_initialized || !controller->potentiometer.is_initialized) {
+        return;
+    }
+    
+    // 读取ADC电压值
+    controller->potentiometer.current_voltage = ADCGetVoltage(controller->potentiometer.adc_instance);
+    
+    // 电压转换为角度
+    controller->potentiometer.current_angle = VoltageToAngle(
+        controller->potentiometer.current_voltage, 
+        &((CustomController_Init_Config_s*)0)->pot_config  // 这里需要访问配置，暂时用默认值
+    );
 }
 
 /* ----------------------- 私有函数实现 ----------------------------- */
@@ -322,4 +370,51 @@ static bool CheckMotorOnlineStatus(CustomController_t* controller)
     }
     
     return need_recalibration;
+}
+
+/**
+ * @brief 电压值转换为角度值
+ * @param voltage 电压值(V)
+ * @param config 电位器配置
+ * @return float 角度值(度)
+ */
+static float VoltageToAngle(float voltage, const Potentiometer_Config_s* config)
+{
+    // 限制电压在有效范围内
+    if (voltage < config->min_voltage) voltage = config->min_voltage;
+    if (voltage > config->max_voltage) voltage = config->max_voltage;
+    
+    // 线性映射：(voltage - min_voltage) / (max_voltage - min_voltage) * (max_angle - min_angle) + min_angle
+    float ratio = (voltage - config->min_voltage) / (config->max_voltage - config->min_voltage);
+    return ratio * (config->max_angle - config->min_angle) + config->min_angle;
+}
+
+/**
+ * @brief 初始化电位器
+ * @param controller 控制器实例
+ * @param pot_config 电位器配置
+ */
+static void InitPotentiometer(CustomController_t* controller, const Potentiometer_Config_s* pot_config)
+{
+    // 初始化电位器实例
+    controller->potentiometer.is_initialized = false;
+    controller->potentiometer.current_voltage = 0.0f;
+    controller->potentiometer.current_angle = 0.0f;
+    
+    // 注册ADC实例 (ADC1_IN11, 12位)
+    extern ADC_HandleTypeDef hadc1;  // 声明外部ADC1句柄
+    ADC_Init_Config_s adc_config = {0};
+    adc_config.hadc = &hadc1;
+    adc_config.channel = ADC_CHANNEL_11;  // ADC1_IN11
+    adc_config.mode = ADC_MODE_POLLING;   // 轮询模式
+    adc_config.vref = 5.0f;               // 参考电压5V (修改为5V系统)
+    adc_config.alpha = pot_config->filter_alpha;  // 滤波系数
+    
+    controller->potentiometer.adc_instance = ADCRegister(&adc_config);
+    if (controller->potentiometer.adc_instance != NULL) {
+        controller->potentiometer.is_initialized = true;
+        LOGINFO("Potentiometer ADC initialized successfully");
+    } else {
+        LOGERROR("Failed to initialize potentiometer ADC");
+    }
 }
