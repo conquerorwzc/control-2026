@@ -106,7 +106,7 @@ static void RemoteControlSet() {
     // 保留当前模式，不修改leg_mode
   } else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
     // 右上：腿部缓慢上升，最大到kike位置
-    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_UP;
+    chassis_ctrl_cmd->leg_mode =LEG_MANUAL_UP;
   }
 
   //左[中],云台启动，摩擦轮启动，拨弹盘启动，准备射击
@@ -316,7 +316,7 @@ void RobotInit() {
 
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
-  chassis_ctrl_cmd->max_power = 80;  // 随便给一个初始功率，后面应该要从裁判系统获取
+  chassis_ctrl_cmd->max_power = 150;  // 随便给一个初始功率，后面应该要从裁判系统获取
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;

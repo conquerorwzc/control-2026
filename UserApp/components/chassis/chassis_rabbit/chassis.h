@@ -45,6 +45,7 @@ typedef enum {
   LEG_DISABLE = 0,        // 腿部电机失能
   LEG_NORMAL,             // 常规位置
   LEG_RAISE,              // 抬起位置
+  LEG_CRUISE,
   LEG_KIKE,
   LEG_MANUAL_UP,          // 手动上升
   LEG_MANUAL_DOWN,        // 手动下降

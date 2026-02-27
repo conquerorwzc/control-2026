@@ -45,13 +45,14 @@
 #define GYRO2GIMBAL_DIR_PITCH 1  // 陀螺仪数据相较于云台的pitch的方向,1为相同,-1为相反
 #define GYRO2GIMBAL_DIR_ROLL 1   // 陀螺仪数据相较于云台的roll的方向,1为相同,-1为相反
 // 腿部电机位置定义
-#define LEFT_LEG_MOTOR_NORMAL_POSITION -1.367f   // 腿部电机常规位置值
+#define LEFT_LEG_MOTOR_NORMAL_POSITION -2.388f   // 腿部电机常规位置值
 #define LEFT_LEG_MOTOR_RAISE_POSITION  -0.3450f  // 腿部电机抬起位置值
-#define LEFT_LEG_MOTOR_KIKE_POSITION -0.535f     // 腿部电机踢脚位置值
+#define LEFT_LEG_MOTOR_CRUISE_POSITION -2.088f
+#define LEFT_LEG_MOTOR_KIKE_POSITION -1.538f     // 腿部电机踢脚位置值
 #define RIGHT_LEG_MOTOR_NORMAL_POSITION 2.211f   // 腿部电机常规位置值
 #define RIGHT_LEG_MOTOR_RAISE_POSITION  -0.651f  // 腿部电机抬起位置值
 #define RIGHT_LEG_MOTOR_KIKE_POSITION 1.379f  // 腿部电机踢脚位置值
-
+#define RIGHT_LEG_MOTOR_CRUISE_POSITION 1.911f
 // 轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
 //  轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
 #define FRONT_WHEEL_MOTOR_CONFIG(handle, id)                                                                   \
@@ -144,18 +145,18 @@
           {                                                                                                    \
               .speed_PID =                                                                                     \
                   {                                                                                            \
-                      .Kp = 5,                                                                               \
+                      .Kp = 3,                                                                               \
                                                                                                              \
                       .Kd = 0.01,                                                                                 \
                                                                                                              \
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
-                      .MaxOut = 28.0,                                                                          \
+                      .MaxOut = 35.0,                                                                          \
                   },                                                                                           \
               .angle_PID =                                                                                     \
                   {                                                                                            \
                       .Kp = 50.0f,                                                                             \
                       .Kd = 1.0f,                                                                              \
-                      .MaxOut = 20.0f,                                                                         \
+                      .MaxOut = 30.0f,                                                                         \
                   },                                                                                           \
                                                                                                                \
           },                                                                                                   \
@@ -298,7 +299,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
           {                                          \
               .speed_PID =                           \
                   {                                  \
-                      .Kp = 2.0f,                    \
+                      .Kp = 1.8f,                    \
                       .Ki = 0.00f,                   \
                       .Kd = 0.05f,                   \
                       .Improve = PID_Integral_Limit, \
@@ -331,7 +332,7 @@ static Shoot_Init_Config_s shoot_init_config = {
             .num_per_circle = 6,                          // 拨盘一圈的装载量
             .loader_direction = -1,                       // 拨盘旋转方向,1为正向，-1为反向
             .friction_num = 3,                            // 摩擦轮数量
-            .friction_speed = 26000.0f,                   // 摩擦轮速度
+            .friction_speed = 40000.0f,                   // 摩擦轮速度
             .friction_coefficients = {1.0f, -1.0f, 1.1f},  // 摩擦轮速度比例系数
             .deadtime_burstfire = 500,
             .deadtime_onebullet = 1000,

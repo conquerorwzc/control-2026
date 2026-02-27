@@ -221,7 +221,13 @@ static void LegControl() {
       target_position_right = RIGHT_LEG_MOTOR_RAISE_POSITION;
       leg_is_enabled = 1;
       break;
-
+    case LEG_CRUISE:
+      DMMotorEnable(chassis->leg_motor[0]);
+      DMMotorEnable(chassis->leg_motor[1]);
+      target_position_left = LEFT_LEG_MOTOR_CRUISE_POSITION;
+      target_position_right = RIGHT_LEG_MOTOR_CRUISE_POSITION;
+      leg_is_enabled = 1;
+     break;
     case LEG_KIKE:
       // 使能腿部电机并设置到踢脚位置
       DMMotorEnable(chassis->leg_motor[0]);
