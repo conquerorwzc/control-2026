@@ -85,11 +85,11 @@ static Chassis_Init_Config_s chassis_init_config = {
     .chassis_param =
         {
             // 机器人底盘修改的参数,单位为mm(毫米)
-            .wheel_base = 350.0f,              // 纵向轴距(前进后退方向)
-            .track_width = 300.0f,             // 横向轮距(左右平移方向)
+            .wheel_base = 345.96f,              // 纵向轴距(前进后退方向)
+            .track_width = 345.96f,             // 横向轮距(左右平移方向)
             .center_gimbal_offset_x = 0.0f,    // 云台旋转中心距底盘几何中心的距离,前后方向,云台位于正中心时默认设为0
             .center_gimbal_offset_y = 0.0f,    // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
-            .wheel_radius = 60.0f,             // 轮子半径
+            .wheel_radius = 76.475f,             // 轮子半径
             .wheel_reduction_ratio = 19.0f,  // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
             //3508功率模型参数
             .power_param.k0=0.7441993412640775f,
@@ -116,12 +116,12 @@ static Chassis_Init_Config_s chassis_init_config = {
 
 };
 
-// static SuperCap_Init_Config_s super_cap_config = {
-//     .can_config = {
-//         .can_handle = &hcan2,
-//         .tx_id = 0x302,  // 超级电容默认接收id
-//         .rx_id = 0x301,  // 超级电容默认发送id,注意tx和rx在其他人看来是反的
-//     }};
+static SuperCap_Init_Config_s super_cap_config = {
+    .can_config = {
+        .can_handle = &hcan2,
+        .tx_id = 0x302,  // 超级电容默认接收id
+        .rx_id = 0x301,  // 超级电容默认发送id,注意tx和rx在其他人看来是反的
+    }};
 
 #ifndef CONTROL_2026_ROBOT_CONFIG_H
 #define CONTROL_2026_ROBOT_CONFIG_H

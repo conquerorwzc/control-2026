@@ -17,6 +17,7 @@ static Vision_Receive_s* vision_recv_data;
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 static Sentry_Cmd_t sentry_cmd={0};
+static SuperCapMode supercap_mode = SAFETY_MODE;
 
 /* Intermediate variables calculated by private functions */
 #define USECANREMOTE 1 //是否使用云台板的遥控数据
@@ -385,7 +386,49 @@ static void EmergencyHandler() {
   }
 
 }
-
+static void SuperCapControl() {
+  switch (supercap_mode) {
+    case SAFETY_MODE:
+      if (robot->super_cap->cap_msg.cap_v>18.0f)
+        supercap_mode=PASSIVE_MODE;
+      robot->chassis->chassis_ctrl_cmd.max_power=0;
+      break;
+    case FORCED_CHARGING_MODE:
+      if (robot->super_cap->cap_msg.cap_v<8.0f)
+        supercap_mode=SAFETY_MODE;
+      if (robot->super_cap->cap_msg.cap_v>18.0f)
+        supercap_mode=PASSIVE_MODE;
+      robot->chassis->chassis_ctrl_cmd.max_power=(uint16_t)(0.4*robot->referee_data->GameRobotState.chassis_power_limit);
+      break;
+    case CHARGING_MODE:
+      if (robot->super_cap->cap_msg.cap_v<10.0f)
+        supercap_mode=FORCED_CHARGING_MODE;
+      if (robot->super_cap->cap_msg.cap_v>18.0f)
+        supercap_mode=PASSIVE_MODE;
+      robot->chassis->chassis_ctrl_cmd.max_power=robot->referee_data->GameRobotState.chassis_power_limit-(uint16_t)powf((float)robot->referee_data->GameRobotState.chassis_power_limit*0.04f,2);
+      break;
+    case PASSIVE_MODE:
+      if (chassis_ctrl_cmd->max_power==180)
+        supercap_mode=ACTIVE_MODE;
+      if (robot->super_cap->cap_msg.cap_v<12.0f)
+        supercap_mode=CHARGING_MODE;
+      robot->chassis->chassis_ctrl_cmd.max_power=robot->referee_data->GameRobotState.chassis_power_limit;
+      break;
+    case ACTIVE_MODE:
+      if (robot->super_cap->cap_msg.cap_v<12.0f)
+        supercap_mode=CHARGING_MODE;
+      if (chassis_ctrl_cmd->max_power!=180)
+        supercap_mode=PASSIVE_MODE;
+      chassis_ctrl_cmd->max_power=180;
+      break;
+    default:
+      supercap_mode=SAFETY_MODE;
+  }
+  SuperCapSendMessage(robot->super_cap,
+        (int16_t)robot->referee_data->GameRobotState.chassis_power_limit,
+        robot->referee_data->PowerHeatData.buffer_energy,
+        robot->referee_data->GameRobotState.power_management_chassis_output);
+}
 void RobotInit() {
   //要在云台和底盘任务开始之前完成该任务的初始化
   vTaskDelay(CAN_COMM_TASK_INIT_TIME);
@@ -402,7 +445,7 @@ void RobotInit() {
   robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
   robot->sentry_mode=1;
 
-  // robot->super_cap = SuperCapInit(&super_cap_config);
+  robot->super_cap = SuperCapInit(&super_cap_config);
 
   robot->chassis = ChassisInit(&chassis_init_config);
   // 初始化控制命令指针
@@ -430,6 +473,7 @@ void RobotTask() {
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   navigator_send(&huart1);
   RobotCMDTask();
+  SuperCapControl();
   ChassisTask();
 #endif
 }
