@@ -238,6 +238,7 @@ void LegCtrlUpdate(LegInstance* leg, INS_t* imu) {
     leg->update_flag.is_restart = 1;
   } else {
     leg->dt = dt_raw;
+    leg->update_flag.is_restart = 0;
   }
 
   // ==================== 2. 模型更新 ====================
@@ -319,8 +320,8 @@ void LegCtrlUpdate(LegInstance* leg, INS_t* imu) {
   }
 
   // 合成虚拟关节力矩
-  // leg->virtual_model.Tp = vm->Tp_LQR;
-  leg->virtual_model.Tp = vm->Tp_LQR - vm->Tp_MPC;
+  leg->virtual_model.Tp = vm->Tp_LQR;
+  // leg->virtual_model.Tp = vm->Tp_LQR - vm->Tp_MPC;
 
   // 腿长 PID
   leg->virtual_model.F =

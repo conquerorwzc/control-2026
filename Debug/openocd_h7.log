@@ -1,0 +1,50 @@
+Open On-Chip Debugger 0.12.0 (2023-10-02) [https://github.com/sysprogs/openocd]
+Licensed under GNU GPL v2
+libusb1 09e75e98b4d9ea7909e8837b7a3f00dda4589dc3
+For bug reports, read
+	http://openocd.org/doc/doxygen/bugs.html
+Info : auto-selecting first available session transport "swd". To override use 'transport select <transport>'.
+Info : Listening on port 6666 for tcl connections
+Info : Listening on port 4444 for telnet connections
+Info : CMSIS-DAP: SWD supported
+Info : CMSIS-DAP: JTAG supported
+Info : CMSIS-DAP: SWO-UART supported
+Info : CMSIS-DAP: Atomic commands supported
+Info : CMSIS-DAP: FW Version = 2.0.0
+Info : CMSIS-DAP: Interface Initialised (SWD)
+Info : SWCLK/TCK = 1 SWDIO/TMS = 1 TDI = 1 TDO = 1 nTRST = 1 nRESET = 1
+Info : CMSIS-DAP: Interface ready
+Info : clock speed 1800 kHz
+Info : SWD DPIDR 0x2ba01477
+Info : [stm32h7x.cpu0] Cortex-M4 r0p1 processor detected
+Info : [stm32h7x.cpu0] target has 6 breakpoints, 4 watchpoints
+Info : gdb port disabled
+Info : starting gdb server for stm32h7x.cpu0 on 3333
+Info : Listening on port 3333 for gdb connections
+Info : accepting 'gdb' connection on tcp/3333
+[stm32h7x.cpu0] halted due to debug-request, current mode: Thread 
+xPSR: 0x21000000 pc: 0x080123fa psp: 0x20001058
+Info : SWD DPIDR 0x2ba01477
+Error: Failed to read memory at 0x5c001004
+Error: auto_probe failed
+Error: Connect failed. Consider setting up a gdb-attach event for the target to prepare target for GDB connect, or use 'gdb_memory_map disable'.
+Error: attempted 'gdb' connection rejected
+Info : accepting 'gdb' connection on tcp/3333
+Info : SWD DPIDR 0x2ba01477
+Error: Failed to read memory at 0x5c001004
+Error: auto_probe failed
+Error: Connect failed. Consider setting up a gdb-attach event for the target to prepare target for GDB connect, or use 'gdb_memory_map disable'.
+Error: attempted 'gdb' connection rejected
+Info : accepting 'gdb' connection on tcp/3333
+Info : SWD DPIDR 0x2ba01477
+Error: Failed to read memory at 0x5c001004
+Error: auto_probe failed
+Error: Connect failed. Consider setting up a gdb-attach event for the target to prepare target for GDB connect, or use 'gdb_memory_map disable'.
+Error: attempted 'gdb' connection rejected
+Info : accepting 'gdb' connection on tcp/3333
+Info : SWD DPIDR 0x2ba01477
+Error: Failed to read memory at 0x5c001004
+Error: auto_probe failed
+Error: Connect failed. Consider setting up a gdb-attach event for the target to prepare target for GDB connect, or use 'gdb_memory_map disable'.
+Error: attempted 'gdb' connection rejected
+^C

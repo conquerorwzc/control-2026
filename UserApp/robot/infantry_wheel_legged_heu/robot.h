@@ -4,10 +4,12 @@
 #include "gimbal.h"
 #include "remote_control.h"
 #include "shoot.h"
-// #include "rm_referee.h"
+#include "rm_referee.h"
 #include "can_comm.h"
+#include "master_process.h"
+#include "navigator.h"
 #include "super_cap.h"
-#include  "vofa.h"
+#include "vofa.h"
 
 // todo: add vision_module
 
@@ -25,6 +27,8 @@ typedef struct {
   // uint8_t rest_heat;            // 剩余枪口热量
   // Bullet_Speed_e bullet_speed;  // 弹速限制
   // Enemy_Color_e enemy_color;    // 0 for blue, 1 for red
+  // 裁判系统数据
+  float bullet_speed;
 } Chassis_Upload_Data_s;  // means the Chassis board, not the component
 
 typedef struct {
@@ -41,28 +45,32 @@ typedef enum {
   ROBOT_CHASSIS_FREE,
 } Robot_Mode_e;
 
+// 静态变量用于边沿检测
+static struct {
+  uint8_t q;      // 摩擦轮开关
+  uint8_t space;  // 跳跃
+  uint8_t v;      // 小陀螺模式切换
+  uint8_t shift;  // 加速
+} key_last_count;
+
 typedef struct {
   Robot_Mode_e robot_mode;  // 机器人整体工作状态
-
-  RC_ctrl_t* rc_data;  // 遥控器数据,初始化时返回
-  // referee_info_t* referee_data;     // 用于获取裁判系统的数据
-
+  RC_ctrl_t* rc_data;       // 遥控器数据,初始化时返回
+  referee_info_t* referee_data;     // 用于获取裁判系统的数据
   float offset_angle;
-
   SuperCapInstance* super_cap;
   ChassisInstance* chassis;
   GimbalInstance* gimbal;
   ShootInstance* shoot;
-
+  Vision_Receive_s* vision_recv_data;
+  navigator_recv_t* navigator_data;
   PIDInstance chassis_follow_PID;
   PIDInstance chassis_rotate_PID;
-
 #ifndef ONE_BOARD
   Chassis_Upload_Data_s* chassis_upload_data;  // 此处chassis定义为chassis_board, 而非chassis模组, 故所有处理在robot中
   Chassis_Fetch_Data_s* chassis_fetch_data;
   CANCommInstance* can_comm;
 #endif
-
   uint32_t DWT_CNT;
   float dt;
 } RobotInstance;

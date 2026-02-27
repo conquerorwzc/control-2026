@@ -7,7 +7,7 @@
 // #include "rm_referee.h"
 #include "can_comm.h"
 #include "super_cap.h"
-#include  "vofa.h"
+#include "vofa.h"
 
 // todo: add vision_module
 
@@ -54,7 +54,6 @@ typedef struct {
   GimbalInstance* gimbal;
   ShootInstance* shoot;
 
-  PIDInstance chassis_follow_PID;
   PIDInstance chassis_rotate_PID;
 
 #ifndef ONE_BOARD

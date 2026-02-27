@@ -42,7 +42,8 @@ typedef enum {
 
 typedef struct {
   float vx;
-  float wz;
+  float wz;          // 保留用于小陀螺前馈角速度
+  float target_yaw;  // 新增：LQR目标yaw角度 (rad)
   float roll;
   float leg_length;
   float jump_force;
@@ -51,7 +52,6 @@ typedef struct {
   uint16_t max_power;
   Chassis_Mode_e chassis_mode;
 } Chassis_Ctrl_Cmd_s;
-
 /* SJTU model: 10-dim state vector */
 typedef struct {
   float x_b_h;     // 机身在水平地面的水平位置（全局系），无传感器，保持为0或积分得到
@@ -80,6 +80,7 @@ typedef struct {
 typedef struct {
   Chassis_Param_s param;
   Leg_Init_Config_s leg_init_config[2];
+  PID_Init_Config_s delta_theta_PID_config;
   PID_Init_Config_s roll_PID_config;
   PID_Init_Config_s length_PID_config;
   IMU_Init_Config_s imu_init_config;
@@ -98,8 +99,11 @@ typedef struct {
   State_Var_t last_state_var;
 
   LegInstance* leg[2];
+  PIDInstance delta_theta_PID;
   PIDInstance roll_PID;
   PIDInstance length_PID;
+
+  float delta_theta_comp;
 
   float LQR_K[4][10];  // [4输出][10状态变量]
 

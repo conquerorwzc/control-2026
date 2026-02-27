@@ -106,7 +106,7 @@ static void DMMotorDecode(CANInstance* motor_can) {
 // todo: 会跟控制抢，有概率控不了电机
 static void DMMotorLostCallback(void* motor_ptr) {
   DMMotorSetMode(DM_CMD_MOTOR_MODE, motor_ptr);
-  DWT_Delay(0.1);
+  osDelay(100);
   // DWT_Delay(0.0001f);
 }
 

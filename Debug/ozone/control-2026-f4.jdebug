@@ -22,12 +22,12 @@ void OnProjectLoad (void) {
   //
   // Dialog-generated settings
   //
-  Project.AddPathSubstitute ("G:/dev/RoboMaster/6.SRM/control-2026/Debug/ozone", "$(ProjectDir)");
-  Project.AddPathSubstitute ("g:/dev/robomaster/6.srm/control-2026/debug/ozone", "$(ProjectDir)");
   Project.SetDevice ("STM32F407IG");
-  Project.SetHostIF ("USB", "");
+  Project.SetHostIF ("GDB_Server", "localhost:3333");
   Project.SetTargetIF ("SWD");
   Project.SetTIFSpeed ("4 MHz");
+  Project.AddPathSubstitute ("G:/dev/RoboMaster/6.SRM/control-2026/Debug/ozone", "$(ProjectDir)");
+  Project.AddPathSubstitute ("g:/dev/robomaster/6.srm/control-2026/debug/ozone", "$(ProjectDir)");
   Project.AddSvdFile ("$(InstallDir)/Config/CPU/Cortex-M4F.svd");
   Project.AddSvdFile ("$(InstallDir)/Config/Peripherals/STM32F407IG.svd");
   //

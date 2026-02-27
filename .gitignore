@@ -99,6 +99,7 @@ JLinkLog.txt
 .history/
 
 # cmake build directory
-cmake-build-debug/
+cmake-build-debug-stm32/
 
-*.jdebug.user
+/Debug/Ozone/control-2026-h7.jdebug
+/Debug/Ozone/control-2026-h7.jdebug.user

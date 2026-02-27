@@ -160,15 +160,16 @@ end
 
 fprintf('Step 4: 设置LQR权重矩阵...\n');
 
-% Q矩阵: 状态权重
-% 状态: [X_b^h, V_b^h, phi, dphi, theta_l, dtheta_l, theta_r, dtheta_r, theta_b, dtheta_b]
-%        位置    速度           偏航  偏航速  左腿角   左腿速   右腿角   右腿速    俯仰角   俯仰速
-lqr_Q = diag([100,    1,      4000,    1,      1000,     10,       1000,     10,       40000,    1]);
-
+% % Q矩阵: 状态权重
+% % 状态: [X_b^h, V_b^h, phi, dphi, theta_l, dtheta_l, theta_r, dtheta_r, theta_b, dtheta_b]
+% %            位置    速度      偏航   偏航速    左腿角    左腿速     右腿角    右腿速     俯仰角   俯仰速
+% lqr_Q = diag([100,    1,      4000,    1,      1000,     10,       1000,     10,       40000,    1]);
+% 
+lqr_Q = diag([300,    300,      600,    1,      10,     10,       10,     10,       6000,    10]);
 % R矩阵: 控制输入权重
 % 控制: [T_{r→b}, T_{l→b}, T_{wr→r}, T_{wl→l}]
 %        右髋扭矩   左髋扭矩   右轮扭矩   左轮扭矩
-lqr_R = diag([1,       1,        10,        10]);
+lqr_R = diag([1,       1,        4,        4]);
 
 fprintf('  Q矩阵 (状态权重):\n');
 fprintf('         X_b^h  V_b^h  phi   dphi  θ_l   dθ_l  θ_r   dθ_r  θ_b   dθ_b\n');
@@ -332,7 +333,7 @@ if enable_fitting
                 % 存储结果
                 K_sample_2d(idx, 1) = l_l_fit;
                 K_sample_2d(idx, 2) = l_r_fit;
-                K_sample_2d(idx, 3:42) = K_fit(:)';  % 按行展开
+                K_sample_2d(idx, 3:42) = reshape(K_fit.', 1, []);  % 真正的行优先展开
             catch
                 warning('LQR计算失败: l_l=%.2f, l_r=%.2f', l_l_fit, l_r_fit);
             end
@@ -385,26 +386,41 @@ if enable_fitting
     fprintf('// 系数顺序: [p00, p10, p01, p20, p11, p02]\n');
     fprintf('// ═══════════════════════════════════════════════════════════════════════\n\n');
     
-    fprintf('// --- paste into robot_config.h .LQR_K_Coefficients = { ... } ---\n');
-    fprintf('.LQR_K_Coefficients = {\n');
+    % 生成与 robot_config.h 完全一致的 C 代码 (Chassis_Param_s.LQR_K_Coefficients[40][6])
+    % 缩进与 infantry_wheel_legged_sjtu/robot_config.h 中 .param 内一致，可直接替换 .LQR_K_Coefficients = {{0}},
+    paste_lines = {};
+    paste_lines{1} = '            .LQR_K_Coefficients = {';
     for n = 1:40
         row = ceil(n/10) - 1;  % 0-indexed
         col = mod(n-1, 10);    % 0-indexed
-        fprintf('    {');
+        line = '                {';
         for c = 1:6
             if c < 6
-                fprintf('%12.6gf, ', K_Fit_Coefficients(n,c));
+                line = [line, sprintf('%12.6ff, ', K_Fit_Coefficients(n,c))];
             else
-                fprintf('%12.6gf', K_Fit_Coefficients(n,c));
+                line = [line, sprintf('%12.6ff', K_Fit_Coefficients(n,c))];
             end
         end
         if n < 40
-            fprintf('},  // K[%d][%d]\n', row, col);
+            line = [line, sprintf('},  // K[%d][%d]', row, col)];
         else
-            fprintf('}   // K[%d][%d]\n', row, col);
+            line = [line, sprintf('}   // K[%d][%d]', row, col)];
         end
+        paste_lines{end+1} = line;
     end
-    fprintf('},\n\n');
+    paste_lines{end+1} = '            },';
+    paste_block = strjoin(paste_lines, '\n');
+
+    fprintf('// --- 以下格式与 robot_config.h 中 .param 内 .LQR_K_Coefficients 一致，可整体替换 .LQR_K_Coefficients = {{0}}, ---\n\n');
+    fprintf('%s\n\n', paste_block);
+
+    % 复制到剪贴板，便于直接粘贴到 robot_config.h
+    try
+        clipboard('copy', paste_block);
+        fprintf('  [已复制到剪贴板] 可直接在 robot_config.h 中选中 ".LQR_K_Coefficients = {{0}}," 并粘贴替换。\n\n');
+    catch
+        fprintf('  [剪贴板写入失败] 请从上方输出手动复制到 robot_config.h。\n\n');
+    end
     
     % ========== 验证: K矩阵符号检查 ==========
     fprintf('// ═══════════════════════════════════════════════════════════════════════\n');

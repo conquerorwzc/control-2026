@@ -32,16 +32,27 @@ static Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd;
  * @param[in]  l_r    右腿长度
  */
 static void LQR_K_Calc(float K[4][10], const float coef[40][6], float l_l, float l_r) {
-  float l_l2 = l_l * l_l;
-  float l_r2 = l_r * l_r;
-  float l_lr = l_l * l_r;
-  for (int i = 0; i < 4; i++) {
-    for (int j = 0; j < 10; j++) {
-      int n = i * 10 + j;
-      const float* p = coef[n];
-      K[i][j] = p[0] + p[1] * l_l + p[2] * l_r + p[3] * l_l2 + p[4] * l_lr + p[5] * l_r2;
-    }
+  for (int n = 0; n < 40; n++) {
+    int row = n / 10;
+    int col = n % 10;
+    K[row][col] = coef[n][0] + coef[n][1] * l_l + coef[n][2] * l_r + coef[n][3] * l_l * l_l + coef[n][4] * l_l * l_r +
+                  coef[n][5] * l_r * l_r;
   }
+  // float K_static[4][10] = {
+  //     {-10.215290f, -8.848348f, -21.428168f, -4.233207f, 5.299104f, 0.213924f, -23.529793f, -2.118162f, 41.806390f,
+  //      3.236183f},  // T_r_to_b
+  //     {-10.215290f, -8.848348f, 21.428168f, 4.233207f, -23.529793f, -2.118162f, 5.299104f, 0.213924f, 41.806390f,
+  //      3.236183f},  // T_l_to_b
+  //     {3.816384f, 3.495197f, -5.392899f, -0.783657f, 4.301872f, 0.133936f, 8.740520f, 0.828690f, 11.190289f,
+  //      1.421862f},  // T_wr_to_r
+  //     {3.816384f, 3.495197f, 5.392899f, 0.783657f, 8.740520f, 0.828690f, 4.301872f, 0.133936f, 11.190289f, 1.421862f}
+  //     // T_wl_to_l
+  // };
+  // for (int i = 0; i < 4; i++) {
+  //   for (int j = 0; j < 10; j++) {
+  //     K[i][j] = K_static[i][j];
+  //   }
+  // }
 }
 
 static void SpeedEstimate(void) {
@@ -84,8 +95,8 @@ static void StateVarUpdate(void) {
   sv->dtheta_r = leg[0]->virtual_model.theta_d;
   sv->theta_l = leg[1]->virtual_model.theta;
   sv->dtheta_l = leg[1]->virtual_model.theta_d;
-  sv->theta_b = imu->Pitch * DEGREE_2_RAD;
-  sv->dtheta_b = imu->Gyro[0];
+  sv->theta_b = -imu->Pitch * DEGREE_2_RAD;
+  sv->dtheta_b = -imu->Gyro[0];
 
   chassis->last_state_var = *sv;
 }
@@ -100,17 +111,17 @@ static void LocomotionController(void) {
 
   // TODO: 状态误差限幅
   float state_err[10];
-  state_err[0] = sv->x_b_h - 0.0f;
-  state_err[1] = sv->v_b_h - chassis_ctrl_cmd->vx;
-
-  state_err[2] = sv->phi - 0.0f;
-  state_err[3] = sv->dphi - chassis_ctrl_cmd->wz;
-  state_err[4] = sv->theta_l;
-  state_err[5] = sv->dtheta_l;
-  state_err[6] = sv->theta_r;
-  state_err[7] = sv->dtheta_r;
-  state_err[8] = sv->theta_b;
-  state_err[9] = sv->dtheta_b;
+  state_err[0] = (sv->x_b_h - 0.0f) * 1;
+  state_err[1] = (sv->v_b_h - chassis_ctrl_cmd->vx) * 1;
+  // 限幅 phi 到 [-pi/3, pi/3]
+  state_err[2] = sv->phi - chassis_ctrl_cmd->target_yaw * 1;
+  state_err[3] = sv->dphi - chassis_ctrl_cmd->wz * 1;
+  state_err[4] = sv->theta_l - chassis_ctrl_cmd->theta_ff * 1;
+  state_err[5] = sv->dtheta_l * 1;
+  state_err[6] = sv->theta_r - chassis_ctrl_cmd->theta_ff * 1;
+  state_err[7] = sv->dtheta_r * 1;
+  state_err[8] = sv->theta_b * 1;
+  state_err[9] = sv->dtheta_b * 1;
 
   /* u[0] = T_{r→b} (hip torque on body, same convention as virtual_model.Tp)
    * u[1] = T_{l→b}
@@ -125,8 +136,8 @@ static void LocomotionController(void) {
   }
   leg[0]->virtual_model.Tp = u[0];
   leg[1]->virtual_model.Tp = u[1];
-  leg[0]->real_model.T = leg[0]->update_flag.is_off_ground ? 0.0f : -u[2];
-  leg[1]->real_model.T = leg[1]->update_flag.is_off_ground ? 0.0f : -u[3];
+  leg[0]->real_model.T = leg[0]->update_flag.is_off_ground ? 0.0f : u[2];
+  leg[1]->real_model.T = leg[1]->update_flag.is_off_ground ? 0.0f : u[3];
 }
 
 /*
@@ -140,10 +151,12 @@ static void LegController(void) {
   float l_avg = (leg[0]->virtual_model.length + leg[1]->virtual_model.length) * 0.5f;
   float f_l = PIDCalculate(&chassis->length_PID, l_avg, chassis->chassis_ctrl_cmd.leg_length);
   float f_gravity = 0.5f * chassis->param.body_mass * 9.81f;
-  float f_inertial = 0.5f * chassis->param.body_mass * (l_avg / (2.0f * chassis->param.track_width)) *
-                     chassis->state_var.dphi * chassis->state_var.v_b_h;
+  float f_inertial = 0.5f * chassis->param.body_mass * (l_avg / chassis->param.track_width) * chassis->state_var.dphi *
+                     chassis->state_var.v_b_h;
   leg[1]->virtual_model.F = f_psi + f_l + f_gravity - f_inertial;
   leg[0]->virtual_model.F = -f_psi + f_l + f_gravity + f_inertial;
+  // leg[0]->virtual_model.F = f_l + f_gravity;
+  // leg[1]->virtual_model.F = f_l + f_gravity;
 }
 
 static void ChassisCtrlUpdate(void) {
@@ -171,6 +184,12 @@ static void ChassisCtrlUpdate(void) {
   } else {
     VAL_LIMIT(leg[0]->virtual_model.F, -1500.0f, 1500.0f);
     VAL_LIMIT(leg[1]->virtual_model.F, -1500.0f, 1500.0f);
+  }
+
+  chassis->delta_theta_comp =
+      PIDCalculate(&chassis->delta_theta_PID, leg[0]->virtual_model.theta - leg[1]->virtual_model.theta, 0);
+  for (int i = 0; i < 2; i++) {
+    leg[i]->virtual_model.Tp -= (float)(1 - 2 * i) * chassis->delta_theta_comp;
   }
 
   JointTorqueUpdate(leg[0]);
@@ -249,12 +268,15 @@ static void LimitChassisOutput(void) {
     VAL_LIMIT(leg[i]->real_model.T, -2.45f, 2.45f);
     DMMotorSetRef(leg[i]->joint_motor[0], leg[i]->real_model.Tp_1);
     DMMotorSetRef(leg[i]->joint_motor[1], leg[i]->real_model.Tp_2);
+    // DMMotorSetRef(leg[i]->joint_motor[0], 0);
+    // DMMotorSetRef(leg[i]->joint_motor[1], 0);
     if (leg[i]->update_flag.is_off_ground) {
       DJIMotorSetRef(leg[i]->wheel_motor, 0);
     } else {
       DJIMotorSetRef(leg[i]->wheel_motor, leg[i]->real_model.T * (3591.0f / 187.0f) /
                                               chassis->leg[i]->param.wheel_reduction_ratio / 0.3f * (16384.0f / 20.0f));
     }
+    // DJIMotorSetRef(leg[i]->wheel_motor, 0);
   }
 }
 
@@ -264,7 +286,9 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   chassis_instance->leg[0] = LegInit(&chassis_init_config->leg_init_config[0]);
   chassis_instance->leg[1] = LegInit(&chassis_init_config->leg_init_config[1]);
 
+  PIDInit(&chassis_instance->delta_theta_PID, &chassis_init_config->delta_theta_PID_config);
   PIDInit(&chassis_instance->roll_PID, &chassis_init_config->roll_PID_config);
+  PIDInit(&chassis_instance->length_PID, &chassis_init_config->length_PID_config);
   chassis_instance->imu = INS_Init(&chassis_init_config->imu_init_config);
   xvEstimateKF_Init(&chassis_instance->vaEstimateKF);
 

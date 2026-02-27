@@ -17,24 +17,25 @@
 #include "navigator.h"
 #include "seasky_protocol.h"
 #include "srm_protocol.h"
-
 #define VISION_USE_VCP
 
+
 #ifdef VISION_USE_VCP
-static DaemonInstance* vision_daemon_instance;
+static DaemonInstance *vision_daemon_instance;
 
-static Vision_Receive_s recv_data;  // 接收数据
-static Vision_Send_s send_data;     // 发送数据
-static INS_t* current_attitude;
+static  Vision_Receive_s recv_data;//接收数据
+static  Vision_Send_s send_data;//发送数据
+static  INS_t* current_attitude;
 
-// 打包，注册
-static Message receive;
-static Message send;
+//打包，注册
+static  Message receive;
+static  Message send;
 
 uint8_t custom_data[] = {0x40, 0x50, 0x60, 0x70};
 uint16_t packed_length;
 void InitParam(void) {
-#define RIGISTER_ID(data, id, packet) \
+
+  #define RIGISTER_ID(data, id, packet) \
   data.ptr_list[id] = &(packet);      \
   data.size_list[id] = sizeof(packet);
 
@@ -45,7 +46,7 @@ void InitParam(void) {
   RIGISTER_ID(send, 2, send_data.shoot_send);
 }
 
-void UpdateGimbalAttitude(Vision_Send_s* vision_send) {
+void UpdateGimbalAttitude(Vision_Send_s *vision_send) {
   vision_send->gimbal_send.yaw = current_attitude->Yaw;
   vision_send->gimbal_send.pitch = current_attitude->Pitch;
   vision_send->gimbal_send.roll = current_attitude->Roll;
@@ -61,7 +62,7 @@ void UpdateGimbalAttitude(Vision_Send_s* vision_send) {
  *
  * @param id vision_usart_instance的地址,此处没用.
  */
-static void VisionOfflineCallback(void* id) {
+static void VisionOfflineCallback(void *id) {
 #ifdef VISION_USE_UART
   USARTServiceInit(vision_usart_instance);
 #endif  // !VISION_USE_UART
@@ -74,8 +75,8 @@ static void VisionOfflineCallback(void* id) {
 
 #include "bsp_usart.h"
 
-static USARTInstance* vision_usart_instance;
-static DaemonInstance* vision_daemon_instance;
+static USARTInstance *vision_usart_instance;
+static DaemonInstance *vision_daemon_instance;
 /**
  * @brief 接收解包回调函数,将在bsp_usart.c中被usart rx callback调用
  * @todo  1.提高可读性,将get_protocol_info的第四个参数增加一个float类型buffer
@@ -87,7 +88,7 @@ static void DecodeVision() {
                                          // TODO: code to resolve flag_register;
 }
 
-Vision_Recv_s* VisionInit(UART_HandleTypeDef* _handle) {
+Vision_Recv_s *VisionInit(UART_HandleTypeDef *_handle) {
   USART_Init_Config_s conf;
   conf.module_callback = DecodeVision;
   conf.recv_buff_size = VISION_RECV_SIZE;
@@ -133,7 +134,7 @@ void VisionSend() {
 
 #include "bsp_usb.h"
 
-static uint8_t* vis_recv_buff;
+static uint8_t *vis_recv_buff;
 
 static void DecodeVision(uint16_t recv_len) {
   // uint16_t flag_register;
@@ -142,7 +143,7 @@ static void DecodeVision(uint16_t recv_len) {
 }
 
 /* 视觉通信初始化 */
-Vision_Receive_s* VisionInit(IMU_Init_Config_s* imu_init_config) {
+Vision_Receive_s *VisionInit(IMU_Init_Config_s *imu_init_config) {
   current_attitude = INS_Init(imu_init_config);
   USB_Init_Config_s conf = {.rx_cbk = DecodeVision};
   vis_recv_buff = USBInit(conf);
