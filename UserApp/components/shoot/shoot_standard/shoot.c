@@ -74,7 +74,7 @@ void ShootBulletSpeedControl(void) {
 
 /* 机器人发射机构控制核心任务 */
 void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，因为之前哨兵是双枪管的，时代的眼泪
-  actual_bullet_speed= GetReferee()->ShootData.bullet_speed;
+  actual_bullet_speed= GetReferee()->ShootData.initial_speed;
 
   if (shoot_ctrl_cmd->shoot_mode == SHOOT_OFF) {
    // for (int j = 0; j < FRICTION_NUM; j++) DJIMotorStop(shoot->friction_motor[j]);

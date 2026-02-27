@@ -65,9 +65,6 @@ static void JudgeReadData(uint8_t *buff) {
           case ID_event_data:  // 0x0101
             memcpy(&referee_info.EventData, (buff + DATA_Offset), LEN_event_data);
             break;
-          case ID_supply_projectile_action:  // 0x0102
-            memcpy(&referee_info.SupplyProjectileAction, (buff + DATA_Offset), LEN_supply_projectile_action);
-            break;
           case ID_referee_warning:  // 0x0104
             memcpy(&referee_info.RefereeWarning, (buff + DATA_Offset), LEN_referee_warning);
             break;
@@ -98,7 +95,10 @@ static void JudgeReadData(uint8_t *buff) {
           case ID_RFID_info:  // 0x0209
             memcpy(&referee_info.RFIDStatus, (buff + DATA_Offset), LEN_RFID_info);
             break;
-          case ID_student_interactive:  // 0x0301   syhtodo接收代码未测试
+          case ID_sentry_info:
+            memcpy(&referee_info.SentryInfo,(buff + DATA_Offset), LEN_sentry_info);
+            break;
+          case ID_student_interactive:  // 0x0301   todo接收代码未测试
             memcpy(&referee_info.ReceiveData, (buff + DATA_Offset), LEN_receive_data);
             break;
         }

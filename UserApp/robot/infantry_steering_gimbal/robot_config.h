@@ -145,8 +145,8 @@ static Shoot_Init_Config_s shoot_init_config = {
             .friction_num = 2,                        //摩擦轮数量
             .friction_speed = 40000.0f,               //摩擦轮速度
             .friction_coefficients = {1.0f, -1.0f}, //摩擦轮速度比例系数
-            .deadtime_burstfire = 100,
-            .deadtime_onebullet = 100,               //弹丸发射间隔
+            .deadtime_burstfire = 50,
+            .deadtime_onebullet = 200,               //弹丸发射间隔
             .target_speed = 24.0f,
             .bullet_speed_adjustment = 10.0f,
         },

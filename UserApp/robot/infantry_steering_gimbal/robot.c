@@ -408,7 +408,7 @@ void RobotCMDTask() {
 void RobotTask() {
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
   upload=(upload_data*)CANCommGet(can_comm_instance);
-  robot->referee_data->ShootData.bullet_speed=upload->bullet_speed;
+  robot->referee_data->ShootData.initial_speed=upload->bullet_speed;
   VisionSend();
   RobotCMDTask();
   GimbalTask();
