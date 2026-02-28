@@ -5,6 +5,7 @@
 #include "stdlib.h"
 #include "bsp_log.h"
 #include <stdbool.h>
+#include "crc_func.h"
 #include <math.h>
 
 #define SELF_CONTROL_FRAME_SIZE 64u // 接收缓冲区大小
@@ -82,7 +83,7 @@ void selfcontrol_data_solve(uint8_t* frame) {
     uint16_t cmd_id = 0;
     uint8_t index = 0;
     static Frame_Header referee_receive_header;  // 保持原有变量
-    
+
     memcpy(&referee_receive_header, frame, sizeof(Frame_Header));
     index += sizeof(Frame_Header);
     index--;
