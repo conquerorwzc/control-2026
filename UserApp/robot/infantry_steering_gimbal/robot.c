@@ -18,7 +18,8 @@ static Shoot_Ctrl_Cmd_s *shoot_ctrl_cmd;
 Vision_Receive_s* vision_recv_data;
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
-static Chassis_Ctrl_CanComm* chassis_ctrl_can_comm;
+//static Chassis_Ctrl_CanComm* chassis_ctrl_can_comm;
+static CanComm_Pack* cancomm_pack;
 CANCommInstance* can_comm_instance = NULL;
 
 /* Intermediate variables calculated by private functions */
@@ -387,7 +388,7 @@ void RobotInit() {
   // 初始化控制命令指针
   //chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   chassis_ctrl_cmd=(Chassis_Ctrl_Cmd_s*)zmalloc(sizeof(Chassis_Ctrl_Cmd_s));
-  chassis_ctrl_can_comm=(Chassis_Ctrl_CanComm*)zmalloc(sizeof(Chassis_Ctrl_CanComm));
+  cancomm_pack=(CanComm_Pack*)zmalloc(sizeof(CanComm_Pack));
   chassis_ctrl_cmd->max_power = 10;  // 随便给一个初始功率，后面应该要从裁判系统获取
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
@@ -436,13 +437,22 @@ void RobotTask() {
   // board_can_comm_data.tx_buff[9] = transmit_data.bytes[1];
   //
   // board_can_comm_data.tx_buff[10] = rc_data->rc.switch_right;
-  chassis_ctrl_can_comm->vx=chassis_ctrl_cmd->vx;
-  chassis_ctrl_can_comm->vy=chassis_ctrl_cmd->vy;
-  chassis_ctrl_can_comm->wz=chassis_ctrl_cmd->wz;
-  chassis_ctrl_can_comm->chassis_mode=chassis_ctrl_cmd->chassis_mode;
-  chassis_ctrl_can_comm->SuperCapBoost=chassis_ctrl_cmd->SuperCapBoost;
-  chassis_ctrl_can_comm->offset_angle=chassis_ctrl_cmd->offset_angle;
-  CANCommSend(can_comm_instance, (uint8_t*)chassis_ctrl_can_comm);
+  cancomm_pack->chassis_ctrl_can_comm.vx=chassis_ctrl_cmd->vx;
+  cancomm_pack->chassis_ctrl_can_comm.vy=chassis_ctrl_cmd->vy;
+  cancomm_pack->chassis_ctrl_can_comm.wz=chassis_ctrl_cmd->wz;
+  cancomm_pack->chassis_ctrl_can_comm.chassis_mode=chassis_ctrl_cmd->chassis_mode;
+  cancomm_pack->chassis_ctrl_can_comm.SuperCapBoost=chassis_ctrl_cmd->SuperCapBoost;
+  cancomm_pack->chassis_ctrl_can_comm.offset_angle=chassis_ctrl_cmd->offset_angle;
+  cancomm_pack->friction_mode=(uint8_t)robot->shoot->shoot_ctrl_cmd.friction_mode;
+  cancomm_pack->pitch=(int16_t)gimbal_ctrl_cmd->pitch;
+  cancomm_pack->friction_speed1=(uint16_t)robot->shoot->friction_motor[0]->measure.speed_aps;
+  cancomm_pack->friction_speed2=(uint16_t)robot->shoot->friction_motor[1]->measure.speed_aps;
+  cancomm_pack->load_mode=robot->shoot->shoot_ctrl_cmd.load_mode;
+  cancomm_pack->shoot_mode=robot->shoot->shoot_ctrl_cmd.shoot_mode;
+  cancomm_pack->gimbal_mode=gimbal_ctrl_cmd->gimbal_mode;
+  cancomm_pack->rest_heat=robot->shoot->shoot_ctrl_cmd.rest_heat;
+  cancomm_pack->shoot_rate=(uint8_t)robot->shoot->shoot_ctrl_cmd.shoot_rate;
+  CANCommSend(can_comm_instance, (uint8_t*)cancomm_pack);
 
 #endif
 

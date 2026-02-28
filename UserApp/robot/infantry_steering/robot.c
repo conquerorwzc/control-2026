@@ -21,7 +21,7 @@ static Shoot_Ctrl_Cmd_s *shoot_ctrl_cmd;
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 float temp=24.0f;
-static Chassis_Ctrl_CanComm* chassis_ctrl_can_comm;
+static CanComm_Pack* cancomm_pack;
 
 // typedef enum {
 //   SAFETY_MODE=0,//安全模式，超电电压低于8伏时进入，大于18伏退出，底盘限制30W
@@ -152,16 +152,16 @@ static void DualBoardCtrlSet() {
   //chassis_ctrl_cmd->wz=0;
   if (CANCommIsOnline(can_comm_instance)) {
     // 检查是否有新数据更新
-    chassis_ctrl_can_comm = (Chassis_Ctrl_CanComm*)CANCommGet(can_comm_instance);
+    cancomm_pack = (CanComm_Pack*)CANCommGet(can_comm_instance);
     //robot->chassis->chassis_ctrl_cmd=*chassis_ctrl_cmd;
 
-    robot->chassis->chassis_ctrl_cmd.vx=chassis_ctrl_can_comm->vx;
-    robot->chassis->chassis_ctrl_cmd.vy=chassis_ctrl_can_comm->vy;
-    robot->chassis->chassis_ctrl_cmd.wz=chassis_ctrl_can_comm->wz;
-    robot->chassis->chassis_ctrl_cmd.chassis_mode=chassis_ctrl_can_comm->chassis_mode;
+    robot->chassis->chassis_ctrl_cmd.vx=cancomm_pack->chassis_ctrl_can_comm.vx;
+    robot->chassis->chassis_ctrl_cmd.vy=cancomm_pack->chassis_ctrl_can_comm.vy;
+    robot->chassis->chassis_ctrl_cmd.wz=cancomm_pack->chassis_ctrl_can_comm.wz;
+    robot->chassis->chassis_ctrl_cmd.chassis_mode=cancomm_pack->chassis_ctrl_can_comm.chassis_mode;
     //robot->chassis->chassis_ctrl_cmd.chassis_speed_buff=cchassis_ctrl_can_comm->chassis_speed_buff;
-    robot->chassis->chassis_ctrl_cmd.offset_angle=chassis_ctrl_can_comm->offset_angle;
-    robot->chassis->chassis_ctrl_cmd.SuperCapBoost=chassis_ctrl_can_comm->SuperCapBoost;
+    robot->chassis->chassis_ctrl_cmd.offset_angle=cancomm_pack->chassis_ctrl_can_comm.offset_angle;
+    robot->chassis->chassis_ctrl_cmd.SuperCapBoost=cancomm_pack->chassis_ctrl_can_comm.SuperCapBoost;
     //robot->chassis->chassis_ctrl_cmd.max_power=chassis_ctrl_cmd->max_power;
     // 如果收到数据，可以在这里处理
     // if (received_data != NULL) {

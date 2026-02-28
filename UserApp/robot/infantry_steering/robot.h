@@ -8,7 +8,7 @@
 // #include "rm_referee.h"
 #include "rm_referee.h"
 // todo: add vision_module
-#pragma pack(1)
+#
 // 舵轮底盘控制命令
 typedef struct {
   // 控制部分
@@ -23,8 +23,21 @@ typedef struct {
   // UI部分
   //  ...
 } Chassis_Ctrl_CanComm;
-#pragma pack()
 
+#pragma pack(1)
+typedef struct {
+  Chassis_Ctrl_CanComm chassis_ctrl_can_comm;
+  uint8_t gimbal_mode;
+  uint8_t shoot_mode;
+  uint8_t friction_mode;
+  uint8_t load_mode;
+  int16_t pitch;
+  uint8_t rest_heat;
+  uint8_t shoot_rate;
+  uint16_t friction_speed1;
+  uint16_t friction_speed2;
+} CanComm_Pack;
+#pragma pack()
 typedef enum {
   ROBOT_POWER_OFF = 0,
   ROBOT_POWER_ON ,
