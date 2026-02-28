@@ -19,10 +19,11 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
+#include "adc.h"
+#include "crc.h"
 #include "dma.h"
 #include "fdcan.h"
 #include "i2c.h"
-#include "memorymap.h"
 #include "spi.h"
 #include "tim.h"
 #include "usart.h"
@@ -41,7 +42,7 @@
 
 /* USER CODE END PTD */
 
-/* Private define ---------------------5---------------------------------------*/
+/* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
 /* USER CODE END PD */
@@ -109,6 +110,8 @@ int main(void)
   MX_TIM12_Init();
   MX_SPI1_Init();
   MX_I2C2_Init();
+  MX_ADC1_Init();
+  MX_CRC_Init();
   /* USER CODE BEGIN 2 */
   OSTaskInit();
   LOGINFO("[main] SystemInit() and OSInit() done");

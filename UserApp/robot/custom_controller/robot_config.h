@@ -36,7 +36,8 @@ static Motor_Init_Config_s DM4310_config = {
         },
     .motor_type = J4310,
     .can_init_config.can_handle = &hcan1,
-    .can_init_config.tx_id = 1,
+    .can_init_config.tx_id = 0x01,
+    .can_init_config.rx_id = 0x11,
     .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
 };
 
@@ -66,7 +67,7 @@ static Motor_Init_Config_s M3508_config_1 = {
         },
     .motor_type = M3508,
     .can_init_config.can_handle = &hcan1,
-    .can_init_config.tx_id = 2,
+    .can_init_config.tx_id = 1,
     .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
 };
 
@@ -96,7 +97,7 @@ static Motor_Init_Config_s M3508_config_2 = {
         },
     .motor_type = M3508,
     .can_init_config.can_handle = &hcan1,
-    .can_init_config.tx_id = 3,
+    .can_init_config.tx_id = 2,
     .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
 };
 
@@ -130,10 +131,10 @@ static Motor_Init_Config_s M2006_config = {
     .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
 };
 
-// 电位器配置
+// 电位器配置 - 3.3V参考电压对应0-360度映射
 static Potentiometer_Config_s POT_config = {
     .min_voltage = 0.0f,        // 最小电压 0V
-    .max_voltage = 5.0f,        // 最大电压 5V (修改为5V系统)
+    .max_voltage = 3.3f,        // 最大电压 3.3V (对应360度)
     .min_angle = 0.0f,          // 对应最小角度 0度
     .max_angle = 360.0f,        // 对应最大角度 360度
     .filter_alpha = 0.1f,       // 滤波系数 0.1 (轻微滤波)

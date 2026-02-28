@@ -30,10 +30,11 @@ typedef struct {
 
 /* ----------------------- 电位器数据结构体 ----------------------------- */
 typedef struct {
-    ADCInstance* adc_instance;  // ADC实例
-    float current_voltage;       // 当前电压值
-    float current_angle;        // 当前角度值
-    bool is_initialized;        // 初始化标志
+    ADCInstance* adc_instance;          // ADC实例
+    float current_voltage;               // 当前电压值
+    float current_angle;                // 当前角度值
+    bool is_initialized;                // 初始化标志
+    Potentiometer_Config_s config;      // 电位器配置参数（持久化存储）
 } Potentiometer_Instance_s;
 
 /* ----------------------- 电机单元结构体 ----------------------------- */
@@ -41,7 +42,7 @@ typedef struct {
     DMMotorInstance* dm_motor;              // DM电机实例
     DJIMotorInstance* dji_motor;            // DJI电机实例
 } MotorUnit_t;
-
+// @todo: 两个3508的ID最好改成2和3，防止于4310的ID对冲
 /* ----------------------- 初始化配置结构体 ----------------------------- */
 typedef struct {
     Motor_Init_Config_s dm4310_config;      // DM4310电机配置

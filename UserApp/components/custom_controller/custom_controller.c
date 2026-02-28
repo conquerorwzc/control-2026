@@ -70,12 +70,12 @@ CustomController_t* CustomControllerInit(CustomController_Init_Config_s* init_co
     // 初始化电位器
     InitPotentiometer(controller, &init_config->pot_config);
     
-    // 初始化USART实例，使用USART3
+    // 初始化USART实例，使用USART1
     if (custom_controller_usart == NULL) {
         USART_Init_Config_s usart_config = {0};
         usart_config.recv_buff_size = 256;
-        extern UART_HandleTypeDef huart3;  // 声明外部USART3句柄
-        usart_config.usart_handle = &huart3;
+        extern UART_HandleTypeDef huart1;  // 声明外部USART3句柄
+        usart_config.usart_handle = &huart1;
         usart_config.module_callback = NULL;  // 如果需要接收回调可以设置
         custom_controller_usart = USARTRegister(&usart_config);
     }
@@ -259,10 +259,10 @@ void CustomController_UpdatePotData(CustomController_t* controller)
     // 读取ADC电压值
     controller->potentiometer.current_voltage = ADCGetVoltage(controller->potentiometer.adc_instance);
     
-    // 电压转换为角度
+    // 电压转换为角度（修复：使用保存在实例中的正确配置）
     controller->potentiometer.current_angle = VoltageToAngle(
         controller->potentiometer.current_voltage, 
-        &((CustomController_Init_Config_s*)0)->pot_config  // 这里需要访问配置，暂时用默认值
+        &controller->potentiometer.config  // 使用持久化的配置参数
     );
 }
 
@@ -401,19 +401,22 @@ static void InitPotentiometer(CustomController_t* controller, const Potentiomete
     controller->potentiometer.current_voltage = 0.0f;
     controller->potentiometer.current_angle = 0.0f;
     
-    // 注册ADC实例 (ADC1_IN11, 12位)
+    // 将配置参数拷贝到实例中（关键修改：持久化配置）
+    controller->potentiometer.config = *pot_config;
+    
+    // 注册ADC实例 (ADC1_IN14, 16位单端)
     extern ADC_HandleTypeDef hadc1;  // 声明外部ADC1句柄
     ADC_Init_Config_s adc_config = {0};
     adc_config.hadc = &hadc1;
-    adc_config.channel = ADC_CHANNEL_11;  // ADC1_IN11
+    adc_config.channel = ADC_CHANNEL_14;  // ADC1_IN14
     adc_config.mode = ADC_MODE_POLLING;   // 轮询模式
-    adc_config.vref = 5.0f;               // 参考电压5V (修改为5V系统)
+    adc_config.vref = 3.3f;               // 参考电压3.3V (与电位器供电电压一致)
     adc_config.alpha = pot_config->filter_alpha;  // 滤波系数
     
     controller->potentiometer.adc_instance = ADCRegister(&adc_config);
     if (controller->potentiometer.adc_instance != NULL) {
         controller->potentiometer.is_initialized = true;
-        LOGINFO("Potentiometer ADC initialized successfully");
+        LOGINFO("Potentiometer ADC (16-bit, IN14) initialized successfully");
     } else {
         LOGERROR("Failed to initialize potentiometer ADC");
     }
