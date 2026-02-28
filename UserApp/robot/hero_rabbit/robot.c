@@ -10,7 +10,7 @@
 #include "user_lib.h"
 #include "master_process.h"
 static RobotInstance *robot;
-
+#define HERO_DEBUG
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
 static Gimbal_Ctrl_Cmd_s *gimbal_ctrl_cmd;
@@ -76,6 +76,220 @@ static void CalcOffsetAngle() {
   else
     chassis_ctrl_cmd->offset_angle = angle - YAW_ALIGN_ANGLE + 360.0f;
 }
+#ifdef HERO_DEBUG
+/**
+ * @brief 控制输入为遥控器(调试时)的模式和控制量设置
+ *
+ */
+static void RemoteControlSet() {
+  // 右[中]，云台
+  if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+    if (abs(rc_data[TEMP].rc.dial) > 20) {
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+    } else
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+  }
+  // 右[上]，超电，保持底盘跟随云台
+  else if (switch_is_up(rc_data[TEMP].rc.switch_left)) {
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+    if (abs(rc_data[TEMP].rc.dial) > 20) {
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+    } else
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+  }
+  if (switch_is_down(rc_data[TEMP].rc.switch_right)) {
+    // 右下：腿部缓慢下降
+    chassis_ctrl_cmd->leg_mode = LEG_NORMAL;
+  } else if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
+    chassis_ctrl_cmd->leg_mode = LEG_CRUISE;
+    // 右中：保持当前腿部位置不变（不改变之前的腿部模式）
+    // 保留当前模式，不修改leg_mode
+  } else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
+    // 右上：腿部缓慢上升，最大到kike位置
+    chassis_ctrl_cmd->leg_mode =LEG_KIKE;
+  }
+
+  //左[中],云台启动，摩擦轮启动，拨弹盘启动，准备射击
+  if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
+    shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+    shoot_ctrl_cmd->friction_mode = FRICTION_ON;
+    shoot_ctrl_cmd->load_mode = LOAD_STOP;
+    // 待添加,视觉会发来和目标的误差,同样将其转化为total angle的增量进行控制
+    // ...
+    // 左上，开火，发射，根据时间判断单发或者连发
+  } else if (switch_is_up(rc_data[TEMP].rc.switch_left))
+  {
+    shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+    shoot_ctrl_cmd->friction_mode = FRICTION_ON;
+    shoot_ctrl_cmd->load_mode = LOAD_STOP;
+    if (switch_is_mid(rc_data_last[TEMP].rc.switch_left)) {
+      trigger_time = DWT_GetTimeline_s();
+    }
+    if (DWT_GetTimeline_s() - trigger_time > 1.0f) {
+      shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+    } else {
+      shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
+    }
+  }
+  // 云台使能,或视觉未识别到目标,纯遥控器拨杆控制
+  if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
+    gimbal_ctrl_cmd->yaw += -0.003f * (float)rc_data[TEMP].rc.rocker_r_;
+    gimbal_ctrl_cmd->pitch += 0.0006f * (float)rc_data[TEMP].rc.rocker_r1;
+  }
+  int16_t current_pitch_ecd = (int16_t)robot->gimbal->pitch_motor->measure.ecd;
+
+  // 通过编码器差值计算实际pitch角度
+  float relative_pitch_angle = (current_pitch_ecd- PITCH_HORIZON_ecd-(robot->gimbal->gimbal_IMU_data->Pitch/ECD_ANGLE_COEF_DJI)) * ECD_ANGLE_COEF_DJI;
+  new_max_pitch= PITCH_MAX_ANGLE - relative_pitch_angle;
+  new_min_pitch= PITCH_MIN_ANGLE - relative_pitch_angle;
+      // 当腿部抬起时，使用编码器解算的角度进行限位，防止机械碰撞
+      if (gimbal_ctrl_cmd->pitch < new_max_pitch) {
+          // 如果实际角度超过上限，限制目标角度
+          gimbal_ctrl_cmd->pitch = new_max_pitch;
+      } else if (gimbal_ctrl_cmd->pitch > new_min_pitch) {
+          // 如果实际角度低于下限，限制目标角度
+          gimbal_ctrl_cmd->pitch = new_min_pitch;
+      }
+  // // // 云台PITCH轴软件限位 todo:没在云台有点不好
+  // // else if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
+  // //   gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
+  // // } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
+  // //   gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
+  // }
+  // 底盘参数,系数需要调整
+  vx_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l_;  // _水平方向
+  vy_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 1数值方向
+  if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
+    chassis_ctrl_cmd->wz =
+        25.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
+  }
+  if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
+    chassis_ctrl_cmd->wz =
+        (25.0f) *
+        (float)rc_data[TEMP]
+            .rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
+  }
+  // 发射参数
+
+  // 射频控制,固定每秒1发,后续可以根据左侧拨轮的值大小切换射频,
+  shoot_ctrl_cmd->shoot_rate = 8;
+
+  *rc_data_last = *rc_data;
+}
+/**
+ * @brief 输入为键鼠时模式和控制量设置
+ *
+ */
+static void MouseKeySet() {
+  vy_initial += (float)((rc_data[TEMP].key[KEY_PRESS].w) - rc_data[TEMP].key[KEY_PRESS].s) *
+                (float)chassis_ctrl_cmd->chassis_speed_buff;
+  vx_initial += (float)(rc_data[TEMP].key[KEY_PRESS].a - rc_data[TEMP].key[KEY_PRESS].d) *
+                (float)-chassis_ctrl_cmd->chassis_speed_buff;
+
+  //缓加速
+  if (abs(vx_initial)<=10000) {
+    x_speed_time=DWT_GetTimeline_s();
+    chassis_ctrl_cmd->vx=vx_initial;
+  }//速度绝对值在10000以下输出控制量=输入控制量
+  if (vx_initial > 10000&&chassis_ctrl_cmd->vx<= 60.0f * (float)rc_data[TEMP].rc.rocker_l_ ) {
+    chassis_ctrl_cmd->vx=10000+(DWT_GetTimeline_s()-x_speed_time)*10000;
+  }
+  if (vx_initial < -10000&&chassis_ctrl_cmd->vx>= 60.0f * (float)rc_data[TEMP].rc.rocker_l_) {
+    chassis_ctrl_cmd->vx=-10000-(DWT_GetTimeline_s()-x_speed_time)*10000;
+  }//速度绝对值在10000以上输出控制量=10000+10000t(s)
+  if (abs(vy_initial)<=10000) {
+    y_speed_time=DWT_GetTimeline_s();
+    chassis_ctrl_cmd->vy=vy_initial;
+  }//速度绝对值在10000以下输出控制量=输入控制量
+  if (vy_initial > 10000&&chassis_ctrl_cmd->vy<= 60.0f * (float)rc_data[TEMP].rc.rocker_l1 ) {
+    chassis_ctrl_cmd->vy=10000+(DWT_GetTimeline_s()-y_speed_time)*10000;
+  }
+  if (vy_initial < -10000&&chassis_ctrl_cmd->vy>= 60.0f * (float)rc_data[TEMP].rc.rocker_l1) {
+    chassis_ctrl_cmd->vy=-10000-(DWT_GetTimeline_s()-y_speed_time)*10000;
+  }//速度绝对值在10000以上输出控制量=10000+10000t(s)
+  switch (rc_data[TEMP].mouse.press_r % 2) {  //右键进入自瞄预备模式
+    case 1:
+      if (has_non_zero_data(vision_recv_data)==1){
+        gimbal_ctrl_cmd->gimbal_mode=GIMBAL_VISION;    // 右键自瞄开启
+        gimbal_ctrl_cmd->yaw=vision_recv_data->gimbal_receive.yaw;
+        gimbal_ctrl_cmd->pitch=vision_recv_data->gimbal_receive.pitch;
+        //shoot_ctrl_cmd->load_mode=vision_recv_data->shoot_receive.fire_flag;
+      }
+      else
+        gimbal_ctrl_cmd->gimbal_mode=GIMBAL_ON;      //人工操控模式
+      break;
+    default:
+      break;
+  }
+  switch (rc_data[TEMP].mouse.press_l % 2)        // 左键发射
+  {
+    case 0:
+      if (!switch_is_up(rc_data[TEMP].rc.switch_left))
+      {
+        shoot_ctrl_cmd->load_mode=LOAD_STOP;
+        trigger_time = DWT_GetTimeline_s();
+      }
+      break;
+    default:
+  }
+  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Z] % 3)  // Z键设置弹速
+  {
+    case 0:
+      shoot_ctrl_cmd->bullet_speed = 15;
+      break;
+    case 1:
+      shoot_ctrl_cmd->bullet_speed = 18;
+      break;
+    default:
+      shoot_ctrl_cmd->bullet_speed = 30;
+      break;
+  }
+  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 4)  // E键设置发射模式
+  {
+    case 0:
+      shoot_ctrl_cmd->load_mode = LOAD_STOP;
+      break;
+    case 1:
+      shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
+      break;
+    case 2:
+      shoot_ctrl_cmd->load_mode = LOAD_3_BULLET;
+      break;
+    default:
+      shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+      break;
+  }
+
+  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_C] % 4)  // C键设置底盘速度
+  {
+    case 0:
+      chassis_ctrl_cmd->chassis_speed_buff = 40;
+      break;
+    case 1:
+      chassis_ctrl_cmd->chassis_speed_buff = 60;
+      break;
+    case 2:
+      chassis_ctrl_cmd->chassis_speed_buff = 80;
+      break;
+    default:
+      chassis_ctrl_cmd->chassis_speed_buff = 100;
+      break;
+  }
+  switch (rc_data[TEMP].key[KEY_PRESS].shift)  // 待添加 按shift允许超功率 消耗缓冲能量
+  {
+    case 1:
+
+      break;
+
+    default:
+
+      break;
+  }
+}
+#else
 
 /**
  * @brief 控制输入为遥控器(调试时)的模式和控制量设置
@@ -144,7 +358,8 @@ static void RemoteControlSet() {
   int16_t current_pitch_ecd = (int16_t)robot->gimbal->pitch_motor->measure.ecd;
 
   // 通过编码器差值计算实际pitch角度
-  float relative_pitch_angle = (current_pitch_ecd- PITCH_HORIZON_ecd-(robot->gimbal->gimbal_IMU_data->Pitch/ECD_ANGLE_COEF_DJI)) * ECD_ANGLE_COEF_DJI;
+  float relative_pitch_angle = (current_pitch_ecd- PITCH_HORIZON_ecd-
+    (robot->gimbal->gimbal_IMU_data->Pitch/ECD_ANGLE_COEF_DJI)) * ECD_ANGLE_COEF_DJI;
   new_max_pitch= PITCH_MAX_ANGLE - relative_pitch_angle;
   new_min_pitch= PITCH_MIN_ANGLE - relative_pitch_angle;
       // 当腿部抬起时，使用编码器解算的角度进行限位，防止机械碰撞
@@ -364,6 +579,7 @@ static void MouseKeySet() {
       break;
   }
 }
+#endif
 
 
 /**

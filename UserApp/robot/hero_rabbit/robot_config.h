@@ -45,13 +45,13 @@
 #define GYRO2GIMBAL_DIR_PITCH 1  // 陀螺仪数据相较于云台的pitch的方向,1为相同,-1为相反
 #define GYRO2GIMBAL_DIR_ROLL 1   // 陀螺仪数据相较于云台的roll的方向,1为相同,-1为相反
 // 腿部电机位置定义
-#define LEFT_LEG_MOTOR_CRUISE_POSITION -0.799f
-#define RIGHT_LEG_MOTOR_CRUISE_POSITION -0.248f
-#define LEFT_LEG_MOTOR_NORMAL_POSITION -1.367f   // 腿部电机常规位置值
-#define LEFT_LEG_MOTOR_RAISE_POSITION  -0.835f  // 腿部电机抬起位置值
-#define LEFT_LEG_MOTOR_KIKE_POSITION -0.535f     // 腿部电机踢脚位置值
+#define LEFT_LEG_MOTOR_NORMAL_POSITION -2.388f   // 腿部电机常规位置值
+#define LEFT_LEG_MOTOR_RAISE_POSITION  -1.838f  // 腿部电机抬起位置值
+#define LEFT_LEG_MOTOR_CRUISE_POSITION -2.088f
+#define LEFT_LEG_MOTOR_KIKE_POSITION -1.538f     // 腿部电机踢脚位置值
 #define RIGHT_LEG_MOTOR_NORMAL_POSITION 2.211f   // 腿部电机常规位置值
 #define RIGHT_LEG_MOTOR_RAISE_POSITION  1.679f  // 腿部电机抬起位置值
+#define RIGHT_LEG_MOTOR_CRUISE_POSITION 1.911f
 #define RIGHT_LEG_MOTOR_KIKE_POSITION 1.379f  // 腿部电机踢脚位置值
 // 轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
 //  轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
@@ -145,18 +145,18 @@
           {                                                                                                    \
               .speed_PID =                                                                                     \
                   {                                                                                            \
-                      .Kp = 5,                                                                               \
-                                                                                                               \
+                      .Kp = 3,                                                                               \
+                                                                                                             \
                       .Kd = 0.01,                                                                                 \
-                                                                                                               \
+                                                                                                             \
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
-                      .MaxOut = 28.0,                                                                          \
+                      .MaxOut = 35.0,                                                                          \
                   },                                                                                           \
               .angle_PID =                                                                                     \
                   {                                                                                            \
                       .Kp = 50.0f,                                                                             \
                       .Kd = 1.0f,                                                                              \
-                      .MaxOut = 20.0f,                                                                         \
+                      .MaxOut = 30.0f,                                                                         \
                   },                                                                                           \
                                                                                                                \
           },                                                                                                   \
@@ -169,7 +169,7 @@
               .motor_reverse_flag = direction,                                                    \
               .feedback_reverse_flag = direction,                                                    \
           },                                                                                                   \
-      .motor_type = J4340,                                                                                     \
+      .motor_type = J8009P,                                                                                     \
   })
 
 
@@ -195,7 +195,7 @@ static Chassis_Init_Config_s chassis_init_config = {
     .wheel_motor_config[1] = FRONT_WHEEL_MOTOR_CONFIG(&hcan1, 4),
     .wheel_motor_config[2] = REAR_WHEEL_MOTOR_CONFIG(&hcan1, 2),
     .wheel_motor_config[3] = REAR_WHEEL_MOTOR_CONFIG(&hcan1, 3),
-    .leg_motor_config[0]= LEG_MOTOR_CONFIG(&hcan3, 2, 0x12,0),
+    .leg_motor_config[0]= LEG_MOTOR_CONFIG(&hcan3, 2, 0x0a,0),
     .leg_motor_config[1]= LEG_MOTOR_CONFIG(&hcan3, 1, 1,0),
     // 跟随PID
     .follow_pid =
@@ -299,9 +299,9 @@ static Gimbal_Init_Config_s gimbal_init_config = {
           {                                          \
               .speed_PID =                           \
                   {                                  \
-                      .Kp = 2.0f,                    \
+                      .Kp = 1.8f,                    \
                       .Ki = 0.00f,                   \
-                      .Kd = 0.05f,                   \
+                      .Kd = 0.0f,                   \
                       .Improve = PID_Integral_Limit, \
                       .IntegralLimit = 10000.0f,     \
                       .MaxOut = 15000.0f,            \
@@ -350,15 +350,15 @@ static Shoot_Init_Config_s shoot_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 30.0f,
+                            .Kp = 20.0f,
                             .Ki = 0.0f,
-                            .Kd = 0.3f,
+                            .Kd = 0.008f,
                             .MaxOut = 50000.0f,
                         },
                     .speed_PID =
                         {
-                            .Kp = 3.0f,
-                            .Ki = 0.5f,
+                            .Kp = 2.0f,
+                            .Ki = 0.1f,
                             .Kd = 0.0f,
                             .Improve = PID_Integral_Limit | PID_ErrorHandle,
                             .IntegralLimit = 7000.0f,
