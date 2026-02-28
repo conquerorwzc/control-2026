@@ -1,10 +1,11 @@
 #include "robot.h"
+
 #include "can_comm.h"
 #include "general_def.h"
 #include "master_process.h"
+#include "new_RC_VT13.h"
 #include "robot_config.h"
 #include "user_lib.h"
-
 
 static RobotInstance *robot;
 
@@ -16,11 +17,11 @@ static Vision_Receive_s* vision_recv_data;
 // static navigator_recv_t* navigator_data;
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
+static VT13_RC_t *vt13_rc_data;
 static Sentry_Cmd_t sentry_cmd={0};
 static SuperCapMode supercap_mode = SAFETY_MODE;
 
 /* Intermediate variables calculated by private functions */
-#define USECANREMOTE 1 //是否使用云台板的遥控数据
 float trigger_time = 0;  // 触发时间
 static float angle=0;
 uint8_t* received_data = NULL;
@@ -76,6 +77,7 @@ static void SentryRefereeSend() {
   SentrySend(sentry_cmd.raw_data,sizeof(sentry_cmd.raw_data));
 }
 
+#if defined(USE_DUAL_RC) || defined(USE_REMOTE_CONTROL)
 /**
  * @brief 控制输入为遥控器(调试时)的模式和控制量设置
  *
@@ -299,6 +301,39 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   }
 }
 
+#elifdef USE_DUAL_RC_NEW
+static void RemoteControlSet() {
+  if ((switch_middle(vt13_rc_data->rc.mode_switch)||switch_right(vt13_rc_data->rc.mode_switch)) && abs(vt13_rc_data->rc.dial) > 20)
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+  else
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+
+  // 底盘控制部分,系数需要调整
+  if (robot->control_mode == MANUAL_MODE)//手动控制，遥控器控制量
+  {
+    vx_initial = 60.0f * (float)vt13_rc_data->rc.rocker_l_;  // l_水平方向，最大660*60=39600
+    vy_initial = 60.0f * (float)vt13_rc_data->rc.rocker_l1;  // l1竖直方向，最大660*60
+    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE)
+      chassis_ctrl_cmd->wz = 20.0f * (float)vt13_rc_data->rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
+    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW)
+      chassis_ctrl_cmd->wz =(1.0f) *(float)vt13_rc_data->rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
+  } else if (robot->control_mode == AUTO_MODE) // 自动控制，直接收上位机控制量
+  {
+    vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vy*10000;
+    //vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vx*5000;
+    vy_initial = robot->navigator_data->robot_cmd.speed_vector.vx*10000;
+    chassis_ctrl_cmd->wz = robot->navigator_data->robot_cmd.speed_vector.wz*0;
+    //gimbal_ctrl_cmd->yaw-=robot->navigator_data->robot_cmd.speed_vector.wz*0.01;
+  }
+}
+
+static void MouseKeySet() {
+
+}
+
+#endif
+
+
 //解析底盘板收到的遥控数据
 static void DualBoardCtrlSet() {
   //chassis_ctrl_cmd->wz=0;
@@ -312,6 +347,8 @@ static void DualBoardCtrlSet() {
 
       for (int i = 0; i < 24; i++)
         CanData.bytes[i] = received_data[i];
+
+      #ifdef USE_DUAL_RC
       rc_data[TEMP].rc.rocker_l_=CanData.value16[0];//todo:后面chassis改改把负号去掉
       rc_data[TEMP].rc.rocker_l1=CanData.value16[1];
       rc_data[TEMP].rc.rocker_r_=CanData.value16[2];
@@ -328,6 +365,16 @@ static void DualBoardCtrlSet() {
         } else
           chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
       }
+
+      #elifdef USE_DUAL_RC_NEW
+      vt13_rc_data->rc.rocker_l_ = CanData.value16[0];
+      vt13_rc_data->rc.rocker_l1 = CanData.value16[1];
+      vt13_rc_data->rc.rocker_r_ = CanData.value16[2];
+      vt13_rc_data->rc.dial = CanData.value16[3];
+      vt13_rc_data->rc.mode_switch = CanData.bytes[10];
+      robot->control_mode = CanData.bytes[11];
+      vt13_rc_data->button_status.pause_flag = CanData.bytes[12];
+      #endif
     }
   }
 }
@@ -340,16 +387,15 @@ static void DualBoardCtrlSet() {
  *
  */
 static void EmergencyHandler() {
-  //底盘侧双板通信离线,好痛
+  //底盘双板通信离线,好痛
   if (!CANCommIsOnline(can_comm_instance)) {
     chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
     LOGERROR("[CMD] Emergency Stop! DualBoardComm Lost");
   }
   else LOGINFO("[CMD]DualBoardComm is Online");
+
+  #ifdef USE_REMOTE_CONTROL
   // 两switch都在下断电
-  switch (USECANREMOTE)//急停信号源
-  {
-    case 0:
       if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)))  // 全部失能
       {
         robot->robot_mode = ROBOT_POWER_ON;
@@ -373,8 +419,8 @@ static void EmergencyHandler() {
         shoot_ctrl_cmd->load_mode = LOAD_STOP;
       }
       // 遥控器右侧开关为[上],恢复正常运行
-      break;
-    case 1:
+
+#elifdef USE_DUAL_RC
 
       if (switch_is_down(CanData.bytes[10]))  // 底盘失能
       {
@@ -382,8 +428,15 @@ static void EmergencyHandler() {
         chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
       }
       // 遥控器右侧开关为[上],恢复正常运行
-      break;
+
+#elifdef  USE_DUAL_RC_NEW
+  if (switch_left(vt13_rc_data->rc.mode_switch)||vt13_rc_data->button_status.pause_flag==1)  // 底盘失能
+  {
+    robot->robot_mode = ROBOT_POWER_ON;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
   }
+
+#endif
 
 }
 static void SuperCapControl() {
@@ -429,18 +482,27 @@ static void SuperCapControl() {
         robot->referee_data->PowerHeatData.buffer_energy,
         robot->referee_data->GameRobotState.power_management_chassis_output);
 }
+
 void RobotInit() {
   //要在云台和底盘任务开始之前完成该任务的初始化
   vTaskDelay(CAN_COMM_TASK_INIT_TIME);
   // 初始化CAN接收
   can_comm_instance = CANCommInit(&comm_config);
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
-  robot->rc_data = RemoteControlInit(&huart3);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
+
+  #ifdef USE_REMOTE_CONTROL
+    // 使用旧遥控器
+    robot->rc_data = RemoteControlInit(&huart3);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
+    rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
+    *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
+    rc_data = robot->rc_data;
+  #elif defined(USE_DUAL_RC_NEW)
+    // 使用新VT13遥控器
+    vt13_rc_data = VT13RemoteInit(&huart6);
+  #endif
+
   //robot->vision_recv_data = VisionInit(&gimbal_init_config.imu_init_config);
   robot->navigator_data = navigator_init(&huart1);
-
-  rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
-  *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
 
   robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
   robot->sentry_mode=1;
@@ -461,7 +523,7 @@ void RobotCMDTask() {
   CalcOffsetAngle();
   DualBoardCtrlSet();
   RemoteControlSet();
-  MouseKeySet();
+  // MouseKeySet();
   SentryRefereeSend();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
@@ -473,7 +535,7 @@ void RobotTask() {
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   navigator_send(&huart1);
   RobotCMDTask();
-  SuperCapControl();
+  // SuperCapControl();
   ChassisTask();
 #endif
 }
