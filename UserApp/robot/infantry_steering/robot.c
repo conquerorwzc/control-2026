@@ -401,7 +401,7 @@ void RobotTask() {
     //   case SAFETY_MODE:
     //     if (temp>18.0f)
     //       supercap_mode=PASSIVE_MODE;
-    //     robot->chassis->chassis_ctrl_cmd.max_power=0;
+    //     robot->chassis->chassis_ctrl_cmd.max_power=30;
     //     break;
     //   case FORCED_CHARGING_MODE:
     //     if (temp<8.0f)
@@ -415,7 +415,7 @@ void RobotTask() {
     //       supercap_mode=FORCED_CHARGING_MODE;
     //     if (temp>18.0f)
     //       supercap_mode=PASSIVE_MODE;
-    //     robot->chassis->chassis_ctrl_cmd.max_power=robot->referee_data->GameRobotState.chassis_power_limit-(uint16_t)powf((float)robot->referee_data->GameRobotState.chassis_power_limit*0.046f,2);
+    //     robot->chassis->chassis_ctrl_cmd.max_power=robot->referee_data->GameRobotState.chassis_power_limit-(uint16_t)powf((float)robot->referee_data->GameRobotState.chassis_power_limit*0.04f,2);
     //     break;
     //   case PASSIVE_MODE:
     //     if (chassis_ctrl_cmd->max_power==180)
@@ -438,7 +438,7 @@ void RobotTask() {
       case SAFETY_MODE:
         if (robot->super_cap->cap_msg.cap_v>18.0f)
           supercap_mode=PASSIVE_MODE;
-        robot->chassis->chassis_ctrl_cmd.max_power=0;
+        robot->chassis->chassis_ctrl_cmd.max_power=30;
         break;
       case FORCED_CHARGING_MODE:
         if (robot->super_cap->cap_msg.cap_v<8.0f)
@@ -452,7 +452,7 @@ void RobotTask() {
           supercap_mode=FORCED_CHARGING_MODE;
         if (robot->super_cap->cap_msg.cap_v>18.0f)
           supercap_mode=PASSIVE_MODE;
-        robot->chassis->chassis_ctrl_cmd.max_power=robot->referee_data->GameRobotState.chassis_power_limit-(uint16_t)powf((float)robot->referee_data->GameRobotState.chassis_power_limit*0.04f,2);
+        robot->chassis->chassis_ctrl_cmd.max_power=robot->referee_data->GameRobotState.chassis_power_limit-(uint16_t)powf((float)robot->referee_data->GameRobotState.chassis_power_limit*0.055f,2);
         break;
       case PASSIVE_MODE:
         if (chassis_ctrl_cmd->max_power==180)
@@ -466,7 +466,7 @@ void RobotTask() {
           supercap_mode=CHARGING_MODE;
         if (chassis_ctrl_cmd->max_power!=180)
           supercap_mode=PASSIVE_MODE;
-        robot->chassis->chassis_ctrl_cmd.max_power=180;
+        robot->chassis->chassis_ctrl_cmd.max_power=140;
         break;
       default:
         supercap_mode=SAFETY_MODE;

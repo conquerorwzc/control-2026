@@ -94,9 +94,9 @@
           {                                                                                                    \
               .angle_PID =                                                                                     \
                   {                                                                                            \
-                      .Kp = 60,                                                                                \
+                      .Kp = 70,                                                                                \
                       .Ki = 0,                                                                                 \
-                      .Kd = 0.3,                                                                               \
+                      .Kd = 0.4,                                                                               \
                       .IntegralLimit = 960,                                                                  \
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
                       .MaxOut = 1920,                                                                          \
@@ -108,7 +108,7 @@
                       .Kd = 0,                                                                                 \
                       .IntegralLimit = 12500,                                                                   \
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
-                      .MaxOut = 18000,                                                                         \
+                      .MaxOut = 20000,                                                                         \
                   },                                                                                           \
               .current_PID =                                                                                   \
                   {                                                                                            \

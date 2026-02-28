@@ -136,10 +136,10 @@ static void RemoteControlSet() {
   vy_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // l1竖直方向
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
     chassis_ctrl_cmd->wz =
-        15.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
+        60.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
   }
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
-    chassis_ctrl_cmd->wz =(15.0f) *(float)rc_data[TEMP].rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
+    chassis_ctrl_cmd->wz =(35.0f) *(float)rc_data[TEMP].rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
   }
 
   // 射频控制,固定每秒1发,后续可以根据左侧拨轮的值大小切换射频,
@@ -400,7 +400,7 @@ void RobotCMDTask() {
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
   CalcOffsetAngle();
   RemoteControlSet();
-  if (rc_data->rc.rocker_l1==0&&rc_data->rc.rocker_r1==0&&rc_data->rc.rocker_l_==0&&rc_data->rc.rocker_r_==0)
+  ///if (rc_data->rc.rocker_l1==0&&rc_data->rc.rocker_r1==0&&rc_data->rc.rocker_l_==0&&rc_data->rc.rocker_r_==0)
     MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
