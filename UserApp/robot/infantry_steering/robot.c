@@ -397,80 +397,80 @@ void RobotTask() {
     //底盘接收板控制任务
     RobotCMDTask();
     //超级电容自动控制
-    switch (supercap_mode) {
-      case SAFETY_MODE:
-        if (temp>18.0f)
-          supercap_mode=PASSIVE_MODE;
-        robot->chassis->chassis_ctrl_cmd.max_power=0;
-        break;
-      case FORCED_CHARGING_MODE:
-        if (temp<8.0f)
-          supercap_mode=SAFETY_MODE;
-        if (temp>18.0f)
-          supercap_mode=PASSIVE_MODE;
-        robot->chassis->chassis_ctrl_cmd.max_power=(uint16_t)(0.4*robot->referee_data->GameRobotState.chassis_power_limit);
-        break;
-      case CHARGING_MODE:
-        if (temp<10.0f)
-          supercap_mode=FORCED_CHARGING_MODE;
-        if (temp>18.0f)
-          supercap_mode=PASSIVE_MODE;
-        robot->chassis->chassis_ctrl_cmd.max_power=robot->referee_data->GameRobotState.chassis_power_limit-(uint16_t)powf((float)robot->referee_data->GameRobotState.chassis_power_limit*0.046f,2);
-        break;
-      case PASSIVE_MODE:
-        if (chassis_ctrl_cmd->max_power==180)
-          supercap_mode=ACTIVE_MODE;
-        if (temp<12.0f)
-          supercap_mode=CHARGING_MODE;
-        robot->chassis->chassis_ctrl_cmd.max_power=robot->referee_data->GameRobotState.chassis_power_limit;
-        break;
-      case ACTIVE_MODE:
-        if (temp<12.0f)
-          supercap_mode=CHARGING_MODE;
-        if (chassis_ctrl_cmd->max_power!=180)
-          supercap_mode=PASSIVE_MODE;
-        robot->chassis->chassis_ctrl_cmd.max_power=130;
-        break;
-      default:
-        supercap_mode=SAFETY_MODE;
-    }
     // switch (supercap_mode) {
     //   case SAFETY_MODE:
-    //     if (robot->super_cap->cap_msg.cap_v>18.0f)
+    //     if (temp>18.0f)
     //       supercap_mode=PASSIVE_MODE;
     //     robot->chassis->chassis_ctrl_cmd.max_power=0;
     //     break;
     //   case FORCED_CHARGING_MODE:
-    //     if (robot->super_cap->cap_msg.cap_v<8.0f)
+    //     if (temp<8.0f)
     //       supercap_mode=SAFETY_MODE;
-    //     if (robot->super_cap->cap_msg.cap_v>18.0f)
+    //     if (temp>18.0f)
     //       supercap_mode=PASSIVE_MODE;
     //     robot->chassis->chassis_ctrl_cmd.max_power=(uint16_t)(0.4*robot->referee_data->GameRobotState.chassis_power_limit);
     //     break;
     //   case CHARGING_MODE:
-    //     if (robot->super_cap->cap_msg.cap_v<10.0f)
+    //     if (temp<10.0f)
     //       supercap_mode=FORCED_CHARGING_MODE;
-    //     if (robot->super_cap->cap_msg.cap_v>18.0f)
+    //     if (temp>18.0f)
     //       supercap_mode=PASSIVE_MODE;
-    //     robot->chassis->chassis_ctrl_cmd.max_power=robot->referee_data->GameRobotState.chassis_power_limit-(uint16_t)powf((float)robot->referee_data->GameRobotState.chassis_power_limit*0.04f,2);
+    //     robot->chassis->chassis_ctrl_cmd.max_power=robot->referee_data->GameRobotState.chassis_power_limit-(uint16_t)powf((float)robot->referee_data->GameRobotState.chassis_power_limit*0.046f,2);
     //     break;
     //   case PASSIVE_MODE:
     //     if (chassis_ctrl_cmd->max_power==180)
     //       supercap_mode=ACTIVE_MODE;
-    //     if (robot->super_cap->cap_msg.cap_v<12.0f)
+    //     if (temp<12.0f)
     //       supercap_mode=CHARGING_MODE;
     //     robot->chassis->chassis_ctrl_cmd.max_power=robot->referee_data->GameRobotState.chassis_power_limit;
     //     break;
     //   case ACTIVE_MODE:
-    //     if (robot->super_cap->cap_msg.cap_v<12.0f)
+    //     if (temp<12.0f)
     //       supercap_mode=CHARGING_MODE;
     //     if (chassis_ctrl_cmd->max_power!=180)
     //       supercap_mode=PASSIVE_MODE;
-    //     robot->chassis->chassis_ctrl_cmd.max_power=180;
+    //     robot->chassis->chassis_ctrl_cmd.max_power=130;
     //     break;
     //   default:
     //     supercap_mode=SAFETY_MODE;
     // }
+    switch (supercap_mode) {
+      case SAFETY_MODE:
+        if (robot->super_cap->cap_msg.cap_v>18.0f)
+          supercap_mode=PASSIVE_MODE;
+        robot->chassis->chassis_ctrl_cmd.max_power=0;
+        break;
+      case FORCED_CHARGING_MODE:
+        if (robot->super_cap->cap_msg.cap_v<8.0f)
+          supercap_mode=SAFETY_MODE;
+        if (robot->super_cap->cap_msg.cap_v>18.0f)
+          supercap_mode=PASSIVE_MODE;
+        robot->chassis->chassis_ctrl_cmd.max_power=(uint16_t)(0.4*robot->referee_data->GameRobotState.chassis_power_limit);
+        break;
+      case CHARGING_MODE:
+        if (robot->super_cap->cap_msg.cap_v<10.0f)
+          supercap_mode=FORCED_CHARGING_MODE;
+        if (robot->super_cap->cap_msg.cap_v>18.0f)
+          supercap_mode=PASSIVE_MODE;
+        robot->chassis->chassis_ctrl_cmd.max_power=robot->referee_data->GameRobotState.chassis_power_limit-(uint16_t)powf((float)robot->referee_data->GameRobotState.chassis_power_limit*0.04f,2);
+        break;
+      case PASSIVE_MODE:
+        if (chassis_ctrl_cmd->max_power==180)
+          supercap_mode=ACTIVE_MODE;
+        if (robot->super_cap->cap_msg.cap_v<12.0f)
+          supercap_mode=CHARGING_MODE;
+        robot->chassis->chassis_ctrl_cmd.max_power=robot->referee_data->GameRobotState.chassis_power_limit;
+        break;
+      case ACTIVE_MODE:
+        if (robot->super_cap->cap_msg.cap_v<12.0f)
+          supercap_mode=CHARGING_MODE;
+        if (chassis_ctrl_cmd->max_power!=180)
+          supercap_mode=PASSIVE_MODE;
+        robot->chassis->chassis_ctrl_cmd.max_power=180;
+        break;
+      default:
+        supercap_mode=SAFETY_MODE;
+    }
 
 
     //GimbalTask();

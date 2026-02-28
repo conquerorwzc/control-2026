@@ -177,7 +177,7 @@ static void MouseKeySet() {
 
 if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   {
-    gimbal_ctrl_cmd->yaw += (float)rc_data[TEMP].mouse.x * 0.007f;  // 横向灵敏度调节
+    gimbal_ctrl_cmd->yaw += (float)rc_data[TEMP].mouse.x * 0.003f;  // 横向灵敏度调节
     gimbal_ctrl_cmd->pitch -= (float)rc_data[TEMP].mouse.y * 0.003f; // 纵向灵敏度调节 (负号反转Y轴)
   }
   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Z] % 3)  // Z键设置弹速
@@ -222,7 +222,7 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
         if (shoot_ctrl_cmd->friction_mode==FRICTION_ON)   //需预先开启摩擦轮，F键
         {
             shoot_ctrl_cmd->load_mode=LOAD_1_BULLET;
-          if (DWT_GetTimeline_s() - trigger_time > 1.0f)  //长按检测，1秒
+          if (DWT_GetTimeline_s() - trigger_time > 0.5f)  //长按检测，1秒
           {
             shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
           }
