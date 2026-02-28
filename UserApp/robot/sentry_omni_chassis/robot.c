@@ -156,9 +156,9 @@ static void RemoteControlSet() {
 
   } else if (robot->control_mode == AUTO_MODE) // 自动控制，直接收上位机控制量
   {
-    vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vy*10000;
+    vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vy*10000*cos(robot->navigator_data->robot_cmd.yaw_deg)+robot->navigator_data->robot_cmd.speed_vector.vx*10000*sin(robot->navigator_data->robot_cmd.yaw_deg);
     //vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vx*5000;
-    vy_initial = robot->navigator_data->robot_cmd.speed_vector.vx*10000;
+    vy_initial = robot->navigator_data->robot_cmd.speed_vector.vx*10000*cos(robot->navigator_data->robot_cmd.yaw_deg)+robot->navigator_data->robot_cmd.speed_vector.vy*10000*sin(robot->navigator_data->robot_cmd.yaw_deg);
     chassis_ctrl_cmd->wz = robot->navigator_data->robot_cmd.speed_vector.wz*0;
     //gimbal_ctrl_cmd->yaw-=robot->navigator_data->robot_cmd.speed_vector.wz*0.01;
   }
