@@ -626,21 +626,6 @@ void UIPitchGaugeInit(uint32_t center_x,uint32_t center_y,uint32_t radius) {
     UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_pitch_ticks[i]);
     UICharRefresh(&referee_recv_info->referee_id, UI_pitch_labels[i]);
   }
-
-  // 初始化指针（指向90度，即正右方）
-  // float ui_angle_90 = 90.0f - 90.0f;
-  // float angle_rad_90 = ui_angle_90 * 3.1415926535f / 180.0f;
-  // uint32_t needle_end_x = center_x + (uint32_t)(radius * cosf(angle_rad_90));
-  // uint32_t needle_end_y = center_y - (uint32_t)(radius * sinf(angle_rad_90));
-  //
-  // UILineDraw(&UI_pitch_needle, "pn0", UI_Graph_ADD, 9, UI_Color_White,
-  //            7, center_x, center_y, needle_end_x, needle_end_y);
-  // UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_pitch_needle);
-
-  // 初始化角度值显示（放在圆心下方）
-  // UICharDraw(&UI_pitch_value, "pv0", UI_Graph_ADD, 9, UI_Color_White,
-  //            18, 3, center_x - 30, center_y + 50, "90.0°");
-  // UICharRefresh(&referee_recv_info->referee_id, UI_pitch_value);
 }
 
 //newend
@@ -771,16 +756,8 @@ void MyUIInit()
     UIArcDraw(&UI_yaw_arc, "yd0", UI_Graph_ADD, 6, UI_Color_Main, 15, 345, 23, 1556, 721, 88, 88);
     UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_yaw_arc);
 
-    // 俯仰角仪表盘指针和数值（若未在UIPitchGaugeInit中激活，这里补上）
-    // 注意：需确保 UI_pitch_needle 和 UI_pitch_value 为全局
+    // 俯仰角仪表盘指针
     // 绘制指针初始位置（指向90°）
-    // float init_angle_rad = 0.0f; // 90°对应的UI角度为0
-    // uint32_t init_ex = 960 + (uint32_t)(394 * cosf(init_angle_rad));
-    // uint32_t init_ey = 540 - (uint32_t)(394 * sinf(init_angle_rad));
-    // UILineDraw(&UI_pitch_needle, "pn0", UI_Graph_ADD, 9, UI_Color_White, 7, 960, 540, init_ex, init_ey);
-    // UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_pitch_needle);
-    // UICharDraw(&UI_pitch_value, "pv0", UI_Graph_ADD, 9, UI_Color_White, 18, 3, 930, 590, "90.0°");
-    // UICharRefresh(&referee_recv_info->referee_id, UI_pitch_value);
     UIArcDraw(&UI_pitch_needle, "pn0", UI_Graph_ADD, 6, UI_Color_Pink, 90 - 1, 90 + 1, 45, 960, 540, 365, 365);
     UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_pitch_needle);
 
@@ -804,7 +781,7 @@ void UITask()
     // 这些值应该从实际的机器人系统中获取
     //interactive_data.chassis_mode = CHASSIS_NORMAL;
     interactive_data.chassis_mode = robotdata->chassis->chassis_ctrl_cmd.chassis_mode;
-  /*
+
     //interactive_data.gimbal_mode = GIMBAL_NORMAL;
     interactive_data.gimbal_mode = robotdata->gimbal->gimbal_ctrl_cmd.gimbal_mode;
     // interactive_data.shoot_mode = SHOOT_OFF;
@@ -840,7 +817,7 @@ void UITask()
     //@todo
     interactive_data.fric_speed_left = -robotdata->shoot->friction_motor[0]->measure.speed_aps; // 左摩擦轮转速（取反使向上为正）
     interactive_data.fric_speed_right = robotdata->shoot->friction_motor[1]->measure.speed_aps; // 右摩擦轮转速
-  */
+
     interactive_data.chassis_relative_angle = robotdata->chassis->chassis_ctrl_cmd.offset_angle; // 底盘相对于云台的角度
 
     // 检查是否有变化
