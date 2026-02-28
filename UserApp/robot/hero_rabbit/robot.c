@@ -82,21 +82,7 @@ static void CalcOffsetAngle() {
  *
  */
 static void RemoteControlSet() {
-  // 检测遥控器右上拨杆状态变化，仅在状态从非上变为上时执行掉头
-  uint8_t current_switch_right_up = switch_is_up(rc_data[TEMP].rc.switch_right);
-  if (current_switch_right_up && !last_switch_right_up) {
-   gimbal_ctrl_cmd->yaw+=180.0f;
-
-    // 将角度规范化到-180到180度范围内
-    if (gimbal_ctrl_cmd->yaw > 180.0f) {
-      gimbal_ctrl_cmd->yaw -= 360.0f;
-    } else if (gimbal_ctrl_cmd->yaw < -180.0f) {
-      gimbal_ctrl_cmd->yaw += 360.0f;
-    }
-
-  }
-  // 更新上次状态
-  last_switch_right_up = current_switch_right_up;
+ 
   // 右[中]，云台
   // if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
   //   gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
@@ -122,8 +108,8 @@ static void RemoteControlSet() {
     // 保留当前模式，不修改leg_mode
   } else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
     // 右上：腿部缓慢上升，最大到kike位置
-    chassis_ctrl_cmd->wz=0.0f;
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW_REAR_END;
+    chassis_ctrl_cmd->leg_mode = LEG_IN_AIR;
+
   }
 
   //左[中],云台启动，摩擦轮启动，拨弹盘启动，准备射击
@@ -204,23 +190,32 @@ static void RemoteControlSet() {
  *
  */
 static void MouseKeySet() {
-  chassis_ctrl_cmd->wz=0.0f;
-  if (rc_data[TEMP].key[KEY_PRESS].w) {
-    vy_initial = (chassis_ctrl_cmd->chassis_speed_buff)*400.0f;  // W键向前移动
+  vy_initial += (float)((rc_data[TEMP].key[KEY_PRESS].w) - rc_data[TEMP].key[KEY_PRESS].s) *
+                (float)chassis_ctrl_cmd->chassis_speed_buff;
+  vx_initial += (float)(rc_data[TEMP].key[KEY_PRESS].a - rc_data[TEMP].key[KEY_PRESS].d) *
+                (float)-chassis_ctrl_cmd->chassis_speed_buff;
+
+  //缓加速
+  if (abs(vx_initial)<=10000) {
+    x_speed_time=DWT_GetTimeline_s();
+    chassis_ctrl_cmd->vx=vx_initial;
+  }//速度绝对值在10000以下输出控制量=输入控制量
+  if (vx_initial > 10000&&chassis_ctrl_cmd->vx<= 60.0f * (float)rc_data[TEMP].rc.rocker_l_ ) {
+    chassis_ctrl_cmd->vx=10000+(DWT_GetTimeline_s()-x_speed_time)*10000;
   }
-  if (rc_data[TEMP].key[KEY_PRESS].s) {
-    vy_initial = -(chassis_ctrl_cmd->chassis_speed_buff)*400.0f;  // S键向后移动
+  if (vx_initial < -10000&&chassis_ctrl_cmd->vx>= 60.0f * (float)rc_data[TEMP].rc.rocker_l_) {
+    chassis_ctrl_cmd->vx=-10000-(DWT_GetTimeline_s()-x_speed_time)*10000;
+  }//速度绝对值在10000以上输出控制量=10000+10000t(s)
+  if (abs(vy_initial)<=10000) {
+    y_speed_time=DWT_GetTimeline_s();
+    chassis_ctrl_cmd->vy=vy_initial;
+  }//速度绝对值在10000以下输出控制量=输入控制量
+  if (vy_initial > 10000&&chassis_ctrl_cmd->vy<= 60.0f * (float)rc_data[TEMP].rc.rocker_l1 ) {
+    chassis_ctrl_cmd->vy=10000+(DWT_GetTimeline_s()-y_speed_time)*10000;
   }
-  if (rc_data[TEMP].key[KEY_PRESS].a) {
-    vx_initial  = -(chassis_ctrl_cmd->chassis_speed_buff)*400.0f;  // A键向左移动
-  }
-  if (rc_data[TEMP].key[KEY_PRESS].d) {
-    vx_initial  = (chassis_ctrl_cmd->chassis_speed_buff)*400.0f;  // D键向右移动
-  }
-  gimbal_ctrl_cmd->yaw -= (float)rc_data[TEMP].mouse.x / 660 * 10;  // 系数待测
-  gimbal_ctrl_cmd->pitch += (float)rc_data[TEMP].mouse.y / 660 * 10;
-  chassis_ctrl_cmd->vx=vx_initial;
-  chassis_ctrl_cmd->vy=vy_initial;
+  if (vy_initial < -10000&&chassis_ctrl_cmd->vy>= 60.0f * (float)rc_data[TEMP].rc.rocker_l1) {
+    chassis_ctrl_cmd->vy=-10000-(DWT_GetTimeline_s()-y_speed_time)*10000;
+  }//速度绝对值在10000以上输出控制量=10000+10000t(s)
   // 添加R键和F键控制腿部升降
   if (rc_data[TEMP].key[KEY_PRESS].r) {
     // R键按下，腿部渐渐升起
@@ -432,7 +427,7 @@ void RobotInit() {
 
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
-  chassis_ctrl_cmd->max_power = 200;  // 随便给一个初始功率，后面应该要从裁判系统获取
+  chassis_ctrl_cmd->max_power = 150;  // 随便给一个初始功率，后面应该要从裁判系统获取
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;

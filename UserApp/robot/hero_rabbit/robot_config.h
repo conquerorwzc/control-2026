@@ -45,15 +45,14 @@
 #define GYRO2GIMBAL_DIR_PITCH 1  // 陀螺仪数据相较于云台的pitch的方向,1为相同,-1为相反
 #define GYRO2GIMBAL_DIR_ROLL 1   // 陀螺仪数据相较于云台的roll的方向,1为相同,-1为相反
 // 腿部电机位置定义
-#define LEFT_LEG_MOTOR_NORMAL_POSITION -0.999f   // 腿部电机常规位置值
 #define LEFT_LEG_MOTOR_CRUISE_POSITION -0.799f
-#define LEFT_LEG_MOTOR_RAISE_POSITION  -0.3450f  // 腿部电机抬起位置值
-#define LEFT_LEG_MOTOR_KIKE_POSITION -0.190f     // 腿部电机踢脚位置值
-#define RIGHT_LEG_MOTOR_NORMAL_POSITION -0.048f   // 腿部电机常规位置值
 #define RIGHT_LEG_MOTOR_CRUISE_POSITION -0.248f
-#define RIGHT_LEG_MOTOR_RAISE_POSITION  -0.651f  // 腿部电机抬起位置值
-#define RIGHT_LEG_MOTOR_KIKE_POSITION -0.841f  // 腿部电机踢脚位置值
-
+#define LEFT_LEG_MOTOR_NORMAL_POSITION -1.367f   // 腿部电机常规位置值
+#define LEFT_LEG_MOTOR_RAISE_POSITION  -0.835f  // 腿部电机抬起位置值
+#define LEFT_LEG_MOTOR_KIKE_POSITION -0.535f     // 腿部电机踢脚位置值
+#define RIGHT_LEG_MOTOR_NORMAL_POSITION 2.211f   // 腿部电机常规位置值
+#define RIGHT_LEG_MOTOR_RAISE_POSITION  1.679f  // 腿部电机抬起位置值
+#define RIGHT_LEG_MOTOR_KIKE_POSITION 1.379f  // 腿部电机踢脚位置值
 // 轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
 //  轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
 #define FRONT_WHEEL_MOTOR_CONFIG(handle, id)                                                                   \
