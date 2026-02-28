@@ -1,5 +1,5 @@
 # Set the type of chassis, gimbal and shooter modules for infantry robot
-#set(CHASSIS_TYPE chassis_mecanum)
+set(CHASSIS_TYPE chassis_steering)
 #set(GIMBAL_TYPE gimbal_standard)
 set(GIMBAL_TYPE gimbal_steering_infantry)
 set(SHOOT_TYPE shoot_standard)

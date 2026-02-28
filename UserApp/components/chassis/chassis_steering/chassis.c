@@ -10,14 +10,14 @@
  * @brief   Mecanum Chassis Module
  */
 #include "chassis.h"
-
+#include "rm_referee.h"
 #include "arm_math.h"
 #include "bsp_dwt.h"
 #include "general_def.h"
 //#include "robot_config.h"
 #include "user_lib.h"
 #define MIN_WITH_WHEEL_MAX_SLEW_RATE(var) ((var) < (WHEEL_MAX_SLEW_RATE) ? (var) : (WHEEL_MAX_SLEW_RATE))
-
+static referee_info_t* referee_data;
 static ChassisInstance* chassis;
 static Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd;  // 声明但不初始化
 static Chassis_Param_s chassis_param;         // 声明为静态局部变量
@@ -396,7 +396,7 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   ChassisInstance* chassis_instance = (ChassisInstance*)zmalloc(sizeof(ChassisInstance));
 
   chassis_param = chassis_init_config->chassis_param;  // 在运行时赋值
-
+  referee_data=GetReferee();
   float half_wheel_base = chassis_param.wheel_base / 2.0f;
   float half_track_width = chassis_param.track_width / 2.0f;
   float center_gimbal_offset_x = chassis_param.center_gimbal_offset_x;
@@ -431,6 +431,9 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
                     (half_wheel_base + center_gimbal_offset_y) * (half_wheel_base + center_gimbal_offset_y)) *
               DEGREE_2_RAD;
   PIDInit(&follow_pid, &chassis_init_config->follow_pid);
+
+   chassis_instance->super_cap=SuperCapInit(&chassis_init_config->super_cap_config);
+
   for (int i = 0; i < 4; i++) {
     chassis_init_config->wheel_motor_config[i].controller_setting_init_config.angle_feedback_source = MOTOR_FEED;
     chassis_init_config->wheel_motor_config[i].controller_setting_init_config.speed_feedback_source = MOTOR_FEED;
@@ -456,6 +459,7 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   for (int i = 0; i < 4; i++) {
     chassis_instance->rudder_offset[i] = chassis_init_config->chassis_param.rudder_motor_offset[i];
   }
+   chassis->super_cap_mode = SAFETY_MODE;
   chassis = chassis_instance;
   chassis_ctrl_cmd = &chassis->chassis_ctrl_cmd;  // 在运行时初始化指针
   return chassis_instance;
@@ -464,6 +468,43 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
 /* 机器人底盘控制核心任务 */
 void ChassisTask() {
   // for (int i = 0; i < 4; i++) DJIMotorEnable(chassis->rudder_motor[i]);
+   switch (chassis->super_cap_mode) {
+     case SAFETY_MODE:
+       if (chassis->super_cap->cap_msg.cap_v>18.0f)
+         chassis->super_cap_mode=PASSIVE_MODE;
+       chassis->chassis_ctrl_cmd.max_power=30;
+       break;
+     case FORCED_CHARGING_MODE:
+       if (chassis->super_cap->cap_msg.cap_v<8.0f)
+         chassis->super_cap_mode=SAFETY_MODE;
+       if (chassis->super_cap->cap_msg.cap_v>18.0f)
+          chassis->super_cap_mode=PASSIVE_MODE;
+       chassis->chassis_ctrl_cmd.max_power=(uint16_t)(0.4*referee_data->GameRobotState.chassis_power_limit);
+       break;
+     case CHARGING_MODE:
+       if (chassis->super_cap->cap_msg.cap_v<10.0f)
+         chassis->super_cap_mode=FORCED_CHARGING_MODE;
+       if (chassis->super_cap->cap_msg.cap_v>18.0f)
+         chassis->super_cap_mode=PASSIVE_MODE;
+       chassis->chassis_ctrl_cmd.max_power=referee_data->GameRobotState.chassis_power_limit-(uint16_t)powf((float)referee_data->GameRobotState.chassis_power_limit*0.055f,2);
+       break;
+     case PASSIVE_MODE:
+       if (chassis_ctrl_cmd->SuperCapBoost==1)
+          chassis->super_cap_mode=ACTIVE_MODE;
+        if (chassis->super_cap->cap_msg.cap_v<12.0f)
+          chassis->super_cap_mode=CHARGING_MODE;
+       chassis->chassis_ctrl_cmd.max_power=referee_data->GameRobotState.chassis_power_limit;
+       break;
+     case ACTIVE_MODE:
+       if (chassis->super_cap->cap_msg.cap_v<12.0f)
+         chassis->super_cap_mode=CHARGING_MODE;
+       if (chassis_ctrl_cmd->SuperCapBoost!=1)
+         chassis->super_cap_mode=PASSIVE_MODE;
+       chassis->chassis_ctrl_cmd.max_power=140;
+       break;
+     default:
+       chassis->super_cap_mode=SAFETY_MODE;
+   }
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_POWER_OFF) {
     // 如果出现重要模块离线或遥控器设置为急停,让电机停止
     for (int i = 0; i < 4; i++) DJIMotorStop(chassis->wheel_motor[i]);

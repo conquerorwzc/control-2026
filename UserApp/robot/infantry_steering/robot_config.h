@@ -179,6 +179,13 @@ static Chassis_Init_Config_s chassis_init_config = {
       .DeadBand = 0.0f,
 
     },
+  .super_cap_config = {
+    .can_config = {
+      .can_handle = &hcan2,  // 根据实际情况选择CAN接口，英雄的h7是can1
+      .rx_id = 0x211,        // 接收ID (CAN_SUPERCAP_ID)
+      .tx_id = 0X210,        // 发送ID
+    }
+  }
 
 };
 

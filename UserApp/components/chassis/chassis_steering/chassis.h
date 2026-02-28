@@ -8,7 +8,7 @@
 
 #endif  // CONTROL_2026_CHASSIS_H
 #pragma once
-
+#include "super_cap.h"
 #include "dji_motor.h"
 #define DEG2R(x) ((x)*PI /180.0f)
 #define LF 0//数组内表示电机位置
@@ -51,10 +51,21 @@ typedef struct {
   float offset_angle;  // 底盘和归中位置的夹角
   int chassis_speed_buff;
   uint16_t max_power;  // 最大功率限制
+  uint8_t SuperCapBoost;
   // UI部分
   //  ...
 } Chassis_Ctrl_Cmd_s;
 #pragma pack()
+//超级电容策略结构体
+
+typedef enum {
+  SAFETY_MODE=0,//安全模式，超电电压低于8伏时进入，大于18伏退出，底盘限制30W
+  PASSIVE_MODE,//被动模式，超电电压正常时的工作模式
+  ACTIVE_MODE,//，主动模式，主动使用超电能量
+  CHARGING_MODE,//充电模式，衰减底盘功率，保障电容电压健康
+  FORCED_CHARGING_MODE,//强制充电模式，更极端的功率衰减，强制超电快速充电
+} SuperCapMode;
+
 typedef struct {
   float k0;
   float k1;
@@ -96,6 +107,7 @@ typedef struct {
   PID_Init_Config_s rudder_speed_pid_config;
   PID_Init_Config_s driver_speed_pid_config;
   PID_Init_Config_s follow_pid;
+  SuperCap_Init_Config_s super_cap_config;
 } Chassis_Init_Config_s;
 
 // 舵轮底盘实例
@@ -108,6 +120,8 @@ typedef struct {
   DJIMotorInstance *rudder_motor[4];
   //DJIMotorInstance *yaw_motor;
   uint16_t rudder_offset[4];
+  SuperCapInstance* super_cap;
+  SuperCapMode super_cap_mode;
 } ChassisInstance;
 /**
  * @brief 底盘应用初始化,请在开启rtos之前调用(目前会被RobotInit()调用)

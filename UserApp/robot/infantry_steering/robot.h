@@ -8,6 +8,22 @@
 // #include "rm_referee.h"
 #include "rm_referee.h"
 // todo: add vision_module
+#pragma pack(1)
+// 舵轮底盘控制命令
+typedef struct {
+  // 控制部分
+  float vx;            // 前进方向速度
+  float vy;            // 横移方向速度
+  float wz;            // 旋转速度
+  Chassis_Mode_e chassis_mode;
+  float offset_angle;  // 底盘和归中位置的夹角
+  uint8_t SuperCapBoost;
+  //int chassis_speed_buff;
+  //uint16_t max_power;  // 最大功率限制
+  // UI部分
+  //  ...
+} Chassis_Ctrl_CanComm;
+#pragma pack()
 
 typedef enum {
   ROBOT_POWER_OFF = 0,

@@ -21,15 +21,16 @@ static Shoot_Ctrl_Cmd_s *shoot_ctrl_cmd;
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 float temp=24.0f;
+static Chassis_Ctrl_CanComm* chassis_ctrl_can_comm;
 
-typedef enum {
-  SAFETY_MODE=0,
-  PASSIVE_MODE,
-  ACTIVE_MODE,
-  CHARGING_MODE,
-  FORCED_CHARGING_MODE,
-} SuperCapMode;
-static SuperCapMode supercap_mode = SAFETY_MODE;
+// typedef enum {
+//   SAFETY_MODE=0,//安全模式，超电电压低于8伏时进入，大于18伏退出，底盘限制30W
+//   PASSIVE_MODE,//被动模式，超电电压正常时的工作模式
+//   ACTIVE_MODE,//，主动模式，主动使用超电能量
+//   CHARGING_MODE,//充电模式，衰减底盘功率，保障电容电压健康
+//   FORCED_CHARGING_MODE,//强制充电模式，更极端的功率衰减，强制超电快速充电
+// } SuperCapMode;
+// static SuperCapMode supercap_mode = SAFETY_MODE;
 static uint8_t supercaplock=0;
 /* Intermediate variables calculated by private functions */
 static float trigger_time = 0;  // 触发时间
@@ -151,15 +152,16 @@ static void DualBoardCtrlSet() {
   //chassis_ctrl_cmd->wz=0;
   if (CANCommIsOnline(can_comm_instance)) {
     // 检查是否有新数据更新
-    chassis_ctrl_cmd = (Chassis_Ctrl_Cmd_s*)CANCommGet(can_comm_instance);
+    chassis_ctrl_can_comm = (Chassis_Ctrl_CanComm*)CANCommGet(can_comm_instance);
     //robot->chassis->chassis_ctrl_cmd=*chassis_ctrl_cmd;
 
-    robot->chassis->chassis_ctrl_cmd.vx=chassis_ctrl_cmd->vx;
-    robot->chassis->chassis_ctrl_cmd.vy=chassis_ctrl_cmd->vy;
-    robot->chassis->chassis_ctrl_cmd.wz=chassis_ctrl_cmd->wz;
-    robot->chassis->chassis_ctrl_cmd.chassis_mode=chassis_ctrl_cmd->chassis_mode;
-    robot->chassis->chassis_ctrl_cmd.chassis_speed_buff=chassis_ctrl_cmd->chassis_speed_buff;
-    robot->chassis->chassis_ctrl_cmd.offset_angle=chassis_ctrl_cmd->offset_angle;
+    robot->chassis->chassis_ctrl_cmd.vx=chassis_ctrl_can_comm->vx;
+    robot->chassis->chassis_ctrl_cmd.vy=chassis_ctrl_can_comm->vy;
+    robot->chassis->chassis_ctrl_cmd.wz=chassis_ctrl_can_comm->wz;
+    robot->chassis->chassis_ctrl_cmd.chassis_mode=chassis_ctrl_can_comm->chassis_mode;
+    //robot->chassis->chassis_ctrl_cmd.chassis_speed_buff=cchassis_ctrl_can_comm->chassis_speed_buff;
+    robot->chassis->chassis_ctrl_cmd.offset_angle=chassis_ctrl_can_comm->offset_angle;
+    robot->chassis->chassis_ctrl_cmd.SuperCapBoost=chassis_ctrl_can_comm->SuperCapBoost;
     //robot->chassis->chassis_ctrl_cmd.max_power=chassis_ctrl_cmd->max_power;
     // 如果收到数据，可以在这里处理
     // if (received_data != NULL) {
@@ -331,7 +333,7 @@ void RobotInit() {
   // 初始化CAN接收
   can_comm_instance = CANCommInit(&comm_config);
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
-  supercap_mode=SAFETY_MODE;
+  //supercap_mode=SAFETY_MODE;
 #ifdef STM32F407xx
   robot->rc_data = RemoteControlInit(&huart3);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
 #elifdef STM32H723XX
@@ -434,43 +436,7 @@ void RobotTask() {
     //   default:
     //     supercap_mode=SAFETY_MODE;
     // }
-    switch (supercap_mode) {
-      case SAFETY_MODE:
-        if (robot->super_cap->cap_msg.cap_v>18.0f)
-          supercap_mode=PASSIVE_MODE;
-        robot->chassis->chassis_ctrl_cmd.max_power=30;
-        break;
-      case FORCED_CHARGING_MODE:
-        if (robot->super_cap->cap_msg.cap_v<8.0f)
-          supercap_mode=SAFETY_MODE;
-        if (robot->super_cap->cap_msg.cap_v>18.0f)
-          supercap_mode=PASSIVE_MODE;
-        robot->chassis->chassis_ctrl_cmd.max_power=(uint16_t)(0.4*robot->referee_data->GameRobotState.chassis_power_limit);
-        break;
-      case CHARGING_MODE:
-        if (robot->super_cap->cap_msg.cap_v<10.0f)
-          supercap_mode=FORCED_CHARGING_MODE;
-        if (robot->super_cap->cap_msg.cap_v>18.0f)
-          supercap_mode=PASSIVE_MODE;
-        robot->chassis->chassis_ctrl_cmd.max_power=robot->referee_data->GameRobotState.chassis_power_limit-(uint16_t)powf((float)robot->referee_data->GameRobotState.chassis_power_limit*0.055f,2);
-        break;
-      case PASSIVE_MODE:
-        if (chassis_ctrl_cmd->max_power==180)
-          supercap_mode=ACTIVE_MODE;
-        if (robot->super_cap->cap_msg.cap_v<12.0f)
-          supercap_mode=CHARGING_MODE;
-        robot->chassis->chassis_ctrl_cmd.max_power=robot->referee_data->GameRobotState.chassis_power_limit;
-        break;
-      case ACTIVE_MODE:
-        if (robot->super_cap->cap_msg.cap_v<12.0f)
-          supercap_mode=CHARGING_MODE;
-        if (chassis_ctrl_cmd->max_power!=180)
-          supercap_mode=PASSIVE_MODE;
-        robot->chassis->chassis_ctrl_cmd.max_power=140;
-        break;
-      default:
-        supercap_mode=SAFETY_MODE;
-    }
+
 
 
     //GimbalTask();
