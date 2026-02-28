@@ -9,6 +9,7 @@
 #include "master_process.h"
 #include "navigator.h"
 #include "super_cap.h"
+#include "parallel_leg.h"
 #include "vofa.h"
 
 // todo: add vision_module
