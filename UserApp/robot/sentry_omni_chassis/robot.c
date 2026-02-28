@@ -325,6 +325,8 @@ static void RemoteControlSet() {
     chassis_ctrl_cmd->wz = robot->navigator_data->robot_cmd.speed_vector.wz*0;
     //gimbal_ctrl_cmd->yaw-=robot->navigator_data->robot_cmd.speed_vector.wz*0.01;
   }
+  chassis_ctrl_cmd->vx = vx_initial;
+  chassis_ctrl_cmd->vy = vy_initial;
 }
 
 static void MouseKeySet() {
@@ -333,51 +335,6 @@ static void MouseKeySet() {
 
 #endif
 
-
-//解析底盘板收到的遥控数据
-static void DualBoardCtrlSet() {
-  //chassis_ctrl_cmd->wz=0;
-  if (CANCommIsOnline(can_comm_instance)) {
-    // 检查是否有新数据更新
-    received_data = (uint8_t*)CANCommGet(can_comm_instance);
-    // 如果收到数据，可以在这里处理
-    if (received_data != NULL) {
-      // 解析接收到的数据到全局变量
-      //memcpy(board_can_comm_data.rx_buff, received_data, 16);
-
-      for (int i = 0; i < 24; i++)
-        CanData.bytes[i] = received_data[i];
-
-      #ifdef USE_DUAL_RC
-      rc_data[TEMP].rc.rocker_l_=CanData.value16[0];//todo:后面chassis改改把负号去掉
-      rc_data[TEMP].rc.rocker_l1=CanData.value16[1];
-      rc_data[TEMP].rc.rocker_r_=CanData.value16[2];
-      //if (CanData.value16[2]>=0)
-      // chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)-CanData.value16[2]/50.0f))*CanData.value16[2];
-      // else chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)CanData.value16[2]/50.0f))*CanData.value16[2];
-      rc_data[TEMP].rc.dial=CanData.value16[3];
-      rc_data[TEMP].rc.switch_right = CanData.value16[5];
-
-      if (switch_is_mid(CanData.bytes[10])) {
-        //gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-        if (abs(CanData.value16[3]) > 20) {
-          chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
-        } else
-          chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
-      }
-
-      #elifdef USE_DUAL_RC_NEW
-      vt13_rc_data->rc.rocker_l_ = CanData.value16[0];
-      vt13_rc_data->rc.rocker_l1 = CanData.value16[1];
-      vt13_rc_data->rc.rocker_r_ = CanData.value16[2];
-      vt13_rc_data->rc.dial = CanData.value16[3];
-      vt13_rc_data->rc.mode_switch = CanData.bytes[10];
-      robot->control_mode = CanData.bytes[11];
-      vt13_rc_data->button_status.pause_flag = CanData.bytes[12];
-      #endif
-    }
-  }
-}
 
 /**
  * @brief  紧急停止,包括遥控器左上侧拨轮打满/重要模块离线/双板通信失效等
@@ -483,6 +440,51 @@ static void SuperCapControl() {
         robot->referee_data->GameRobotState.power_management_chassis_output);
 }
 
+//解析底盘板收到的遥控数据
+static void DualBoardCtrlSet() {
+  //chassis_ctrl_cmd->wz=0;
+  if (CANCommIsOnline(can_comm_instance)) {
+    // 检查是否有新数据更新
+    received_data = (uint8_t*)CANCommGet(can_comm_instance);
+    // 如果收到数据，可以在这里处理
+    if (received_data != NULL) {
+      // 解析接收到的数据到全局变量
+      //memcpy(board_can_comm_data.rx_buff, received_data, 16);
+
+      for (int i = 0; i < 24; i++)
+        CanData.bytes[i] = received_data[i];
+
+#ifdef USE_DUAL_RC
+      rc_data[TEMP].rc.rocker_l_=CanData.value16[0];//todo:后面chassis改改把负号去掉
+      rc_data[TEMP].rc.rocker_l1=CanData.value16[1];
+      rc_data[TEMP].rc.rocker_r_=CanData.value16[2];
+      //if (CanData.value16[2]>=0)
+      // chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)-CanData.value16[2]/50.0f))*CanData.value16[2];
+      // else chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)CanData.value16[2]/50.0f))*CanData.value16[2];
+      rc_data[TEMP].rc.dial=CanData.value16[3];
+      rc_data[TEMP].rc.switch_right = CanData.value16[5];
+
+      if (switch_is_mid(CanData.bytes[10])) {
+        //gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+        if (abs(CanData.value16[3]) > 20) {
+          chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+        } else
+          chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+      }
+
+#elifdef USE_DUAL_RC_NEW
+      vt13_rc_data->rc.rocker_l_ = CanData.value16[0];
+      vt13_rc_data->rc.rocker_l1 = CanData.value16[1];
+      vt13_rc_data->rc.rocker_r_ = CanData.value16[2];
+      vt13_rc_data->rc.dial = CanData.value16[3];
+      vt13_rc_data->rc.mode_switch = CanData.bytes[10];
+      robot->control_mode = CanData.bytes[11];
+      vt13_rc_data->button_status.pause_flag = CanData.bytes[12];
+#endif
+    }
+  }
+}
+
 void RobotInit() {
   //要在云台和底盘任务开始之前完成该任务的初始化
   vTaskDelay(CAN_COMM_TASK_INIT_TIME);
@@ -498,7 +500,7 @@ void RobotInit() {
     rc_data = robot->rc_data;
   #elif defined(USE_DUAL_RC_NEW)
     // 使用新VT13遥控器
-    vt13_rc_data = VT13RemoteInit(&huart6);
+    vt13_rc_data = (VT13_RC_t *) zmalloc(sizeof(VT13_RC_t));
   #endif
 
   //robot->vision_recv_data = VisionInit(&gimbal_init_config.imu_init_config);
@@ -513,7 +515,6 @@ void RobotInit() {
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   chassis_ctrl_cmd->max_power = 120;  // 随便给一个初始功率，后面应该要从裁判系统获取
-  rc_data = robot->rc_data;
   // navigator_data  = robot->navigator_data;
 }
 

@@ -82,15 +82,15 @@ static void RemoteControlSet() {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
-      if (switch_is_mid(rc_data_last[TEMP].rc.switch_left)) {
-        trigger_time = DWT_GetTimeline_s();
-      }
-      if (DWT_GetTimeline_s() - trigger_time > 1.0f) {
-        shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
-      } else {
-        shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
-      }
+    if (switch_is_mid(rc_data_last[TEMP].rc.switch_left)) {
+      trigger_time = time;
     }
+    if (time - trigger_time > 1.0f) {
+      shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+    } else {
+      shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
+    }
+  }
     if (switch_is_up(rc_data[TEMP].rc.switch_right))//除了右拨杆在上机器人使用导航数据，其余都正常人为控制
     {
       robot->control_mode=AUTO_MODE;
@@ -165,7 +165,7 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
       if (!switch_is_up(rc_data[TEMP].rc.switch_left))
       {
         shoot_ctrl_cmd->load_mode=LOAD_STOP;
-        trigger_time = DWT_GetTimeline_s();
+        trigger_time = time;
       }
       break;
   default:
@@ -175,7 +175,7 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
         if (shoot_ctrl_cmd->friction_mode==FRICTION_ON&&(vision_recv_data->shoot_receive.fire_flag||rc_data[TEMP].mouse.press_r % 2==0))   //需预先开启摩擦轮
         {
             shoot_ctrl_cmd->load_mode=LOAD_1_BULLET;
-        if (DWT_GetTimeline_s() - trigger_time > 1.0f)  //长按检测，1秒
+        if (time - trigger_time > 1.0f)  //长按检测，1秒
         {
           shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
         }
@@ -238,21 +238,23 @@ static void RemoteControlSet() {
   // 控制云台&打弹
   if (switch_middle(vt13_rc_data->rc.mode_switch)) {  // 中档
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-  } else if (switch_right(vt13_rc_data->rc.mode_switch)) {  // 上档
+  }
+  if (switch_right(vt13_rc_data->rc.mode_switch)) {
+    // 上档
     shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
-    if (vt13_rc_data->rc.trigger==1||vt13_rc_data->button_status.trigger_last==0){//上升沿检测
+    if (vt13_rc_data->button_status.trigger_last==0) {
+      trigger_time = time;
+    }
+    if (vt13_rc_data->rc.trigger == 1 && time - trigger_time > 1.0f) {
+      shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+    } else {
       shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
     }
-    if (!vt13_rc_data->rc.trigger) {
-        trigger_time = time;
-      }
-    if (time - trigger_time > 1.0f) {
-      shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
-    }
   }
+
 
   // 云台控制
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
@@ -268,7 +270,7 @@ static void RemoteControlSet() {
   }
   
   // 控制模式切换
-  if (vt13_rc_data->button_status.fn_1_flag == 1) {  // 按功能右键切换模式
+  if (vt13_rc_data->button_status.fn_2_flag == 1) {  // 按功能右键切换模式
     robot->control_mode = AUTO_MODE;
   } else {
     robot->control_mode = MANUAL_MODE;
@@ -318,15 +320,17 @@ static void MouseKeySet() {
   // 左键发射
   switch (vt13_rc_data->mouse_key.mouse.press_l % 2) {
     case 0:
-      // 停止发射逻辑
-      shoot_ctrl_cmd->load_mode = LOAD_STOP;
-      trigger_time = DWT_GetTimeline_s();
+      if (vt13_rc_data->rc.trigger != 1) {
+        // 停止发射逻辑
+        shoot_ctrl_cmd->load_mode = LOAD_STOP;
+        trigger_time = time;
+      }
       break;
     default:
       // 发射逻辑
       if (vt13_rc_data->mouse_key.keyboard.e) {  // E键设置发射模式
         if (shoot_ctrl_cmd->friction_mode == FRICTION_ON) {
-          if (DWT_GetTimeline_s() - trigger_time > 1.0f) {
+          if (time - trigger_time > 1.0f) {
             shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;  // 连发
           } else {
             shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;   // 单发
@@ -411,12 +415,12 @@ static void EmergencyHandler() {
 }
 void Gimbal_CANCommSend()
 {
+  #ifdef USE_DUAL_RC
   if (can_comm_instance == NULL || rc_data == NULL)
   {
     return;
   }
 
-  #ifdef USE_DUAL_RC
   transmit_data.value = rc_data->rc.rocker_l_ + rc_data[TEMP].key[KEY_PRESS].d * 660 - rc_data[TEMP].key[KEY_PRESS].a * 660;
   board_can_comm_data.tx_buff[0] = transmit_data.bytes[0];
   board_can_comm_data.tx_buff[1] = transmit_data.bytes[1];
@@ -440,6 +444,11 @@ void Gimbal_CANCommSend()
   board_can_comm_data.tx_buff[10] = rc_data->rc.switch_right;
 
   #elifdef USE_DUAL_RC_NEW
+  if (can_comm_instance == NULL || vt13_rc_data == NULL)
+  {
+    return;
+  }
+
   transmit_data.value = vt13_rc_data->rc.rocker_l_ + vt13_rc_data->mouse_key.keyboard.d * 660 - vt13_rc_data->mouse_key.keyboard.a * 660;
   board_can_comm_data.tx_buff[0] = transmit_data.bytes[0];
   board_can_comm_data.tx_buff[1] = transmit_data.bytes[1];
@@ -480,6 +489,7 @@ void RobotInit() {
   rc_data = robot->rc_data;
 #elif defined(USE_DUAL_RC_NEW)
   // 使用新VT13遥控器
+  vt13_rc_data = (VT13_RC_t *) zmalloc(sizeof(VT13_RC_t));
   vt13_rc_data = VT13RemoteInit(&huart6);
 #endif
 
@@ -510,18 +520,12 @@ void RobotCMDTask() {
 }
 
 void RobotTask() {
-#if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
   Gimbal_CANCommSend();
   // navigator_send(&huart1);
   VisionSend();
   RobotCMDTask();
   GimbalTask();
   ShootTask();
-#endif
-
-#if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
-  ChassisTask();
-#endif
 
   // 正确的赋值方式 - 直接赋值指针值
   // robot->shoot->friction_motor[1];
