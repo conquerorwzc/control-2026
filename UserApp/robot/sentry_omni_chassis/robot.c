@@ -315,14 +315,15 @@ static void RemoteControlSet() {
     vy_initial = 60.0f * (float)vt13_rc_data->rc.rocker_l1;  // l1竖直方向，最大660*60
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE)
       chassis_ctrl_cmd->wz = 20.0f * (float)vt13_rc_data->rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
-    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW)
-      chassis_ctrl_cmd->wz =(1.0f) *(float)vt13_rc_data->rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
+    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
+      chassis_ctrl_cmd->wz =(2.0f) *(float)vt13_rc_data->rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
+    }
   } else if (robot->control_mode == AUTO_MODE) // 自动控制，直接收上位机控制量
   {
     vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vy*10000;
     //vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vx*5000;
     vy_initial = robot->navigator_data->robot_cmd.speed_vector.vx*10000;
-    chassis_ctrl_cmd->wz = robot->navigator_data->robot_cmd.speed_vector.wz*0;
+    chassis_ctrl_cmd->wz = robot->navigator_data->robot_cmd.speed_vector.wz*100;
     //gimbal_ctrl_cmd->yaw-=robot->navigator_data->robot_cmd.speed_vector.wz*0.01;
   }
   chassis_ctrl_cmd->vx = vx_initial;
