@@ -99,14 +99,14 @@ static void RemoteControlSet() {
   }
   if (switch_is_down(rc_data[TEMP].rc.switch_right)) {
     // 右下：腿部缓慢下降
-    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_DOWN;
+    chassis_ctrl_cmd->leg_mode = LEG_NORMAL;
   } else if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
-    chassis_ctrl_cmd->leg_mode = LEG_HOLD;
+    chassis_ctrl_cmd->leg_mode = LEG_CRUISE;
     // 右中：保持当前腿部位置不变（不改变之前的腿部模式）
     // 保留当前模式，不修改leg_mode
   } else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
     // 右上：腿部缓慢上升，最大到kike位置
-    chassis_ctrl_cmd->leg_mode =LEG_MANUAL_UP;
+    chassis_ctrl_cmd->leg_mode =LEG_KIKE;
   }
 
   //左[中],云台启动，摩擦轮启动，拨弹盘启动，准备射击

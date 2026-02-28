@@ -194,7 +194,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
           {                                          \
               .speed_PID =                           \
                   {                                  \
-                      .Kp = 10.00f,                    \
+                      .Kp = 2.00f,                    \
                       .Ki = 0.5f,                   \
                       .Kd = 0.00f,                   \
                       .Improve = PID_Integral_Limit, \
@@ -227,9 +227,9 @@ static Shoot_Init_Config_s shoot_init_config = {
             .num_per_circle = 6,                          // 拨盘一圈的装载量
             .loader_direction = -1,                       // 拨盘旋转方向,1为正向，-1为反向
             .friction_num = 3,                            // 摩擦轮数量
-            .friction_speed = 45000.0f,                   // 摩擦轮速度
+            .friction_speed = 26800.0f,                   // 摩擦轮速度
                                                           //注：新弹丸慢一点（25800），旧弹丸快一点（26800-27000）
-            .friction_coefficients = {1.0f, -1.0f, 1.1f},  // 摩擦轮速度比例系数
+            .friction_coefficients = {1.0f, -1.0f, 1.2f},  // 摩擦轮速度比例系数
             .deadtime_burstfire = 500,
             .deadtime_onebullet = 1000,
             .target_speed = 12.0f,
@@ -246,15 +246,15 @@ static Shoot_Init_Config_s shoot_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 35.0f,
+                            .Kp = 20.0f,
                             .Ki = 0.0f,
                             .Kd = 0.008f,
                             .MaxOut = 50000.0f,
                         },
                     .speed_PID =
                         {
-                            .Kp = 5.0f,
-                            .Ki = 0.5f,
+                            .Kp = 2.0f,
+                            .Ki = 0.1f,
                             .Kd = 0.0f,
                             .Improve = PID_Integral_Limit | PID_ErrorHandle,
                             .IntegralLimit = 7000.0f,
