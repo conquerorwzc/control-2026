@@ -1,6 +1,7 @@
 #include "robot.h"
 #include "can_comm.h"
 #include "general_def.h"
+#include "referee_task.h"
 #include "robot_config.h"
 //#include "super_cap.h"
 #include "user_lib.h"
@@ -326,8 +327,9 @@ static void EmergencyHandler() {
 
 }
 
-void RobotInit() {
-
+RobotInstance * RobotInit() {
+  if (robot!=NULL)
+    return robot;
   //要在云台和底盘任务开始之前完成该任务的初始化
   vTaskDelay(CAN_COMM_TASK_INIT_TIME);
   // 初始化CAN接收
@@ -360,7 +362,8 @@ void RobotInit() {
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;
-
+ // MyUIInit();
+  return robot;
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
@@ -454,4 +457,9 @@ void RobotTask() {
 
   // 正确的赋值方式 - 直接赋值指针值
   // robot->shoot->friction_motor[1];
+}
+RobotInstance* RobotGet() {
+  if (robot!=NULL)
+    return robot;
+  return NULL;
 }

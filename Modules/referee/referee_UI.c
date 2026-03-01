@@ -416,7 +416,7 @@ void UICharRefresh(referee_id_t *_id, String_Data_t string_Data)
 
 	UI_CharReFresh_data.String_Data = string_Data;
 
-	UI_CharReFresh_data.frametail = get_CRC8_check_sum((uint8_t *)&UI_CharReFresh_data, LEN_HEADER + LEN_CMDID + temp_datalength, 0xFFFF);
+	UI_CharReFresh_data.frametail = get_CRC16_check_sum((uint8_t *)&UI_CharReFresh_data, LEN_HEADER + LEN_CMDID + temp_datalength, 0xFFFF);
 
 	RefereeSend((uint8_t *)&UI_CharReFresh_data, LEN_HEADER + LEN_CMDID + temp_datalength + LEN_TAIL); // 发送
 
