@@ -299,7 +299,7 @@ static void RemoteControlSet() {
     // else if (time-NotFountTime>0.5f){      //丢失目标超0.5秒，进入寻敌模式
     // gimbal_ctrl_cmd->yaw+=0.15f;
     //   gimbal_ctrl_cmd->pitch+=0.045f*cosf(PI*1.5*time);//cos里数字越大，旋转速度越快
-    }
+    // }
   }
 }
 
