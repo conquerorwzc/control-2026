@@ -1,6 +1,5 @@
 #include "selfcontrol.h"
 #include "string.h"
-#include "bsp_usart.h"
 #include "memory.h"
 #include "stdlib.h"
 #include "bsp_log.h"
@@ -11,10 +10,115 @@
 #define SELF_CONTROL_FRAME_SIZE 64u // 接收缓冲区大小
 #define ROBOT_INTERACTIVE_DATA_CMD_ID 0x0302
 
+// 下位机协议参数（与下位机 protocol_packed 固定 data_length=30 一致）
+#define SC_SOF_BYTE       0xA5u
+#define SC_HEADER_LEN     5u        // SOF(1)+len(2)+seq(1)+crc8(1)
+#define SC_CMD_LEN        2u
+#define SC_CRC16_LEN      2u
+#define SC_MAX_DATA_LEN   30u
+
+// 流式缓存：用来拼帧、处理粘包/拆包
+#define SC_CACHE_SIZE     256u
+static uint8_t  sc_cache[SC_CACHE_SIZE];
+static uint16_t sc_cache_len = 0;
+
+// 通过 DMA 计数器推断本次实际接收字节数（不依赖 bsp 传 Size）
+static uint16_t SelfControl_GuessRxSizeFromDma(const USARTInstance* inst)
+{
+    if (inst == NULL || inst->usart_handle == NULL || inst->usart_handle->hdmarx == NULL)
+        return 0;
+
+    uint16_t buf_size = (uint16_t)inst->recv_buff_size;
+    uint16_t remain   = (uint16_t)__HAL_DMA_GET_COUNTER(inst->usart_handle->hdmarx);
+    if (remain > buf_size)
+        return 0;
+
+    return (uint16_t)(buf_size - remain);
+}
+
+// 流式喂入并解析（解析成功后调用 selfcontrol_data_solve 更新 unpacked_data）
+static void SelfControl_FeedBytes(const uint8_t* buf, uint16_t len)
+{
+    if (buf == NULL || len == 0)
+        return;
+
+    // 1) 追加到缓存；满了就丢最老的数据，确保不断流
+    if (len >= SC_CACHE_SIZE)
+    {
+        buf += (len - SC_CACHE_SIZE);
+        len = SC_CACHE_SIZE;
+        sc_cache_len = 0;
+    }
+    else if ((uint32_t)sc_cache_len + len > SC_CACHE_SIZE)
+    {
+        uint16_t drop = (uint16_t)((uint32_t)sc_cache_len + len - SC_CACHE_SIZE);
+        memmove(sc_cache, sc_cache + drop, sc_cache_len - drop);
+        sc_cache_len -= drop;
+    }
+
+    memcpy(sc_cache + sc_cache_len, buf, len);
+    sc_cache_len += len;
+
+    // 2) 尽可能多地吐出完整帧
+    while (sc_cache_len >= SC_HEADER_LEN)
+    {
+        // 2.1 找帧头 0xA5
+        uint16_t pos = 0;
+        while (pos < sc_cache_len && sc_cache[pos] != SC_SOF_BYTE)
+            pos++;
+
+        if (pos > 0)
+        {
+            memmove(sc_cache, sc_cache + pos, sc_cache_len - pos);
+            sc_cache_len -= pos;
+            if (sc_cache_len < SC_HEADER_LEN)
+                break;
+        }
+
+        // 2.2 CRC8 校验帧头
+        if (!verify_CRC8_check_sum((unsigned char*)sc_cache, SC_HEADER_LEN))
+        {
+            // 这个 0xA5 不是真帧头，丢 1 字节继续找
+            memmove(sc_cache, sc_cache + 1, sc_cache_len - 1);
+            sc_cache_len -= 1;
+            continue;
+        }
+
+        // 2.3 读取 data_length（小端）并计算整帧长度
+        uint16_t data_len = (uint16_t)(sc_cache[1] | (sc_cache[2] << 8));
+        if (data_len > SC_MAX_DATA_LEN)
+        {
+            memmove(sc_cache, sc_cache + 1, sc_cache_len - 1);
+            sc_cache_len -= 1;
+            continue;
+        }
+
+        uint16_t frame_len = (uint16_t)(SC_HEADER_LEN + SC_CMD_LEN + data_len + SC_CRC16_LEN);
+        if (sc_cache_len < frame_len)
+        {
+            // 数据不够一帧，等下次再来
+            break;
+        }
+
+        // 2.4 CRC16 校验整帧
+        if (!verify_CRC16_check_sum(sc_cache, frame_len))
+        {
+            memmove(sc_cache, sc_cache + 1, sc_cache_len - 1);
+            sc_cache_len -= 1;
+            continue;
+        }
+
+        // 2.5 成功得到一帧完整数据：调用你原来的解包入口
+        selfcontrol_data_solve(sc_cache);
+
+        // 2.6 移除本帧，继续解析下一帧（一次回调可能吐出多帧）
+        memmove(sc_cache, sc_cache + frame_len, sc_cache_len - frame_len);
+        sc_cache_len -= frame_len;
+    }
+}
+
 // 控制器实例
 static SelfC self_control;
-// 全局USART实例指针
-static USARTInstance* g_selfcontrol_usart = NULL;
 
 // 角度标准化函数(下位机已实现，此处留空)
 float SelfControlNormalizeAngle(float angle) {
@@ -44,6 +148,7 @@ UnpackedControllerData_t* GetSelfControlDataPtr(void) {
 // 解析自定义控制器数据包
 static bool parse_custom_controller_data(const uint8_t *packed_data, uint16_t packed_size, UnpackedControllerData_t *unpacked_data) {
     if (packed_data == NULL || unpacked_data == NULL) return false;
+    if (packed_size < 39) return false;
     if (packed_data[0] != 0xA5) return false;
 
     uint16_t cmd_id = ((uint16_t)packed_data[6] << 8) | packed_data[5];
@@ -80,49 +185,63 @@ static bool parse_custom_controller_data(const uint8_t *packed_data, uint16_t pa
 
 // 数据解析函数(保持原有可用逻辑)
 void selfcontrol_data_solve(uint8_t* frame) {
-    uint16_t cmd_id = 0;
-    uint8_t index = 0;
-    static Frame_Header referee_receive_header;  // 保持原有变量
+    if (frame == NULL) return;
 
-    memcpy(&referee_receive_header, frame, sizeof(Frame_Header));
-    index += sizeof(Frame_Header);
-    index--;
-    memcpy(&cmd_id, frame + index, sizeof(uint16_t));
-    index += sizeof(uint16_t);
+    // SOF
+    if (frame[0] != SC_SOF_BYTE) return;
+
+    // CRC8(header)
+    if (!verify_CRC8_check_sum((unsigned char*)frame, SC_HEADER_LEN)) return;
+
+    // frame_len
+    uint16_t data_len  = (uint16_t)(frame[1] | (frame[2] << 8));
+    if (data_len > SC_MAX_DATA_LEN) return;
+    uint16_t frame_len = (uint16_t)(SC_HEADER_LEN + SC_CMD_LEN + data_len + SC_CRC16_LEN);
+
+    // CRC16(whole frame)
+    if (!verify_CRC16_check_sum((uint8_t*)frame, frame_len)) return;
+
+    // cmd_id（小端，cmd_id 在 frame[5..6]）
+    uint16_t cmd_id = (uint16_t)(frame[5] | (frame[6] << 8));
 
     switch (cmd_id) {
         case ROBOT_INTERACTIVE_DATA_CMD_ID:  // 自定义控制器数据(0x0302)
             // 使用原有解析逻辑，适配新数据结构
-            parse_custom_controller_data(frame, sizeof(Frame_Header) + sizeof(uint16_t) + sizeof(self_control.unpacked_data), &self_control.unpacked_data);
+            parse_custom_controller_data(frame, frame_len, &self_control.unpacked_data);
             break;
         default:
             break;
     }
 }
 
-// USART接收回调函数(保持原有逻辑)
+// USART接收回调函数
 static void SelfControlRxCallback() {
-    static USARTInstance* self_rc_usart_instance = NULL;  // 保持原有变量名
-    if (self_rc_usart_instance == NULL) {
-        extern USARTInstance* g_selfcontrol_usart;
-        self_rc_usart_instance = g_selfcontrol_usart;
-    }
-    
-    if (self_rc_usart_instance != NULL) {
-        memcpy(&self_control.selfcontrol_buff, self_rc_usart_instance->recv_buff, SELF_CONTROL_FRAME_SIZE);
-        selfcontrol_data_solve(self_control.selfcontrol_buff);
+    if (self_control.usart_instance != NULL) {
+        // 1) 推断本次实际接收长度（不改 bsp）
+        uint16_t rx_len = SelfControl_GuessRxSizeFromDma(self_control.usart_instance);
+
+        // 兜底：猜不到就喂整块
+        if (rx_len == 0 || rx_len > SELF_CONTROL_FRAME_SIZE) {
+            rx_len = SELF_CONTROL_FRAME_SIZE;
+        }
+
+        // 2) 可选：复制一份原始数据到模块buffer（方便你调试观察）
+        uint16_t copy_len = (rx_len > SELF_CONTROL_FRAME_SIZE) ? SELF_CONTROL_FRAME_SIZE : rx_len;
+        memcpy(self_control.selfcontrol_buff, self_control.usart_instance->recv_buff, copy_len);
+
+        // 3) 核心：流式解包，解决粘包/拆包/错位
+        SelfControl_FeedBytes(self_control.usart_instance->recv_buff, rx_len);
     }
 }
 
-// 初始化函数(保持原有逻辑)
+// 初始化函数
 SelfC* SelfControlInit(UART_HandleTypeDef* usart_handle) {
     USART_Init_Config_s conf;
     conf.module_callback = SelfControlRxCallback;
     conf.usart_handle = usart_handle;
     conf.recv_buff_size = SELF_CONTROL_FRAME_SIZE;
-    
-    extern USARTInstance* g_selfcontrol_usart;
-    g_selfcontrol_usart = USARTRegister(&conf);
+    // 直接将USART实例保存到模块结构体中
+    self_control.usart_instance = USARTRegister(&conf);
 
     return &self_control;
 }

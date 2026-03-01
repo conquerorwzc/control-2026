@@ -8,7 +8,7 @@
 
 #include <stdint.h>
 #include "main.h"
-#include "usart.h"
+#include "bsp_usart.h"
 
 // 电机数据结构
 typedef struct {
@@ -34,8 +34,7 @@ typedef struct {
 typedef struct {
     uint8_t selfcontrol_buff[64];    // 接收缓冲区
     UnpackedControllerData_t unpacked_data;  // 解析后的数据
-    uint8_t is_initialized;          // 初始化标志
-    uint8_t is_active;               // 活跃状态
+    USARTInstance* usart_instance;   // USART实例指针
 } SelfC;
 
 typedef __packed struct {
