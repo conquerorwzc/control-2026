@@ -124,8 +124,8 @@ typedef struct
     float cap_voltage;               // 电容电压 (V)
     uint8_t cap_mode;                // 电容模式 (0关/1开/2超级)
     uint16_t bullet_left_real;       // 实体弹丸剩余量
-    int16_t fric_speed_left;         // 左摩擦轮转速
-    int16_t fric_speed_right;        // 右摩擦轮转速
+    uint16_t fric_speed_left;         // 左摩擦轮转速
+    uint16_t fric_speed_right;        // 右摩擦轮转速
     float chassis_relative_angle;    // 底盘相对角度 (弧度)
 
     // 上一次的模式，用于flag判断
@@ -142,8 +142,8 @@ typedef struct
     float last_cap_voltage;
     uint8_t last_cap_mode;
     uint16_t last_bullet_left_real;
-    int16_t last_fric_speed_left;
-    int16_t last_fric_speed_right;
+    uint16_t last_fric_speed_left;
+    uint16_t last_fric_speed_right;
     float last_chassis_relative_angle;
 } Referee_Interactive_info_t;
 
@@ -307,17 +307,17 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
     }
 
     // 更新功率显示
-    if (interactive_data->Referee_Interactive_Flag.Power_flag == 1)
-    {
-        int32_t power_value = (int32_t)(interactive_data->Chassis_Power_Data.chassis_power_mx * 1000);
-        UIFloatDraw(&UI_Energy[1], "sd5", UI_Graph_Change, 8, UI_Color_Green, 18, 2, 2, 750, 230, power_value);
-
-        // 更新能量条长度
-        uint32_t energy_bar_length = 720 + (uint32_t)(interactive_data->Chassis_Power_Data.chassis_power_mx * 5);
-        UILineDraw(&UI_Energy[2], "sd6", UI_Graph_Change, 8, UI_Color_Pink, 30, 720, 160, energy_bar_length, 160);
-        UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_Energy[1], UI_Energy[2]);
-        interactive_data->Referee_Interactive_Flag.Power_flag = 0;
-    }
+    // if (interactive_data->Referee_Interactive_Flag.Power_flag == 1)
+    // {
+    //     int32_t power_value = (int32_t)(interactive_data->Chassis_Power_Data.chassis_power_mx * 1000);
+    //     UIFloatDraw(&UI_Energy[1], "sd5", UI_Graph_Change, 8, UI_Color_Green, 18, 2, 2, 750, 230, power_value);
+    //
+    //     // 更新能量条长度
+    //     uint32_t energy_bar_length = 720 + (uint32_t)(interactive_data->Chassis_Power_Data.chassis_power_mx * 5);
+    //     UILineDraw(&UI_Energy[2], "sd6", UI_Graph_Change, 8, UI_Color_Pink, 30, 720, 160, energy_bar_length, 160);
+    //     UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_Energy[1], UI_Energy[2]);
+    //     interactive_data->Referee_Interactive_Flag.Power_flag = 0;
+    // }
 
     // 自瞄模式指示器
     if (interactive_data->Referee_Interactive_Flag.autoaim_flag == 1)
@@ -377,35 +377,58 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
       // 摩擦轮指针
       if (interactive_data->Referee_Interactive_Flag.fric_flag == 1)
       {
-          int16_t left = interactive_data->fric_speed_left;
-          int16_t right = interactive_data->fric_speed_right;
-          uint32_t color = UI_Color_Green; // 默认颜色
-          uint32_t right_y1, right_y2;
-          // 左指针
-          uint32_t left_y1, left_y2;
-          if (left < FRIC_LOWER) {
-              left_y1 = 665; left_y2 = 695; color = UI_Color_Yellow;
-          } else if (left > FRIC_UPPER) {
-              left_y1 = 755; left_y2 = 785; color = UI_Color_Yellow;
-          } else {
-              float ratio = (float)(left - FRIC_LOWER) / (FRIC_UPPER - FRIC_LOWER);
-              uint32_t base = 665 + (uint32_t)(ratio * 120.0f);
-              left_y1 = base - 3; left_y2 = base + 3;
-          }
-          UILineDraw(&UI_fric_pointer_left, "fl1", UI_Graph_Change, 7, color, 22, 1526, left_y1, 1526, left_y2);
-          // 右指针
-          if (right < FRIC_LOWER) {
-              right_y1 = 665; right_y2 = 695; color = UI_Color_Yellow;
-          } else if (right > FRIC_UPPER) {
-              right_y1 = 755; right_y2 = 785; color = UI_Color_Yellow;
-          } else {
-              float ratio = (float)(right - FRIC_LOWER) / (FRIC_UPPER - FRIC_LOWER);
-              uint32_t base = 665 + (uint32_t)(ratio * 120.0f);
-              right_y1 = base - 3; right_y2 = base + 3;
-          }
-          UILineDraw(&UI_fric_pointer_right, "fr1", UI_Graph_Change, 7, color, 22, 1590, right_y1, 1590, right_y2);
-          UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_fric_pointer_left, UI_fric_pointer_right);
-          interactive_data->Referee_Interactive_Flag.fric_flag = 0;
+        uint16_t left_speed = interactive_data->fric_speed_left;   // 左摩擦轮转速（已处理为正方向）
+        uint16_t right_speed = interactive_data->fric_speed_right; // 右摩擦轮转速
+
+        // 左指针绘制
+        uint32_t left_y1, left_y2;
+        uint32_t left_color = UI_Color_Green; // 默认正常颜色
+
+        if (left_speed < FRIC_LOWER) {
+          left_y1 = 665;
+          left_y2 = 695;
+          left_color = UI_Color_Yellow; // 过低变黄
+        } else if (left_speed > FRIC_UPPER) {
+          left_y1 = 755;
+          left_y2 = 785;
+          left_color = UI_Color_Yellow; // 过高变黄
+        } else {
+          // 正常范围内，按比例计算指针位置（120像素高度范围）
+          float ratio = (float)(left_speed - FRIC_LOWER) / (float)(FRIC_UPPER - FRIC_LOWER);
+          uint32_t base = 665 + (uint32_t)(ratio * 120.0f);
+          left_y1 = base - 3;
+          left_y2 = base + 3;
+          // 颜色保持绿色
+        }
+        UILineDraw(&UI_fric_pointer_left, "fl1", UI_Graph_Change, 7, left_color, 22,
+                   1526, left_y1, 1526, left_y2);
+
+        // 右指针绘制
+        uint32_t right_y1, right_y2;
+        uint32_t right_color = UI_Color_Green;
+
+        if (right_speed < FRIC_LOWER) {
+          right_y1 = 665;
+          right_y2 = 695;
+          right_color = UI_Color_Yellow;
+        } else if (right_speed > FRIC_UPPER) {
+          right_y1 = 755;
+          right_y2 = 785;
+          right_color = UI_Color_Yellow;
+        } else {
+          float ratio = (float)(right_speed - FRIC_LOWER) / (float)(FRIC_UPPER - FRIC_LOWER);
+          uint32_t base = 665 + (uint32_t)(ratio * 120.0f);
+          right_y1 = base - 3;
+          right_y2 = base + 3;
+        }
+        UILineDraw(&UI_fric_pointer_right, "fr1", UI_Graph_Change, 7, right_color, 22,
+                   1590, right_y1, 1590, right_y2);
+
+        // 立即发送两个指针更新
+        UIGraphRefresh(&referee_recv_info->referee_id, 2,
+                       UI_fric_pointer_left, UI_fric_pointer_right);
+
+        interactive_data->Referee_Interactive_Flag.fric_flag = 0;
       }
 
       // 车头方向圆弧
@@ -439,20 +462,25 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
       // 俯仰角仪表盘指针和数值
       if (interactive_data->Referee_Interactive_Flag.pitch_flag == 1)
       {
-          float pitch_deg = interactive_data->pitch_angle; // 假设已经是角度
-          float ui_angle = 90.0f - pitch_deg; // 转换为UI坐标系（0°为正右）
-          float rad = ui_angle * 3.14159f / 180.0f;
-          uint32_t cx = 960, cy = 540, r = 394;
-          uint32_t ex = cx + (uint32_t)(r * cosf(rad));
-          uint32_t ey = cy - (uint32_t)(r * sinf(rad));
-          UILineDraw(&UI_pitch_needle, "pn0", UI_Graph_Change, 9, UI_Color_White, 7, cx, cy, ex, ey);
-          char buf[10];
-          snprintf(buf, sizeof(buf), "%.1f°", pitch_deg);
-          UICharDraw(&UI_pitch_value, "pv0", UI_Graph_Change, 9, UI_Color_White, 18, 3, cx - 30, cy + 50, buf);
-          UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_pitch_needle);
-          UICharRefresh(&referee_recv_info->referee_id, UI_pitch_value);
-          interactive_data->Referee_Interactive_Flag.pitch_flag = 0;
-      }
+        float pitch_deg = interactive_data->pitch_angle;
+        float ui_angle = 90.0f - pitch_deg;          // 转换为UI坐标系角度
+
+        // 归一化到 0~360 度
+        while (ui_angle < 0) ui_angle += 360.0f;
+        while (ui_angle >= 360) ui_angle -= 360.0f;
+
+        uint32_t start_angle = (uint32_t)(ui_angle - 1);
+        uint32_t end_angle   = (uint32_t)(ui_angle + 1);
+        // 边界处理（防止超出 0~359）
+        if (start_angle >= 360) start_angle -= 360;
+        if (end_angle   >= 360) end_angle   -= 360;
+
+        // 绘制圆弧指针（线宽38，半径365）
+        UIArcDraw(&UI_pitch_needle, "pn0", UI_Graph_Change, 6, UI_Color_Pink,
+                  start_angle, end_angle, 38, 960, 540, 365, 365);
+        UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_pitch_needle);
+        interactive_data->Referee_Interactive_Flag.pitch_flag = 0;
+  }
 }
 
 /**
@@ -797,7 +825,7 @@ void UITask()
     // interactive_data.Chassis_Power_Data.chassis_power_mx = robotdata->chassis->chassis_ctrl_cmd.max_power; // 示例功率值
 
     // interactive_data.pitch_angle = robotdata->gimbal->gimbal_ctrl_cmd.pitch;
-    interactive_data.pitch_angle = (float)cancomm_pack->pitch;
+    interactive_data.pitch_angle = -(float)cancomm_pack->pitch;
 
     // interactive_data.Shoot_heat = robotdata->shoot->shoot_ctrl_cmd.rest_heat;
     // interactive_data.Shoot_heat = cancomm_pack->rest_heat;
@@ -813,7 +841,7 @@ void UITask()
     // #ifdef QQ_SUPER_CAP
     //   interactive_data.cap_voltage = robotdata->super_cap->cap_msg.vol;  // 齐奇模块，已是伏特单位
     // #else
-      interactive_data.cap_voltage = robotdata->super_cap->cap_msg.cap_v;  // 标准模块，需要转换为伏特
+    interactive_data.cap_voltage = robotdata->super_cap->cap_msg.cap_v;  // 标准模块，需要转换为伏特
     // #endif
 
     // interactive_data.cap_mode = robotdata->super_cap->cap_msg.status;
@@ -822,7 +850,7 @@ void UITask()
 
     //@todo
     // interactive_data.fric_speed_left = -robotdata->shoot->friction_motor[0]->measure.speed_aps; // 左摩擦轮转速（取反使向上为正）
-    interactive_data.fric_speed_left = -cancomm_pack->friction_speed1; // 左摩擦轮转速（取反使向上为正）
+    interactive_data.fric_speed_left = cancomm_pack->friction_speed1; // 左摩擦轮转速（取反使向上为正）
     // interactive_data.fric_speed_right = robotdata->shoot->friction_motor[1]->measure.speed_aps; // 右摩擦轮转速
     interactive_data.fric_speed_right = cancomm_pack->friction_speed2; // 右摩擦轮转速
 

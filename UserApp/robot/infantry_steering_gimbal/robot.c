@@ -446,7 +446,7 @@ void RobotTask() {
   cancomm_pack->friction_mode=(uint8_t)robot->shoot->shoot_ctrl_cmd.friction_mode;
   cancomm_pack->pitch=(int16_t)gimbal_ctrl_cmd->pitch;
   cancomm_pack->friction_speed1=(uint16_t)robot->shoot->friction_motor[0]->measure.speed_aps;
-  cancomm_pack->friction_speed2=(uint16_t)robot->shoot->friction_motor[1]->measure.speed_aps;
+  cancomm_pack->friction_speed2=(uint16_t)(-robot->shoot->friction_motor[1]->measure.speed_aps);
   cancomm_pack->load_mode=robot->shoot->shoot_ctrl_cmd.load_mode;
   cancomm_pack->shoot_mode=robot->shoot->shoot_ctrl_cmd.shoot_mode;
   cancomm_pack->gimbal_mode=gimbal_ctrl_cmd->gimbal_mode;

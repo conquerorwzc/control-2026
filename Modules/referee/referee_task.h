@@ -8,8 +8,8 @@
 #define WIDTHLINE_DOWN              610  //下方间距
 
 // 摩擦轮转速范围
-#define FRIC_LOWER 5000
-#define FRIC_UPPER 7000
+#define FRIC_LOWER 30000
+#define FRIC_UPPER 50000
 
 // 电容电压范围
 #define CAP_VOL_LOWER 16.0f
