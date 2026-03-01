@@ -39,7 +39,7 @@
 #define PITCH_MIN_ECD 3430      // pitch轴最小编码器值限位
 
 // 私有宏,自动将编码器转换成角度值
-#define YAW_ALIGN_ANGLE 47.5                                         // hero的计算比较特殊，直接从读出来
+#define YAW_ALIGN_ANGLE 310.5                                         // hero的计算比较特殊，直接从读出来
 #define PTICH_HORIZON_ANGLE (PITCH_HORIZON_ECD * ECD_ANGLE_COEF_DJI)  // pitch水平时电机的角度,0-360
 #define GYRO2GIMBAL_DIR_YAW 1    // 陀螺仪数据相较于云台的yaw的方向,1为相同,-1为相反
 #define GYRO2GIMBAL_DIR_PITCH 1  // 陀螺仪数据相较于云台的pitch的方向,1为相同,-1为相反
@@ -53,7 +53,6 @@
 #define RIGHT_LEG_MOTOR_RAISE_POSITION  1.731f  // 腿部电机抬起位置值
 #define RIGHT_LEG_MOTOR_CRUISE_POSITION 1.911f
 #define RIGHT_LEG_MOTOR_KIKE_POSITION 1.468f  // 腿部电机踢脚位置值
-// 轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
 //  轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
 #define FRONT_WHEEL_MOTOR_CONFIG(handle, id)                                                                   \
   ((Motor_Init_Config_s){                                                                                      \

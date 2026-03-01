@@ -269,6 +269,9 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
       break;
   }
 
+
+
+
   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_C] % 4)  // C键设置底盘速度
   {
     case 0:
@@ -464,6 +467,7 @@ static void MouseKeySet() {
     // F键按下，腿部渐渐降下
     chassis_ctrl_cmd->leg_mode = LEG_MANUAL_DOWN;
   }
+
   static uint8_t last_x_key_state = 0; // X键状态
   uint8_t current_x_key_state = rc_data[TEMP].key[KEY_PRESS].x; // X键状态
 
@@ -692,6 +696,6 @@ void RobotTask() {
   GimbalTask();
   ShootTask();
 
-  // ChassisTask();
+   ChassisTask();
 
 }
