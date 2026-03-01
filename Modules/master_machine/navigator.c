@@ -374,18 +374,8 @@ static void DecodeNavigator() {
             // 校验通过，处理数据包
             uint16_t data_index = index + PROTOCOL_HEADER_LEN; // 跳过帧头和时间戳
             uint8_t check_len=sizeof(navigator_recv_t)-6;
-            // 根据数据包ID进行处理
-            switch (header->id) {
-                case PKT_ID_ROBOT_CMD: {
-                    if (header->len == (check_len)) {
-                        memcpy(&recv_data, &buffer[data_index], sizeof(navigator_recv_t));
-                    }
-                    break;
-                }
-                default:
-                    break;
-            }
-
+            if (header->len == (check_len))
+                memcpy(&recv_data, &buffer[data_index], sizeof(navigator_recv_t));
             // 移动索引到下一帧
             index += total_frame_len;
             processed_len = index;
