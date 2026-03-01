@@ -45,10 +45,10 @@
 #define GYRO2GIMBAL_DIR_PITCH 1  // 陀螺仪数据相较于云台的pitch的方向,1为相同,-1为相反
 #define GYRO2GIMBAL_DIR_ROLL 1   // 陀螺仪数据相较于云台的roll的方向,1为相同,-1为相反
 // 腿部电机位置定义
-#define LEFT_LEG_MOTOR_NORMAL_POSITION -2.388f   // 腿部电机常规位置值
+#define LEFT_LEG_MOTOR_NORMAL_POSITION -2.418f   // 腿部电机常规位置值
 #define LEFT_LEG_MOTOR_RAISE_POSITION  -1.838f  // 腿部电机抬起位置值
 #define LEFT_LEG_MOTOR_CRUISE_POSITION -2.088f
-#define LEFT_LEG_MOTOR_KIKE_POSITION -1.707f     // 腿部电机踢脚位置值
+#define LEFT_LEG_MOTOR_KIKE_POSITION -1.675f     // 腿部电机踢脚位置值
 #define RIGHT_LEG_MOTOR_NORMAL_POSITION 2.211f   // 腿部电机常规位置值
 #define RIGHT_LEG_MOTOR_RAISE_POSITION  1.679f  // 腿部电机抬起位置值
 #define RIGHT_LEG_MOTOR_CRUISE_POSITION 1.911f
