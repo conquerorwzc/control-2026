@@ -48,11 +48,11 @@
 #define LEFT_LEG_MOTOR_NORMAL_POSITION -2.388f   // 腿部电机常规位置值
 #define LEFT_LEG_MOTOR_RAISE_POSITION  -1.838f  // 腿部电机抬起位置值
 #define LEFT_LEG_MOTOR_CRUISE_POSITION -2.088f
-#define LEFT_LEG_MOTOR_KIKE_POSITION -1.538f     // 腿部电机踢脚位置值
+#define LEFT_LEG_MOTOR_KIKE_POSITION -1.707f     // 腿部电机踢脚位置值
 #define RIGHT_LEG_MOTOR_NORMAL_POSITION 2.211f   // 腿部电机常规位置值
 #define RIGHT_LEG_MOTOR_RAISE_POSITION  1.679f  // 腿部电机抬起位置值
 #define RIGHT_LEG_MOTOR_CRUISE_POSITION 1.911f
-#define RIGHT_LEG_MOTOR_KIKE_POSITION 1.379f  // 腿部电机踢脚位置值
+#define RIGHT_LEG_MOTOR_KIKE_POSITION 1.468f  // 腿部电机踢脚位置值
 // 轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
 //  轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
 #define FRONT_WHEEL_MOTOR_CONFIG(handle, id)                                                                   \
@@ -287,6 +287,8 @@ static Gimbal_Init_Config_s gimbal_init_config = {
     .imu_init_config = {
       .flag = 1,
       .scale = {1.0f, 1.0f, 1.0f},
+      .offset_flag=1,
+      .GyroOffset ={0.00351617043,-0.00259744748,-0.00255452027},
       .Yaw = 0.0f,
       .Pitch = 0.0f,
       .Roll = 0.0f

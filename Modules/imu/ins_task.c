@@ -30,6 +30,7 @@ static IMU_Init_Config_s IMU_Param;
 static PIDInstance TempCtrl = {0};
 static osThreadId insTaskHandle;
 
+// body2earth
 const float xb[3] = {1, 0, 0};
 const float yb[3] = {0, 1, 0};
 const float zb[3] = {0, 0, 1};
@@ -65,9 +66,10 @@ static void InitQuaternion(float *init_q4) {
   // 读取100次加速度计数据,取平均值作为初始值
   for (uint8_t i = 0; i < 100; ++i) {
     BMI088_Read(&BMI088);
-    acc_init[X] += BMI088.Accel[X];
-    acc_init[Y] += BMI088.Accel[Y];
-    acc_init[Z] += BMI088.Accel[Z];
+    IMU_Param_Correction(&IMU_Param, BMI088.Gyro, BMI088.Accel);
+    acc_init[X] += BMI088.Accel[X];  // X轴不变
+    acc_init[Y] += BMI088.Accel[Y];  // Y轴取反
+    acc_init[Z] += BMI088.Accel[Z];  // Z轴取反
     DWT_Delay(0.001);
   }
   for (uint8_t i = 0; i < 3; ++i) acc_init[i] /= 100;
@@ -141,7 +143,23 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
   while (BMI088Init(&hspi2, 0) != BMI088_NO_ERROR);
 #endif
   // 使用我们的调试校准函数来测量陀螺仪零偏值，绕过预定义值
-  INS_CalibrateGyroForDebug(5000);
+  while (abs(BMI088.Temperature - 40.0) > 1) {
+    IMU_Temperature_Ctrl();
+    DWT_Delay(0.001);
+  }
+  //是否在线标定
+  if (imu_init_config->offset_flag==1) {
+    for (uint8_t i=0;i<3;i++)
+      BMI088.GyroOffset[i]=imu_init_config->GyroOffset[i];
+  }
+  else {
+    INS_CalibrateGyroForDebug(10000);
+  }
+  //for (uint8_t i = 0; i < 3; i++) {
+    //BMI088.GyroOffset[0] = 0.00253310893f;
+    //BMI088.GyroOffset[1] = 0.00196733163f;
+    //BMI088.GyroOffset[2] = 0.000239364381;
+
 
   // 手动计算加速度缩放因子，因为我们跳过了完整的校准过程
   BMI088.AccelScale = 9.81f / BMI088.gNorm;
@@ -152,10 +170,13 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
   IMU_Param.Pitch = imu_init_config->Pitch;
   IMU_Param.Roll = imu_init_config->Roll;
   IMU_Param.flag = imu_init_config->flag;
+
   // BMI088CalibrateGyroForDebug(BMI,1000);
   float init_quaternion[4] = {0};
   InitQuaternion(init_quaternion);
-  IMU_QuaternionEKF_Init(init_quaternion, 10, 0.001, 1000000, 1, 0);
+  // 改进的初始化方式：使用更稳定的四元数初始化
+  //float init_quaternion[4] = {1.0f, 0.0f, 0.0f, 0.0f};  // 单位四元数
+  IMU_QuaternionEKF_Init(init_quaternion, 10, 0.001f, 10000000, 0.9996f, 0.0085f);  // 增加测量噪声，启用渐消因子和低通滤波
   // imu heat init
   PID_Init_Config_s config = {.MaxOut = 2000,
                               .IntegralLimit = 300,
@@ -178,7 +199,7 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
 /* 注意以1kHz的频率运行此任务 */
 void INS_Task(void) {
   static uint32_t count = 0;
-  const float gravity[3] = {0, 0, 9.81f};
+  const float gravity[3] = {0, 0, 9.81f};  // 使用本地重力加速度值
 
   dt = DWT_GetDeltaT(&INS_DWT_Count);
   t += dt;
@@ -194,7 +215,7 @@ void INS_Task(void) {
     INS.Gyro[Y] = BMI088.Gyro[Y];
     INS.Gyro[Z] = BMI088.Gyro[Z];
 
-    // demo function,用于修正安装误差,可以不管,本demo暂时没用
+    // 修正安装误差
     IMU_Param_Correction(&IMU_Param, INS.Gyro, INS.Accel);
 
     // 计算重力加速度矢量和b系的XY两轴的夹角,可用作功能扩展,本demo暂时没用
@@ -222,7 +243,6 @@ void INS_Task(void) {
     BodyFrameToEarthFrame(INS.MotionAccel_b, INS.MotionAccel_n, INS.q);  // 转换回导航系n
 
     INS.Gyro[X] = -INS.Gyro[X];
-    //INS.Gyro[Z] = -INS.Gyro[Z];
     INS.Yaw = QEKF_INS.Yaw;
     INS.Pitch = -QEKF_INS.Pitch;
     INS.Roll = QEKF_INS.Roll;
@@ -317,7 +337,7 @@ static void IMU_Param_Correction(IMU_Init_Config_s *param, float gyro[3], float 
   gyro[Z] = c_31 * gyro_temp[X] + c_32 * gyro_temp[Y] + c_33 * gyro_temp[Z];
 
   float accel_temp[3];
-  for (uint8_t i = 0; i < 3; ++i) accel_temp[i] = accel[i]*param->scale[i];
+  for (uint8_t i = 0; i < 3; ++i) accel_temp[i] = accel[i] * param->scale[i];
 
   accel[X] = c_11 * accel_temp[X] + c_12 * accel_temp[Y] + c_13 * accel_temp[Z];
   accel[Y] = c_21 * accel_temp[X] + c_22 * accel_temp[Y] + c_23 * accel_temp[Z];
