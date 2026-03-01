@@ -112,14 +112,37 @@ typedef struct
     PID_Init_Config_s follow_pid;
 } Chassis_Init_Config_s;
 
+typedef struct {
+    float current_ref;  // 当前虚拟参考位置 (喂给位置环的输出)
+    float target_pos;   // 最终目标位置
+    float current_vel;  // 当前虚拟速度
+    float max_vel;      // 最大限制速度
+    float accel;        // 加/减速度
+    float ff_speed;     // 换算好的前馈速度
+    uint8_t is_moving;  // 运动状态标志位
+} TrapezoidalPlanner_t;
+
+typedef struct {
+    DJIMotorInstance *motor;      // 绑定的电机硬件躯干
+    TrapezoidalPlanner_t planner; // 专属数学大脑
+    float *ff_channel;            // 前馈输出通道的挂载点
+
+    uint8_t use_curve;            // 功能开关：1用曲线(前腿)，0直接发(后腿)
+    float moving_max_out;         // 运动时的最大电流爆发值
+    float stop_max_out;           // 驻车时的安全电流维持值
+
+    float target_pos;             // 外界的最终绝对目标位置
+} LiftLeg_t;
+
 typedef struct
 {
     Chassis_Ctrl_Cmd_s chassis_ctrl_cmd;
     Chassis_Cali_State_s cali_state;
     DJIMotorInstance *wheel_motor[4];          // left right forward back
-    DJIMotorInstance *lift_forward_motor[2];   // 导杆电机实例
-    DJIMotorInstance *lift_backward_motor[2]; // 腿抬升电机实例
+    LiftLeg_t front_legs[2];
+    LiftLeg_t rear_legs[2];
 } ChassisInstance;
+
 
 /**
  * @brief 底盘应用初始化,请在开启rtos之前调用(目前会被RobotInit()调用)
