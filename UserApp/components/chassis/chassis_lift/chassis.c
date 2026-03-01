@@ -15,9 +15,9 @@
 // ==================== 【前腿（齿条）专属动力学调参区】 ====================
 // ⏱️ 1. 速度与柔顺度（梯形曲线参数）
 // [决定了腿弹出的绝对速度，时间越短越狂暴]
-#define FRONT_TOTAL_TIME_SEC  5.0f   // 目标：完成单次最大行程的总时间(秒)
+#define FRONT_TOTAL_TIME_SEC  1.0f   // 目标：完成单次最大行程的总时间(秒)
 // [决定了起步和刹车的柔和程度，越大越平滑，必须 < 总时间的一半]
-#define FRONT_ACCEL_TIME_SEC  2.0f   // 加速/减速缓冲段的时间(秒)
+#define FRONT_ACCEL_TIME_SEC  0.4f   // 加速/减速缓冲段的时间(秒)
 
 // ⚡ 2. 力量与保护（动态电流限幅，大疆电机满载为 16384）
 // [运动时的爆发力。给小了跑不到预定极速，给大了撞击时会切断螺丝]
@@ -112,7 +112,9 @@ static void ChassisCalibrationTask(void);
 static void MaxExtensionCalibrationTask(void);
 static void Planner_Update(TrapezoidalPlanner_t *planner);
 ChassisInstance *ChassisInit(Chassis_Init_Config_s *chassis_init_config);
-static void LiftLeg_Init(LiftLeg_t *leg, float *ff_ch, uint8_t use_curve, float total_time, float acc_time,
+static void LiftLeg_Init(LiftLeg_t *leg, float *ff_ch, uint8_t use_curve,
+                         float total_time, float acc_time,
+                         float stroke,  // 👈 【关键新增】：告诉这条腿，它自己要跑多远！
                          float move_out, float stop_out);
 static void LiftLeg_SetTarget(LiftLeg_t *leg, float target);
 static void LiftLeg_Execute(LiftLeg_t *leg);
@@ -323,7 +325,9 @@ static void Planner_Update(TrapezoidalPlanner_t *planner)
 /**
  * @brief 对外开放：装配与初始化一条腿
  */
-static void LiftLeg_Init(LiftLeg_t *leg, float *ff_ch, uint8_t use_curve, float total_time, float acc_time,
+static void LiftLeg_Init(LiftLeg_t *leg, float *ff_ch, uint8_t use_curve,
+                         float total_time, float acc_time,
+                         float stroke,  // 👈 【关键新增】：告诉这条腿，它自己要跑多远！
                          float move_out, float stop_out)
 {
     leg->ff_channel = ff_ch;
@@ -335,19 +339,18 @@ static void LiftLeg_Init(LiftLeg_t *leg, float *ff_ch, uint8_t use_curve, float 
     leg->target_pos = start_pos;
 
     leg->planner.current_ref = start_pos;
-    leg->planner.target_pos = start_pos;
+    leg->planner.target_pos  = start_pos;
     leg->planner.current_vel = 0.0f;
-    leg->planner.ff_speed = 0.0f;
-    leg->planner.is_moving = 0;
+    leg->planner.ff_speed    = 0.0f;
+    leg->planner.is_moving   = 0;
 
-    if (use_curve && total_time > acc_time)
-    {
-        float stroke = fabsf(chassis_ctrl_cmd->forward_lift_out);
-        float v_max = stroke / (total_time - acc_time);
-        if (v_max > 42000.0f)
-            v_max = 42000.0f;
+    if (use_curve && total_time > acc_time) {
+        // 👇 【关键修改】：不再去读全局变量了，直接用传进来的专属 stroke！
+        float v_max = fabsf(stroke) / (total_time - acc_time);
+
+        if (v_max > 42000.0f) v_max = 42000.0f;
         leg->planner.max_vel = v_max / CALI_TASK_FREQ;
-        leg->planner.accel = leg->planner.max_vel / (acc_time * CALI_TASK_FREQ);
+        leg->planner.accel   = leg->planner.max_vel / (acc_time * CALI_TASK_FREQ);
     }
 }
 
@@ -480,69 +483,69 @@ static void PowerControl()
     }
 }
 
-/**
- * @brief 爬楼梯状态机
- *
- */
 void Climb_FSM()
 {
-    const float MAX_SAFE_REAR_EXTEND = chassis_param.backward_lift_out;
-    const float MAX_SAFE_FRONT_EXTEND = chassis_param.forward_lift_out;
-
-    if (chassis_ctrl_cmd->backward_lift_out > MAX_SAFE_REAR_EXTEND)
-        chassis_ctrl_cmd->backward_lift_out = MAX_SAFE_REAR_EXTEND;
-    if (chassis_ctrl_cmd->forward_lift_out > MAX_SAFE_FRONT_EXTEND)
-        chassis_ctrl_cmd->forward_lift_out = MAX_SAFE_FRONT_EXTEND;
-
-
     static uint8_t is_legs_assembled = 0;
     if (!is_legs_assembled && chassis->cali_state.all_cali_done && chassis->cali_state.is_max_calibrated) {
 
+        // 算出各自独立的极限行程 (物理行程 * 0.99)
+        float stroke_front_l = fabsf(chassis->cali_state.max_angle[2] - chassis->cali_state.init_angle[2]) * MAX_CALI_SAFE_RATIO;
+        float stroke_front_r = fabsf(chassis->cali_state.max_angle[3] - chassis->cali_state.init_angle[3]) * MAX_CALI_SAFE_RATIO;
+
+        // 重新装配前腿：真正把参数喂进去！
         LiftLeg_Init(&chassis->front_legs[LEFT], &lift_speed_feedforward[2], 1,
-                     FRONT_TOTAL_TIME_SEC, FRONT_ACCEL_TIME_SEC,
+                     FRONT_TOTAL_TIME_SEC, FRONT_ACCEL_TIME_SEC, stroke_front_l,
                      FRONT_MOVING_MAX_OUT, FRONT_STOP_MAX_OUT);
 
         LiftLeg_Init(&chassis->front_legs[RIGHT], &lift_speed_feedforward[3], 1,
-                     FRONT_TOTAL_TIME_SEC, FRONT_ACCEL_TIME_SEC,
+                     FRONT_TOTAL_TIME_SEC, FRONT_ACCEL_TIME_SEC, stroke_front_r,
                      FRONT_MOVING_MAX_OUT, FRONT_STOP_MAX_OUT);
 
-        // 后腿保持原样
-        LiftLeg_Init(&chassis->rear_legs[LEFT], NULL, 0, 0, 0, 1460.0f, 1460.0f);
-        LiftLeg_Init(&chassis->rear_legs[RIGHT], NULL, 0, 0, 0, 1200.0f, 1200.0f);
+        // 装配后腿：不用曲线
+        LiftLeg_Init(&chassis->rear_legs[LEFT], NULL, 0, 0, 0, 0, 1460.0f, 1460.0f);
+        LiftLeg_Init(&chassis->rear_legs[RIGHT], NULL, 0, 0, 0, 0, 1200.0f, 1200.0f);
 
         is_legs_assembled = 1;
     }
 
+    // 提前算出每条腿各自独立的“终极安全打点坐标”
+    float front_l_target = chassis->cali_state.init_angle[2] + (chassis->cali_state.max_angle[2] - chassis->cali_state.init_angle[2]) * MAX_CALI_SAFE_RATIO;
+    float front_r_target = chassis->cali_state.init_angle[3] + (chassis->cali_state.max_angle[3] - chassis->cali_state.init_angle[3]) * MAX_CALI_SAFE_RATIO;
+
+    float rear_l_target = chassis->cali_state.init_angle[0] + (chassis->cali_state.max_angle[0] - chassis->cali_state.init_angle[0]) * MAX_CALI_SAFE_RATIO;
+    float rear_r_target = chassis->cali_state.init_angle[1] + (chassis->cali_state.max_angle[1] - chassis->cali_state.init_angle[1]) * MAX_CALI_SAFE_RATIO;
+
+    // 指挥官下达阵地坐标
     switch (chassis->chassis_ctrl_cmd.climb_state)
     {
     case CLIMB_STAGE_IDLE:
     case CLIMB_STAGE_ALL_RETRACT:
-        LiftLeg_SetTarget(&chassis->rear_legs[LEFT], chassis->cali_state.init_angle[0] + chassis_ctrl_cmd->backward_lift_in);
-        LiftLeg_SetTarget(&chassis->rear_legs[RIGHT], chassis->cali_state.init_angle[1] + chassis_ctrl_cmd->backward_lift_in);
-        LiftLeg_SetTarget(&chassis->front_legs[LEFT], chassis->cali_state.init_angle[2] + chassis_ctrl_cmd->forward_lift_in);
-        LiftLeg_SetTarget(&chassis->front_legs[RIGHT], chassis->cali_state.init_angle[3] + chassis_ctrl_cmd->forward_lift_in);
+        LiftLeg_SetTarget(&chassis->rear_legs[LEFT], chassis->cali_state.init_angle[0]);
+        LiftLeg_SetTarget(&chassis->rear_legs[RIGHT], chassis->cali_state.init_angle[1]);
+        LiftLeg_SetTarget(&chassis->front_legs[LEFT], chassis->cali_state.init_angle[2]);
+        LiftLeg_SetTarget(&chassis->front_legs[RIGHT], chassis->cali_state.init_angle[3]);
         break;
 
     case CLIMB_STAGE_BOTH_EXTEND:
-        LiftLeg_SetTarget(&chassis->front_legs[LEFT], chassis->cali_state.init_angle[2] + chassis_ctrl_cmd->forward_lift_out);
-        LiftLeg_SetTarget(&chassis->front_legs[RIGHT], chassis->cali_state.init_angle[3] + chassis_ctrl_cmd->forward_lift_out);
-        LiftLeg_SetTarget(&chassis->rear_legs[LEFT], chassis->cali_state.init_angle[0] + chassis_ctrl_cmd->backward_lift_out);
-        LiftLeg_SetTarget(&chassis->rear_legs[RIGHT], chassis->cali_state.init_angle[1] + chassis_ctrl_cmd->backward_lift_out);
+        LiftLeg_SetTarget(&chassis->front_legs[LEFT], front_l_target);
+        LiftLeg_SetTarget(&chassis->front_legs[RIGHT], front_r_target);
+        LiftLeg_SetTarget(&chassis->rear_legs[LEFT], rear_l_target);
+        LiftLeg_SetTarget(&chassis->rear_legs[RIGHT], rear_r_target);
         break;
 
     case CLIMB_STAGE_FRONT_RETRACT:
-        LiftLeg_SetTarget(&chassis->rear_legs[LEFT], chassis->cali_state.init_angle[0] + chassis_ctrl_cmd->backward_lift_out);
-        LiftLeg_SetTarget(&chassis->rear_legs[RIGHT], chassis->cali_state.init_angle[1] + chassis_ctrl_cmd->backward_lift_out);
-        LiftLeg_SetTarget(&chassis->front_legs[LEFT], chassis->cali_state.init_angle[2] + chassis_ctrl_cmd->forward_lift_in);
-        LiftLeg_SetTarget(&chassis->front_legs[RIGHT], chassis->cali_state.init_angle[3] + chassis_ctrl_cmd->forward_lift_in);
+        LiftLeg_SetTarget(&chassis->rear_legs[LEFT], rear_l_target);
+        LiftLeg_SetTarget(&chassis->rear_legs[RIGHT], rear_r_target);
+        LiftLeg_SetTarget(&chassis->front_legs[LEFT], chassis->cali_state.init_angle[2]);
+        LiftLeg_SetTarget(&chassis->front_legs[RIGHT], chassis->cali_state.init_angle[3]);
         break;
     }
 }
-
 /**
  * @brief 阶段一：底盘抬升零点标定任务 (收缩归零)
  * @note  引入滑动离合防震荡与高精度位移检测，各腿独立保存零点
- */static void ChassisCalibrationTask(void)
+ */
+static void ChassisCalibrationTask(void)
 {
     if (chassis->cali_state.all_cali_done) return;
 
@@ -573,16 +576,15 @@ void Climb_FSM()
             last_check_angle[i] = cali_target_angle[i];
             cali_block_cnt[i] = 0;
         }
-        // 屏蔽后腿
+
 #if DEBUG_FRONT_ONLY
-        chassis->cali_state.cali_done[0] = 1; // 骗系统：左后腿标定好了
-        chassis->cali_state.cali_done[1] = 1; // 骗系统：右后腿标定好了
+        chassis->cali_state.cali_done[0] = 1;
+        chassis->cali_state.cali_done[1] = 1;
 #endif
 
-        // 屏蔽前腿
 #if DEBUG_REAR_ONLY
-        chassis->cali_state.cali_done[2] = 1; // 骗系统：左前腿标定好了
-        chassis->cali_state.cali_done[3] = 1; // 骗系统：右前腿标定好了
+        chassis->cali_state.cali_done[2] = 1;
+        chassis->cali_state.cali_done[3] = 1;
 #endif
         first_run = 0;
     }
@@ -610,9 +612,10 @@ void Climb_FSM()
                     float check_threshold = (i < 2) ? ZERO_CALI_STOP_THRES_REAR : ZERO_CALI_STOP_THRES_FRONT;
                     float actual_diff = fabsf(current_angle - last_check_angle[i]);
 
-                    LOGINFO("Motor[%d] Diff: %d, Thres: %d", i, (int)(actual_diff * 10.0f), (int)(check_threshold * 10.0f));
+                    // 💡 加入零点电流双重判定，防止假零点！
+                    float actual_current = fabsf((float)motor->measure.real_current);
 
-                    if (actual_diff < check_threshold) {
+                    if (actual_diff < check_threshold && actual_current > 5000.0f) {
                         chassis->cali_state.cali_done[i] = 1;
                         chassis->cali_state.init_angle[i] = current_angle;
                     }
@@ -621,7 +624,7 @@ void Climb_FSM()
                 }
             }
         } else {
-            // 收缩到底后，继续保持拉力，别让腿掉下来！
+            // 继续保持拉力，别让腿掉下来
             DJIMotorSetPIDRef(motor, cali_target_angle[i]);
         }
     }
@@ -747,23 +750,13 @@ static void MaxExtensionCalibrationTask(void)
     }
 
     if (current_all_done) {
-        float rear_stroke_l = fabsf(chassis->cali_state.max_angle[0] - chassis->cali_state.init_angle[0]);
-        float rear_stroke_r = fabsf(chassis->cali_state.max_angle[1] - chassis->cali_state.init_angle[1]);
-        float front_stroke_l = fabsf(chassis->cali_state.max_angle[2] - chassis->cali_state.init_angle[2]);
-        float front_stroke_r = fabsf(chassis->cali_state.max_angle[3] - chassis->cali_state.init_angle[3]);
-
-        float rear_min_stroke = fminf(rear_stroke_l, rear_stroke_r);
-        float front_min_stroke = fminf(front_stroke_l, front_stroke_r);
-
-        float rear_sign = (chassis->cali_state.max_angle[0] > chassis->cali_state.init_angle[0]) ? 1.0f : -1.0f;
-        float front_sign = (chassis->cali_state.max_angle[2] > chassis->cali_state.init_angle[2]) ? 1.0f : -1.0f;
-
-        chassis_ctrl_cmd->backward_lift_out = rear_sign * rear_min_stroke * MAX_CALI_SAFE_RATIO;
-        chassis_ctrl_cmd->forward_lift_out = front_sign * front_min_stroke * MAX_CALI_SAFE_RATIO;
+        // 💡 补上这两行！把左腿的行程借给系统，作为梯形曲线算速度的“参考基准”！
+        chassis_ctrl_cmd->backward_lift_out = fabsf(chassis->cali_state.max_angle[0] - chassis->cali_state.init_angle[0]);
+        chassis_ctrl_cmd->forward_lift_out = fabsf(chassis->cali_state.max_angle[2] - chassis->cali_state.init_angle[2]);
 
         chassis->cali_state.is_max_calibrated = 1;
         first_run = 1;
-        LOGINFO("[Chassis] Max Ext Calibration done!");
+        LOGINFO("[Chassis] Max Ext Calibration done! Independent strokes applied.");
     }
 }
 
@@ -780,6 +773,14 @@ static void LimitChassisOutput()
 
     if (chassis->cali_state.all_cali_done && chassis->cali_state.is_max_calibrated)
     {
+        // 💡 护城河：一旦脱离了爬行模式，强行修改终极目标，安全收回所有腿！
+        if (chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB) {
+            LiftLeg_SetTarget(&chassis->front_legs[LEFT], chassis->cali_state.init_angle[2]);
+            LiftLeg_SetTarget(&chassis->front_legs[RIGHT], chassis->cali_state.init_angle[3]);
+            LiftLeg_SetTarget(&chassis->rear_legs[LEFT], chassis->cali_state.init_angle[0]);
+            LiftLeg_SetTarget(&chassis->rear_legs[RIGHT], chassis->cali_state.init_angle[1]);
+        }
+
         for (int i = 0; i < 2; i++) {
             LiftLeg_Execute(&chassis->front_legs[i]);
             LiftLeg_Execute(&chassis->rear_legs[i]);
@@ -787,7 +788,6 @@ static void LimitChassisOutput()
     }
     PowerControl();
 }
-
 /**
  * @brief 根据每个轮子的速度反馈,计算底盘的实际运动速度,逆运动解算
  *        对于双板的情况,考虑增加来自底盘板IMU的数据
