@@ -206,7 +206,7 @@ static void LegControl() {
   static float leg_current_position_left = 0.0f;
   static float leg_current_position_right = 0.0f;
 
-  const float LEG_SPEED_RAMP_RATE = 0.002f; // 位置渐变速率
+  const float LEG_SPEED_RAMP_RATE = 0.0005f; // 位置渐变速率
   int leg_is_enabled = 0;
   int immediate_move = 0; // 是否立即移动标志
   //uint8_t is_off_ground = DetectOffGround(chassis);
