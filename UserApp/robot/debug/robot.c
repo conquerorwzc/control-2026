@@ -12,7 +12,7 @@ float q2i_coeff = (3591.0f / 187.0f) / reduction_ratio / 0.3f;
 
 // static DMMotorInstance* J8009P_instance;
 static DJIMotorInstance* M3508_instance;
-float speed_ref = 25000.0f;
+float speed_ref = 15000.0f;
 
 void RobotInit() {
   // J8009P_instance = DMMotorInit(&J8009P_config);

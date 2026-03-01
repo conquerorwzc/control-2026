@@ -40,6 +40,7 @@ ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
   deadtime_onebullet = shoot_init_config->shoot_param.deadtime_onebullet;
   target_speed = shoot_init_config->shoot_param.target_speed;
   bullet_speed_adjustment = shoot_init_config->shoot_param.bullet_speed_adjustment;
+  actual_bullet_speed = shoot_init_config->shoot_param.bullet_speed;
   // 初始化弹速控制PID参数
 
   // 初始化弹速控制PID控制器
@@ -105,7 +106,7 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
       break;
       // 单发模式,根据鼠标按下的时间,触发一次之后需要进入不响应输入的状态(否则按下的时间内可能多次进入,导致多次发射)
     case LOAD_1_BULLET:  // 激活能量机关/干扰对方用,英雄用.
-      //ShootBulletSpeedControl();
+      // ShootBulletSpeedControl();
       DJIMotorOuterLoop(shoot->loader_motor, ANGLE_LOOP);  // 切换到角度环
       loader_set = shoot->loader_motor->measure.total_angle +
                    one_bullet_delta_angle * reduction_ratio_loader * loader_direction;  // 控制量增加一发弹丸的角度

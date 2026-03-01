@@ -23,10 +23,10 @@
 // 机器人底盘修改的参数,单位为mm(毫米)
 #define CENTER_GIMBAL_OFFSET_X 0     // 云台旋转中心距底盘几何中心的距离,前后方向,云台位于正中心时默认设为0
 #define CENTER_GIMBAL_OFFSET_Y 0     // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
-#define WHEEL_RADIUS 60              // 轮子半径
+#define WHEEL_RADIUS 77              // 轮子半径
 #define WHEEL_REDUCTION_RATIO 19.0f  // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
-#define TRACK_WIDTH 0.245f
-#define ROBOT_MASS 20.0f
+#define TRACK_WIDTH 0.495f
+#define ROBOT_MASS 22.0f
 #define LEG_MAX_LENGTH 0.370f  // 0.380f
 #define LEG_MIN_LENGTH 0.120f  // 0.112f
 
@@ -129,19 +129,18 @@
               .joint_motor_zero_offset[1] = -9.97 * DEGREE_2_RAD,                                                      \
               .wheel_radius = 0.077f,                                                                                  \
               .wheel_reduction_ratio = 268.0f / 17.0f,                                                                 \
-              .LQR_K_Coefficient = {{{-128.681709314593f, 168.51168153085f, -107.377280744096f, 3.37386685526999f},    \
-                                     {-0.415799394581381f, 1.42957319977758f, -11.3515087995599f, 0.582310383837693f}, \
-                                     {-155.00405523181f, 165.547318237274f, -63.5304497117415f, 2.96650746436095f},    \
-                                     {-115.640419500425f, 124.276503412775f, -50.6377280432471f, 2.14114728425377f},   \
-                                     {92.7247157939283f, 4.79911874206563f, -60.2573208776618f, 24.8334283623644f},    \
-                                     {10.0884891016378f, -3.20724762143808f, -3.49377874941028f, 2.12818680078388f}},  \
-                                    {{1042.98682709445f, -927.336001682425f, 256.128406868144f, -6.93073677677219f},   \
-                                     {142.255517780794f, -131.086626249392f, 39.8859749031435f, -1.13597655605682f},   \
-                                     {649.551747524934f, -528.094582488089f, 119.428203443601f, 1.17720564028683f},    \
-                                     {517.589468714138f, -422.573241627665f, 96.7701123517321f, 1.11233293109882f},    \
-                                     {701.455977800178f, -842.159665191902f, 359.949446487781f, 10.5460771541421f},    \
-                                     {0.0495561614815068f, -17.2950014883842f, 14.2808974017543f,                      \
-                                      1.21300960638201f}}},                                                            \
+              .LQR_K_Coefficient = {{{-254.949910807216f, 264.992529422691f, -128.410638303968f, -0.154476845928784f}, \
+                                     {-11.4856250243731f, 8.38866623801698f, -12.2035143565642f, 0.162419781287222f},  \
+                                     {-142.596111028445f, 135.781540711875f, -45.602186170506f, -0.502037293300635f},  \
+                                     {-107.938736389932f, 103.0144498418f, -37.2047710062459f, -0.686524959232848f},   \
+                                     {-192.792719740433f, 234.29069448931f, -112.022411269925f, 25.6340352430144f},    \
+                                     {-12.7970626354776f, 18.5281200829092f, -10.6211542208126f, 3.05318140090617f}},  \
+                                    {{111.56897342816f, -93.7275512018034f, 22.5235851129767f, 1.51957807978183f},     \
+                                     {12.385750660204f, -11.1077163405009f, 3.35236273974165f, 0.188068287339062f},    \
+                                     {33.2055280498442f, -19.3472369115243f, -1.12221917379629f, 2.46344238266185f},   \
+                                     {25.4289075001501f, -14.7720656240221f, -0.930654250093327f, 2.05235329389703f},  \
+                                     {164.755909333392f, -166.215362151082f, 59.9352825074005f, 28.3705001167793f},    \
+                                     {11.2685428478635f, -12.6140541185171f, 5.16634645370731f, 2.87372190781673f}}},  \
               .MPC_K_Coefficient = {{{18.469921253871f, -8.349638930896f, -18.867859697834f, 0.573605585075f},         \
                                      {-21.986171978260f, -0.053845582011f, 21.942562586148f, -0.340501947054f},        \
                                      {1.151292337293f, -12.079487913318f, -1.197906130555f, 0.215079318915f},          \
@@ -247,7 +246,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 2.5f,
+                            .Kp = 2.2f,
                             .Ki = 0.0f,
                             .Kd = 0.01f,
                             .DeadBand = 0.01f,
@@ -257,8 +256,8 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                         },
                     .speed_PID =
                         {
-                            .Kp = -3000.0f,
-                            .Ki = -300.0f,
+                            .Kp = -2000.0f,
+                            .Ki = -200.0f,
                             .Kd = 0.0f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                             .IntegralLimit = 12000.0f,
@@ -280,7 +279,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 2.0f,
+                            .Kp = 1.8f,
                             .Ki = 0.0f,
                             .Kd = 0.01f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
@@ -289,8 +288,8 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                         },
                     .speed_PID =
                         {
-                            .Kp = -3500.0f,
-                            .Ki = -300.0f,
+                            .Kp = -3000.0f,
+                            .Ki = -200.0f,
                             .Kd = 0.0f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                             .IntegralLimit = 12000.0f,
@@ -346,12 +345,12 @@ static Shoot_Init_Config_s shoot_init_config = {
             .num_per_circle = NUM_PER_CIRCLE,                  // 拨盘一圈的装载量
             .loader_direction = 1,                             // 拨盘旋转方向,1为正向，-1为反向
             .friction_num = 2,                                 // 摩擦轮数量
-            .friction_speed = 40000.0f,                        // 摩擦轮速度
+            .friction_speed = 38000.0f,                        // 摩擦轮速度
             .friction_coefficients = {1.0f, -1.0f},            // 摩擦轮速度比例系数
             .deadtime_burstfire = 50,
             .deadtime_onebullet = 500,
-            .target_speed = 0.0f,
-            .bullet_speed_adjustment = 10.0f,
+            .target_speed = 23.0f,
+            .bullet_speed_adjustment = 500.0f,
         },
     .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan1, 4, MOTOR_DIRECTION_NORMAL, MOTOR_DIRECTION_NORMAL),
     .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan1, 5, MOTOR_DIRECTION_NORMAL, MOTOR_DIRECTION_NORMAL),
@@ -400,12 +399,13 @@ static Shoot_Init_Config_s shoot_init_config = {
 //     .MaxOut = 2.0f,
 // };
 static PID_Init_Config_s chassis_follow_PID_config = {
-    .Kp = 1.5f,
+    .Kp = 1.0f,
     .Ki = 0.0f,
     .Kd = 0.2f,
     .IntegralLimit = 0.1f,
     .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
     .MaxOut = 2.0f,
+    .DeadBand = 0.1f,
 };
 
 static PID_Init_Config_s chassis_rotate_PID_config = {

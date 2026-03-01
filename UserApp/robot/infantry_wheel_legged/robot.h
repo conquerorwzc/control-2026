@@ -4,7 +4,7 @@
 #include "gimbal.h"
 #include "remote_control.h"
 #include "shoot.h"
-// #include "rm_referee.h"
+#include "rm_referee.h"
 #include "can_comm.h"
 #include "master_process.h"
 #include "navigator.h"
@@ -28,6 +28,8 @@ typedef struct {
   // uint8_t rest_heat;            // 剩余枪口热量
   // Bullet_Speed_e bullet_speed;  // 弹速限制
   // Enemy_Color_e enemy_color;    // 0 for blue, 1 for red
+  // 裁判系统数据
+  float bullet_speed;
 } Chassis_Upload_Data_s;  // means the Chassis board, not the component
 
 typedef struct {
@@ -55,7 +57,7 @@ static struct {
 typedef struct {
   Robot_Mode_e robot_mode;  // 机器人整体工作状态
   RC_ctrl_t* rc_data;       // 遥控器数据,初始化时返回
-  // referee_info_t* referee_data;     // 用于获取裁判系统的数据
+  referee_info_t* referee_data;     // 用于获取裁判系统的数据
   float offset_angle;
   SuperCapInstance* super_cap;
   ChassisInstance* chassis;
