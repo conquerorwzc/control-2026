@@ -549,6 +549,10 @@ for (int i = 0; i < 4; i++) {
     SteeringCalculate();
   //else
 
+   SuperCapSendMessage(chassis->super_cap,
+      (int16_t)referee_data->GameRobotState.chassis_power_limit,
+      referee_data->PowerHeatData.buffer_energy,
+      referee_data->GameRobotState.power_management_chassis_output);
   RudderFirst();
   // 功率控制与输出限幅
   LimitChassisOutput();
