@@ -700,17 +700,17 @@ void MyUIInit()
     // UICharRefresh(&referee_recv_info->referee_id, UI_Shoot_dyn[1]);
 
     // 底盘功率显示，静态
-    UICharDraw(&UI_State_sta[5], "ss5", UI_Graph_ADD, 7, UI_Color_Green, 18, 2, 620, 230, "Power:");
-    UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[5]);
+    // UICharDraw(&UI_State_sta[5], "ss5", UI_Graph_ADD, 7, UI_Color_Green, 18, 2, 620, 230, "Power:");
+    // UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[5]);
     // 能量条框
-    UIRectangleDraw(&UI_Energy[0], "ss6", UI_Graph_ADD, 7, UI_Color_Green, 2, 720, 140, 1220, 180);
-    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_Energy[0]);
+    // UIRectangleDraw(&UI_Energy[0], "ss6", UI_Graph_ADD, 7, UI_Color_Green, 2, 720, 140, 1220, 180);
+    // UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_Energy[0]);
 
     // 底盘功率显示,动态
-    UIFloatDraw(&UI_Energy[1], "sd5", UI_Graph_ADD, 8, UI_Color_Green, 18, 2, 2, 750, 230, 24000);
+    // UIFloatDraw(&UI_Energy[1], "sd5", UI_Graph_ADD, 8, UI_Color_Green, 18, 2, 2, 750, 230, 24000);
     // 能量条初始状态
-    UILineDraw(&UI_Energy[2], "sd6", UI_Graph_ADD, 8, UI_Color_Pink, 30, 720, 160, 1020, 160);
-    UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_Energy[1], UI_Energy[2]);
+    // UILineDraw(&UI_Energy[2], "sd6", UI_Graph_ADD, 8, UI_Color_Pink, 30, 720, 160, 1020, 160);
+    // UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_Energy[1], UI_Energy[2]);
 
     UIPitchGaugeInit(960, 540, 390);
 
@@ -794,10 +794,10 @@ void UITask()
     // interactive_data.lid_mode = robotdata->shoot->shoot_ctrl_cmd.load_mode;
     interactive_data.lid_mode = cancomm_pack->load_mode;
 
-    interactive_data.Chassis_Power_Data.chassis_power_mx = robotdata->chassis->chassis_ctrl_cmd.max_power; // 示例功率值
+    // interactive_data.Chassis_Power_Data.chassis_power_mx = robotdata->chassis->chassis_ctrl_cmd.max_power; // 示例功率值
 
     // interactive_data.pitch_angle = robotdata->gimbal->gimbal_ctrl_cmd.pitch;
-    interactive_data.pitch_angle = cancomm_pack->pitch;
+    interactive_data.pitch_angle = (float)cancomm_pack->pitch;
 
     // interactive_data.Shoot_heat = robotdata->shoot->shoot_ctrl_cmd.rest_heat;
     // interactive_data.Shoot_heat = cancomm_pack->rest_heat;
