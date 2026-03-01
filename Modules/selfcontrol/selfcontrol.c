@@ -22,6 +22,12 @@
 static uint8_t  sc_cache[SC_CACHE_SIZE];
 static uint16_t sc_cache_len = 0;
 
+// ===== 统计：用来验证每秒解析到多少帧 =====
+volatile uint32_t sc_stat_frames_ok   = 0;  // CRC16通过且吐出完整帧的次数
+volatile uint32_t sc_stat_crc8_fail   = 0;  // 头CRC8失败次数
+volatile uint32_t sc_stat_crc16_fail  = 0;  // 帧CRC16失败次数
+volatile uint32_t sc_stat_resync_drop = 0;  // 为重新同步丢弃的字节数
+
 // 通过 DMA 计数器推断本次实际接收字节数（不依赖 bsp 传 Size）
 static uint16_t SelfControl_GuessRxSizeFromDma(const USARTInstance* inst)
 {
@@ -71,6 +77,7 @@ static void SelfControl_FeedBytes(const uint8_t* buf, uint16_t len)
         {
             memmove(sc_cache, sc_cache + pos, sc_cache_len - pos);
             sc_cache_len -= pos;
+            sc_stat_resync_drop += pos;
             if (sc_cache_len < SC_HEADER_LEN)
                 break;
         }
@@ -78,6 +85,9 @@ static void SelfControl_FeedBytes(const uint8_t* buf, uint16_t len)
         // 2.2 CRC8 校验帧头
         if (!verify_CRC8_check_sum((unsigned char*)sc_cache, SC_HEADER_LEN))
         {
+            sc_stat_crc8_fail++;
+            sc_stat_resync_drop++;
+
             // 这个 0xA5 不是真帧头，丢 1 字节继续找
             memmove(sc_cache, sc_cache + 1, sc_cache_len - 1);
             sc_cache_len -= 1;
@@ -103,6 +113,9 @@ static void SelfControl_FeedBytes(const uint8_t* buf, uint16_t len)
         // 2.4 CRC16 校验整帧
         if (!verify_CRC16_check_sum(sc_cache, frame_len))
         {
+            sc_stat_crc16_fail++;
+            sc_stat_resync_drop++;
+
             memmove(sc_cache, sc_cache + 1, sc_cache_len - 1);
             sc_cache_len -= 1;
             continue;
@@ -110,6 +123,7 @@ static void SelfControl_FeedBytes(const uint8_t* buf, uint16_t len)
 
         // 2.5 成功得到一帧完整数据：调用你原来的解包入口
         selfcontrol_data_solve(sc_cache);
+        sc_stat_frames_ok++;
 
         // 2.6 移除本帧，继续解析下一帧（一次回调可能吐出多帧）
         memmove(sc_cache, sc_cache + frame_len, sc_cache_len - frame_len);
