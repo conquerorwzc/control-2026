@@ -38,6 +38,9 @@ set(ROBOT_TYPE "sentry_omni_chassis")
 
 include(${CMAKE_SOURCE_DIR}/Hardware/${MCU_TYPE}/${MCU_TYPE}.cmake)
 
+# 将ROBOT_TYPE传递给C预处理器，使C代码中可以使用 #ifdef ROBOT_TYPE_xxx
+add_compile_definitions(ROBOT_TYPE_${ROBOT_TYPE})
+
 # Generic compiler settings for optimization and basic link lib
 add_compile_options(-pipe ${MCU_FLAGS} -Wall -fmessage-length=0 # basic options
         -ffunction-sections -fdata-sections -fno-common # optimize options
