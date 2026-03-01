@@ -14,6 +14,7 @@
 #include "string.h"
 #include "cmsis_os.h"
 #include "robot.h"
+// #include "robot.c"
 
 static referee_info_t *referee_recv_info;            // 接收到的裁判系统数据
 RobotInstance* robotdata;
@@ -132,7 +133,7 @@ typedef struct
     Gimbal_Mode_e gimbal_last_mode;
     Shoot_Mode_e shoot_last_mode;
     Friction_Mode_e friction_last_mode;
-    lid_mode_e lid_last_mode;   
+    lid_mode_e lid_last_mode;
     Chassis_Power_Data_s Chassis_last_Power_Data;
     float last_pitch_angle; // 上一次的俯仰角
     uint8_t last_Shoot_heat;
@@ -156,25 +157,25 @@ static void UIChangeCheck(Referee_Interactive_info_t *_Interactive_data)
         _Interactive_data->Referee_Interactive_Flag.chassis_flag = 1;
         _Interactive_data->chassis_last_mode = _Interactive_data->chassis_mode;
     }
-    
+
     if (_Interactive_data->gimbal_mode != _Interactive_data->gimbal_last_mode)
     {
         _Interactive_data->Referee_Interactive_Flag.gimbal_flag = 1;
         _Interactive_data->gimbal_last_mode = _Interactive_data->gimbal_mode;
     }
-    
+
     if (_Interactive_data->shoot_mode != _Interactive_data->shoot_last_mode)
     {
         _Interactive_data->Referee_Interactive_Flag.shoot_flag = 1;
         _Interactive_data->shoot_last_mode = _Interactive_data->shoot_mode;
     }
-    
+
     if (_Interactive_data->friction_mode != _Interactive_data->friction_last_mode)
     {
         _Interactive_data->Referee_Interactive_Flag.friction_flag = 1;
         _Interactive_data->friction_last_mode = _Interactive_data->friction_mode;
     }
-    
+
     if (_Interactive_data->lid_mode != _Interactive_data->lid_last_mode)
     {
         _Interactive_data->Referee_Interactive_Flag.lid_flag = 1;
@@ -253,7 +254,7 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
         UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[0]);
         interactive_data->Referee_Interactive_Flag.chassis_flag = 0;
     }
-    
+
     // 更新云台状态
     if (interactive_data->Referee_Interactive_Flag.gimbal_flag == 1)
     {
@@ -277,7 +278,7 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
         UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[1]);
         interactive_data->Referee_Interactive_Flag.gimbal_flag = 0;
     }
-    
+
     // 更新射击状态
     if (interactive_data->Referee_Interactive_Flag.shoot_flag == 1)
     {
@@ -286,7 +287,7 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
         UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[2]);
         interactive_data->Referee_Interactive_Flag.shoot_flag = 0;
     }
-    
+
     // 更新摩擦轮状态
     if (interactive_data->Referee_Interactive_Flag.friction_flag == 1)
     {
@@ -295,7 +296,7 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
         UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[3]);
         interactive_data->Referee_Interactive_Flag.friction_flag = 0;
     }
-    
+
     // 更新弹舱盖状态
     if (interactive_data->Referee_Interactive_Flag.lid_flag == 1)
     {
@@ -304,13 +305,13 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
         UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[4]);
         interactive_data->Referee_Interactive_Flag.lid_flag = 0;
     }
-    
+
     // 更新功率显示
     if (interactive_data->Referee_Interactive_Flag.Power_flag == 1)
     {
         int32_t power_value = (int32_t)(interactive_data->Chassis_Power_Data.chassis_power_mx * 1000);
         UIFloatDraw(&UI_Energy[1], "sd5", UI_Graph_Change, 8, UI_Color_Green, 18, 2, 2, 750, 230, power_value);
-        
+
         // 更新能量条长度
         uint32_t energy_bar_length = 720 + (uint32_t)(interactive_data->Chassis_Power_Data.chassis_power_mx * 5);
         UILineDraw(&UI_Energy[2], "sd6", UI_Graph_Change, 8, UI_Color_Pink, 30, 720, 160, energy_bar_length, 160);
@@ -779,27 +780,33 @@ void UITask()
 
     // 更新交互数据（模拟从系统其他部分获取数据）
     // 这些值应该从实际的机器人系统中获取
-    //interactive_data.chassis_mode = CHASSIS_NORMAL;
     interactive_data.chassis_mode = robotdata->chassis->chassis_ctrl_cmd.chassis_mode;
 
-    //interactive_data.gimbal_mode = GIMBAL_NORMAL;
-    interactive_data.gimbal_mode = robotdata->gimbal->gimbal_ctrl_cmd.gimbal_mode;
-    // interactive_data.shoot_mode = SHOOT_OFF;
-    interactive_data.shoot_mode = robotdata->shoot->shoot_ctrl_cmd.shoot_mode;
-    // interactive_data.friction_mode = FRICTION_OFF;
-    interactive_data.friction_mode = robotdata->shoot->shoot_ctrl_cmd.friction_mode;
-    interactive_data.lid_mode = robotdata->shoot->shoot_ctrl_cmd.load_mode;
+    // interactive_data.gimbal_mode = robotdata->gimbal->gimbal_ctrl_cmd.gimbal_mode;
+    interactive_data.gimbal_mode = cancomm_pack->gimbal_mode;
+
+    // interactive_data.shoot_mode = robotdata->shoot->shoot_ctrl_cmd.shoot_mode;
+    interactive_data.shoot_mode = cancomm_pack->shoot_mode;
+
+    // interactive_data.friction_mode = robotdata->shoot->shoot_ctrl_cmd.friction_mode;
+    interactive_data.friction_mode = cancomm_pack->friction_mode;
+
+    // interactive_data.lid_mode = robotdata->shoot->shoot_ctrl_cmd.load_mode;
+    interactive_data.lid_mode = cancomm_pack->load_mode;
+
     interactive_data.Chassis_Power_Data.chassis_power_mx = robotdata->chassis->chassis_ctrl_cmd.max_power; // 示例功率值
 
-    interactive_data.pitch_angle = robotdata->gimbal->gimbal_ctrl_cmd.pitch;
+    // interactive_data.pitch_angle = robotdata->gimbal->gimbal_ctrl_cmd.pitch;
+    interactive_data.pitch_angle = cancomm_pack->pitch;
 
     // interactive_data.Shoot_heat = robotdata->shoot->shoot_ctrl_cmd.rest_heat;
+    // interactive_data.Shoot_heat = cancomm_pack->rest_heat;
     // interactive_data.Shoot_rate = robotdata->shoot->shoot_ctrl_cmd.shoot_rate;
+    // interactive_data.Shoot_rate = cancomm_pack->shoot_rate;
 
-    // 获取新数据（根据实际 robotdata 结构修改字段名）
     // interactive_data.autoaim_mode = robotdata->gimbal->vision_mode;          // 自瞄模式
-    interactive_data.autoaim_mode = robotdata->gimbal->gimbal_ctrl_cmd.gimbal_mode == GIMBAL_VISION ? 1 : 0;  // 自瞄模式(1为开启，0为关闭)
-
+    // interactive_data.autoaim_mode = robotdata->gimbal->gimbal_ctrl_cmd.gimbal_mode == GIMBAL_VISION ? 1 : 0;  // 自瞄模式(1为开启，0为关闭)
+    interactive_data.autoaim_mode = cancomm_pack->gimbal_mode == GIMBAL_VISION ? 1 : 0;  // 自瞄模式(1为开启，0为关闭)
 
     // interactive_data.cap_voltage = robotdata->super_cap->cap_msg.vol / 1000.0f;
     // 检查使用的是哪种超级电容模块
@@ -811,12 +818,13 @@ void UITask()
 
     // interactive_data.cap_mode = robotdata->super_cap->cap_msg.status;
 
-    // interactive_data.bullet_left_real = robotdata->shoot->bullet_left;        // 实体弹丸剩余
     interactive_data.bullet_left_real = referee_recv_info->ProjectileAllowance.projectile_allowance_17mm; // 实体弹丸剩余
 
     //@todo
-    interactive_data.fric_speed_left = -robotdata->shoot->friction_motor[0]->measure.speed_aps; // 左摩擦轮转速（取反使向上为正）
-    interactive_data.fric_speed_right = robotdata->shoot->friction_motor[1]->measure.speed_aps; // 右摩擦轮转速
+    // interactive_data.fric_speed_left = -robotdata->shoot->friction_motor[0]->measure.speed_aps; // 左摩擦轮转速（取反使向上为正）
+    interactive_data.fric_speed_left = -cancomm_pack->friction_speed1; // 左摩擦轮转速（取反使向上为正）
+    // interactive_data.fric_speed_right = robotdata->shoot->friction_motor[1]->measure.speed_aps; // 右摩擦轮转速
+    interactive_data.fric_speed_right = cancomm_pack->friction_speed2; // 右摩擦轮转速
 
     interactive_data.chassis_relative_angle = robotdata->chassis->chassis_ctrl_cmd.offset_angle; // 底盘相对于云台的角度
 
