@@ -398,6 +398,7 @@ static void Gantry_Limit(Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd, const Gantry_Param_
 
 /**
  * @brief 处理自定义控制器数据
+ * @todo零点要写死，大pitch是反的
  */
 static void ProcessCustomControllerData() {
      if (robot->self_control != NULL) {
