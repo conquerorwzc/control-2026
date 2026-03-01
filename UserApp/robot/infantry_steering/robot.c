@@ -344,7 +344,7 @@ void RobotInit() {
   *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
 
   robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
-  robot->super_cap = SuperCapInit(&supercab_init_config);
+  //robot->super_cap = SuperCapInit(&supercab_init_config);
   // robot->super_cap = QQSuperCapInit(&super_cap_config);
 
 // #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
@@ -443,10 +443,10 @@ void RobotTask() {
     //ShootTask();
     ChassisTask();
 
-    SuperCapSendMessage(robot->super_cap,
-      (int16_t)robot->referee_data->GameRobotState.chassis_power_limit,
-      robot->referee_data->PowerHeatData.buffer_energy,
-      robot->referee_data->GameRobotState.power_management_chassis_output);
+    // SuperCapSendMessage(robot->super_cap,
+    //   (int16_t)robot->referee_data->GameRobotState.chassis_power_limit,
+    //   robot->referee_data->PowerHeatData.buffer_energy,
+    //   robot->referee_data->GameRobotState.power_management_chassis_output);
     //将原本motortask的can发送改到这里，和pid计算同频，减少无用发送
     //DJIMotorCANTransmit();
   }
