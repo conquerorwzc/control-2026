@@ -212,7 +212,7 @@ typedef struct {
     float vy;
     float wz;
   } __attribute__((__packed__)) speed_vector;
-  float yaw_deg;
+
 //   // 底盘控制
 //   struct {
 //     float roll;

@@ -122,11 +122,11 @@ static void RemoteControlSet() {
         gimbal_ctrl_cmd->yaw=vision_recv_data->gimbal_receive.yaw;
         gimbal_ctrl_cmd->pitch=vision_recv_data->gimbal_receive.pitch;
         // shoot_ctrl_cmd->load_mode=vision_recv_data->shoot_receive.fire_flag;
-        NotFountTime=DWT_GetTimeline_s();                   //识别到装甲板
+        NotFountTime=time;                   //识别到装甲板
       }
-      else if (DWT_GetTimeline_s()-NotFountTime>0.5f){      //丢失目标超0.5秒，进入寻敌模式
+      else if (time-NotFountTime>0.5f){      //丢失目标超0.5秒，进入寻敌模式
         gimbal_ctrl_cmd->yaw+=0.15f;
-        gimbal_ctrl_cmd->pitch+=0.045f*cosf(PI*1.5*DWT_GetTimeline_s());
+        gimbal_ctrl_cmd->pitch+=0.045f*cosf(PI*1.5*time);
       }
     }
     *rc_data_last = *rc_data;
@@ -285,8 +285,22 @@ static void RemoteControlSet() {
   if (robot->control_mode == AUTO_MODE) {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_VISION;
   }
-  
-  // *vt13_rc_data_last = *vt13_rc_data;
+
+  if (robot->control_mode == AUTO_MODE) // 自动控制，直接接收上位机控制量
+  {
+    // float NotFountTime=0;                                 //没有识别到装甲板的时间
+    // gimbal_ctrl_cmd->gimbal_mode=GIMBAL_VISION;           //自瞄开启
+    // if (has_non_zero_data(vision_recv_data)==1){
+    //   gimbal_ctrl_cmd->yaw=vision_recv_data->gimbal_receive.yaw;
+    //   gimbal_ctrl_cmd->pitch=vision_recv_data->gimbal_receive.pitch;
+    //   // shoot_ctrl_cmd->load_mode=vision_recv_data->shoot_receive.fire_flag;
+    //   NotFountTime=time;                   //识别到装甲板
+    // }
+    // else if (time-NotFountTime>0.5f){      //丢失目标超0.5秒，进入寻敌模式
+    // gimbal_ctrl_cmd->yaw+=0.15f;
+    //   gimbal_ctrl_cmd->pitch+=0.045f*cosf(PI*1.5*time);//cos里数字越大，旋转速度越快
+    }
+  }
 }
 
 static void MouseKeySet() {
