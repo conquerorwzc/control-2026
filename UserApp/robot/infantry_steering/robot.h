@@ -55,6 +55,9 @@ typedef struct {
   ShootInstance* shoot;
 
 } RobotInstance;
+
+extern CanComm_Pack* cancomm_pack;
+
 #include "can_comm.h"
 #include "bsp_can.h"
 //#define DEVICE_ROLE_TX 1 // 发送板：定义为1

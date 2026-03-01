@@ -347,8 +347,8 @@ static Chassis_Init_Config_s chassis_init_config = {
 #endif
 
 static CANComm_Init_Config_s comm_config = {
-  .recv_data_len = 26,        // 接收数据长度，根据实际需求调整
-  .send_data_len = 28,        // 发送数据长度，根据实际需求调整
+  .recv_data_len = 36,        // 接收数据长度，根据实际需求调整
+  .send_data_len = 36,        // 发送数据长度，根据实际需求调整
   .daemon_count = 10,      // 看门狗重载计数，根据实际需求调整
   .can_config = {
     .can_handle = &hcan1,  // 假设使用CAN1，根据实际使用的CAN句柄调整

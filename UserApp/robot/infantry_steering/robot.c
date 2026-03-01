@@ -22,7 +22,7 @@ static Shoot_Ctrl_Cmd_s *shoot_ctrl_cmd;
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 float temp=24.0f;
-static CanComm_Pack* cancomm_pack;
+CanComm_Pack* cancomm_pack;
 
 // typedef enum {
 //   SAFETY_MODE=0,//安全模式，超电电压低于8伏时进入，大于18伏退出，底盘限制30W
@@ -331,7 +331,7 @@ RobotInstance * RobotInit() {
   if (robot!=NULL)
     return robot;
   //要在云台和底盘任务开始之前完成该任务的初始化
-  vTaskDelay(CAN_COMM_TASK_INIT_TIME);
+  // vTaskDelay(CAN_COMM_TASK_INIT_TIME);
   // 初始化CAN接收
   can_comm_instance = CANCommInit(&comm_config);
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
