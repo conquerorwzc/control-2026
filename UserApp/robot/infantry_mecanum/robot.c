@@ -189,17 +189,14 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   switch (rc_data[TEMP].mouse.press_l % 2)        // 左键发射
   {
   case 0:
-      if (!switch_is_up(rc_data[TEMP].rc.switch_left))
-      {
-        shoot_ctrl_cmd->load_mode=LOAD_STOP;
-        trigger_time = DWT_GetTimeline_s();
-      }
+      shoot_ctrl_cmd->load_mode=LOAD_STOP;
+      trigger_time = DWT_GetTimeline_s();
       break;
   default:
     switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 2)  // E键设置发射模式
     {
       case 0:                                              //单发+长按连发
-        if (shoot_ctrl_cmd->friction_mode==FRICTION_ON&&(vision_recv_data->shoot_receive.fire_flag||rc_data[TEMP].mouse.press_r % 2==0))   //需预先开启摩擦轮
+        if (shoot_ctrl_cmd->friction_mode==FRICTION_ON)   //需预先开启摩擦轮，F键
         {
             shoot_ctrl_cmd->load_mode=LOAD_1_BULLET;
           if (DWT_GetTimeline_s() - trigger_time > 1.0f)  //长按检测，1秒
@@ -225,10 +222,10 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
       chassis_ctrl_cmd->chassis_speed_buff = 20000;
       break;
     case 2:
-      chassis_ctrl_cmd->chassis_speed_buff = 30000;
+      chassis_ctrl_cmd->chassis_speed_buff = 40000;
       break;
     default:
-      chassis_ctrl_cmd->chassis_speed_buff = 40000;
+      chassis_ctrl_cmd->chassis_speed_buff = 80000;
       break;
   }
   // switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Q]%2) //新增Q自旋开启
@@ -268,7 +265,7 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
  */
 static void EmergencyHandler() {
   // 两switch都在下断电
-    if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left))||switch_is_off(rc_data[TEMP].rc.switch_left)||switch_is_off(rc_data[TEMP].rc.switch_right))  // 全部失能
+    if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left))||!RemoteControlIsOnline())  // 全部失能
     {
       robot->robot_mode = ROBOT_POWER_ON;
       gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
@@ -282,7 +279,7 @@ static void EmergencyHandler() {
     } else {
       LOGINFO("[CMD] reinstate, robot ready");
     }
-    if (switch_is_down(rc_data[TEMP].rc.switch_right)||switch_is_off(rc_data[TEMP].rc.switch_right))  // 底盘失能
+    if (switch_is_down(rc_data[TEMP].rc.switch_right)||!RemoteControlIsOnline())  // 底盘失能
     {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
     }
@@ -290,7 +287,7 @@ static void EmergencyHandler() {
       {
     gimbal_ctrl_cmd->gimbal_mode=GIMBAL_ON;
       }
-    if (switch_is_down(rc_data[TEMP].rc.switch_left)||switch_is_off(rc_data[TEMP].rc.switch_left))  // 发射失能
+    if (switch_is_down(rc_data[TEMP].rc.switch_left)||!RemoteControlIsOnline())  // 发射失能
     {
       shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
       shoot_ctrl_cmd->friction_mode = FRICTION_OFF;

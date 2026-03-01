@@ -184,12 +184,12 @@ static void RemoteControlSet() {
  *
  */
 static void MouseKeySet() {
-  vy_initial += (float)((rc_data[TEMP].key[KEY_PRESS].w) - rc_data[TEMP].key[KEY_PRESS].s) *
-                (float)chassis_ctrl_cmd->chassis_speed_buff;
+   vy_initial += (float)((rc_data[TEMP].key[KEY_PRESS].w) - rc_data[TEMP].key[KEY_PRESS].s) *
+                         (float) chassis_ctrl_cmd->chassis_speed_buff;
   vx_initial += (float)(rc_data[TEMP].key[KEY_PRESS].a - rc_data[TEMP].key[KEY_PRESS].d) *
-                (float)-chassis_ctrl_cmd->chassis_speed_buff;
+                         (float) -chassis_ctrl_cmd->chassis_speed_buff;
 
-  //缓加速
+    //缓加速
   if (abs(vx_initial)<=10000) {
     x_speed_time=DWT_GetTimeline_s();
     chassis_ctrl_cmd->vx=vx_initial;
@@ -210,30 +210,11 @@ static void MouseKeySet() {
   if (vy_initial < -10000&&chassis_ctrl_cmd->vy>= 60.0f * (float)rc_data[TEMP].rc.rocker_l1) {
     chassis_ctrl_cmd->vy=-10000-(DWT_GetTimeline_s()-y_speed_time)*10000;
   }//速度绝对值在10000以上输出控制量=10000+10000t(s)
-  switch (rc_data[TEMP].mouse.press_r % 2) {  //右键进入自瞄预备模式
-    case 1:
-      if (has_non_zero_data(vision_recv_data)==1){
-        gimbal_ctrl_cmd->gimbal_mode=GIMBAL_VISION;    // 右键自瞄开启
-        gimbal_ctrl_cmd->yaw=vision_recv_data->gimbal_receive.yaw;
-        gimbal_ctrl_cmd->pitch=vision_recv_data->gimbal_receive.pitch;
-        //shoot_ctrl_cmd->load_mode=vision_recv_data->shoot_receive.fire_flag;
-      }
-      else
-        gimbal_ctrl_cmd->gimbal_mode=GIMBAL_ON;      //人工操控模式
-      break;
-    default:
-      break;
-  }
-  switch (rc_data[TEMP].mouse.press_l % 2)        // 左键发射
+
+if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   {
-    case 0:
-      if (!switch_is_up(rc_data[TEMP].rc.switch_left))
-      {
-        shoot_ctrl_cmd->load_mode=LOAD_STOP;
-        trigger_time = DWT_GetTimeline_s();
-      }
-      break;
-    default:
+  gimbal_ctrl_cmd->yaw -= (float)rc_data[TEMP].mouse.x * 0.007f;  // 横向灵敏度调节
+  gimbal_ctrl_cmd->pitch += (float)rc_data[TEMP].mouse.y * 0.003f; // 纵向灵敏度调节 (负号反转Y轴)
   }
   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Z] % 3)  // Z键设置弹速
   {
@@ -247,23 +228,73 @@ static void MouseKeySet() {
       shoot_ctrl_cmd->bullet_speed = 30;
       break;
   }
-
+  switch (rc_data[TEMP].mouse.press_r % 2) {  //右键进入自瞄预备模式
+  case 1:
+      if (has_non_zero_data(vision_recv_data)==1){
+        gimbal_ctrl_cmd->gimbal_mode=GIMBAL_VISION;    // 右键自瞄开启
+        gimbal_ctrl_cmd->yaw=vision_recv_data->gimbal_receive.yaw;
+        gimbal_ctrl_cmd->pitch=vision_recv_data->gimbal_receive.pitch;
+        //shoot_ctrl_cmd->load_mode=vision_recv_data->shoot_receive.fire_flag;
+      }
+      else
+        gimbal_ctrl_cmd->gimbal_mode=GIMBAL_ON;      //人工操控模式
+      break;
+  default:
+      break;
+  }
+  switch (rc_data[TEMP].mouse.press_l % 2)        // 左键发射
+  {
+  case 0:
+      shoot_ctrl_cmd->load_mode=LOAD_STOP;
+      trigger_time = DWT_GetTimeline_s();
+      break;
+  default:
+    switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 2)  // E键设置发射模式
+    {
+      case 0:                                              //单发+长按连发
+        if (shoot_ctrl_cmd->friction_mode==FRICTION_ON)   //需预先开启摩擦轮，F键
+        {
+            shoot_ctrl_cmd->load_mode=LOAD_1_BULLET;
+          if (DWT_GetTimeline_s() - trigger_time > 1.0f)  //长按检测，1秒
+          {
+            shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+          }
+          break;
+          default:                                         //连发
+          if (shoot_ctrl_cmd->friction_mode==FRICTION_ON)
+          shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+          break;
+        }
+    }
+      break;
+  }
 
   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_C] % 4)  // C键设置底盘速度
   {
     case 0:
-      chassis_ctrl_cmd->chassis_speed_buff = 40;
+      chassis_ctrl_cmd->chassis_speed_buff = 10000;
       break;
     case 1:
-      chassis_ctrl_cmd->chassis_speed_buff = 60;
+      chassis_ctrl_cmd->chassis_speed_buff = 20000;
       break;
     case 2:
-      chassis_ctrl_cmd->chassis_speed_buff = 80;
+      chassis_ctrl_cmd->chassis_speed_buff = 40000;
       break;
     default:
-      chassis_ctrl_cmd->chassis_speed_buff = 100;
+      chassis_ctrl_cmd->chassis_speed_buff = 80000;
       break;
   }
+  // switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Q]%2) //新增Q自旋开启
+  // {
+  //   case 0:
+  //     chassis_ctrl_cmd-> chassis_mode = CHASSIS_FOLLOW ;
+  //     chassis_ctrl_cmd->wz+=(float)rc_data[TEMP].mouse.x * 30.0f; //主动跟随量
+  //     break;
+  //   default:
+  //     chassis_ctrl_cmd-> chassis_mode = CHASSIS_ROTATE ;
+  //     break;
+  // }
+
   switch (rc_data[TEMP].key[KEY_PRESS].shift)  // 待添加 按shift允许超功率 消耗缓冲能量
   {
     case 1:
@@ -273,6 +304,14 @@ static void MouseKeySet() {
     default:
 
       break;
+  }
+  // 当腿部抬起时，使用编码器解算的角度进行限位，防止机械碰撞
+  if (gimbal_ctrl_cmd->pitch < new_max_pitch) {
+    // 如果实际角度超过上限，限制目标角度
+    gimbal_ctrl_cmd->pitch = new_max_pitch;
+  } else if (gimbal_ctrl_cmd->pitch > new_min_pitch) {
+    // 如果实际角度低于下限，限制目标角度
+    gimbal_ctrl_cmd->pitch = new_min_pitch;
   }
 }
 #else
@@ -653,6 +692,6 @@ void RobotTask() {
   GimbalTask();
   ShootTask();
 
-  ChassisTask();
+  // ChassisTask();
 
 }

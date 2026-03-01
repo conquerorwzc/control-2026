@@ -46,11 +46,11 @@
 #define GYRO2GIMBAL_DIR_ROLL 1   // 陀螺仪数据相较于云台的roll的方向,1为相同,-1为相反
 // 腿部电机位置定义
 #define LEFT_LEG_MOTOR_NORMAL_POSITION -2.418f   // 腿部电机常规位置值
-#define LEFT_LEG_MOTOR_RAISE_POSITION  -1.838f  // 腿部电机抬起位置值
+#define LEFT_LEG_MOTOR_RAISE_POSITION  -1.938f  // 腿部电机抬起位置值
 #define LEFT_LEG_MOTOR_CRUISE_POSITION -2.088f
 #define LEFT_LEG_MOTOR_KIKE_POSITION -1.675f     // 腿部电机踢脚位置值
 #define RIGHT_LEG_MOTOR_NORMAL_POSITION 2.211f   // 腿部电机常规位置值
-#define RIGHT_LEG_MOTOR_RAISE_POSITION  1.679f  // 腿部电机抬起位置值
+#define RIGHT_LEG_MOTOR_RAISE_POSITION  1.731f  // 腿部电机抬起位置值
 #define RIGHT_LEG_MOTOR_CRUISE_POSITION 1.911f
 #define RIGHT_LEG_MOTOR_KIKE_POSITION 1.468f  // 腿部电机踢脚位置值
 // 轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
@@ -301,9 +301,9 @@ static Gimbal_Init_Config_s gimbal_init_config = {
           {                                          \
               .speed_PID =                           \
                   {                                  \
-                      .Kp = 1.8f,                    \
-                      .Ki = 0.00f,                   \
-                      .Kd = 0.0f,                   \
+                      .Kp = 2.0f,                    \
+                      .Ki = 0.05f,                   \
+                      .Kd = 0.01f,                   \
                       .Improve = PID_Integral_Limit, \
                       .IntegralLimit = 10000.0f,     \
                       .MaxOut = 15000.0f,            \
@@ -334,7 +334,7 @@ static Shoot_Init_Config_s shoot_init_config = {
             .num_per_circle = 6,                          // 拨盘一圈的装载量
             .loader_direction = -1,                       // 拨盘旋转方向,1为正向，-1为反向
             .friction_num = 3,                            // 摩擦轮数量
-            .friction_speed = 26000.0f,                   // 摩擦轮速度
+            .friction_speed = 26500.0f,                   // 摩擦轮速度
             .friction_coefficients = {1.0f, -1.0f, 1.1f},  // 摩擦轮速度比例系数
             .deadtime_burstfire = 500,
             .deadtime_onebullet = 1000,
@@ -355,18 +355,19 @@ static Shoot_Init_Config_s shoot_init_config = {
                             .Kp = 20.0f,
                             .Ki = 0.0f,
                             .Kd = 0.008f,
-                            .MaxOut = 50000.0f,
+                            .MaxOut = 30000.0f,
                         },
                     .speed_PID =
                         {
-                            .Kp = 2.0f,
+                            .Kp = 1.8f,
                             .Ki = 0.1f,
                             .Kd = 0.0f,
                             .Improve = PID_Integral_Limit | PID_ErrorHandle,
                             .IntegralLimit = 7000.0f,
-                            .MaxOut = 16000.0f,
+                            .MaxOut = 15000.0f,
                         },
                 },
+
             .motor_type = M3508,
             .can_init_config =
                 {
