@@ -101,7 +101,7 @@ typedef enum {
   LEN_game_robot_state = 13,         // 0x0201
   LEN_power_heat_data = 14,          // 0x0202
   LEN_game_robot_pos = 16,           // 0x0203
-  LEN_buff_musk = 7,                 // 0x0204
+  LEN_buff_musk = 8,                 // 0x0204
   // LEN_aerial_robot_energy = 2,				 // 0x0205
   LEN_robot_hurt = 1,                           // 0x0206
   LEN_shoot_data = 7,                           // 0x0207
@@ -222,7 +222,7 @@ typedef struct
 typedef struct
 {
   uint8_t recovery_buff;  // 机器人回血增益（百分比，值为10表示每秒恢复血量上限的10%）
-  uint8_t cooling_buff;  // 机器人射击热量冷却增益具体值（直接值，值为x表示热量冷却增加x/s）
+  uint16_t cooling_buff;  // 机器人射击热量冷却增益具体值（直接值，值为x表示热量冷却增加x/s）
   uint8_t defence_buff;   // 机器人防御增益（百分比，值为50表示50%防御增益）
   uint8_t vulnerability_buff;  // 机器人负防御增益（百分比，值为30表示-30%防御增益）
   uint16_t attack_buff;	// 机器人攻击增益（百分比，值为50表示50%攻击增益）
