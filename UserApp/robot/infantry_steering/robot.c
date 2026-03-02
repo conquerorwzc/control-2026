@@ -13,6 +13,7 @@ typedef struct {
   uint16_t Heat;
 } upload_data;
 #pragma pack()
+
 static RobotInstance *robot;
 static upload_data upload;
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
@@ -23,7 +24,7 @@ static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 float temp=24.0f;
 CanComm_Pack* cancomm_pack;
-
+Referee_Interactive_info_t *interactive_data;
 // typedef enum {
 //   SAFETY_MODE=0,//安全模式，超电电压低于8伏时进入，大于18伏退出，底盘限制30W
 //   PASSIVE_MODE,//被动模式，超电电压正常时的工作模式
@@ -170,8 +171,57 @@ static void DualBoardCtrlSet() {
     robot->gimbal->gimbal_ctrl_cmd.pitch = -(float)cancomm_pack->pitch;
     robot->shoot->shoot_ctrl_cmd.rest_heat=cancomm_pack->rest_heat;
     robot->shoot->shoot_ctrl_cmd.shoot_rate = cancomm_pack->shoot_rate;
-    robot->shoot->friction_motor[0]->measure.speed_aps = cancomm_pack->friction_speed1;
-    robot->shoot->friction_motor[1]->measure.speed_aps = cancomm_pack->friction_speed2;
+    robot->shoot->friction_motor[0]->measure.speed_aps = (float)cancomm_pack->friction_speed1;
+    robot->shoot->friction_motor[1]->measure.speed_aps = (float)cancomm_pack->friction_speed2;
+
+      interactive_data->chassis_mode = robot->chassis->chassis_ctrl_cmd.chassis_mode;
+
+   // interactive_data.gimbal_mode = robotdata->gimbal->gimbal_ctrl_cmd.gimbal_mode;
+     interactive_data->gimbal_mode = cancomm_pack->gimbal_mode;
+
+    //interactive_data.shoot_mode = robotdata->shoot->shoot_ctrl_cmd.shoot_mode;
+     interactive_data->shoot_mode = cancomm_pack->shoot_mode;
+
+    //interactive_data.friction_mode = robotdata->shoot->shoot_ctrl_cmd.friction_mode;
+     interactive_data->friction_mode = cancomm_pack->friction_mode;
+
+    //interactive_data.lid_mode = robotdata->shoot->shoot_ctrl_cmd.load_mode;
+     interactive_data->lid_mode = cancomm_pack->load_mode;
+
+    // interactive_data.Chassis_Power_Data.chassis_power_mx = robotdata->chassis->chassis_ctrl_cmd.max_power; // 示例功率值
+
+    //interactive_data.pitch_angle = robotdata->gimbal->gimbal_ctrl_cmd.pitch;
+     interactive_data->pitch_angle = -(float)cancomm_pack->pitch;
+
+    // interactive_data.Shoot_heat = robotdata->shoot->shoot_ctrl_cmd.rest_heat;
+     interactive_data->Shoot_heat = cancomm_pack->rest_heat;
+    // interactive_data.Shoot_rate = robotdata->shoot->shoot_ctrl_cmd.shoot_rate;
+     interactive_data->Shoot_rate = cancomm_pack->shoot_rate;
+
+    // interactive_data.autoaim_mode = robotdata->gimbal->vision_mode;          // 自瞄模式
+    //interactive_data.autoaim_mode = robotdata->gimbal->gimbal_ctrl_cmd.gimbal_mode == GIMBAL_VISION ? 1 : 0;  // 自瞄模式(1为开启，0为关闭)
+     interactive_data->autoaim_mode = cancomm_pack->gimbal_mode == GIMBAL_VISION ? 1 : 0;  // 自瞄模式(1为开启，0为关闭)
+
+    // interactive_data.cap_voltage = robotdata->super_cap->cap_msg.vol / 1000.0f;
+    // 检查使用的是哪种超级电容模块
+    // #ifdef QQ_SUPER_CAP
+    //   interactive_data.cap_voltage = robotdata->super_cap->cap_msg.vol;  // 齐奇模块，已是伏特单位
+    // #else
+    //interactive_data.cap_voltage = robotdata->super_cap->cap_msg.cap_v;  // 标准模块，需要转换为伏特
+    // #endif
+
+    // interactive_data.cap_mode = robotdata->super_cap->cap_msg.status;
+
+    //interactive_data.bullet_left_real = referee_recv_info->ProjectileAllowance.projectile_allowance_17mm; // 实体弹丸剩余
+
+    //interactive_data.fric_speed_left = (uint16_t)robotdata->shoot->friction_motor[0]->measure.speed_aps; // 左摩擦轮转速（取反使向上为正）
+     interactive_data->fric_speed_left = cancomm_pack->friction_speed1; // 左摩擦轮转速（取反使向上为正）
+    //interactive_data.fric_speed_right = (uint16_t)robotdata->shoot->friction_motor[1]->measure.speed_aps; // 右摩擦轮转速
+     interactive_data->fric_speed_right = cancomm_pack->friction_speed2; // 右摩擦轮转速
+
+    interactive_data->chassis_relative_angle = robot->chassis->chassis_ctrl_cmd.offset_angle; // 底盘相对于云台的角度
+
+
     // robot->chassis->chassis_ctrl_cmd.max_power=chassis_ctrl_cmd->max_power;
     // 如果收到数据，可以在这里处理
     // if (received_data != NULL) {
@@ -364,7 +414,8 @@ RobotInstance * RobotInit() {
 // #endif
 
   robot->chassis = ChassisInit(&chassis_init_config);
-
+  //robot->shoot=(ShootInstance*)zmalloc(sizeof(ShootInstance));
+    interactive_data=getUI();
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   chassis_ctrl_cmd->max_power = 80;  // 随便给一个初始功率，后面应该要从裁判系统获取

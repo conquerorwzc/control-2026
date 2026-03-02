@@ -87,17 +87,7 @@ static Graph_Data_t Line_DecoMid;
 static Graph_Data_t Arc_DecoUp;
 static Graph_Data_t Arc_DecoDown;
 
-typedef enum
-{
-    LID_CLOSE = 0,
-    LID_OPEN
-} lid_mode_e;
 
-typedef struct
-{
-    float chassis_power_mx; // 最大功率限制
-    float chassis_power;    // 当前功率
-} Chassis_Power_Data_s;
 
 // typedef struct
 // {
@@ -109,45 +99,7 @@ typedef struct
 //     uint32_t Power_flag : 1;
 // } Referee_Interactive_Flag_t;
 
-typedef struct
-{
-    Referee_Interactive_Flag_t Referee_Interactive_Flag;
-    // 为UI绘制以及交互数据所用
-    Chassis_Mode_e chassis_mode;    // 底盘模式
-    Gimbal_Mode_e gimbal_mode;      // 云台模式
-    Shoot_Mode_e shoot_mode;        // 发射模式设置
-    Friction_Mode_e friction_mode;  // 摩擦轮关闭
-    lid_mode_e lid_mode;            // 弹舱盖打开
-    Chassis_Power_Data_s Chassis_Power_Data; // 功率控制
-    float pitch_angle; // 云台俯仰角
-    uint8_t Shoot_heat;
-    float Shoot_rate;
-    uint8_t autoaim_mode;           // 当前自瞄模式 (0/1/2)
-    float cap_voltage;               // 电容电压 (V)
-    uint8_t cap_mode;                // 电容模式 (0关/1开/2超级)
-    uint16_t bullet_left_real;       // 实体弹丸剩余量
-    uint16_t fric_speed_left;         // 左摩擦轮转速
-    uint16_t fric_speed_right;        // 右摩擦轮转速
-    float chassis_relative_angle;    // 底盘相对角度 (弧度)
 
-    // 上一次的模式，用于flag判断
-    Chassis_Mode_e chassis_last_mode;
-    Gimbal_Mode_e gimbal_last_mode;
-    Shoot_Mode_e shoot_last_mode;
-    Friction_Mode_e friction_last_mode;
-    lid_mode_e lid_last_mode;
-    Chassis_Power_Data_s Chassis_last_Power_Data;
-    float last_pitch_angle; // 上一次的俯仰角
-    uint8_t last_Shoot_heat;
-    float last_Shoot_rate;
-    uint8_t last_autoaim_mode;
-    float last_cap_voltage;
-    uint8_t last_cap_mode;
-    uint16_t last_bullet_left_real;
-    uint16_t last_fric_speed_left;
-    uint16_t last_fric_speed_right;
-    float last_chassis_relative_angle;
-} Referee_Interactive_info_t;
 
 static Referee_Interactive_info_t interactive_data;
 
@@ -660,6 +612,7 @@ void UIPitchGaugeInit(uint32_t center_x,uint32_t center_y,uint32_t radius) {
 }
 
 //newend
+
 void MyUIInit()
 {
   robotdata=RobotGet();
@@ -810,57 +763,15 @@ void UITask()
 
     // 更新交互数据（模拟从系统其他部分获取数据）
     // 这些值应该从实际的机器人系统中获取
-    interactive_data.chassis_mode = robotdata->chassis->chassis_ctrl_cmd.chassis_mode;
-
-    interactive_data.gimbal_mode = robotdata->gimbal->gimbal_ctrl_cmd.gimbal_mode;
-    // interactive_data.gimbal_mode = cancomm_pack->gimbal_mode;
-
-    interactive_data.shoot_mode = robotdata->shoot->shoot_ctrl_cmd.shoot_mode;
-    // interactive_data.shoot_mode = cancomm_pack->shoot_mode;
-
-    interactive_data.friction_mode = robotdata->shoot->shoot_ctrl_cmd.friction_mode;
-    // interactive_data.friction_mode = cancomm_pack->friction_mode;
-
-    interactive_data.lid_mode = robotdata->shoot->shoot_ctrl_cmd.load_mode;
-    // interactive_data.lid_mode = cancomm_pack->load_mode;
-
-    // interactive_data.Chassis_Power_Data.chassis_power_mx = robotdata->chassis->chassis_ctrl_cmd.max_power; // 示例功率值
-
-    interactive_data.pitch_angle = robotdata->gimbal->gimbal_ctrl_cmd.pitch;
-    // interactive_data.pitch_angle = -(float)cancomm_pack->pitch;
-
-    // interactive_data.Shoot_heat = robotdata->shoot->shoot_ctrl_cmd.rest_heat;
-    // interactive_data.Shoot_heat = cancomm_pack->rest_heat;
-    // interactive_data.Shoot_rate = robotdata->shoot->shoot_ctrl_cmd.shoot_rate;
-    // interactive_data.Shoot_rate = cancomm_pack->shoot_rate;
-
-    // interactive_data.autoaim_mode = robotdata->gimbal->vision_mode;          // 自瞄模式
-    interactive_data.autoaim_mode = robotdata->gimbal->gimbal_ctrl_cmd.gimbal_mode == GIMBAL_VISION ? 1 : 0;  // 自瞄模式(1为开启，0为关闭)
-    // interactive_data.autoaim_mode = cancomm_pack->gimbal_mode == GIMBAL_VISION ? 1 : 0;  // 自瞄模式(1为开启，0为关闭)
-
-    // interactive_data.cap_voltage = robotdata->super_cap->cap_msg.vol / 1000.0f;
-    // 检查使用的是哪种超级电容模块
-    // #ifdef QQ_SUPER_CAP
-    //   interactive_data.cap_voltage = robotdata->super_cap->cap_msg.vol;  // 齐奇模块，已是伏特单位
-    // #else
-    interactive_data.cap_voltage = robotdata->super_cap->cap_msg.cap_v;  // 标准模块，需要转换为伏特
-    // #endif
-
-    // interactive_data.cap_mode = robotdata->super_cap->cap_msg.status;
-
-    interactive_data.bullet_left_real = referee_recv_info->ProjectileAllowance.projectile_allowance_17mm; // 实体弹丸剩余
-
-    interactive_data.fric_speed_left = robotdata->shoot->friction_motor[0]->measure.speed_aps; // 左摩擦轮转速（取反使向上为正）
-    // interactive_data.fric_speed_left = cancomm_pack->friction_speed1; // 左摩擦轮转速（取反使向上为正）
-    interactive_data.fric_speed_right = robotdata->shoot->friction_motor[1]->measure.speed_aps; // 右摩擦轮转速
-    // interactive_data.fric_speed_right = cancomm_pack->friction_speed2; // 右摩擦轮转速
-
-    interactive_data.chassis_relative_angle = robotdata->chassis->chassis_ctrl_cmd.offset_angle; // 底盘相对于云台的角度
 
     // 检查是否有变化
     UIChangeCheck(&interactive_data);
 
     // 执行UI刷新
     MyUIRefresh(&interactive_data);
+}
+Referee_Interactive_info_t* getUI()
+{
+    return &interactive_data;
 }
 #endif

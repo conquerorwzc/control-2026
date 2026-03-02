@@ -4,6 +4,7 @@
 #include "gimbal.h"
 #include "shoot.h"
 #include "can_comm.h"
+#include "HI05.h"
 #define BOARD_TX_ID 0x10
 #define BOARD_RX_ID 0x311
 
@@ -106,7 +107,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
       .Roll = 0.0f,
     .GyroOffset = {0.00253310893f, 0.00196733163f, 0.000239364381f},
   },
-  .hi05_uart_handle = &huart1,
+  //.hi05_uart_handle = &huart1,
 };
 
 #define FRICTION_MOTOR_CONFIG(handle, id, direction) \

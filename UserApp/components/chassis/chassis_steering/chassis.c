@@ -500,7 +500,7 @@ void ChassisTask() {
          chassis->super_cap_mode=CHARGING_MODE;
        if (chassis_ctrl_cmd->SuperCapBoost!=1)
          chassis->super_cap_mode=PASSIVE_MODE;
-       chassis->chassis_ctrl_cmd.max_power=140;
+       chassis->chassis_ctrl_cmd.max_power=180;
        break;
      default:
        chassis->super_cap_mode=SAFETY_MODE;
@@ -522,7 +522,7 @@ void ChassisTask() {
       break;
     case CHASSIS_ROTATE:  // 自旋,同时保持全向机动;当前wz维持定值,后续增加不规则的变速策略
 
-      chassis_ctrl_cmd->offset_angle += 0.001f * chassis_ctrl_cmd->wz;
+      chassis_ctrl_cmd->offset_angle += 0.0005f * chassis_ctrl_cmd->wz;
       break;
     default:
       break;
