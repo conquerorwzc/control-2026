@@ -26,6 +26,7 @@ static RobotInstance* robot;
 static Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd;
 static Gimbal_Ctrl_Cmd_s* gimbal_ctrl_cmd;
 static Shoot_Ctrl_Cmd_s* shoot_ctrl_cmd;
+static Vision_Receive_s *vision_recv_data;
 
 #if !defined(ONE_BOARD)
 static Chassis_Upload_Data_s* chassis_upload_data;
@@ -53,9 +54,7 @@ static float rotate_omega;      // 小陀螺旋转角速度
 float visualized_data[20];
 
 void VOFATask() {
-  visualized_data[0] = robot->chassis->leg[0]->real_model.T;
-  visualized_data[1] = robot->chassis->leg[1]->real_model.T;
-  // visualized_data[1] = robot->chassis_follow_PID.Ref;
+  visualized_data[0] = robot->chassis->imu->Pitch;
   VOFAJustFloatSend(visualized_data, 20);
 }
 
@@ -433,7 +432,7 @@ void RobotInit() {
 #endif
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
-  // robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
+  robot->referee_data = RefereeInit(&huart7);  // 裁判系统初始化
   // robot->super_cap = SuperCapInit(&super_cap_config);
   robot->chassis = ChassisInit(&chassis_init_config);
 #if defined(CHASSIS_BOARD)
@@ -456,7 +455,7 @@ void RobotTask() {
   VOFATask();
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
   GimbalTask();
-  // ShootTask();
+  ShootTask();
 #endif
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
