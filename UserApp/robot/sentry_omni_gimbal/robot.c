@@ -525,14 +525,15 @@ void RobotInit() {
 void RobotCMDTask() {
   time = DWT_GetTimeline_s();
   RemoteControlSet();
+  DualBoardCtrlSet();
   MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
 
 void RobotTask() {
-  Gimbal_CANCommSend();
   VisionSend();
   RobotCMDTask();
+  Gimbal_CANCommSend();
   GimbalTask();
   ShootTask();
 
