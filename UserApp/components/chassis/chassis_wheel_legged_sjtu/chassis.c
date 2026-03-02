@@ -19,6 +19,8 @@
 static ChassisInstance* chassis;
 static LegInstance* leg[2];
 static Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd;
+// 中科大的功率模型
+static float k0, k1, k2, k3, k4, k5;
 
 /**
  * @brief  计算LQR增益矩阵K

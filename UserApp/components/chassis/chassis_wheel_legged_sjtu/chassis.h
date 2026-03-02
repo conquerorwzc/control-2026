@@ -41,8 +41,17 @@ typedef enum {
 } Jump_State_e;
 
 typedef struct {
+  float k0;
+  float k1;
+  float k2;
+  float k3;
+  float k4;
+  float k5;
+} Power_Param_3508_s;
+
+typedef struct {
   float vx;
-  float wz;          // 保留用于小陀螺前馈角速度
+  float wz;          // 保留用于小陀螺前馈角速度.单位m/s
   float target_yaw;  // 新增：LQR目标yaw角度 (rad)
   float roll;
   float leg_length;

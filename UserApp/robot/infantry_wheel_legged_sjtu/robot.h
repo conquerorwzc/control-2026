@@ -27,6 +27,7 @@ typedef struct {
   // uint8_t rest_heat;            // 剩余枪口热量
   // Bullet_Speed_e bullet_speed;  // 弹速限制
   // Enemy_Color_e enemy_color;    // 0 for blue, 1 for red
+  // 裁判系统数据
   float bullet_speed;
 } Chassis_Upload_Data_s;  // means the Chassis board, not the component
 
@@ -57,6 +58,7 @@ typedef struct {
   GimbalInstance* gimbal;
   ShootInstance* shoot;
 
+  Vision_Receive_s* vision_recv_data;
   PIDInstance chassis_rotate_PID;
 
 #ifndef ONE_BOARD
