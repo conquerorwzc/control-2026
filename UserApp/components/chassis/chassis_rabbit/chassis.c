@@ -218,6 +218,8 @@ static void LegControl() {
       // 停止腿部电机
       DMMotorStop(chassis->leg_motor[0]);
       DMMotorStop(chassis->leg_motor[1]);
+      leg_current_position_left= 0.f;
+      leg_current_position_right= 0.f;
       target_position_left = chassis->leg_motor[0]->measure.total_angle;
       target_position_right = chassis->leg_motor[1]->measure.total_angle;
       chassis->leg_motor[0]->motor_controller.final_output=0;
@@ -328,12 +330,8 @@ static void LegControl() {
       target_position_right = leg_current_position_right;
       break;
   }
-
-  if (chassis->chassis_ctrl_cmd.leg_mode!= LEG_DISABLE) {
-    // 应用位置控制
     DMMotorSetPIDRef(chassis->leg_motor[0], target_position_left);
     DMMotorSetPIDRef(chassis->leg_motor[1], target_position_right);
-  }
 }
 
 /**
@@ -480,7 +478,7 @@ static void LimitChassisOutput() {
   DJIMotorSetPIDRef(chassis->wheel_motor[1], vt_rf);
   DJIMotorSetPIDRef(chassis->wheel_motor[2], vt_lb);
   DJIMotorSetPIDRef(chassis->wheel_motor[3], vt_rb);
-  PowerControl();
+  // PowerControl();
 }
 
 /**
