@@ -16,6 +16,8 @@ static navigator_recv_t* navigator_data;
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 static VT13_RC_t *vt13_rc_data;
+static Send_Data_RC_NEW send_data_new;
+static Send_Data_RC send_data;
 static CANCommInstance* can_comm_instance = NULL;
 Int16ToBytes transmit_data;
 static Referee_Data RefereeData;
@@ -282,14 +284,14 @@ static void RemoteControlSet() {
   } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
     gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
   }
-  
+
   // 控制模式切换
   if (vt13_rc_data->button_status.fn_2_flag == 1) {  // 按功能右键切换模式
     robot->control_mode = AUTO_MODE;
   } else {
     robot->control_mode = MANUAL_MODE;
   }
-  
+
   if (robot->control_mode == AUTO_MODE) {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_VISION;
   }
@@ -316,7 +318,7 @@ static void MouseKeySet() {
     gimbal_ctrl_cmd->yaw -= (float)vt13_rc_data->mouse_key.mouse.x * 0.007f;
     gimbal_ctrl_cmd->pitch += (float)vt13_rc_data->mouse_key.mouse.y * 0.003f;
   }
-  
+
   // 弹速设置 (Z键)
   switch (__builtin_popcount(vt13_rc_data->mouse_key.keyboard.z) % 3) {
     case 0:
@@ -329,7 +331,7 @@ static void MouseKeySet() {
       shoot_ctrl_cmd->bullet_speed = 30;
       break;
   }
-  
+
   // 右键自瞄
   switch (vt13_rc_data->mouse_key.mouse.press_r % 2) {
     case 1:
@@ -344,7 +346,7 @@ static void MouseKeySet() {
     default:
       break;
   }
-  
+
   // 左键发射
   switch (vt13_rc_data->mouse_key.mouse.press_l % 2) {
     case 0:
@@ -367,9 +369,9 @@ static void MouseKeySet() {
       }
       break;
   }
-  
+
   shoot_ctrl_cmd->shoot_rate = 8;
-  
+
   if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
     gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
   } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
@@ -477,33 +479,25 @@ void Gimbal_CANCommSend()
     return;
   }
 
-  transmit_data.value = vt13_rc_data->rc.rocker_l_ + vt13_rc_data->mouse_key.keyboard.d * 660 - vt13_rc_data->mouse_key.keyboard.a * 660;
-  board_can_comm_data.tx_buff[0] = transmit_data.bytes[0];
-  board_can_comm_data.tx_buff[1] = transmit_data.bytes[1];
+  send_data_new.Rc_vx = vt13_rc_data->rc.rocker_l_ + vt13_rc_data->mouse_key.keyboard.d * 660 - vt13_rc_data->mouse_key.keyboard.a * 660;
 
-  transmit_data.value = vt13_rc_data->rc.rocker_l1 + vt13_rc_data->mouse_key.keyboard.w * 660 - vt13_rc_data->mouse_key.keyboard.s * 660;
-  board_can_comm_data.tx_buff[2] = transmit_data.bytes[0];
-  board_can_comm_data.tx_buff[3] = transmit_data.bytes[1];
+  send_data_new.Rc_vy = vt13_rc_data->rc.rocker_l1 + vt13_rc_data->mouse_key.keyboard.w * 660 - vt13_rc_data->mouse_key.keyboard.s * 660;
 
-  transmit_data.value = vt13_rc_data->rc.rocker_r_ + vt13_rc_data->mouse_key.mouse.x * 2.0f;
-  board_can_comm_data.tx_buff[4] = transmit_data.bytes[0];
-  board_can_comm_data.tx_buff[5] = transmit_data.bytes[1];
+  send_data_new.Rc_yaw = vt13_rc_data->rc.rocker_r_ + vt13_rc_data->mouse_key.mouse.x * 2;
 
-  transmit_data.value = vt13_rc_data->rc.dial + vt13_rc_data->mouse_key.keyboard.q*300;
-  board_can_comm_data.tx_buff[6] = transmit_data.bytes[0];
-  board_can_comm_data.tx_buff[7] = transmit_data.bytes[1];
+  send_data_new.Rc_vw = vt13_rc_data->rc.dial + vt13_rc_data->mouse_key.keyboard.q*300;
 
-  transmit_data.value = (int16_t)robot->gimbal->yaw_motor->measure.angle_single_round;
-  board_can_comm_data.tx_buff[8] = transmit_data.bytes[0];
-  board_can_comm_data.tx_buff[9] = transmit_data.bytes[1];
+  send_data_new.Yaw_single_round = (int16_t)robot->gimbal->yaw_motor->measure.angle_single_round;
 
-  board_can_comm_data.tx_buff[10] = vt13_rc_data->rc.mode_switch;
-  board_can_comm_data.tx_buff[11] = robot->control_mode;
-  board_can_comm_data.tx_buff[12] = vt13_rc_data->button_status.pause_flag;
+  send_data_new.Mode_switch = vt13_rc_data->rc.mode_switch;
+
+  send_data_new.Control_mode = robot->control_mode;
+
+  send_data_new.Pause_flag = vt13_rc_data->button_status.pause_flag;
 
   #endif
 
-  CANCommSend(can_comm_instance, board_can_comm_data.tx_buff);
+  CANCommSend(can_comm_instance,send_data_new);
   }
 static void DualBoardCtrlSet() {
   //chassis_ctrl_cmd->wz=0;

@@ -32,6 +32,26 @@ typedef struct {
   uint16_t buffer_energy;
   uint16_t shooter_17mm_barrel_heat;
 } Referee_Data;
+#pragma pack(1)
+typedef struct {
+  float Rc_vx;
+  float Rc_vy;
+  float Rc_yaw;
+  float Rc_vw;
+  float Yaw_single_round;
+  float Mode_switch;
+  float Control_mode;
+  float Pause_flag;
+} Send_Data_RC_NEW;
+#pragma pack()
+typedef struct {
+  uint16_t Rc_vx;
+  uint16_t Rc_vy;
+  uint16_t Rc_yaw;
+  uint16_t Rc_vw;
+  uint16_t Yaw_single_round;
+  uint8_t Switch_right;
+} Send_Data_RC;
 
 typedef struct {
   Robot_Mode_e robot_mode;       // 机器人工作状态
