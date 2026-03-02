@@ -9,6 +9,7 @@
 #include <stdbool.h>
 #include "usart.h"
 #include "crc_func.h"
+#include "rm_referee.h"
 #include "string.h"
 #include "bsp_usart.h"
 #include "cmsis_os.h"
@@ -94,18 +95,6 @@ typedef  struct {
     uint8_t base_virtual_shield_remaining;  // 己方基地虚拟护盾剩余值百分比
 } __attribute__((__packed__)) event_data_t;
 
-// 所有机器人血量数据包
-typedef struct {
-  uint16_t ally_1_robot_hp;
-  uint16_t ally_2_robot_hp;
-  uint16_t ally_3_robot_hp;
-  uint16_t ally_4_robot_hp;
-  uint16_t reserved;
-  uint16_t ally_7_robot_hp;
-  uint16_t ally_outpost_hp;
-  uint16_t ally_base_hp;
-} __attribute__((__packed__)) all_robot_hp_t;
-
 // 游戏状态数据包
 typedef struct {
   uint8_t game_type : 4;
@@ -183,7 +172,7 @@ typedef struct {
   debug_data_t debug_data;
   robot_state_info_t state_info;
   event_data_t event_data;
-  all_robot_hp_t all_robot_hp;
+  ext_game_robot_HP_t all_robot_hp;
   game_status_t game_status;
   robot_motion_t robot_motion;
   ground_robot_position_t ground_robot_position;
@@ -245,7 +234,7 @@ typedef struct {
 
 // ========== 新增需求数据包 (待完成) ==========
 // 根据实际需求添加新的数据包结构体
-void navigator_send(UART_HandleTypeDef *instance);
+void navigator_send(UART_HandleTypeDef *instance,referee_info_t* referee_data);
 navigator_recv_t* navigator_init(UART_HandleTypeDef *usart_handle);
 
 #pragma pack(pop)

@@ -557,7 +557,7 @@ void RobotTask() {
   GimbalTask();
 #endif
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
-  navigator_send(&huart1);
+  navigator_send(&huart1,robot->referee_data);
   RobotCMDTask();
   // SuperCapControl();
   ChassisTask();

@@ -14,7 +14,6 @@
 #include "daemon.h"
 #include "bsp_log.h"
 #include "srm_protocol.h"
-#include "navigator.h"
 #include "ins_task.h"
 #include  "HI05.h"
 #define VISION_USE_VCP
