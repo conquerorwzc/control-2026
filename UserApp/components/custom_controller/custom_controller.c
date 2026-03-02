@@ -114,16 +114,9 @@ void CustomControllerTask(CustomController_t* controller)
     
     // 读取四个电机的角度值并应用零位偏移
     if (controller->motors[0].dm_motor != NULL) {
-        // DM电机角度转换：弧度转角度，并减去零位偏移
+        // DM电机角度转换：弧度转角度(并且已经经过零点标定)
         float raw_angle = DM_RadianToDegree(controller->motors[0].dm_motor->measure.total_angle);
-        controller->motor_angles[0] = raw_angle - controller->zero_offset[0];
-        
-        // 直接调用4310电机编码器零点标定
-        static bool first_calibration_done = false;
-        if (!first_calibration_done) {
-            DMMotorCaliEncoder(controller->motors[0].dm_motor);
-            first_calibration_done = true;
-        }
+        controller->motor_angles[0] = raw_angle;
     }
     if (controller->motors[1].dji_motor != NULL) {
         float raw_angle = controller->motors[1].dji_motor->measure.total_angle;
@@ -315,7 +308,7 @@ static void CalibrateMotorZeroPosition(CustomController_t* controller)
     }
     
     // 设置零位偏移值（当前角度即为偏移量）
-    for (int i = 0; i < 4; i++) {
+    for (int i = 1; i < 4; i++) {
         controller->zero_offset[i] = current_angles[i];
         controller->motor_angles[i] = 0.0f;  // 初始化为0
         controller->motor_online_status[i] = true;  // 标记为在线
