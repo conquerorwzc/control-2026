@@ -60,7 +60,14 @@ void VOFATask() {
 }
 
 Ramp_Controller_t chassis_ramp = {
-    .planning_v = 0.0f, .max_v = 2.5f, .max_accel = 1.0f, .base_speed = 0.3f, .max_decel = 4.5f};
+    .planning_v = 0.0f,
+    .max_v = 2.5f,
+    .max_accel = 1.0f,
+    .accel_base_speed = 0.3f,
+    .max_decel = 4.5f,
+    .min_decel = 1.0f,
+    .decel_base_speed = 0.8f,
+};
 
 #define robot_lost_control abs(robot->chassis->imu->Pitch) > 13.0f
 /**

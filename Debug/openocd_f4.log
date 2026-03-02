@@ -15,68 +15,9 @@ Info : CMSIS-DAP: Interface Initialised (SWD)
 Info : SWCLK/TCK = 1 SWDIO/TMS = 1 TDI = 1 TDO = 1 nTRST = 1 nRESET = 1
 Info : CMSIS-DAP: Interface ready
 Info : clock speed 2000 kHz
-Info : SWD DPIDR 0x2ba01477
-Info : [stm32f4x.cpu] Cortex-M4 r0p1 processor detected
-Info : [stm32f4x.cpu] target has 6 breakpoints, 4 watchpoints
+Info : SWD DPIDR 0x6ba02477
+Info : [stm32f4x.cpu] Cortex-M7 r1p2 processor detected
+Info : [stm32f4x.cpu] target has 8 breakpoints, 4 watchpoints
 Info : starting gdb server for stm32f4x.cpu on 3333
 Info : Listening on port 3333 for gdb connections
-Info : accepting 'gdb' connection on tcp/3333
-Info : device id = 0x10076413
-Info : flash size = 1024 KiB
-Info : flash size = 512 bytes
-Info : The target is not running when halt was requested, stopping GDB.
-[stm32f4x.cpu] halted due to debug-request, current mode: Thread 
-xPSR: 0x21000000 pc: 0x08000f84 psp: 0x20002598
-[stm32f4x.cpu] halted due to debug-request, current mode: Thread 
-xPSR: 0x01000000 pc: 0x080108c8 msp: 0x20020000
-[stm32f4x.cpu] halted due to debug-request, current mode: Thread 
-xPSR: 0x01000000 pc: 0xfffffffe msp: 0xfffffffc
-[stm32f4x.cpu] halted due to debug-request, current mode: Thread 
-xPSR: 0x01000000 pc: 0x08013ef8 msp: 0x24050000
-Info : SWD DPIDR 0x2ba01477
-Error: Failed to read memory at 0x2400b38c
-Info : SWD DPIDR 0x2ba01477
-Error: Failed to read memory at 0x2400b380
-Info : SWD DPIDR 0x2ba01477
-Error: Failed to read memory at 0x2400b384
-Info : SWD DPIDR 0x2ba01477
-Error: Failed to read memory at 0x2400b380
-Info : SWD DPIDR 0x2ba01477
-Error: Failed to read memory at 0x2400b38c
-Info : SWD DPIDR 0x2ba01477
-Error: Failed to read memory at 0x2400b384
-Info : SWD DPIDR 0x2ba01477
-Error: Failed to read memory at 0x0e0e0004
-Info : SWD DPIDR 0x2ba01477
-Error: Failed to read memory at 0x0e0e0002
-[stm32f4x.cpu] halted due to debug-request, current mode: Thread 
-xPSR: 0x01000000 pc: 0x08013ef8 msp: 0x24050000
-[stm32f4x.cpu] halted due to debug-request, current mode: Thread 
-xPSR: 0x01000000 pc: 0xfffffffe msp: 0xfffffffc
-[stm32f4x.cpu] halted due to debug-request, current mode: Thread 
-xPSR: 0x01000000 pc: 0x0801089c msp: 0x20020000
-Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1469 ms). Workaround: increase "set remotetimeout" in GDB
-Info : SWD DPIDR 0x2ba01477
-Error: Failed to read memory at 0x47108801
-Info : SWD DPIDR 0x2ba01477
-Error: Failed to read memory at 0x47108808
-Info : SWD DPIDR 0x2ba01477
-Error: Failed to read memory at 0x4710880c
-Info : SWD DPIDR 0x2ba01477
-Error: Failed to read memory at 0x47108810
-Info : SWD DPIDR 0x2ba01477
-Error: Failed to read memory at 0x47108814
-Info : SWD DPIDR 0x2ba01477
-Error: Failed to read memory at 0x47108818
-Info : SWD DPIDR 0x2ba01477
-Error: Failed to read memory at 0x4710881c
-Info : SWD DPIDR 0x2ba01477
-Error: Failed to read memory at 0x4710889c
-Info : SWD DPIDR 0x2ba01477
-Error: Failed to read memory at 0x471088a0
-Info : SWD DPIDR 0x2ba01477
-Error: Failed to read memory at 0x471088a4
-Info : SWD DPIDR 0x2ba01477
-Error: Failed to read memory at 0x471088a8
-Info : SWD DPIDR 0x2ba01477
-Error: Failed to read memory at 0x471088ac
+^C

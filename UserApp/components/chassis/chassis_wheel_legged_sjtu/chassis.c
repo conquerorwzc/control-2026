@@ -108,6 +108,11 @@ static void LocomotionController(void) {
   float l_l = leg[1]->virtual_model.length;
   float l_r = leg[0]->virtual_model.length;
   LQR_K_Calc(chassis->LQR_K, chassis->param.LQR_K_Coefficients, l_l, l_r);
+  // 减小phi和dphi的权重
+  chassis->LQR_K[0][2] *= 0.2f;
+  chassis->LQR_K[0][3] *= 0.2f;
+  chassis->LQR_K[1][2] *= 0.2f;
+  chassis->LQR_K[1][3] *= 0.2f;
 
   // TODO: 状态误差限幅
   float state_err[10];
@@ -142,21 +147,21 @@ static void LocomotionController(void) {
 
 /*
  * Force distribution (plan formulas 3.6–3.8):
- *   F_bl,l = +F_psi + F_l + F_gravity - F_inertial   (LEFT)
- *   F_bl,r = -F_psi + F_l + F_gravity + F_inertial   (RIGHT)
+ *   F_bl,l = +F_psi + F_l + F_gravity - F_inertial   (LEFT = leg[1])
+ *   F_bl,r = -F_psi + F_l + F_gravity + F_inertial   (RIGHT = leg[0])
  * F_psi = roll_comp: positive when body rolls left → boost left support.
+ * 离心力补偿符号：dphi>0 为左转，机身向外（右）倾，右腿(leg[0])需更大支撑 → leg[0] +f_inertial, leg[1] -f_inertial，当前实现正确。
  */
 static void LegController(void) {
   float f_psi = PIDCalculate(&chassis->roll_PID, chassis->imu->Roll * DEGREE_2_RAD, chassis_ctrl_cmd->roll);
   float l_avg = (leg[0]->virtual_model.length + leg[1]->virtual_model.length) * 0.5f;
-  float f_l = PIDCalculate(&chassis->length_PID, l_avg, chassis->chassis_ctrl_cmd.leg_length);
+  float f_l_r = PIDCalculate(&chassis->length_PID[0], leg[0]->virtual_model.length, chassis->chassis_ctrl_cmd.leg_length);
+  float f_l_l = PIDCalculate(&chassis->length_PID[1], leg[1]->virtual_model.length, chassis->chassis_ctrl_cmd.leg_length);
   float f_gravity = 0.5f * chassis->param.body_mass * 9.81f;
   float f_inertial = 0.5f * chassis->param.body_mass * (l_avg / chassis->param.track_width) * chassis->state_var.dphi *
                      chassis->state_var.v_b_h;
-  leg[1]->virtual_model.F = f_psi + f_l + f_gravity - f_inertial;
-  leg[0]->virtual_model.F = -f_psi + f_l + f_gravity + f_inertial;
-  // leg[0]->virtual_model.F = f_l + f_gravity;
-  // leg[1]->virtual_model.F = f_l + f_gravity;
+  leg[1]->virtual_model.F = f_psi + f_l_l + f_gravity - f_inertial;
+  leg[0]->virtual_model.F = -f_psi + f_l_r + f_gravity + f_inertial;
 }
 
 static void ChassisCtrlUpdate(void) {
@@ -288,7 +293,8 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
 
   PIDInit(&chassis_instance->delta_theta_PID, &chassis_init_config->delta_theta_PID_config);
   PIDInit(&chassis_instance->roll_PID, &chassis_init_config->roll_PID_config);
-  PIDInit(&chassis_instance->length_PID, &chassis_init_config->length_PID_config);
+  PIDInit(&chassis_instance->length_PID[0], &chassis_init_config->length_PID_config);
+  PIDInit(&chassis_instance->length_PID[1], &chassis_init_config->length_PID_config);
   chassis_instance->imu = INS_Init(&chassis_init_config->imu_init_config);
   xvEstimateKF_Init(&chassis_instance->vaEstimateKF);
 

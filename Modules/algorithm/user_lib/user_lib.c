@@ -24,8 +24,8 @@
 #define user_malloc malloc
 #endif
 
-void *zmalloc(size_t size) {
-  void *ptr = malloc(size);
+void* zmalloc(size_t size) {
+  void* ptr = malloc(size);
   memset(ptr, 0, size);
   return ptr;
 }
@@ -121,7 +121,7 @@ float loop_float_constrain(float Input, float minValue, float maxValue) {
   return Input;
 }
 
-void slope_following(float target, float __packed *set, float acc_d) {
+void slope_following(float target, float __packed* set, float acc_d) {
   if (target > *set) {
     *set = *set + acc_d;
     if (*set >= target) *set = target;
@@ -134,7 +134,7 @@ void slope_following(float target, float __packed *set, float acc_d) {
 /**
  * @brief 基于恒功率模型的动态斜坡更新
  */
-float ramp_controller_update(Ramp_Controller_t *ramp, float input_v, float dt) {
+float ramp_controller_update(Ramp_Controller_t* ramp, float input_v, float dt) {
   // 1. 输入限幅
   if (input_v > ramp->max_v) input_v = ramp->max_v;
   if (input_v < -ramp->max_v) input_v = -ramp->max_v;
@@ -147,7 +147,7 @@ float ramp_controller_update(Ramp_Controller_t *ramp, float input_v, float dt) {
   float current_limit;
   if (is_accelerating) {
     float abs_v = fabsf(ramp->planning_v);
-    if (abs_v <= ramp->base_speed) {
+    if (abs_v <= ramp->accel_base_speed) {
       // --- 恒转矩区 (Constant Torque Region) ---
       // 速度没起来之前，用最大能力加速
       current_limit = ramp->max_accel;
@@ -155,14 +155,20 @@ float ramp_controller_update(Ramp_Controller_t *ramp, float input_v, float dt) {
       // --- 恒功率区 (Constant Power Region) ---
       // 速度起来了，加速度按 1/v 衰减
       // Acc_limit = P_const / v  =>  Acc_limit = (Max_Acc * Base_V) / Current_V
-      current_limit = (ramp->max_accel * ramp->base_speed) / abs_v;
+      current_limit = (ramp->max_accel * ramp->accel_base_speed) / abs_v;
       // 选填：为了防止加速度衰减得太狠（比如速度极高时加速度趋近0导致无法达到满速）
       // 可以设置一个最低下限，比如 0.5 m/s^2
       if (current_limit < 0.5f) current_limit = 0.5f;
     }
   } else {
-    // 减速区：通常刹车能力远大于加速能力，且不怎么受反电动势影响(反而利用它)
-    current_limit = ramp->max_decel;
+    // 减速区：高速时衰减刹车力度，防止轮腿前倾翻车
+    float abs_v = fabsf(ramp->planning_v);
+    if (abs_v <= ramp->decel_base_speed) {
+      current_limit = ramp->max_decel;
+    } else {
+      current_limit = (ramp->max_decel * ramp->decel_base_speed) / abs_v;
+      if (current_limit < ramp->min_decel) current_limit = ramp->min_decel;
+    }
   }
   float max_step = current_limit * dt;
   // 4. 更新规划速度
@@ -194,7 +200,7 @@ int float_rounding(float raw) {
 }
 
 // 三维向量归一化
-float *Norm3d(float *v) {
+float* Norm3d(float* v) {
   float len = Sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
   v[0] /= len;
   v[1] /= len;
@@ -203,20 +209,20 @@ float *Norm3d(float *v) {
 }
 
 // 计算模长
-float NormOf3d(float *v) { return Sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]); }
+float NormOf3d(float* v) { return Sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]); }
 
 // 三维向量叉乘v1 x v2
-void Cross3d(float *v1, float *v2, float *res) {
+void Cross3d(float* v1, float* v2, float* res) {
   res[0] = v1[1] * v2[2] - v1[2] * v2[1];
   res[1] = v1[2] * v2[0] - v1[0] * v2[2];
   res[2] = v1[0] * v2[1] - v1[1] * v2[0];
 }
 
 // 三维向量点乘
-float Dot3d(float *v1, float *v2) { return v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2]; }
+float Dot3d(float* v1, float* v2) { return v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2]; }
 
 // 均值滤波,删除buffer中的最后一个元素,填入新的元素并求平均值
-float AverageFilter(float new_data, float *buf, uint8_t len) {
+float AverageFilter(float new_data, float* buf, uint8_t len) {
   float sum = 0;
   for (uint8_t i = 0; i < len - 1; i++) {
     buf[i] = buf[i + 1];
@@ -227,8 +233,8 @@ float AverageFilter(float new_data, float *buf, uint8_t len) {
   return sum / len;
 }
 
-void MatInit(mat *m, uint8_t row, uint8_t col) {
+void MatInit(mat* m, uint8_t row, uint8_t col) {
   m->numCols = col;
   m->numRows = row;
-  m->pData = (float *)zmalloc(row * col * sizeof(float));
+  m->pData = (float*)zmalloc(row * col * sizeof(float));
 }

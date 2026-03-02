@@ -36,7 +36,7 @@ typedef arm_matrix_instance_f32 mat;
 #define MatMultiply arm_mat_mult_f32
 #define MatTranspose arm_mat_trans_f32
 #define MatInverse arm_mat_inverse_f32
-void MatInit(mat *m, uint8_t row, uint8_t col);
+void MatInit(mat* m, uint8_t row, uint8_t col);
 
 /* boolean type definitions */
 #ifndef TRUE
@@ -80,12 +80,14 @@ typedef struct {
   float planning_v;  // 规划速度
   float expected_a;  // 期望加速度
   // --- 参数配置 ---
-  float max_v;       // 物理最大速度 (如 3.0 m/s)
-  float max_accel;   // 最大转矩区加速度 (如 5.0 m/s^2)
-  float base_speed;  // 基速 (转折点速度) (如 1.0 m/s)
+  float max_v;             // 物理最大速度 (如 3.0 m/s)
+  float max_accel;         // 最大转矩区加速度 (如 5.0 m/s^2)
+  float accel_base_speed;  // 基速 (转折点速度) (如 1.0 m/s)
   // 意味着 0~1m/s 期间你可以满加速度，超过 1m/s 后加速度开始按 1/v 衰减
 
-  float max_decel;  // 刹车加速度 (如 4.0 m/s^2)
+  float max_decel;         // 低速刹车加速度 (如 4.5 m/s^2)
+  float min_decel;         // 高速刹车加速度下限 (如 1.0 m/s^2)
+  float decel_base_speed;  // 减速衰减转折速度，低于此速度用 max_decel，高于后按 1/v 衰减
 } Ramp_Controller_t;
 
 /**
@@ -94,7 +96,7 @@ typedef struct {
  * @param size ????
  * @return void*
  */
-void *zmalloc(size_t size);
+void* zmalloc(size_t size);
 
 // ???????
 float Sqrt(float x);
@@ -115,19 +117,19 @@ float theta_format(float Ang);
 
 int float_rounding(float raw);
 
-void slope_following(float target, float *set, float acc_d);
+void slope_following(float target, float* set, float acc_d);
 
-float ramp_controller_update(Ramp_Controller_t *ramp, float input_v, float dt);
+float ramp_controller_update(Ramp_Controller_t* ramp, float input_v, float dt);
 
-float *Norm3d(float *v);
+float* Norm3d(float* v);
 
-float NormOf3d(float *v);
+float NormOf3d(float* v);
 
-void Cross3d(float *v1, float *v2, float *res);
+void Cross3d(float* v1, float* v2, float* res);
 
-float Dot3d(float *v1, float *v2);
+float Dot3d(float* v1, float* v2);
 
-float AverageFilter(float new_data, float *buf, uint8_t len);
+float AverageFilter(float new_data, float* buf, uint8_t len);
 
 #define rad_format(Ang) loop_float_constrain((Ang), -PI, PI)
 

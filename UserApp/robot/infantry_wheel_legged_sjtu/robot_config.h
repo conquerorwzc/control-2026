@@ -222,9 +222,9 @@ static Chassis_Init_Config_s
              },
          .roll_PID_config =
              {
-                 .Kp = 300.0f,
+                 .Kp = 100.0f,
                  .Ki = 0.0f,
-                 .Kd = 25.0f,
+                 .Kd = 0.0f,
                  .MaxOut = 100.0f,
                  .DeadBand = 0.0f,
                  .Improve = PID_IMPROVE_NONE,

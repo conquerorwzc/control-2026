@@ -101,7 +101,7 @@ typedef struct {
   LegInstance* leg[2];
   PIDInstance delta_theta_PID;
   PIDInstance roll_PID;
-  PIDInstance length_PID;
+  PIDInstance length_PID[2];  // 每腿单独腿长环
 
   float delta_theta_comp;
 

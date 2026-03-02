@@ -20,8 +20,8 @@ project(control-2026 C ASM)
 # 选择构建类型
 set(CMAKE_BUILD_TYPE ${buildTypre}) # Debug Release RelWithDebInfo MinSizeRel
 
-set(MCU_TYPE "stm32-f4")
-#set(MCU_TYPE "stm32-h7")
+# set(MCU_TYPE "stm32-f4")
+set(MCU_TYPE "stm32-h7")
 
 #set(ROBOT_TYPE "steering_infantry_gimbal")
 #set(ROBOT_TYPE "sentry_mecanum")
