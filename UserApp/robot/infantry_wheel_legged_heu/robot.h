@@ -7,11 +7,9 @@
 #include "rm_referee.h"
 #include "can_comm.h"
 #include "master_process.h"
-#include "navigator.h"
 #include "super_cap.h"
 #include "vofa.h"
 
-// todo: add vision_module
 
 #ifndef ONE_BOARD
 #pragma pack(1)
@@ -63,7 +61,6 @@ typedef struct {
   GimbalInstance* gimbal;
   ShootInstance* shoot;
   Vision_Receive_s* vision_recv_data;
-  navigator_recv_t* navigator_data;
   PIDInstance chassis_follow_PID;
   PIDInstance chassis_rotate_PID;
 #ifndef ONE_BOARD

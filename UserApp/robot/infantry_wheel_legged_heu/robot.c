@@ -769,6 +769,8 @@ void RobotInit() {
   chassis_ctrl_cmd->leg_length = chassis_init_config.chassis_param.initial_leg_length;  // 初始腿长
   DWT_GetDeltaT(&robot->DWT_CNT);
   // chassis_ctrl_cmd->max_power = 60;
+  gpio_5V_EN = GPIORegister(&gpio_init_config_5v);
+  GPIOSet(gpio_5V_EN);
 }
 
 void RobotTask() {

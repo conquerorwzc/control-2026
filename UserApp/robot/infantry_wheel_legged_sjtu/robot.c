@@ -54,9 +54,7 @@ static float rotate_omega;      // 小陀螺旋转角速度
 float visualized_data[20];
 
 void VOFATask() {
-  visualized_data[0] = robot->chassis->leg[0]->real_model.T;
-  visualized_data[1] = robot->chassis->leg[1]->real_model.T;
-  // visualized_data[1] = robot->chassis_follow_PID.Ref;
+  visualized_data[0] = robot->chassis->imu->Pitch;
   VOFAJustFloatSend(visualized_data, 20);
 }
 
