@@ -19,19 +19,12 @@ static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 static VT13_RC_t *vt13_rc_data;
 static Sentry_Cmd_t sentry_cmd={0};
 static SuperCapMode supercap_mode = SAFETY_MODE;
-
 /* Intermediate variables calculated by private functions */
 float trigger_time = 0;  // 触发时间
 static float angle=0;
 uint8_t* received_data = NULL;
 CANCommInstance* can_comm_instance = NULL;
-typedef union {
-  int16_t value16[32];
-  uint16_t valueu16[32];
-  uint8_t bytes[64];
-} int16_t_bytes;
-Int16ToBytes transmit_data;
-int16_t_bytes CanData={0};//底盘板can接收的遥控数据
+static Referee_Data *referee_data;
 static float x_speed_time=0;  //x方向加速触发时间
 static float y_speed_time=0;  //y方向加速触发时间
 static float vx_initial;   //x轴输入控制量
@@ -441,34 +434,34 @@ static void SuperCapControl() {
         robot->referee_data->PowerHeatData.buffer_energy,
         robot->referee_data->GameRobotState.power_management_chassis_output);
 }
-void Gimbal_CANCommSend()
+void Chassis_CANCommSend()
 {
   #ifdef USE_DUAL_RC
   if (can_comm_instance == NULL || rc_data == NULL)
   {
     return;
   }
+  referee_data->projectile_allowance_17mm = robot->referee_data->ProjectileAllowance.projectile_allowance_17mm;
 
+  referee_data->buffer_energy = robot->referee_data->PowerHeatData.buffer_energy;
+
+  referee_data->shooter_17mm_barrel_heat = robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
+
+  CANCommSend(can_comm_instance, (void*)referee_data);
   #elifdef USE_DUAL_RC_NEW
   if (can_comm_instance == NULL || vt13_rc_data == NULL)
   {
     return;
   }
 
-  transmit_data.value = robot->referee_data->ProjectileAllowance.projectile_allowance_17mm;
-  board_can_comm_data.tx_buff[0] = transmit_data.bytes[0];
-  board_can_comm_data.tx_buff[1] = transmit_data.bytes[1];
+  referee_data->projectile_allowance_17mm = robot->referee_data->ProjectileAllowance.projectile_allowance_17mm;
 
-  transmit_data.value = robot->referee_data->PowerHeatData.buffer_energy;
-  board_can_comm_data.tx_buff[2] = transmit_data.bytes[0];
-  board_can_comm_data.tx_buff[3] = transmit_data.bytes[1];
+  referee_data->buffer_energy = robot->referee_data->PowerHeatData.buffer_energy;
 
-  transmit_data.value = robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
-  board_can_comm_data.tx_buff[4] = transmit_data.bytes[0];
-  board_can_comm_data.tx_buff[5] = transmit_data.bytes[1];
+  referee_data->shooter_17mm_barrel_heat = robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
   #endif
 
-  CANCommSend(can_comm_instance, board_can_comm_data.tx_buff);
+  CANCommSend(can_comm_instance, (void*)referee_data);
   }
 //解析底盘板收到的遥控数据
 static void DualBoardCtrlSet() {

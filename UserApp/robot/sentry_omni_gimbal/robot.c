@@ -16,18 +16,14 @@ static navigator_recv_t* navigator_data;
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 static VT13_RC_t *vt13_rc_data;
-static Send_Data_RC_NEW send_data_new;
-static Send_Data_RC send_data;
+#ifdef USE_DUAL_RC
+static Send_Data_RC *send_data;
+#elifdef USE_DUAL_RC_NEW
+static Send_Data_RC_NEW *send_data_new;
+#endif
 static CANCommInstance* can_comm_instance = NULL;
-Int16ToBytes transmit_data;
 static Referee_Data RefereeData;
 uint8_t* received_data = NULL;
-typedef union {
-  int16_t value16[32];
-  uint16_t valueu16[32];
-  uint8_t bytes[64];
-} int16_t_bytes;
-int16_t_bytes CanData={0}; //云台板can接收的遥控数据
 /* Intermediate variables calculated by private functions */
 static float trigger_time = 0;  // 触发时间
 static float time=0;//判断按钮按下需要重复读取时间，这里简化成一次读取
@@ -451,53 +447,43 @@ void Gimbal_CANCommSend()
     return;
   }
 
-  transmit_data.value = rc_data->rc.rocker_l_ + rc_data[TEMP].key[KEY_PRESS].d * 660 - rc_data[TEMP].key[KEY_PRESS].a * 660;
-  board_can_comm_data.tx_buff[0] = transmit_data.bytes[0];
-  board_can_comm_data.tx_buff[1] = transmit_data.bytes[1];
+  send_data->Rc_vx = rc_data->rc.rocker_l_ + rc_data[TEMP].key[KEY_PRESS].d * 660 - rc_data[TEMP].key[KEY_PRESS].a * 660;
 
-  transmit_data.value = rc_data->rc.rocker_l1 + rc_data[TEMP].key[KEY_PRESS].w * 660 - rc_data[TEMP].key[KEY_PRESS].s * 660;
-  board_can_comm_data.tx_buff[2] = transmit_data.bytes[0];
-  board_can_comm_data.tx_buff[3] = transmit_data.bytes[1];
+  send_data->Rc_vy = rc_data->rc.rocker_l1 + rc_data[TEMP].key[KEY_PRESS].w * 660 - rc_data[TEMP].key[KEY_PRESS].s * 660;
 
-  transmit_data.value = rc_data->rc.rocker_r_ + rc_data[TEMP].mouse.x * 2.0f;
-  board_can_comm_data.tx_buff[4] = transmit_data.bytes[0];
-  board_can_comm_data.tx_buff[5] = transmit_data.bytes[1];
+  send_data->Rc_yaw = rc_data->rc.rocker_r_ + rc_data[TEMP].mouse.x * 2.0f;
 
-  transmit_data.value = rc_data->rc.dial + rc_data[TEMP].key[KEY_PRESS].q*300;
-  board_can_comm_data.tx_buff[6] = transmit_data.bytes[0];
-  board_can_comm_data.tx_buff[7] = transmit_data.bytes[1];
+  send_data->Rc_vw = rc_data->rc.dial + rc_data[TEMP].key[KEY_PRESS].q*300;
 
-  transmit_data.value = (int16_t)robot->gimbal->yaw_motor->measure.angle_single_round;
-  board_can_comm_data.tx_buff[8] = transmit_data.bytes[0];
-  board_can_comm_data.tx_buff[9] = transmit_data.bytes[1];
+  send_data->Yaw_single_round = (int16_t)robot->gimbal->yaw_motor->measure.angle_single_round;
 
-  board_can_comm_data.tx_buff[10] = rc_data->rc.switch_right;
-
+  send_data->Switch_right = rc_data->rc.switch_right;
+  CANCommSend(can_comm_instance,(void*)send_data);
   #elifdef USE_DUAL_RC_NEW
   if (can_comm_instance == NULL || vt13_rc_data == NULL)
   {
     return;
   }
 
-  send_data_new.Rc_vx = vt13_rc_data->rc.rocker_l_ + vt13_rc_data->mouse_key.keyboard.d * 660 - vt13_rc_data->mouse_key.keyboard.a * 660;
+  send_data_new->Rc_vx = vt13_rc_data->rc.rocker_l_ + vt13_rc_data->mouse_key.keyboard.d * 660 - vt13_rc_data->mouse_key.keyboard.a * 660;
 
-  send_data_new.Rc_vy = vt13_rc_data->rc.rocker_l1 + vt13_rc_data->mouse_key.keyboard.w * 660 - vt13_rc_data->mouse_key.keyboard.s * 660;
+  send_data_new->Rc_vy = vt13_rc_data->rc.rocker_l1 + vt13_rc_data->mouse_key.keyboard.w * 660 - vt13_rc_data->mouse_key.keyboard.s * 660;
 
-  send_data_new.Rc_yaw = vt13_rc_data->rc.rocker_r_ + vt13_rc_data->mouse_key.mouse.x * 2;
+  send_data_new->Rc_yaw = vt13_rc_data->rc.rocker_r_ + vt13_rc_data->mouse_key.mouse.x * 2;
 
-  send_data_new.Rc_vw = vt13_rc_data->rc.dial + vt13_rc_data->mouse_key.keyboard.q*300;
+  send_data_new->Rc_vw = vt13_rc_data->rc.dial + vt13_rc_data->mouse_key.keyboard.q*300;
 
-  send_data_new.Yaw_single_round = (int16_t)robot->gimbal->yaw_motor->measure.angle_single_round;
+  send_data_new->Yaw_single_round = (int16_t)robot->gimbal->yaw_motor->measure.angle_single_round;
 
-  send_data_new.Mode_switch = vt13_rc_data->rc.mode_switch;
+  send_data_new->Mode_switch = vt13_rc_data->rc.mode_switch;
 
-  send_data_new.Control_mode = robot->control_mode;
+  send_data_new->Control_mode = robot->control_mode;
 
-  send_data_new.Pause_flag = vt13_rc_data->button_status.pause_flag;
-
+  send_data_new->Pause_flag = vt13_rc_data->button_status.pause_flag;
+  CANCommSend(can_comm_instance,(void*)send_data_new);
   #endif
 
-  CANCommSend(can_comm_instance,send_data_new);
+
   }
 static void DualBoardCtrlSet() {
   //chassis_ctrl_cmd->wz=0;

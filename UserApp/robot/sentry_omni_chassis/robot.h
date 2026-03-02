@@ -20,10 +20,15 @@ typedef enum {
   MANUAL_MODE=0,   // 手动控制
   AUTO_MODE,    // 自动控制
 } Control_Mode_e;
-typedef union {
-  int16_t value;
-  uint8_t bytes[2];
-} Int16ToBytes;
+
+#pragma pack(1)
+typedef struct {
+  uint16_t projectile_allowance_17mm;
+  uint16_t buffer_energy;
+  uint16_t shooter_17mm_barrel_heat;
+} Referee_Data;
+#pragma pack()
+
 #pragma pack(1)
 typedef union{
   // 方式 1：直接作为 4 字节数组访问（用于底层串口发送/接收）
