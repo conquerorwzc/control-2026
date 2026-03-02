@@ -812,22 +812,22 @@ void UITask()
     // 这些值应该从实际的机器人系统中获取
     interactive_data.chassis_mode = robotdata->chassis->chassis_ctrl_cmd.chassis_mode;
 
-    // interactive_data.gimbal_mode = robotdata->gimbal->gimbal_ctrl_cmd.gimbal_mode;
-    interactive_data.gimbal_mode = cancomm_pack->gimbal_mode;
+    interactive_data.gimbal_mode = robotdata->gimbal->gimbal_ctrl_cmd.gimbal_mode;
+    // interactive_data.gimbal_mode = cancomm_pack->gimbal_mode;
 
-    // interactive_data.shoot_mode = robotdata->shoot->shoot_ctrl_cmd.shoot_mode;
-    interactive_data.shoot_mode = cancomm_pack->shoot_mode;
+    interactive_data.shoot_mode = robotdata->shoot->shoot_ctrl_cmd.shoot_mode;
+    // interactive_data.shoot_mode = cancomm_pack->shoot_mode;
 
-    // interactive_data.friction_mode = robotdata->shoot->shoot_ctrl_cmd.friction_mode;
-    interactive_data.friction_mode = cancomm_pack->friction_mode;
+    interactive_data.friction_mode = robotdata->shoot->shoot_ctrl_cmd.friction_mode;
+    // interactive_data.friction_mode = cancomm_pack->friction_mode;
 
-    // interactive_data.lid_mode = robotdata->shoot->shoot_ctrl_cmd.load_mode;
-    interactive_data.lid_mode = cancomm_pack->load_mode;
+    interactive_data.lid_mode = robotdata->shoot->shoot_ctrl_cmd.load_mode;
+    // interactive_data.lid_mode = cancomm_pack->load_mode;
 
     // interactive_data.Chassis_Power_Data.chassis_power_mx = robotdata->chassis->chassis_ctrl_cmd.max_power; // 示例功率值
 
-    // interactive_data.pitch_angle = robotdata->gimbal->gimbal_ctrl_cmd.pitch;
-    interactive_data.pitch_angle = -(float)cancomm_pack->pitch;
+    interactive_data.pitch_angle = robotdata->gimbal->gimbal_ctrl_cmd.pitch;
+    // interactive_data.pitch_angle = -(float)cancomm_pack->pitch;
 
     // interactive_data.Shoot_heat = robotdata->shoot->shoot_ctrl_cmd.rest_heat;
     // interactive_data.Shoot_heat = cancomm_pack->rest_heat;
@@ -835,8 +835,8 @@ void UITask()
     // interactive_data.Shoot_rate = cancomm_pack->shoot_rate;
 
     // interactive_data.autoaim_mode = robotdata->gimbal->vision_mode;          // 自瞄模式
-    // interactive_data.autoaim_mode = robotdata->gimbal->gimbal_ctrl_cmd.gimbal_mode == GIMBAL_VISION ? 1 : 0;  // 自瞄模式(1为开启，0为关闭)
-    interactive_data.autoaim_mode = cancomm_pack->gimbal_mode == GIMBAL_VISION ? 1 : 0;  // 自瞄模式(1为开启，0为关闭)
+    interactive_data.autoaim_mode = robotdata->gimbal->gimbal_ctrl_cmd.gimbal_mode == GIMBAL_VISION ? 1 : 0;  // 自瞄模式(1为开启，0为关闭)
+    // interactive_data.autoaim_mode = cancomm_pack->gimbal_mode == GIMBAL_VISION ? 1 : 0;  // 自瞄模式(1为开启，0为关闭)
 
     // interactive_data.cap_voltage = robotdata->super_cap->cap_msg.vol / 1000.0f;
     // 检查使用的是哪种超级电容模块
@@ -850,11 +850,10 @@ void UITask()
 
     interactive_data.bullet_left_real = referee_recv_info->ProjectileAllowance.projectile_allowance_17mm; // 实体弹丸剩余
 
-    //@todo
-    // interactive_data.fric_speed_left = -robotdata->shoot->friction_motor[0]->measure.speed_aps; // 左摩擦轮转速（取反使向上为正）
-    interactive_data.fric_speed_left = cancomm_pack->friction_speed1; // 左摩擦轮转速（取反使向上为正）
-    // interactive_data.fric_speed_right = robotdata->shoot->friction_motor[1]->measure.speed_aps; // 右摩擦轮转速
-    interactive_data.fric_speed_right = cancomm_pack->friction_speed2; // 右摩擦轮转速
+    interactive_data.fric_speed_left = robotdata->shoot->friction_motor[0]->measure.speed_aps; // 左摩擦轮转速（取反使向上为正）
+    // interactive_data.fric_speed_left = cancomm_pack->friction_speed1; // 左摩擦轮转速（取反使向上为正）
+    interactive_data.fric_speed_right = robotdata->shoot->friction_motor[1]->measure.speed_aps; // 右摩擦轮转速
+    // interactive_data.fric_speed_right = cancomm_pack->friction_speed2; // 右摩擦轮转速
 
     interactive_data.chassis_relative_angle = robotdata->chassis->chassis_ctrl_cmd.offset_angle; // 底盘相对于云台的角度
 

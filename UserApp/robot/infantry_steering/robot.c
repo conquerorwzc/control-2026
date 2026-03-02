@@ -156,14 +156,23 @@ static void DualBoardCtrlSet() {
     cancomm_pack = (CanComm_Pack*)CANCommGet(can_comm_instance);
     //robot->chassis->chassis_ctrl_cmd=*chassis_ctrl_cmd;
 
-    robot->chassis->chassis_ctrl_cmd.vx=cancomm_pack->chassis_ctrl_can_comm.vx;
-    robot->chassis->chassis_ctrl_cmd.vy=cancomm_pack->chassis_ctrl_can_comm.vy;
-    robot->chassis->chassis_ctrl_cmd.wz=cancomm_pack->chassis_ctrl_can_comm.wz;
-    robot->chassis->chassis_ctrl_cmd.chassis_mode=cancomm_pack->chassis_ctrl_can_comm.chassis_mode;
+    robot->chassis->chassis_ctrl_cmd.vx = cancomm_pack->chassis_ctrl_can_comm.vx;
+    robot->chassis->chassis_ctrl_cmd.vy = cancomm_pack->chassis_ctrl_can_comm.vy;
+    robot->chassis->chassis_ctrl_cmd.wz = cancomm_pack->chassis_ctrl_can_comm.wz;
+    robot->chassis->chassis_ctrl_cmd.chassis_mode = cancomm_pack->chassis_ctrl_can_comm.chassis_mode;
     //robot->chassis->chassis_ctrl_cmd.chassis_speed_buff=cchassis_ctrl_can_comm->chassis_speed_buff;
-    robot->chassis->chassis_ctrl_cmd.offset_angle=cancomm_pack->chassis_ctrl_can_comm.offset_angle;
-    robot->chassis->chassis_ctrl_cmd.SuperCapBoost=cancomm_pack->chassis_ctrl_can_comm.SuperCapBoost;
-    //robot->chassis->chassis_ctrl_cmd.max_power=chassis_ctrl_cmd->max_power;
+    robot->chassis->chassis_ctrl_cmd.offset_angle = cancomm_pack->chassis_ctrl_can_comm.offset_angle;
+    robot->chassis->chassis_ctrl_cmd.SuperCapBoost = cancomm_pack->chassis_ctrl_can_comm.SuperCapBoost;
+    robot->gimbal->gimbal_ctrl_cmd.gimbal_mode = cancomm_pack->gimbal_mode;
+    robot->shoot->shoot_ctrl_cmd.shoot_mode = cancomm_pack->shoot_mode;
+    robot->shoot->shoot_ctrl_cmd.friction_mode = cancomm_pack->friction_mode;
+    robot->shoot->shoot_ctrl_cmd.load_mode = cancomm_pack->load_mode;
+    robot->gimbal->gimbal_ctrl_cmd.pitch = -(float)cancomm_pack->pitch;
+    robot->shoot->shoot_ctrl_cmd.rest_heat=cancomm_pack->rest_heat;
+    robot->shoot->shoot_ctrl_cmd.shoot_rate = cancomm_pack->shoot_rate;
+    robot->shoot->friction_motor[0]->measure.speed_aps = cancomm_pack->friction_speed1;
+    robot->shoot->friction_motor[1]->measure.speed_aps = cancomm_pack->friction_speed2;
+    // robot->chassis->chassis_ctrl_cmd.max_power=chassis_ctrl_cmd->max_power;
     // 如果收到数据，可以在这里处理
     // if (received_data != NULL) {
     //   // 解析接收到的数据到全局变量
