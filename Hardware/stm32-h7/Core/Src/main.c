@@ -41,7 +41,7 @@
 
 /* USER CODE END PTD */
 
-/* Private define ---------------------5---------------------------------------*/
+/* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
 /* USER CODE END PD */
@@ -109,6 +109,7 @@ int main(void)
   MX_TIM12_Init();
   MX_SPI1_Init();
   MX_I2C2_Init();
+  MX_UART7_Init();
   /* USER CODE BEGIN 2 */
   OSTaskInit();
   LOGINFO("[main] SystemInit() and OSInit() done");
@@ -230,8 +231,7 @@ void Error_Handler(void)
   }
   /* USER CODE END Error_Handler_Debug */
 }
-
-#ifdef  USE_FULL_ASSERT
+#ifdef USE_FULL_ASSERT
 /**
   * @brief  Reports the name of the source file and the source line number
   *         where the assert_param error has occurred.

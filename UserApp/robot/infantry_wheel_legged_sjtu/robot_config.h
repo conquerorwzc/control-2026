@@ -230,7 +230,6 @@ static Chassis_Init_Config_s
                  .Improve = PID_IMPROVE_NONE,
                  .IntegralLimit = 0.0f,
              },
-
          .length_PID_config =
              {
                  .Kp = 750.0f,
