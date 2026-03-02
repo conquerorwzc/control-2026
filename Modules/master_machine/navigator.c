@@ -5,6 +5,7 @@
 #include "bsp_usart.h"
 #include "crc_func.h"
 #include "bsp_dwt.h"
+#include "rm_referee.h"
 
 static navigator_send_t send_data;
 static USARTInstance *navigator_usart_instance ;
@@ -173,13 +174,13 @@ static uint8_t send_event_data(UART_HandleTypeDef* huart, const event_data_t* ev
  * @param robot_hp 血量数据结构体指针
  * @return 发送成功返回1，失败返回0
  */
-static uint8_t send_all_robot_hp(UART_HandleTypeDef* huart, const all_robot_hp_t* robot_hp)
+static uint8_t send_all_robot_hp(UART_HandleTypeDef* huart, const ext_game_robot_HP_t* robot_hp)
 {
     if (huart == NULL || robot_hp == NULL) return 0;
 
     return protocol_send(huart, 0x0003,
                         (uint8_t*)robot_hp,
-                        sizeof(all_robot_hp_t),
+                        sizeof(ext_game_robot_HP_t),
                         PKT_ID_ALL_ROBOT_HP, 10);
 }
 
@@ -287,7 +288,7 @@ static  uint8_t send_joint_state(UART_HandleTypeDef* huart, const joint_state_t*
 
 
 
-void updata_senddata(void) {
+void update_senddata(void) {
   send_data.game_status.game_type=0x0A;
   send_data.game_status.game_progress=0x0B;
   // send_data.game_status.stage_remain_time=0xAABB;
@@ -303,9 +304,9 @@ void updata_senddata(void) {
   }
 }
 
-void navigator_send(UART_HandleTypeDef *instance) {
-  updata_senddata();
-  send_all_robot_hp(instance,&send_data.all_robot_hp);
+void navigator_send(UART_HandleTypeDef *instance,referee_info_t* referee_data) {
+  update_senddata();
+  send_all_robot_hp(instance,&referee_data->GameRobotHP);
   // send_event_data(instance,&send_data.event_data);
   //send_game_status(instance,&send_data.game_status);
   // send_ground_robot_position(instance,&send_data.ground_robot_position);

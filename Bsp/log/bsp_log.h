@@ -16,13 +16,23 @@ void BSPLogInit();
 /**
  * @brief 日志功能原型,供下面的LOGI,LOGW,LOGE等使用
  *
+ * @note 若终端支持ANSI颜色(如JLink RTT Viewer),可将LOG_PROTO切换为带颜色版本:
+ *   #define LOG_PROTO(type, color, format, ...) \
+ *       SEGGER_RTT_printf(BUFFER_INDEX, "  %s%s" format "\r\n%s", color, type, ##__VA_ARGS__, RTT_CTRL_RESET)
  */
+// 无颜色版本(兼容Ozone Terminal等不支持ANSI的终端)
 #define LOG_PROTO(type, color, format, ...)                       \
-        SEGGER_RTT_printf(BUFFER_INDEX, "  %s%s" format "\r\n%s", \
-                          color,                                  \
+        SEGGER_RTT_printf(BUFFER_INDEX, "  %s" format "\r\n",    \
                           type,                                   \
-                          ##__VA_ARGS__,                          \
-                          RTT_CTRL_RESET)
+                          ##__VA_ARGS__)
+
+// 有颜色版本(供JLink RTT Viewer等支持ANSI的终端使用,需要时取消注释并注释上面的版本)
+// #define LOG_PROTO(type, color, format, ...)                       \
+//         SEGGER_RTT_printf(BUFFER_INDEX, "  %s%s" format "\r\n%s", \
+//                           color,                                  \
+//                           type,                                   \
+//                           ##__VA_ARGS__,                          \
+//                           RTT_CTRL_RESET)
 
 /*----------------------------------------下面是日志输出的接口-------------------------------------------------*/
 

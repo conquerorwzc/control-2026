@@ -286,20 +286,18 @@ static void RemoteControlSet() {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_VISION;
   }
 
-  if (robot->control_mode == AUTO_MODE) // 自动控制，直接接收上位机控制量
-  {
-    // float NotFountTime=0;                                 //没有识别到装甲板的时间
-    // gimbal_ctrl_cmd->gimbal_mode=GIMBAL_VISION;           //自瞄开启
-    // if (has_non_zero_data(vision_recv_data)==1){
-    //   gimbal_ctrl_cmd->yaw=vision_recv_data->gimbal_receive.yaw;
-    //   gimbal_ctrl_cmd->pitch=vision_recv_data->gimbal_receive.pitch;
-    //   // shoot_ctrl_cmd->load_mode=vision_recv_data->shoot_receive.fire_flag;
-    //   NotFountTime=time;                   //识别到装甲板
-    // }
-    // else if (time-NotFountTime>0.5f){      //丢失目标超0.5秒，进入寻敌模式
-    // gimbal_ctrl_cmd->yaw+=0.15f;
-    //   gimbal_ctrl_cmd->pitch+=0.045f*cosf(PI*1.5*time);//cos里数字越大，旋转速度越快
-    // }
+  if (vt13_rc_data->button_status.fn_1_flag==1) {
+    float NotFountTime=0;                                 //没有识别到装甲板的时间
+    if (has_non_zero_data(vision_recv_data)==1){
+      gimbal_ctrl_cmd->yaw=vision_recv_data->gimbal_receive.yaw;
+      gimbal_ctrl_cmd->pitch=vision_recv_data->gimbal_receive.pitch;
+      // shoot_ctrl_cmd->load_mode=vision_recv_data->shoot_receive.fire_flag;
+      NotFountTime=time;                   //识别到装甲板
+    }
+    else if (time-NotFountTime>0.5f){      //丢失目标超0.5秒，进入寻敌模式
+      gimbal_ctrl_cmd->yaw+=0.05f;
+      gimbal_ctrl_cmd->pitch=20.0f*cosf(PI*3*time);//cos里数字越大，旋转速度越快
+    }
   }
 }
 
@@ -531,8 +529,6 @@ void RobotInit() {
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
 void RobotCMDTask() {
-  // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
-  // CalcOffsetAngle();
   time = DWT_GetTimeline_s();
   RemoteControlSet();
   MouseKeySet();
@@ -541,7 +537,6 @@ void RobotCMDTask() {
 
 void RobotTask() {
   Gimbal_CANCommSend();
-  // navigator_send(&huart1);
   VisionSend();
   RobotCMDTask();
   GimbalTask();
