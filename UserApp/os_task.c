@@ -24,11 +24,13 @@
 #include "motor_task.h"
 // #include "referee_task.h"
 #include "robot.h"
+#include "robot_config.h"
 // module
 #include "dmmotor.h"
 // bsp
 #include "bsp_init.h"
-//#include "referee_task.h"
+#include "referee_task.h"
+// #include "referee_task.h"
 
 osThreadId motorTaskHandle;
 osThreadId daemonTaskHandle;

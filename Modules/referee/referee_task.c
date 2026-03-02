@@ -8,6 +8,7 @@
  * @copyright Copyright (c) 2022
  *
  */
+#include "robot_config.h"
 #ifdef USE_UI
 #include "referee_task.h"
 #include "rm_referee.h"
