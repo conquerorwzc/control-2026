@@ -26,6 +26,13 @@ typedef union {
   int16_t value;
   uint8_t bytes[2];
 } Int16ToBytes;
+
+typedef struct {
+  uint16_t projectile_allowance_17mm;
+  uint16_t buffer_energy;
+  uint16_t shooter_17mm_barrel_heat;
+} Referee_Data;
+
 typedef struct {
   Robot_Mode_e robot_mode;       // 机器人工作状态
   Control_Mode_e control_mode;   // 控制模式

@@ -30,6 +30,7 @@ typedef union {
   uint16_t valueu16[32];
   uint8_t bytes[64];
 } int16_t_bytes;
+Int16ToBytes transmit_data;
 int16_t_bytes CanData={0};//底盘板can接收的遥控数据
 static float x_speed_time=0;  //x方向加速触发时间
 static float y_speed_time=0;  //y方向加速触发时间
@@ -440,7 +441,35 @@ static void SuperCapControl() {
         robot->referee_data->PowerHeatData.buffer_energy,
         robot->referee_data->GameRobotState.power_management_chassis_output);
 }
+void Gimbal_CANCommSend()
+{
+  #ifdef USE_DUAL_RC
+  if (can_comm_instance == NULL || rc_data == NULL)
+  {
+    return;
+  }
 
+  #elifdef USE_DUAL_RC_NEW
+  if (can_comm_instance == NULL || vt13_rc_data == NULL)
+  {
+    return;
+  }
+
+  transmit_data.value = robot->referee_data->ProjectileAllowance.projectile_allowance_17mm;
+  board_can_comm_data.tx_buff[0] = transmit_data.bytes[0];
+  board_can_comm_data.tx_buff[1] = transmit_data.bytes[1];
+
+  transmit_data.value = robot->referee_data->PowerHeatData.buffer_energy;
+  board_can_comm_data.tx_buff[2] = transmit_data.bytes[0];
+  board_can_comm_data.tx_buff[3] = transmit_data.bytes[1];
+
+  transmit_data.value = robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
+  board_can_comm_data.tx_buff[4] = transmit_data.bytes[0];
+  board_can_comm_data.tx_buff[5] = transmit_data.bytes[1];
+  #endif
+
+  CANCommSend(can_comm_instance, board_can_comm_data.tx_buff);
+  }
 //解析底盘板收到的遥控数据
 static void DualBoardCtrlSet() {
   //chassis_ctrl_cmd->wz=0;
@@ -515,7 +544,7 @@ void RobotInit() {
   robot->chassis = ChassisInit(&chassis_init_config);
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
-  chassis_ctrl_cmd->max_power = 120;  // 随便给一个初始功率，后面应该要从裁判系统获取
+  chassis_ctrl_cmd->max_power = robot->referee_data->GameRobotState.chassis_power_limit;
   // navigator_data  = robot->navigator_data;
 }
 
