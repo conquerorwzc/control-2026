@@ -305,10 +305,11 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
 
 #elifdef USE_DUAL_RC_NEW
 static void RemoteControlSet() {
-  if ((switch_middle(vt13_rc_data->rc.mode_switch)||switch_right(vt13_rc_data->rc.mode_switch)) && abs(vt13_rc_data->rc.dial) > 20)
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
-  else
+  if (switch_middle(vt13_rc_data->rc.mode_switch)||switch_right(vt13_rc_data->rc.mode_switch)) {
     chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+    if (abs(vt13_rc_data->rc.dial) > 20)
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+  }
 
   // 底盘控制部分,系数需要调整
   if (robot->control_mode == MANUAL_MODE)//手动控制，遥控器控制量
