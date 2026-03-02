@@ -117,10 +117,17 @@ void CustomControllerTask(CustomController_t* controller)
         // DM电机角度转换：弧度转角度，并减去零位偏移
         float raw_angle = DM_RadianToDegree(controller->motors[0].dm_motor->measure.total_angle);
         controller->motor_angles[0] = raw_angle - controller->zero_offset[0];
+        
+        // 直接调用4310电机编码器零点标定
+        static bool first_calibration_done = false;
+        if (!first_calibration_done) {
+            DMMotorCaliEncoder(controller->motors[0].dm_motor);
+            first_calibration_done = true;
+        }
     }
     if (controller->motors[1].dji_motor != NULL) {
         float raw_angle = controller->motors[1].dji_motor->measure.total_angle;
-        controller->motor_angles[1] = raw_angle - controller->zero_offset[1];
+        controller->motor_angles[1] = -(raw_angle - controller->zero_offset[1]);
     }
     if (controller->motors[2].dji_motor != NULL) {
         float raw_angle = controller->motors[2].dji_motor->measure.total_angle;
@@ -241,7 +248,6 @@ void CustomController_UpdateMotorData(CustomController_t* controller)
     for (int i = 0; i < 4; i++) {
         controller->motor_data[i].current_angle = controller->motor_angles[i];
         controller->motor_data[i].present_pos = (int16_t)controller->motor_angles[i];
-        // 假设电机都是在线的
         controller->motor_data[i].is_online = 1;
     }
 }
@@ -263,7 +269,7 @@ void CustomController_UpdatePotData(CustomController_t* controller)
     controller->potentiometer.current_angle = VoltageToAngle(
         controller->potentiometer.current_voltage, 
         &controller->potentiometer.config  // 使用持久化的配置参数
-    );
+    ) - 101.0f;
 }
 
 /* ----------------------- 私有函数实现 ----------------------------- */

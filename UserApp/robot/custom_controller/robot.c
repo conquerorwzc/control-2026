@@ -52,14 +52,3 @@ void RobotTask() {
         CustomController_SendAllData(angle_controller);
     }
 }
-
-/*
-// 获取各电机当前角度（未使用）
-void GetMotorAngles(float* angles) {
-    if (angles != NULL && angle_controller != NULL) {
-        for (int i = 0; i < 4; i++) {
-            angles[i] = CustomControllerGetMotorAngle(angle_controller, i);
-        }
-    }
-}
-*/
