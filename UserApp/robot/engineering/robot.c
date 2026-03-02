@@ -8,6 +8,7 @@
 #include "string.h"
 #include "user_lib.h"
 #include "selfcontrol.h"
+#include "bsp_gpio.h"
 
 #include "stdbool.h"
 
@@ -33,6 +34,12 @@ static GrabControlMode_e grab_control_mode = GRAB_CONTROL_KEYBOARD;  // 默认�
 /* Private function prototypes -----------------------------------------------*/
 static void Gantry_Limit(Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd, const Gantry_Param_s *gantry_param);
 static void Grab_Limit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, const Gantry_Param_s *gantry_param);
+static GPIOInstance *gpio_5V_EN;
+static GPIO_Init_Config_s gpio_init_config_5v = {
+    .GPIO_Pin = POWER_5V_Pin,
+    .GPIOx = POWER_5V_GPIO_Port,
+    .pin_state = GPIO_PIN_SET,
+  };
 
 static void RemoteControlSet();
 static void EmergencyHandler();
@@ -82,6 +89,8 @@ void RobotInit()
     grab_param = grab_init_config.Grab_param;
 
     rc_data = robot->rc_data;
+    gpio_5V_EN = GPIORegister(&gpio_init_config_5v);
+    GPIOSet(gpio_5V_EN);
 }
 
 void RobotTask()
@@ -101,6 +110,7 @@ void RobotTask()
     // 机械臂使能由按键G控制，在MouseKeySet()中处理
     //grab_ctrl_cmd->grab_mode = b;
 #endif
+
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */

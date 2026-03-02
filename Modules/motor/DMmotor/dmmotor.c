@@ -122,7 +122,7 @@ static void DMMotorDecode(CANInstance *motor_can)
 static void DMMotorLostCallback(void *motor_ptr)
 {
     DMMotorInstance *motor = (DMMotorInstance *)motor_ptr;
-    // DMMotorStop(motor);
+    DMMotorStop(motor);
     uint16_t can_bus = motor->motor_can_instance->can_handle == &hfdcan1
                            ? 1
                            : (motor->motor_can_instance->can_handle == &hfdcan2 ? 2 : 3); // 修改：变量名
@@ -133,8 +133,6 @@ static void DMMotorLostCallback(void *motor_ptr)
     motor->motor_controller.speed_PID.Iout = 0;
     motor->motor_controller.current_PID.ITerm = 0;
     motor->motor_controller.current_PID.Iout = 0;
-    // DMMotorSetMode(DM_CMD_MOTOR_MODE, motor);
-    // osDelay(1);
 }
 
 void DMMotorCaliEncoder(DMMotorInstance *motor)
@@ -156,10 +154,12 @@ DMMotorInstance *DMMotorInit(Motor_Init_Config_s *config)
     motor->motor_controller.other_angle_feedback_ptr = config->controller_param_init_config.other_angle_feedback_ptr;
     motor->motor_controller.other_speed_feedback_ptr = config->controller_param_init_config.other_speed_feedback_ptr;
 
+    motor->motor_controller.speed_feedforward_ptr = config->controller_param_init_config.speed_feedforward_ptr;
+    motor->motor_controller.current_feedforward_ptr = config->controller_param_init_config.current_feedforward_ptr;
+
     config->can_init_config.can_module_callback = DMMotorDecode;
     config->can_init_config.id = motor;
     motor->motor_can_instance = CANRegister(&config->can_init_config);
-
 
     Daemon_Init_Config_s conf = {
         .callback = DMMotorLostCallback,
@@ -317,8 +317,8 @@ __attribute__((noreturn)) void DMMotorTask(void const *argument)
 
         CANTransmit(motor->motor_can_instance, 2);
 
-        osDelay(2);
-        if (motor->daemon->temp_count == 0)
+        osDelay(3);
+        if (motor->daemon->temp_count == 0 || motor->measure.state == 0)
         {
             DMMotorSetMode(DM_CMD_MOTOR_MODE, motor);
             osDelay(1);
