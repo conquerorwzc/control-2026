@@ -22,8 +22,7 @@ static Send_Data_RC *send_data;
 static Send_Data_RC_NEW *send_data_new;
 #endif
 static CANCommInstance* can_comm_instance = NULL;
-static Referee_Data RefereeData;
-uint8_t* received_data = NULL;
+static Referee_Data *RefereeData;
 /* Intermediate variables calculated by private functions */
 static float trigger_time = 0;  // 触发时间
 static float time=0;//判断按钮按下需要重复读取时间，这里简化成一次读取
@@ -487,18 +486,8 @@ static void DualBoardCtrlSet() {
   //chassis_ctrl_cmd->wz=0;
   if (CANCommIsOnline(can_comm_instance)) {
     // 检查是否有新数据更新
-    received_data = (uint8_t*)CANCommGet(can_comm_instance);
+    *RefereeData = *(Referee_Data*)CANCommGet(can_comm_instance);
     // 如果收到数据，可以在这里处理
-    if (received_data != NULL) {
-      // 解析接收到的数据到全局变量
-      //memcpy(board_can_comm_data.rx_buff, received_data, 16);
-
-      for (int i = 0; i < 24; i++)
-        CanData.bytes[i] = received_data[i];
-      RefereeData.projectile_allowance_17mm=CanData.valueu16[0];
-      RefereeData.buffer_energy=CanData.valueu16[1];
-      RefereeData.shooter_17mm_barrel_heat=CanData.valueu16[2];
-    }
   }
 }
 void RobotInit() {
