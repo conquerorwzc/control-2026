@@ -63,6 +63,7 @@ typedef struct {
   float offset_angle;  // 底盘和归中位置的夹角
   int chassis_speed_buff;
   uint16_t max_power;  // 最大功率限制
+  float power_distribute;  //前后轮功率分配系数
   // UI部分
   //  ...
 

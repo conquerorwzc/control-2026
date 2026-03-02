@@ -10,7 +10,6 @@
 #include "user_lib.h"
 #include "master_process.h"
 static RobotInstance *robot;
-#define HERO_DEBUG
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
 static Gimbal_Ctrl_Cmd_s *gimbal_ctrl_cmd;
@@ -26,11 +25,10 @@ static float y_speed_time=0;  //y方向加速触发时间
 static float vx_initial;   //x轴输入控制量
 static float vy_initial;   //y轴输入控制量
 static float angle;
-// 添加一个变量记录上次右上拨杆的状态，用于检测状态变化
-static uint8_t last_switch_right_up = 0;
 float new_max_pitch=0.0f;
 float new_min_pitch=0.0f;
-
+static float f_power_boost_timer = 0.0f;  // 前轮功率提升定时器
+static uint8_t f_power_boost_active = 0;  // 前轮功率提升状态标志
 external_imu_t *external_imu_instance;
 
 static GPIOInstance *gpio_5V_EN;
@@ -269,9 +267,6 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
       break;
   }
 
-
-
-
   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_C] % 4)  // C键设置底盘速度
   {
     case 0:
@@ -342,15 +337,14 @@ static void RemoteControlSet() {
   //     chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
   // }
   if (switch_is_down(rc_data[TEMP].rc.switch_right)) {
-    // 右下：腿部缓慢下降
-    chassis_ctrl_cmd->leg_mode = LEG_NORMAL;
+
+    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_DOWN;
   } else if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
     chassis_ctrl_cmd->leg_mode = LEG_HOLD;
-    // 右中：保持当前腿部位置不变（不改变之前的腿部模式）
-    // 保留当前模式，不修改leg_mode
+
   } else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
-    // 右上：腿部缓慢上升，最大到kike位置
-    chassis_ctrl_cmd->leg_mode = LEG_IN_AIR;
+
+    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_UP;
 
   }
 
@@ -407,8 +401,6 @@ static void RemoteControlSet() {
   // 底盘参数,系数需要调整
    vx_initial= 60.0f * (float)rc_data[TEMP].rc.rocker_l_;  // _水平方向
    vy_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 1数值方向
-  chassis_ctrl_cmd->vx=vx_initial;
-  chassis_ctrl_cmd->vy=vy_initial;
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
     chassis_ctrl_cmd->wz =
         25.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
@@ -424,7 +416,6 @@ static void RemoteControlSet() {
   // 射频控制,固定每秒1发,后续可以根据左侧拨轮的值大小切换射频,
   shoot_ctrl_cmd->shoot_rate = 8;
 
-  *rc_data_last = *rc_data;
 }
 
 
@@ -434,9 +425,9 @@ static void RemoteControlSet() {
  */
 static void MouseKeySet() {
   vy_initial += (float)((rc_data[TEMP].key[KEY_PRESS].w) - rc_data[TEMP].key[KEY_PRESS].s) *
-                (float)chassis_ctrl_cmd->chassis_speed_buff;
+                        (float) chassis_ctrl_cmd->chassis_speed_buff;
   vx_initial += (float)(rc_data[TEMP].key[KEY_PRESS].a - rc_data[TEMP].key[KEY_PRESS].d) *
-                (float)-chassis_ctrl_cmd->chassis_speed_buff;
+                         (float) -chassis_ctrl_cmd->chassis_speed_buff;
 
   //缓加速
   if (abs(vx_initial)<=10000) {
@@ -459,7 +450,21 @@ static void MouseKeySet() {
   if (vy_initial < -10000&&chassis_ctrl_cmd->vy>= 60.0f * (float)rc_data[TEMP].rc.rocker_l1) {
     chassis_ctrl_cmd->vy=-10000-(DWT_GetTimeline_s()-y_speed_time)*10000;
   }//速度绝对值在10000以上输出控制量=10000+10000t(s)
-  // 添加R键和F键控制腿部升降
+
+  if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
+  {
+    gimbal_ctrl_cmd->yaw -= (float)rc_data[TEMP].mouse.x * 0.007f;  // 横向灵敏度调节
+    gimbal_ctrl_cmd->pitch += (float)rc_data[TEMP].mouse.y * 0.003f; // 纵向灵敏度调节 (负号反转Y轴)
+    // 当腿部抬起时，使用编码器解算的角度进行限位，防止机械碰撞
+    if (gimbal_ctrl_cmd->pitch < new_max_pitch) {
+      // 如果实际角度超过上限，限制目标角度
+      gimbal_ctrl_cmd->pitch = new_max_pitch;
+    } else if (gimbal_ctrl_cmd->pitch > new_min_pitch) {
+      // 如果实际角度低于下限，限制目标角度
+      gimbal_ctrl_cmd->pitch = new_min_pitch;
+    }
+  }
+  // 添加R键和F键控制腿部升降,腿在leg in air模式时这两个按键不起作用
   if (rc_data[TEMP].key[KEY_PRESS].r) {
     // R键按下，腿部渐渐升起
     chassis_ctrl_cmd->leg_mode = LEG_MANUAL_UP;
@@ -468,67 +473,50 @@ static void MouseKeySet() {
     chassis_ctrl_cmd->leg_mode = LEG_MANUAL_DOWN;
   }
 
-  static uint8_t last_x_key_state = 0; // X键状态
-  uint8_t current_x_key_state = rc_data[TEMP].key[KEY_PRESS].x; // X键状态
-
   // 检测X键按下事件（从释放到按下），设置腿部为正常模式
-  if (current_x_key_state && !last_x_key_state) {
+  if (!rc_data_last[TEMP].key[KEY_PRESS].x && rc_data[TEMP].key[KEY_PRESS].x) {
     chassis_ctrl_cmd->leg_mode = LEG_NORMAL;
   }
-  // 更新X键状态
-  last_x_key_state = current_x_key_state;
-  static uint8_t last_ctrl_key_state = 0; // Ctrl键状态
-  uint8_t current_ctrl_key_state = rc_data[TEMP].key[KEY_PRESS].ctrl; // Ctrl键状态
 
-  // 检测Ctrl键按下事件（从释放到按下），设置腿部为空中模式
-  if (current_ctrl_key_state && !last_ctrl_key_state) {
+  // 检测ctrl键按下事件（从释放到按下），设置腿部为空中模式
+  if (!rc_data_last[TEMP].key[KEY_PRESS].ctrl && rc_data[TEMP].key[KEY_PRESS].ctrl) {
     chassis_ctrl_cmd->leg_mode = LEG_IN_AIR;
   }
-  // 更新Ctrl键状态
-  last_ctrl_key_state = current_ctrl_key_state;
-  // 添加B键设置底盘跟随模式（按下一次触发）
-  static uint8_t last_b_key_state = 0; // B键状态
-  uint8_t current_b_key_state = rc_data[TEMP].key[KEY_PRESS].b; // B键状态
 
-  // 检测B键按下事件（从释放到按下），设置底盘为跟随模式
-  if (current_b_key_state && !last_b_key_state) {
-    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW_REAR_END) {
-      gimbal_ctrl_cmd->yaw+=180.0f;
+  // 添加B键设置底盘跟随模式（通过按压次数切换跟头/跟尾部）
+  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_B] % 2) {
+    case 0:
+      // 偶数次按压 - 跟随车头模式
+      if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW_REAR_END) {
+        gimbal_ctrl_cmd->yaw += 180.0f;
 
-      // 将角度规范化到-180到180度范围内
-      if (gimbal_ctrl_cmd->yaw > 180.0f) {
-        gimbal_ctrl_cmd->yaw -= 360.0f;
-      } else if (gimbal_ctrl_cmd->yaw < -180.0f) {
-        gimbal_ctrl_cmd->yaw += 360.0f;
+        // 将角度规范化到-180到180度范围内
+        if (gimbal_ctrl_cmd->yaw > 180.0f) {
+          gimbal_ctrl_cmd->yaw -= 360.0f;
+        } else if (gimbal_ctrl_cmd->yaw < -180.0f) {
+          gimbal_ctrl_cmd->yaw += 360.0f;
+        }
       }
-    }
-    chassis_ctrl_cmd->wz=0.0f;
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
-  }
-  // 更新B键状态
-  last_b_key_state = current_b_key_state;
+      chassis_ctrl_cmd->wz = 0.0f;
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+      break;
 
-  // 添加V键设置底盘跟随车尾模式（按下一次触发）
-  static uint8_t last_v_key_state = 0; // V键状态
-  uint8_t current_v_key_state = rc_data[TEMP].key[KEY_PRESS].v; // V键状态
+    case 1:
+      // 奇数次按压 - 跟随车尾模式
+      if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
+        gimbal_ctrl_cmd->yaw += 180.0f;
 
-  // 检测V键按下事件（从释放到按下），设置底盘为跟随车尾模式
-  if (current_v_key_state && !last_v_key_state) {
-    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
-      gimbal_ctrl_cmd->yaw+=180.0f;
-
-      // 将角度规范化到-180到180度范围内
-      if (gimbal_ctrl_cmd->yaw > 180.0f) {
-        gimbal_ctrl_cmd->yaw -= 360.0f;
-      } else if (gimbal_ctrl_cmd->yaw < -180.0f) {
-        gimbal_ctrl_cmd->yaw += 360.0f;
+        // 将角度规范化到-180到180度范围内
+        if (gimbal_ctrl_cmd->yaw > 180.0f) {
+          gimbal_ctrl_cmd->yaw -= 360.0f;
+        } else if (gimbal_ctrl_cmd->yaw < -180.0f) {
+          gimbal_ctrl_cmd->yaw += 360.0f;
+        }
       }
-    }
-    chassis_ctrl_cmd->wz=0.0f;
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW_REAR_END;
+      chassis_ctrl_cmd->wz = 0.0f;
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW_REAR_END;
+      break;
   }
-  // 更新V键状态
-  last_v_key_state = current_v_key_state;
   switch (rc_data[TEMP].mouse.press_r % 2) {  //右键进入自瞄预备模式
     case 1:
       if (has_non_zero_data(vision_recv_data)==1){
@@ -607,6 +595,24 @@ static void MouseKeySet() {
 
       break;
   }
+  // G键功率重新分配功能
+  if (rc_data[TEMP].key[KEY_PRESS].g && !rc_data_last[TEMP].key[KEY_PRESS].g) {
+    // 检测到H键按下边缘触发
+    f_power_boost_timer = DWT_GetTimeline_s();
+    f_power_boost_active = 1;
+    chassis_ctrl_cmd->power_distribute = 2.0f;  // 设置前轮功率优先
+  }
+
+  // 检查功率提升是否超时
+  if (f_power_boost_active) {
+    if (DWT_GetTimeline_s() - f_power_boost_timer >= 1.0f) {
+      // 2秒时间到，恢复默认功率
+      f_power_boost_active = 0;
+      chassis_ctrl_cmd->power_distribute = 1.2f;  // 设置默认功率分配
+    }
+  }
+
+  *rc_data_last = *rc_data;
 }
 #endif
 
@@ -673,6 +679,7 @@ void RobotInit() {
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   chassis_ctrl_cmd->max_power = 150;  // 随便给一个初始功率，后面应该要从裁判系统获取
+  chassis_ctrl_cmd->power_distribute = 1.2f;
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;
@@ -696,6 +703,6 @@ void RobotTask() {
   GimbalTask();
   ShootTask();
 
-   ChassisTask();
+  ChassisTask();
 
 }

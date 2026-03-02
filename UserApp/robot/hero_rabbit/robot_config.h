@@ -144,7 +144,7 @@
           {                                                                                                    \
               .speed_PID =                                                                                     \
                   {                                                                                            \
-                      .Kp = 3,                                                                               \
+                      .Kp = 5,                                                                               \
                                                                                                              \
                       .Kd = 0.01,                                                                                 \
                                                                                                              \
@@ -196,6 +196,7 @@ static Chassis_Init_Config_s chassis_init_config = {
     .wheel_motor_config[3] = REAR_WHEEL_MOTOR_CONFIG(&hcan1, 3),
     .leg_motor_config[0]= LEG_MOTOR_CONFIG(&hcan3, 2, 0x0a,0),
     .leg_motor_config[1]= LEG_MOTOR_CONFIG(&hcan3, 1, 1,0),
+
     // 跟随PID
     .follow_pid =
         {

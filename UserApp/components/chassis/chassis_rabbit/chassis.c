@@ -166,6 +166,7 @@ static void SlopeCompensationControl() {
     // 计算基于欧拉角的补偿
     float compensation_x, compensation_y;
     CalculateEulerCompensation(chassis, &compensation_x, &compensation_y);
+    //限制最大补偿角度为0.2
     if (fabsf(compensation_x)>0.2) {
       compensation_x = (compensation_x > 0) ? 0.2f : -0.2f;
     }
@@ -350,6 +351,9 @@ static void MecanumCalculate() {
  * @todo 有待模块化,djimotor也得改改
  */
 static void PowerControl() {
+  //把前后轮电机的功率分配留个接口，以后可以动态分配
+  float power_param_f=chassis_ctrl_cmd->power_distribute;
+  float power_param_b=2.0f-power_param_f;
   // 获取电机速度反馈,化成单位rad/s
   float motor_speed_fdb[4];
   for (int i = 0; i < 4; i++) {
@@ -394,8 +398,8 @@ static void PowerControl() {
   }
   // 功率超限时进行动态调整
   if (initial_total_power > (float)chassis_ctrl_cmd->max_power) {
-    float power_scale_F = 1.4f*(float)chassis_ctrl_cmd->max_power / initial_total_power;  // 削减功率比例
-    float power_scale_B = 0.6f*(float)chassis_ctrl_cmd->max_power / initial_total_power;  // 削减功率比例
+    float power_scale_F = power_param_f*(float)chassis_ctrl_cmd->max_power / initial_total_power;  // 削减功率比例
+    float power_scale_B = power_param_b*(float)chassis_ctrl_cmd->max_power / initial_total_power;  // 削减功率比例
     float scaled_give_power[4];
     // 计算缩放后的功率目标
     for (int i = 0; i < 2; i++) {
@@ -478,7 +482,7 @@ static void LimitChassisOutput() {
   DJIMotorSetPIDRef(chassis->wheel_motor[1], vt_rf);
   DJIMotorSetPIDRef(chassis->wheel_motor[2], vt_lb);
   DJIMotorSetPIDRef(chassis->wheel_motor[3], vt_rb);
-  // PowerControl();
+   PowerControl();
 }
 
 /**
@@ -502,7 +506,6 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
       chassis_init_config->external_imu.can_handle);
 
   chassis_param = chassis_init_config->chassis_param;  // 在运行时赋值
-
 
   float half_wheel_base = chassis_param.wheel_base / 2.0f;
   float half_track_width = chassis_param.track_width / 2.0f;
@@ -543,6 +546,7 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
 
   chassis = chassis_instance;
   chassis_ctrl_cmd = &chassis->chassis_ctrl_cmd;  // 在运行时初始化指针
+  chassis_ctrl_cmd->power_distribute=1.2f;
   return chassis_instance;
 }
 /* 机器人底盘控制核心任务 */
