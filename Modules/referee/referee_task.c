@@ -8,6 +8,7 @@
  * @copyright Copyright (c) 2022
  *
  */
+#ifdef USE_UI
 #include "referee_task.h"
 #include "rm_referee.h"
 #include "referee_UI.h"
@@ -862,3 +863,4 @@ void UITask()
     // 执行UI刷新
     MyUIRefresh(&interactive_data);
 }
+#endif

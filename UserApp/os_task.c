@@ -28,7 +28,7 @@
 #include "dmmotor.h"
 // bsp
 #include "bsp_init.h"
-#include "referee_task.h"
+//#include "referee_task.h"
 
 osThreadId motorTaskHandle;
 osThreadId daemonTaskHandle;
@@ -57,10 +57,10 @@ void OSTaskInit() {
 
   osThreadDef(robottask, StartROBOTTASK, osPriorityNormal, 0, 1024);
   robotTaskHandle = osThreadCreate(osThread(robottask), NULL);
-
+#ifdef USE_UI
    osThreadDef(uitask, StartUITASK, osPriorityNormal, 0, 512);
    uiTaskHandle = osThreadCreate(osThread(uitask), NULL);
-
+#endif
   // 初始化完成,开启中断
   __enable_irq();
 }
@@ -111,7 +111,7 @@ __attribute__((noreturn)) void StartROBOTTASK(void const *argument) {
   }
 }
 
-//#if 0
+#ifdef USE_UI
 __attribute__((noreturn)) void StartUITASK(void const *argument) {
   LOGINFO("[freeRTOS] UI Task Start");
   MyUIInit();
@@ -122,4 +122,4 @@ __attribute__((noreturn)) void StartUITASK(void const *argument) {
     osDelay(20);  // 即使没有任何UI需要刷新,也挂起一次,防止卡在UITask中无法切换
   }
 }
-//#endif
+#endif

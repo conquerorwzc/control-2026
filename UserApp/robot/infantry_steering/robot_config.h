@@ -27,7 +27,7 @@
 
 #define VISION_USE_VCP  // 使用虚拟串口发送视觉数据
 // #define VISION_USE_UART // 使用串口发送视觉数据
-
+#define USE_UI
 // 云台参数
 #define YAW_CHASSIS_ALIGN_ECD 1570
 #define PITCH_HORIZON_ECD 5748  // 云台处于水平位置时编码器值,若对云台有机械改动需要修改
