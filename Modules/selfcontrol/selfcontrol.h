@@ -85,11 +85,5 @@ float SelfControlGetMotorAngle(const SelfC* controller, uint8_t motor_index);
  */
 float SelfControlGetPotAngle(const SelfC* controller, uint8_t pot_index);
 
-/**
- * @brief 角度标准化(下位机已实现此功能)
- * @param angle 输入角度
- * @return float 原始角度(直接返回)
- */
-float SelfControlNormalizeAngle(float angle);
 
 #endif  // CONTROL_2026_SELFCONTROL_H

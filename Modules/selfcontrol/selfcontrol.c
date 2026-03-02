@@ -134,17 +134,14 @@ static void SelfControl_FeedBytes(const uint8_t* buf, uint16_t len)
 // 控制器实例
 static SelfC self_control;
 
-// 角度标准化函数(下位机已实现，此处留空)
-float SelfControlNormalizeAngle(float angle) {
-    return angle;  // 直接返回原始角度
-}
+
 
 // 获取电机角度
 float SelfControlGetMotorAngle(const SelfC* controller, uint8_t motor_index) {
     if (controller == NULL || motor_index >= 4) {
         return 0.0f;
     }
-    return SelfControlNormalizeAngle(controller->unpacked_data.motors[motor_index].angle);
+    return controller->unpacked_data.motors[motor_index].angle;
 }
 
 // 获取电位器角度
@@ -152,7 +149,7 @@ float SelfControlGetPotAngle(const SelfC* controller, uint8_t pot_index) {
     if (controller == NULL || pot_index >= 1) {
         return 0.0f;
     }
-    return SelfControlNormalizeAngle(controller->unpacked_data.pots[pot_index].angle);
+    return controller->unpacked_data.pots[pot_index].angle;
 }
 
 UnpackedControllerData_t* GetSelfControlDataPtr(void) {
