@@ -8,21 +8,21 @@
 /* Private macro -------------------------------------------------------------*/
 #define LEFT 0
 #define RIGHT 1
-// 置为 1 时，给对应的腿发“免考金牌”（强行假装它标定完了）
-// 注意：这两个绝对不能同时为 1！正常比赛时，两个都要改成 0！
+
+// 注意：两个不能同时为1，正常比赛时，两个都要改成 0！
 #define DEBUG_FRONT_ONLY 1  // 设为 1 时：只调前腿，屏蔽后腿
 #define DEBUG_REAR_ONLY  0  // 设为 1 时：只调后腿，屏蔽前腿
 // ==================== 【前腿（齿条）专属动力学调参区】 ====================
-// ⏱️ 1. 速度与柔顺度（梯形曲线参数）
-// [决定了腿弹出的绝对速度，时间越短越狂暴]
+// 速度与柔顺度（梯形曲线参数）
+// 决定了腿弹出的绝对速度
 #define FRONT_TOTAL_TIME_SEC  1.0f   // 目标：完成单次最大行程的总时间(秒)
-// [决定了起步和刹车的柔和程度，越大越平滑，必须 < 总时间的一半]
+// 决定了起步和刹车的柔和程度，越大越平滑，必须 < 总时间的一半
 #define FRONT_ACCEL_TIME_SEC  0.4f   // 加速/减速缓冲段的时间(秒)
 
-// ⚡ 2. 力量与保护（动态电流限幅，大疆电机满载为 16384）
-// [运动时的爆发力。给小了跑不到预定极速，给大了撞击时会切断螺丝]
+// 力量与保护（动态电流限幅，大疆电机满载为 16384）
+// 运动时的爆发力。给小了跑不到预定极速，给大了撞击时会切断螺丝]
 #define FRONT_MOVING_MAX_OUT  7000.0f
-// [静止时的保持力。只要能锁死齿条不掉下来即可，越小电机越不容易发烫]
+// 静止时的保持力。只要能锁死齿条不掉下来即可，越小电机越不容易发烫
 #define FRONT_STOP_MAX_OUT    4000.0f
 // ==================== 【硬件基础信息】 ====================
 #define CALI_TASK_FREQ 500.0f  // 标定任务运行频率 (Hz) ，在ostask里得知
@@ -30,15 +30,15 @@
 #define GEAR_RATIO_FRONT 19.0f // 前腿减速比
 
 // ==================== 【标定行为期望 (物理参数)】 ====================
-// 2.1 速度期望 (输出轴物理角速度：度/秒)
-// 后腿: 20mm/s * 90度/mm = 1800 度/秒
+// 速度期望 (输出轴物理角速度：度/秒)
+// 后腿: 40mm/s * 90度/mm = 3600 度/秒
 #define SPEED_RETRACT_REAR_DEG 3600.0f
 #define SPEED_EXTEND_REAR_DEG 3600.0f
-// 前腿: 20mm/s * 2.7度/mm = 54 度/秒
+// 前腿: 40mm/s * 2.7度/mm = 108 度/秒
 #define SPEED_RETRACT_FRONT_DEG 108.0f
 #define SPEED_EXTEND_FRONT_DEG 108.0f
 
-// 2.2 力量离合期望 (虚拟弹簧允许拉伸的最大输出轴度数，度数越大爆发的推力越大)
+// 力量离合期望 (虚拟弹簧允许拉伸的最大输出轴度数，度数越大爆发的推力越大)
 // 后腿 (丝杠): 机械优势极大，允许 2~5mm 误差即可爆发出满载推力
 #define FORCE_ZERO_REAR_DEG 1000.0f // 收缩靠墙: 允许 2mm 误差 (2*90)
 #define FORCE_MAX_REAR_DEG 450.0f   // 撑起车身: 允许 5mm 误差 (5*90)
@@ -47,11 +47,11 @@
 #define FORCE_ZERO_FRONT_DEG 135.0f // 收缩靠墙: 允许 5mm 误差 (5*2.7)
 #define FORCE_MAX_FRONT_DEG 600.0f  // 撑起车身: 允许 15mm 误差 (15*2.7)
 
-// 2.3 堵转静止判定期望 (允许的最大抖动速度：度/秒)
+// 堵转静止判定期望 (允许的最大抖动速度：度/秒)
 #define JITTER_TOLERANCE_REAR 15.0f
 #define JITTER_TOLERANCE_FRONT 15.0f
 
-// 2.4 判定时间窗口与安全系数
+// 判定时间窗口与安全系数
 #define CALI_TIMEOUT_SEC 40.0f    // 全局防暴走超时保护时间 (秒)
 #define ZERO_CHECK_SEC 1.5f       // 零点堵转持续判定时间 (秒)
 #define MAX_CHECK_SEC 3.0f        // 伸展堵转持续判定时间 (秒)
@@ -60,29 +60,28 @@
 // 公式：度数 转化为 对应电机的 Ticks (1圈=360度=8192*减速比)
 #define DEG_TO_TICKS(deg, ratio) ((deg) * (ratio) * 8192.0f / 360.0f)
 
-// 1. 时间转 Tick 循环次数
+// 时间转 Tick 循环次数
 #define CALI_TIMEOUT_TICKS (uint32_t)(CALI_TIMEOUT_SEC * CALI_TASK_FREQ)
 #define ZERO_CALI_CHECK_TICKS (uint32_t)(ZERO_CHECK_SEC * CALI_TASK_FREQ)
 #define MAX_CALI_CHECK_TICKS (uint32_t)(MAX_CHECK_SEC * CALI_TASK_FREQ)
 
-// 2. 斜坡步长推导 (Step = 期望速度转成的Ticks / 频率)
+// 斜坡步长推导 (Step = 期望速度转成的Ticks / 频率)
 #define ZERO_CALI_STEP_REAR (DEG_TO_TICKS(SPEED_RETRACT_REAR_DEG, GEAR_RATIO_REAR) / CALI_TASK_FREQ)
 #define ZERO_CALI_STEP_FRONT (DEG_TO_TICKS(SPEED_RETRACT_FRONT_DEG, GEAR_RATIO_FRONT) / CALI_TASK_FREQ)
 #define MAX_CALI_STEP_REAR (DEG_TO_TICKS(SPEED_EXTEND_REAR_DEG, GEAR_RATIO_REAR) / CALI_TASK_FREQ)
 #define MAX_CALI_STEP_FRONT (DEG_TO_TICKS(SPEED_EXTEND_FRONT_DEG, GEAR_RATIO_FRONT) / CALI_TASK_FREQ)
-// 3. 滑动离合力矩推导 (转化为 Ticks 误差)
+// 滑动离合力矩推导 (转化为 Ticks 误差)
 #define ZERO_CALI_SLIP_LIMIT_REAR DEG_TO_TICKS(FORCE_ZERO_REAR_DEG, GEAR_RATIO_REAR)
 #define ZERO_CALI_SLIP_LIMIT_FRONT DEG_TO_TICKS(FORCE_ZERO_FRONT_DEG, GEAR_RATIO_FRONT)
 #define MAX_CALI_SLIP_LIMIT_REAR DEG_TO_TICKS(FORCE_MAX_REAR_DEG, GEAR_RATIO_REAR)
 #define MAX_CALI_SLIP_LIMIT_FRONT DEG_TO_TICKS(FORCE_MAX_FRONT_DEG, GEAR_RATIO_FRONT)
-// 4. 堵转静止容差推导 (允许抖动速度 * 判定时间 = 允许的 Ticks 波动范围)
+// 堵转静止容差推导 (允许抖动速度 * 判定时间 = 允许的 Ticks 波动范围)
 #define ZERO_CALI_STOP_THRES_REAR DEG_TO_TICKS(JITTER_TOLERANCE_REAR *ZERO_CHECK_SEC, GEAR_RATIO_REAR)
 #define ZERO_CALI_STOP_THRES_FRONT DEG_TO_TICKS(JITTER_TOLERANCE_FRONT *ZERO_CHECK_SEC, GEAR_RATIO_FRONT)
 #define MAX_CALI_STOP_THRES_REAR DEG_TO_TICKS(JITTER_TOLERANCE_REAR *MAX_CHECK_SEC, GEAR_RATIO_REAR)
 #define MAX_CALI_STOP_THRES_FRONT DEG_TO_TICKS(JITTER_TOLERANCE_FRONT *MAX_CHECK_SEC, GEAR_RATIO_FRONT)
 
 /* Private variables ---------------------------------------------------------*/
-
 static ChassisInstance *chassis;
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd; // 声明但不初始化
 static Chassis_Param_s chassis_param;        // 声明为静态局部变量
@@ -114,7 +113,7 @@ static void Planner_Update(TrapezoidalPlanner_t *planner);
 ChassisInstance *ChassisInit(Chassis_Init_Config_s *chassis_init_config);
 static void LiftLeg_Init(LiftLeg_t *leg, float *ff_ch, uint8_t use_curve,
                          float total_time, float acc_time,
-                         float stroke,  // 👈 【关键新增】：告诉这条腿，它自己要跑多远！
+                         float stroke,
                          float move_out, float stop_out);
 static void LiftLeg_SetTarget(LiftLeg_t *leg, float target);
 static void LiftLeg_Execute(LiftLeg_t *leg);
@@ -253,7 +252,7 @@ void ChassisTask()
         chassis_ctrl_cmd->wz += PIDCalculate(&follow_pid, chassis_ctrl_cmd->offset_angle, 0);
         break;
     case CHASSIS_CLIMB: // 进入底盘抬升爬楼梯状态
-        if (chassis_ctrl_cmd->climb_state == CLIMB_STAGE_FRONT_RETRACT)
+        if (chassis_ctrl_cmd->climb_state == CLIMB_STAGE_FRONT_RETRACT || chassis_ctrl_cmd->climb_state == CLIMB_STAGE_ALL_RETRACT)
 
         {
             chassis_ctrl_cmd->wz += PIDCalculate(&follow_pid, chassis_ctrl_cmd->offset_angle, 0);
@@ -281,7 +280,7 @@ void ChassisTask()
 }
 
 /**
- * @brief 私有方法：梯形曲线更新器
+ * @brief 梯形曲线更新器
  */
 static void Planner_Update(TrapezoidalPlanner_t *planner)
 {
@@ -327,7 +326,7 @@ static void Planner_Update(TrapezoidalPlanner_t *planner)
  */
 static void LiftLeg_Init(LiftLeg_t *leg, float *ff_ch, uint8_t use_curve,
                          float total_time, float acc_time,
-                         float stroke,  // 👈 【关键新增】：告诉这条腿，它自己要跑多远！
+                         float stroke,
                          float move_out, float stop_out)
 {
     leg->ff_channel = ff_ch;
@@ -345,7 +344,7 @@ static void LiftLeg_Init(LiftLeg_t *leg, float *ff_ch, uint8_t use_curve,
     leg->planner.is_moving   = 0;
 
     if (use_curve && total_time > acc_time) {
-        // 👇 【关键修改】：不再去读全局变量了，直接用传进来的专属 stroke！
+
         float v_max = fabsf(stroke) / (total_time - acc_time);
 
         if (v_max > 42000.0f) v_max = 42000.0f;
@@ -355,14 +354,16 @@ static void LiftLeg_Init(LiftLeg_t *leg, float *ff_ch, uint8_t use_curve,
 }
 
 /**
- * @brief 对外开放：指挥官下达目标坐标
+ * @brief 设置目标坐标
  */
 static void LiftLeg_SetTarget(LiftLeg_t *leg, float target)
 {
     leg->target_pos = target;
     leg->planner.target_pos = target;
 }
-
+/**
+ * @brief 目标坐标执行
+ */
 static void LiftLeg_Execute(LiftLeg_t *leg) {
     if (leg->use_curve) {
         Planner_Update(&leg->planner);
@@ -508,14 +509,15 @@ void Climb_FSM()
         is_legs_assembled = 1;
     }
 
-    // 提前算出每条腿各自独立的“终极安全打点坐标”
+    // 算出每条腿各自独立的目标位置
+    // 注意：这里的目标位置是基于当前零点和最大行程算出来的，而不是基于全局统一的某个绝对坐标，这样可以适配每条腿的微小差异，同时也能适配零点标定时的误差
+    // 机械上行程一致，但是电机转的角度不一致，结构有神秘的问题，所以取消了零点对齐
     float front_l_target = chassis->cali_state.init_angle[2] + (chassis->cali_state.max_angle[2] - chassis->cali_state.init_angle[2]) * MAX_CALI_SAFE_RATIO;
     float front_r_target = chassis->cali_state.init_angle[3] + (chassis->cali_state.max_angle[3] - chassis->cali_state.init_angle[3]) * MAX_CALI_SAFE_RATIO;
 
     float rear_l_target = chassis->cali_state.init_angle[0] + (chassis->cali_state.max_angle[0] - chassis->cali_state.init_angle[0]) * MAX_CALI_SAFE_RATIO;
     float rear_r_target = chassis->cali_state.init_angle[1] + (chassis->cali_state.max_angle[1] - chassis->cali_state.init_angle[1]) * MAX_CALI_SAFE_RATIO;
 
-    // 指挥官下达阵地坐标
     switch (chassis->chassis_ctrl_cmd.climb_state)
     {
     case CLIMB_STAGE_IDLE:
@@ -612,7 +614,7 @@ static void ChassisCalibrationTask(void)
                     float check_threshold = (i < 2) ? ZERO_CALI_STOP_THRES_REAR : ZERO_CALI_STOP_THRES_FRONT;
                     float actual_diff = fabsf(current_angle - last_check_angle[i]);
 
-                    // 💡 加入零点电流双重判定，防止假零点！
+                    // 加入零点电流双重判定，防止假零点
                     float actual_current = fabsf((float)motor->measure.real_current);
 
                     if (actual_diff < check_threshold && actual_current > 5000.0f) {
@@ -713,13 +715,13 @@ static void MaxExtensionCalibrationTask(void)
                     float check_threshold = (i < 2) ? MAX_CALI_STOP_THRES_REAR : MAX_CALI_STOP_THRES_FRONT;
                     float actual_diff = fabsf(current_angle - last_check_angle[i]);
 
-                    // 💡【核心新增】：获取电机当前的真实物理电流（绝对值）
+                    // 获取电机当前的真实物理电流（绝对值）
                     float actual_current = fabsf((float)motor->measure.real_current);
 
-                    // 🖨️ 打印出来！让你在串口助手里看着它到底使了多大劲
+
                     LOGINFO("Leg[%d] Diff: %.1f, Curr: %.1f", i, actual_diff, actual_current);
 
-                    // 💡【双重保险判定】：不仅要“没怎么动”，而且必须是“憋足了劲（电流巨大）”！
+                    // 不仅要“没怎么动”，而且必须是“憋足了劲（电流巨大）”！
                     // 假设 6000 是一个足以克服所有轨道摩擦力，只有撞墙才会达到的真实电流
                     if (actual_diff < check_threshold && actual_current > 6000.0f)
                     {
@@ -750,7 +752,7 @@ static void MaxExtensionCalibrationTask(void)
     }
 
     if (current_all_done) {
-        // 💡 补上这两行！把左腿的行程借给系统，作为梯形曲线算速度的“参考基准”！
+
         chassis_ctrl_cmd->backward_lift_out = fabsf(chassis->cali_state.max_angle[0] - chassis->cali_state.init_angle[0]);
         chassis_ctrl_cmd->forward_lift_out = fabsf(chassis->cali_state.max_angle[2] - chassis->cali_state.init_angle[2]);
 
@@ -773,7 +775,7 @@ static void LimitChassisOutput()
 
     if (chassis->cali_state.all_cali_done && chassis->cali_state.is_max_calibrated)
     {
-        // 💡 护城河：一旦脱离了爬行模式，强行修改终极目标，安全收回所有腿！
+        // 脱离了爬行模式，强行修改终极目标，安全收回所有腿
         if (chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB) {
             LiftLeg_SetTarget(&chassis->front_legs[LEFT], chassis->cali_state.init_angle[2]);
             LiftLeg_SetTarget(&chassis->front_legs[RIGHT], chassis->cali_state.init_angle[3]);
