@@ -343,7 +343,11 @@ static void LiftLeg_Init(LiftLeg_t *leg, float *ff_ch, uint8_t use_curve,
     leg->planner.ff_speed    = 0.0f;
     leg->planner.is_moving   = 0;
 
-    if (use_curve && total_time > acc_time) {
+    if (use_curve) {
+        // 防呆保护：防止加速时间设置的太离谱，自动修正
+        if (acc_time >= total_time / 2.0f) {
+            acc_time = total_time * 0.3f; // 强制把加速时间设为总时间的 30%
+        }
 
         float v_max = fabsf(stroke) / (total_time - acc_time);
 
