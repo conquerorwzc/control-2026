@@ -30,6 +30,30 @@ typedef struct {
 #pragma pack()
 
 #pragma pack(1)
+#ifdef USE_DUAL_RC
+typedef struct {
+  int16_t Rc_vx;
+  int16_t Rc_vy;
+  float Rc_yaw;
+  int16_t Rc_vw;
+  float Yaw_single_round;
+  uint8_t Switch_right;
+} Send_Data_RC;
+#elifdef USE_DUAL_RC_NEW
+typedef struct {
+  int16_t Rc_vx;
+  int16_t Rc_vy;
+  float Rc_yaw;
+  int16_t Rc_vw;
+  float Yaw_single_round;
+  float Mode_switch;
+  float Control_mode;
+  float Pause_flag;
+} Send_Data_RC_NEW;
+#endif
+#pragma pack()
+
+#pragma pack(1)
 typedef union{
   // 方式 1：直接作为 4 字节数组访问（用于底层串口发送/接收）
   uint8_t raw_data[4];

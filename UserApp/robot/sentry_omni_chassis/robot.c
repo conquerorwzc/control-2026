@@ -22,9 +22,13 @@ static SuperCapMode supercap_mode = SAFETY_MODE;
 /* Intermediate variables calculated by private functions */
 float trigger_time = 0;  // 触发时间
 static float angle=0;
-uint8_t* received_data = NULL;
 CANCommInstance* can_comm_instance = NULL;
 static Referee_Data *referee_data;
+#ifdef USE_DUAL_RC
+static Send_Data_RC *rc_data_old;
+#elifdef USE_DUAL_RC_NEW
+static Send_Data_RC_NEW *rc_data_new;
+#endif
 static float x_speed_time=0;  //x方向加速触发时间
 static float y_speed_time=0;  //y方向加速触发时间
 static float vx_initial;   //x轴输入控制量
@@ -48,7 +52,12 @@ uint8_t has_non_zero_data(const Vision_Receive_s* data) {
          (data->shoot_receive.fire_flag != 0);
 }
 static void CalcOffsetAngle() {
-  angle = (uint16_t)CanData.valueu16[4];
+  #ifdef USE_DUAL_RC
+  angle = rc_data_old->Rc_yaw;
+#elifdef USE_DUAL_RC_NEW
+  angle = rc_data_new->Rc_yaw;
+#endif
+
   float delta = angle-YAW_ALIGN_ANGLE;
   if (delta > 180.0f) {
     delta -= 360.0f;
@@ -374,7 +383,7 @@ static void EmergencyHandler() {
 
 #elifdef USE_DUAL_RC
 
-      if (switch_is_down(CanData.bytes[10]))  // 底盘失能
+      if (switch_is_down(rc_data_old->Switch_right))  // 底盘失能
       {
         robot->robot_mode = ROBOT_POWER_ON;
         chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
@@ -465,48 +474,43 @@ void Chassis_CANCommSend()
   }
 //解析底盘板收到的遥控数据
 static void DualBoardCtrlSet() {
-  //chassis_ctrl_cmd->wz=0;
   if (CANCommIsOnline(can_comm_instance)) {
-    // 检查是否有新数据更新
-    received_data = (uint8_t*)CANCommGet(can_comm_instance);
-    // 如果收到数据，可以在这里处理
-    if (received_data != NULL) {
-      // 解析接收到的数据到全局变量
-      //memcpy(board_can_comm_data.rx_buff, received_data, 16);
-
-      for (int i = 0; i < 24; i++)
-        CanData.bytes[i] = received_data[i];
+#ifdef USE_DUAL_RC
+    *rc_data_old = *(Send_Data_RC*)CANCommGet(can_comm_instance);
+#elifdef USE_DUAL_RC_NEW
+    *rc_data_new = *(Send_Data_RC_NEW*)CANCommGet(can_comm_instance);
+#endif
 
 #ifdef USE_DUAL_RC
-      rc_data[TEMP].rc.rocker_l_=CanData.value16[0];//todo:后面chassis改改把负号去掉
-      rc_data[TEMP].rc.rocker_l1=CanData.value16[1];
-      rc_data[TEMP].rc.rocker_r_=CanData.value16[2];
+      rc_data[TEMP].rc.rocker_l_=rc_data_old->Rc_vx;//todo:后面chassis改改把负号去掉
+      rc_data[TEMP].rc.rocker_l1=rc_data_old->Rc_vy;
+      rc_data[TEMP].rc.rocker_r_=rc_data_old->Rc_yaw;
       //if (CanData.value16[2]>=0)
       // chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)-CanData.value16[2]/50.0f))*CanData.value16[2];
       // else chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)CanData.value16[2]/50.0f))*CanData.value16[2];
-      rc_data[TEMP].rc.dial=CanData.value16[3];
-      rc_data[TEMP].rc.switch_right = CanData.value16[5];
+      rc_data[TEMP].rc.dial=rc_data_old->Rc_vw;
+      rc_data[TEMP].rc.switch_right = rc_data_old->Switch_right;
 
-      if (switch_is_mid(CanData.bytes[10])) {
+      if (switch_is_mid(rc_data_old->Switch_right)){
         //gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-        if (abs(CanData.value16[3]) > 20) {
+        if (abs(rc_data_old->Rc_vw) > 20) {
           chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
         } else
           chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
       }
 
 #elifdef USE_DUAL_RC_NEW
-      vt13_rc_data->rc.rocker_l_ = CanData.value16[0];
-      vt13_rc_data->rc.rocker_l1 = CanData.value16[1];
-      vt13_rc_data->rc.rocker_r_ = CanData.value16[2];
-      vt13_rc_data->rc.dial = CanData.value16[3];
-      vt13_rc_data->rc.mode_switch = CanData.bytes[10];
-      robot->control_mode = CanData.bytes[11];
-      vt13_rc_data->button_status.pause_flag = CanData.bytes[12];
+      vt13_rc_data->rc.rocker_l_ = rc_data_new->Rc_vx;
+      vt13_rc_data->rc.rocker_l1 = rc_data_new->Rc_vy;
+      vt13_rc_data->rc.rocker_r_ = rc_data_new->Rc_yaw;
+      vt13_rc_data->rc.dial = rc_data_new->Rc_vw;
+      vt13_rc_data->rc.mode_switch = rc_data_new->Mode_switch;
+      robot->control_mode = rc_data_new->Control_mode;
+      vt13_rc_data->button_status.pause_flag = rc_data_new->Pause_flag;
 #endif
     }
   }
-}
+
 
 void RobotInit() {
   //要在云台和底盘任务开始之前完成该任务的初始化
