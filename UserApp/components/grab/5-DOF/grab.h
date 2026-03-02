@@ -26,27 +26,27 @@ typedef struct {
     float elbow_roll_MIN;
     float elbow_pitch_MAX;   // 肘部关节俯仰角度
     float elbow_pitch_MIN;
-    float vedio_forward_MAX;// 图传的前后移动距离
-    float vedio_forward_MIN;
-    float vedio_pitch_MAX;   // 图传的pitch旋转角度
-    float vedio_pitch_MIN;
+    float Video_forward_MAX;// 图传的前后移动距离
+    float Video_forward_MIN;
+    float Video_pitch_MAX;   // 图传的pitch旋转角度
+    float Video_pitch_MIN;
 
     float base_joint_sens_keyboard;   // 基座旋转关节灵敏度(键鼠)
     float elbow_roll_sens_keyboard;   // 肘部旋转关节灵敏度(键鼠)
     float elbow_pitch_sens_keyboard;  // 肘部俯仰关节灵敏度(键鼠)
     float wrist_roll_sens_keyboard;   // 腕部旋转关节灵敏度(键鼠)
     float wrist_pitch_sens_keyboard;  // 腕部俯仰关节灵敏度(键鼠)
-    float vedio_forward_sens_keyboard; // 图传前后移动灵敏度(键鼠)
-    float vedio_pitch_sens_keyboard;   // 图传pitch旋转灵敏度(键鼠)
+    float video_forward_sens_keyboard; // 图传前后移动灵敏度(键鼠)
+    float video_pitch_sens_keyboard;   // 图传pitch旋转灵敏度(键鼠)
 
 
-} Garb_Param_s;
+} Grab_Param_s;
 
 typedef struct
 {
     Motor_Init_Config_s Grab_motor_config[8]; // 修改为数组以支持多个电机
     Grab_Cali_Mode_e Grab_cali_mode;
-    Garb_Param_s  Grab_param;
+    Grab_Param_s  Grab_param;
 } Grab_Init_Config_s;
 
 typedef struct
@@ -56,8 +56,8 @@ typedef struct
     float base_joint;    // 基座旋转关节角度
     float elbow_roll;    // 肘部关节旋转角度
     float elbow_pitch;   // 肘部关节俯仰角度
-    float vedio_forward; // 图传的前后移动距离
-    float vedio_pitch;   // 图传的pitch旋转角度
+    float video_forward; // 图传的前后移动距离
+    float video_pitch;   // 图传的pitch旋转角度
     float torque;        // 夹爪电机目标扭矩
     Grab_Mode_e grab_mode;
 } Grab_Ctrl_Cmd_s;
@@ -87,18 +87,18 @@ typedef struct
 typedef struct
 {
     DJIMotorInstance *grab_djimotor[2];
-    float vedio_forward; // 图传的前后移动距离
-    float vedio_pitch;   // 图传的pitch旋转角度
+    float Video_forward; // 图传的前后移动距离
+    float Video_pitch;   // 图传的pitch旋转角度
     float F_target;      // 前后移动电机目标角度
     float P_target;      // pitch轴电机目标角度
-} VedioInstance;
+} VideoInstance;
 
 typedef struct
 {
     Grab_Ctrl_Cmd_s grab_ctrl_cmd;
     ArmInstance *arm;
     ActuatorInstance *actuator;
-    VedioInstance *vedio;
+    VideoInstance *video;
 } GrabInstance;
 
 GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config);

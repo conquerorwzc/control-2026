@@ -25,7 +25,7 @@ static float angle = 0;
 static float target_angle = 0;
 static int mouse_l_count = 0;
 static Gantry_Param_s gantry_param;
-static Garb_Param_s grab_param;
+static Grab_Param_s grab_param;
 /* Private function prototypes -----------------------------------------------*/
 static void Gantry_Limit(Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd, const Gantry_Param_s *gantry_param);
 static void Grab_Limit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, const Gantry_Param_s *gantry_param);
@@ -228,11 +228,11 @@ static void MouseKeySet()
 
     case 2: // 控制摄像头
 
-        grab_ctrl_cmd->vedio_forward +=
-            (rc_data[TEMP].key[KEY_PRESS].d - rc_data[TEMP].key[KEY_PRESS].a) * grab_param.vedio_forward_sens_keyboard;
+        grab_ctrl_cmd->video_forward +=
+            (rc_data[TEMP].key[KEY_PRESS].d - rc_data[TEMP].key[KEY_PRESS].a) * grab_param.video_forward_sens_keyboard;
 
-        grab_ctrl_cmd->vedio_pitch +=
-            (rc_data[TEMP].key[KEY_PRESS].w - rc_data[TEMP].key[KEY_PRESS].s) * grab_param.vedio_pitch_sens_keyboard;
+        grab_ctrl_cmd->video_pitch +=
+            (rc_data[TEMP].key[KEY_PRESS].w - rc_data[TEMP].key[KEY_PRESS].s) * grab_param.video_pitch_sens_keyboard;
 
         break;
     default:
