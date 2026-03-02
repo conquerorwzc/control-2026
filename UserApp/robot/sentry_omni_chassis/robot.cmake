@@ -5,7 +5,6 @@ set(SHOOT_TYPE shoot_standard)
 add_compile_definitions(FRICTION_NUM=2)
 
 
-#add_compile_definitions(USE_REMOTE_CONTROL)
 #add_compile_definitions(USE_DUAL_RC)
 add_compile_definitions(USE_DUAL_RC_NEW)
 
