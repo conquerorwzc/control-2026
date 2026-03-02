@@ -79,7 +79,7 @@ static void SentryRefereeSend() {
   SentrySend(sentry_cmd.raw_data,sizeof(sentry_cmd.raw_data));
 }
 
-#if defined(USE_DUAL_RC) || defined(USE_REMOTE_CONTROL)
+#if defined(USE_DUAL_RC)
 /**
  * @brief 控制输入为遥控器(调试时)的模式和控制量设置
  *
@@ -355,32 +355,6 @@ static void EmergencyHandler() {
   }
   else LOGINFO("[CMD]DualBoardComm is Online");
 
-  #ifdef USE_REMOTE_CONTROL
-  // 两switch都在下断电
-      if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)))  // 全部失能
-      {
-        robot->robot_mode = ROBOT_POWER_ON;
-        gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
-        chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
-        shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
-        shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
-        shoot_ctrl_cmd->load_mode = LOAD_STOP;
-        LOGERROR("[CMD] emergency stop!");
-      } else {
-        LOGINFO("[CMD] reinstate, robot ready");
-      }
-      if (switch_is_down(rc_data[TEMP].rc.switch_right))  // 底盘失能
-      {
-        chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
-      }
-      if (switch_is_down(rc_data[TEMP].rc.switch_left))  // 发射失能
-      {
-        shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
-        shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
-        shoot_ctrl_cmd->load_mode = LOAD_STOP;
-      }
-      // 遥控器右侧开关为[上],恢复正常运行
-
 #elifdef USE_DUAL_RC
 
       if (switch_is_down(rc_data_old->Switch_right))  // 底盘失能
@@ -519,9 +493,8 @@ void RobotInit() {
   can_comm_instance = CANCommInit(&comm_config);
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
 
-  #ifdef USE_REMOTE_CONTROL
+  #ifdef USE_DUAL_RC
     // 使用旧遥控器
-    robot->rc_data = RemoteControlInit(&huart3);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
     rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
     *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
     rc_data = robot->rc_data;
