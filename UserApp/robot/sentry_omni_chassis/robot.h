@@ -26,6 +26,8 @@ typedef struct {
   uint16_t projectile_allowance_17mm;
   uint16_t buffer_energy;
   uint16_t shooter_17mm_barrel_heat;
+  uint16_t shooter_barrel_heat_limit;
+  uint16_t shooter_barrel_cooling_value;
 } Referee_Data;
 #pragma pack()
 
