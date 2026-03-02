@@ -27,7 +27,7 @@
 // #define VISION_USE_UART // 使用串口发送视觉数据
 
 #define BOARD_TX_ID 0x10
-#define BOARD_RX_ID 0x11
+#define BOARD_RX_ID 0x311
 
 
 // 云台参数
