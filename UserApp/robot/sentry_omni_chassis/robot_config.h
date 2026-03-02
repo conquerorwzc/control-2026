@@ -131,7 +131,7 @@ static SuperCap_Init_Config_s super_cap_config = {
 #define BOARD_RX_ID 0x219
 #else
 // 接收板配置
-#define BOARD_TX_ID 0x11
+#define BOARD_TX_ID 0x311
 #define BOARD_RX_ID 0x10
 #endif
 

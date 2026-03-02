@@ -18,6 +18,14 @@ static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 static VT13_RC_t *vt13_rc_data;
 static CANCommInstance* can_comm_instance = NULL;
 Int16ToBytes transmit_data;
+static Referee_Data RefereeData;
+uint8_t* received_data = NULL;
+typedef union {
+  int16_t value16[32];
+  uint16_t valueu16[32];
+  uint8_t bytes[64];
+} int16_t_bytes;
+int16_t_bytes CanData={0}; //云台板can接收的遥控数据
 /* Intermediate variables calculated by private functions */
 static float trigger_time = 0;  // 触发时间
 static float time=0;//判断按钮按下需要重复读取时间，这里简化成一次读取
@@ -495,7 +503,24 @@ void Gimbal_CANCommSend()
 
   CANCommSend(can_comm_instance, board_can_comm_data.tx_buff);
   }
+static void DualBoardCtrlSet() {
+  //chassis_ctrl_cmd->wz=0;
+  if (CANCommIsOnline(can_comm_instance)) {
+    // 检查是否有新数据更新
+    received_data = (uint8_t*)CANCommGet(can_comm_instance);
+    // 如果收到数据，可以在这里处理
+    if (received_data != NULL) {
+      // 解析接收到的数据到全局变量
+      //memcpy(board_can_comm_data.rx_buff, received_data, 16);
 
+      for (int i = 0; i < 24; i++)
+        CanData.bytes[i] = received_data[i];
+      RefereeData.projectile_allowance_17mm=CanData.valueu16[0];
+      RefereeData.buffer_energy=CanData.valueu16[1];
+      RefereeData.shooter_17mm_barrel_heat=CanData.valueu16[2];
+    }
+  }
+}
 void RobotInit() {
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
 
