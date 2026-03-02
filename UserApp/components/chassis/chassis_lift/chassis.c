@@ -10,8 +10,9 @@
 #define RIGHT 1
 
 // 注意：两个不能同时为1，正常比赛时，两个都要改成 0！
-#define DEBUG_FRONT_ONLY 1  // 设为 1 时：只调前腿，屏蔽后腿
-#define DEBUG_REAR_ONLY  0  // 设为 1 时：只调后腿，屏蔽前腿
+#define DEBUG_FRONT_ONLY       0  // 只调两根前腿
+#define DEBUG_REAR_LEFT_ONLY   1  // 只调【左后腿】 (Leg 0)
+#define DEBUG_REAR_RIGHT_ONLY  0  // 只调【右后腿】 (Leg 1)
 // ==================== 【前腿（齿条）专属动力学调参区】 ====================
 // 速度与柔顺度（梯形曲线参数）
 // 决定了腿弹出的绝对速度
@@ -181,10 +182,12 @@ ChassisInstance *ChassisInit(Chassis_Init_Config_s *chassis_init_config)
     chassis_ctrl_cmd->forward_lift_out = chassis_param.forward_lift_out;
     chassis_ctrl_cmd->forward_lift_in = chassis_param.forward_lift_in;
 
-#if !DEBUG_FRONT_ONLY
-    while (chassis->rear_legs[1].motor->measure.real_current == 0) {
-        osDelay(10);
-    }
+#if DEBUG_REAR_LEFT_ONLY
+    while (chassis->rear_legs[0].motor->measure.real_current == 0) osDelay(10);
+#elif DEBUG_REAR_RIGHT_ONLY
+    while (chassis->rear_legs[1].motor->measure.real_current == 0) osDelay(10);
+#elif !DEBUG_FRONT_ONLY
+    while (chassis->rear_legs[1].motor->measure.real_current == 0) osDelay(10);
 #endif
     chassis_ctrl_cmd->chassis_mode = CHASSIS_CALIBRATING;
 
@@ -588,13 +591,19 @@ static void ChassisCalibrationTask(void)
         chassis->cali_state.cali_done[1] = 1;
 #endif
 
-#if DEBUG_REAR_ONLY
+#if DEBUG_REAR_LEFT_ONLY
+        chassis->cali_state.cali_done[1] = 1;
+        chassis->cali_state.cali_done[2] = 1;
+        chassis->cali_state.cali_done[3] = 1;
+#endif
+
+#if DEBUG_REAR_RIGHT_ONLY
+        chassis->cali_state.cali_done[0] = 1;
         chassis->cali_state.cali_done[2] = 1;
         chassis->cali_state.cali_done[3] = 1;
 #endif
         first_run = 0;
     }
-
     if (startup_grace_cnt < ZERO_CALI_CHECK_TICKS) startup_grace_cnt++;
 
     for (int i = 0; i < 4; i++) {
@@ -675,14 +684,20 @@ static void MaxExtensionCalibrationTask(void)
         cali_target_angle[2] = chassis->front_legs[0].motor->measure.total_angle;
         cali_target_angle[3] = chassis->front_legs[1].motor->measure.total_angle;
         for (int i = 0; i < 4; i++) last_check_angle[i] = cali_target_angle[i];
-        //  屏蔽后腿
-        #if DEBUG_FRONT_ONLY
-                chassis->cali_state.max_cali_done[0] = 1;
+        // ... [前面保存 target_angle 不变] ...
+#if DEBUG_FRONT_ONLY
+        chassis->cali_state.max_cali_done[0] = 1;
         chassis->cali_state.max_cali_done[1] = 1;
 #endif
 
-        // 屏蔽前腿
-#if DEBUG_REAR_ONLY
+#if DEBUG_REAR_LEFT_ONLY
+        chassis->cali_state.max_cali_done[1] = 1;
+        chassis->cali_state.max_cali_done[2] = 1;
+        chassis->cali_state.max_cali_done[3] = 1;
+#endif
+
+#if DEBUG_REAR_RIGHT_ONLY
+        chassis->cali_state.max_cali_done[0] = 1;
         chassis->cali_state.max_cali_done[2] = 1;
         chassis->cali_state.max_cali_done[3] = 1;
 #endif
@@ -756,13 +771,19 @@ static void MaxExtensionCalibrationTask(void)
     }
 
     if (current_all_done) {
+        float rear_stroke_l = fabsf(chassis->cali_state.max_angle[0] - chassis->cali_state.init_angle[0]);
+        float rear_stroke_r = fabsf(chassis->cali_state.max_angle[1] - chassis->cali_state.init_angle[1]);
+        float front_stroke_l = fabsf(chassis->cali_state.max_angle[2] - chassis->cali_state.init_angle[2]);
+        float front_stroke_r = fabsf(chassis->cali_state.max_angle[3] - chassis->cali_state.init_angle[3]);
 
-        chassis_ctrl_cmd->backward_lift_out = fabsf(chassis->cali_state.max_angle[0] - chassis->cali_state.init_angle[0]);
-        chassis_ctrl_cmd->forward_lift_out = fabsf(chassis->cali_state.max_angle[2] - chassis->cali_state.init_angle[2]);
+        // 被屏蔽的腿，它的 max_angle 和 init_angle 是一样的，算出来行程是 0。
+        // 用 fmaxf (取最大值)，系统就会自动抓取到那条真正跑了的腿的行程，当作梯形曲线的基准，方便总体观测
+        chassis_ctrl_cmd->backward_lift_out = fmaxf(rear_stroke_l, rear_stroke_r);
+        chassis_ctrl_cmd->forward_lift_out = fmaxf(front_stroke_l, front_stroke_r);
 
         chassis->cali_state.is_max_calibrated = 1;
         first_run = 1;
-        LOGINFO("[Chassis] Max Ext Calibration done! Independent strokes applied.");
+        LOGINFO("[Chassis] Max Ext Calibration done! Single leg baseline applied.");
     }
 }
 
