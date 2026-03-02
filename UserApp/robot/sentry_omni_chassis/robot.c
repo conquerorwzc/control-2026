@@ -53,9 +53,9 @@ uint8_t has_non_zero_data(const Vision_Receive_s* data) {
 }
 static void CalcOffsetAngle() {
   #ifdef USE_DUAL_RC
-  angle = rc_data_old->Rc_yaw;
+  angle = rc_data_old->Rotate_speed;
 #elifdef USE_DUAL_RC_NEW
-  angle = rc_data_new->Rc_yaw;
+  angle = rc_data_new->Rotate_speed;
 #endif
 
   float delta = angle-YAW_ALIGN_ANGLE;
@@ -484,16 +484,16 @@ static void DualBoardCtrlSet() {
 #ifdef USE_DUAL_RC
       rc_data[TEMP].rc.rocker_l_=rc_data_old->Rc_vx;//todo:后面chassis改改把负号去掉
       rc_data[TEMP].rc.rocker_l1=rc_data_old->Rc_vy;
-      rc_data[TEMP].rc.rocker_r_=rc_data_old->Rc_yaw;
-      //if (rc_data_new->Rc_yaw>=0)
-      // chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)-rc_data_new->Rc_yaw/50.0f))*rc_data_new->Rc_yaw;
-      // else chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)rc_data_new->Rc_yaw/50.0f))*rc_data_new->Rc_yaw;
-      rc_data[TEMP].rc.dial=rc_data_old->Rc_vw;
+      rc_data[TEMP].rc.rocker_r_=rc_data_old->Rotate_speed;
+      //if (rc_data_new->Rotate_speed>=0)
+      // chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)-rc_data_new->Rotate_speed/50.0f))*rc_data_new->Rotate_speed;
+      // else chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)rc_data_new->Rotate_speed/50.0f))*rc_data_new->Rotate_speed;
+      rc_data[TEMP].rc.dial=rc_data_old->Spin_speed;
       rc_data[TEMP].rc.switch_right = rc_data_old->Switch_right;
 
       if (switch_is_mid(rc_data_old->Switch_right)){
         //gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-        if (abs(rc_data_old->Rc_vw) > 20) {
+        if (abs(rc_data_old->Spin_speed) > 20) {
           chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
         } else
           chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
@@ -502,8 +502,8 @@ static void DualBoardCtrlSet() {
 #elifdef USE_DUAL_RC_NEW
       vt13_rc_data->rc.rocker_l_ = rc_data_new->Rc_vx;
       vt13_rc_data->rc.rocker_l1 = rc_data_new->Rc_vy;
-      vt13_rc_data->rc.rocker_r_ = rc_data_new->Rc_yaw;
-      vt13_rc_data->rc.dial = rc_data_new->Rc_vw;
+      vt13_rc_data->rc.rocker_r_ = rc_data_new->Rotate_speed;
+      vt13_rc_data->rc.dial = rc_data_new->Spin_speed;
       vt13_rc_data->rc.mode_switch = rc_data_new->Mode_switch;
       robot->control_mode = rc_data_new->Control_mode;
       vt13_rc_data->button_status.pause_flag = rc_data_new->Pause_flag;
@@ -549,7 +549,7 @@ void RobotInit() {
 void RobotCMDTask() {
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
   DualBoardCtrlSet();
-  Chassis_CANCommSend();
+  // Chassis_CANCommSend();
   CalcOffsetAngle();
   RemoteControlSet();
   // MouseKeySet();

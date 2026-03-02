@@ -12,7 +12,6 @@ static RobotInstance *robot;
 static Gimbal_Ctrl_Cmd_s *gimbal_ctrl_cmd;
 static Shoot_Ctrl_Cmd_s *shoot_ctrl_cmd;
 static Vision_Receive_s* vision_recv_data;
-static navigator_recv_t* navigator_data;
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 static VT13_RC_t *vt13_rc_data;
@@ -448,11 +447,11 @@ void Gimbal_CANCommSend()
 
   send_data->Rc_vy = rc_data->rc.rocker_l1 + rc_data[TEMP].key[KEY_PRESS].w * 660 - rc_data[TEMP].key[KEY_PRESS].s * 660;
 
-  send_data->Rc_yaw = rc_data->rc.rocker_r_ + rc_data[TEMP].mouse.x * 2.0f;
+  send_data->Rotate_speed = rc_data->rc.rocker_r_ + rc_data[TEMP].mouse.x * 2.0f;
 
-  send_data->Rc_vw = rc_data->rc.dial + rc_data[TEMP].key[KEY_PRESS].q*300;
+  send_data->Spin_speed = rc_data->rc.dial + rc_data[TEMP].key[KEY_PRESS].q*300;
 
-  send_data->Yaw_single_round = (int16_t)robot->gimbal->yaw_motor->measure.angle_single_round;
+  send_data->Yaw_motor_angle = (int16_t)robot->gimbal->yaw_motor->measure.angle_single_round;
 
   send_data->Switch_right = rc_data->rc.switch_right;
   CANCommSend(can_comm_instance,(void*)send_data);
@@ -466,11 +465,11 @@ void Gimbal_CANCommSend()
 
   send_data_new->Rc_vy = vt13_rc_data->rc.rocker_l1 + vt13_rc_data->mouse_key.keyboard.w * 660 - vt13_rc_data->mouse_key.keyboard.s * 660;
 
-  send_data_new->Rc_yaw = vt13_rc_data->rc.rocker_r_ + vt13_rc_data->mouse_key.mouse.x * 2;
+  send_data_new->Rotate_speed = vt13_rc_data->rc.rocker_r_ + vt13_rc_data->mouse_key.mouse.x * 2;
 
-  send_data_new->Rc_vw = vt13_rc_data->rc.dial + vt13_rc_data->mouse_key.keyboard.q*300;
+  send_data_new->Spin_speed = vt13_rc_data->rc.dial + vt13_rc_data->mouse_key.keyboard.q*300;
 
-  send_data_new->Yaw_single_round = (int16_t)robot->gimbal->yaw_motor->measure.angle_single_round;
+  send_data_new->Yaw_motor_angle = (int16_t)robot->gimbal->yaw_motor->measure.angle_single_round;
 
   send_data_new->Mode_switch = vt13_rc_data->rc.mode_switch;
 
@@ -525,7 +524,7 @@ void RobotInit() {
 void RobotCMDTask() {
   time = DWT_GetTimeline_s();
   RemoteControlSet();
-  DualBoardCtrlSet();
+  // DualBoardCtrlSet();
   MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }

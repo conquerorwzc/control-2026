@@ -23,29 +23,29 @@ typedef enum {
 } Control_Mode_e;
 //联合体定义
 typedef struct {
-  uint16_t projectile_allowance_17mm;
-  uint16_t buffer_energy;
-  uint16_t shooter_17mm_barrel_heat;
-  uint16_t shooter_barrel_heat_limit;
-  uint16_t shooter_barrel_cooling_value;
+  uint16_t projectile_allowance_17mm;    // 机器人自身拥有的17mm弹丸允许发弹量
+  uint16_t buffer_energy;                //缓冲能量
+  uint16_t shooter_17mm_barrel_heat;     //17mm弹丸允许发弹量
+  uint16_t shooter_barrel_heat_limit;    // 机器人射击热量上限
+  uint16_t shooter_barrel_cooling_value; // 机器人射击热量每秒冷却值
 } Referee_Data;
 #pragma pack(1)
 #ifdef USE_DUAL_RC
 typedef struct {
   int16_t Rc_vx;
   int16_t Rc_vy;
-  float Rc_yaw;
-  int16_t Rc_vw;
-  float Yaw_single_round;
+  float Rotate_speed;
+  int16_t Spin_speed;
+  float Yaw_motor_angle;
   uint8_t Switch_right;
 } Send_Data_RC;
 #elifdef USE_DUAL_RC_NEW
 typedef struct {
   int16_t Rc_vx;
   int16_t Rc_vy;
-  float Rc_yaw;
-  int16_t Rc_vw;
-  float Yaw_single_round;
+  float Rotate_speed;
+  int16_t Spin_speed;
+  float Yaw_motor_angle;
   float Mode_switch;
   float Control_mode;
   float Pause_flag;
