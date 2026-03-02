@@ -485,9 +485,9 @@ static void DualBoardCtrlSet() {
       rc_data[TEMP].rc.rocker_l_=rc_data_old->Rc_vx;//todo:后面chassis改改把负号去掉
       rc_data[TEMP].rc.rocker_l1=rc_data_old->Rc_vy;
       rc_data[TEMP].rc.rocker_r_=rc_data_old->Rc_yaw;
-      //if (CanData.value16[2]>=0)
-      // chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)-CanData.value16[2]/50.0f))*CanData.value16[2];
-      // else chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)CanData.value16[2]/50.0f))*CanData.value16[2];
+      //if (rc_data_new->Rc_yaw>=0)
+      // chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)-rc_data_new->Rc_yaw/50.0f))*rc_data_new->Rc_yaw;
+      // else chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)rc_data_new->Rc_yaw/50.0f))*rc_data_new->Rc_yaw;
       rc_data[TEMP].rc.dial=rc_data_old->Rc_vw;
       rc_data[TEMP].rc.switch_right = rc_data_old->Switch_right;
 
