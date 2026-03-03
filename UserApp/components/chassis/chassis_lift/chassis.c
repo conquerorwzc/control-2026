@@ -9,7 +9,7 @@
 #define LEFT 0
 #define RIGHT 1
 // 不用的腿设为1
-#define DISABLE_LEG_REAR_LEFT 0   // 左后腿 (Leg 0)
+#define DISABLE_LEG_REAR_LEFT 1   // 左后腿 (Leg 0)
 #define DISABLE_LEG_REAR_RIGHT 1  // 右后腿 (Leg 1)
 #define DISABLE_LEG_FRONT_LEFT 0  // 左前腿 (Leg 2)
 #define DISABLE_LEG_FRONT_RIGHT 0 // 右前腿 (Leg 3)
@@ -22,9 +22,11 @@
 
 // 力量与保护（动态电流限幅，大疆电机满载为 16384）
 // 运动时的爆发力。给小了跑不到预定极速，给大了撞击时会切断螺丝]
-#define FRONT_MOVING_MAX_OUT 7000.0f
+#define FRONT_LEFT_MOVING_MAX_OUT  7000.0f  // 遇到阻力允许拉到 10000
+#define FRONT_RIGHT_MOVING_MAX_OUT 7000.0f
 // 静止时的保持力。只要能锁死齿条不掉下来即可，越小电机越不容易发烫
-#define FRONT_STOP_MAX_OUT 4000.0f
+#define FRONT_LEFT_STOP_MAX_OUT    4000.0f   // 驻车力稍微给大点防掉
+#define FRONT_RIGHT_STOP_MAX_OUT   4000.0f
 // ==================== 【硬件基础信息】 ====================
 #define CALI_TASK_FREQ 500.0f  // 标定任务运行频率 (Hz) ，在ostask里得知
 #define GEAR_RATIO_REAR 19.0f  // 后腿减速比
@@ -109,7 +111,7 @@ static void PowerControl();
 static void EstimateSpeed();
 static void LimitChassisOutput();
 static void ChassisCalibrationTask(void);
-static void MaxExtensionCalibrationTask(void);
+static void MaxExtensionCalibrationTask(uint8_t abort_flag);
 static void Planner_Update(TrapezoidalPlanner_t *planner);
 ChassisInstance *ChassisInit(Chassis_Init_Config_s *chassis_init_config);
 static void LiftLeg_Init(LiftLeg_t *leg, float *ff_ch, uint8_t use_curve, float total_time, float acc_time,
@@ -224,19 +226,42 @@ void ChassisTask()
 
     // 只有在：处于爬楼模式 + 处于全伸出状态 + 最大行程没标定过 + 零点已经标定
     // 这四个条件同时满足时，才允许进入最大伸展标定
-    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_BOTH_EXTEND && !chassis->cali_state.is_max_calibrated &&
-        chassis->cali_state.all_cali_done)
-    {
-        for (int i = 0; i < 4; i++)
-            DJIMotorStop(chassis->wheel_motor[i]);
-        for (int i = 0; i < 2; i++)
-        {
-            DJIMotorEnable(chassis->front_legs[i].motor);
-            DJIMotorEnable(chassis->rear_legs[i].motor);
-        }
-        MaxExtensionCalibrationTask();
-        return;
-    }
+    // 🚨 拦截区：处理最大标定的进入与中途主动取消
+       if (!chassis->cali_state.is_max_calibrated && chassis->cali_state.all_cali_done)
+       {
+           if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_BOTH_EXTEND)
+           {
+               // 正在请求标定：停止轮子，开启腿部
+               for (int i = 0; i < 4; i++) DJIMotorStop(chassis->wheel_motor[i]);
+               for (int i = 0; i < 2; i++) {
+                   DJIMotorEnable(chassis->front_legs[i].motor);
+                   DJIMotorEnable(chassis->rear_legs[i].motor);
+               }
+               MaxExtensionCalibrationTask(0); // 传入 0：正常运行标定
+               return; // 标定期间阻断底层解算
+           }
+           else
+           {
+               // 用户中途切走了模式（主动取消标定）！
+               MaxExtensionCalibrationTask(1); // 传入 1：触发任务内部重置清零！
+
+               // 安全收腿保护：把腿安全地拉回物理零点，防止掉下来
+               for (int i = 0; i < 2; i++) {
+                   DJIMotorEnable(chassis->front_legs[i].motor);
+                   DJIMotorEnable(chassis->rear_legs[i].motor);
+
+                   // 温柔限流：避免瞬间全速收回砸碎限位，给个 8000 的安全电流
+                   chassis->front_legs[i].motor->motor_controller.speed_PID.MaxOut = 8000.0f;
+                   chassis->rear_legs[i].motor->motor_controller.speed_PID.MaxOut = 800.0f;
+
+                   // 强制目标归零
+                   DJIMotorSetPIDRef(chassis->front_legs[i].motor, chassis->cali_state.init_angle[2+i]);
+                   DJIMotorSetPIDRef(chassis->rear_legs[i].motor, chassis->cali_state.init_angle[i]);
+               }
+               // 注意：这里没有 return，这意味着取消标定后，你可以正常用拨杆开着车到处跑！
+           }
+       }
+
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_POWER_OFF)
     {
         // 如果出现重要模块离线或遥控器设置为急停,让电机停止
@@ -524,17 +549,17 @@ void Climb_FSM()
     {
 
         // 算出各自独立的极限行程 (物理真实行程 * 0.99)
-        float stroke_front_l =
-            fabsf(chassis->cali_state.max_angle[2] - chassis->cali_state.init_angle[2]) * MAX_CALI_SAFE_RATIO;
-        float stroke_front_r =
-            fabsf(chassis->cali_state.max_angle[3] - chassis->cali_state.init_angle[3]) * MAX_CALI_SAFE_RATIO;
 
+        float stroke_front_l = fabsf(chassis->cali_state.max_angle[2] - chassis->cali_state.init_angle[2]) * MAX_CALI_SAFE_RATIO;
+        float stroke_front_r = fabsf(chassis->cali_state.max_angle[3] - chassis->cali_state.init_angle[3]) * MAX_CALI_SAFE_RATIO;
+
+        //左前腿装配：使用专属的 LEFT_MAX_OUT 宏
         LiftLeg_Init(&chassis->front_legs[LEFT], &lift_speed_feedforward[2], 1, FRONT_TOTAL_TIME_SEC,
-                     FRONT_ACCEL_TIME_SEC, stroke_front_l, FRONT_MOVING_MAX_OUT, FRONT_STOP_MAX_OUT);
+                     FRONT_ACCEL_TIME_SEC, stroke_front_l, FRONT_LEFT_MOVING_MAX_OUT, FRONT_LEFT_STOP_MAX_OUT);
 
+        //右前腿装配：使用专属的 RIGHT_MAX_OUT 宏
         LiftLeg_Init(&chassis->front_legs[RIGHT], &lift_speed_feedforward[3], 1, FRONT_TOTAL_TIME_SEC,
-                     FRONT_ACCEL_TIME_SEC, stroke_front_r, FRONT_MOVING_MAX_OUT, FRONT_STOP_MAX_OUT);
-
+                     FRONT_ACCEL_TIME_SEC, stroke_front_r, FRONT_RIGHT_MOVING_MAX_OUT, FRONT_RIGHT_STOP_MAX_OUT);
         // 装配后腿：不用梯形曲线，stroke 随便传个 0 就行，依然靠纯位置环
         LiftLeg_Init(&chassis->rear_legs[LEFT], NULL, 0, 0, 0, 0, 1460.0f, 1460.0f);
         LiftLeg_Init(&chassis->rear_legs[RIGHT], NULL, 0, 0, 0, 0, 1200.0f, 1200.0f);
@@ -692,14 +717,34 @@ static void ChassisCalibrationTask(void)
 
 /**
  * @brief 阶段二：最大伸展行程动态标定任务 (顶出)
- * @note  引入带载滑动离合，无视一切震动误差
+ * @note  带有主动取消重置保护与双重堵转检测
  */
-static void MaxExtensionCalibrationTask(void)
+static void MaxExtensionCalibrationTask(uint8_t abort_flag)
 {
     if (chassis->cali_state.is_max_calibrated)
         return;
 
+    // 1. 把所有静态记忆变量集中到最顶端
     static uint32_t timeout_cnt = 0;
+    static float cali_target_angle[4] = {0};
+    static float last_check_angle[4] = {0};
+    static uint8_t first_run = 1;
+    static uint32_t startup_grace_cnt = 0;
+
+    // 2. 🚨 新增：处理主函数发来的“记忆擦除”指令！(中途切遥控器取消标定)
+    if (abort_flag)
+    {
+        timeout_cnt = 0;
+        first_run = 1;         // 最重要的一步：重置起跑线！
+        startup_grace_cnt = 0;
+        for (int i = 0; i < 4; i++) {
+            chassis->cali_state.max_cali_done[i] = 0;
+            max_cali_block_cnt[i] = 0;
+        }
+        return; // 重置完毕，直接退出
+    }
+
+    // 3. 正常标定逻辑继续...
     timeout_cnt++;
     if (timeout_cnt > CALI_TIMEOUT_TICKS)
     {
@@ -713,12 +758,9 @@ static void MaxExtensionCalibrationTask(void)
         return;
     }
 
-    static float cali_target_angle[4] = {0};
-    static float last_check_angle[4] = {0};
-    static uint8_t first_run = 1;
-
     if (first_run)
     {
+        // 🚨 记录起跑线（绝对不能删），防止上电抽搐瞬移！
         cali_target_angle[0] = chassis->rear_legs[0].motor->measure.total_angle;
         cali_target_angle[1] = chassis->rear_legs[1].motor->measure.total_angle;
         cali_target_angle[2] = chassis->front_legs[0].motor->measure.total_angle;
@@ -726,7 +768,7 @@ static void MaxExtensionCalibrationTask(void)
         for (int i = 0; i < 4; i++)
             last_check_angle[i] = cali_target_angle[i];
 
-        // 👇 新增：同样发最大行程的免考金牌！
+        // 👇 发最大行程的免考金牌！被屏蔽的腿直接视为标定完成
         chassis->cali_state.max_cali_done[0] = DISABLE_LEG_REAR_LEFT;
         chassis->cali_state.max_cali_done[1] = DISABLE_LEG_REAR_RIGHT;
         chassis->cali_state.max_cali_done[2] = DISABLE_LEG_FRONT_LEFT;
@@ -735,7 +777,6 @@ static void MaxExtensionCalibrationTask(void)
         first_run = 0;
     }
 
-    static uint32_t startup_grace_cnt = 0;
     if (startup_grace_cnt < MAX_CALI_CHECK_TICKS)
         startup_grace_cnt++;
 
@@ -775,7 +816,6 @@ static void MaxExtensionCalibrationTask(void)
                     LOGINFO("Leg[%d] Diff: %.1f, Curr: %.1f", i, actual_diff, actual_current);
 
                     // 不仅要“没怎么动”，而且必须是“憋足了劲（电流巨大）”！
-                    // 假设 6000 是一个足以克服所有轨道摩擦力，只有撞墙才会达到的真实电流
                     if (actual_diff < check_threshold && actual_current > 6000.0f)
                     {
                         uint8_t allow_stop = 1; // 默认允许判定为撞墙停机
@@ -789,7 +829,6 @@ static void MaxExtensionCalibrationTask(void)
                         }
                         else if (i == 2 || i == 3)
                         { // 前腿
-                            // 🔧 既然有了电流双重保险，这个软腿门槛可以适当放宽，比如 2000
                             if (current_stroke < 2000.0f)
                                 allow_stop = 0;
                         }
