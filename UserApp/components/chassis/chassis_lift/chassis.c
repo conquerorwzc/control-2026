@@ -8,11 +8,11 @@
 /* Private macro -------------------------------------------------------------*/
 #define LEFT 0
 #define RIGHT 1
-
-// 注意：不能同时为1，正常比赛时，都要改成 0
-#define DEBUG_FRONT_ONLY 0      // 只调两根前腿
-#define DEBUG_REAR_LEFT_ONLY 1  // 只调【左后腿】 (Leg 0)
-#define DEBUG_REAR_RIGHT_ONLY 0 // 只调【右后腿】 (Leg 1)
+// 不用的腿设为1
+#define DISABLE_LEG_REAR_LEFT 0   // 左后腿 (Leg 0)
+#define DISABLE_LEG_REAR_RIGHT 1  // 右后腿 (Leg 1)
+#define DISABLE_LEG_FRONT_LEFT 0  // 左前腿 (Leg 2)
+#define DISABLE_LEG_FRONT_RIGHT 0 // 右前腿 (Leg 3)
 // ==================== 【前腿（齿条）专属动力学调参区】 ====================
 // 速度与柔顺度（梯形曲线参数）
 // 决定了腿弹出的绝对速度
@@ -181,18 +181,25 @@ ChassisInstance *ChassisInit(Chassis_Init_Config_s *chassis_init_config)
     chassis_ctrl_cmd->forward_lift_out = chassis_param.forward_lift_out;
     chassis_ctrl_cmd->forward_lift_in = chassis_param.forward_lift_in;
 
-#if DEBUG_REAR_LEFT_ONLY
+    // 只让没有被屏蔽的腿去等待电流反馈上线
+#if !DISABLE_LEG_REAR_LEFT
     while (chassis->rear_legs[0].motor->measure.real_current == 0)
         osDelay(10);
-#elif DEBUG_REAR_RIGHT_ONLY
-    while (chassis->rear_legs[1].motor->measure.real_current == 0)
-        osDelay(10);
-#elif !DEBUG_FRONT_ONLY
+#endif
+#if !DISABLE_LEG_REAR_RIGHT
     while (chassis->rear_legs[1].motor->measure.real_current == 0)
         osDelay(10);
 #endif
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_CALIBRATING;
+#if !DISABLE_LEG_FRONT_LEFT
+    while (chassis->front_legs[0].motor->measure.real_current == 0)
+        osDelay(10);
+#endif
+#if !DISABLE_LEG_FRONT_RIGHT
+    while (chassis->front_legs[1].motor->measure.real_current == 0)
+        osDelay(10);
+#endif
 
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_CALIBRATING;
     return chassis_instance;
 }
 
@@ -605,36 +612,22 @@ static void ChassisCalibrationTask(void)
 
     if (first_run)
     {
-        timeout_cnt = 0;
-        startup_grace_cnt = 0;
-
         cali_target_angle[0] = chassis->rear_legs[0].motor->measure.total_angle;
         cali_target_angle[1] = chassis->rear_legs[1].motor->measure.total_angle;
         cali_target_angle[2] = chassis->front_legs[0].motor->measure.total_angle;
         cali_target_angle[3] = chassis->front_legs[1].motor->measure.total_angle;
-
         for (int i = 0; i < 4; i++)
         {
             last_check_angle[i] = cali_target_angle[i];
             cali_block_cnt[i] = 0;
         }
 
-#if DEBUG_FRONT_ONLY
-        chassis->cali_state.cali_done[0] = 1;
-        chassis->cali_state.cali_done[1] = 1;
-#endif
+        // 👇 新增：极其优雅的免考逻辑，谁被屏蔽了，谁的标定就算做完成！
+        chassis->cali_state.cali_done[0] = DISABLE_LEG_REAR_LEFT;
+        chassis->cali_state.cali_done[1] = DISABLE_LEG_REAR_RIGHT;
+        chassis->cali_state.cali_done[2] = DISABLE_LEG_FRONT_LEFT;
+        chassis->cali_state.cali_done[3] = DISABLE_LEG_FRONT_RIGHT;
 
-#if DEBUG_REAR_LEFT_ONLY
-        chassis->cali_state.cali_done[1] = 1;
-        chassis->cali_state.cali_done[2] = 1;
-        chassis->cali_state.cali_done[3] = 1;
-#endif
-
-#if DEBUG_REAR_RIGHT_ONLY
-        chassis->cali_state.cali_done[0] = 1;
-        chassis->cali_state.cali_done[2] = 1;
-        chassis->cali_state.cali_done[3] = 1;
-#endif
         first_run = 0;
     }
     if (startup_grace_cnt < ZERO_CALI_CHECK_TICKS)
@@ -732,22 +725,13 @@ static void MaxExtensionCalibrationTask(void)
         cali_target_angle[3] = chassis->front_legs[1].motor->measure.total_angle;
         for (int i = 0; i < 4; i++)
             last_check_angle[i] = cali_target_angle[i];
-#if DEBUG_FRONT_ONLY
-        chassis->cali_state.max_cali_done[0] = 1;
-        chassis->cali_state.max_cali_done[1] = 1;
-#endif
 
-#if DEBUG_REAR_LEFT_ONLY
-        chassis->cali_state.max_cali_done[1] = 1;
-        chassis->cali_state.max_cali_done[2] = 1;
-        chassis->cali_state.max_cali_done[3] = 1;
-#endif
+        // 👇 新增：同样发最大行程的免考金牌！
+        chassis->cali_state.max_cali_done[0] = DISABLE_LEG_REAR_LEFT;
+        chassis->cali_state.max_cali_done[1] = DISABLE_LEG_REAR_RIGHT;
+        chassis->cali_state.max_cali_done[2] = DISABLE_LEG_FRONT_LEFT;
+        chassis->cali_state.max_cali_done[3] = DISABLE_LEG_FRONT_RIGHT;
 
-#if DEBUG_REAR_RIGHT_ONLY
-        chassis->cali_state.max_cali_done[0] = 1;
-        chassis->cali_state.max_cali_done[2] = 1;
-        chassis->cali_state.max_cali_done[3] = 1;
-#endif
         first_run = 0;
     }
 
@@ -861,25 +845,23 @@ static void LimitChassisOutput()
     {
         // 脱离了爬行模式，强行修改终极目标，安全收回所有腿
 
+        // 💡 护城河逻辑升级：只要不属于这四种爬楼状态，立刻强制收缩护体！
+        if (chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_IDLE &&
+            chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_ALL_RETRACT &&
+            chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_BOTH_EXTEND &&
+            chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_FRONT_RETRACT)
+        {
+            LiftLeg_SetTarget(&chassis->front_legs[LEFT], chassis->cali_state.init_angle[2]);
+            LiftLeg_SetTarget(&chassis->front_legs[RIGHT], chassis->cali_state.init_angle[3]);
+            LiftLeg_SetTarget(&chassis->rear_legs[LEFT], chassis->cali_state.init_angle[0]);
+            LiftLeg_SetTarget(&chassis->rear_legs[RIGHT], chassis->cali_state.init_angle[1]);
+        }
 
-            // 💡 护城河逻辑升级：只要不属于这四种爬楼状态，立刻强制收缩护体！
-            if (chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_IDLE &&
-                chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_ALL_RETRACT &&
-                chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_BOTH_EXTEND &&
-                chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_FRONT_RETRACT)
-            {
-                LiftLeg_SetTarget(&chassis->front_legs[LEFT], chassis->cali_state.init_angle[2]);
-                LiftLeg_SetTarget(&chassis->front_legs[RIGHT], chassis->cali_state.init_angle[3]);
-                LiftLeg_SetTarget(&chassis->rear_legs[LEFT], chassis->cali_state.init_angle[0]);
-                LiftLeg_SetTarget(&chassis->rear_legs[RIGHT], chassis->cali_state.init_angle[1]);
-            }
-
-            for (int i = 0; i < 2; i++)
-            {
-                LiftLeg_Execute(&chassis->front_legs[i]);
-                LiftLeg_Execute(&chassis->rear_legs[i]);
-            }
-
+        for (int i = 0; i < 2; i++)
+        {
+            LiftLeg_Execute(&chassis->front_legs[i]);
+            LiftLeg_Execute(&chassis->rear_legs[i]);
+        }
     }
     PowerControl();
 }

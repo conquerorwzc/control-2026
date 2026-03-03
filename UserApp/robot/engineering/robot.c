@@ -182,11 +182,11 @@ static void MouseKeySet()
         break;
     }
 
-    if (gantry_ctrl_cmd->Gantry_mode != GANTRY_MODE_POWER_OFF)
-    {
-        gantry_ctrl_cmd->y += rc_data[TEMP].key[KEY_PRESS].b * 0.1 - rc_data[TEMP].key[KEY_PRESS].v * 0.1;
-        gantry_ctrl_cmd->z += rc_data[TEMP].key[KEY_PRESS].x * 0.1 - rc_data[TEMP].key[KEY_PRESS].z * 0.1;
-    }
+    // if (gantry_ctrl_cmd->Gantry_mode != GANTRY_MODE_POWER_OFF)
+    // {
+    //     gantry_ctrl_cmd->y += rc_data[TEMP].key[KEY_PRESS].b * 0.1 - rc_data[TEMP].key[KEY_PRESS].v * 0.1;
+    //     gantry_ctrl_cmd->z += rc_data[TEMP].key[KEY_PRESS].x * 0.1 - rc_data[TEMP].key[KEY_PRESS].z * 0.1;
+    // }
 
     switch (rc_data[TEMP].key_count[KEY_PRESS][Key_R] % 3) // 控制底盘/机械臂/摄像头
     {
