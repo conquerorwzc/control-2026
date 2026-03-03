@@ -478,10 +478,10 @@ static void MouseKeySet() {
     chassis_ctrl_cmd->leg_mode = LEG_NORMAL;
   }
 
-  // 检测ctrl键按下事件（从释放到按下），设置腿部为空中模式
-  if (!rc_data_last[TEMP].key[KEY_PRESS].ctrl && rc_data[TEMP].key[KEY_PRESS].ctrl) {
-    chassis_ctrl_cmd->leg_mode = LEG_IN_AIR;
-  }
+  // // 检测ctrl键按下事件（从释放到按下），设置腿部为空中模式
+  // if (!rc_data_last[TEMP].key[KEY_PRESS].ctrl && rc_data[TEMP].key[KEY_PRESS].ctrl) {
+  //   chassis_ctrl_cmd->leg_mode = LEG_IN_AIR;
+  // }
 
   // 添加B键设置底盘跟随模式（通过按压次数切换跟头/跟尾部）
   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_B] % 2) {
@@ -554,45 +554,30 @@ static void MouseKeySet() {
       shoot_ctrl_cmd->bullet_speed = 30;
       break;
   }
-  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 4)  // E键设置发射模式
-  {
-    case 0:
-      shoot_ctrl_cmd->load_mode = LOAD_STOP;
-      break;
-    case 1:
-      shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
-      break;
-    case 2:
-      shoot_ctrl_cmd->load_mode = LOAD_3_BULLET;
-      break;
-    default:
-      shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
-      break;
-  }
 
   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_C] % 4)  // C键设置底盘速度
   {
     case 0:
-      chassis_ctrl_cmd->chassis_speed_buff = 40;
+      chassis_ctrl_cmd->chassis_speed_buff = 15000;
       break;
     case 1:
-      chassis_ctrl_cmd->chassis_speed_buff = 60;
+      chassis_ctrl_cmd->chassis_speed_buff = 20000;
       break;
     case 2:
-      chassis_ctrl_cmd->chassis_speed_buff = 80;
+      chassis_ctrl_cmd->chassis_speed_buff = 40000;
       break;
     default:
-      chassis_ctrl_cmd->chassis_speed_buff = 100;
+      chassis_ctrl_cmd->chassis_speed_buff = 80000;
       break;
   }
-  switch (rc_data[TEMP].key[KEY_PRESS].shift)  // 待添加 按shift允许超功率 消耗缓冲能量
+  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Shift]%2)  // 待添加 按shift允许超功率 消耗缓冲能量
   {
     case 1:
-
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+      chassis_ctrl_cmd->wz = 5000.0f;
       break;
 
     default:
-
       break;
   }
   // G键功率重新分配功能
