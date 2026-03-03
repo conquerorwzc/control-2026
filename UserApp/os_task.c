@@ -29,7 +29,9 @@
 #include "dmmotor.h"
 // bsp
 #include "bsp_init.h"
+#ifdef USE_UI
 #include "referee_task.h"
+#endif
 // #include "referee_task.h"
 
 osThreadId motorTaskHandle;

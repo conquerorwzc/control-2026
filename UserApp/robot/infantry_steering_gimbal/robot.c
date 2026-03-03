@@ -12,7 +12,7 @@ static RobotInstance *robot;
 Int16ToBytes transmit_data;
 
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
-static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
+  Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
 static Gimbal_Ctrl_Cmd_s *gimbal_ctrl_cmd;
 static Shoot_Ctrl_Cmd_s *shoot_ctrl_cmd;
 Vision_Receive_s* vision_recv_data;
@@ -154,32 +154,43 @@ static void MouseKeySet() {
                 (float)chassis_ctrl_cmd->chassis_speed_buff;
   vx_initial += (float)(rc_data[TEMP].key[KEY_PRESS].a - rc_data[TEMP].key[KEY_PRESS].d) *
                 (float)-chassis_ctrl_cmd->chassis_speed_buff;
+    if (rc_data[TEMP].key[KEY_PRESS].shift!=0||abs(rc_data[TEMP].rc.dial) > 20)
+    {
+        chassis_ctrl_cmd->chassis_mode=CHASSIS_ROTATE;
+        chassis_ctrl_cmd->wz =
+        (float)chassis_ctrl_cmd->chassis_speed_buff+60.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
+    }
+    else
+    {
+        chassis_ctrl_cmd->chassis_mode=CHASSIS_FOLLOW;
+        chassis_ctrl_cmd->wz =(50.0f) *(float)rc_data[TEMP].mouse.x+(25.0f) *(float)rc_data[TEMP].rc.rocker_r_;
+    }
   // 缓加速
   if (abs(vx_initial)<=10000) {
     x_speed_time=DWT_GetTimeline_s();
     chassis_ctrl_cmd->vx=vx_initial;
   }//速度绝对值在10000以下输出控制量=输入控制量
-  if (vx_initial > 10000&&chassis_ctrl_cmd->vx<= 60.0f * (float)rc_data[TEMP].rc.rocker_l_ ) {
-    chassis_ctrl_cmd->vx=10000+(DWT_GetTimeline_s()-x_speed_time)*20000;
+  if (vx_initial > 10000 ) {
+    chassis_ctrl_cmd->vx=10000+(DWT_GetTimeline_s()-x_speed_time)*15000;
   }
-  if (vx_initial < -10000&&chassis_ctrl_cmd->vx>= 60.0f * (float)rc_data[TEMP].rc.rocker_l_) {
-    chassis_ctrl_cmd->vx=-10000-(DWT_GetTimeline_s()-x_speed_time)*20000;
+  if (vx_initial < -10000) {
+    chassis_ctrl_cmd->vx=-10000-(DWT_GetTimeline_s()-x_speed_time)*15000;
   }//速度绝对值在10000以上输出控制量=10000+10000t(s)
   if (abs(vy_initial)<=10000) {
     y_speed_time=DWT_GetTimeline_s();
     chassis_ctrl_cmd->vy=vy_initial;
   }//速度绝对值在10000以下输出控制量=输入控制量
-  if (vy_initial > 10000&&chassis_ctrl_cmd->vy<= 60.0f * (float)rc_data[TEMP].rc.rocker_l1 ) {
-    chassis_ctrl_cmd->vy=10000+(DWT_GetTimeline_s()-y_speed_time)*20000;
+  if (vy_initial > 10000 ) {
+    chassis_ctrl_cmd->vy=10000+(DWT_GetTimeline_s()-y_speed_time)*15000;
   }
-  if (vy_initial < -10000&&chassis_ctrl_cmd->vy>= 60.0f * (float)rc_data[TEMP].rc.rocker_l1) {
-    chassis_ctrl_cmd->vy=-10000-(DWT_GetTimeline_s()-y_speed_time)*20000;
+  if (vy_initial < -10000) {
+    chassis_ctrl_cmd->vy=-10000-(DWT_GetTimeline_s()-y_speed_time)*15000;
   }//速度绝对值在10000以上输出控制量=10000+10000t(s)
 
 if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   {
-    gimbal_ctrl_cmd->yaw += (float)rc_data[TEMP].mouse.x * 0.003f;  // 横向灵敏度调节
-    gimbal_ctrl_cmd->pitch -= (float)rc_data[TEMP].mouse.y * 0.003f; // 纵向灵敏度调节 (负号反转Y轴)
+    gimbal_ctrl_cmd->yaw -= (float)rc_data[TEMP].mouse.x * 0.003f;  // 横向灵敏度调节
+    gimbal_ctrl_cmd->pitch += (float)rc_data[TEMP].mouse.y * 0.003f; // 纵向灵敏度调节 (负号反转Y轴)
   }
   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Z] % 3)  // Z键设置弹速
   {
@@ -223,7 +234,7 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
         if (shoot_ctrl_cmd->friction_mode==FRICTION_ON)   //需预先开启摩擦轮，F键
         {
             shoot_ctrl_cmd->load_mode=LOAD_1_BULLET;
-          if (DWT_GetTimeline_s() - trigger_time > 0.5f)  //长按检测，1秒
+          if (DWT_GetTimeline_s() - trigger_time > 0.3f)  //长按检测，1秒
           {
             shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
           }
