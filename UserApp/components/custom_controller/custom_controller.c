@@ -133,7 +133,7 @@ void CustomControllerTask(CustomController_t* controller)
     }
     if (controller->motors[4].dji_motor != NULL) {
         float raw_angle = controller->motors[4].dji_motor->measure.total_angle;
-        controller->motor_angles[4] = raw_angle - controller->zero_offset[4];
+        controller->motor_angles[4] = -(raw_angle - controller->zero_offset[4]);
     }
 
     // 更新电机数据用于发送
