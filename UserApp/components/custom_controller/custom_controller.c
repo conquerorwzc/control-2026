@@ -11,8 +11,6 @@ static USARTInstance* custom_controller_usart = NULL;
 static float DM_RadianToDegree(float radian);
 static void CalibrateMotorZeroPosition(CustomController_t* controller);
 static bool CheckMotorOnlineStatus(CustomController_t* controller);
-static float VoltageToAngle(float voltage, const Potentiometer_Config_s* config);
-static void InitPotentiometer(CustomController_t* controller, const Potentiometer_Config_s* pot_config);
 
 /* ----------------------- 公共函数实现 ----------------------------- */
 
@@ -34,43 +32,45 @@ CustomController_t* CustomControllerInit(CustomController_Init_Config_s* init_co
         LOGERROR("CustomController: Memory allocation failed");
         return NULL;
     }
-    
+
     // 初始化电机
     // DM4310电机 (索引0)
-    controller->motors[0].dm_motor = DMMotorInit(&init_config->dm4310_config);
+    controller->motors[0].dm_motor = DMMotorInit(&init_config->dm4310_config_1);
     controller->motors[0].dji_motor = NULL;
+    //DMMotorCaliEncoder(controller->motors[0].dm_motor);
+
+    // DM4310电机 (索引1)
+    controller->motors[1].dm_motor = DMMotorInit(&init_config->dm4310_config_2);
+    controller->motors[1].dji_motor = NULL;
     
-    // 第一个3508电机 (索引1)
-    controller->motors[1].dm_motor = NULL;
-    controller->motors[1].dji_motor = DJIMotorInit(&init_config->m3508_config_1);
-    
-    // 第二个3508电机 (索引2)
+    // 第一个3508电机 (索引2)
     controller->motors[2].dm_motor = NULL;
-    controller->motors[2].dji_motor = DJIMotorInit(&init_config->m3508_config_2);
+    controller->motors[2].dji_motor = DJIMotorInit(&init_config->m3508_config_1);
     
-    // 2006电机 (索引3)
+    // 第二个3508电机 (索引3)
     controller->motors[3].dm_motor = NULL;
-    controller->motors[3].dji_motor = DJIMotorInit(&init_config->m2006_config);
+    controller->motors[3].dji_motor = DJIMotorInit(&init_config->m3508_config_2);
+    
+    // 2006电机 (索引4)
+    controller->motors[4].dm_motor = NULL;
+    controller->motors[4].dji_motor = DJIMotorInit(&init_config->m2006_config);
     
     // 初始化角度数据
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 5; i++) {
         controller->motor_angles[i] = 0.0f;
         controller->zero_offset[i] = 0.0f;  // 初始化零位偏移数组
         controller->motor_online_status[i] = false;  // 初始化在线状态
     }
     
     // 初始化电机数据
-    for (int i = 0; i < 4; i++) {
-        controller->motor_data[i].id = i + 1;  // 电机ID为1, 2, 3, 4
+    for (int i = 0; i < 5; i++) {
+        controller->motor_data[i].id = i + 1;  // 电机 ID 为 1, 2, 3, 4
         controller->motor_data[i].present_pos = 0;
         controller->motor_data[i].current_angle = 0.0f;
         controller->motor_data[i].is_online = 0;
     }
-    
-    // 初始化电位器
-    InitPotentiometer(controller, &init_config->pot_config);
-    
-    // 初始化USART实例，使用USART1
+        
+    // 初始化 USART 实例，使用 USART1
     if (custom_controller_usart == NULL) {
         USART_Init_Config_s usart_config = {0};
         usart_config.recv_buff_size = 256;
@@ -90,7 +90,7 @@ CustomController_t* CustomControllerInit(CustomController_Init_Config_s* init_co
     // 首次上电校准
     CalibrateMotorZeroPosition(controller);
     
-    LOGINFO("CustomController: Initialized with 4 motors and potentiometer");
+    LOGINFO("CustomController: Initialized with 4 motors");
     return controller;
 }
 
@@ -112,28 +112,30 @@ void CustomControllerTask(CustomController_t* controller)
         CalibrateMotorZeroPosition(controller);
     }
     
-    // 读取四个电机的角度值并应用零位偏移
+    // 读取五个电机的角度值并应用零位偏移
     if (controller->motors[0].dm_motor != NULL) {
-        // DM电机角度转换：弧度转角度(并且已经经过零点标定)
+        // DM 电机角度转换：弧度转角度 (并且已经过零点标定)
         float raw_angle = DM_RadianToDegree(controller->motors[0].dm_motor->measure.total_angle);
         controller->motor_angles[0] = raw_angle;
     }
-    if (controller->motors[1].dji_motor != NULL) {
-        float raw_angle = controller->motors[1].dji_motor->measure.total_angle;
-        controller->motor_angles[1] = -(raw_angle - controller->zero_offset[1]);
+    if (controller->motors[1].dm_motor != NULL) {
+        // DM 电机角度转换：弧度转角度
+        float raw_angle = DM_RadianToDegree(controller->motors[1].dm_motor->measure.total_angle);
+        controller->motor_angles[1] = raw_angle;
     }
     if (controller->motors[2].dji_motor != NULL) {
         float raw_angle = controller->motors[2].dji_motor->measure.total_angle;
-        controller->motor_angles[2] = raw_angle - controller->zero_offset[2];
+        controller->motor_angles[2] = -(raw_angle - controller->zero_offset[2]);
     }
     if (controller->motors[3].dji_motor != NULL) {
         float raw_angle = controller->motors[3].dji_motor->measure.total_angle;
         controller->motor_angles[3] = raw_angle - controller->zero_offset[3];
     }
-    
-    // 更新电位器数据
-    CustomController_UpdatePotData(controller);
-    
+    if (controller->motors[4].dji_motor != NULL) {
+        float raw_angle = controller->motors[4].dji_motor->measure.total_angle;
+        controller->motor_angles[4] = raw_angle - controller->zero_offset[4];
+    }
+
     // 更新电机数据用于发送
     CustomController_UpdateMotorData(controller);
 }
@@ -147,23 +149,10 @@ void CustomControllerTask(CustomController_t* controller)
 float CustomControllerGetMotorAngle(const CustomController_t* controller, 
                                    uint8_t motor_index)
 {
-    if (controller == NULL || !controller->is_initialized || motor_index >= 4) {
+    if (controller == NULL || !controller->is_initialized || motor_index >= 5) {
         return 0.0f;
     }
     return controller->motor_angles[motor_index];
-}
-
-/**
- * @brief 获取电位器角度
- * @param controller 控制器实例
- * @return float 电位器角度
- */
-float CustomControllerGetPotAngle(const CustomController_t* controller)
-{
-    if (controller == NULL || !controller->is_initialized || !controller->potentiometer.is_initialized) {
-        return 0.0f;
-    }
-    return controller->potentiometer.current_angle;
 }
 
 /**
@@ -182,28 +171,20 @@ void CustomController_SendAllData(CustomController_t* controller)
     // 数据包类型标识
     controller_data[0] = 0x20; // 控制器数据包标识
     
-    // 电机数据 - 每个电机占用5个字节（ID + 2字节角度 + 1字节预留 + 1字节在线状态）
-    for (int i = 0; i < 4; i++) {
-        controller_data[1 + i*5] = controller->motor_data[i].id;  // 电机ID
-        
-        // 电机角度值，放大100倍存储
+    // 电机数据 - 每个电机占用 5 个字节（ID + 2 字节角度 + 1 字节预留 + 1 字节在线状态）
+    for (int i = 0; i < 5; i++) {
+        controller_data[1 + i*5] = controller->motor_data[i].id;  // 电机 ID
+            
+        // 电机角度值，放大 100 倍存储
         int16_t angle_value = (int16_t)(controller->motor_data[i].current_angle * 100.0f);
         controller_data[2 + i*5] = angle_value & 0xFF;
         controller_data[3 + i*5] = (angle_value >> 8) & 0xFF;
-        
+
         // 预留字节（原扭矩状态位置）
         controller_data[4 + i*5] = 0;
         // 电机在线状态
         controller_data[5 + i*5] = controller->motor_data[i].is_online;
     }
-    
-    // 电位器数据 - 占用3个字节（2字节角度 + 1字节电压）
-    int16_t pot_angle_value = (int16_t)(controller->potentiometer.current_angle * 100.0f);
-    controller_data[21] = pot_angle_value & 0xFF;  // 电位器角度低字节
-    controller_data[22] = (pot_angle_value >> 8) & 0xFF;  // 电位器角度高字节
-    
-    uint8_t pot_voltage_value = (uint8_t)(controller->potentiometer.current_voltage * 50.0f); // 0-3.3V映射到0-255
-    controller_data[23] = pot_voltage_value;  // 电位器电压值
     
     // 发送数据包
     uint16_t packed_length;
@@ -237,32 +218,12 @@ void CustomController_UpdateMotorData(CustomController_t* controller)
         return;
     }
     
-    // 更新所有电机的角度数据
-    for (int i = 0; i < 4; i++) {
+    // 更新所有电机的角度数据（5 个电机）
+    for (int i = 0; i < 5; i++) {
         controller->motor_data[i].current_angle = controller->motor_angles[i];
         controller->motor_data[i].present_pos = (int16_t)controller->motor_angles[i];
         controller->motor_data[i].is_online = 1;
     }
-}
-
-/**
- * @brief 更新电位器数据
- * @param controller 控制器实例
- */
-void CustomController_UpdatePotData(CustomController_t* controller)
-{
-    if (controller == NULL || !controller->is_initialized || !controller->potentiometer.is_initialized) {
-        return;
-    }
-    
-    // 读取ADC电压值
-    controller->potentiometer.current_voltage = ADCGetVoltage(controller->potentiometer.adc_instance);
-    
-    // 电压转换为角度（修复：使用保存在实例中的正确配置）
-    controller->potentiometer.current_angle = VoltageToAngle(
-        controller->potentiometer.current_voltage, 
-        &controller->potentiometer.config  // 使用持久化的配置参数
-    ) - 101.0f;
 }
 
 /* ----------------------- 私有函数实现 ----------------------------- */
@@ -290,15 +251,15 @@ static void CalibrateMotorZeroPosition(CustomController_t* controller)
     
     LOGINFO("CustomController: Starting zero position calibration...");
     
-    // 读取当前各电机的实际角度作为零位参考
-    float current_angles[4] = {0.0f};
-    
+    // 读取当前各电机的实际角度作为零位参考（5 个电机）
+    float current_angles[5] = {0.0f};
+        
     // 获取当前角度作为零位基准
     if (controller->motors[0].dm_motor != NULL) {
         current_angles[0] = DM_RadianToDegree(controller->motors[0].dm_motor->measure.total_angle);
     }
-    if (controller->motors[1].dji_motor != NULL) {
-        current_angles[1] = controller->motors[1].dji_motor->measure.total_angle;
+    if (controller->motors[1].dm_motor != NULL) {
+        current_angles[1] = DM_RadianToDegree(controller->motors[1].dm_motor->measure.total_angle);
     }
     if (controller->motors[2].dji_motor != NULL) {
         current_angles[2] = controller->motors[2].dji_motor->measure.total_angle;
@@ -306,9 +267,12 @@ static void CalibrateMotorZeroPosition(CustomController_t* controller)
     if (controller->motors[3].dji_motor != NULL) {
         current_angles[3] = controller->motors[3].dji_motor->measure.total_angle;
     }
-    
+    if (controller->motors[4].dji_motor != NULL) {
+        current_angles[4] = controller->motors[4].dji_motor->measure.total_angle;
+    }
+        
     // 设置零位偏移值（当前角度即为偏移量）
-    for (int i = 1; i < 4; i++) {
+    for (int i = 1; i < 5; i++) {
         controller->zero_offset[i] = current_angles[i];
         controller->motor_angles[i] = 0.0f;  // 初始化为0
         controller->motor_online_status[i] = true;  // 标记为在线
@@ -369,54 +333,4 @@ static bool CheckMotorOnlineStatus(CustomController_t* controller)
     }
     
     return need_recalibration;
-}
-
-/**
- * @brief 电压值转换为角度值
- * @param voltage 电压值(V)
- * @param config 电位器配置
- * @return float 角度值(度)
- */
-static float VoltageToAngle(float voltage, const Potentiometer_Config_s* config)
-{
-    // 限制电压在有效范围内
-    if (voltage < config->min_voltage) voltage = config->min_voltage;
-    if (voltage > config->max_voltage) voltage = config->max_voltage;
-    
-    // 线性映射：(voltage - min_voltage) / (max_voltage - min_voltage) * (max_angle - min_angle) + min_angle
-    float ratio = (voltage - config->min_voltage) / (config->max_voltage - config->min_voltage);
-    return ratio * (config->max_angle - config->min_angle) + config->min_angle;
-}
-
-/**
- * @brief 初始化电位器
- * @param controller 控制器实例
- * @param pot_config 电位器配置
- */
-static void InitPotentiometer(CustomController_t* controller, const Potentiometer_Config_s* pot_config)
-{
-    // 初始化电位器实例
-    controller->potentiometer.is_initialized = false;
-    controller->potentiometer.current_voltage = 0.0f;
-    controller->potentiometer.current_angle = 0.0f;
-    
-    // 将配置参数拷贝到实例中（关键修改：持久化配置）
-    controller->potentiometer.config = *pot_config;
-    
-    // 注册ADC实例 (ADC1_IN14, 16位单端)
-    extern ADC_HandleTypeDef hadc1;  // 声明外部ADC1句柄
-    ADC_Init_Config_s adc_config = {0};
-    adc_config.hadc = &hadc1;
-    adc_config.channel = ADC_CHANNEL_14;  // ADC1_IN14
-    adc_config.mode = ADC_MODE_POLLING;   // 轮询模式
-    adc_config.vref = 3.3f;               // 参考电压3.3V (与电位器供电电压一致)
-    adc_config.alpha = pot_config->filter_alpha;  // 滤波系数
-    
-    controller->potentiometer.adc_instance = ADCRegister(&adc_config);
-    if (controller->potentiometer.adc_instance != NULL) {
-        controller->potentiometer.is_initialized = true;
-        LOGINFO("Potentiometer ADC (16-bit, IN14) initialized successfully");
-    } else {
-        LOGERROR("Failed to initialize potentiometer ADC");
-    }
 }
