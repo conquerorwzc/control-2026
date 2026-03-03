@@ -120,15 +120,20 @@ static void RemoteControlSet() {
     }
     else if (robot->control_mode == AUTO_MODE) // 自动控制，直接接收上位机控制量
     {
-      float NotFountTime=0;                                 //没有识别到装甲板的时间
+      float NotFoundTime=0;                                 //没有识别到装甲板的时间
       gimbal_ctrl_cmd->gimbal_mode=GIMBAL_VISION;           //自瞄开启
       if (has_non_zero_data(vision_recv_data)==1){
         gimbal_ctrl_cmd->yaw=vision_recv_data->gimbal_receive.yaw;
         gimbal_ctrl_cmd->pitch=vision_recv_data->gimbal_receive.pitch;
-        // shoot_ctrl_cmd->load_mode=vision_recv_data->shoot_receive.fire_flag;
-        NotFountTime=time;                   //识别到装甲板
+        switch (vision_recv_data->shoot_receive.fire_flag) {
+          case 0:
+            shoot_ctrl_cmd->load_mode=LOAD_STOP;
+          default:
+            shoot_ctrl_cmd->load_mode=LOAD_BURSTFIRE;
+        }
+        NotFoundTime=time;                   //识别到装甲板
       }
-      else if (time-NotFountTime>0.5f){      //丢失目标超0.5秒，进入寻敌模式
+      else if (time-NotFoundTime>0.5f){      //丢失目标超0.5秒，进入寻敌模式
         gimbal_ctrl_cmd->yaw+=0.15f;
         gimbal_ctrl_cmd->pitch+=0.045f*cosf(PI*1.5*time);
       }
@@ -179,23 +184,14 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
       }
       break;
   default:
-    switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 2)  // E键设置发射模式
-    {
-      case 0:                                              //单发+长按连发
         if (shoot_ctrl_cmd->friction_mode==FRICTION_ON&&(vision_recv_data->shoot_receive.fire_flag||rc_data[TEMP].mouse.press_r % 2==0))   //需预先开启摩擦轮
         {
-            shoot_ctrl_cmd->load_mode=LOAD_1_BULLET;
+          shoot_ctrl_cmd->load_mode=LOAD_1_BULLET;
         if (time - trigger_time > 1.0f)  //长按检测，1秒
         {
           shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
         }
-        break;
-      default:                                         //连发
-        if (shoot_ctrl_cmd->friction_mode==FRICTION_ON)
-        shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
-        break;
       }
-    }
       break;
   }
 
@@ -291,15 +287,20 @@ static void RemoteControlSet() {
   }
 
   if (vt13_rc_data->button_status.fn_1_flag==1) {
-    float NotFountTime=0;                                 //没有识别到装甲板的时间
+    float NotFoundTime=0;                                 //没有识别到装甲板的时间
     if (has_non_zero_data(vision_recv_data)==1){
       gimbal_ctrl_cmd->yaw=vision_recv_data->gimbal_receive.yaw;
       gimbal_ctrl_cmd->pitch=vision_recv_data->gimbal_receive.pitch;
-      // shoot_ctrl_cmd->load_mode=vision_recv_data->shoot_receive.fire_flag;
-      NotFountTime=time;                   //识别到装甲板
+      switch (vision_recv_data->shoot_receive.fire_flag) {
+        case 0:
+          shoot_ctrl_cmd->load_mode=LOAD_STOP;
+        default:
+          shoot_ctrl_cmd->load_mode=LOAD_BURSTFIRE;
+      }
+      NotFoundTime=time;                   //识别到装甲板
     }
-    else if (time-NotFountTime>0.5f){      //丢失目标超0.5秒，进入寻敌模式
-      gimbal_ctrl_cmd->yaw+=0.05f;
+    else if (time-NotFoundTime>0.5f){      //丢失目标超0.5秒，进入寻敌模式
+      gimbal_ctrl_cmd->yaw+=0.1f;
       gimbal_ctrl_cmd->pitch=20.0f*cosf(PI*3*time);//cos里数字越大，旋转速度越快
     }
   }
@@ -350,14 +351,12 @@ static void MouseKeySet() {
       break;
     default:
       // 发射逻辑
-      if (vt13_rc_data->mouse_key.keyboard.e) {  // E键设置发射模式
         if (shoot_ctrl_cmd->friction_mode == FRICTION_ON) {
           if (time - trigger_time > 1.0f) {
             shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;  // 连发
           } else {
             shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;   // 单发
           }
-        }
       }
       break;
   }
@@ -415,7 +414,7 @@ static void EmergencyHandler() {
 
 # elifdef USE_DUAL_RC_NEW
   // 新VT13遥控器紧急处理逻辑
-  if (switch_left(vt13_rc_data->rc.mode_switch)||vt13_rc_data->button_status.pause_flag==1){  // 拨杆在左或按下暂停键时断电
+  if (switch_left(vt13_rc_data->rc.mode_switch) || vt13_rc_data->button_status.pause_flag==1 || vt13_rc_data == NULL){  // 拨杆在左或按下暂停键时断电
     robot->robot_mode = ROBOT_POWER_ON;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
     shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
