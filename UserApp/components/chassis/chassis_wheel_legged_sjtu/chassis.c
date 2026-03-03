@@ -83,7 +83,8 @@ static void StateVarUpdate(void) {
   SpeedEstimate();
   sv->v_b_h = chassis->vaEstimateKF.FilteredValue[0];
   // 位移积分
-  if (chassis->update_flag.is_controlled || (leg[0]->update_flag.is_off_ground && leg[1]->update_flag.is_off_ground)) {
+  if (chassis->update_flag.is_controlled || sv->v_b_h > 0.15f ||
+      (leg[0]->update_flag.is_off_ground && leg[1]->update_flag.is_off_ground)) {
     sv->x_b_h = 0.0f;
   } else {
     sv->x_b_h += ((sv->v_b_h + chassis->last_state_var.v_b_h) / 2.0f) * chassis->dt;
@@ -108,11 +109,26 @@ static void LocomotionController(void) {
   float l_l = leg[1]->virtual_model.length;
   float l_r = leg[0]->virtual_model.length;
   LQR_K_Calc(chassis->LQR_K, chassis->param.LQR_K_Coefficients, l_l, l_r);
+
   // 减小phi和dphi的权重
   chassis->LQR_K[0][2] *= 0.2f;
   chassis->LQR_K[0][3] *= 0.2f;
   chassis->LQR_K[1][2] *= 0.2f;
   chassis->LQR_K[1][3] *= 0.2f;
+
+  // 离地时只保留 Tp theta/theta_b (列4~9) 的作用，把 x_b_h/v_b_h/phi/dphi (列0~3) 置零, T置零
+  for (int i = 0; i < 2; ++i) {
+    if (leg[i]->update_flag.is_off_ground) {
+      for (int j = 0; j < 4; ++j) {
+        chassis->LQR_K[0][j] = 0.0f;
+        chassis->LQR_K[1][j] = 0.0f;
+      }
+      for (int j = 0; j < 10; ++j) {
+        chassis->LQR_K[2][j] = 0.0f;
+        chassis->LQR_K[3][j] = 0.0f;
+      }
+    }
+  }
 
   // TODO: 状态误差限幅
   float state_err[10];
@@ -141,8 +157,8 @@ static void LocomotionController(void) {
   }
   leg[0]->virtual_model.Tp = u[0];
   leg[1]->virtual_model.Tp = u[1];
-  leg[0]->real_model.T = leg[0]->update_flag.is_off_ground ? 0.0f : u[2];
-  leg[1]->real_model.T = leg[1]->update_flag.is_off_ground ? 0.0f : u[3];
+  leg[0]->real_model.T = u[2];
+  leg[1]->real_model.T = u[3];
 }
 
 /*
@@ -150,25 +166,27 @@ static void LocomotionController(void) {
  *   F_bl,l = +F_psi + F_l + F_gravity - F_inertial   (LEFT = leg[1])
  *   F_bl,r = -F_psi + F_l + F_gravity + F_inertial   (RIGHT = leg[0])
  * F_psi = roll_comp: positive when body rolls left → boost left support.
- * 离心力补偿符号：dphi>0 为左转，机身向外（右）倾，右腿(leg[0])需更大支撑 → leg[0] +f_inertial, leg[1] -f_inertial，当前实现正确。
+ * 离心力补偿符号：dphi>0 为左转，机身向外（右）倾，右腿(leg[0])需更大支撑 → leg[0] +f_inertial, leg[1]
+ * -f_inertial，当前实现正确。
  */
 static void LegController(void) {
   float f_psi = PIDCalculate(&chassis->roll_PID, chassis->imu->Roll * DEGREE_2_RAD, chassis_ctrl_cmd->roll);
   float l_avg = (leg[0]->virtual_model.length + leg[1]->virtual_model.length) * 0.5f;
-  float f_l_r = PIDCalculate(&chassis->length_PID[0], leg[0]->virtual_model.length, chassis->chassis_ctrl_cmd.leg_length);
-  float f_l_l = PIDCalculate(&chassis->length_PID[1], leg[1]->virtual_model.length, chassis->chassis_ctrl_cmd.leg_length);
+  float f_l_r =
+      PIDCalculate(&chassis->leg[0]->length_PID, leg[0]->virtual_model.length, chassis->chassis_ctrl_cmd.leg_length);
+  float f_l_l =
+      PIDCalculate(&chassis->leg[1]->length_PID, leg[1]->virtual_model.length, chassis->chassis_ctrl_cmd.leg_length);
   float f_gravity = 0.5f * chassis->param.body_mass * 9.81f;
   float f_inertial = 0.5f * chassis->param.body_mass * (l_avg / chassis->param.track_width) * chassis->state_var.dphi *
                      chassis->state_var.v_b_h;
-  leg[1]->virtual_model.F = f_psi + f_l_l + f_gravity - f_inertial;
   leg[0]->virtual_model.F = -f_psi + f_l_r + f_gravity + f_inertial;
+  leg[1]->virtual_model.F = f_psi + f_l_l + f_gravity - f_inertial;
 }
 
 static void ChassisCtrlUpdate(void) {
   float dt_raw = DWT_GetDeltaT(&chassis->DWT_CNT);
 
   if (dt_raw > 0.05f) {
-    chassis->dt = 0.001f;
     chassis->update_flag.is_restart = 1;
   } else {
     chassis->dt = dt_raw;
@@ -182,14 +200,28 @@ static void ChassisCtrlUpdate(void) {
   LocomotionController();
   LegController();
 
-  if (chassis->jump_state == JUMP_STATE_EXTEND) {
-    float jump_f = chassis_ctrl_cmd->jump_force;
-    leg[0]->virtual_model.F = jump_f;
-    leg[1]->virtual_model.F = jump_f;
-  } else {
-    VAL_LIMIT(leg[0]->virtual_model.F, -1500.0f, 1500.0f);
-    VAL_LIMIT(leg[1]->virtual_model.F, -1500.0f, 1500.0f);
+  // 状态机形式处理不同跳跃状态下的腿部力分配
+  switch (chassis->jump_state) {
+    case JUMP_STATE_EXTEND: {
+      // 起跳时给两条腿注入跳跃力
+      float jump_f = chassis_ctrl_cmd->jump_force;
+      leg[0]->virtual_model.F = jump_f;
+      leg[1]->virtual_model.F = jump_f;
+      break;
+    }
+    case JUMP_STATE_RETRACT: {
+      // 收腿时加入前馈力以更快速收腿
+      const float retract_feedforward = -250.0f;  // 可调整收腿前馈力大小
+      leg[0]->virtual_model.F += retract_feedforward;
+      leg[1]->virtual_model.F += retract_feedforward;
+      break;
+    }
+    default: {
+      break;
+    }
   }
+  VAL_LIMIT(leg[0]->virtual_model.F, -1900.0f, 1900.0f);
+  VAL_LIMIT(leg[1]->virtual_model.F, -1900.0f, 1900.0f);
 
   chassis->delta_theta_comp =
       PIDCalculate(&chassis->delta_theta_PID, leg[0]->virtual_model.theta - leg[1]->virtual_model.theta, 0);
@@ -268,8 +300,8 @@ static void ChassisJump(void) {
 
 static void LimitChassisOutput(void) {
   for (int i = 0; i < 2; i++) {
-    VAL_LIMIT(leg[i]->real_model.Tp_1, -32.0f, 32.0f);
-    VAL_LIMIT(leg[i]->real_model.Tp_2, -32.0f, 32.0f);
+    VAL_LIMIT(leg[i]->real_model.Tp_1, -33.0f, 33.0f);
+    VAL_LIMIT(leg[i]->real_model.Tp_2, -33.0f, 33.0f);
     VAL_LIMIT(leg[i]->real_model.T, -2.45f, 2.45f);
     DMMotorSetRef(leg[i]->joint_motor[0], leg[i]->real_model.Tp_1);
     DMMotorSetRef(leg[i]->joint_motor[1], leg[i]->real_model.Tp_2);
@@ -293,8 +325,8 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
 
   PIDInit(&chassis_instance->delta_theta_PID, &chassis_init_config->delta_theta_PID_config);
   PIDInit(&chassis_instance->roll_PID, &chassis_init_config->roll_PID_config);
-  PIDInit(&chassis_instance->length_PID[0], &chassis_init_config->length_PID_config);
-  PIDInit(&chassis_instance->length_PID[1], &chassis_init_config->length_PID_config);
+  PIDInit(&chassis_instance->leg[0]->length_PID, &chassis_init_config->length_PID_config);
+  PIDInit(&chassis_instance->leg[1]->length_PID, &chassis_init_config->length_PID_config);
   chassis_instance->imu = INS_Init(&chassis_init_config->imu_init_config);
   xvEstimateKF_Init(&chassis_instance->vaEstimateKF);
 
@@ -348,8 +380,8 @@ void ChassisTask(void) {
       break;
     case CHASSIS_JUMP_START:
       if (chassis->jump_state == JUMP_STATE_COMPRESS) {
-        if (fabsf(leg[0]->virtual_model.length - chassis->param.leg_min_length) <= 0.02f &&
-            fabsf(leg[1]->virtual_model.length - chassis->param.leg_min_length) <= 0.02f) {
+        if (fabsf(leg[0]->virtual_model.length - chassis->param.leg_min_length) <= 0.05f &&
+            fabsf(leg[1]->virtual_model.length - chassis->param.leg_min_length) <= 0.05f) {
           chassis->jump_state = JUMP_STATE_EXTEND;
         }
       }

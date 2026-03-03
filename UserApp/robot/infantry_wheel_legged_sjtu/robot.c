@@ -26,7 +26,7 @@ static RobotInstance* robot;
 static Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd;
 static Gimbal_Ctrl_Cmd_s* gimbal_ctrl_cmd;
 static Shoot_Ctrl_Cmd_s* shoot_ctrl_cmd;
-static Vision_Receive_s *vision_recv_data;
+static Vision_Receive_s* vision_recv_data;
 
 #if !defined(ONE_BOARD)
 static Chassis_Upload_Data_s* chassis_upload_data;
@@ -123,7 +123,7 @@ static void RemoteControlSet() {
     }
     if (switch_is_up(rc_data[TEMP].rc.switch_left)) {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_JUMP_START;
-      chassis_ctrl_cmd->jump_force = 15 * JUMP_FORCE;
+      chassis_ctrl_cmd->jump_force = 25 * JUMP_FORCE;
       // chassis_ctrl_cmd->jump_force = 0;
     }
   }

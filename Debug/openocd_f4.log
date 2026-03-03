@@ -20,4 +20,34 @@ Info : [stm32f4x.cpu] Cortex-M7 r1p2 processor detected
 Info : [stm32f4x.cpu] target has 8 breakpoints, 4 watchpoints
 Info : starting gdb server for stm32f4x.cpu on 3333
 Info : Listening on port 3333 for gdb connections
+Error: CMSIS-DAP command mismatch. Expected 0x5 received 0x0
+Polling target stm32f4x.cpu failed, trying to reexamine
+Error: CMSIS-DAP command mismatch. Sent 0x3 received 0x0
+Error: CMSIS-DAP command CMD_DISCONNECT failed.
+Error: CMSIS-DAP command mismatch. Sent 0x11 received 0x2
+Error: CMSIS-DAP command CMD_DAP_SWJ_CLOCK failed.
+Info : SWD DPIDR 0x6ba02477
+Info : [stm32f4x.cpu] Cortex-M7 r1p2 processor detected
+Info : [stm32f4x.cpu] target has 8 breakpoints, 4 watchpoints
+Error: CMSIS-DAP transfer count mismatch: expected 4, got 1
+Error: CMSIS-DAP transfer count mismatch: expected 2, got 1
+Error: CMSIS-DAP transfer count mismatch: expected 2, got 5
+Error: CMSIS-DAP transfer count mismatch: expected 2, got 5
+Error: CMSIS-DAP transfer count mismatch: expected 2, got 1
+Error: CMSIS-DAP transfer count mismatch: expected 2, got 5
+Error: CMSIS-DAP transfer count mismatch: expected 2, got 1
+Error: CMSIS-DAP transfer count mismatch: expected 2, got 1
+Error: CMSIS-DAP transfer count mismatch: expected 2, got 1
+Error: CMSIS-DAP transfer count mismatch: expected 2, got 3
+Error: CMSIS-DAP transfer count mismatch: expected 2, got 5
+Error: [stm32f4x.cpu] clearing lockup after double fault
+Error: CMSIS-DAP command mismatch. Expected 0x5 received 0x10
+Error: CMSIS-DAP command mismatch. Sent 0x3 received 0x5
+Error: CMSIS-DAP command CMD_DISCONNECT failed.
+Info : SWD DPIDR 0x6ba02477
+Polling target stm32f4x.cpu failed, trying to reexamine
+Info : [stm32f4x.cpu] Cortex-M7 r1p2 processor detected
+Info : [stm32f4x.cpu] target has 8 breakpoints, 4 watchpoints
+[stm32f4x.cpu] halted due to debug-request, current mode: Thread 
+xPSR: 0x01000000 pc: 0x08010b0c msp: 0x20020000
 ^C

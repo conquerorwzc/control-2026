@@ -85,6 +85,8 @@ typedef struct {
 typedef struct {
   Leg_Param_t param;
 
+  PIDInstance length_PID;  // 每腿单独腿长环
+
   DMMotorInstance* joint_motor[2];
   DJIMotorInstance* wheel_motor;
 
