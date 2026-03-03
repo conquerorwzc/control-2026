@@ -32,12 +32,14 @@
 
 typedef enum
 {
-    CHASSIS_POWER_OFF = 0, // 电流零输入
-    CHASSIS_FOLLOW,        // 跟随模式，底盘叠加角度环控制
-    CHASSIS_CLIMB,
-    CHASSIS_CALIBRATING,   // 底盘初始化标定模式
+    CHASSIS_POWER_OFF,
+    CHASSIS_FOLLOW,
+    CHASSIS_CALIBRATING,
+    CHASSIS_CLIMB_IDLE,
+    CHASSIS_CLIMB_ALL_RETRACT,
+    CHASSIS_CLIMB_BOTH_EXTEND,
+    CHASSIS_CLIMB_FRONT_RETRACT
 } Chassis_Mode_e;
-
 typedef enum
 {
     CLIMB_STAGE_IDLE = 0,      // 平地/复位状态 (全收)
