@@ -28,7 +28,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                     {
-                      .Kp = 2.0f,  //0.8
+                      .Kp = 3.0f,  //0.8
                       .Ki = 0.0f,
                       .Kd = 0.035f,
                       .DeadBand = 0.0f,
@@ -43,7 +43,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                       .Kd = 0.0f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                       .IntegralLimit = 12000.0f,
-                      .MaxOut = 28000.0f, //25000
+                      .MaxOut = 25000.0f, //25000
                   },
 
                 },
@@ -61,23 +61,23 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 0.5f,  // 1
+                            .Kp = 0.6f,  // 1
                             .Ki = 0.00f,
                             .Kd = 0.00f,
                             .MaxOut = 20.0f,  //25
                             .DeadBand = 0.00f,
-                          .Derivative_LPF_RC=0.0085f,
-                            .Improve = PID_Integral_Limit|PID_DerivativeFilter,
+                         // .Derivative_LPF_RC=0.0085f,
+                            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                             .IntegralLimit = 0.0f,  //5
                         },
                     .speed_PID =
                         {
-                            .Kp = 1.5f,  // 0.5
-                            .Ki = 30.0f,  // 0.1
+                            .Kp = 2.8f,  // 0.5
+                            .Ki = 30.f,  // 0.1
                             .Kd = 0.00f,
-                            .MaxOut = 11.0f,  //8
+                            .MaxOut = 11.5f,  //8
                             .DeadBand = 0.0f,
-                            .Improve = PID_Integral_Limit,
+                            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                             .IntegralLimit = 1.5f,
                         },
                 },
@@ -109,7 +109,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
   },
   //.hi05_uart_handle = &huart1,
 };
-
+//1.2 //0.2
 #define FRICTION_MOTOR_CONFIG(handle, id, direction) \
 ((Motor_Init_Config_s) { \
 .controller_param_init_config = { \
@@ -119,7 +119,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
 .Kd = 0.0f, \
 .Improve = PID_Integral_Limit, \
 .IntegralLimit = 1000.0f, \
-.MaxOut = 16384.0f, \
+.MaxOut = 15000.0f, \
 }, \
 }, \
 .controller_setting_init_config ={\
