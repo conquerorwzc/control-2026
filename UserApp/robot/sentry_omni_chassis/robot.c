@@ -330,8 +330,27 @@ static void RemoteControlSet() {
     chassis_ctrl_cmd->wz = robot->navigator_data->robot_cmd.speed_vector.wz*100;
     //gimbal_ctrl_cmd->yaw-=robot->navigator_data->robot_cmd.speed_vector.wz*0.01;
   }
-  chassis_ctrl_cmd->vx = vx_initial;
-  chassis_ctrl_cmd->vy = vy_initial;
+  //缓加速
+  if (abs(vx_initial)<=10000) {
+    x_speed_time=DWT_GetTimeline_s();
+    chassis_ctrl_cmd->vx=vx_initial;
+  }//速度绝对值在10000以下输出控制量=输入控制量
+  if (vx_initial > 10000&&chassis_ctrl_cmd->vx<= 60.0f * (float)rc_data[TEMP].rc.rocker_l_ ) {
+    chassis_ctrl_cmd->vx=10000+(DWT_GetTimeline_s()-x_speed_time)*10000;
+  }
+  if (vx_initial < -10000&&chassis_ctrl_cmd->vx>= 60.0f * (float)rc_data[TEMP].rc.rocker_l_) {
+    chassis_ctrl_cmd->vx=-10000-(DWT_GetTimeline_s()-x_speed_time)*10000;
+  }//速度绝对值在10000以上输出控制量=10000+10000t(s)
+  if (abs(vy_initial)<=10000) {
+    y_speed_time=DWT_GetTimeline_s();
+    chassis_ctrl_cmd->vy=vy_initial;
+  }//速度绝对值在10000以下输出控制量=输入控制量
+  if (vy_initial > 10000&&chassis_ctrl_cmd->vy<= 60.0f * (float)rc_data[TEMP].rc.rocker_l1 ) {
+    chassis_ctrl_cmd->vy=10000+(DWT_GetTimeline_s()-y_speed_time)*10000;
+  }
+  if (vy_initial < -10000&&chassis_ctrl_cmd->vy>= 60.0f * (float)rc_data[TEMP].rc.rocker_l1) {
+    chassis_ctrl_cmd->vy=-10000-(DWT_GetTimeline_s()-y_speed_time)*10000;
+  }//速度绝对值在10000以上输出控制量=10000+10000t(s)
 }
 
 static void MouseKeySet() {
@@ -496,12 +515,14 @@ void RobotInit() {
 
   #ifdef USE_DUAL_RC
     // 使用旧遥控器
+    rc_data_old = (Send_Data_RC *)zmalloc(sizeof(Send_Data_RC));
     rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
     *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
     rc_data = robot->rc_data;
   #elif defined(USE_DUAL_RC_NEW)
     // 使用新VT13遥控器
     vt13_rc_data = (VT13_RC_t *) zmalloc(sizeof(VT13_RC_t));
+    rc_data_new = (Send_Data_RC_NEW *)zmalloc(sizeof(Send_Data_RC_NEW));
   #endif
 
   //robot->vision_recv_data = VisionInit(&gimbal_init_config.imu_init_config);

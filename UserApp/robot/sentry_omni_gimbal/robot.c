@@ -499,12 +499,14 @@ void RobotInit() {
   // 使用旧遥控器
   robot->rc_data = RemoteControlInit(&huart3);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
   rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
+  send_data = (Send_Data_RC*)zmalloc((sizeof)(Send_Data_RC));
   *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
   rc_data = robot->rc_data;
 #elif defined(USE_DUAL_RC_NEW)
   // 使用新VT13遥控器
   vt13_rc_data = (VT13_RC_t *) zmalloc(sizeof(VT13_RC_t));
   vt13_rc_data = VT13RemoteInit(&huart6);
+  send_data_new = (Send_Data_RC_NEW *)zmalloc(sizeof(Send_Data_RC_NEW));
 #endif
 
   robot->vision_recv_data = VisionInit(&gimbal_init_config.imu_init_config);
