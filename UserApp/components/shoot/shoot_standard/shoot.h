@@ -55,7 +55,7 @@ typedef struct {
   Bullet_Speed_e bullet_speed;  // 弹速枚举
   uint8_t rest_heat;
   float shoot_rate;  // 连续发射的射频,unit per s,发/秒
-
+  float initial_speed; //当前弹速
 } Shoot_Ctrl_Cmd_s;
 
 typedef struct {
