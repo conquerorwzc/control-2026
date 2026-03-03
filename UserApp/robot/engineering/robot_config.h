@@ -332,41 +332,6 @@ static Gantry_Init_Config_s gantry_init_config = {
             .position_ecd_ratio = 30.0f,
         }, // 位置矢量与电机转动角度的比例
 
-    // ------------------- 龙门架电机配置 -------------------
-    /*
-    // 抬升电机 (3508)
-    .lift_motor_config[0] = GANTRY_M3508_CONFIG(
-        &hfdcan2, 1,    // CAN 句柄和 ID
-        2.6f, 6.0f,     // 角度环 Kp, Kd
-        3.5f, 0.018f,   // 速度环 Kp, Ki
-        MOTOR_DIRECTION_REVERSE), // 电机方向 (对应老代码中的 - ratio)
-    .lift_motor_config[1] = GANTRY_M3508_CONFIG(
-        &hfdcan2, 2,
-        2.6f, 6.0f,
-        3.5f, 0.018f,
-        MOTOR_DIRECTION_NORMAL), // 电机方向 (对应老代码中的 + ratio)
-
-    // 前伸电机 (3508)
-    .stretch_motor_config[0] = GANTRY_M3508_CONFIG(
-        &hfdcan2, 3,
-        2.0f, 4.0f,
-        3.0f, 0.008f,
-        MOTOR_DIRECTION_REVERSE),
-    .stretch_motor_config[1] = GANTRY_M3508_CONFIG(
-        &hfdcan2, 4,
-        2.0f, 4.0f,
-        3.0f, 0.008f,
-        MOTOR_DIRECTION_NORMAL),
-
-    // 横移电机 (2006)
-    .sidesway_motor_config = GANTRY_M2006_CONFIG(.
-
-        &hfdcan2, 5,
-        1.8f, 10.0f,
-        5.0f, 0.025f,
-        MOTOR_DIRECTION_REVERSE), // 电机方向 (对应老代码中的 - ratio)
-    */
-
     // 抬升电机 (3508)
     .lift_motor_config[0] = GANTRY_M3508_CONFIG(&hfdcan2, 1,              // CA0N 句柄和 ID
                                                 50.0f, 2.3f,              // 角度环 Kp, Kd

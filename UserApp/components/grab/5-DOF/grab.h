@@ -15,6 +15,20 @@ typedef enum
     GRAB_CALI_MODE,
 } Grab_Cali_Mode_e;
 
+typedef enum {
+    CALI_IDLE = 0,
+    CALI_FIND_MIN,    // 寻找 0 度 (负向)
+    CALI_FIND_MAX,    // 寻找 180 度 (正向)
+    CALI_SUCCESS      // 校准成功
+} Cali_State_e;
+
+typedef struct {
+    Cali_State_e state;
+    float min_total_angle;
+    float max_total_angle;
+    float range;
+} Motor_Cali_Data_s;
+
 typedef struct {
     float wrist_roll_MAX;// 腕部关节旋转角度
     float wrist_roll_MIN;
@@ -74,6 +88,7 @@ typedef struct
     float L_target;      // 左侧电机旋转角度
     float R_target;      // 右侧电机旋转角度
     float T_target;      // 夹爪电机目标扭矩
+    Motor_Cali_Data_s wrist_cali;
 } ActuatorInstance;
 
 typedef struct

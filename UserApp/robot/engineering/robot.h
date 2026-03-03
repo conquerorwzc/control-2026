@@ -4,6 +4,8 @@
 #include "gantry.h"
 #include "grab.h"
 #include "remote_control.h"
+
+#include "selfcontrol.h"
 // #include "rm_referee.h"
 #include "ins_task.h"
 #include "super_cap.h"
@@ -16,6 +18,13 @@ typedef enum
     ROBOT_EMERGENCY_STOP
 } Robot_Mode_e;
 
+
+// 添加机械臂控制模式枚举
+typedef enum {
+    GRAB_CONTROL_KEYBOARD = 0,    // 键鼠控制模式
+    GRAB_CONTROL_CUSTOM          // 自定义控制器角度控制模式
+} GrabControlMode_e;
+
 typedef struct
 {
     Robot_Mode_e robot_mode; // 机器人整体工作状态
@@ -26,7 +35,7 @@ typedef struct
     ChassisInstance *chassis;
     GantryInstance *gantry;
     GrabInstance *grab;
-
+    SelfC *self_control; // 自定义控制器实例
 } RobotInstance;
 
 /**
