@@ -356,7 +356,7 @@ static void EmergencyHandler() {
   }
   else LOGINFO("[CMD]DualBoardComm is Online");
 
-#elifdef USE_DUAL_RC
+#ifdef USE_DUAL_RC
 
       if (switch_is_down(rc_data_old->Switch_right))  // 底盘失能
       {

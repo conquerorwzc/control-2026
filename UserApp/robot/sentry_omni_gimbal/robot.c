@@ -128,8 +128,10 @@ static void RemoteControlSet() {
         switch (vision_recv_data->shoot_receive.fire_flag) {
           case 0:
             shoot_ctrl_cmd->load_mode=LOAD_STOP;
+            break;
           default:
             shoot_ctrl_cmd->load_mode=LOAD_BURSTFIRE;
+            break;
         }
         NotFoundTime=time;                   //识别到装甲板
       }
@@ -294,8 +296,10 @@ static void RemoteControlSet() {
       switch (vision_recv_data->shoot_receive.fire_flag) {
         case 0:
           shoot_ctrl_cmd->load_mode=LOAD_STOP;
+          break;
         default:
           shoot_ctrl_cmd->load_mode=LOAD_BURSTFIRE;
+          break;
       }
       NotFoundTime=time;                   //识别到装甲板
     }
