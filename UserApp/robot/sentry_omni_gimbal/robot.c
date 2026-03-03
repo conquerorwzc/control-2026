@@ -494,7 +494,7 @@ static void DualBoardCtrlSet() {
 }
 void RobotInit() {
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
-
+  RefereeData = (Referee_Data* )zmalloc(sizeof(Referee_Data));
 #ifdef USE_DUAL_RC
   // 使用旧遥控器
   robot->rc_data = RemoteControlInit(&huart3);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个

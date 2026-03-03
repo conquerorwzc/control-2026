@@ -512,7 +512,7 @@ void RobotInit() {
   // 初始化CAN接收
   can_comm_instance = CANCommInit(&comm_config);
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
-
+  referee_data = (Referee_Data* )zmalloc(sizeof(Referee_Data));
   #ifdef USE_DUAL_RC
     // 使用旧遥控器
     rc_data_old = (Send_Data_RC *)zmalloc(sizeof(Send_Data_RC));
