@@ -45,10 +45,10 @@ typedef enum {
 
 // 静态变量用于边沿检测
 static struct {
-  uint8_t q;      // 摩擦轮开关
-  uint8_t space;  // 跳跃
-  uint8_t v;      // 小陀螺模式切换
-  uint8_t shift;  // 加速
+  uint8_t q;
+  uint8_t space;
+  uint8_t v;
+  uint8_t shift;
 } key_last_count;
 
 typedef struct {

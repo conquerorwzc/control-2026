@@ -102,6 +102,157 @@ static void StateVarUpdate(void) {
   chassis->last_state_var = *sv;
 }
 
+/**
+ * @brief  单电机6参数功率估算（中科大模型）
+ *         P = k0 + k1*|I| + k2*|w| + k3*|I|*|w| + k4*I^2 + k5*w^2
+ *
+ * @param  k  系数数组 [k0..k5]
+ * @param  I  电调电流 (A)，由 final_output / (16384/20) 换算得到
+ * @param  w  转子角速度 (rad/s)，由 speed_aps * DEGREE_2_RAD 换算得到
+ *            注意：speed_aps 是转子侧 deg/s，不除减速比
+ * @return 估算电功率 (W)，钳位到 [0, +inf)
+ */
+static float MotorPowerCalc(const float k[6], float I, float w) {
+  float abs_I = fabsf(I);
+  float abs_w = fabsf(w);
+  float P = k[0] + k[1] * abs_I + k[2] * abs_w + k[3] * abs_I * abs_w + k[4] * I * I + k[5] * w * w;
+  return (P > 0.0f) ? P : 0.0f;
+}
+
+/**
+ * @brief  功率控制主逻辑（无超级电容版本）
+ *
+ * 对应SJTU文档中的功率控制思路（简化版，无 f1(Vcap) 和 f2(Ebuffer)）：
+ *
+ *   P_ref = P_limit                          （无超级电容，直接使用上限）
+ *   ṡd_max = Kp * sqrt(P_ref)               （开环基准速度）
+ *           + PI(P_limit - P_filtered)       （闭环修正）
+ *
+ * 执行流程：
+ *   Step 1: 同步功率上限 P_limit
+ *   Step 2: 估算当前总功率 P_total，低通滤波得 P_filtered
+ *   Step 3: 计算开环基准最大速度 vel_max_base
+ *   Step 4: PI闭环计算速度修正量 delta_vel
+ *   Step 5: vel_max = vel_max_base + delta_vel，非对称低通滤波
+ *   Step 6: 对目标速度做幅值限制
+ *   Step 7: 斜率限制，输出 limited_vx
+ *
+ * @note 无超级电容时，不再需要 E_buffer、buffer_ratio 等虚拟缓冲量。
+ *       功率超限完全靠 PI 闭环 + vel_max 非对称低通来抑制。
+ */
+static void PowerControl(void) {
+  PowerCtrl_t* pc = &chassis->power_ctrl;
+
+  // ── 重启保护 ────────────────────────────────────────
+  if (chassis->update_flag.is_restart) {
+    chassis->limited_vx = 0.0f;
+    pc->vx_ramp = 0.0f;
+    pc->pi_integral = 0.0f;
+    pc->P_filtered = 0.0f;
+    // 重启时给一个保守的初始 vel_max
+    float P_init = (chassis_ctrl_cmd->max_power > 0) ? (float)chassis_ctrl_cmd->max_power : POWER_DEFAULT_LIMIT;
+    pc->vel_max = pc->Kp_vel * sqrtf(P_init * 0.8f);
+    return;
+  }
+
+  // ── Step 1: 同步功率上限 ────────────────────────────
+  // 优先使用裁判系统给定的功率上限，否则用默认值
+  pc->P_limit = (chassis_ctrl_cmd->max_power > 0) ? (float)chassis_ctrl_cmd->max_power : POWER_DEFAULT_LIMIT;
+
+  // ── Step 2: 估算当前总功率 + 低通滤波 ───────────────
+  // 用 final_output（电调给定值）反算电流，再乘上转速估算功率
+  // 注意：这里用的是"给定电流"而非"实测电流"
+  // 好处：响应快，不受电流传感器延迟影响
+  // 缺点：与实际功率有误差（电机特性非理想线性）
+  // float I_L = (float)leg[1]->wheel_motor->motor_controller.final_output / DJI_CURRENT_SCALE;
+  // float I_R = (float)leg[0]->wheel_motor->motor_controller.final_output / DJI_CURRENT_SCALE;
+  float I_L = (float)leg[1]->wheel_motor->measure.real_current / DJI_CURRENT_SCALE;
+  float I_R = (float)leg[0]->wheel_motor->measure.real_current / DJI_CURRENT_SCALE;
+  // speed_aps 是转子侧角速度 (deg/s)，转换为 rad/s
+  float w_L = leg[1]->wheel_motor->measure.speed_aps * DEGREE_2_RAD;
+  float w_R = leg[0]->wheel_motor->measure.speed_aps * DEGREE_2_RAD;
+
+  pc->P_wheel_L = MotorPowerCalc(pc->wheel_k, I_L, w_L);
+  pc->P_wheel_R = MotorPowerCalc(pc->wheel_k, I_R, w_R);
+  pc->P_total = pc->P_wheel_L + pc->P_wheel_R;
+
+  // 一阶低通滤波，抑制电流噪声导致的 vel_max 抖动
+  // P_filtered = (1-alpha)*P_filtered + alpha*P_total
+  // alpha=0.1, dt=1ms → 时间常数约 9ms
+  pc->P_filtered = (1.0f - POWER_LPF_ALPHA) * pc->P_filtered + POWER_LPF_ALPHA * pc->P_total;
+
+  // ── Step 3: 开环基准最大速度 ────────────────────────
+  // 根据文档：ṡd_max = Kp * sqrt(P_ref)，P_ref = P_limit（无超级电容）
+  // 这是稳态的理论最大速度，实际还需要 PI 修正
+  float vel_max_base = pc->Kp_vel * sqrtf(pc->P_limit);
+  VAL_LIMIT(vel_max_base, 0.0f, POWER_VEL_HARD_LIMIT);
+
+  // ── Step 4: PI 闭环速度修正 ─────────────────────────
+  // 功率误差：正值表示还有余量，可以加速；负值表示超功率，需要减速
+  float power_error = pc->P_limit - pc->P_filtered;
+
+  // 积分项更新
+  // 注意：积分只在速度未达到硬限幅时累积（防止 windup）
+  //       当 vel_max 已经在硬限幅时，多余的正误差积分没有意义
+  uint8_t at_hard_limit = (pc->vel_max >= POWER_VEL_HARD_LIMIT - 0.01f);
+  if (!(at_hard_limit && power_error > 0.0f)) {
+    pc->pi_integral += pc->Ki_power * power_error * chassis->dt;
+  }
+  // 积分限幅：防止长期超功率导致积分过大，也防止积分过负
+  VAL_LIMIT(pc->pi_integral, -POWER_PI_INTEGRAL_MAX, POWER_PI_INTEGRAL_MAX);
+
+  // PI 输出：速度修正量
+  // 功率富余(error>0) → delta_vel > 0 → vel_max 增大
+  // 功率超限(error<0) → delta_vel < 0 → vel_max 减小
+  float delta_vel = pc->Kp_power * power_error + pc->pi_integral;
+
+  // ── Step 5: 计算目标 vel_max_raw，非对称低通滤波 ─────
+  // 目标速度 = 开环基准 + PI修正
+  float vel_max_raw = vel_max_base + delta_vel;
+  VAL_LIMIT(vel_max_raw, POWER_VEL_MIN, POWER_VEL_HARD_LIMIT);
+
+  // 非对称低通：
+  //   超功率时（vel_max_raw < vel_max）：快速压制，防止裁判系统扣血
+  //   功率富余时（vel_max_raw > vel_max）：缓慢恢复，防止功率振荡
+  // 对应SJTU文档中"合理目标速度的平方与功率成正比"的思想：
+  //   功率超限 → 立即降速；功率富余 → 慢慢升速
+  if (vel_max_raw < pc->vel_max) {
+    // 快速降：alpha_down 大，响应快
+    pc->vel_max = pc->vel_max * (1.0f - VEL_MAX_ALPHA_DOWN) + vel_max_raw * VEL_MAX_ALPHA_DOWN;
+  } else {
+    // 缓慢升：alpha_up 小，恢复慢
+    pc->vel_max = pc->vel_max * (1.0f - VEL_MAX_ALPHA_UP) + vel_max_raw * VEL_MAX_ALPHA_UP;
+  }
+  VAL_LIMIT(pc->vel_max, POWER_VEL_MIN, POWER_VEL_HARD_LIMIT);
+
+  // ── Step 6: 幅值限制 ────────────────────────────────
+  // 对遥控器输入的目标速度进行限幅
+  float vx_target = chassis_ctrl_cmd->vx;
+  VAL_LIMIT(vx_target, -pc->vel_max, pc->vel_max);
+
+  // ── Step 7: 斜率限制 ────────────────────────────────
+  // 对应SJTU文档中的峰值场景(b)(c)：
+  //   (b) 加速中段：斜率限制防止(ṡd-ṡ)过大，控制 K_s*(ṡd-ṡ) 产生的功率峰值
+  //   (c) 急减速：斜率限制防止突然减速时轮子惯性前冲产生大力矩
+  // 判断加减速：目标速度幅值 > 当前斜率速度幅值 → 加速；否则 → 减速
+  float vx_diff = vx_target - pc->vx_ramp;
+  uint8_t is_accel = (fabsf(vx_target) >= fabsf(pc->vx_ramp) - 0.02f);
+  float ramp_rate = is_accel ? pc->vx_ramp_acc : pc->vx_ramp_dec;
+  float max_step = ramp_rate * chassis->dt;
+
+  if (vx_diff > max_step)
+    pc->vx_ramp += max_step;
+  else if (vx_diff < -max_step)
+    pc->vx_ramp -= max_step;
+  else
+    pc->vx_ramp = vx_target;
+
+  VAL_LIMIT(pc->vx_ramp, -pc->vel_max, pc->vel_max);
+
+  // 输出最终限速后的目标速度给 LQR
+  chassis->limited_vx = pc->vx_ramp;
+}
+
 static void LocomotionController(void) {
   State_Var_t* sv = &chassis->state_var;
   chassis->update_flag.is_controlled = chassis_ctrl_cmd->vx != 0;
@@ -109,26 +260,11 @@ static void LocomotionController(void) {
   float l_l = leg[1]->virtual_model.length;
   float l_r = leg[0]->virtual_model.length;
   LQR_K_Calc(chassis->LQR_K, chassis->param.LQR_K_Coefficients, l_l, l_r);
-
   // 减小phi和dphi的权重
   chassis->LQR_K[0][2] *= 0.2f;
   chassis->LQR_K[0][3] *= 0.2f;
   chassis->LQR_K[1][2] *= 0.2f;
   chassis->LQR_K[1][3] *= 0.2f;
-
-  // 离地时只保留 Tp theta/theta_b (列4~9) 的作用，把 x_b_h/v_b_h/phi/dphi (列0~3) 置零, T置零
-  for (int i = 0; i < 2; ++i) {
-    if (leg[i]->update_flag.is_off_ground) {
-      for (int j = 0; j < 4; ++j) {
-        chassis->LQR_K[0][j] = 0.0f;
-        chassis->LQR_K[1][j] = 0.0f;
-      }
-      for (int j = 0; j < 10; ++j) {
-        chassis->LQR_K[2][j] = 0.0f;
-        chassis->LQR_K[3][j] = 0.0f;
-      }
-    }
-  }
 
   // TODO: 状态误差限幅
   float state_err[10];
@@ -187,6 +323,7 @@ static void ChassisCtrlUpdate(void) {
   float dt_raw = DWT_GetDeltaT(&chassis->DWT_CNT);
 
   if (dt_raw > 0.05f) {
+    chassis->dt = 0.001f;
     chassis->update_flag.is_restart = 1;
   } else {
     chassis->dt = dt_raw;
@@ -330,6 +467,32 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   PIDInit(&chassis_instance->roll_PID, &chassis_init_config->roll_PID_config);
   chassis_instance->imu = INS_Init(&chassis_init_config->imu_init_config);
   xvEstimateKF_Init(&chassis_instance->vaEstimateKF);
+
+  // =========== 功率控制初始化（无超级电容版本）===========
+  PowerCtrl_t* pc = &chassis_instance->power_ctrl;
+  // 6参数模型系数
+  pc->wheel_k[0] = WHEEL_K0;
+  pc->wheel_k[1] = WHEEL_K1;
+  pc->wheel_k[2] = WHEEL_K2;
+  pc->wheel_k[3] = WHEEL_K3;
+  pc->wheel_k[4] = WHEEL_K4;
+  pc->wheel_k[5] = WHEEL_K5;
+  // 控制参数
+  pc->Kp_vel = POWER_KP_VEL;
+  pc->Kp_power = POWER_PI_KP;
+  pc->Ki_power = POWER_PI_KI;
+  // 斜率限制
+  pc->vx_ramp_acc = POWER_VX_RAMP_ACC;
+  pc->vx_ramp_dec = POWER_VX_RAMP_DEC;
+  // 初始状态：保守初始化，防止上电冲击
+  pc->P_limit = POWER_DEFAULT_LIMIT;
+  pc->P_filtered = 0.0f;
+  pc->pi_integral = 0.0f;
+  pc->vx_ramp = 0.0f;
+  // 初始 vel_max 用 80% 功率估算，留余量
+  pc->vel_max = POWER_KP_VEL * sqrtf(POWER_DEFAULT_LIMIT * 0.8f);
+  chassis_instance->limited_vx = 0.0f;
+  // ========================================================
 
   chassis_instance->param = chassis_init_config->param;
 

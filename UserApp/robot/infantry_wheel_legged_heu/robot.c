@@ -58,7 +58,6 @@ static Ramp_Controller_t chassis_ramp = {
     .planning_v = 0.0f,
     .max_v = 2.5f,
     .max_accel = 4.0f,
-    .base_speed = 0.3f,
     .max_decel = 5.5f,
     .min_decel = 1.0f,
     .decel_base_speed = 0.8f,
@@ -768,8 +767,6 @@ void RobotInit() {
   chassis_ctrl_cmd->leg_length = chassis_init_config.chassis_param.initial_leg_length;  // 初始腿长
   DWT_GetDeltaT(&robot->DWT_CNT);
   // chassis_ctrl_cmd->max_power = 60;
-  gpio_5V_EN = GPIORegister(&gpio_init_config_5v);
-  GPIOSet(gpio_5V_EN);
 }
 
 void RobotTask() {
