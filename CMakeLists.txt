@@ -23,7 +23,7 @@ set(CMAKE_BUILD_TYPE ${buildType}) # Debug Release RelWithDebInfo MinSizeRel
 set(MCU_TYPE "stm32-f4")
 #set(MCU_TYPE "stm32-h7")
 
-set(ROBOT_TYPE "infantry_steering_gimbal")
+#set(ROBOT_TYPE "infantry_steering_gimbal")
 #set(ROBOT_TYPE "sentry_mecanum")
 #set(ROBOT_TYPE "engineering")
 #set(ROBOT_TYPE "infantry_wheel_legged")
@@ -33,6 +33,7 @@ set(ROBOT_TYPE "infantry_steering_gimbal")
 #set(ROBOT_TYPE "infantry_mecanum")
 #set(ROBOT_TYPE "dart")
 #set(ROBOT_TYPE "debug")
+set(ROBOT_TYPE "laser_gimbal")
 
 include(${CMAKE_SOURCE_DIR}/Hardware/${MCU_TYPE}/${MCU_TYPE}.cmake)
 
