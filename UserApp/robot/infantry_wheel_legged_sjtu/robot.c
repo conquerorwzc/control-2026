@@ -213,7 +213,8 @@ static void RemoteControlSet() {
 
       // 小陀螺原地旋转
       rotate_omega = rotate_frequency * 2.0f * PI;
-      chassis_ctrl_cmd->wz = PIDCalculate(&robot->chassis_rotate_PID, robot->chassis->imu->Gyro[2], rotate_omega);
+      // chassis_ctrl_cmd->wz = PIDCalculate(&robot->chassis_rotate_PID, robot->chassis->imu->Gyro[2], rotate_omega);
+      chassis_ctrl_cmd->wz = rotate_omega;
 
       // 设置目标速度矢量(vx,vy)
       chassis_vx = 0.0025f * (float)rc_data[TEMP].rc.rocker_l_;
@@ -530,7 +531,8 @@ static void MouseKeySet() {
 
       // 小陀螺原地旋转
       rotate_omega = rotate_frequency * 2.0f * PI;
-      chassis_ctrl_cmd->wz = PIDCalculate(&robot->chassis_rotate_PID, robot->chassis->imu->Gyro[2], rotate_omega);
+      // chassis_ctrl_cmd->wz = PIDCalculate(&robot->chassis_rotate_PID, robot->chassis->imu->Gyro[2], rotate_omega);
+      chassis_ctrl_cmd->wz = rotate_omega;
 
       // 设置目标速度矢量 (vx, vy),单位为m/s
       if (rc_data[TEMP].key[KEY_PRESS].w)
@@ -689,6 +691,7 @@ void RobotCMDTask() {
   robot->chassis->imu->Pitch = chassis_upload_data->Pitch;
   robot->chassis->imu->YawTotalAngle = chassis_upload_data->YawTotalAngle;
   robot->chassis->imu->Gyro[2] = chassis_upload_data->YawSpeed;
+  robot->referee_data->ShootData.initial_speed = robot->referee_data->ShootData.initial_speed;
 
   CANCommSend(robot->can_comm, (void*)chassis_fetch_data);
 #endif
@@ -697,6 +700,7 @@ void RobotCMDTask() {
   chassis_upload_data->Roll = robot->chassis->imu->Roll;
   chassis_upload_data->YawTotalAngle = robot->chassis->imu->YawTotalAngle;
   chassis_upload_data->YawSpeed = robot->chassis->imu->Gyro[2];
+  chassis_upload_data->bullet_speed = robot->referee_data->ShootData.initial_speed;
 
   *chassis_fetch_data = *(Chassis_Fetch_Data_s*)CANCommGet(robot->can_comm);
   robot->chassis->chassis_ctrl_cmd = chassis_fetch_data->chassis_ctrl_cmd;
@@ -769,6 +773,6 @@ void RobotTask() {
 #endif
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
-  ChassisTask();
+  // ChassisTask();
 #endif
 }

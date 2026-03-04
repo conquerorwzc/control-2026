@@ -78,4 +78,10 @@ referee_info_t *RefereeInit(UART_HandleTypeDef *referee_usart_handle);
  */
 void RefereeSend(uint8_t *send, uint16_t tx_len);
 
+/**
+ * @brief 获取裁判系统数据
+ * @return referee_info_t*
+ */
+referee_info_t *GetReferee();
+
 #endif // !REFEREE_H

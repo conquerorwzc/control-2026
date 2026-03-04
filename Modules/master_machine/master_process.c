@@ -17,6 +17,7 @@
 #include "navigator.h"
 #include "seasky_protocol.h"
 #include "srm_protocol.h"
+#include "rm_referee.h"
 #define VISION_USE_VCP
 
 
@@ -26,6 +27,7 @@ static DaemonInstance *vision_daemon_instance;
 static  Vision_Receive_s recv_data;//接收数据
 static  Vision_Send_s send_data;//发送数据
 static  INS_t* current_attitude;
+static  referee_info_t *referee_info;
 
 //打包，注册
 static  Message receive;
@@ -52,7 +54,7 @@ void UpdateGimbalAttitude(Vision_Send_s *vision_send) {
   vision_send->gimbal_send.roll = current_attitude->Roll;
   vision_send->gimbal_send.mode = 0;
   vision_send->gimbal_send.color = 0;
-  vision_send->shoot_send.bullet_speed = 21;
+  vision_send->shoot_send.bullet_speed = referee_info->ShootData.initial_speed;
 }
 
 /**
@@ -145,6 +147,7 @@ static void DecodeVision(uint16_t recv_len) {
 /* 视觉通信初始化 */
 Vision_Receive_s *VisionInit(IMU_Init_Config_s *imu_init_config) {
   current_attitude = INS_Init(imu_init_config);
+  referee_info = GetReferee();
   USB_Init_Config_s conf = {.rx_cbk = DecodeVision};
   vis_recv_buff = USBInit(conf);
   InitParam();
