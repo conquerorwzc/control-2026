@@ -319,23 +319,6 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
  *
  */
 static void RemoteControlSet() {
- 
-  // 右[中]，云台
-  // if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
-  //   gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-  //   if (abs(rc_data[TEMP].rc.dial) > 20) {
-  //     chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
-  //   } else
-  //     chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
-  // }
-  // // 右[上]，超电，保持底盘跟随云台
-  // else if (switch_is_up(rc_data[TEMP].rc.switch_left)) {
-  //   gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-  //   if (abs(rc_data[TEMP].rc.dial) > 20) {
-  //     chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
-  //   } else
-  //     chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
-  // }
   if (switch_is_down(rc_data[TEMP].rc.switch_right)) {
 
     chassis_ctrl_cmd->leg_mode = LEG_MANUAL_DOWN;
@@ -415,6 +398,7 @@ static void RemoteControlSet() {
 
   // 射频控制,固定每秒1发,后续可以根据左侧拨轮的值大小切换射频,
   shoot_ctrl_cmd->shoot_rate = 8;
+  *rc_data_last = *rc_data;
 
 }
 
@@ -490,7 +474,7 @@ static void MouseKeySet() {
       if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW_REAR_END) {
         gimbal_ctrl_cmd->yaw += 180.0f;
 
-        // 将角度规范化到-180到180度范围内
+        //将角度规范化到-180到180度范围内
         if (gimbal_ctrl_cmd->yaw > 180.0f) {
           gimbal_ctrl_cmd->yaw -= 360.0f;
         } else if (gimbal_ctrl_cmd->yaw < -180.0f) {
@@ -517,6 +501,7 @@ static void MouseKeySet() {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW_REAR_END;
       break;
   }
+
   switch (rc_data[TEMP].mouse.press_r % 2) {  //右键进入自瞄预备模式
     case 1:
       if (has_non_zero_data(vision_recv_data)==1){
@@ -535,8 +520,11 @@ static void MouseKeySet() {
   switch (rc_data[TEMP].mouse.press_l % 2)        // 左键发射
   {
     case 0:
-      shoot_ctrl_cmd->load_mode=LOAD_STOP;
-      trigger_time = DWT_GetTimeline_s();
+      if (!switch_is_up(rc_data[TEMP].rc.switch_left))
+      {
+        shoot_ctrl_cmd->load_mode=LOAD_STOP;
+        trigger_time = DWT_GetTimeline_s();
+      }
       break;
     default:
       switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 2)  // E键设置发射模式

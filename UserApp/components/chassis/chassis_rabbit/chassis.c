@@ -577,7 +577,7 @@ void ChassisTask() {
         follow_angle+=360.0f;
       }
        //如果状态是刚从follow_rear_ecd切换过来，那么等待500ms再算follow_pid，其他模式切过来直接算就行，todo可以将500写入config
-      if (DWT_GetTimeline_ms()-reverse_follow_tick>=500) {
+      if (DWT_GetTimeline_ms()-reverse_follow_tick>=800) {
         chassis_ctrl_cmd->wz+=PIDCalculate(&follow_pid,chassis_ctrl_cmd->offset_angle,follow_angle);
       }
       break;
@@ -586,13 +586,13 @@ void ChassisTask() {
       follow_angle=180.f ;//跟随车辆后方
       //跳变处理
       if (follow_angle-chassis_ctrl_cmd->offset_angle>=180.f) {
-        follow_angle+=360.0f;
-      }
-      else if(follow_angle-chassis_ctrl_cmd->offset_angle<=-180.f) {
         follow_angle-=360.0f;
       }
+      else if(follow_angle-chassis_ctrl_cmd->offset_angle<=-180.f) {
+        follow_angle+=360.0f;
+      }
       //如果状态是刚从follow切换过来，那么等待500ms再算follow_pid，其他模式切过来直接算就行，todo可以将500写入config
-      if (DWT_GetTimeline_ms()-normal_follow_tick>=500) {
+      if (DWT_GetTimeline_ms()-normal_follow_tick>=800) {
         chassis_ctrl_cmd->wz+=PIDCalculate(&follow_pid,chassis_ctrl_cmd->offset_angle,follow_angle);
       }
       break;
