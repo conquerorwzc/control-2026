@@ -12,13 +12,13 @@ static RobotInstance *robot;
 static Gimbal_Ctrl_Cmd_s *gimbal_ctrl_cmd;
 static Shoot_Ctrl_Cmd_s *shoot_ctrl_cmd;
 static Vision_Receive_s* vision_recv_data;
+#ifdef USE_DUAL_RC
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
-static VT13_RC_t *vt13_rc_data;
-#ifdef USE_DUAL_RC
 static Send_Data_RC *send_data;
 #elifdef USE_DUAL_RC_NEW
 static Send_Data_RC_NEW *send_data_new;
+static VT13_RC_t *vt13_rc_data;
 #endif
 static CANCommInstance* can_comm_instance = NULL;
 static Referee_Data *RefereeData;
@@ -266,8 +266,8 @@ static void RemoteControlSet() {
 
   // 云台控制
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
-    gimbal_ctrl_cmd->yaw += -0.0003f * (float)vt13_rc_data->rc.rocker_r_;
-    gimbal_ctrl_cmd->pitch -= 0.0001f * (float)vt13_rc_data->rc.rocker_r1;
+    gimbal_ctrl_cmd->yaw += -0.0005f * (float)vt13_rc_data->rc.rocker_r_;
+    gimbal_ctrl_cmd->pitch -= 0.00015f * (float)vt13_rc_data->rc.rocker_r1;
   }
 
   // 云台PITCH轴软件限位
@@ -304,8 +304,8 @@ static void RemoteControlSet() {
       NotFoundTime=time;                   //识别到装甲板
     }
     else if (time-NotFoundTime>0.5f){      //丢失目标超0.5秒，进入寻敌模式
-      gimbal_ctrl_cmd->yaw+=0.1f;
-      gimbal_ctrl_cmd->pitch=20.0f*cosf(PI*3*time);//cos里数字越大，旋转速度越快
+      gimbal_ctrl_cmd->yaw+=0.15f;
+      gimbal_ctrl_cmd->pitch=5+5.0f*cosf(PI*4*time);//cos里数字越大，旋转速度越快
     }
   }
 }
@@ -504,8 +504,8 @@ void RobotInit() {
   rc_data = robot->rc_data;
 #elif defined(USE_DUAL_RC_NEW)
   // 使用新VT13遥控器
-  vt13_rc_data = (VT13_RC_t *) zmalloc(sizeof(VT13_RC_t));
-  vt13_rc_data = VT13RemoteInit(&huart6);
+  robot->vt13_rc_data = VT13RemoteInit(&huart6);
+  vt13_rc_data = robot->vt13_rc_data;
   send_data_new = (Send_Data_RC_NEW *)zmalloc(sizeof(Send_Data_RC_NEW));
 #endif
 
@@ -529,7 +529,7 @@ void RobotInit() {
 void RobotCMDTask() {
   time = DWT_GetTimeline_s();
   RemoteControlSet();
-  // DualBoardCtrlSet();
+  DualBoardCtrlSet();
   MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }

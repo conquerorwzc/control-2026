@@ -14,9 +14,14 @@ static Gimbal_Ctrl_Cmd_s *gimbal_ctrl_cmd;
 static Shoot_Ctrl_Cmd_s *shoot_ctrl_cmd;
 static Vision_Receive_s* vision_recv_data;
 // static navigator_recv_t* navigator_data;
+#ifdef USE_DUAL_RC
+static Send_Data_RC *rc_data_old;
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
+#elifdef USE_DUAL_RC_NEW
+static Send_Data_RC_NEW *rc_data_new;
 static VT13_RC_t *vt13_rc_data;
+#endif
 static Sentry_Cmd_t sentry_cmd={0};
 static SuperCapMode supercap_mode = SAFETY_MODE;
 /* Intermediate variables calculated by private functions */
@@ -24,11 +29,8 @@ float trigger_time = 0;  // 触发时间
 static float angle=0;
 CANCommInstance* can_comm_instance = NULL;
 static Referee_Data *referee_data;
-#ifdef USE_DUAL_RC
-static Send_Data_RC *rc_data_old;
-#elifdef USE_DUAL_RC_NEW
-static Send_Data_RC_NEW *rc_data_new;
-#endif
+
+
 static float x_speed_time=0;  //x方向加速触发时间
 static float y_speed_time=0;  //y方向加速触发时间
 static float vx_initial;   //x轴输入控制量
@@ -55,7 +57,7 @@ static void CalcOffsetAngle() {
   #ifdef USE_DUAL_RC
   angle = rc_data_old->Rotate_speed;
 #elifdef USE_DUAL_RC_NEW
-  angle = rc_data_new->Rotate_speed;
+  angle = rc_data_new->Yaw_motor_angle;
 #endif
 
   float delta = angle-YAW_ALIGN_ANGLE;
@@ -158,6 +160,7 @@ static void RemoteControlSet() {
       chassis_ctrl_cmd->wz =(1.0f) *(float)rc_data[TEMP].rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
     }
 
+
   } else if (robot->control_mode == AUTO_MODE) // 自动控制，直接收上位机控制量
   {
     vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vy*10000;
@@ -166,6 +169,27 @@ static void RemoteControlSet() {
     chassis_ctrl_cmd->wz = robot->navigator_data->robot_cmd.speed_vector.wz*0;
     //gimbal_ctrl_cmd->yaw-=robot->navigator_data->robot_cmd.speed_vector.wz*0.01;
   }
+  //缓加速
+  if (abs(vx_initial)<=10000) {
+    x_speed_time=DWT_GetTimeline_s();
+    chassis_ctrl_cmd->vx=vx_initial;
+  }//速度绝对值在10000以下输出控制量=输入控制量
+  if (vx_initial > 10000 && chassis_ctrl_cmd->vx<= 60.0f * (float)rc_data[TEMP].rc.rocker_ ) {
+    chassis_ctrl_cmd->vx=10000+(DWT_GetTimeline_s()-x_speed_time)*10000;
+  }
+  if (vx_initial < -10000 && chassis_ctrl_cmd->vx>= 60.0f * (float)rc_data[TEMP].rc.rocker_l_) {
+    chassis_ctrl_cmd->vx=-10000-(DWT_GetTimeline_s()-x_speed_time)*10000;
+  }//速度绝对值在10000以上输出控制量=10000+10000t(s)
+  if (abs(vy_initial)<=10000) {
+    y_speed_time=DWT_GetTimeline_s();
+    chassis_ctrl_cmd->vy=vy_initial;
+  }//速度绝对值在10000以下输出控制量=输入控制量
+  if (vy_initial > 10000 && chassis_ctrl_cmd->vy<= 60.0f * (float)rc_data[TEMP].rc.rocker_l1 ) {
+    chassis_ctrl_cmd->vy=10000+(DWT_GetTimeline_s()-y_speed_time)*10000;
+  }
+  if (vy_initial < -10000 && chassis_ctrl_cmd->vy>= 60.0f * (float)rc_data[TEMP].rc.rocker_l1) {
+    chassis_ctrl_cmd->vy=-10000-(DWT_GetTimeline_s()-y_speed_time)*10000;
+  }//速度绝对值在10000以上输出控制量=10000+10000t(s)
   *rc_data_last = *rc_data;
 }
 
@@ -335,26 +359,25 @@ static void RemoteControlSet() {
     x_speed_time=DWT_GetTimeline_s();
     chassis_ctrl_cmd->vx=vx_initial;
   }//速度绝对值在10000以下输出控制量=输入控制量
-  if (vx_initial > 10000&&chassis_ctrl_cmd->vx<= 60.0f * (float)rc_data[TEMP].rc.rocker_l_ ) {
+  if (vx_initial > 10000 && chassis_ctrl_cmd->vx<= 60.0f * (float)vt13_rc_data->rc.rocker_l_) {
     chassis_ctrl_cmd->vx=10000+(DWT_GetTimeline_s()-x_speed_time)*10000;
   }
-  if (vx_initial < -10000&&chassis_ctrl_cmd->vx>= 60.0f * (float)rc_data[TEMP].rc.rocker_l_) {
+  if (vx_initial < -10000 && chassis_ctrl_cmd->vx>= 60.0f * (float)vt13_rc_data->rc.rocker_l_) {
     chassis_ctrl_cmd->vx=-10000-(DWT_GetTimeline_s()-x_speed_time)*10000;
   }//速度绝对值在10000以上输出控制量=10000+10000t(s)
   if (abs(vy_initial)<=10000) {
     y_speed_time=DWT_GetTimeline_s();
     chassis_ctrl_cmd->vy=vy_initial;
   }//速度绝对值在10000以下输出控制量=输入控制量
-  if (vy_initial > 10000&&chassis_ctrl_cmd->vy<= 60.0f * (float)rc_data[TEMP].rc.rocker_l1 ) {
+  if (vy_initial > 10000 && chassis_ctrl_cmd->vy<= 60.0f * (float)vt13_rc_data->rc.rocker_l1) {
     chassis_ctrl_cmd->vy=10000+(DWT_GetTimeline_s()-y_speed_time)*10000;
   }
-  if (vy_initial < -10000&&chassis_ctrl_cmd->vy>= 60.0f * (float)rc_data[TEMP].rc.rocker_l1) {
+  if (vy_initial < -10000 && chassis_ctrl_cmd->vy>= 60.0f * (float)vt13_rc_data->rc.rocker_l1) {
     chassis_ctrl_cmd->vy=-10000-(DWT_GetTimeline_s()-y_speed_time)*10000;
   }//速度绝对值在10000以上输出控制量=10000+10000t(s)
 }
 
 static void MouseKeySet() {
-
 }
 
 #endif
@@ -521,7 +544,8 @@ void RobotInit() {
     rc_data = robot->rc_data;
   #elif defined(USE_DUAL_RC_NEW)
     // 使用新VT13遥控器
-    vt13_rc_data = (VT13_RC_t *) zmalloc(sizeof(VT13_RC_t));
+    robot->vt13_rc_data = (VT13_RC_t *)zmalloc(sizeof(VT13_RC_t));
+    vt13_rc_data = robot->vt13_rc_data;
     rc_data_new = (Send_Data_RC_NEW *)zmalloc(sizeof(Send_Data_RC_NEW));
   #endif
 
@@ -536,15 +560,14 @@ void RobotInit() {
   robot->chassis = ChassisInit(&chassis_init_config);
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
-  chassis_ctrl_cmd->max_power = robot->referee_data->GameRobotState.chassis_power_limit;
   // navigator_data  = robot->navigator_data;
 }
 
-/* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
+/* 机器人核心控制任务,200Hz频率运行(必须高于视觉发频率) */
 void RobotCMDTask() {
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
   DualBoardCtrlSet();
-  // Chassis_CANCommSend();
+  Chassis_CANCommSend();
   CalcOffsetAngle();
   RemoteControlSet();
   // MouseKeySet();
@@ -560,6 +583,7 @@ void RobotTask() {
   navigator_send(&huart1,robot->referee_data);
   RobotCMDTask();
   // SuperCapControl();
+  chassis_ctrl_cmd->max_power=robot->referee_data->GameRobotState.chassis_power_limit;
   ChassisTask();
 #endif
 }

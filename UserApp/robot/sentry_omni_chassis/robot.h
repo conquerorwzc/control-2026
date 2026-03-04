@@ -2,11 +2,12 @@
 
 #include "chassis.h"
 #include "gimbal.h"
-#include "shoot.h"
-#include "remote_control.h"
-#include "navigator.h"
 #include "master_process.h"
+#include "navigator.h"
+#include "new_RC_VT13.h"
+#include "remote_control.h"
 #include "rm_referee.h"
+#include "shoot.h"
 #include "super_cap.h"
 // todo: add vision_module
 
@@ -127,7 +128,11 @@ typedef struct {
   Control_Mode_e control_mode;   // 控制模式
   Sentry_Mode_e sentry_mode;    //哨兵姿态
 
-  RC_ctrl_t *rc_data;               // 遥控器数据,初始化时返回
+  #ifdef USE_DUAL_RC
+    RC_ctrl_t *rc_data;               // 遥控器数据,初始化时返回
+  #elifdef USE_DUAL_RC_NEW
+    VT13_RC_t *vt13_rc_data;
+  #endif
   referee_info_t* referee_data;     // 用于获取裁判系统的数据
   Vision_Receive_s* vision_recv_data;
   navigator_recv_t* navigator_data;    //从导航获取的控制指令
