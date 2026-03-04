@@ -64,18 +64,30 @@ typedef struct {
   float vb;  // Body frame velocity
 } Observer_Var_t;
 
+// 关节角度限位配置（虚拟弹性墙）
+typedef struct {
+  float angle_min;           // 关节角度下限 (rad)，含安全余量
+  float angle_max;           // 关节角度上限 (rad)，含安全余量
+  float buffer_zone;         // 缓冲区宽度 (rad)，进入此区域开始产生回推力矩
+  float kp;                  // 虚拟墙刚度 (Nm/rad^2)，非线性弹簧系数
+  float kd;                  // 虚拟墙阻尼 (Nm·s/rad)
+  float max_barrier_torque;  // 限位力矩上限 (Nm)，防止数值爆炸
+} JointLimit_Config_s;
+
 // 腿部固有参数 & 控制系数
 typedef struct {
-  float rod_length[5];               // 五连杆长度, 单位是m
-  float joint_motor_zero_offset[2];  // 关节电机零点偏移, 单位是rad, 需机械测量，用于编码器读数转换为建模实际角度
-  float wheel_radius;                // 轮子半径, 单位是m
-  float wheel_reduction_ratio;       // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
+  float rod_length[5];                 // 五连杆长度, 单位是m
+  float joint_motor_zero_offset[2];    // 关节电机零点偏移, 单位是rad, 需机械测量，用于编码器读数转换为建模实际角度
+  float wheel_radius;                  // 轮子半径, 单位是m
+  float wheel_reduction_ratio;         // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
+  JointLimit_Config_s joint_limit[2];  // 两个关节电机的限位配置
 } Leg_Param_t;
 
 // 初始化配置结构体
 typedef struct {
   Leg_Cali_Mode_e cali_mode;  // 关节电机零点标定模式
   Leg_Param_t param;          // 腿部固有参数
+  PID_Init_Config_s length_PID_config;
 
   Motor_Init_Config_s joint_motor_config[2];
   Motor_Init_Config_s wheel_motor_config;
@@ -111,5 +123,9 @@ LegInstance* LegInit(Leg_Init_Config_s* config);
 void LegModelUpdate(LegInstance* leg, INS_t* imu);
 
 void JointTorqueUpdate(LegInstance* leg);
+
+void SpringCompensation(LegInstance* leg);
+
+void JointLimitBarrier(LegInstance* leg);
 
 void ObserverVarUpdate(LegInstance* leg, INS_t* imu);

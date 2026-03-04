@@ -229,8 +229,11 @@ static void ChassisCtrlUpdate(void) {
     leg[i]->virtual_model.Tp -= (float)(1 - 2 * i) * chassis->delta_theta_comp;
   }
 
-  JointTorqueUpdate(leg[0]);
-  JointTorqueUpdate(leg[1]);
+  for (int i = 0; i < 2; i++) {
+    JointTorqueUpdate(leg[i]);
+    SpringCompensation(leg[i]);
+    JointLimitBarrier(leg[i]);
+  }
 }
 
 static void ChassisRecovery(void) {
@@ -325,8 +328,6 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
 
   PIDInit(&chassis_instance->delta_theta_PID, &chassis_init_config->delta_theta_PID_config);
   PIDInit(&chassis_instance->roll_PID, &chassis_init_config->roll_PID_config);
-  PIDInit(&chassis_instance->leg[0]->length_PID, &chassis_init_config->length_PID_config);
-  PIDInit(&chassis_instance->leg[1]->length_PID, &chassis_init_config->length_PID_config);
   chassis_instance->imu = INS_Init(&chassis_init_config->imu_init_config);
   xvEstimateKF_Init(&chassis_instance->vaEstimateKF);
 

@@ -82,7 +82,6 @@ typedef struct {
   Leg_Init_Config_s leg_init_config[2];
   PID_Init_Config_s delta_theta_PID_config;
   PID_Init_Config_s roll_PID_config;
-  PID_Init_Config_s length_PID_config;
   IMU_Init_Config_s imu_init_config;
 } Chassis_Init_Config_s;
 

@@ -54,7 +54,8 @@ static float rotate_omega;      // 小陀螺旋转角速度
 float visualized_data[20];
 
 void VOFATask() {
-  visualized_data[0] = robot->chassis->imu->Pitch;
+  visualized_data[0] = robot->chassis->leg[1]->joint_motor[0]->measure.position;
+  visualized_data[1] = robot->chassis->leg[1]->joint_motor[1]->measure.position;
   VOFAJustFloatSend(visualized_data, 20);
 }
 
@@ -172,17 +173,11 @@ static void RemoteControlSet() {
 
   switch (robot->robot_mode) {
     case ROBOT_CHASSIS_ROTATE: {
-      // // 小陀螺模式：目标角度持续递增，wz作为前馈
-      // rotate_frequency = 0.75f;
-      // rotate_omega = rotate_frequency * 2.0f * PI;
-      // chassis_ctrl_cmd->target_yaw += rotate_omega * robot->dt;
-      // chassis_ctrl_cmd->wz = rotate_omega;  // 前馈角速度，减轻LQR跟踪负担
-      // // 速度解算（带旋转补偿）
-      // chassis_vx = 0.0025f * (float)rc_data[TEMP].rc.rocker_l_;
-      // chassis_vy = 0.0025f * (float)rc_data[TEMP].rc.rocker_l1;
-      // input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
-      // chassis_ctrl_cmd->vx = input_mag;  // 简化处理，后续可加旋转解耦
-      // break;
+      // 小陀螺频率设置
+      rotate_frequency = 2.0f;
+      // 小陀螺原地旋转
+      rotate_omega = rotate_frequency * 2.0f * PI;
+      chassis_ctrl_cmd->wz = PIDCalculate(&robot->chassis_rotate_PID, robot->chassis->imu->Gyro[2], rotate_omega);
     }
     case ROBOT_CHASSIS_FOLLOW: {
 #if (!defined(ONE_BOARD))

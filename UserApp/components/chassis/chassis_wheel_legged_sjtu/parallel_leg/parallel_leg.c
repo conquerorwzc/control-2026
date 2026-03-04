@@ -144,6 +144,80 @@ static void OffGroundDetection(LegInstance* leg) {
 }
 
 /**
+ * @brief  计算并叠加两个关节的非线性限位力矩到 Tp_1 / Tp_2
+ *
+ * 当关节角度进入缓冲区时，产生二次方非线性回推力矩 + 单向阻尼力矩，
+ * 防止电机到达机械限位而堵转。正常工作区间内力矩严格为零。
+ */
+void JointLimitBarrier(LegInstance* leg) {
+  float* tp[2] = {&leg->real_model.Tp_1, &leg->real_model.Tp_2};
+
+  for (int i = 0; i < 2; i++) {
+    const JointLimit_Config_s* cfg = &leg->param.joint_limit[i];
+    float angle = leg->joint_motor[i]->measure.position;
+    float velocity = leg->joint_motor[i]->measure.velocity;
+    float tau = 0.0f;
+
+    // 上限缓冲区
+    float upper_threshold = cfg->angle_max - cfg->buffer_zone;
+    if (angle > upper_threshold) {
+      float d = angle - upper_threshold;
+      tau += -cfg->kp * d * d;
+      if (velocity > 0.0f) {
+        tau += -cfg->kd * velocity;
+      }
+    }
+
+    // 下限缓冲区
+    float lower_threshold = cfg->angle_min + cfg->buffer_zone;
+    if (angle < lower_threshold) {
+      float d = lower_threshold - angle;
+      tau += cfg->kp * d * d;
+      if (velocity < 0.0f) {
+        tau += -cfg->kd * velocity;
+      }
+    }
+
+    // 硬限位穿越保护：线性项叠加，确保能拉回
+    if (angle > cfg->angle_max) {
+      float overshoot = angle - cfg->angle_max;
+      tau -= cfg->kp * cfg->buffer_zone * overshoot * 10.0f;
+    }
+    if (angle < cfg->angle_min) {
+      float overshoot = cfg->angle_min - angle;
+      tau += cfg->kp * cfg->buffer_zone * overshoot * 10.0f;
+    }
+
+    if (tau > cfg->max_barrier_torque) {
+      tau = cfg->max_barrier_torque;
+    } else if (tau < -cfg->max_barrier_torque) {
+      tau = -cfg->max_barrier_torque;
+    }
+
+    *tp[i] += tau;
+  }
+}
+
+void SpringCompensation(LegInstance* leg) {
+  float k = 0.59f;
+  float j2f = 0.06403f;  // 关节2到固定点的距离
+  float j2k = 0.12135f;  // 关节2到膝盖点的距离
+  float spring_init_length = 0.120f;
+  float alpha_1 = leg->real_model.phi1 - 38.66f * DEGREE_2_RAD + 9.01f * DEGREE_2_RAD;
+  float alpha_2 = PI - (leg->real_model.phi4 - 9.01f * DEGREE_2_RAD) - 38.66f * DEGREE_2_RAD;
+  float spring_length_1 = sqrtf(j2f * j2f + j2k * j2k - 2.0f * j2f * j2k * mcos(alpha_1));
+  float spring_length_2 = sqrtf(j2f * j2f + j2k * j2k - 2.0f * j2f * j2k * mcos(alpha_2));
+
+  float spring_F_1 = (spring_length_1 - spring_init_length) * k;
+  float spring_F_2 = (spring_length_2 - spring_init_length) * k;
+  float T1 = (j2f * msin(alpha_1) / spring_length_1) * spring_F_1 * j2k;
+  float T2 = (j2f * msin(alpha_2) / spring_length_2) * spring_F_2 * j2k;
+
+  leg->real_model.Tp_1 += T1;
+  leg->real_model.Tp_2 -= T2;
+}
+
+/**
  * @brief   计算关节力矩 (基于雅可比矩阵)
  */
 void JointTorqueUpdate(LegInstance* leg) {
@@ -179,6 +253,7 @@ LegInstance* LegInit(Leg_Init_Config_s* config) {
   leg_instance->joint_motor[1] = DMMotorInit(&config->joint_motor_config[1]);
   leg_instance->wheel_motor = DJIMotorInit(&config->wheel_motor_config);
 
+  PIDInit(&leg_instance->length_PID, &config->length_PID_config);
   leg_instance->update_flag.is_first_update = 1;
   leg_instance->update_flag.is_restart = 1;
   leg_instance->update_flag.is_off_ground = 0;
