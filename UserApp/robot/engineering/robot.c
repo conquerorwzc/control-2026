@@ -448,7 +448,7 @@ static void ProcessCustomControllerData()
             grab_ctrl_cmd->elbow_pitch = SelfControlGetMotorAngle(robot->self_control, 0); // 电机1 -> 肘部俯仰
             grab_ctrl_cmd->wrist_pitch = SelfControlGetMotorAngle(robot->self_control, 1); // 电机2 -> 腕部俯仰
             grab_ctrl_cmd->wrist_roll = SelfControlGetMotorAngle(robot->self_control, 3);  // 电机4 -> 腕部旋转
-            grab_ctrl_cmd->elbow_roll = SelfControlGetPotAngle(robot->self_control, 0);    // 电位器 -> 肘部旋转
+            // grab_ctrl_cmd->elbow_roll = SelfControlGetPotAngle(robot->self_control, 0);    // 电位器 -> 肘部旋转
         }
     }
 }

@@ -176,7 +176,7 @@ static Chassis_Init_Config_s chassis_init_config = {
     .wheel_motor_config[1] = WHEEL_MOTOR_CONFIG(&hcan3, 4),
     .wheel_motor_config[2] = WHEEL_MOTOR_CONFIG(&hcan3, 2),
     .wheel_motor_config[3] = WHEEL_MOTOR_CONFIG(&hcan3, 3),
-    .lift_forward_motor_config[0] = LIFT_FORWARD_MOTOR_CONFIG(&hcan2, 2, MOTOR_DIRECTION_NORMAL),  // 前左，0是左，1是右
+    .lift_forward_motor_config[0] =  // 前左，0是左，1是右
 {
     .controller_param_init_config =
     {

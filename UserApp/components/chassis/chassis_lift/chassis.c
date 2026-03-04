@@ -22,11 +22,11 @@
 
 // 力量与保护（动态电流限幅，大疆电机满载为 16384）
 // 运动时的爆发力。给小了跑不到预定极速，给大了撞击时会切断螺丝]
-#define FRONT_LEFT_MOVING_MAX_OUT  7000.0f  // 遇到阻力允许拉到 10000
+#define FRONT_LEFT_MOVING_MAX_OUT 7000.0f // 遇到阻力允许拉到 10000
 #define FRONT_RIGHT_MOVING_MAX_OUT 7000.0f
 // 静止时的保持力。只要能锁死齿条不掉下来即可，越小电机越不容易发烫
-#define FRONT_LEFT_STOP_MAX_OUT    4000.0f   // 驻车力稍微给大点防掉
-#define FRONT_RIGHT_STOP_MAX_OUT   4000.0f
+#define FRONT_LEFT_STOP_MAX_OUT 4000.0f // 驻车力稍微给大点防掉
+#define FRONT_RIGHT_STOP_MAX_OUT 4000.0f
 // ==================== 【硬件基础信息】 ====================
 #define CALI_TASK_FREQ 500.0f  // 标定任务运行频率 (Hz) ，在ostask里得知
 #define GEAR_RATIO_REAR 19.0f  // 后腿减速比
@@ -227,40 +227,43 @@ void ChassisTask()
     // 只有在：处于爬楼模式 + 处于全伸出状态 + 最大行程没标定过 + 零点已经标定
     // 这四个条件同时满足时，才允许进入最大伸展标定
     // 🚨 拦截区：处理最大标定的进入与中途主动取消
-       if (!chassis->cali_state.is_max_calibrated && chassis->cali_state.all_cali_done)
-       {
-           if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_BOTH_EXTEND)
-           {
-               // 正在请求标定：停止轮子，开启腿部
-               for (int i = 0; i < 4; i++) DJIMotorStop(chassis->wheel_motor[i]);
-               for (int i = 0; i < 2; i++) {
-                   DJIMotorEnable(chassis->front_legs[i].motor);
-                   DJIMotorEnable(chassis->rear_legs[i].motor);
-               }
-               MaxExtensionCalibrationTask(0); // 传入 0：正常运行标定
-               return; // 标定期间阻断底层解算
-           }
-           else
-           {
-               // 用户中途切走了模式（主动取消标定）！
-               MaxExtensionCalibrationTask(1); // 传入 1：触发任务内部重置清零！
+    if (!chassis->cali_state.is_max_calibrated && chassis->cali_state.all_cali_done)
+    {
+        if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_BOTH_EXTEND)
+        {
+            // 正在请求标定：停止轮子，开启腿部
+            for (int i = 0; i < 4; i++)
+                DJIMotorStop(chassis->wheel_motor[i]);
+            for (int i = 0; i < 2; i++)
+            {
+                DJIMotorEnable(chassis->front_legs[i].motor);
+                DJIMotorEnable(chassis->rear_legs[i].motor);
+            }
+            MaxExtensionCalibrationTask(0); // 传入 0：正常运行标定
+            return;                         // 标定期间阻断底层解算
+        }
+        else
+        {
+            // 用户中途切走了模式（主动取消标定）！
+            MaxExtensionCalibrationTask(1); // 传入 1：触发任务内部重置清零！
 
-               // 安全收腿保护：把腿安全地拉回物理零点，防止掉下来
-               for (int i = 0; i < 2; i++) {
-                   DJIMotorEnable(chassis->front_legs[i].motor);
-                   DJIMotorEnable(chassis->rear_legs[i].motor);
+            // 安全收腿保护：把腿安全地拉回物理零点，防止掉下来
+            for (int i = 0; i < 2; i++)
+            {
+                DJIMotorEnable(chassis->front_legs[i].motor);
+                DJIMotorEnable(chassis->rear_legs[i].motor);
 
-                   // 温柔限流：避免瞬间全速收回砸碎限位，给个 8000 的安全电流
-                   chassis->front_legs[i].motor->motor_controller.speed_PID.MaxOut = 8000.0f;
-                   chassis->rear_legs[i].motor->motor_controller.speed_PID.MaxOut = 800.0f;
+                // 温柔限流：避免瞬间全速收回砸碎限位，给个 8000 的安全电流
+                chassis->front_legs[i].motor->motor_controller.speed_PID.MaxOut = 8000.0f;
+                chassis->rear_legs[i].motor->motor_controller.speed_PID.MaxOut = 800.0f;
 
-                   // 强制目标归零
-                   DJIMotorSetPIDRef(chassis->front_legs[i].motor, chassis->cali_state.init_angle[2+i]);
-                   DJIMotorSetPIDRef(chassis->rear_legs[i].motor, chassis->cali_state.init_angle[i]);
-               }
-               // 注意：这里没有 return，这意味着取消标定后，你可以正常用拨杆开着车到处跑！
-           }
-       }
+                // 强制目标归零
+                DJIMotorSetPIDRef(chassis->front_legs[i].motor, chassis->cali_state.init_angle[2 + i]);
+                DJIMotorSetPIDRef(chassis->rear_legs[i].motor, chassis->cali_state.init_angle[i]);
+            }
+            // 注意：这里没有 return，这意味着取消标定后，你可以正常用拨杆开着车到处跑！
+        }
+    }
 
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_POWER_OFF)
     {
@@ -550,14 +553,16 @@ void Climb_FSM()
 
         // 算出各自独立的极限行程 (物理真实行程 * 0.99)
 
-        float stroke_front_l = fabsf(chassis->cali_state.max_angle[2] - chassis->cali_state.init_angle[2]) * MAX_CALI_SAFE_RATIO;
-        float stroke_front_r = fabsf(chassis->cali_state.max_angle[3] - chassis->cali_state.init_angle[3]) * MAX_CALI_SAFE_RATIO;
+        float stroke_front_l =
+            fabsf(chassis->cali_state.max_angle[2] - chassis->cali_state.init_angle[2]) * MAX_CALI_SAFE_RATIO;
+        float stroke_front_r =
+            fabsf(chassis->cali_state.max_angle[3] - chassis->cali_state.init_angle[3]) * MAX_CALI_SAFE_RATIO;
 
-        //左前腿装配：使用专属的 LEFT_MAX_OUT 宏
+        // 左前腿装配：使用专属的 LEFT_MAX_OUT 宏
         LiftLeg_Init(&chassis->front_legs[LEFT], &lift_speed_feedforward[2], 1, FRONT_TOTAL_TIME_SEC,
                      FRONT_ACCEL_TIME_SEC, stroke_front_l, FRONT_LEFT_MOVING_MAX_OUT, FRONT_LEFT_STOP_MAX_OUT);
 
-        //右前腿装配：使用专属的 RIGHT_MAX_OUT 宏
+        // 右前腿装配：使用专属的 RIGHT_MAX_OUT 宏
         LiftLeg_Init(&chassis->front_legs[RIGHT], &lift_speed_feedforward[3], 1, FRONT_TOTAL_TIME_SEC,
                      FRONT_ACCEL_TIME_SEC, stroke_front_r, FRONT_RIGHT_MOVING_MAX_OUT, FRONT_RIGHT_STOP_MAX_OUT);
         // 装配后腿：不用梯形曲线，stroke 随便传个 0 就行，依然靠纯位置环
@@ -735,9 +740,10 @@ static void MaxExtensionCalibrationTask(uint8_t abort_flag)
     if (abort_flag)
     {
         timeout_cnt = 0;
-        first_run = 1;         // 最重要的一步：重置起跑线！
+        first_run = 1; // 最重要的一步：重置起跑线！
         startup_grace_cnt = 0;
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 4; i++)
+        {
             chassis->cali_state.max_cali_done[i] = 0;
             max_cali_block_cnt[i] = 0;
         }

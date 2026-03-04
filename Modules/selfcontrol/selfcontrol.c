@@ -137,22 +137,13 @@ static SelfC self_control;
 // 获取电机角度
 float SelfControlGetMotorAngle(const SelfC *controller, uint8_t motor_index)
 {
-    if (controller == NULL || motor_index >= 4)
+    if (controller == NULL || motor_index >= 5)
     {
         return 0.0f;
     }
     return controller->unpacked_data.motors[motor_index].angle;
 }
 
-// 获取电位器角度
-float SelfControlGetPotAngle(const SelfC *controller, uint8_t pot_index)
-{
-    if (controller == NULL || pot_index >= 1)
-    {
-        return 0.0f;
-    }
-    return controller->unpacked_data.pots[pot_index].angle;
-}
 
 UnpackedControllerData_t *GetSelfControlDataPtr(void)
 {
@@ -180,7 +171,7 @@ static bool parse_custom_controller_data(const uint8_t *packed_data, uint16_t pa
         return false;
 
     // 解析电机数据 (4个电机)
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < 5; i++)
     {
         unpacked_data->motors[i].id = data_ptr[1 + i * 5];
         int16_t angle_raw = ((int16_t)data_ptr[3 + i * 5] << 8) | data_ptr[2 + i * 5];
@@ -188,20 +179,6 @@ static bool parse_custom_controller_data(const uint8_t *packed_data, uint16_t pa
         unpacked_data->motors[i].is_online = data_ptr[5 + i * 5];
         // 扭矩状态字段已移除，保留为预留字节
     }
-
-    // 解析电位器数据 (1个电位器) - 起始位置21
-    uint8_t pot_start = 21; // 电位器数据起始位置 (电机数据1-20字节，电位器从21开始)
-
-    unpacked_data->pots[0].id = 1; // 固定ID为1
-
-    // 解析角度 (2字节，低字节在前，与下位机打包一致)
-    int16_t angle_raw = ((int16_t)data_ptr[pot_start + 1] << 8) | data_ptr[pot_start];
-    unpacked_data->pots[0].angle = (float)angle_raw / 100.0f;
-
-    // 解析电压 (1字节，0-255映射到0-5V)
-    uint8_t voltage_raw = data_ptr[pot_start + 2];
-    unpacked_data->pots[0].voltage = (float)voltage_raw / 51.0f; // 255/5 = 51
-
     return true;
 }
 

@@ -26,8 +26,7 @@ typedef struct {
 
 // 解析后的控制器数据
 typedef struct {
-    MotorData_t motors[4];           // 4个电机的数据 (1个4310 + 2个3508 + 1个2006)
-    PotentiometerData_t pots[1];     // 1个电位器的数据
+    MotorData_t motors[5];           // 5 个 DM4310 电机的数据
 } UnpackedControllerData_t;
 
 // 自定义控制器实例
@@ -72,18 +71,10 @@ UnpackedControllerData_t* GetSelfControlDataPtr(void);
 /**
  * @brief 获取指定电机角度
  * @param controller 控制器实例
- * @param motor_index 电机索引(0-3)
+ * @param motor_index 电机索引 (0-4)
  * @return float 电机角度
  */
 float SelfControlGetMotorAngle(const SelfC* controller, uint8_t motor_index);
-
-/**
- * @brief 获取指定电位器角度
- * @param controller 控制器实例
- * @param pot_index 电位器索引(0)
- * @return float 电位器角度
- */
-float SelfControlGetPotAngle(const SelfC* controller, uint8_t pot_index);
 
 
 #endif  // CONTROL_2026_SELFCONTROL_H
