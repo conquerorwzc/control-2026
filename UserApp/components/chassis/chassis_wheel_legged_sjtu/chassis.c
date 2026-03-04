@@ -270,6 +270,7 @@ static void LocomotionController(void) {
   float state_err[10];
   state_err[0] = (sv->x_b_h - 0.0f) * 1;
   state_err[1] = (sv->v_b_h - chassis_ctrl_cmd->vx) * 1;
+  // state_err[1] = (sv->v_b_h - chassis->limited_vx) * 1;
   // 限幅 phi 到 [-pi/3, pi/3]
   state_err[2] = sv->phi - chassis_ctrl_cmd->target_yaw * 1;
   state_err[3] = sv->dphi - chassis_ctrl_cmd->wz * 1;
@@ -334,6 +335,7 @@ static void ChassisCtrlUpdate(void) {
   LegModelUpdate(leg[1], chassis->imu);
 
   StateVarUpdate();
+  // PowerControl();
   LocomotionController();
   LegController();
 

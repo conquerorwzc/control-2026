@@ -160,16 +160,6 @@
                       .rx_id = wheel_rx,                                                                            \
                   },                                                                                                \
           },                                                                                                        \
-      .length_PID_config =                                                                                          \
-          {                                                                                                         \
-              .Kp = 750.0f,                                                                                         \
-              .Ki = 0.0f,                                                                                           \
-              .Kd = 120.0f,                                                                                         \
-              .MaxOut = 90.0f,                                                                                      \
-              .DeadBand = 0.01f,                                                                                    \
-              .Improve = PID_IMPROVE_NONE,                                                                          \
-              .IntegralLimit = 0.0f,                                                                                \
-          },                                                                                                        \
   }
 
 /* SJTU LQR: fill .lqr_param.K and .lqr_param.LQR_K_Coefficients from MATLAB compute_lqr.m output */

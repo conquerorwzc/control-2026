@@ -54,7 +54,23 @@ static float rotate_omega;      // 小陀螺旋转角速度
 float visualized_data[20];
 
 void VOFATask() {
-  visualized_data[0] = robot->chassis->imu->Pitch;
+#if defined(GIMBAL_BOARD)
+#elif defined(ONE_BOARD) || defined(CHASSIS_BOARD)
+  visualized_data[0] = robot->chassis->power_ctrl.P_total;
+  visualized_data[2] = robot->chassis->power_ctrl.vel_max;
+  visualized_data[4] = robot->chassis->power_ctrl.P_limit;
+  visualized_data[5] = robot->chassis->limited_vx;           // 限制后速度
+  visualized_data[6] = robot->chassis->chassis_ctrl_cmd.vx;  // 原始指令速度
+  visualized_data[7] = robot->chassis->state_var.v_b_h;      // 实际速度
+  // 新增：旋转占比（调试小陀螺功率分配）
+  float w_L = robot->chassis->leg[1]->wheel_motor->measure.speed_aps * DEGREE_2_RAD;
+  float w_R = robot->chassis->leg[0]->wheel_motor->measure.speed_aps * DEGREE_2_RAD;
+  float w_sum = fabsf(w_L + w_R);
+  float w_diff = fabsf(w_L - w_R);
+  visualized_data[8] = (w_sum + w_diff > 0.1f) ? w_diff / (w_sum + w_diff) : 0.0f;  // rotate_ratio
+  visualized_data[9] = robot->chassis->power_ctrl.P_wheel_L;
+  visualized_data[10] = robot->chassis->power_ctrl.P_wheel_R;
+#endif
   VOFAJustFloatSend(visualized_data, 20);
 }
 
@@ -143,7 +159,7 @@ static void RemoteControlSet() {
     }
     if (switch_is_up(rc_data[TEMP].rc.switch_left)) {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_JUMP_START;
-      chassis_ctrl_cmd->jump_force = 25 * JUMP_FORCE;
+      chassis_ctrl_cmd->jump_force = 15 * JUMP_FORCE;
       // chassis_ctrl_cmd->jump_force = 0;
     }
   }
@@ -613,9 +629,7 @@ static void MouseKeySet() {
 
       chassis_ctrl_cmd->theta_ff = 0.0f;
       break;
-
     default:
-
       break;
   }
   // 6.更新历史数据(遥控器有的话这里就不用)
