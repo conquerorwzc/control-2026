@@ -249,7 +249,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 2.2f,
+                            .Kp = 2.0f,
                             .Ki = 0.0f,
                             .Kd = 0.01f,
                             .DeadBand = 0.01f,
@@ -282,7 +282,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 1.8f,
+                            .Kp = 1.0f,
                             .Ki = 0.0f,
                             .Kd = 0.01f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
@@ -291,12 +291,12 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                         },
                     .speed_PID =
                         {
-                            .Kp = -3000.0f,
+                            .Kp = -5500.0f,
                             .Ki = -200.0f,
                             .Kd = 0.0f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                             .IntegralLimit = 12000.0f,
-                            .MaxOut = 20000.0f,
+                            .MaxOut = 28000.0f,
                         },
                 },
             .motor_type = GM6020,

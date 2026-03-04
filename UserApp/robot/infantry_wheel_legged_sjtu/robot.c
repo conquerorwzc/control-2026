@@ -54,7 +54,23 @@ static float rotate_omega;      // 小陀螺旋转角速度
 float visualized_data[20];
 
 void VOFATask() {
-  visualized_data[0] = robot->chassis->imu->Pitch;
+#if defined(GIMBAL_BOARD)
+#elif defined(ONE_BOARD) || defined(CHASSIS_BOARD)
+  visualized_data[0] = robot->chassis->power_ctrl.P_total;
+  visualized_data[2] = robot->chassis->power_ctrl.vel_max;
+  visualized_data[4] = robot->chassis->power_ctrl.P_limit;
+  visualized_data[5] = robot->chassis->limited_vx;           // 限制后速度
+  visualized_data[6] = robot->chassis->chassis_ctrl_cmd.vx;  // 原始指令速度
+  visualized_data[7] = robot->chassis->state_var.v_b_h;      // 实际速度
+  // 新增：旋转占比（调试小陀螺功率分配）
+  float w_L = robot->chassis->leg[1]->wheel_motor->measure.speed_aps * DEGREE_2_RAD;
+  float w_R = robot->chassis->leg[0]->wheel_motor->measure.speed_aps * DEGREE_2_RAD;
+  float w_sum = fabsf(w_L + w_R);
+  float w_diff = fabsf(w_L - w_R);
+  visualized_data[8] = (w_sum + w_diff > 0.1f) ? w_diff / (w_sum + w_diff) : 0.0f;  // rotate_ratio
+  visualized_data[9] = robot->chassis->power_ctrl.P_wheel_L;
+  visualized_data[10] = robot->chassis->power_ctrl.P_wheel_R;
+#endif
   VOFAJustFloatSend(visualized_data, 20);
 }
 
@@ -120,7 +136,8 @@ static void CalcOffsetAngle() {
 static void RemoteControlSet() {
   // 右[中]，底盘使能 ROBOT_CHASSIS_FOLLOW
   if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
+    // chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_RECOVERY;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       robot->robot_mode = ROBOT_CHASSIS_ROTATE;
@@ -193,7 +210,7 @@ static void RemoteControlSet() {
   switch (robot->robot_mode) {
     case ROBOT_CHASSIS_ROTATE: {
       // 小陀螺频率设置
-      rotate_frequency = 2.0f;
+      rotate_frequency = 1.0f;
 
       // 小陀螺原地旋转
       rotate_omega = rotate_frequency * 2.0f * PI;
@@ -403,10 +420,12 @@ static void MouseKeySet() {
       }
     }
   } else {
-    //  鼠标左键松开时
-    shoot_ctrl_cmd->load_mode = LOAD_STOP;
-    // 记录松开时间
-    trigger_time = DWT_GetTimeline_s();
+    if (!switch_is_up(rc_data[TEMP].rc.switch_left)) {
+      //  鼠标左键松开时
+      shoot_ctrl_cmd->load_mode = LOAD_STOP;
+      // 记录松开时间
+      trigger_time = DWT_GetTimeline_s();
+    }
   }
 
   // 2.3鼠标云台控制
@@ -731,13 +750,13 @@ void RobotInit() {
   chassis_upload_data = robot->chassis_upload_data;
   chassis_fetch_data = robot->chassis_fetch_data;
   robot->can_comm = CANCommInit(&chassis_comm_conf);  // can comm初始化
+  VOFAInit(&huart1);
 #endif
 #endif
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   chassis_ctrl_cmd->leg_length = chassis_init_config.param.initial_leg_length;  // 初始腿长
   DWT_GetDeltaT(&robot->DWT_CNT);
-  VOFAInit(&huart1);
-  // chassis_ctrl_cmd->max_power = 60;  // 测试用
+  chassis_ctrl_cmd->max_power = 60;  // 测试用
 }
 
 void RobotTask() {
@@ -747,6 +766,7 @@ void RobotTask() {
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
   GimbalTask();
   ShootTask();
+  VisionSend();
 #endif
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
