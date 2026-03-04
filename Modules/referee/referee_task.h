@@ -18,6 +18,16 @@
 // 弹量上限
 #define AMMO_UPPER 500
 
+// 圆心
+#define CENTER_X              960
+#define CENTER_Y              540
+
+// 辅助瞄准线相对于准心的偏移量
+#define Aim_Line_1            -30
+#define Aim_Line_2            -60
+#define Aim_Line_3            -90
+#define Aim_Line_4            -120
+
 // #define QQ_SUPER_CAP
 typedef enum
 {
@@ -84,6 +94,7 @@ void MyUIInit();
  *
  */
 void UITask();
+
 Referee_Interactive_info_t* getUI();
 
 #endif // REFEREE_H

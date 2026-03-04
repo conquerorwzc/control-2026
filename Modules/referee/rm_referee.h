@@ -50,18 +50,18 @@ typedef struct
 // 模式是否切换标志位，0为未切换，1为切换，static定义默认为0
 typedef struct
 {
-	uint32_t chassis_flag : 1;
+	// uint32_t chassis_flag : 1;
 	uint32_t gimbal_flag : 1;
 	uint32_t shoot_flag : 1;
 	uint32_t lid_flag : 1;
 	uint32_t friction_flag : 1;
 	uint32_t Power_flag : 1;
-        uint32_t pitch_flag : 1;
-        uint32_t autoaim_flag : 1;
-        uint32_t cap_flag : 1;
-        uint32_t ammo_flag : 1;
-        uint32_t fric_flag : 1;
-        uint32_t yaw_flag : 1;
+    uint32_t pitch_flag : 1;
+    uint32_t autoaim_flag : 1;
+    uint32_t cap_flag : 1;
+    uint32_t ammo_flag : 1;
+    uint32_t fric_flag : 1;
+    uint32_t yaw_flag : 1;
 } Referee_Interactive_Flag_t;
 
 

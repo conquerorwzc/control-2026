@@ -106,11 +106,11 @@ static Referee_Interactive_info_t interactive_data;
 // 检测UI变化的函数
 static void UIChangeCheck(Referee_Interactive_info_t *_Interactive_data)
 {
-    if (_Interactive_data->chassis_mode != _Interactive_data->chassis_last_mode)
-    {
-        _Interactive_data->Referee_Interactive_Flag.chassis_flag = 1;
-        _Interactive_data->chassis_last_mode = _Interactive_data->chassis_mode;
-    }
+    // if (_Interactive_data->chassis_mode != _Interactive_data->chassis_last_mode)
+    // {
+    //     _Interactive_data->Referee_Interactive_Flag.chassis_flag = 1;
+    //     _Interactive_data->chassis_last_mode = _Interactive_data->chassis_mode;
+    // }
 
     if (_Interactive_data->gimbal_mode != _Interactive_data->gimbal_last_mode)
     {
@@ -186,28 +186,28 @@ static void UIChangeCheck(Referee_Interactive_info_t *_Interactive_data)
 static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
 {
     // 更新底盘状态
-    if (interactive_data->Referee_Interactive_Flag.chassis_flag == 1)
-    {
-        char *chassis_str;
-        switch(interactive_data->chassis_mode)
-        {
-            case CHASSIS_POWER_OFF:
-                chassis_str = "PowerOff";
-                break;
-            case CHASSIS_ROTATE:
-                chassis_str = "Rotate";
-                break;
-            case CHASSIS_FOLLOW:
-                chassis_str = "Follow";
-                break;
-            default:
-                chassis_str = "unknown";
-                break;
-        }
-        UICharDraw(&UI_State_dyn[0], "sd0", UI_Graph_Change, 8, UI_Color_Main, 15, 2, 270, 750, chassis_str);
-        UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[0]);
-        interactive_data->Referee_Interactive_Flag.chassis_flag = 0;
-    }
+    // if (interactive_data->Referee_Interactive_Flag.chassis_flag == 1)
+    // {
+    //     char *chassis_str;
+    //     switch(interactive_data->chassis_mode)
+    //     {
+    //         case CHASSIS_POWER_OFF:
+    //             chassis_str = "PowerOff";
+    //             break;
+    //         case CHASSIS_ROTATE:
+    //             chassis_str = "Rotate";
+    //             break;
+    //         case CHASSIS_FOLLOW:
+    //             chassis_str = "Follow";
+    //             break;
+    //         default:
+    //             chassis_str = "unknown";
+    //             break;
+    //     }
+    //     UICharDraw(&UI_State_dyn[0], "sd0", UI_Graph_Change, 8, UI_Color_Main, 15, 2, 270, 750, chassis_str);
+    //     UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[0]);
+    //     interactive_data->Referee_Interactive_Flag.chassis_flag = 0;
+    // }
 
     // 更新云台状态
     if (interactive_data->Referee_Interactive_Flag.gimbal_flag == 1)
@@ -219,13 +219,13 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
                 gimbal_str = "PowerOff";
                 break;
             case GIMBAL_ON:
-                gimbal_str = "On";
+                gimbal_str = "On      ";
                 break;
             case GIMBAL_VISION:
-                gimbal_str = "Vision";
+                gimbal_str = "Vision  ";
                 break;
             default:
-                gimbal_str = "unknown";
+                gimbal_str = "unknown ";
                 break;
         }
         UICharDraw(&UI_State_dyn[1], "sd1", UI_Graph_Change, 8, UI_Color_Yellow, 15, 2, 270, 700, gimbal_str);
@@ -236,7 +236,7 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
     // 更新射击状态
     if (interactive_data->Referee_Interactive_Flag.shoot_flag == 1)
     {
-        char *shoot_str = interactive_data->shoot_mode == SHOOT_ON ? "on" : "off";
+        char *shoot_str = interactive_data->shoot_mode == SHOOT_ON ? "on " : "off";
         UICharDraw(&UI_State_dyn[2], "sd2", UI_Graph_Change, 8, UI_Color_Orange, 15, 2, 270, 650, shoot_str);
         UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[2]);
         interactive_data->Referee_Interactive_Flag.shoot_flag = 0;
@@ -245,7 +245,7 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
     // 更新摩擦轮状态
     if (interactive_data->Referee_Interactive_Flag.friction_flag == 1)
     {
-        char *friction_str = interactive_data->friction_mode == FRICTION_ON ? "on" : "off";
+        char *friction_str = interactive_data->friction_mode == FRICTION_ON ? "on " : "off";
         UICharDraw(&UI_State_dyn[3], "sd3", UI_Graph_Change, 8, UI_Color_Pink, 15, 2, 270, 600, friction_str);
         UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[3]);
         interactive_data->Referee_Interactive_Flag.friction_flag = 0;
@@ -254,7 +254,7 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
     // 更新弹舱盖状态
     if (interactive_data->Referee_Interactive_Flag.lid_flag == 1)
     {
-        char *lid_str = interactive_data->lid_mode == LID_OPEN ? "open" : "close";
+        char *lid_str = interactive_data->lid_mode == LID_OPEN ? "open " : "close";
         UICharDraw(&UI_State_dyn[4], "sd4", UI_Graph_Change, 8, UI_Color_Pink, 15, 2, 270, 550, lid_str);
         UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[4]);
         interactive_data->Referee_Interactive_Flag.lid_flag = 0;
@@ -625,12 +625,14 @@ void MyUIInit()
     UIDelete(&referee_recv_info->referee_id, UI_Data_Del_ALL, 0); // 清空UI
 
     // 绘制发射基准线
-    UILineDraw(&UI_shoot_line[0], "sl0", UI_Graph_ADD, 7, UI_Color_White, 3, 710, shoot_line_location[0], 1210, shoot_line_location[0]);
-    UILineDraw(&UI_shoot_line[1], "sl1", UI_Graph_ADD, 7, UI_Color_White, 3, shoot_line_location[1], 340, shoot_line_location[1], 740);
-    UILineDraw(&UI_shoot_line[2], "sl2", UI_Graph_ADD, 7, UI_Color_Yellow, 2, 810, shoot_line_location[2], 1110, shoot_line_location[2]);
-    UILineDraw(&UI_shoot_line[3], "sl3", UI_Graph_ADD, 7, UI_Color_Yellow, 2, 810, shoot_line_location[3], 1110, shoot_line_location[3]);
-    UILineDraw(&UI_shoot_line[4], "sl4", UI_Graph_ADD, 7, UI_Color_Yellow, 2, 810, shoot_line_location[4], 1110, shoot_line_location[4]);
+    UILineDraw(&UI_shoot_line[0], "sl0", UI_Graph_ADD, 7, UI_Color_White, 2, CENTER_X - 300, CENTER_Y, CENTER_X + 300, CENTER_Y);
+    UILineDraw(&UI_shoot_line[1], "sl1", UI_Graph_ADD, 7, UI_Color_White, 1, CENTER_X - 50, CENTER_Y + Aim_Line_1, CENTER_X + 50, CENTER_Y + Aim_Line_1);
+    UILineDraw(&UI_shoot_line[2], "sl2", UI_Graph_ADD, 7, UI_Color_White, 1, CENTER_X - 80, CENTER_Y + Aim_Line_2, CENTER_X + 80, CENTER_Y + Aim_Line_2);
+    UILineDraw(&UI_shoot_line[3], "sl3", UI_Graph_ADD, 7, UI_Color_White, 1, CENTER_X - 120, CENTER_Y + Aim_Line_3, CENTER_X + 120, CENTER_Y + Aim_Line_3);
+    UILineDraw(&UI_shoot_line[4], "sl4", UI_Graph_ADD, 7, UI_Color_White, 1, CENTER_X - 200, CENTER_Y + Aim_Line_4, CENTER_X + 200, CENTER_Y + Aim_Line_4);
+    UILineDraw(&UI_shoot_line[5], "sl5", UI_Graph_ADD, 7, UI_Color_White, 1, CENTER_X, 300, CENTER_X, 650);
     UIGraphRefresh(&referee_recv_info->referee_id, 5, UI_shoot_line[0], UI_shoot_line[1], UI_shoot_line[2], UI_shoot_line[3], UI_shoot_line[4]);
+    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_shoot_line[5]);
 
     // 绘制车辆示宽线
     UILineDraw(&UI_drone_width_line[0], "sl5", UI_Graph_ADD, 7, UI_Color_Green, 2, 960 - WIDTHLINE_UP, 320, 960 - WIDTHLINE_DOWN, 0);
@@ -644,8 +646,8 @@ void MyUIInit()
     UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_shoot_dir_circle[0],  UI_shoot_dir_circle[1]);
 
     // 绘制车辆状态标志指示
-    UICharDraw(&UI_State_sta[0], "ss0", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 750, "chassis:");
-    UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[0]);
+    // UICharDraw(&UI_State_sta[0], "ss0", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 750, "chassis:");
+    // UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[0]);
     UICharDraw(&UI_State_sta[1], "ss1", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 700, "gimbal:");
     UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[1]);
     UICharDraw(&UI_State_sta[2], "ss2", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 650, "shoot:");
@@ -657,8 +659,8 @@ void MyUIInit()
 
     // 绘制车辆状态标志，动态
     // 由于初始化时xxx_last_mode默认为0，所以此处对应UI也应该设为0时对应的UI，防止模式不变的情况下无法置位flag，导致UI无法刷新
-    UICharDraw(&UI_State_dyn[0], "sd0", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 270, 750, "PowerOff");
-    UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[0]);
+    // UICharDraw(&UI_State_dyn[0], "sd0", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 270, 750, "PowerOff");
+    // UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[0]);
     UICharDraw(&UI_State_dyn[1], "sd1", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 270, 700, "PowerOff");
     UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[1]);
     UICharDraw(&UI_State_dyn[2], "sd2", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 270, 650, "off");
@@ -729,11 +731,11 @@ void MyUIInit()
     UILineDraw(&UI_fric_pointer_left, "fl1", UI_Graph_ADD, 7, UI_Color_Main, 22, 1526, 720, 1526, 726);
     UILineDraw(&UI_fric_pointer_right, "fr1", UI_Graph_ADD, 7, UI_Color_Main, 22, 1590, 720, 1590, 726);
     UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_fric_pointer_left, UI_fric_pointer_right);
-    UICharDraw(&UI_fric_text_down, "fd0", UI_Graph_ADD, 6, UI_Color_White, 20, 1, 1552, 685, "5");
+    UICharDraw(&UI_fric_text_down, "fd0", UI_Graph_ADD, 6, UI_Color_White, 20, 1, 1552, 685, "3");
     UICharRefresh(&referee_recv_info->referee_id, UI_fric_text_down);
-    UICharDraw(&UI_fric_text_mid, "fm0", UI_Graph_ADD, 6, UI_Color_White, 20, 1, 1552, 735, "6");
+    UICharDraw(&UI_fric_text_mid, "fm0", UI_Graph_ADD, 6, UI_Color_White, 20, 1, 1552, 735, "4");
     UICharRefresh(&referee_recv_info->referee_id, UI_fric_text_mid);
-    UICharDraw(&UI_fric_text_up, "fu0", UI_Graph_ADD, 6, UI_Color_White, 20, 1, 1552, 782, "7");
+    UICharDraw(&UI_fric_text_up, "fu0", UI_Graph_ADD, 6, UI_Color_White, 20, 1, 1552, 782, "5");
     UICharRefresh(&referee_recv_info->referee_id, UI_fric_text_up);
 
     // 车头方向动态圆弧
@@ -770,6 +772,7 @@ void UITask()
     // 执行UI刷新
     MyUIRefresh(&interactive_data);
 }
+
 Referee_Interactive_info_t* getUI()
 {
     return &interactive_data;
