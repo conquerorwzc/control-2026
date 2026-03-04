@@ -194,11 +194,30 @@ static void SlopeCompensationControl() {
     DMMotorSetPIDRef(chassis->leg_motor[1], target_right);
   }
 }
+float CalculateForwardTorque(float delta) {
+  float forward_torque=0.0f;
+  //后续换成更好的模型，先用一次试试
+  if (delta<0.1) {
+    forward_torque=0.0f;
+  }
+  else {
+    forward_torque=23.2f-delta*32.0f;
+  }
+  return forward_torque;
+}
+
+
 /**
  * @brief 控制腿部电机状态
  *
  */
 static void LegControl() {
+  //左右腿与最低点的差值
+  static float  left_delta=0.0f;
+  static float  right_delta=0.0f;
+  //左右腿扭矩前馈
+  static float left_torque_feedforward = 0.0f;
+  static float right_torque_feedforward = 0.0f;
   // 左右腿目标位置
   static float target_position_left = 0.0f;
   static float target_position_right = 0.0f;
@@ -331,8 +350,14 @@ static void LegControl() {
       target_position_right = leg_current_position_right;
       break;
   }
+    left_delta=fabs(target_position_left-LEFT_LEG_MOTOR_NORMAL_POSITION);
+    right_delta=fabs(target_position_right-RIGHT_LEG_MOTOR_NORMAL_POSITION);
+    left_torque_feedforward=CalculateForwardTorque(left_delta);
+    right_torque_feedforward=CalculateForwardTorque(right_delta);
     DMMotorSetPIDRef(chassis->leg_motor[0], target_position_left);
+    chassis->leg_motor[0]->motor_controller.final_output+=left_torque_feedforward;
     DMMotorSetPIDRef(chassis->leg_motor[1], target_position_right);
+    chassis->leg_motor[1]->motor_controller.final_output+=right_torque_feedforward;
 }
 
 /**

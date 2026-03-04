@@ -398,7 +398,6 @@ static void RemoteControlSet() {
 
   // 射频控制,固定每秒1发,后续可以根据左侧拨轮的值大小切换射频,
   shoot_ctrl_cmd->shoot_rate = 8;
-  *rc_data_last = *rc_data;
 
 }
 
@@ -467,40 +466,6 @@ static void MouseKeySet() {
   //   chassis_ctrl_cmd->leg_mode = LEG_IN_AIR;
   // }
 
-  // 添加B键设置底盘跟随模式（通过按压次数切换跟头/跟尾部）
-  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_B] % 2) {
-    case 0:
-      // 偶数次按压 - 跟随车头模式
-      if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW_REAR_END) {
-        gimbal_ctrl_cmd->yaw += 180.0f;
-
-        //将角度规范化到-180到180度范围内
-        if (gimbal_ctrl_cmd->yaw > 180.0f) {
-          gimbal_ctrl_cmd->yaw -= 360.0f;
-        } else if (gimbal_ctrl_cmd->yaw < -180.0f) {
-          gimbal_ctrl_cmd->yaw += 360.0f;
-        }
-      }
-      chassis_ctrl_cmd->wz = 0.0f;
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
-      break;
-
-    case 1:
-      // 奇数次按压 - 跟随车尾模式
-      if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
-        gimbal_ctrl_cmd->yaw += 180.0f;
-
-        // 将角度规范化到-180到180度范围内
-        if (gimbal_ctrl_cmd->yaw > 180.0f) {
-          gimbal_ctrl_cmd->yaw -= 360.0f;
-        } else if (gimbal_ctrl_cmd->yaw < -180.0f) {
-          gimbal_ctrl_cmd->yaw += 360.0f;
-        }
-      }
-      chassis_ctrl_cmd->wz = 0.0f;
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW_REAR_END;
-      break;
-  }
 
   switch (rc_data[TEMP].mouse.press_r % 2) {  //右键进入自瞄预备模式
     case 1:
@@ -576,9 +541,65 @@ static void MouseKeySet() {
     case 1:
       chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
       chassis_ctrl_cmd->wz = 5000.0f;
+      // 添加B键设置底盘跟随模式（通过按压次数切换跟头/跟尾部）
+      if (rc_data[TEMP].key[KEY_PRESS].b==1&&rc_data_last[TEMP].key[KEY_PRESS].b==0) {
+          // 偶数次按压 - 跟随车头模式
+            gimbal_ctrl_cmd->yaw += 180.0f;
+
+            //将角度规范化到-180到180度范围内
+            if (gimbal_ctrl_cmd->yaw > 180.0f) {
+              gimbal_ctrl_cmd->yaw -= 360.0f;
+            } else if (gimbal_ctrl_cmd->yaw < -180.0f) {
+              gimbal_ctrl_cmd->yaw += 360.0f;
+            }
+        if (rc_data[TEMP].key_count[KEY_PRESS][Key_B]% 2==1) {
+          rc_data[TEMP].key_count[KEY_PRESS][Key_B]++;
+        }
+      }
       break;
 
-    default:
+    case 0:
+      // 添加B键设置底盘跟随模式（通过按压次数切换跟头/跟尾部）
+      switch (rc_data[TEMP].key_count[KEY_PRESS][Key_B] % 2) {
+      case 0:
+      //     if (rc_data[TEMP].key[KEY_PRESS].v==0&&rc_data_last[TEMP].key[KEY_PRESS].v==1) {
+      //       rc_data[TEMP].key_count[KEY_PRESS][Key_B]++;//切回底盘跟随模式
+      //     }
+          // 偶数次按压 - 跟随车头模式
+          if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW_REAR_END) {
+            gimbal_ctrl_cmd->yaw += 180.0f;
+
+            //将角度规范化到-180到180度范围内
+            if (gimbal_ctrl_cmd->yaw > 180.0f) {
+              gimbal_ctrl_cmd->yaw -= 360.0f;
+            } else if (gimbal_ctrl_cmd->yaw < -180.0f) {
+              gimbal_ctrl_cmd->yaw += 360.0f;
+            }
+          }
+          chassis_ctrl_cmd->wz = 0.0f;
+          chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+          break;
+
+      case 1:
+          // 奇数次按压 - 跟随车尾模式
+          if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
+            gimbal_ctrl_cmd->yaw += 180.0f;
+
+            // 将角度规范化到-180到180度范围内
+            if (gimbal_ctrl_cmd->yaw > 180.0f) {
+              gimbal_ctrl_cmd->yaw -= 360.0f;
+            } else if (gimbal_ctrl_cmd->yaw < -180.0f) {
+              gimbal_ctrl_cmd->yaw += 360.0f;
+            }
+          }
+          chassis_ctrl_cmd->wz = 0.0f;
+          chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW_REAR_END;
+          break;
+      default:
+          break;
+      }
+      break;
+      default:
       break;
   }
   // G键功率重新分配功能
@@ -664,7 +685,7 @@ void RobotInit() {
 
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
-  chassis_ctrl_cmd->max_power = 150;  // 随便给一个初始功率，后面应该要从裁判系统获取
+
   chassis_ctrl_cmd->power_distribute = 1.2f;
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
@@ -676,6 +697,7 @@ void RobotInit() {
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
 void RobotCMDTask() {
+  chassis_ctrl_cmd->max_power = robot->referee_data->GameRobotState.chassis_power_limit;  // 随便给一个初始功率，后面应该要从裁判系统获取
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
   CalcOffsetAngle();
   RemoteControlSet();
