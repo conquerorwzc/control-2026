@@ -531,27 +531,40 @@ static void MouseKeySet() {
     default:
       break;
   }
+
   switch (rc_data[TEMP].mouse.press_l % 2)        // 左键发射
   {
     case 0:
-      if (!switch_is_up(rc_data[TEMP].rc.switch_left))
+      shoot_ctrl_cmd->load_mode=LOAD_STOP;
+      trigger_time = DWT_GetTimeline_s();
+      break;
+    default:
+      switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 2)  // E键设置发射模式
       {
-        shoot_ctrl_cmd->load_mode=LOAD_STOP;
-        trigger_time = DWT_GetTimeline_s();
+      case 0:                                              //单发+长按连发
+          if (shoot_ctrl_cmd->friction_mode==FRICTION_ON)   //需预先开启摩擦轮，F键
+          {
+            shoot_ctrl_cmd->load_mode=LOAD_1_BULLET;
+            if (DWT_GetTimeline_s() - trigger_time > 1.0f)  //长按检测，1秒
+            {
+              shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+            }
+            break;
+            default:                                         //连发
+            if (shoot_ctrl_cmd->friction_mode==FRICTION_ON)
+              shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+            break;
+          }
       }
       break;
-    default:
   }
-  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Z] % 3)  // Z键设置弹速
+  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Z] % 3)
   {
     case 0:
-      shoot_ctrl_cmd->bullet_speed = 15;
       break;
     case 1:
-      shoot_ctrl_cmd->bullet_speed = 18;
       break;
     default:
-      shoot_ctrl_cmd->bullet_speed = 30;
       break;
   }
 
@@ -570,7 +583,7 @@ static void MouseKeySet() {
       chassis_ctrl_cmd->chassis_speed_buff = 80000;
       break;
   }
-  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Shift]%2)  // 待添加 按shift允许超功率 消耗缓冲能量
+  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_V]%2)  // 小陀螺
   {
     case 1:
       chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
