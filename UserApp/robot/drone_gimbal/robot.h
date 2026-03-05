@@ -3,6 +3,7 @@
 #include "main.h"
 #include "remote_control.h"
 #include "dji_motor.h"
+#include "dmmotor.h"
 #include <stdint.h>
 #include <stdbool.h>
 #include "ins_task.h"
@@ -24,6 +25,7 @@ typedef struct {
   // --- 组件实例 ---
   GimbalInstance *gimbal; // 云台
   ShootInstance *shoot;   // 发射机构
+  DMMotorInstance *pitch_dm_motor;
 
   // --- 辅助变量 ---
   bool is_first_loop;

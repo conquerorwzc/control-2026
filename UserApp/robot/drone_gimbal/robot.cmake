@@ -11,6 +11,7 @@ include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/UserApp/components/gimba
 # Define source files for the robot application
 file(GLOB ROBOT_SOURCES
         "${CMAKE_CURRENT_LIST_DIR}/*.c"
+        "${CMAKE_CURRENT_LIST_DIR}/dmmotor.c"
         "${CMAKE_SOURCE_DIR}/UserApp/components/gimbal/${GIMBAL_TYPE}/*.c"
         "${CMAKE_SOURCE_DIR}/UserApp/components/shoot/${SHOOT_TYPE}/*.c"
 )

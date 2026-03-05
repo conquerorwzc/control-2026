@@ -1,6 +1,7 @@
 #include "robot.h"
 #include "robot_config.h"
 #include "user_lib.h"
+#include <math.h>
 
 RobotInstance *robot;
 
@@ -22,20 +23,22 @@ void RobotInit(void) {
 
   // 3. 初始化云台
   robot->gimbal = GimbalInit(&gimbal_init_config);
-
+  robot->pitch_dm_motor = DMMotorInit(&pitch_dm_config);
+  DMMotorTaskInit();
   // 4. 初始化发射机构
   robot->shoot = ShootInit(&shoot_init_config);
 
-  robot->safety_lock = true;
+  robot->safety_lock = false;//true
 
   // 5. 关键步骤：绑定串级 PID 的反馈指针
   // 告诉电机驱动层：外环(角度环)的数据来源是我们自己在 RobotControlLogic 里算出来的 yaw_imu_feed
   if (robot->gimbal) {
-    if (robot->gimbal->yaw_motor)
-      robot->gimbal->yaw_motor->motor_controller.other_angle_feedback_ptr = &robot->yaw_imu_feed;
-
-    if (robot->gimbal->pitch_motor)
-      robot->gimbal->pitch_motor->motor_controller.other_angle_feedback_ptr = &robot->pitch_imu_feed;
+    // Yaw 绑定 (保持原样)
+    robot->gimbal->yaw_motor->motor_controller.other_angle_feedback_ptr = &robot->yaw_imu_feed;
+    robot->pitch_dm_motor->motor_controller.other_angle_feedback_ptr = &robot->pitch_imu_feed;
+    // 添加速度反馈绑定
+    robot->gimbal->yaw_motor->motor_controller.other_speed_feedback_ptr = &robot->gimbal->gimbal_IMU_data->Gyro[2];
+    robot->pitch_dm_motor->motor_controller.other_speed_feedback_ptr = &robot->gimbal->gimbal_IMU_data->Gyro[0];
   }
 }
 
@@ -51,7 +54,7 @@ static void RobotControlLogic(void) {
   int16_t ecd = robot->gimbal->yaw_motor->measure.ecd;
 
   float current_yaw = -raw_yaw;
-  float current_pitch = raw_pitch - 2.0f;
+  float current_pitch = raw_pitch - (0.35f);
 
   robot->yaw_imu_feed = current_yaw;
   robot->pitch_imu_feed = current_pitch;
@@ -96,43 +99,95 @@ static void RobotControlLogic(void) {
   uint8_t friction_cmd = FRICTION_OFF;
   uint8_t load_cmd = LOAD_STOP;
 
+  //  // ----------------------------------------------------------
+  //  // [模式 A]: 键鼠模式 (右侧开关【上】)
+  //  // ----------------------------------------------------------
+  //  if (switch_is_up(robot->rc->rc.switch_right)) {
+  //
+  //    // >>> 3.1 鼠标控制云台 <<<
+  //    yaw_step   += (float)robot->rc->mouse.x * 0.0005f;
+  //    pitch_step += (float)robot->rc->mouse.y * 0.001f;
+  //
+  //    // >>> 3.2 Q键开关摩擦轮 (Toggle逻辑) <<<
+  //    static bool key_friction_active = false;
+  //    static uint8_t last_q_press = 0;
+  //
+  //    if (robot->rc->key_count[KEY_PRESS][Key_Q] != last_q_press) {
+  //      key_friction_active = !key_friction_active;
+  //      last_q_press = robot->rc->key_count[KEY_PRESS][Key_Q];
+  //    }
+  //    friction_cmd = key_friction_active ? FRICTION_ON : FRICTION_OFF;
+  //
+  //    // >>> 3.3 R键反转 (Unjam) <<<
+  //    if (robot->rc->key[KEY_PRESS].r) {
+  //      load_cmd = LOAD_REVERSE;
+  //    }
+  //    // >>> 3.4 鼠标左键开火 <<<
+  //    else if (key_friction_active && robot->rc->mouse.press_l) {
+  //      load_cmd = LOAD_BURSTFIRE;
+  //    }
+  //    else {
+  //      load_cmd = LOAD_STOP;
+  //    }
+  //  }
+  //
+  //  // ----------------------------------------------------------
+  //  // [模式 B]: 遥控器模式 (右侧开关【中】)
+  //  // ----------------------------------------------------------
+  //  else {
+  //    // >>> 3.5 摇杆控制云台 <<<
+  //    float rc_yaw_raw = (float)robot->rc->rc.rocker_l_;
+  //    float rc_pitch_raw = (float)robot->rc->rc.rocker_r1;
+  //
+  //    if (fabsf(rc_yaw_raw) < 10.0f) rc_yaw_raw = 0.0f;
+  //    if (fabsf(rc_pitch_raw) < 10.0f) rc_pitch_raw = 0.0f;
+  //
+  //    yaw_step = (rc_yaw_raw / 660.0f) * 0.06f;
+  //    pitch_step = -(rc_pitch_raw / 660.0f) * 0.06f;
+  //
+  //    // >>> 3.6 左侧拨杆控制发射 <<<
+  //    if (switch_is_down(robot->rc->rc.switch_left)) {
+  //      friction_cmd = FRICTION_OFF;
+  //      load_cmd = LOAD_STOP;
+  //    }
+  //    else if (switch_is_mid(robot->rc->rc.switch_left)) {
+  //      friction_cmd = FRICTION_ON;
+  //      load_cmd = LOAD_STOP;
+  //    }
+  //    else if (switch_is_up(robot->rc->rc.switch_left)) {
+  //      friction_cmd = FRICTION_ON;
+  //      if (switch_is_up(robot->rc->rc.switch_right)) {
+  //        load_cmd = LOAD_REVERSE; // 反转解决堵转
+  //      } else {
+  //        load_cmd = LOAD_BURSTFIRE; // 正常连发
+  //      }
+  //    }
+  //  }
+  //
+  //  // ==========================================================
+  //  // 4. 执行控制与限位
+  //  // ==========================================================
+  //  if (robot->shoot) {
+  //    robot->shoot->shoot_ctrl_cmd.shoot_mode = shoot_mode;
+  //    robot->shoot->shoot_ctrl_cmd.friction_mode = friction_cmd;
+  //    robot->shoot->shoot_ctrl_cmd.load_mode = load_cmd;
+  //  }
+  //
+  //  if (ecd < 2000 && yaw_step < 0) yaw_step = 0;
+  //  if (ecd > 3400 && yaw_step > 0) yaw_step = 0;
+  //
+  //  target_yaw += yaw_step;
+  //  target_pitch += pitch_step;
+  //  LimitTarget(&target_pitch, -0.5f, 33.5f);
+  //
+  //  cmd->yaw = target_yaw;
+  //  cmd->pitch = target_pitch;
+  //  ;
   // ----------------------------------------------------------
-  // [模式 A]: 键鼠模式 (右侧开关【上】)
+  // [模式 A]: 强制解卡/反转模式 (右侧开关【上】)
   // ----------------------------------------------------------
   if (switch_is_up(robot->rc->rc.switch_right)) {
-
-    // >>> 3.1 鼠标控制云台 <<<
-    yaw_step   += (float)robot->rc->mouse.x * 0.0005f;
-    pitch_step += (float)robot->rc->mouse.y * 0.001f;
-
-    // >>> 3.2 Q键开关摩擦轮 (Toggle逻辑) <<<
-    static bool key_friction_active = false;
-    static uint8_t last_q_press = 0;
-
-    if (robot->rc->key_count[KEY_PRESS][Key_Q] != last_q_press) {
-      key_friction_active = !key_friction_active;
-      last_q_press = robot->rc->key_count[KEY_PRESS][Key_Q];
-    }
-    friction_cmd = key_friction_active ? FRICTION_ON : FRICTION_OFF;
-
-    // >>> 3.3 R键反转 (Unjam) <<<
-    if (robot->rc->key[KEY_PRESS].r) {
-      load_cmd = LOAD_REVERSE;
-    }
-    // >>> 3.4 鼠标左键开火 <<<
-    else if (key_friction_active && robot->rc->mouse.press_l) {
-      load_cmd = LOAD_BURSTFIRE;
-    }
-    else {
-      load_cmd = LOAD_STOP;
-    }
-  }
-
-  // ----------------------------------------------------------
-  // [模式 B]: 遥控器模式 (右侧开关【中】)
-  // ----------------------------------------------------------
-  else {
-    // >>> 3.5 摇杆控制云台 <<<
+    // >>> 摇杆依然可以控制云台 <<<
     float rc_yaw_raw = (float)robot->rc->rc.rocker_l_;
     float rc_pitch_raw = (float)robot->rc->rc.rocker_r1;
 
@@ -142,7 +197,26 @@ static void RobotControlLogic(void) {
     yaw_step = (rc_yaw_raw / 660.0f) * 0.06f;
     pitch_step = -(rc_pitch_raw / 660.0f) * 0.06f;
 
-    // >>> 3.6 左侧拨杆控制发射 <<<
+    // >>> 关键：无视左拨杆，摩擦轮开启，拨弹盘强制反转 <<<
+    friction_cmd = FRICTION_ON;
+    load_cmd = LOAD_REVERSE;
+  }
+
+  // ----------------------------------------------------------
+  // [模式 B]: 正常遥控器模式 (右侧开关【中】)
+  // ----------------------------------------------------------
+  else {
+    // >>> 摇杆控制云台 <<<
+    float rc_yaw_raw = (float)robot->rc->rc.rocker_l_;
+    float rc_pitch_raw = (float)robot->rc->rc.rocker_r1;
+
+    if (fabsf(rc_yaw_raw) < 10.0f) rc_yaw_raw = 0.0f;
+    if (fabsf(rc_pitch_raw) < 10.0f) rc_pitch_raw = 0.0f;
+
+    yaw_step = (rc_yaw_raw / 660.0f) * 0.06f;
+    pitch_step = -(rc_pitch_raw / 660.0f) * 0.06f;
+
+    // >>> 左侧拨杆控制发射 <<<
     if (switch_is_down(robot->rc->rc.switch_left)) {
       friction_cmd = FRICTION_OFF;
       load_cmd = LOAD_STOP;
@@ -153,7 +227,7 @@ static void RobotControlLogic(void) {
     }
     else if (switch_is_up(robot->rc->rc.switch_left)) {
       friction_cmd = FRICTION_ON;
-      load_cmd = LOAD_BURSTFIRE;
+      load_cmd = LOAD_BURSTFIRE; // 正常连发打弹
     }
   }
 
@@ -171,7 +245,7 @@ static void RobotControlLogic(void) {
 
   target_yaw += yaw_step;
   target_pitch += pitch_step;
-  LimitTarget(&target_pitch, 0.0f, 28.0f);
+  LimitTarget(&target_pitch, -0.5f, 33.5f);
 
   cmd->yaw = target_yaw;
   cmd->pitch = target_pitch;
@@ -182,7 +256,47 @@ void RobotTask(void) {
   RobotControlLogic();
 
   // 2. 执行云台底层控制 (计算 PID，发送 CAN)
-  GimbalTask();
+  //GimbalTask();
+
+  Gimbal_Ctrl_Cmd_s *cmd = &robot->gimbal->gimbal_ctrl_cmd;
+
+  if (cmd->gimbal_mode == GIMBAL_POWER_OFF) {
+    DJIMotorStop(robot->gimbal->yaw_motor);
+    DMMotorStop(robot->pitch_dm_motor);
+  } else {
+    DJIMotorEnable(robot->gimbal->yaw_motor);
+    DMMotorEnable(robot->pitch_dm_motor);
+
+    // --- A. 获取欧拉角 (弧度制) ---
+    float roll_rad  = robot->gimbal->gimbal_IMU_data->Roll  * (3.14159265f / 180.0f);
+    float pitch_rad = robot->gimbal->gimbal_IMU_data->Pitch * (3.14159265f / 180.0f);
+
+    // --- B. 手动计算角度环 PID (得到地球坐标系下的期望角速度) ---
+    float yaw_v_earth = PIDCalculate(&robot->gimbal->yaw_motor->motor_controller.angle_PID,
+                                     robot->yaw_imu_feed,
+                                     cmd->yaw);
+
+    float pitch_v_earth = PIDCalculate(&robot->pitch_dm_motor->motor_controller.angle_PID,
+                                       robot->pitch_imu_feed,
+                                       cmd->pitch);
+
+    // --- C. 自稳正交分解与衰减补偿 ---
+    float cos_r = cosf(roll_rad);
+    float sin_r = sinf(roll_rad);
+    float cos_p = cosf(pitch_rad);
+
+    // 安全防线：防止 Pitch 接近 90 度时分母为 0 导致飞车
+    if (cos_p < 0.1f) cos_p = 0.1f;
+
+    // 我们上一轮推导的终极公式
+    float yaw_v_motor   = (yaw_v_earth * cos_r - pitch_v_earth * sin_r);// / cos_p
+    float pitch_v_motor = pitch_v_earth * cos_r + yaw_v_earth * sin_r;
+
+    // --- D. 下发速度指令给电机 ---
+    // 因为电机已经被配置为 SPEED_LOOP，此时传入的就是速度目标值
+    DJIMotorSetPIDRef(robot->gimbal->yaw_motor, yaw_v_motor);
+    DMMotorSetPIDRef(robot->pitch_dm_motor, pitch_v_motor);
+  }
 
   // 3. 执行发射机构底层控制
   ShootTask();

@@ -34,16 +34,16 @@ static Gimbal_Init_Config_s gimbal_init_config = {
     .yaw_motor_config = {
         .controller_param_init_config = {
             .angle_PID = {
-                .Kp = 0.4f,//1.2
+                .Kp = 1.2f,//1.2
                 .Ki = 0.1f,
                 .Kd = 0.03f,
                 .MaxOut = 30.0f,
             },
             .speed_PID = {
-                .Kp = 2100.0f,//1200
-                .Ki = 90.0,//25.0
+                .Kp = 1200.0f,//2400.0f
+                .Ki = 0.0,//50.0f
                 .Kd = 0.0f,
-                .MaxOut =  20000.0f,
+                .MaxOut =  10000.0f,
                 .IntegralLimit = 12000.0f,
             },
         },
@@ -51,43 +51,68 @@ static Gimbal_Init_Config_s gimbal_init_config = {
         .can_init_config = { .can_handle = &hcan1, .tx_id = 1 },
         .controller_setting_init_config = {
             .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
-            .outer_loop_type = ANGLE_LOOP,
+            .outer_loop_type = SPEED_LOOP,
             .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
             .angle_feedback_source = OTHER_FEED, // IMU 反馈
-            .speed_feedback_source = MOTOR_FEED, // 电机速度反馈
+            .speed_feedback_source = OTHER_FEED, // 电机速度反馈
         },
     },
-
-    // --- Pitch 轴 (ID: 5, GM6020) ---
     .pitch_motor_config = {
-        .controller_param_init_config = {
-            .angle_PID = {
-                .Kp = 0.5f,       // 1.2
-                .Ki = 0.0f,
-                .Kd = 0.005f,
-                .MaxOut = 25.0f, // 限制最大速度
-            },
-            .speed_PID = {
-                .Kp = 2500.0f,    // 2750
-                .Ki = 50.0f,     // 15
-                .Kd = 0.0f,
-                .MaxOut =  20000.0f,
-                .IntegralLimit = 12000.0f,
-            },
-        },
         .motor_type = GM6020,
-        .can_init_config = { .can_handle = &hcan1, .tx_id = 5 },
-        .controller_setting_init_config = {
-            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
-            // 开启串级双环控制
-            .outer_loop_type = ANGLE_LOOP,
-            .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
-            .angle_feedback_source = OTHER_FEED,
-            .speed_feedback_source = MOTOR_FEED,
+        .can_init_config = {
+            .can_handle = &hcan1,
+            .tx_id = 7
         },
+        .controller_setting_init_config = {
+            // 这里的参数随便填，反正我们不用它控制
+            .angle_feedback_source = MOTOR_FEED,
+            .speed_feedback_source = MOTOR_FEED,
+        }
     },
-
     .imu_init_config = { .flag = 1, .scale = {1,1,1}, .Yaw=0, .Pitch=0, .Roll=0 }
+};
+
+// =============================================================
+// 2. 应用层 Pitch 配置 (达妙 DM4310)
+// =============================================================
+static Motor_Init_Config_s pitch_dm_config = {
+    .motor_type = J4310, // 对应 DM4310
+    .can_init_config = {
+        .can_handle = &hcan1,
+        .tx_id = 0x06,
+        .rx_id = 0x06,
+    },
+    .controller_param_init_config =
+        {
+            .angle_PID =
+                {
+                    .Kp = 0.3f,  // 1
+                    .Ki = 0.00f,
+                    .Kd = 0.00f,
+                    .MaxOut = 6.0f,  //25
+                    .DeadBand = 0.00f,
+                    .Improve = PID_Integral_Limit,
+                    .IntegralLimit = 0.5f,  //5
+                },
+            .speed_PID =
+                {
+                    .Kp = 0.3f,  // 0.5
+                    .Ki = 0.0f,  // 0.25
+                    .Kd = 0.0f,// 0.002
+                    .MaxOut = 2.0f,  //5
+                    .DeadBand = 0.00f,
+                    .Improve = PID_Integral_Limit,
+                    .IntegralLimit = 0.9f,
+                },
+        },
+    .controller_setting_init_config = {
+        .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,   // 电机输出反向
+        .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE, // 电机反馈反向
+        .outer_loop_type = SPEED_LOOP,
+        .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
+        .angle_feedback_source = OTHER_FEED,//OTHER_FEED
+        .speed_feedback_source = OTHER_FEED,
+    },
 };
 
 // =============================================================
