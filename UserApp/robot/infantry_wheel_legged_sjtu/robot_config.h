@@ -76,10 +76,10 @@
           {                                                                                                    \
               .angle_PID =                                                                                     \
                   {                                                                                            \
-                      .Kp = 15.0f,                                                                             \
+                      .Kp = 20.0f,                                                                             \
                       .Ki = 0.0f,                                                                              \
                       .Kd = 0.0f,                                                                              \
-                      .MaxOut = 5.0f,                                                                          \
+                      .MaxOut = 10.0f,                                                                         \
                       .DeadBand = 0.01f,                                                                       \
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
                       .IntegralLimit = 0.0f,                                                                   \
@@ -89,7 +89,7 @@
                       .Kp = 5.0f,                                                                              \
                       .Ki = 0.0f,                                                                              \
                       .Kd = 0.05f,                                                                             \
-                      .MaxOut = 5.0f,                                                                          \
+                      .MaxOut = 15.0f,                                                                         \
                       .DeadBand = 0.01f,                                                                       \
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
                       .IntegralLimit = 0.0f,                                                                   \
@@ -243,7 +243,7 @@ static Chassis_Init_Config_s
              },
          .roll_PID_config =
              {
-                 .Kp = 100.0f,
+                 .Kp = 300.0f,
                  .Ki = 0.0f,
                  .Kd = 0.0f,
                  .MaxOut = 100.0f,

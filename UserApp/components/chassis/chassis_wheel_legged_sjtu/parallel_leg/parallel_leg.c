@@ -199,12 +199,14 @@ void JointLimitBarrier(LegInstance* leg) {
 }
 
 void SpringCompensation(LegInstance* leg) {
-  float k = 0.59f;
+  float k = 5900.0f;
   float j2f = 0.06403f;  // 关节2到固定点的距离
   float j2k = 0.12135f;  // 关节2到膝盖点的距离
+  float j2f_a = 38.66f;
+  float j2k_a = 9.01f;
   float spring_init_length = 0.120f;
-  float alpha_1 = leg->real_model.phi1 - 38.66f * DEGREE_2_RAD + 9.01f * DEGREE_2_RAD;
-  float alpha_2 = PI - (leg->real_model.phi4 - 9.01f * DEGREE_2_RAD) - 38.66f * DEGREE_2_RAD;
+  float alpha_1 = leg->real_model.phi1 - j2f_a * DEGREE_2_RAD + j2k_a * DEGREE_2_RAD;
+  float alpha_2 = PI - (leg->real_model.phi4 - j2k_a * DEGREE_2_RAD) - j2f_a * DEGREE_2_RAD;
   float spring_length_1 = sqrtf(j2f * j2f + j2k * j2k - 2.0f * j2f * j2k * mcos(alpha_1));
   float spring_length_2 = sqrtf(j2f * j2f + j2k * j2k - 2.0f * j2f * j2k * mcos(alpha_2));
 

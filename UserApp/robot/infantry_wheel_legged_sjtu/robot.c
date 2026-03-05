@@ -60,15 +60,15 @@ void VOFATask() {
 
 Ramp_Controller_t chassis_ramp = {
     .planning_v = 0.0f,
-    .max_v = 2.5f,
+    .max_v = 2.0f,
     .max_accel = 1.0f,
     .accel_base_speed = 0.3f,
-    .max_decel = 4.5f,
+    .max_decel = 4.0f,
     .min_decel = 1.0f,
     .decel_base_speed = 0.8f,
 };
 
-#define robot_lost_control abs(robot->chassis->imu->Pitch) > 13.0f
+#define robot_lost_control (abs(robot->chassis->imu->Pitch) > 13.0f)
 
 /**
  * @brief  检查视觉接收数据是否有效（即是否识别到目标）
@@ -181,7 +181,7 @@ static void RemoteControlSet() {
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
   }
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
-    gimbal_ctrl_cmd->yaw += -0.0005f * (float)rc_data[TEMP].rc.rocker_r_;
+    gimbal_ctrl_cmd->yaw += -0.00035f * (float)rc_data[TEMP].rc.rocker_r_;
   }
   // 云台PITCH轴软件限位 todo:没在云台有点不好
   if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
@@ -249,8 +249,9 @@ static void RemoteControlSet() {
       align_attenuation = cosf(follow_err * DEGREE_2_RAD);
       if (align_attenuation < 0) align_attenuation = 0;
       input_mag *= align_attenuation * align_attenuation * align_attenuation;
-      VAL_LIMIT(input_mag, -2.97, 2.97);
-      chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, input_mag, robot->dt);
+      VAL_LIMIT(input_mag, -2.00, 2.00);
+      // chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, input_mag, robot->dt);
+      chassis_ctrl_cmd->vx = input_mag;
       // chassis_ctrl_cmd->theta_ff = chassis_ramp.expected_a / 9.81f;
       chassis_ctrl_cmd->theta_ff = 0.0f;
       break;
@@ -632,7 +633,7 @@ static void MouseKeySet() {
  */
 static void EmergencyHandler() {
   if (robot_lost_control) {
-    robot->chassis->chassis_ctrl_cmd.chassis_mode = CHASSIS_RECOVERY;  // todo:因该写成elif比较安全
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_RECOVERY;
   }
   // 两switch都在下或者遥控器断连，断电
   if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)) |

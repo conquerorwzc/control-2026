@@ -261,10 +261,10 @@ static void LocomotionController(void) {
   float l_r = leg[0]->virtual_model.length;
   LQR_K_Calc(chassis->LQR_K, chassis->param.LQR_K_Coefficients, l_l, l_r);
   // 减小phi和dphi的权重
-  chassis->LQR_K[0][2] *= 0.2f;
-  chassis->LQR_K[0][3] *= 0.2f;
-  chassis->LQR_K[1][2] *= 0.2f;
-  chassis->LQR_K[1][3] *= 0.2f;
+  // chassis->LQR_K[0][2] *= 0.2f;
+  // chassis->LQR_K[0][3] *= 0.2f;
+  // chassis->LQR_K[1][2] *= 0.2f;
+  // chassis->LQR_K[1][3] *= 0.2f;
 
   // TODO: 状态误差限幅
   float state_err[10];
@@ -272,12 +272,15 @@ static void LocomotionController(void) {
   state_err[1] = (sv->v_b_h - chassis_ctrl_cmd->vx) * 1;
   // 限幅 phi 到 [-pi/3, pi/3]
   state_err[2] = sv->phi - chassis_ctrl_cmd->target_yaw * 1;
+  VAL_LIMIT(state_err[2], -0.52f, 0.52f);  // ±30°
   state_err[3] = sv->dphi - chassis_ctrl_cmd->wz * 1;
+  VAL_LIMIT(state_err[3], -2.0f, 2.0f);
   state_err[4] = sv->theta_l - chassis_ctrl_cmd->theta_ff * 1;
   state_err[5] = sv->dtheta_l * 1;
   state_err[6] = sv->theta_r - chassis_ctrl_cmd->theta_ff * 1;
   state_err[7] = sv->dtheta_r * 1;
   state_err[8] = sv->theta_b * 1;
+
   state_err[9] = sv->dtheta_b * 1;
 
   /* u[0] = T_{r→b} (hip torque on body, same convention as virtual_model.Tp)
@@ -334,6 +337,21 @@ static void ChassisCtrlUpdate(void) {
   LegModelUpdate(leg[1], chassis->imu);
 
   StateVarUpdate();
+
+  static float smoothed_target_yaw = 0.0f;
+  if (chassis->update_flag.is_restart) {
+    smoothed_target_yaw = chassis->state_var.phi;  // 重启时同步
+  }
+  float yaw_diff = chassis_ctrl_cmd->target_yaw - smoothed_target_yaw;
+  // 归一化到 [-π, π]
+  while (yaw_diff > PI) yaw_diff -= 2.0f * PI;
+  while (yaw_diff < -PI) yaw_diff += 2.0f * PI;
+  // 最大转向速率 3 rad/s，可调
+  float max_step = 3.0f * chassis->dt;
+  VAL_LIMIT(yaw_diff, -max_step, max_step);
+  smoothed_target_yaw += yaw_diff;
+  chassis_ctrl_cmd->target_yaw = smoothed_target_yaw;
+
   LocomotionController();
   LegController();
 
@@ -368,12 +386,15 @@ static void ChassisCtrlUpdate(void) {
 
   for (int i = 0; i < 2; i++) {
     JointTorqueUpdate(leg[i]);
-    SpringCompensation(leg[i]);
-    JointLimitBarrier(leg[i]);
   }
 }
 
 static void ChassisRecovery(void) {
+  if ((fabsf(chassis->imu->Pitch) < 3.0f) && (fabsf(chassis->chassis_ctrl_cmd.target_yaw) < 10.0f * RAD_2_DEGREE)) {
+    chassis->update_flag.is_recovered = 1;
+  } else {
+    chassis->update_flag.is_recovered = 0;
+  }
   // 1. 清除状态并设置外环为角度环，参考值为 -0.1/0.1，准备复位
   chassis->update_flag.is_controlled = 0;
   for (int i = 0; i < 2; i++) {
@@ -384,9 +405,6 @@ static void ChassisRecovery(void) {
 
     DMMotorSetPIDRef(leg[i]->joint_motor[0], -0.1f);
     DMMotorSetPIDRef(leg[i]->joint_motor[1], 0.1f);
-
-    leg[i]->real_model.Tp_1 = leg[i]->joint_motor[0]->motor_controller.final_output;
-    leg[i]->real_model.Tp_2 = leg[i]->joint_motor[1]->motor_controller.final_output;
   }
 
   // 2. 判断所有关节是否均到达目标位，若到位则正常进行 ChassisCtrlUpdate
@@ -406,6 +424,10 @@ static void ChassisRecovery(void) {
     for (int i = 0; i < 2; i++) {
       leg[i]->real_model.T = 0.0f;
     }
+  }
+  for (int i = 0; i < 2; i++) {
+    leg[i]->real_model.Tp_1 = leg[i]->joint_motor[0]->motor_controller.final_output;
+    leg[i]->real_model.Tp_2 = leg[i]->joint_motor[1]->motor_controller.final_output;
   }
 }
 
@@ -501,6 +523,7 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   chassis_instance->update_flag.is_first_update = 1;
   chassis_instance->update_flag.is_restart = 1;
   chassis_instance->update_flag.is_controlled = 0;
+  chassis_instance->update_flag.is_recovered = 0;
 
   chassis = chassis_instance;
   leg[0] = chassis->leg[0];
@@ -527,10 +550,15 @@ void ChassisTask(void) {
     }
   }
 
+  if (chassis->update_flag.is_recovered == 0) {
+    chassis->chassis_ctrl_cmd.chassis_mode = CHASSIS_RECOVERY;
+  }
+
   switch (chassis->chassis_ctrl_cmd.chassis_mode) {
     case CHASSIS_RECOVERY:
       ChassisRecovery();
       chassis->jump_state = JUMP_STATE_IDLE;
+
       break;
     case CHASSIS_ON:
       ChassisCtrlUpdate();
@@ -554,6 +582,9 @@ void ChassisTask(void) {
     default:
       break;
   }
-
+  for (int i = 0; i < 2; i++) {
+    // SpringCompensation(leg[i]);
+    JointLimitBarrier(leg[i]);
+  }
   LimitChassisOutput();
 }
