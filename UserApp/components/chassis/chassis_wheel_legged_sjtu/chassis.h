@@ -178,10 +178,10 @@ typedef struct {
   uint32_t DWT_CNT;
   float dt;
   struct {
-    uint8_t is_first_update : 1;  // 观测器和状态变量是否完成第一次更新
-    uint8_t is_restart : 1;       // 是否需要重启更新（如时间步长过大时）
-    uint8_t is_controlled : 1;    // 是否处于受控状态, 1表示受控（如有前进指令时）, 0表示非受控, 用于切换控制策略
-    uint8_t is_recovered : 1;     // 本次倒地自起是否已完成，pitch<阈值后置1并退出 recovery，未失控时由上层清零
+    uint8_t is_first_update : 1;    // 观测器和状态变量是否完成第一次更新
+    uint8_t is_restart : 1;         // 是否需要重启更新（如时间步长过大时）
+    uint8_t is_controlled : 1;      // 是否处于受控状态, 1表示受控（如有前进指令时）, 0表示非受控, 用于切换控制策略
+    uint8_t is_recovered : 1;       // 本次倒地自起是否已完成，pitch<阈值后置1并退出 recovery，未失控时由上层清零
   } update_flag;
 } ChassisInstance;
 

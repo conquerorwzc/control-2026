@@ -235,12 +235,8 @@ static void RemoteControlSet() {
             follow_err += 180.0f;
           input_mag = -input_mag;
         }
-        // ====== 核心修改：直接计算目标yaw角度 ======
-        // 目标 = 当前yaw - offset_angle + follow_err (让底盘朝向运动方向)
-        // 等价于：让底盘转到 gimbal方向 再补偿 follow_err
         chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + follow_err * DEGREE_2_RAD;
       } else {
-        // 静止回正：让底盘对齐云台 (offset → 0)
         chassis_ctrl_cmd->target_yaw =
             robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD - robot->offset_angle * DEGREE_2_RAD;
       }
@@ -625,6 +621,34 @@ static void MouseKeySet() {
 #endif
 
 /**
+ * @brief 云台对齐底盘正方向
+ *
+ * 每次进入 recovery 时，覆盖 gimbal yaw 指令将云台转向底盘正前方。
+ * 对齐完成前持续强制 CHASSIS_RECOVERY；对齐后放行，恢复正常控制。
+ * 必须在 CalcOffsetAngle() 之后调用。
+ */
+static void GimbalAlignToChassisForward(void) {
+  static uint8_t gimbal_aligned = 0;
+  static uint8_t was_recovery = 0;
+
+  uint8_t is_recovery = (chassis_ctrl_cmd->chassis_mode == CHASSIS_RECOVERY);
+  if (is_recovery && !was_recovery) {
+    gimbal_aligned = 0;
+  }
+
+  if (!gimbal_aligned) {
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_RECOVERY;
+    gimbal_ctrl_cmd->yaw = robot->gimbal->gimbal_IMU_data->YawTotalAngle + robot->offset_angle;
+    // 5°误差内认为对齐完成
+    if (fabsf(robot->offset_angle) < 5.0f) {
+      gimbal_aligned = 1;
+    }
+  }
+
+  was_recovery = (chassis_ctrl_cmd->chassis_mode == CHASSIS_RECOVERY);
+}
+
+/**
  * @brief  紧急停止,包括遥控器右拨杆往下/重要模块离线/双板通信失效等
  *         停止的阈值'300'待修改成合适的值,或改为开关控制.
  *
@@ -660,23 +684,23 @@ static void EmergencyHandler() {
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
   }
 }
-
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
 void RobotCMDTask() {
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
-  // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
   RemoteControlSet();
   MouseKeySet();
-  EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 #if defined(GIMBAL_BOARD)
   CalcOffsetAngle();
+  GimbalAlignToChassisForward();
+#endif
+  EmergencyHandler();  // 急停必须在 CAN 发送之前,确保 POWER_OFF 优先级最高
+#if defined(GIMBAL_BOARD)
   chassis_fetch_data->chassis_ctrl_cmd = *chassis_ctrl_cmd;
   *chassis_upload_data = *(Chassis_Upload_Data_s*)CANCommGet(robot->can_comm);
   robot->chassis->imu->Roll = chassis_upload_data->Roll;
   robot->chassis->imu->Pitch = chassis_upload_data->Pitch;
   robot->chassis->imu->YawTotalAngle = chassis_upload_data->YawTotalAngle;
   robot->chassis->imu->Gyro[2] = chassis_upload_data->YawSpeed;
-
   CANCommSend(robot->can_comm, (void*)chassis_fetch_data);
 #endif
 #elif defined(CHASSIS_BOARD)

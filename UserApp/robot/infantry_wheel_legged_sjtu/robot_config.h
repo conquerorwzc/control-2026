@@ -231,16 +231,6 @@ static Chassis_Init_Config_s
                                                &hcan2, 0x06, 0x03, &hcan1, 0x01, 0x00),
          .leg_init_config[1] = LEG_INIT_CONFIG(MOTOR_DIRECTION_REVERSE, MOTOR_DIRECTION_NORMAL, &hcan2, 0x08, 0x04,
                                                &hcan2, 0x0A, 0x05, &hcan1, 0x02, 0x00),
-         .delta_theta_PID_config =
-             {
-                 .Kp = 10.0f,
-                 .Ki = 0.0f,
-                 .Kd = 0.1f,
-                 .MaxOut = 2.0f,
-                 .DeadBand = 0.01f,
-                 .Improve = PID_IMPROVE_NONE,
-                 .IntegralLimit = 0.0f,
-             },
          .roll_PID_config =
              {
                  .Kp = 300.0f,
