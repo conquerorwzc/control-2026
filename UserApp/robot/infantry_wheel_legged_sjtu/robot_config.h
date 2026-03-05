@@ -160,16 +160,6 @@
                       .rx_id = wheel_rx,                                                                            \
                   },                                                                                                \
           },                                                                                                        \
-      .length_PID_config =                                                                                          \
-          {                                                                                                         \
-              .Kp = 750.0f,                                                                                         \
-              .Ki = 0.0f,                                                                                           \
-              .Kd = 120.0f,                                                                                         \
-              .MaxOut = 90.0f,                                                                                      \
-              .DeadBand = 0.01f,                                                                                    \
-              .Improve = PID_IMPROVE_NONE,                                                                          \
-              .IntegralLimit = 0.0f,                                                                                \
-          },                                                                                                        \
   }
 
 /* SJTU LQR: fill .lqr_param.K and .lqr_param.LQR_K_Coefficients from MATLAB compute_lqr.m output */
@@ -251,22 +241,22 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 2.0f,
+                            .Kp = 1.5f,
                             .Ki = 0.0f,
                             .Kd = 0.01f,
                             .DeadBand = 0.01f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                             .IntegralLimit = 5.0f,
-                            .MaxOut = 25.0f,
+                            .MaxOut = 22.0f,
                         },
                     .speed_PID =
                         {
-                            .Kp = -2000.0f,
-                            .Ki = -200.0f,
+                            .Kp = -4000.0f,
+                            .Ki = -100.0f,
                             .Kd = 0.0f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                             .IntegralLimit = 12000.0f,
-                            .MaxOut = 20000.0f,
+                            .MaxOut = 25000.0f,
                         },
 
                 },
@@ -284,7 +274,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 1.0f,
+                            .Kp = 1.5f,
                             .Ki = 0.0f,
                             .Kd = 0.01f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
@@ -366,14 +356,14 @@ static Shoot_Init_Config_s shoot_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 40.0f,
+                            .Kp = 50.0f,
                             .Ki = 0.0f,
-                            .Kd = 0.1f,
+                            .Kd = 1.0f,
                             .MaxOut = 30000.0f,
                         },
                     .speed_PID =
                         {
-                            .Kp = 1.0f,
+                            .Kp = 1.5f,
                             .Ki = 0.4f,
                             .Kd = 0.0f,
                             .Improve = PID_Integral_Limit | PID_ErrorHandle,

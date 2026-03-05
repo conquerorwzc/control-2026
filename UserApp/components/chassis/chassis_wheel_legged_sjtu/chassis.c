@@ -351,6 +351,7 @@ static void ChassisCtrlUpdate(void) {
   // smoothed_target_yaw += yaw_diff;
   // chassis_ctrl_cmd->target_yaw = smoothed_target_yaw;
 
+  // PowerControl();
   LocomotionController();
   LegController();
 

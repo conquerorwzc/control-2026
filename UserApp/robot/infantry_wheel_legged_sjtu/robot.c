@@ -511,7 +511,8 @@ static void MouseKeySet() {
 
       // 小陀螺原地旋转
       rotate_omega = rotate_frequency * 2.0f * PI;
-      chassis_ctrl_cmd->wz = PIDCalculate(&robot->chassis_rotate_PID, robot->chassis->imu->Gyro[2], rotate_omega);
+      // chassis_ctrl_cmd->wz = PIDCalculate(&robot->chassis_rotate_PID, robot->chassis->imu->Gyro[2], rotate_omega);
+      chassis_ctrl_cmd->wz = rotate_omega;
 
       // 设置目标速度矢量 (vx, vy),单位为m/s
       if (rc_data[TEMP].key[KEY_PRESS].w)
@@ -610,9 +611,7 @@ static void MouseKeySet() {
 
       chassis_ctrl_cmd->theta_ff = 0.0f;
       break;
-
     default:
-
       break;
   }
   // 6.更新历史数据(遥控器有的话这里就不用)
@@ -684,11 +683,14 @@ static void EmergencyHandler() {
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
   }
 }
+
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
 void RobotCMDTask() {
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
+  // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
   RemoteControlSet();
   MouseKeySet();
+  EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 #if defined(GIMBAL_BOARD)
   CalcOffsetAngle();
   GimbalAlignToChassisForward();
