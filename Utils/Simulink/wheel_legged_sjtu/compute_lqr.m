@@ -1,6 +1,6 @@
 % compute_lqr.m
 % 基于线性化状态空间模型计算LQR控制器增益矩阵
-% 
+%
 % 依赖文件: linearized_system.mat (由 linearize_system_v2.m 生成)
 %
 % ========================================================================
@@ -125,7 +125,7 @@ fprintf('\nStep 2: 代入数值参数...\n');
 % 参数值向量 (顺序与 linearize_system_v2.m 中 param_list 一致)
 %   param_list = [m_b, m_l, m_r, m_wl, m_wr, I_b, I_l, I_r, I_wl, I_wr, I_yaw, l_l, l_r, l_l_d, l_r_d, l_b, R, R_w, g, theta_l0, theta_r0, theta_b0]
 param_vals = [m_b_val, m_l_val, m_r_val, m_wl_val, m_wr_val, I_b_val, I_l_val, I_r_val, I_wl_val, I_wr_val, I_yaw_val, ...
-              l_l_val, l_r_val, l_l_d_val, l_r_d_val, l_b_val, R_val, R_w_val, g_val, theta_l0, theta_r0, theta_b0];
+    l_l_val, l_r_val, l_l_d_val, l_r_d_val, l_b_val, R_val, R_w_val, g_val, theta_l0, theta_r0, theta_b0];
 
 % 使用函数句柄计算数值矩阵
 A_num = A_func(param_vals);
@@ -165,12 +165,15 @@ fprintf('Step 4: 设置LQR权重矩阵...\n');
 % %            位置    速度      偏航   偏航速    左腿角    左腿速     右腿角    右腿速     俯仰角   俯仰速
 % lqr_Q = diag([100,    1,      4000,    1,      1000,     10,       1000,     10,       40000,    1]);
 % lqr_R = diag([1,      1,        10,        10]);
-% 
-lqr_Q = diag([300,    300,      600,    1,      10,     10,       10,     10,       15000,    1]);
+%
+% 能用
+%             位置     速度      偏航   偏航速   左腿角   左腿速     右腿角   右腿速      俯仰角   俯仰速
+% lqr_Q = diag([300,    300,      600,    1,      10,     10,       10,     10,       15000,    1]);
+lqr_Q = diag([400,    300,      600,    1,      10,     10,       10,     10,       5000,    1]);
 % R矩阵: 控制输入权重
 % 控制: [T_{r→b}, T_{l→b}, T_{wr→r}, T_{wl→l}]
 %        右髋扭矩   左髋扭矩   右轮扭矩   左轮扭矩
-lqr_R = diag([1,      1,        4,        4]);
+lqr_R = diag([1,      1,        8,        8]);
 
 fprintf('  Q矩阵 (状态权重):\n');
 fprintf('         X_b^h  V_b^h  phi   dphi  θ_l   dθ_l  θ_r   dθ_r  θ_b   dθ_b\n');
@@ -186,13 +189,13 @@ fprintf('Step 5: 计算LQR增益矩阵K...\n');
 
 try
     [K, S, e] = lqr(A_num, B_num, lqr_Q, lqr_R);
-    
+
     fprintf('\n  ✓ LQR增益矩阵K (4×10):\n');
     disp(K);
-    
+
     fprintf('  闭环特征值:\n');
     disp(e);
-    
+
     % 检查稳定性
     stable_eigs = real(e) < 1e-6;
     if all(stable_eigs)
@@ -243,7 +246,7 @@ if ~isempty(K)
     fprintf('//   K[2][*]: 右轮扭矩对各状态的增益\n');
     fprintf('//   K[3][*]: 左轮扭矩对各状态的增益\n');
     fprintf('// ═══════════════════════════════════════════════════════════════════════\n\n');
-    
+
     fprintf('float K[4][10] = {\n');
     control_names = {'T_r_to_b', 'T_l_to_b', 'T_wr_to_r', 'T_wl_to_l'};
     for i = 1:4
@@ -256,7 +259,7 @@ if ~isempty(K)
         end
     end
     fprintf('};\n\n');
-    
+
     % 单行格式
     fprintf('// 单行格式 (每行对应一个控制输入):\n');
     for i = 1:4
@@ -292,45 +295,45 @@ enable_fitting = true;  % 设为 false 跳过腿长拟合
 if enable_fitting
     fprintf('正在计算不同腿长下的K矩阵...\n');
     fprintf('  注意: 使用左右腿参数分开模型，支持左右腿长不同\n\n');
-    
+
     % ========== 计算采样点 (二维网格) ==========
     num_legs = size(Leg_data, 1);
     sample_size_2d = num_legs^2;
-    
+
     % K矩阵 4×10 = 40 个元素
     % 二维拟合: [l_l, l_r, K矩阵的40个元素]
     K_sample_2d = zeros(sample_size_2d, 44);  % [l_l, l_r, K矩阵的40个元素]
-    
+
     tic_fit = tic;
-    
+
     idx = 0;
     for i = 1:num_legs
         for j = 1:num_legs
             idx = idx + 1;
-            
+
             % 左腿参数
             l_l_fit = Leg_data(i, 1);
             l_l_d_fit = Leg_data(i, 2);   % 0.5 * l_leg
             I_l_fit = Leg_data(i, 4);
-            
+
             % 右腿参数
             l_r_fit = Leg_data(j, 1);
             l_r_d_fit = Leg_data(j, 2);   % 0.5 * l_leg
             I_r_fit = Leg_data(j, 4);
-            
+
             % 构建参数向量
             % param_list = [m_b, m_l, m_r, m_wl, m_wr, I_b, I_l, I_r, I_wl, I_wr, I_yaw, l_l, l_r, l_l_d, l_r_d, l_b, R, R_w, g, theta_l0, theta_r0, theta_b0]
             param_fit = [m_b_val, m_l_val, m_r_val, m_wl_val, m_wr_val, I_b_val, I_l_fit, I_r_fit, I_wl_val, I_wr_val, I_yaw_val, ...
-                         l_l_fit, l_r_fit, l_l_d_fit, l_r_d_fit, l_b_val, R_val, R_w_val, g_val, theta_l0, theta_r0, theta_b0];
-            
+                l_l_fit, l_r_fit, l_l_d_fit, l_r_d_fit, l_b_val, R_val, R_w_val, g_val, theta_l0, theta_r0, theta_b0];
+
             % 计算数值矩阵
             A_fit = A_func(param_fit);
             B_fit = B_func(param_fit);
-            
+
             % 计算LQR
             try
                 K_fit = lqr(A_fit, B_fit, lqr_Q, lqr_R);
-                
+
                 % 存储结果
                 K_sample_2d(idx, 1) = l_l_fit;
                 K_sample_2d(idx, 2) = l_r_fit;
@@ -338,25 +341,25 @@ if enable_fitting
             catch
                 warning('LQR计算失败: l_l=%.2f, l_r=%.2f', l_l_fit, l_r_fit);
             end
-            
+
             % 显示进度
             if mod(idx, 49) == 0
                 fprintf('  进度: %d/%d (%.1f秒)\n', idx, sample_size_2d, toc(tic_fit));
             end
         end
     end
-    
+
     fprintf('  ✓ %d 个样本计算完成! 耗时: %.2f秒\n', sample_size_2d, toc(tic_fit));
-    
+
     % ========== 二维多项式拟合 ==========
     fprintf('\n正在进行二维多项式拟合...\n');
-    
+
     % 拟合多项式: K_ij(l_l, l_r) = p00 + p10*l_l + p01*l_r + p20*l_l^2 + p11*l_l*l_r + p02*l_r^2
     K_Fit_Coefficients = zeros(40, 6);
-    
+
     l_l_samples = K_sample_2d(:, 1);
     l_r_samples = K_sample_2d(:, 2);
-    
+
     for n = 1:40
         K_values = K_sample_2d(:, n+2);
         try
@@ -368,9 +371,9 @@ if enable_fitting
             warning('二维拟合失败: 元素 %d', n);
         end
     end
-    
+
     fprintf('  ✓ 拟合完成\n\n');
-    
+
     % ========== 输出拟合系数 (robot_config.h format) ==========
     fprintf('// ═══════════════════════════════════════════════════════════════════════\n');
     fprintf('// 腿长拟合系数 LQR_K_Coefficients[40][6] (左右腿可不同)\n');
@@ -386,7 +389,7 @@ if enable_fitting
     fprintf('//\n');
     fprintf('// 系数顺序: [p00, p10, p01, p20, p11, p02]\n');
     fprintf('// ═══════════════════════════════════════════════════════════════════════\n\n');
-    
+
     % 生成与 robot_config.h 完全一致的 C 代码 (Chassis_Param_s.LQR_K_Coefficients[40][6])
     % 缩进与 infantry_wheel_legged_sjtu/robot_config.h 中 .param 内一致，可直接替换 .LQR_K_Coefficients = {{0}},
     paste_lines = {};
@@ -422,7 +425,7 @@ if enable_fitting
     catch
         fprintf('  [剪贴板写入失败] 请从上方输出手动复制到 robot_config.h。\n\n');
     end
-    
+
     % ========== 验证: K矩阵符号检查 ==========
     fprintf('// ═══════════════════════════════════════════════════════════════════════\n');
     fprintf('// K矩阵符号检查 (用默认腿长 l_l=l_r=0.20m 的K矩阵)\n');
@@ -434,7 +437,7 @@ if enable_fitting
     fprintf('// ═══════════════════════════════════════════════════════════════════════\n');
     fprintf('K at default leg length:\n');
     disp(K);
-    
+
     % 保存拟合结果
     save('lqr_fitting_results.mat', 'K_sample_2d', 'K_Fit_Coefficients', 'Leg_data');
     fprintf('拟合结果已保存到 lqr_fitting_results.mat (左右腿独立参数版本)\n');
