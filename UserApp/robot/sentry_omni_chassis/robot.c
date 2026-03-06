@@ -53,9 +53,9 @@ uint8_t has_non_zero_data(const Vision_Receive_s* data) {
 }
 static void CalcOffsetAngle() {
   #ifdef USE_DUAL_RC
-  angle = rc_data_old->Rotate_speed;
+  angle = rc_data_old->Yaw_motor_angle;
 #elifdef USE_DUAL_RC_NEW
-  angle = rc_data_new->Rotate_speed;
+  angle = rc_data_new->Yaw_motor_angle;
 #endif
 
   float delta = angle-YAW_ALIGN_ANGLE;
@@ -536,7 +536,7 @@ void RobotInit() {
   robot->chassis = ChassisInit(&chassis_init_config);
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
-  chassis_ctrl_cmd->max_power = robot->referee_data->GameRobotState.chassis_power_limit;
+
   // navigator_data  = robot->navigator_data;
 }
 
@@ -550,6 +550,7 @@ void RobotCMDTask() {
   // MouseKeySet();
   SentryRefereeSend();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
+  chassis_ctrl_cmd->max_power = robot->referee_data->GameRobotState.chassis_power_limit;
 }
 
 void RobotTask() {
