@@ -253,6 +253,93 @@ static void PowerControl(void) {
   chassis->limited_vx = pc->vx_ramp;
 }
 
+/* ═══════════════════════════════════════════════════════════
+ *           增量式MPC相关函数实现
+ * ═══════════════════════════════════════════════════════════ */
+
+/**
+ * @brief  计算MPC增益矩阵 K_MPC[4][20]
+ *
+ * 与LQR_K_Calc类似，根据左右腿长通过二维二次多项式插值。
+ * K_MPC_ij(l_l, l_r) = p00 + p10*l_l + p01*l_r + p20*l_l^2 + p11*l_l*l_r + p02*l_r^2
+ *
+ * @param[out] K_MPC  计算得到的MPC增益矩阵 4×20
+ * @param[in]  coef   拟合系数 [80][6]
+ * @param[in]  l_l    左腿长度
+ * @param[in]  l_r    右腿长度
+ */
+static void MPC_K_Calc(float K_MPC[4][MPC_AUG_DIM], const float coef[80][6], float l_l, float l_r) {
+  for (int n = 0; n < 80; n++) {
+    int row = n / MPC_AUG_DIM;  // 0~3 (控制通道)
+    int col = n % MPC_AUG_DIM;  // 0~19 (增广状态分量)
+    K_MPC[row][col] = coef[n][0] + coef[n][1] * l_l + coef[n][2] * l_r + coef[n][3] * l_l * l_l +
+                      coef[n][4] * l_l * l_r + coef[n][5] * l_r * l_r;
+  }
+}
+
+/**
+ * @brief  重置MPC控制器状态
+ *
+ * 在模式切换、重启、离地等场景调用，防止历史状态导致的跳变。
+ */
+static void MPC_Reset(MPC_Ctrl_t* mpc) {
+  memset(mpc->x_prev, 0, sizeof(mpc->x_prev));
+  memset(mpc->u_prev, 0, sizeof(mpc->u_prev));
+  memset(mpc->xi, 0, sizeof(mpc->xi));
+  memset(mpc->delta_u, 0, sizeof(mpc->delta_u));
+  memset(mpc->u_mpc, 0, sizeof(mpc->u_mpc));
+  mpc->initialized = 0;
+}
+
+/**
+ * @brief  增量式MPC核心计算
+ *
+ * 增广状态: ξ(k) = [Δx(k); x(k)]  (20×1)
+ *   其中 Δx(k) = x(k) - x(k-1)
+ *
+ * 控制律:
+ *   Δu(k) = -K_MPC * ξ(k)      (解析解，无需在线QP)
+ *   u(k)  = u(k-1) + Δu(k)     (增量式更新)
+ *
+ * @param[in]  mpc         MPC运行时数据
+ * @param[in]  K_MPC       MPC增益矩阵 [4][20]
+ * @param[in]  state_err   当前状态误差向量 [10]  (= x - x_ref)
+ * @param[out] u_out       输出控制量 [4]
+ */
+static void MPC_Incremental_Compute(MPC_Ctrl_t* mpc, const float K_MPC[4][MPC_AUG_DIM],
+                                    const float state_err[MPC_STATE_DIM], float u_out[MPC_CTRL_DIM]) {
+  /* ── 首次运行初始化 ── */
+  if (!mpc->initialized) {
+    memcpy(mpc->x_prev, state_err, sizeof(float) * MPC_STATE_DIM);
+    memset(mpc->u_prev, 0, sizeof(mpc->u_prev));
+    mpc->initialized = 1;
+  }
+
+  /* ── Step 1: 构建增广状态 ξ(k) = [Δx(k); x(k)] ── */
+  for (int i = 0; i < MPC_STATE_DIM; i++) {
+    mpc->xi[i] = state_err[i] - mpc->x_prev[i];  // Δx(k)
+    mpc->xi[i + MPC_STATE_DIM] = state_err[i];   // x(k)
+  }
+
+  /* ── Step 2: 计算控制增量 Δu(k) = -K_MPC * ξ(k) ── */
+  for (int i = 0; i < MPC_CTRL_DIM; i++) {
+    mpc->delta_u[i] = 0.0f;
+    for (int j = 0; j < MPC_AUG_DIM; j++) {
+      mpc->delta_u[i] -= K_MPC[i][j] * mpc->xi[j];
+    }
+  }
+
+  /* ── Step 3: 增量更新 u(k) = u(k-1) + Δu(k) ── */
+  for (int i = 0; i < MPC_CTRL_DIM; i++) {
+    mpc->u_mpc[i] = mpc->u_prev[i] + mpc->delta_u[i];
+  }
+
+  /* ── Step 4: 输出并保存历史 ── */
+  memcpy(u_out, mpc->u_mpc, sizeof(float) * MPC_CTRL_DIM);
+  memcpy(mpc->x_prev, state_err, sizeof(float) * MPC_STATE_DIM);
+  memcpy(mpc->u_prev, mpc->u_mpc, sizeof(float) * MPC_CTRL_DIM);
+}
+
 static void LocomotionController(void) {
   State_Var_t* sv = &chassis->state_var;
   chassis->update_flag.is_controlled = chassis_ctrl_cmd->vx != 0;
@@ -287,12 +374,88 @@ static void LocomotionController(void) {
    * u[2] = T_{wr→r} (reaction on leg; motor drive torque = -T_{wr→r})
    * u[3] = T_{wl→l} */
   float u[4];
-  for (int i = 0; i < 4; i++) {
-    u[i] = 0.0f;
-    for (int j = 0; j < 10; j++) {
-      u[i] -= chassis->LQR_K[i][j] * state_err[j];
+  chassis->mpc_mode = MPC_MODE_HYBRID;
+  switch (chassis->mpc_mode) {
+    /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+     *  模式0: 纯LQR (原有逻辑，不变)
+     * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+    case MPC_MODE_OFF:
+    default: {
+      for (int i = 0; i < 4; i++) {
+        u[i] = 0.0f;
+        for (int j = 0; j < 10; j++) {
+          u[i] -= chassis->LQR_K[i][j] * state_err[j];
+        }
+      }
+      /* 同步MPC历史状态，保证切换时无跳变 */
+      memcpy(chassis->mpc_ctrl.x_prev, state_err, sizeof(float) * 10);
+      memcpy(chassis->mpc_ctrl.u_prev, u, sizeof(float) * 4);
+      break;
     }
-  }
+
+    /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+     *  模式1: 纯增量式MPC (完全替代LQR)
+     *
+     *  MPC的R矩阵设计: 轮向权重>>关节权重
+     *  → 优化器自然把力矩分配给关节
+     *  → 轮向电机期望力矩显著降低
+     * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+    case MPC_MODE_PURE: {
+      /* 计算当前腿长下的MPC增益 */
+      MPC_K_Calc(chassis->MPC_K, chassis->param.MPC_K_Coefficients, l_l, l_r);
+
+      /* 增量式MPC计算 */
+      MPC_Incremental_Compute(&chassis->mpc_ctrl, (const float(*)[MPC_AUG_DIM])chassis->MPC_K, state_err, u);
+      break;
+    }
+
+    /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+     *  模式2: LQR + MPC 混合 (★推荐★)
+     *
+     *  思路:
+     *    1) LQR计算基线控制 u_lqr
+     *    2) MPC计算增量优化 u_mpc
+     *    3) 关节力矩: 取MPC结果 (MPC更积极使用关节)
+     *       轮向力矩: 取两者中绝对值较小的 (保护轮电机)
+     *
+     *  这样既保留LQR的稳定性保证，
+     *  又通过MPC降低轮向力矩需求
+     * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+    case MPC_MODE_HYBRID: {
+      /* (a) LQR基线 */
+      float u_lqr[4];
+      for (int i = 0; i < 4; i++) {
+        u_lqr[i] = 0.0f;
+        for (int j = 0; j < 10; j++) {
+          u_lqr[i] -= chassis->LQR_K[i][j] * state_err[j];
+        }
+      }
+
+      /* (b) MPC增量计算 */
+      MPC_K_Calc(chassis->MPC_K, chassis->param.MPC_K_Coefficients, l_l, l_r);
+
+      float u_mpc[4];
+      MPC_Incremental_Compute(&chassis->mpc_ctrl, (const float(*)[MPC_AUG_DIM])chassis->MPC_K, state_err, u_mpc);
+
+      /* (c) 混合策略 */
+      // 关节力矩 (u[0]=右髋, u[1]=左髋): 使用MPC结果
+      //   → MPC的R权重对关节宽松，允许关节多出力补偿
+      u[0] = u_mpc[0];
+      u[1] = u_mpc[1];
+
+      // 轮向力矩 (u[2]=右轮, u[3]=左轮): 取绝对值较小的
+      //   → 保护轮电机，防止力矩饱和导致姿态发散
+      for (int i = 2; i < 4; i++) {
+        if (fabsf(u_mpc[i]) < fabsf(u_lqr[i])) {
+          u[i] = u_mpc[i];
+        } else {
+          u[i] = u_lqr[i];
+        }
+      }
+      break;
+    }
+  } /* end switch */
+
   leg[0]->virtual_model.Tp = u[0];
   leg[1]->virtual_model.Tp = u[1];
   leg[0]->real_model.T = u[2];
@@ -336,6 +499,11 @@ static void ChassisCtrlUpdate(void) {
   LegModelUpdate(leg[1], chassis->imu);
 
   StateVarUpdate();
+
+  /* ★ 重启时重置MPC状态，防止历史残留导致跳变 ★ */
+  if (chassis->update_flag.is_restart) {
+    MPC_Reset(&chassis->mpc_ctrl);
+  }
 
   // static float smoothed_target_yaw = 0.0f;
   // if (chassis->update_flag.is_restart) {
@@ -520,6 +688,10 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
 
   chassis_instance->param = chassis_init_config->param;
 
+  /* ========== MPC初始化 ========== */
+  MPC_Reset(&chassis_instance->mpc_ctrl);
+  chassis_instance->mpc_mode = MPC_MODE_HYBRID;  // 默认使用混合模式
+
   chassis_instance->jump_state = JUMP_STATE_IDLE;
 
   chassis_instance->update_flag.is_first_update = 1;
@@ -585,7 +757,7 @@ void ChassisTask(void) {
   }
   for (int i = 0; i < 2; i++) {
     // SpringCompensation(leg[i]);
-    // JointLimitBarrier(leg[i]);
+    JointLimitBarrier(leg[i]);
   }
   LimitChassisOutput();
 }
