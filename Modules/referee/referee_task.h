@@ -38,7 +38,6 @@ typedef struct
 {
     Referee_Interactive_Flag_t Referee_Interactive_Flag;
     // 为UI绘制以及交互数据所用
-    Chassis_Mode_e chassis_mode;    // 底盘模式
     Gimbal_Mode_e gimbal_mode;      // 云台模式
     Shoot_Mode_e shoot_mode;        // 发射模式设置
     Friction_Mode_e friction_mode;  // 摩擦轮关闭
@@ -56,7 +55,6 @@ typedef struct
     float chassis_relative_angle;    // 底盘相对角度 (弧度)
 
     // 上一次的模式，用于flag判断
-    Chassis_Mode_e chassis_last_mode;
     Gimbal_Mode_e gimbal_last_mode;
     Shoot_Mode_e shoot_last_mode;
     Friction_Mode_e friction_last_mode;

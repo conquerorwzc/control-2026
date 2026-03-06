@@ -8,6 +8,12 @@
 #ifndef CONTROL_2026_ROBOT_CONFIG_H
 #define CONTROL_2026_ROBOT_CONFIG_H
 
+
+#define PITCH_MAX_ANGLE 26.0f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define PITCH_MIN_ANGLE -35.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+
+
+
 static Gimbal_Init_Config_s gimbal_init_config = {
     .yaw_motor_config =
     {
@@ -15,40 +21,31 @@ static Gimbal_Init_Config_s gimbal_init_config = {
           {
               .angle_PID =
                   {
-                      .Kp = 70,
+                      .Kp = 0.1,
                       .Ki = 0,
-                      .Kd = 0.4,
-                      .IntegralLimit = 960,
+                      .Kd = 0.0008,
+                      .IntegralLimit = 10,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                      .MaxOut = 1920,
+                      .MaxOut = 30,
                   },
               .speed_PID =
                   {
-                      .Kp = 9,
-                      .Ki = 26,
+                      .Kp = 5000,
+                      .Ki = 200,
                       .Kd = 0,
                       .IntegralLimit = 12500,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                       .MaxOut = 22000,
                   },
-              .current_PID =
-                  {
-                      .Kp = 0,
-                      .Ki = 0,
-                      .Kd = 0,
-                      .IntegralLimit = 3000,
-                      .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                      .MaxOut = 15000,
-                  },
           },
       .controller_setting_init_config =
           {
               .angle_feedback_source = MOTOR_FEED,
-              .speed_feedback_source = MOTOR_FEED,
+              .speed_feedback_source = OTHER_FEED,
            .outer_loop_type = ANGLE_LOOP,
                     .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
-              .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
-              .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
+              .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+              .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
           },
       .motor_type = GM6020,
       .can_init_config =
@@ -63,36 +60,27 @@ static Gimbal_Init_Config_s gimbal_init_config = {
           {
               .angle_PID =
                   {
-                      .Kp = 70,
+                      .Kp = 0.3f,
                       .Ki = 0,
-                      .Kd = 0.4,
+                      .Kd = 0.003f,
                       .IntegralLimit = 960,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                      .MaxOut = 1920,
+                      .MaxOut = 30,
                   },
               .speed_PID =
                   {
-                      .Kp = 9,
-                      .Ki = 26,
+                      .Kp = 5000,
+                      .Ki = 200,
                       .Kd = 0,
                       .IntegralLimit = 12500,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                       .MaxOut = 22000,
                   },
-              .current_PID =
-                  {
-                      .Kp = 0,
-                      .Ki = 0,
-                      .Kd = 0,
-                      .IntegralLimit = 3000,
-                      .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                      .MaxOut = 15000,
-                  },
           },
       .controller_setting_init_config =
           {
               .angle_feedback_source = MOTOR_FEED,
-              .speed_feedback_source = MOTOR_FEED,
+              .speed_feedback_source = OTHER_FEED,
            .outer_loop_type = ANGLE_LOOP,
                  .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
               .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
