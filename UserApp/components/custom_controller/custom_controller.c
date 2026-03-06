@@ -129,11 +129,11 @@ void CustomControllerTask(CustomController_t* controller)
     }
     if (controller->motors[3].dji_motor != NULL) {
         float raw_angle = controller->motors[3].dji_motor->measure.total_angle;
-        controller->motor_angles[3] = raw_angle - controller->zero_offset[3];
+        controller->motor_angles[3] = -(raw_angle - controller->zero_offset[3]);
     }
     if (controller->motors[4].dji_motor != NULL) {
         float raw_angle = controller->motors[4].dji_motor->measure.total_angle;
-        controller->motor_angles[4] = -(raw_angle - controller->zero_offset[4]);
+        controller->motor_angles[4] = raw_angle - controller->zero_offset[4];
     }
 
     // 更新电机数据用于发送
@@ -291,45 +291,55 @@ static bool CheckMotorOnlineStatus(CustomController_t* controller)
 {
     bool need_recalibration = false;
     
-    // 检查DM4310电机
+    // 检查第一个 DM4310 电机
     if (controller->motors[0].dm_motor != NULL) {
-        bool current_online = (controller->motors[0].dm_motor->measure.state == 0);  // 假设state=0表示在线
+        bool current_online = (controller->motors[0].dm_motor->measure.state == 0);  // 假设 state=0 表示在线
         if (!controller->motor_online_status[0] && current_online) {
             // 电机从离线变为在线，需要重新校准
             need_recalibration = true;
-            LOGINFO("DM4310 motor reconnected, triggering recalibration");
+            LOGINFO("DM4310 motor 1 reconnected, triggering recalibration");
         }
         controller->motor_online_status[0] = current_online;
     }
     
-    // 检查3508电机1
-    if (controller->motors[1].dji_motor != NULL) {
-        bool current_online = (controller->motors[1].dji_motor->daemon->temp_count > 0);  // 通过daemon计数判断
+    // 检查第二个 DM4310 电机
+    if (controller->motors[1].dm_motor != NULL) {
+        bool current_online = (controller->motors[1].dm_motor->measure.state == 0);
         if (!controller->motor_online_status[1] && current_online) {
             need_recalibration = true;
-            LOGINFO("M3508 motor 1 reconnected, triggering recalibration");
+            LOGINFO("DM4310 motor 2 reconnected, triggering recalibration");
         }
         controller->motor_online_status[1] = current_online;
     }
     
-    // 检查3508电机2
+    // 检查第一个 3508 电机
     if (controller->motors[2].dji_motor != NULL) {
-        bool current_online = (controller->motors[2].dji_motor->daemon->temp_count > 0);
+        bool current_online = (controller->motors[2].dji_motor->daemon->temp_count > 0);  // 通过 daemon 计数判断
         if (!controller->motor_online_status[2] && current_online) {
             need_recalibration = true;
-            LOGINFO("M3508 motor 2 reconnected, triggering recalibration");
+            LOGINFO("M3508 motor 1 reconnected, triggering recalibration");
         }
         controller->motor_online_status[2] = current_online;
     }
     
-    // 检查2006电机
+    // 检查第二个 3508 电机
     if (controller->motors[3].dji_motor != NULL) {
         bool current_online = (controller->motors[3].dji_motor->daemon->temp_count > 0);
         if (!controller->motor_online_status[3] && current_online) {
             need_recalibration = true;
-            LOGINFO("M2006 motor reconnected, triggering recalibration");
+            LOGINFO("M3508 motor 2 reconnected, triggering recalibration");
         }
         controller->motor_online_status[3] = current_online;
+    }
+    
+    // 检查 2006 电机
+    if (controller->motors[4].dji_motor != NULL) {
+        bool current_online = (controller->motors[4].dji_motor->daemon->temp_count > 0);
+        if (!controller->motor_online_status[4] && current_online) {
+            need_recalibration = true;
+            LOGINFO("M2006 motor reconnected, triggering recalibration");
+        }
+        controller->motor_online_status[4] = current_online;
     }
     
     return need_recalibration;
