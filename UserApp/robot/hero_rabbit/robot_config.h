@@ -339,7 +339,7 @@ static Shoot_Init_Config_s shoot_init_config = {
             .deadtime_burstfire = 500,
             .deadtime_onebullet = 1000,
             .target_speed = 11.5f,
-            .bullet_speed_adjustment = 600.0f,
+            .bullet_speed_adjustment = 300.0f,
 
         },
     .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan2, 1, MOTOR_DIRECTION_NORMAL),

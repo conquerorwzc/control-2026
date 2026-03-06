@@ -699,6 +699,7 @@ void RobotInit() {
 void RobotCMDTask() {
   chassis_ctrl_cmd->max_power = robot->referee_data->GameRobotState.chassis_power_limit;  // 随便给一个初始功率，后面应该要从裁判系统获取
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
+  shoot_ctrl_cmd->initial_speed=robot->referee_data->ShootData.initial_speed;
   CalcOffsetAngle();
   RemoteControlSet();
   MouseKeySet();
