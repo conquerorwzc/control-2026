@@ -23,6 +23,19 @@ static float normal_follow_tick;//记录最后一次follow前方的时间戳
 static float reverse_follow_tick;//记录最后一次follow后方的时间戳
 static PIDInstance follow_pid;
 static float k0,k1,k2,k3,k4,k5;       //中科大的功率模型
+//左右腿与最低点的差值
+static float  left_delta=0.0f;
+static float  right_delta=0.0f;
+//左右腿扭矩前馈
+static float left_torque_feedforward = 0.0f;
+static float right_torque_feedforward = 0.0f;
+// 左右腿目标位置
+static float target_position_left = 0.0f;
+static float target_position_right = 0.0f;
+
+// 左右腿当前位置（静态变量，保持状态）
+static float leg_current_position_left = 0.0f;
+static float leg_current_position_right = 0.0f;
 // 添加腿部电机目标位置和当前位置变量
 // 原始PID参数备份
 static PID_Init_Config_s original_left_pid_config;
@@ -201,7 +214,10 @@ float CalculateForwardTorque(float delta) {
     forward_torque=0.0f;
   }
   else {
-    forward_torque=23.2f-delta*32.0f;
+    forward_torque=35.0f-delta*47.5f;
+  }
+  if (forward_torque<0.0f) {
+    forward_torque=0.0f;
   }
   return forward_torque;
 }
@@ -212,21 +228,8 @@ float CalculateForwardTorque(float delta) {
  *
  */
 static void LegControl() {
-  //左右腿与最低点的差值
-  static float  left_delta=0.0f;
-  static float  right_delta=0.0f;
-  //左右腿扭矩前馈
-  static float left_torque_feedforward = 0.0f;
-  static float right_torque_feedforward = 0.0f;
-  // 左右腿目标位置
-  static float target_position_left = 0.0f;
-  static float target_position_right = 0.0f;
 
-  // 左右腿当前位置（静态变量，保持状态）
-  static float leg_current_position_left = 0.0f;
-  static float leg_current_position_right = 0.0f;
-
-  const float LEG_SPEED_RAMP_RATE = 0.002f; // 位置渐变速率
+  const float LEG_SPEED_RAMP_RATE = 0.001f; // 位置渐变速率
   //uint8_t is_off_ground = DetectOffGround(chassis);
 
   if (chassis_ctrl_cmd->leg_mode == LEG_IN_AIR) {
@@ -354,10 +357,11 @@ static void LegControl() {
     right_delta=fabs(target_position_right-RIGHT_LEG_MOTOR_NORMAL_POSITION);
     left_torque_feedforward=CalculateForwardTorque(left_delta);
     right_torque_feedforward=CalculateForwardTorque(right_delta);
+    // chassis->leg_motor[0]->motor_controller.final_output-=left_torque_feedforward;
+    // chassis->leg_motor[1]->motor_controller.final_output+=right_torque_feedforward;
     DMMotorSetPIDRef(chassis->leg_motor[0], target_position_left);
-    chassis->leg_motor[0]->motor_controller.final_output+=left_torque_feedforward;
     DMMotorSetPIDRef(chassis->leg_motor[1], target_position_right);
-    chassis->leg_motor[1]->motor_controller.final_output+=right_torque_feedforward;
+
 }
 
 /**

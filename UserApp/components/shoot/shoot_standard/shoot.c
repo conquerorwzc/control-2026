@@ -27,6 +27,7 @@ static float deadtime_onebullet;
 static float target_speed;
 static float bullet_speed_adjustment;
 
+
 ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
   ShootInstance* shoot_instance = (ShootInstance*)zmalloc(sizeof(ShootInstance));
 
