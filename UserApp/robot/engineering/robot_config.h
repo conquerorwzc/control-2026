@@ -393,7 +393,7 @@ static Gantry_Init_Config_s gantry_init_config = {
 static Grab_Init_Config_s
     grab_init_config =
         {
-            .Grab_cali_mode = GRAB_CALI_MODE,
+            .Grab_cali_mode = GRAB_PRE_CALI_MODE,
 
             .Grab_param =
                 {
@@ -440,7 +440,7 @@ static Grab_Init_Config_s
                             .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
                             .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
                         },
-                    .motor_type = J4310,
+                    .motor_type = J4340,
                     .can_init_config =
                         {
                             .can_handle = &hcan1,
@@ -550,7 +550,7 @@ static Grab_Init_Config_s
                                           .Kd = 0.0f,
                                           .Improve = PID_Integral_Limit | PID_ErrorHandle,
                                           .IntegralLimit = 0.0f,
-                                          .MaxOut = 10000.0},
+                                          .MaxOut = 12000.0},
                         },
                     .controller_setting_init_config =
                         {
@@ -585,7 +585,7 @@ static Grab_Init_Config_s
                                           .Kd = 0.0f,
                                           .Improve = PID_Integral_Limit | PID_ErrorHandle,
                                           .IntegralLimit = 0.0f,
-                                          .MaxOut = 10000.0},
+                                          .MaxOut = 12000.0},
                         },
                     .controller_setting_init_config =
                         {

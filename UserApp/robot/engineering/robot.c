@@ -115,7 +115,7 @@ void RobotCMDTask()
 {
     CalcOffsetAngle();
     RemoteControlSet();
-    MouseKeySet();
+    // MouseKeySet();
     // 只在自定义控制器模式下处理数据，避免与键鼠控制冲突
     if (grab_control_mode == GRAB_CONTROL_CUSTOM)
     {

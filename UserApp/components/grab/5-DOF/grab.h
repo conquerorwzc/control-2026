@@ -15,26 +15,19 @@ typedef enum
     GRAB_CALI_MODE,
 } Grab_Cali_Mode_e;
 
-typedef enum {
-    CALI_IDLE = 0,
-    CALI_FIND_MIN,    // 寻找 0 度 (负向)
-    CALI_FIND_MAX,    // 寻找 180 度 (正向)
-    CALI_SUCCESS      // 校准成功
-} Cali_State_e;
-
 
 typedef enum {
-    CALI_STAGE_DM_WAIT_ZERO = 0, // 0: 阶段一 - DM大臂等待物理归零
-    CALI_STAGE_WRIST_STALL  = 1, // 1: 阶段二 - 2006腕部 Pitch 抬头堵转检测
-    CALI_STAGE_DONE         = 2, // 2: 标定大功告成
-    CALI_STAGE_ERROR        = 3  // 3: 标定超时或异常
+    CALI_STAGE_DM_WAIT_ZERO   = 0, // 0: 阶段一 - DM大臂等待物理归零
+    CALI_STAGE_WRIST_FIND_MAX = 1, // 1: 阶段二 - Pitch 向上抬，寻找 90度 限位
+    CALI_STAGE_WRIST_FIND_MIN = 2, // 2: 阶段三 - Pitch 向下压，寻找最低限位
+    CALI_STAGE_DONE           = 3, // 3: 标定大功告成
+    CALI_STAGE_ERROR          = 4  // 4: 标定超时或异常
 } GrabCaliStage_e;
 
 typedef struct {
-    Cali_State_e state;
-    float min_total_angle;
-    float max_total_angle;
-    float range;
+    GrabCaliStage_e state;
+    float max_pitch; // 自动生成的最高软件限位 (如 90 * 0.98 = 88.2度)
+    float min_pitch; // 自动生成的最低软件限位
 } Motor_Cali_Data_s;
 
 typedef struct {
@@ -84,6 +77,17 @@ typedef struct
     Grab_Mode_e grab_mode;
 } Grab_Ctrl_Cmd_s;
 
+typedef struct
+{
+    float wrist_roll;    // 实际：腕部关节旋转角度
+    float wrist_pitch;   // 实际：腕部关节俯仰角度
+    float base_joint;    // 实际：基座旋转关节角度
+    float elbow_roll;    // 实际：肘部关节旋转角度
+    float elbow_pitch;   // 实际：肘部关节俯仰角度
+    float video_forward; // 实际：图传的前后移动距离
+    float video_pitch;   // 实际：图传的pitch旋转角度
+    float torque;        // 实际：夹爪电机当前扭矩
+} Grab_Real_Measure_s;
 
 typedef struct
 {
@@ -120,6 +124,7 @@ typedef struct
 typedef struct
 {
     Grab_Ctrl_Cmd_s grab_ctrl_cmd;
+    Grab_Real_Measure_s grab_measure;
     ArmInstance *arm;
     ActuatorInstance *actuator;
     VideoInstance *video;
