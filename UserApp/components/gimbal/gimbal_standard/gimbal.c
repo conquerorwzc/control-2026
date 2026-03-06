@@ -33,8 +33,8 @@ GimbalInstance* GimbalInit(Gimbal_Init_Config_s* gimbal_init_config) {
   // YAW控制器设置配置
   gimbal_init_config->yaw_motor_config.controller_setting_init_config.angle_feedback_source = OTHER_FEED;
   gimbal_init_config->yaw_motor_config.controller_setting_init_config.speed_feedback_source = OTHER_FEED;
-  gimbal_init_config->yaw_motor_config.controller_setting_init_config.outer_loop_type = ANGLE_LOOP;
-  gimbal_init_config->yaw_motor_config.controller_setting_init_config.close_loop_type = SPEED_LOOP | ANGLE_LOOP;
+  gimbal_init_config->yaw_motor_config.controller_setting_init_config.outer_loop_type = SPEED_LOOP;
+  gimbal_init_config->yaw_motor_config.controller_setting_init_config.close_loop_type = SPEED_LOOP;
 
   // PITCH控制器参数配置
   gimbal_init_config->pitch_motor_config.controller_param_init_config.other_angle_feedback_ptr =
@@ -46,8 +46,8 @@ GimbalInstance* GimbalInit(Gimbal_Init_Config_s* gimbal_init_config) {
   // PITCH控制器设置配置
   gimbal_init_config->pitch_motor_config.controller_setting_init_config.angle_feedback_source = OTHER_FEED;
   gimbal_init_config->pitch_motor_config.controller_setting_init_config.speed_feedback_source = OTHER_FEED;
-  gimbal_init_config->pitch_motor_config.controller_setting_init_config.outer_loop_type = ANGLE_LOOP;
-  gimbal_init_config->pitch_motor_config.controller_setting_init_config.close_loop_type = SPEED_LOOP | ANGLE_LOOP;
+  gimbal_init_config->pitch_motor_config.controller_setting_init_config.outer_loop_type = SPEED_LOOP;
+  gimbal_init_config->pitch_motor_config.controller_setting_init_config.close_loop_type = SPEED_LOOP;
 
   gimbal_instance->yaw_motor = DJIMotorInit(&gimbal_init_config->yaw_motor_config);
   gimbal_instance->pitch_motor = DJIMotorInit(&gimbal_init_config->pitch_motor_config);
@@ -78,4 +78,33 @@ void GimbalTask() {
   // 在合适的地方添加pitch重力补偿前馈力矩
   // 根据IMU姿态/pitch电机角度反馈计算出当前配重下的重力矩
   // ...
+  // --- A. 获取欧拉角 (弧度制) ---
+  float roll_rad = gimbal->gimbal_IMU_data->Roll * (3.14159265f / 180.0f);
+  float pitch_rad = gimbal->gimbal_IMU_data->Pitch * (3.14159265f / 180.0f);
+
+  // --- B. 角度环 PID 计算 (得到地球坐标系下的期望角速度) ---
+  float yaw_v_earth = PIDCalculate(&gimbal->yaw_motor->motor_controller.angle_PID,
+                                   gimbal->gimbal_IMU_data->YawTotalAngle,
+                                   gimbal_ctrl_cmd->yaw);
+
+  float pitch_v_earth = PIDCalculate(&gimbal->pitch_motor->motor_controller.angle_PID,
+                                     gimbal->gimbal_IMU_data->Pitch,
+                                     gimbal_ctrl_cmd->pitch);
+
+  // --- C. Roll 补偿与坐标变换 ---
+  float cos_r = cosf(roll_rad);
+  float sin_r = sinf(roll_rad);
+  float cos_p = cosf(pitch_rad);
+
+  // 安全防线：防止 Pitch 接近 90 度时分母为 0 导致飞车
+  if (cos_p < 0.1f) cos_p = 0.1f;
+
+  // Roll 补偿公式 (省略 pitch 补偿项/cos_p，提高稳定性)
+  float yaw_v_motor = (yaw_v_earth * cos_r - pitch_v_earth * sin_r);
+  float pitch_v_motor = pitch_v_earth * cos_r + yaw_v_earth * sin_r;
+
+  // --- D. 下发速度指令给电机 ---
+  // 因为电机已经被配置为双闭环模式，此时传入的是速度目标值
+  DJIMotorSetPIDRef(gimbal->yaw_motor, yaw_v_motor);
+  DJIMotorSetPIDRef(gimbal->pitch_motor, pitch_v_motor);
 }
