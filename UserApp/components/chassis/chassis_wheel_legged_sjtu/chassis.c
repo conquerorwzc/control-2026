@@ -270,6 +270,7 @@ static void LocomotionController(void) {
   float state_err[10];
   state_err[0] = sv->x_b_h - 0.0f;
   state_err[1] = sv->v_b_h - chassis_ctrl_cmd->vx;
+  // state_err[1] = (sv->v_b_h - chassis->limited_vx) * 1;
   VAL_LIMIT(state_err[2], -2.7f, 2.7f);
   state_err[2] = sv->phi - chassis_ctrl_cmd->target_yaw;
   VAL_LIMIT(state_err[2], -0.52f, 0.52f);  // ±30°

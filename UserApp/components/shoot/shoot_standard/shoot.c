@@ -17,9 +17,9 @@ static float friction_speed;
 static float friction_coefficients[FRICTION_NUM];
 /* 对于双发射机构的机器人,将下面的数据封装成结构体即可,生成两份shoot应用实例 */
 
-static float loader_set = 0;       // 波胆盘速度
-static float friction_set = 0;     // 摩擦轮速度
-static float actual_bullet_speed = 0.0f;  // 调试用，后续从裁判系统中获取
+static float loader_set = 0;    // 波胆盘速度
+static float friction_set = 0;  // 摩擦轮速度
+float actual_bullet_speed;      // 调试用，后续从裁判系统中获取
 // 波弹盘位置初始化标志
 //  static uint8_t loader_position_init=0;
 
@@ -40,9 +40,7 @@ ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
   deadtime_onebullet = shoot_init_config->shoot_param.deadtime_onebullet;
   target_speed = shoot_init_config->shoot_param.target_speed;
   bullet_speed_adjustment = shoot_init_config->shoot_param.bullet_speed_adjustment;
-  actual_bullet_speed = shoot_init_config->shoot_param.bullet_speed;
   // 初始化弹速控制PID参数
-
   // 初始化弹速控制PID控制器
 
   for (int i = 0; i < FRICTION_NUM; i++) {
@@ -63,8 +61,14 @@ ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
  */
 void ShootBulletSpeedControl(void) {
   // 计算弹速误差
-
+  actual_bullet_speed = shoot_ctrl_cmd->initial_speed;
+  if (actual_bullet_speed == 0) {
+    return;
+  }
   float speed_error = target_speed - actual_bullet_speed;
+  if (actual_bullet_speed <= target_speed + 0.2 && actual_bullet_speed >= target_speed - 0.2) {
+    return;
+  }
 
   // 将误差乘以系数后加到基础摩擦轮速度上
   friction_speed = friction_speed + speed_error * bullet_speed_adjustment;
@@ -75,7 +79,7 @@ void ShootBulletSpeedControl(void) {
 /* 机器人发射机构控制核心任务 */
 void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，因为之前哨兵是双枪管的，时代的眼泪
   if (shoot_ctrl_cmd->shoot_mode == SHOOT_OFF) {
-    for (int j = 0; j < FRICTION_NUM; j++) DJIMotorSetPIDRef(shoot->friction_motor[j],0);
+    for (int j = 0; j < FRICTION_NUM; j++) DJIMotorSetPIDRef(shoot->friction_motor[j], 0);
     DJIMotorStop(shoot->loader_motor);
   } else  // 恢复运行
   {
@@ -106,7 +110,7 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
       break;
       // 单发模式,根据鼠标按下的时间,触发一次之后需要进入不响应输入的状态(否则按下的时间内可能多次进入,导致多次发射)
     case LOAD_1_BULLET:  // 激活能量机关/干扰对方用,英雄用.
-      // ShootBulletSpeedControl();
+      ShootBulletSpeedControl();
       DJIMotorOuterLoop(shoot->loader_motor, ANGLE_LOOP);  // 切换到角度环
       loader_set = shoot->loader_motor->measure.total_angle +
                    one_bullet_delta_angle * reduction_ratio_loader * loader_direction;  // 控制量增加一发弹丸的角度
@@ -115,7 +119,7 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
       break;
       // 连发模式,对位置闭环,射频根据dead_time改变；原版是速度闭环，可能会更柔和一些？
     case LOAD_BURSTFIRE:
-      //ShootBulletSpeedControl();
+      ShootBulletSpeedControl();
       DJIMotorOuterLoop(shoot->loader_motor, ANGLE_LOOP);  // 切换到角度环
       loader_set = shoot->loader_motor->measure.total_angle +
                    one_bullet_delta_angle * reduction_ratio_loader * loader_direction;  // 控制量增加一发弹丸的角度

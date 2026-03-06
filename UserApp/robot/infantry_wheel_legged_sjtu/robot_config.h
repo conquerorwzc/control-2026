@@ -160,6 +160,16 @@
                       .rx_id = wheel_rx,                                                                            \
                   },                                                                                                \
           },                                                                                                        \
+      .length_PID_config =                                                                                          \
+          {                                                                                                         \
+              .Kp = 750.0f,                                                                                         \
+              .Ki = 0.0f,                                                                                           \
+              .Kd = 120.0f,                                                                                         \
+              .MaxOut = 90.0f,                                                                                      \
+              .DeadBand = 0.01f,                                                                                    \
+              .Improve = PID_IMPROVE_NONE,                                                                          \
+              .IntegralLimit = 0.0f,                                                                                \
+          },                                                                                                        \
   }
 
 /* SJTU LQR: fill .lqr_param.K and .lqr_param.LQR_K_Coefficients from MATLAB compute_lqr.m output */
@@ -344,8 +354,8 @@ static Shoot_Init_Config_s shoot_init_config = {
             .friction_coefficients = {1.0f, -1.0f},            // 摩擦轮速度比例系数
             .deadtime_burstfire = 50,
             .deadtime_onebullet = 500,
-            .target_speed = 23.0f,
-            .bullet_speed_adjustment = 500.0f,
+            .target_speed = 21.5f,
+            .bullet_speed_adjustment = 200.0f,
         },
     .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan1, 4, MOTOR_DIRECTION_NORMAL, MOTOR_DIRECTION_NORMAL),
     .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan1, 5, MOTOR_DIRECTION_NORMAL, MOTOR_DIRECTION_NORMAL),
