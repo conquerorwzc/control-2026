@@ -57,10 +57,6 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define SERIAL_SERVO_RX_EN_Pin_Pin GPIO_PIN_2
-#define SERIAL_SERVO_RX_EN_Pin_GPIO_Port GPIOE
-#define SERIAL_SERVO_TX_EN_Pin_Pin GPIO_PIN_3
-#define SERIAL_SERVO_TX_EN_Pin_GPIO_Port GPIOE
 #define POWER_24V_L_Pin GPIO_PIN_13
 #define POWER_24V_L_GPIO_Port GPIOC
 #define POWER_24V_R_Pin GPIO_PIN_14
