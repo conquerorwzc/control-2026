@@ -9,12 +9,15 @@
 /* Private macro -------------------------------------------------------------*/
 #define PULLEY_GEAR_RATIO 2.0f          // 带轮传动比
 #define BEVEL_GEAR_RATIO 1.6667f        // 锥齿轮传动比 5:3
+#define PLANAR_GEAR_RATIO 1.571428f     // 平面齿轮传动比 11:7
 #define MOTOR2006_REDUCTION_RATIO 36.0f // 2006 ecd减速比36
+
 /* Private variables ---------------------------------------------------------*/
 static GrabInstance *grab;
 static Grab_Ctrl_Cmd_s *grab_ctrl_cmd;
 static float total_angle_init_L = 0;
 static float total_angle_init_R = 0;
+static float total_angle_init_M = 0;
 static float total_angle_init_Video_forward = 0;
 static float total_angle_init_Video_pitch = 0;
 float a[5] = {0, 0, 0, 0, 0}; // 测试用电机目标位置
@@ -38,6 +41,7 @@ GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config)
 
     grab_instance->actuator->grab_djimotor[0] = DJIMotorInit(&Grab_init_config->Grab_motor_config[3]);
     grab_instance->actuator->grab_djimotor[1] = DJIMotorInit(&Grab_init_config->Grab_motor_config[4]);
+    grab_instance->actuator->grab_djimotor[2] = DJIMotorInit(&Grab_init_config->Grab_motor_config[8]);
 
     while (grab_instance->actuator->grab_djimotor[1]->measure.real_current == 0)
     {
@@ -49,7 +53,6 @@ GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config)
     grab_instance->arm->grab_dmmotor[1] = DMMotorInit(&Grab_init_config->Grab_motor_config[1]);      // v4
     grab_instance->arm->grab_dmmotor[2] = DMMotorInit(&Grab_init_config->Grab_motor_config[2]);      // v4
 
-    //
     // grab_instance->video->grab_djimotor[0] =
     // DJIMotorInit(&Grab_init_config->Grab_motor_config[6]);
     // grab_instance->video->grab_djimotor[1] =
@@ -63,7 +66,8 @@ GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config)
     osDelay(10);
     total_angle_init_L = grab->actuator->grab_djimotor[1]->measure.total_angle;
     total_angle_init_R = grab->actuator->grab_djimotor[0]->measure.total_angle;
-    total_angle_init_Video_forward = grab->video->grab_djimotor[0]->measure.total_angle;
+    total_angle_init_M = grab_instance->actuator->grab_djimotor[2]->measure.total_angle;
+
     total_angle_init_Video_pitch = grab->video->grab_djimotor[1]->measure.total_angle;
     if (Grab_init_config->Grab_cali_mode == GRAB_CALI_MODE)
     {
@@ -106,6 +110,7 @@ static void MotorTask()
 
         DJIMotorStop(grab->actuator->grab_djimotor[0]);
         DJIMotorStop(grab->actuator->grab_djimotor[1]);
+        DJIMotorStop(grab->actuator->grab_djimotor[2]);
         DMMotorStop(grab->actuator->grab_dmmotor[0]);
 
         // DJIMotorStop(grab->video->grab_djimotor[0]);
@@ -135,7 +140,7 @@ static void MotorTask()
         }
 
         // 循环处理所有DJIMotor（actuator部分）
-        for (int i = 0; i < 2; i++)
+        for (int i = 0; i < 3; i++)
         {
             if (DaemonIsOnline(grab->actuator->grab_djimotor[i]->daemon))
             {
@@ -147,6 +152,9 @@ static void MotorTask()
                     break;
                 case 1:
                     DJIMotorSetPIDRef(grab->actuator->grab_djimotor[i], grab->actuator->L_target);
+                    break;
+                case 2:
+                    DJIMotorSetPIDRef(grab->actuator->grab_djimotor[i], grab->actuator->M_target);
                     break;
                 }
             }
@@ -183,16 +191,18 @@ static void MotorTask()
 static void Grab_Position_Calculate(GrabInstance *grab)
 {
     /**
-     * L = -pitch + roll
-     * R = +pitch + roll
+     * L = +pitch
+     * R = +pitch
+     * M = +roll
      */
 
     grab->actuator->R_target =
-        total_angle_init_R + (grab->actuator->wrist_pitch + grab->actuator->wrist_roll * BEVEL_GEAR_RATIO) *
-                                 MOTOR2006_REDUCTION_RATIO * PULLEY_GEAR_RATIO;
+        total_angle_init_R + grab->actuator->wrist_pitch * MOTOR2006_REDUCTION_RATIO * PULLEY_GEAR_RATIO;
     grab->actuator->L_target =
-        total_angle_init_L + (-grab->actuator->wrist_pitch + grab->actuator->wrist_roll * BEVEL_GEAR_RATIO) *
-                                 MOTOR2006_REDUCTION_RATIO * PULLEY_GEAR_RATIO;
+        total_angle_init_L + grab->actuator->wrist_pitch * MOTOR2006_REDUCTION_RATIO * PULLEY_GEAR_RATIO;
+    grab->actuator->M_target =
+        total_angle_init_M + grab->actuator->wrist_roll * MOTOR2006_REDUCTION_RATIO * PLANAR_GEAR_RATIO;
+
     // grab->video->F_target = total_angle_init_Video_forward + grab->video->video_forward * MOTOR2006_REDUCTION_RATIO;
     // grab->video->P_target = total_angle_init_Video_pitch + grab->video->video_pitch;
     grab->actuator->T_target = grab->actuator->torque;

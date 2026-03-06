@@ -11,8 +11,8 @@
 // 不用的腿设为1
 #define DISABLE_LEG_REAR_LEFT 1   // 左后腿 (Leg 0)
 #define DISABLE_LEG_REAR_RIGHT 1  // 右后腿 (Leg 1)
-#define DISABLE_LEG_FRONT_LEFT 0  // 左前腿 (Leg 2)
-#define DISABLE_LEG_FRONT_RIGHT 0 // 右前腿 (Leg 3)
+#define DISABLE_LEG_FRONT_LEFT 1  // 左前腿 (Leg 2)
+#define DISABLE_LEG_FRONT_RIGHT 1 // 右前腿 (Leg 3)
 // ==================== 【前腿（齿条）专属动力学调参区】 ====================
 // 速度与柔顺度（梯形曲线参数）
 // 决定了腿弹出的绝对速度

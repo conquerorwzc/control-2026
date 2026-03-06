@@ -22,6 +22,14 @@ typedef enum {
     CALI_SUCCESS      // 校准成功
 } Cali_State_e;
 
+
+typedef enum {
+    CALI_STAGE_DM_WAIT_ZERO = 0, // 0: 阶段一 - DM大臂等待物理归零
+    CALI_STAGE_WRIST_STALL  = 1, // 1: 阶段二 - 2006腕部 Pitch 抬头堵转检测
+    CALI_STAGE_DONE         = 2, // 2: 标定大功告成
+    CALI_STAGE_ERROR        = 3  // 3: 标定超时或异常
+} GrabCaliStage_e;
+
 typedef struct {
     Cali_State_e state;
     float min_total_angle;
@@ -58,7 +66,7 @@ typedef struct {
 
 typedef struct
 {
-    Motor_Init_Config_s Grab_motor_config[8]; // 修改为数组以支持多个电机
+    Motor_Init_Config_s Grab_motor_config[9]; // 修改为数组以支持多个电机
     Grab_Cali_Mode_e Grab_cali_mode;
     Grab_Param_s  Grab_param;
 } Grab_Init_Config_s;
@@ -79,7 +87,7 @@ typedef struct
 
 typedef struct
 {
-    DJIMotorInstance *grab_djimotor[2];
+    DJIMotorInstance *grab_djimotor[3];
     DMMotorInstance *grab_dmmotor[1];
     float wrist_roll;    // 腕部关节旋转角度
     float wrist_pitch;   // 腕部关节俯仰角度
@@ -87,6 +95,7 @@ typedef struct
     float torque;        // 夹爪电机目标扭矩
     float L_target;      // 左侧电机旋转角度
     float R_target;      // 右侧电机旋转角度
+    float M_target;      // 中间电机旋转角度
     float T_target;      // 夹爪电机目标扭矩
     Motor_Cali_Data_s wrist_cali;
 } ActuatorInstance;

@@ -315,9 +315,9 @@ __attribute__((noreturn)) void DMMotorTask(void const *argument)
             (uint8_t)(((motor_send_mailbox.Kd & 0xF) << 4) | (motor_send_mailbox.torque_des >> 8));
         motor->motor_can_instance->tx_buff[7] = (uint8_t)(motor_send_mailbox.torque_des);
 
-        CANTransmit(motor->motor_can_instance, 2);
+        CANTransmit(motor->motor_can_instance, 3);
 
-        osDelay(3);
+        osDelay(4);
         if (motor->daemon->temp_count == 0 || motor->measure.state == 0)
         {
             DMMotorSetMode(DM_CMD_MOTOR_MODE, motor);
