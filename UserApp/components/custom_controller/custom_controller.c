@@ -175,8 +175,8 @@ void CustomController_SendAllData(CustomController_t* controller)
     for (int i = 0; i < 5; i++) {
         controller_data[1 + i*5] = controller->motor_data[i].id;  // 电机 ID
             
-        // 电机角度值，放大 100 倍存储
-        int16_t angle_value = (int16_t)(controller->motor_data[i].current_angle * 100.0f);
+        // 电机角度值，放大 20 倍存储（支持 -1638°~+1638°范围）
+        int16_t angle_value = (int16_t)(controller->motor_data[i].current_angle * 20.0f);
         controller_data[2 + i*5] = angle_value & 0xFF;
         controller_data[3 + i*5] = (angle_value >> 8) & 0xFF;
 
