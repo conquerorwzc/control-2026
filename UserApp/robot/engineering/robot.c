@@ -9,6 +9,7 @@
 #include "stdlib.h"
 #include "string.h"
 #include "user_lib.h"
+#include "half_auto.h"
 
 #include "stdbool.h"
 
@@ -113,14 +114,19 @@ void RobotTask()
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
 void RobotCMDTask()
 {
-    CalcOffsetAngle();
-    RemoteControlSet();
-    // MouseKeySet();
-    // 只在自定义控制器模式下处理数据，避免与键鼠控制冲突
     if (grab_control_mode == GRAB_CONTROL_CUSTOM)
     {
         ProcessCustomControllerData();
     }
+    else if (grab_control_mode == GRAB_CONTROL_HALF_AUTO)
+    {
+        Half_auto_update(grab_ctrl_cmd, rc_data->mouse.press_l, rc_data_last->mouse.press_l, rc_data->mouse.press_r, rc_data_last->mouse.press_r);
+    }
+    CalcOffsetAngle();
+    RemoteControlSet();
+    MouseKeySet();
+    // 只在自定义控制器模式下处理数据，避免与键鼠控制冲突
+
     EmergencyHandler(); // 处理模块离线和遥控器急停等紧急情况
 }
 
@@ -153,7 +159,7 @@ static void MouseKeySet()
         break;
     }
 
-    switch (rc_data[TEMP].key_count[KEY_PRESS][Key_F] % 2) // F键切换控制模式
+    switch (rc_data[TEMP].key_count[KEY_PRESS][Key_F] % 3) // F键切换控制模式
     {
     case 0:
         grab_control_mode = GRAB_CONTROL_KEYBOARD;
@@ -162,6 +168,10 @@ static void MouseKeySet()
     case 1:
         grab_control_mode = GRAB_CONTROL_CUSTOM;
         LOGINFO("[GRAB] Switched to custom controller angle mode");
+        break;
+    case 2:
+        grab_control_mode = GRAB_CONTROL_HALF_AUTO;
+        LOGINFO("[GRAB] Switched to half-auto control mode");
         break;
     default:
         break;
@@ -291,7 +301,7 @@ static void EmergencyHandler()
  *
  */
 static void RemoteControlSet()
-{
+{*rc_data_last = *rc_data;
     if (!robot->chassis->cali_state.all_cali_done)
     {
         // 遥控器在线抢接管逻辑
@@ -306,7 +316,7 @@ static void RemoteControlSet()
             chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
         }
 
-        *rc_data_last = *rc_data;
+
         return;
     }
 
@@ -444,14 +454,15 @@ static void ProcessCustomControllerData()
         if (robot->grab != NULL && grab_ctrl_cmd != NULL)
         {
             // 映射4个电机到机械臂关节 (根据实际硬件连接调整)
-            grab_ctrl_cmd->base_joint = SelfControlGetMotorAngle(robot->self_control, 2);  // 电机3 -> 基座关节
-            grab_ctrl_cmd->elbow_pitch = SelfControlGetMotorAngle(robot->self_control, 0); // 电机1 -> 肘部俯仰
-            grab_ctrl_cmd->wrist_pitch = SelfControlGetMotorAngle(robot->self_control, 1); // 电机2 -> 腕部俯仰
-            grab_ctrl_cmd->wrist_roll = SelfControlGetMotorAngle(robot->self_control, 3);  // 电机4 -> 腕部旋转
-            // grab_ctrl_cmd->elbow_roll = SelfControlGetPotAngle(robot->self_control, 0);    // 电位器 -> 肘部旋转
+            grab_ctrl_cmd->base_joint = SelfControlGetMotorAngle(robot->self_control, 3);  // 电机3 -> 基座关节
+            grab_ctrl_cmd->elbow_pitch = SelfControlGetMotorAngle(robot->self_control, 1); // 电机1 -> 肘部俯仰
+            grab_ctrl_cmd->wrist_pitch = SelfControlGetMotorAngle(robot->self_control, 2); // 电机2 -> 腕部俯仰
+            grab_ctrl_cmd->wrist_roll = SelfControlGetMotorAngle(robot->self_control, 4);  // 电机4 -> 腕部旋转
+            grab_ctrl_cmd->elbow_roll = SelfControlGetMotorAngle(robot->self_control, 0);    // 电位器 -> 肘部旋转
         }
     }
 }
+
 
 static void CalcOffsetAngle()
 {

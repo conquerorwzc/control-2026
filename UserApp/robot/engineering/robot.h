@@ -22,7 +22,8 @@ typedef enum
 // 添加机械臂控制模式枚举
 typedef enum {
     GRAB_CONTROL_KEYBOARD = 0,    // 键鼠控制模式
-    GRAB_CONTROL_CUSTOM          // 自定义控制器角度控制模式
+    GRAB_CONTROL_CUSTOM,
+    GRAB_CONTROL_HALF_AUTO// 自定义控制器角度控制模式
 } GrabControlMode_e;
 
 typedef struct

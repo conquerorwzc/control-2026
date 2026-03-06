@@ -6,41 +6,46 @@
 #ifndef CONTROL_2026_SELFCONTROL_H
 #define CONTROL_2026_SELFCONTROL_H
 
-#include <stdint.h>
-#include "main.h"
 #include "bsp_usart.h"
+#include "main.h"
+#include <stdint.h>
 
 // 电机数据结构
-typedef struct {
-    uint8_t id;           // 电机ID
-    float angle;          // 电机角度 (0-360度)
-    uint8_t is_online;    // 电机在线状态
+typedef struct
+{
+    uint8_t id;        // 电机ID
+    float angle;       // 电机角度 (0-360度)
+    uint8_t is_online; // 电机在线状态
 } MotorData_t;
 
 // 电位器数据结构
-typedef struct {
-    uint8_t id;           // 电位器ID
-    float angle;          // 电位器角度 (0-360度)
-    float voltage;        // 电位器电压
+typedef struct
+{
+    uint8_t id;    // 电位器ID
+    float angle;   // 电位器角度 (0-360度)
+    float voltage; // 电位器电压
 } PotentiometerData_t;
 
 // 解析后的控制器数据
-typedef struct {
-    MotorData_t motors[5];           // 5 个 DM4310 电机的数据
+typedef struct
+{
+    MotorData_t motors[5]; // 5 个 DM4310 电机的数据
 } UnpackedControllerData_t;
 
 // 自定义控制器实例
-typedef struct {
-    uint8_t selfcontrol_buff[64];    // 接收缓冲区
-    UnpackedControllerData_t unpacked_data;  // 解析后的数据
-    USARTInstance* usart_instance;   // USART实例指针
+typedef struct
+{
+    uint8_t selfcontrol_buff[64];           // 接收缓冲区
+    UnpackedControllerData_t unpacked_data; // 解析后的数据
+    USARTInstance *usart_instance;          // USART实例指针
 } SelfC;
 
-typedef __packed struct {
-  uint8_t SOF;           // 起始字节，固定值为0xA5
-  uint16_t data_length;  // 数据帧中 data 的长度
-  uint8_t seq;           // 包序号
-  uint8_t CRC8;          // 帧头 CRC8 校验
+typedef __packed struct
+{
+    uint8_t SOF;          // 起始字节，固定值为0xA5
+    uint16_t data_length; // 数据帧中 data 的长度
+    uint8_t seq;          // 包序号
+    uint8_t CRC8;         // 帧头 CRC8 校验
 } Frame_Header;
 
 /**
@@ -60,13 +65,13 @@ SelfC *SelfControlInit(UART_HandleTypeDef *usart_handle);
  * @brief 数据解析函数(保持原有可用逻辑)
  * @param frame 接收到的数据帧
  */
-void selfcontrol_data_solve(uint8_t* frame);
+void selfcontrol_data_solve(uint8_t *frame);
 
 /**
  * @brief 获取解析后的控制器数据指针
  * @return UnpackedControllerData_t* 数据指针
  */
-UnpackedControllerData_t* GetSelfControlDataPtr(void);
+UnpackedControllerData_t *GetSelfControlDataPtr(void);
 
 /**
  * @brief 获取指定电机角度
@@ -74,7 +79,6 @@ UnpackedControllerData_t* GetSelfControlDataPtr(void);
  * @param motor_index 电机索引 (0-4)
  * @return float 电机角度
  */
-float SelfControlGetMotorAngle(const SelfC* controller, uint8_t motor_index);
+float SelfControlGetMotorAngle(const SelfC *controller, uint8_t motor_index);
 
-
-#endif  // CONTROL_2026_SELFCONTROL_H
+#endif // CONTROL_2026_SELFCONTROL_H
