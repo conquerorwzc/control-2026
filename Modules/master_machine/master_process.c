@@ -16,6 +16,7 @@
 #include "srm_protocol.h"
 #include "navigator.h"
 #include "ins_task.h"
+#include "rm_referee.h"
 #define VISION_USE_VCP
 
 
@@ -25,6 +26,7 @@ static DaemonInstance *vision_daemon_instance;
 static  Vision_Receive_s recv_data;//接收数据
 static  Vision_Send_s send_data;//发送数据
 static  INS_t* current_attitude;
+static  referee_info_t* referee_info;
 
 //打包，注册
 static  Message receive;
@@ -54,7 +56,7 @@ void UpdateGimbalAttitude(Vision_Send_s *vision_send) {
   vision_send->gimbal_send.roll=current_attitude->Roll;
   vision_send->gimbal_send.mode=0;
   vision_send->gimbal_send.color=0;
-  vision_send->shoot_send.bullet_speed=21;
+  vision_send->shoot_send.bullet_speed=referee_info->ShootData.initial_speed;
 
 }
 
@@ -166,6 +168,7 @@ Vision_Receive_s *VisionInit(IMU_Init_Config_s* imu_init_config)
         .reload_count = 5, // 50ms
     };
     vision_daemon_instance = DaemonRegister(&daemon_conf);
+    referee_info = RefereeGet();
 
     return &recv_data;
 }

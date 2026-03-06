@@ -77,5 +77,6 @@ referee_info_t *RefereeInit(UART_HandleTypeDef *referee_usart_handle);
  * @param tx_len 发送长度
  */
 void RefereeSend(uint8_t *send, uint16_t tx_len);
+referee_info_t *RefereeGet();
 
 #endif // !REFEREE_H

@@ -29,6 +29,8 @@ static float  right_delta=0.0f;
 //左右腿扭矩前馈
 static float left_torque_feedforward = 0.0f;
 static float right_torque_feedforward = 0.0f;
+//扭矩前馈
+static float torque_feedforward=0.0f;
 // 左右腿目标位置
 static float target_position_left = 0.0f;
 static float target_position_right = 0.0f;
@@ -576,6 +578,7 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   chassis = chassis_instance;
   chassis_ctrl_cmd = &chassis->chassis_ctrl_cmd;  // 在运行时初始化指针
   chassis_ctrl_cmd->power_distribute=1.2f;
+
   return chassis_instance;
 }
 /* 机器人底盘控制核心任务 */
