@@ -14,13 +14,13 @@
 // 设为 1 代表屏蔽该腿（不参与标定和运动），设为 0 代表正常工作
 // ⚠️ 注意：正常比赛时，必须全部为 0！
 #define DISABLE_LEG_REAR_LEFT   0  // 左后腿 (Leg 0)
-#define DISABLE_LEG_REAR_RIGHT  1  // 右后腿 (Leg 1)
-#define DISABLE_LEG_FRONT_LEFT  1  // 左前腿 (Leg 2)
-#define DISABLE_LEG_FRONT_RIGHT 1 // 右前腿 (Leg 3)
+#define DISABLE_LEG_REAR_RIGHT  0  // 右后腿 (Leg 1)
+#define DISABLE_LEG_FRONT_LEFT  0  // 左前腿 (Leg 2)
+#define DISABLE_LEG_FRONT_RIGHT 0 // 右前腿 (Leg 3)
 
 // ==================== 【前腿（齿条）专属动力学调参区】 ====================
-#define FRONT_TOTAL_TIME_SEC 8.0f // 目标：完成单次最大行程的总时间(秒)
-#define FRONT_ACCEL_TIME_SEC 2.0f // 加速/减速缓冲段的时间(秒)
+#define FRONT_TOTAL_TIME_SEC 3.0f // 目标：完成单次最大行程的总时间(秒)
+#define FRONT_ACCEL_TIME_SEC 1.0f // 加速/减速缓冲段的时间(秒)
 
 // 🚨 左右非对称力量调参 (解决左侧偏重问题)：
 #define FRONT_LEFT_MOVING_MAX_OUT  12000.0f  // 左腿(重)：放宽限幅，允许拉到 12000
@@ -29,28 +29,28 @@
 #define FRONT_RIGHT_STOP_MAX_OUT   4000.0f
 
 // ==================== 【后腿（滚珠丝杠+齿轮组） 2.0秒极速参数】 ====================
-#define REAR_TOTAL_TIME_SEC    5.0f     // 坚决贯彻 2.0 秒！
-#define REAR_ACCEL_TIME_SEC    2.0f     // 丝杠起步快，给 0.4 秒爆发加速
-#define REAR_MOVING_MAX_OUT    2000.0f // 突破静摩擦力的狂暴输出！
+#define REAR_TOTAL_TIME_SEC    3.0f     // 坚决贯彻 2.0 秒！
+#define REAR_ACCEL_TIME_SEC    1.0f     // 丝杠起步快，给 0.4 秒爆发加速
+#define REAR_MOVING_MAX_OUT    12000.0f // 突破静摩擦力的狂暴输出！
 #define REAR_STOP_MAX_OUT      0.0f  // 驻车力，靠齿轮摩擦力锁死即可
 
 // ==================== 【硬件基础信息】 ====================
 #define CALI_TASK_FREQ 500.0f  // 标定任务运行频率 (Hz) ，在ostask里得知
-#define GEAR_RATIO_REAR 19.0f  // 后腿减速比
-#define GEAR_RATIO_FRONT 1.0f // 前腿减速比
+#define GEAR_RATIO_REAR 1.0f  // 后腿减速比
+#define GEAR_RATIO_FRONT 19.0f // 前腿减速比
 
 // ==================== 【标定行为期望 (物理参数)】 ====================
 // 🚨 新增：前后腿独立的标定堵转电流阈值 (满载为 16384)
-#define FRONT_CALI_STALL_CURRENT 6000.0f  // 前腿(齿条)：机械优势小，给大点电流才能判定撞墙
-#define REAR_CALI_STALL_CURRENT  2500.0f  // 后腿(丝杠)：推力极其恐怖，阈值给小一点，撞墙瞬间温柔停机防损坏
+#define FRONT_CALI_STALL_CURRENT 3000.0f  // 前腿(齿条)：机械优势小，给大点电流才能判定撞墙
+#define REAR_CALI_STALL_CURRENT  5000.0f  // 后腿(丝杠)：推力极其恐怖，阈值给小一点，撞墙瞬间温柔停机防损坏
 
-#define SPEED_RETRACT_REAR_DEG 3600.0f
-#define SPEED_EXTEND_REAR_DEG 3600.0f
+#define SPEED_RETRACT_REAR_DEG 1200.0f
+#define SPEED_EXTEND_REAR_DEG 1200.0f
 #define SPEED_RETRACT_FRONT_DEG 108.0f
 #define SPEED_EXTEND_FRONT_DEG 108.0f
 
 #define FORCE_ZERO_REAR_DEG 1000.0f
-#define FORCE_MAX_REAR_DEG 450.0f
+#define FORCE_MAX_REAR_DEG 1500.0f
 #define FORCE_ZERO_FRONT_DEG 135.0f
 #define FORCE_MAX_FRONT_DEG 600.0f
 
@@ -238,7 +238,7 @@ void ChassisTask()
 
                     // 🚨 修复 1：把后腿改回 8000！800 是绝对拉不动丝杠的！
                     chassis->front_legs[i].motor->motor_controller.speed_PID.MaxOut = 8000.0f;
-                    chassis->rear_legs[i].motor->motor_controller.speed_PID.MaxOut = 800.0f;
+                    chassis->rear_legs[i].motor->motor_controller.speed_PID.MaxOut = 6000.0f;
 
                     // 强制目标归零
                     DJIMotorSetPIDRef(chassis->front_legs[i].motor, chassis->cali_state.init_angle[2+i]);
@@ -561,7 +561,7 @@ static void ChassisCalibrationTask(void)
             DJIMotorSetRef(chassis->rear_legs[i].motor, 0);
             DJIMotorSetRef(chassis->front_legs[i].motor, 0);
         }
-        LOGERROR("[Chassis] Calibration TIMEOUT! Partial data saved.");
+
         timeout_cnt = 0;
         first_run = 1;
         return;
@@ -678,7 +678,6 @@ static void MaxExtensionCalibrationTask(uint8_t abort_flag)
             DJIMotorSetRef(chassis->rear_legs[i].motor, 0);
             DJIMotorSetRef(chassis->front_legs[i].motor, 0);
         }
-        LOGERROR("[Chassis] Max Ext Calibration TIMEOUT!");
         return;
     }
 
@@ -705,7 +704,7 @@ static void MaxExtensionCalibrationTask(uint8_t abort_flag)
 
     uint8_t current_all_done = 1;
 
-    for (int i = 0; i < 4; i++)
+   for (int i = 0; i < 4; i++)
     {
         DJIMotorInstance *motor = (i < 2) ? chassis->rear_legs[i].motor : chassis->front_legs[i - 2].motor;
 
@@ -716,6 +715,27 @@ static void MaxExtensionCalibrationTask(uint8_t abort_flag)
             cali_target_angle[i] += cali_step_size;
 
             float current_angle = motor->measure.total_angle;
+            // 获取当前已经走过的行程
+            float current_stroke = fabsf(current_angle - chassis->cali_state.init_angle[i]);
+
+            // 👇 核心绝招：动态推力限幅 (分段给力)
+            if (i == 0 || i == 1) { // 针对后腿(丝杠)
+                if (current_stroke < 2000.0f) {
+                    // 起步破冰区：给极其狂暴的电流，挣脱静摩擦和原点自锁
+                    motor->motor_controller.speed_PID.MaxOut = 15000.0f;
+                } else {
+                    // 巡航与摸墙区：破冰后立刻收力，温柔滑行，防止撞坏限位
+                    motor->motor_controller.speed_PID.MaxOut = 9500.0f;
+                }
+            } else { // 针对前腿(齿条)
+                if (current_stroke < 2000.0f) {
+                    motor->motor_controller.speed_PID.MaxOut = 12000.0f;
+                } else {
+                    motor->motor_controller.speed_PID.MaxOut = 7000.0f;
+                }
+            }
+
+            // 虚拟弹簧：限制目标超前量
             float slip_threshold = (i < 2) ? MAX_CALI_SLIP_LIMIT_REAR : MAX_CALI_SLIP_LIMIT_FRONT;
             if (cali_target_angle[i] > current_angle + slip_threshold) {
                 cali_target_angle[i] = current_angle + slip_threshold;
@@ -732,17 +752,13 @@ static void MaxExtensionCalibrationTask(uint8_t abort_flag)
                     float actual_diff = fabsf(current_angle - last_check_angle[i]);
                     float actual_current = fabsf((float)motor->measure.real_current);
 
-                    // 👇 动态获取前后腿独立的标定堵转阈值
                     float stall_current_thres = (i < 2) ? REAR_CALI_STALL_CURRENT : FRONT_CALI_STALL_CURRENT;
-
-                    LOGINFO("Leg[%d] Diff: %.1f, Curr: %.1f", i, actual_diff, actual_current);
 
                     if (actual_diff < check_threshold && actual_current > stall_current_thres)
                     {
                         uint8_t allow_stop = 1;
 
-                        float current_stroke = fabsf(current_angle - chassis->cali_state.init_angle[i]);
-
+                        // 双重保险：在破冰区内，无论怎么堵转都绝对不允许停下！
                         if (i == 0 || i == 1) {
                             if (current_stroke < 10000.0f) allow_stop = 0;
                         } else if (i == 2 || i == 3) {
@@ -777,7 +793,6 @@ static void MaxExtensionCalibrationTask(uint8_t abort_flag)
 
         chassis->cali_state.is_max_calibrated = 1;
         first_run = 1;
-        LOGINFO("[Chassis] Max Ext Calibration done! Single leg baseline applied.");
     }
 }
 

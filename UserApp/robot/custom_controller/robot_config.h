@@ -39,6 +39,7 @@ static Motor_Init_Config_s DM4310_config_1 = {
     .can_init_config.tx_id = 0x01,
     .can_init_config.rx_id = 0x11,
     .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+
 };
 
 // 第二个 DM4310 电机配置

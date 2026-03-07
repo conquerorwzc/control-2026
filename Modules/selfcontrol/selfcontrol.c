@@ -175,7 +175,7 @@ static bool parse_custom_controller_data(const uint8_t *packed_data, uint16_t pa
     {
         unpacked_data->motors[i].id = data_ptr[1 + i * 5];
         int16_t angle_raw = ((int16_t)data_ptr[3 + i * 5] << 8) | data_ptr[2 + i * 5];
-        unpacked_data->motors[i].angle = (float)angle_raw / 100.0f;
+        unpacked_data->motors[i].angle = (float)angle_raw / 20.0f;
         unpacked_data->motors[i].is_online = data_ptr[5 + i * 5];
         // 扭矩状态字段已移除，保留为预留字节
     }

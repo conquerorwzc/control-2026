@@ -10,7 +10,6 @@
 #include "string.h"
 #include "user_lib.h"
 #include "half_auto.h"
-
 #include "stdbool.h"
 
 /* Private define ------------------------------------------------------------*/
