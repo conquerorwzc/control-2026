@@ -284,7 +284,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 1.5f,
+                            .Kp = 1.0f,
                             .Ki = 0.0f,
                             .Kd = 0.01f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
@@ -293,7 +293,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                         },
                     .speed_PID =
                         {
-                            .Kp = -5500.0f,
+                            .Kp = -5000.0f,
                             .Ki = -200.0f,
                             .Kd = 0.0f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
@@ -366,7 +366,7 @@ static Shoot_Init_Config_s shoot_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 50.0f,
+                            .Kp = 40.0f,
                             .Ki = 0.0f,
                             .Kd = 1.0f,
                             .MaxOut = 30000.0f,

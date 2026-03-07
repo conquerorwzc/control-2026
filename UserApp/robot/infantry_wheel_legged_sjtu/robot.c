@@ -55,6 +55,12 @@ float visualized_data[20];
 
 void VOFATask() {
 #if defined(GIMBAL_BOARD)
+  visualized_data[0] = robot->gimbal->gimbal_IMU_data->Yaw;
+  visualized_data[1] = robot->gimbal->gimbal_IMU_data->Pitch;
+  visualized_data[2] = robot->shoot->friction_motor[0]->measure.speed_aps;
+  visualized_data[3] = robot->shoot->shoot_ctrl_cmd.initial_speed;
+  visualized_data[4] = robot->shoot->friction_motor[0]->motor_controller.pid_ref;
+  visualized_data[5] = robot->shoot->loader_motor->measure.total_angle;
 #elif defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   visualized_data[0] = robot->chassis->power_ctrl.P_total;
   visualized_data[2] = robot->chassis->power_ctrl.vel_max;
@@ -209,7 +215,7 @@ static void RemoteControlSet() {
   switch (robot->robot_mode) {
     case ROBOT_CHASSIS_ROTATE: {
       // 小陀螺频率设置
-      rotate_frequency = 1.0f;
+      rotate_frequency = 0.33f;
 
       // 小陀螺原地旋转
       rotate_omega = rotate_frequency * 2.0f * PI;
@@ -297,7 +303,7 @@ static void RemoteControlSet() {
       break;
   }
   //  记录上一次数据，开键鼠的话注释掉
-  *rc_data_last = *rc_data;
+  // *rc_data_last = *rc_data;
 }
 
 #if 1
@@ -349,18 +355,6 @@ static void RemoteControlSet() {
  * │ [C]                : 单次触发，切换超级电容开关                              │
  * │ [F]                : 单次触发，切换飞坡模式 (待实现)                         │
  * └─────────────────────────────────────────────────────────────────────────┘
- *
- * ┌─────────────────────────────────────────────────────────────────────────┐
- * │                        速度系数 (随功率档位自动切换)                        │
- * ├──────────────────┬──────────────────┬────────────────────────────────────┤
- * │  功率档位         │  speed_coff      │  rotate_coff                       │
- * ├──────────────────┼──────────────────┼────────────────────────────────────┤
- * │  ≤ 45W           │  1.0             │  1.0                               │
- * │  ≤ 60W           │  1.25            │  1.25                              │
- * │  ≤ 80W           │  1.5             │  1.5                               │
- * │  > 80W           │  2.0             │  2.0                               │
- * └──────────────────┴──────────────────┴────────────────────────────────────┘
- *
  * @note 需在 RobotCMDTask 中周期调用
  */
 static void MouseKeySet() {
@@ -704,7 +698,7 @@ void RobotCMDTask() {
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
   RemoteControlSet();
-  // MouseKeySet();
+  MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 #if defined(GIMBAL_BOARD)
   CalcOffsetAngle();
@@ -765,6 +759,7 @@ void RobotInit() {
   robot->chassis = (ChassisInstance*)zmalloc(sizeof(ChassisInstance));
   robot->chassis->imu = (INS_t*)zmalloc(sizeof(INS_t));
   robot->can_comm = CANCommInit(&gimbal_comm_conf);
+  VOFAInit(&huart1);
 #endif
 #endif
 
