@@ -99,33 +99,6 @@ typedef struct {
   float dtheta_b;  // 机身俯仰角速度 pitch_rate（rad/s），由IMU陀螺仪Gyro[0]获得
 } State_Var_t;
 
-/* ═══════════════════════════════════════════════════════════
- *  增量式MPC相关定义 (LQR串联MPC)
- *  参考: 上交交龙 / 电子科大柳工开源
- *  核心: 通过增量式MPC削弱轮向力矩期望
- * ═══════════════════════════════════════════════════════════ */
-
-#define MPC_STATE_DIM 10  // 原始状态维度 n
-#define MPC_CTRL_DIM 4    // 控制维度 m
-#define MPC_AUG_DIM 20    // 增广状态维度 2n = 20
-
-/* MPC控制模式 */
-typedef enum {
-  MPC_MODE_OFF = 0,  // 纯LQR，不使用MPC
-  MPC_MODE_PURE,     // 纯增量式MPC (替代LQR)
-  MPC_MODE_HYBRID,   // LQR+MPC混合 (推荐)
-} MPC_Mode_e;
-
-/* 增量式MPC控制器运行时数据 */
-typedef struct {
-  float x_prev[MPC_STATE_DIM];  // x(k-1): 上一时刻状态
-  float u_prev[MPC_CTRL_DIM];   // u(k-1): 上一时刻控制输出
-  float xi[MPC_AUG_DIM];        // ξ(k) = [Δx(k); x(k)]: 增广状态
-  float delta_u[MPC_CTRL_DIM];  // Δu(k): 控制增量
-  float u_mpc[MPC_CTRL_DIM];    // MPC计算的完整控制量
-  uint8_t initialized;          // 首次运行标志
-} MPC_Ctrl_t;
-
 /* K matrix 4x10, 2D poly fitting coeffs [p00,p10,p01,p20,p11,p02] per element */
 
 typedef struct {
@@ -135,7 +108,6 @@ typedef struct {
   float leg_min_length;
   float leg_max_length;
   float LQR_K_Coefficients[40][6];
-  float MPC_K_Coefficients[80][6];  // 新增: MPC增益拟合系数
 } Chassis_Param_s;
 
 typedef struct {
@@ -201,18 +173,15 @@ typedef struct {
 
   float delta_theta_comp;
 
-  float LQR_K[4][10];           // [4输出][10状态变量]
-  float MPC_K[4][MPC_AUG_DIM];  // 新增: MPC增益矩阵
-  MPC_Ctrl_t mpc_ctrl;          // 新增: MPC运行时数据
-  MPC_Mode_e mpc_mode;          // 新增: MPC模式选择
+  float LQR_K[4][10];  // [4输出][10状态变量]
 
   uint32_t DWT_CNT;
   float dt;
   struct {
-    uint8_t is_first_update : 1;  // 观测器和状态变量是否完成第一次更新
-    uint8_t is_restart : 1;       // 是否需要重启更新（如时间步长过大时）
-    uint8_t is_controlled : 1;    // 是否处于受控状态, 1表示受控（如有前进指令时）, 0表示非受控, 用于切换控制策略
-    uint8_t is_recovered : 1;     // 本次倒地自起是否已完成，pitch<阈值后置1并退出 recovery，未失控时由上层清零
+    uint8_t is_first_update : 1;    // 观测器和状态变量是否完成第一次更新
+    uint8_t is_restart : 1;         // 是否需要重启更新（如时间步长过大时）
+    uint8_t is_controlled : 1;      // 是否处于受控状态, 1表示受控（如有前进指令时）, 0表示非受控, 用于切换控制策略
+    uint8_t is_recovered : 1;       // 本次倒地自起是否已完成，pitch<阈值后置1并退出 recovery，未失控时由上层清零
   } update_flag;
 } ChassisInstance;
 
