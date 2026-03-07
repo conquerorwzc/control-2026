@@ -181,7 +181,8 @@ static void RemoteControlSet() {
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
   }
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
-    gimbal_ctrl_cmd->yaw += -0.00035f * (float)rc_data[TEMP].rc.rocker_r_;
+    // gimbal_ctrl_cmd->yaw += -0.00035f * (float)rc_data[TEMP].rc.rocker_r_;
+    gimbal_ctrl_cmd->yaw += -0.00032f * (float)rc_data[TEMP].rc.rocker_r_;
   }
   // 云台PITCH轴软件限位 todo:没在云台有点不好
   if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {

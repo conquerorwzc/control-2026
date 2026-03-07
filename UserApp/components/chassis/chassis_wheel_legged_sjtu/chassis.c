@@ -270,7 +270,7 @@ static void LocomotionController(void) {
   float state_err[10];
   state_err[0] = sv->x_b_h - 0.0f;
   state_err[1] = sv->v_b_h - chassis_ctrl_cmd->vx;
-  VAL_LIMIT(state_err[2], -2.7f, 2.7f);
+  VAL_LIMIT(state_err[1], -2.7f, 2.7f);
   state_err[2] = sv->phi - chassis_ctrl_cmd->target_yaw;
   VAL_LIMIT(state_err[2], -0.52f, 0.52f);  // ±30°
   state_err[3] = sv->dphi - 0;
@@ -317,8 +317,11 @@ static void LegController(void) {
   float f_gravity = 0.5f * chassis->param.body_mass * 9.81f;
   float f_inertial = 0.5f * chassis->param.body_mass * (l_avg / chassis->param.track_width) * chassis->state_var.dphi *
                      chassis->state_var.v_b_h;
-  leg[0]->virtual_model.F = -f_psi + f_l_r + f_gravity + f_inertial;
-  leg[1]->virtual_model.F = f_psi + f_l_l + f_gravity - f_inertial;
+  // ★ 离心力限幅：不超过重力补偿的60%
+  // float f_inertial_max = f_gravity * 0.6f;
+  // VAL_LIMIT(f_inertial, -f_inertial_max, f_inertial_max);
+  leg[0]->virtual_model.F = -f_psi + f_l_r + f_gravity + f_inertial * 5.5;
+  leg[1]->virtual_model.F = f_psi + f_l_l + f_gravity - f_inertial * 5.5;
 }
 
 static void ChassisCtrlUpdate(void) {
