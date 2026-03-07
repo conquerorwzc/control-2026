@@ -165,8 +165,8 @@ void CustomController_SendAllData(CustomController_t* controller)
         return;
     }
     
-    // 直接使用CustomController_t结构体中的数据填充发送缓冲区
-    uint8_t controller_data[64] = {0};
+    // 直接使用 CustomController_t 结构体中的数据填充发送缓冲区
+    uint8_t controller_data[26] = {0};
     
     // 数据包类型标识
     controller_data[0] = 0x20; // 控制器数据包标识
