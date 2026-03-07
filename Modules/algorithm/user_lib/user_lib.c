@@ -185,6 +185,11 @@ float ramp_controller_update(Ramp_Controller_t* ramp, float input_v, float dt) {
   return ramp->planning_v;
 }
 
+float soft_limit(float x, float lim) {
+    if (fabsf(x) <= lim) return x;
+    float sign = (x > 0) ? 1.0f : -1.0f;
+    return sign * (lim + (fabsf(x) - lim) / (1.0f + (fabsf(x) - lim)));
+}
 // 弧度格式化为-PI~PI
 
 // 角度格式化为-180~180

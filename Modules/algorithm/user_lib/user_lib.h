@@ -117,6 +117,8 @@ float theta_format(float Ang);
 
 int float_rounding(float raw);
 
+float soft_limit(float x, float lim);
+
 void slope_following(float target, float* set, float acc_d);
 
 float ramp_controller_update(Ramp_Controller_t* ramp, float input_v, float dt);

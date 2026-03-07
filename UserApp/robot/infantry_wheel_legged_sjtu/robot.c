@@ -182,7 +182,8 @@ static void RemoteControlSet() {
   }
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
     // gimbal_ctrl_cmd->yaw += -0.00035f * (float)rc_data[TEMP].rc.rocker_r_;
-    gimbal_ctrl_cmd->yaw += -0.00032f * (float)rc_data[TEMP].rc.rocker_r_;
+    // gimbal_ctrl_cmd->yaw += -0.00034f * (float)rc_data[TEMP].rc.rocker_r_;
+    gimbal_ctrl_cmd->yaw += -0.00043f * (float)rc_data[TEMP].rc.rocker_r_;
   }
   // 云台PITCH轴软件限位 todo:没在云台有点不好
   if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
@@ -246,7 +247,7 @@ static void RemoteControlSet() {
       align_attenuation = cosf(follow_err * DEGREE_2_RAD);
       if (align_attenuation < 0) align_attenuation = 0;
       input_mag *= align_attenuation * align_attenuation * align_attenuation;
-      VAL_LIMIT(input_mag, -2.00, 2.00);
+      VAL_LIMIT(input_mag, -2.50, 2.50);
       // chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, input_mag, robot->dt);
       chassis_ctrl_cmd->vx = input_mag;
       // chassis_ctrl_cmd->theta_ff = chassis_ramp.expected_a / 9.81f;
