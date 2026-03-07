@@ -122,7 +122,7 @@
                      .Kd = 0,                                                                                          \
                      .IntegralLimit = 0,                                                                               \
                      .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,          \
-                     .MaxOut = 4800.0f,                                                                               \
+                     .MaxOut = 4800.0f,                                                                                \
                  },                                                                                                    \
              .speed_PID =                                                                                              \
                  {                                                                                                     \
@@ -241,8 +241,7 @@ static Chassis_Init_Config_s chassis_init_config = {
                             .IntegralLimit = 0,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                             .MaxOut = 10000.0f,
-                        }
-                },
+                        }},
             .controller_setting_init_config =
                 {
                     .outer_loop_type = ANGLE_LOOP,
@@ -411,20 +410,20 @@ static Grab_Init_Config_s
                         {
                             .angle_PID =
                                 {
-                                    .Kp = 12.0f, // 120
+                                    .Kp = 15.0f,
                                     .Ki = 0.00f,
                                     .Kd = 0.00f,
-                                    .MaxOut = 8.0f,
+                                    .MaxOut = 2.0f,
                                     .DeadBand = 0.01f,
                                     .Improve = PID_Integral_Limit,
                                     .IntegralLimit = 0.0f,
                                 },
                             .speed_PID =
                                 {
-                                    .Kp = 0.5f, // 0.5
-                                    .Ki = 0.1f, // 0.1
+                                    .Kp = 6.0f,
+                                    .Ki = 0.0f,
                                     .Kd = 0.00f,
-                                    .MaxOut = 8.0f,
+                                    .MaxOut = 28.0f,
                                     .DeadBand = 0.01f,
                                     .Improve = PID_Integral_Limit,
                                     .IntegralLimit = 0.5f,
