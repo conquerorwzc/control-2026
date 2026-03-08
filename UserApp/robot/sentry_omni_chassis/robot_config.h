@@ -105,9 +105,9 @@ static Chassis_Init_Config_s chassis_init_config = {
     .wheel_motor_config[3] = WHEEL_MOTOR_CONFIG(&hcan1,3),
     //跟随PID
     .follow_pid={
-        .Kp = -100.0f,
+        .Kp = -60.0f,
         .Ki = 0.0f,
-        .Kd = 0.0f,
+        .Kd = -1.0f,
         .IntegralLimit = 1000.0f,
         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
         .MaxOut = 20000.0f,
