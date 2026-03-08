@@ -80,7 +80,7 @@ CustomController_t* CustomControllerInit(CustomController_Init_Config_s* init_co
     // 初始化 USART 实例，使用 USART1
     if (custom_controller_usart == NULL) {
         USART_Init_Config_s usart_config = {0};
-        usart_config.recv_buff_size = 255;
+        usart_config.recv_buff_size = 256;
         extern UART_HandleTypeDef huart1;  // 声明外部USART3句柄
         usart_config.usart_handle = &huart1;
         usart_config.module_callback = NULL;  // 如果需要接收回调可以设置
@@ -206,6 +206,10 @@ void CustomController_SendAllData(CustomController_t* controller)
         // 电机在线状态
         controller_data[5 + i*5] = controller->motor_data[i].is_online;
     }
+    
+    // 夹爪状态 - 放在电机数据之后（第 27 字节）
+    // 0: 关闭，1: 打开
+    controller_data[26] = controller->gripper_opened ? 1 : 0;
     
     // 发送数据包
     uint16_t packed_length;
