@@ -66,6 +66,8 @@ typedef struct
     float wz; // 旋转速度
     Chassis_Mode_e chassis_mode;
     ClimbState_e climb_state;
+    uint8_t robot_mode;
+    float lift_ratio;
     float offset_angle; // 底盘和归中位置的夹角
     int chassis_speed_buff;
     uint16_t max_power;  // 最大功率限制

@@ -17,6 +17,13 @@ typedef struct {
     uint8_t is_online;    // 电机在线状态
 } MotorData_t;
 
+// 电位器数据结构
+typedef struct {
+    uint8_t id;           // 电位器ID
+    float angle;          // 电位器角度 (0-360度)
+    float voltage;        // 电位器电压
+} PotentiometerData_t;
+
 // 解析后的控制器数据
 typedef struct {
     MotorData_t motors[5];           // 5 个 DM4310 电机的数据
