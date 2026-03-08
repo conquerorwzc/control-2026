@@ -253,16 +253,12 @@ static void RemoteControlSet() {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
-    if (vt13_rc_data->button_status.trigger_last==0) {
-      trigger_time = time;
-    }
-    if (vt13_rc_data->rc.trigger == 1 && time - trigger_time > 1.0f) {
-      shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
-    } else {
+    if (vt13_rc_data->rc.trigger == 1) {
+      if (vt13_rc_data->button_status.trigger_last==0) trigger_time = time;
       shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
+      if (time - trigger_time > 1.0f) shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
     }
   }
-
 
   // 云台控制
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
@@ -345,7 +341,7 @@ static void MouseKeySet() {
   }
 
   // 左键发射
-  switch (vt13_rc_data->mouse_key.mouse.press_l % 2) {
+  switch (vt13_rc_data->mouse_key.mouse.press_l) {
     case 0:
       if (vt13_rc_data->rc.trigger != 1) {
         // 停止发射逻辑
