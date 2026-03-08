@@ -17,9 +17,28 @@ static CustomController_t* angle_controller;
 static GPIOInstance *gpio_24V_R_EN;
 static GPIO_Init_Config_s gpio_init_config_24v = {
     .GPIO_Pin = POWER_24V_R_Pin,
+    .GPIOx = POWER_5V_GPIO_Port,
+    .pin_state = GPIO_PIN_SET,
+  };
+
+static GPIOInstance *gpio_5V_EN;
+static GPIO_Init_Config_s gpio_init_config_5v = {
+    .GPIO_Pin = POWER_5V_Pin,
     .GPIOx = POWER_24V_R_GPIO_Port,
     .pin_state = GPIO_PIN_SET,
   };
+
+// 微动开关 GPIO
+static GPIOInstance *gpio_micro_switch;
+static GPIO_Init_Config_s gpio_init_config_micro_switch = {
+    .GPIO_Pin = Micro_switch_Pin,
+    .GPIOx = Micro_switch_GPIO_Port,
+    .pin_state = GPIO_PIN_RESET,
+  };
+
+// 调试用全局变量
+volatile uint8_t debug_switch_state = 0;
+static GPIO_PinState last_switch_state = GPIO_PIN_SET;  // 记录上一次状态
 
 void RobotInit() {
     // 创建初始化配置结构体
@@ -33,6 +52,12 @@ void RobotInit() {
 
     gpio_24V_R_EN = GPIORegister(&gpio_init_config_24v);
     GPIOSet(gpio_24V_R_EN);
+
+    gpio_5V_EN = GPIORegister(&gpio_init_config_5v);
+    GPIOSet(gpio_5V_EN);
+
+    // 初始化微动开关 GPIO（输入模式）
+    gpio_micro_switch = GPIORegister(&gpio_init_config_micro_switch);
 
     // 初始化自定义控制器（包含电机初始化）
     angle_controller = CustomControllerInit(&init_config);
@@ -51,4 +76,15 @@ void RobotTask() {
         // 发送所有电机数据通过 USART3
         CustomController_SendAllData(angle_controller);
     }
+    
+    // 简单读取微动开关电平
+    GPIO_PinState switch_state = GPIORead(gpio_micro_switch);
+    
+    // 检测下降沿（高电平 -> 低电平）
+    if (last_switch_state == GPIO_PIN_SET && switch_state == GPIO_PIN_RESET) {
+        debug_switch_state = !debug_switch_state;  // 在 0 和 1 之间切换
+    }
+    
+    // 更新上一次状态
+    last_switch_state = switch_state;
 }

@@ -73,6 +73,8 @@ void Error_Handler(void);
 #define ACC_INT_GPIO_Port GPIOE
 #define GYRO_INT_Pin GPIO_PIN_12
 #define GYRO_INT_GPIO_Port GPIOE
+#define Micro_switch_Pin GPIO_PIN_13
+#define Micro_switch_GPIO_Port GPIOE
 
 /* USER CODE BEGIN Private defines */
 

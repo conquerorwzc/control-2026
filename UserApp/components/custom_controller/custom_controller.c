@@ -80,10 +80,10 @@ CustomController_t* CustomControllerInit(CustomController_Init_Config_s* init_co
         custom_controller_usart = USARTRegister(&usart_config);
     }
     controller->usart_instance = custom_controller_usart;
-    
+
     controller->is_initialized = true;
     controller->is_active = true;
-    
+
     // 等待电机数据稳定
     osDelay(100);
     
