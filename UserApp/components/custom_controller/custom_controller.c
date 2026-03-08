@@ -4,14 +4,21 @@
 #include <string.h>
 #include <stdio.h>
 
-// USART3实例声明
+// USART3 实例声明
 static USARTInstance* custom_controller_usart = NULL;
+
+// 微动开关 GPIO 配置（在组件内部创建）
+static GPIO_Init_Config_s gpio_init_config_micro_switch = {
+    .GPIO_Pin = Micro_switch_Pin,
+    .GPIOx = Micro_switch_GPIO_Port,
+    .pin_state = GPIO_PIN_RESET,
+};
 
 /* ----------------------- 私有函数声明 ----------------------------- */
 static float DM_RadianToDegree(float radian);
 static void CalibrateMotorZeroPosition(CustomController_t* controller);
 static bool CheckMotorOnlineStatus(CustomController_t* controller);
-
+static void MicroSwitchMonitor(CustomController_t* controller);
 /* ----------------------- 公共函数实现 ----------------------------- */
 
 /**
@@ -73,14 +80,25 @@ CustomController_t* CustomControllerInit(CustomController_Init_Config_s* init_co
     // 初始化 USART 实例，使用 USART1
     if (custom_controller_usart == NULL) {
         USART_Init_Config_s usart_config = {0};
-        usart_config.recv_buff_size = 256;
+        usart_config.recv_buff_size = 255;
         extern UART_HandleTypeDef huart1;  // 声明外部USART3句柄
         usart_config.usart_handle = &huart1;
         usart_config.module_callback = NULL;  // 如果需要接收回调可以设置
         custom_controller_usart = USARTRegister(&usart_config);
     }
     controller->usart_instance = custom_controller_usart;
-
+        
+    // 在组件内部创建微动开关 GPIO 实例
+    controller->micro_switch_gpio = GPIORegister(&gpio_init_config_micro_switch);
+    
+    // 检查 GPIO 实例是否有效
+    if (controller->micro_switch_gpio == NULL) {
+        LOGERROR("CustomController: micro_switch_gpio is NULL");
+    }
+    
+    // 初始化夹爪状态
+    controller->gripper_opened = false;
+        
     controller->is_initialized = true;
     controller->is_active = true;
 
@@ -138,6 +156,9 @@ void CustomControllerTask(CustomController_t* controller)
 
     // 更新电机数据用于发送
     CustomController_UpdateMotorData(controller);
+    
+    // 监控微动开关状态，控制夹爪
+    MicroSwitchMonitor(controller);
 }
 
 /**
@@ -229,7 +250,53 @@ void CustomController_UpdateMotorData(CustomController_t* controller)
 /* ----------------------- 私有函数实现 ----------------------------- */
 
 /**
- * @brief DM电机弧度转角度
+ * @brief 监控微动开关状态，控制夹爪打开/关闭
+ * @param controller 控制器实例
+ */
+static void MicroSwitchMonitor(CustomController_t* controller)
+{
+    static GPIO_PinState last_switch_state = GPIO_PIN_SET;   // 记录上一次状态
+    static uint32_t last_debounce_time = 0;                  // 上次消抖时间戳
+    static bool trigger_lock = false;                        // 触发锁，防止一次按压中重复触发
+    const uint32_t debounce_delay_ms = 30;                   // 消抖延时 30ms
+    
+    if (controller == NULL || !controller->is_initialized) {
+        return;
+    }
+    
+    // 检查 GPIO 实例是否有效
+    if (controller->micro_switch_gpio == NULL) {
+        return;
+    }
+    
+    // 读取当前微动开关状态
+    GPIO_PinState switch_state = GPIORead(controller->micro_switch_gpio);
+    
+    // 如果状态发生变化，更新消抖时间戳
+    if (switch_state != last_switch_state) {
+        last_debounce_time = DWT_GetTimeline_ms();
+    }
+    
+    // 更新上一次状态
+    last_switch_state = switch_state;
+    
+    // 检查是否超过消抖时间
+    if ((DWT_GetTimeline_ms() - last_debounce_time) > debounce_delay_ms) {
+        // 检测下降沿（高电平 -> 低电平）- 按下时触发
+        if (last_switch_state == GPIO_PIN_RESET && !trigger_lock) {
+            // 切换夹爪状态
+            controller->gripper_opened = !controller->gripper_opened;
+            trigger_lock = true;  // 锁定，防止本次按压中重复触发
+        }
+        // 检测上升沿（低电平 -> 高电平）- 松开时重置锁
+        else if (last_switch_state == GPIO_PIN_SET) {
+            trigger_lock = false;  // 解锁，允许下次触发
+        }
+    }
+}
+
+/**
+ * @brief DM 电机弧度转角度
  * @param radian 弧度值
  * @return float 角度值
  */

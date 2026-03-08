@@ -16,6 +16,7 @@
 #include "protocol.h"
 #include "crc_func.h"
 #include "bsp_usart.h"
+#include "bsp_gpio.h"
 
 /* ----------------------- 电机单元结构体 ----------------------------- */
 typedef struct {
@@ -48,6 +49,8 @@ typedef struct {
     bool motor_online_status[5];            // 电机在线状态（用于检测断电重启）
     MotorData_t motor_data[5];              // 电机数据（用于发送）
     USARTInstance* usart_instance;          // USART 通信实例
+    GPIOInstance* micro_switch_gpio;        // 微动开关 GPIO 实例
+    bool gripper_opened;                    // 夹爪打开标志
     bool is_initialized;                    // 初始化标志
     bool is_active;                         // 活跃状态
 } CustomController_t;
