@@ -164,43 +164,43 @@ static void DualBoardCtrlSet() {
     //robot->chassis->chassis_ctrl_cmd.chassis_speed_buff=cchassis_ctrl_can_comm->chassis_speed_buff;
     robot->chassis->chassis_ctrl_cmd.offset_angle = cancomm_pack->chassis_ctrl_can_comm.offset_angle;
     robot->chassis->chassis_ctrl_cmd.SuperCapBoost = cancomm_pack->chassis_ctrl_can_comm.SuperCapBoost;
-    robot->gimbal->gimbal_ctrl_cmd.gimbal_mode = cancomm_pack->gimbal_mode;
-    robot->shoot->shoot_ctrl_cmd.shoot_mode = cancomm_pack->shoot_mode;
-    robot->shoot->shoot_ctrl_cmd.friction_mode = cancomm_pack->friction_mode;
-    robot->shoot->shoot_ctrl_cmd.load_mode = cancomm_pack->load_mode;
-    robot->gimbal->gimbal_ctrl_cmd.pitch = -(float)cancomm_pack->pitch;
-    robot->shoot->shoot_ctrl_cmd.rest_heat=cancomm_pack->rest_heat;
-    robot->shoot->shoot_ctrl_cmd.shoot_rate = cancomm_pack->shoot_rate;
-    robot->shoot->friction_motor[0]->measure.speed_aps = (float)cancomm_pack->friction_speed1;
-    robot->shoot->friction_motor[1]->measure.speed_aps = (float)cancomm_pack->friction_speed2;
-
-      interactive_data->chassis_mode = robot->chassis->chassis_ctrl_cmd.chassis_mode;
-
-   // interactive_data.gimbal_mode = robotdata->gimbal->gimbal_ctrl_cmd.gimbal_mode;
-     interactive_data->gimbal_mode = cancomm_pack->gimbal_mode;
-
-    //interactive_data.shoot_mode = robotdata->shoot->shoot_ctrl_cmd.shoot_mode;
-     interactive_data->shoot_mode = cancomm_pack->shoot_mode;
-
-    //interactive_data.friction_mode = robotdata->shoot->shoot_ctrl_cmd.friction_mode;
-     interactive_data->friction_mode = cancomm_pack->friction_mode;
-
-    //interactive_data.lid_mode = robotdata->shoot->shoot_ctrl_cmd.load_mode;
-     interactive_data->lid_mode = cancomm_pack->load_mode;
-
-    // interactive_data.Chassis_Power_Data.chassis_power_mx = robotdata->chassis->chassis_ctrl_cmd.max_power; // 示例功率值
-
-    //interactive_data.pitch_angle = robotdata->gimbal->gimbal_ctrl_cmd.pitch;
-     interactive_data->pitch_angle = -(float)cancomm_pack->pitch;
-
-    // interactive_data.Shoot_heat = robotdata->shoot->shoot_ctrl_cmd.rest_heat;
-     interactive_data->Shoot_heat = cancomm_pack->rest_heat;
-    // interactive_data.Shoot_rate = robotdata->shoot->shoot_ctrl_cmd.shoot_rate;
-     interactive_data->Shoot_rate = cancomm_pack->shoot_rate;
-
-    // interactive_data.autoaim_mode = robotdata->gimbal->vision_mode;          // 自瞄模式
-    //interactive_data.autoaim_mode = robotdata->gimbal->gimbal_ctrl_cmd.gimbal_mode == GIMBAL_VISION ? 1 : 0;  // 自瞄模式(1为开启，0为关闭)
-     interactive_data->autoaim_mode = cancomm_pack->gimbal_mode == GIMBAL_VISION ? 1 : 0;  // 自瞄模式(1为开启，0为关闭)
+    // robot->gimbal->gimbal_ctrl_cmd.gimbal_mode = cancomm_pack->gimbal_mode;
+    // robot->shoot->shoot_ctrl_cmd.shoot_mode = cancomm_pack->shoot_mode;
+    // robot->shoot->shoot_ctrl_cmd.friction_mode = cancomm_pack->friction_mode;
+    // robot->shoot->shoot_ctrl_cmd.load_mode = cancomm_pack->load_mode;
+    // robot->gimbal->gimbal_ctrl_cmd.pitch = -(float)cancomm_pack->pitch;
+    // robot->shoot->shoot_ctrl_cmd.rest_heat=cancomm_pack->rest_heat;
+    // robot->shoot->shoot_ctrl_cmd.shoot_rate = cancomm_pack->shoot_rate;
+    // robot->shoot->friction_motor[0]->measure.speed_aps = (float)cancomm_pack->friction_speed1;
+    // robot->shoot->friction_motor[1]->measure.speed_aps = (float)cancomm_pack->friction_speed2;
+   //
+   //    interactive_data->chassis_mode = robot->chassis->chassis_ctrl_cmd.chassis_mode;
+   //
+   // // interactive_data.gimbal_mode = robotdata->gimbal->gimbal_ctrl_cmd.gimbal_mode;
+   //   interactive_data->gimbal_mode = cancomm_pack->gimbal_mode;
+   //
+   //  //interactive_data.shoot_mode = robotdata->shoot->shoot_ctrl_cmd.shoot_mode;
+   //   interactive_data->shoot_mode = cancomm_pack->shoot_mode;
+   //
+   //  //interactive_data.friction_mode = robotdata->shoot->shoot_ctrl_cmd.friction_mode;
+   //   interactive_data->friction_mode = cancomm_pack->friction_mode;
+   //
+   //  //interactive_data.lid_mode = robotdata->shoot->shoot_ctrl_cmd.load_mode;
+   //   interactive_data->lid_mode = cancomm_pack->load_mode;
+   //
+   //  // interactive_data.Chassis_Power_Data.chassis_power_mx = robotdata->chassis->chassis_ctrl_cmd.max_power; // 示例功率值
+   //
+   //  //interactive_data.pitch_angle = robotdata->gimbal->gimbal_ctrl_cmd.pitch;
+   //   interactive_data->pitch_angle = -(float)cancomm_pack->pitch;
+    //
+    // // interactive_data.Shoot_heat = robotdata->shoot->shoot_ctrl_cmd.rest_heat;
+    //  interactive_data->Shoot_heat = cancomm_pack->rest_heat;
+    // // interactive_data.Shoot_rate = robotdata->shoot->shoot_ctrl_cmd.shoot_rate;
+    //  interactive_data->Shoot_rate = cancomm_pack->shoot_rate;
+    //
+    // // interactive_data.autoaim_mode = robotdata->gimbal->vision_mode;          // 自瞄模式
+    // //interactive_data.autoaim_mode = robotdata->gimbal->gimbal_ctrl_cmd.gimbal_mode == GIMBAL_VISION ? 1 : 0;  // 自瞄模式(1为开启，0为关闭)
+    //  interactive_data->autoaim_mode = cancomm_pack->gimbal_mode == GIMBAL_VISION ? 1 : 0;  // 自瞄模式(1为开启，0为关闭)
 
     // interactive_data.cap_voltage = robotdata->super_cap->cap_msg.vol / 1000.0f;
     // 检查使用的是哪种超级电容模块
@@ -415,7 +415,7 @@ RobotInstance * RobotInit() {
 
   robot->chassis = ChassisInit(&chassis_init_config);
   //robot->shoot=(ShootInstance*)zmalloc(sizeof(ShootInstance));
-    interactive_data=getUI();
+//    interactive_data=getUI();
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   chassis_ctrl_cmd->max_power = 80;  // 随便给一个初始功率，后面应该要从裁判系统获取

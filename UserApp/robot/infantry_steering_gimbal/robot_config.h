@@ -9,7 +9,7 @@
 #define BOARD_RX_ID 0x311
 
 // 云台参数
-#define YAW_CHASSIS_ALIGN_ECD 5666
+#define YAW_CHASSIS_ALIGN_ECD 5550
 #define PITCH_HORIZON_ECD 5748  // 云台处于水平位置时编码器值,若对云台有机械改动需要修改
 #define PITCH_MAX_ANGLE 13.0f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
 #define PITCH_MIN_ANGLE -30.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
@@ -28,7 +28,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                     {
-                      .Kp = 3.0f,  //0.8
+                      .Kp = 2.0f,  //0.8
                       .Ki = 0.0f,
                       .Kd = 0.035f,
                       .DeadBand = 0.0f,
@@ -61,7 +61,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 0.6f,  // 1
+                            .Kp = 0.55f,  // 1
                             .Ki = 0.00f,
                             .Kd = 0.00f,
                             .MaxOut = 20.0f,  //25
@@ -72,7 +72,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                         },
                     .speed_PID =
                         {
-                            .Kp = 2.8f,  // 0.5
+                            .Kp = 1.0f,  // 0.5
                             .Ki = 30.f,  // 0.1
                             .Kd = 0.00f,
                             .MaxOut = 11.5f,  //8

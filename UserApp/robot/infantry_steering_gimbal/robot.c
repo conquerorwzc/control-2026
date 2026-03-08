@@ -171,26 +171,26 @@ static void MouseKeySet() {
     chassis_ctrl_cmd->vx=vx_initial;
   }//速度绝对值在10000以下输出控制量=输入控制量
   if (vx_initial > 10000 ) {
-    chassis_ctrl_cmd->vx=10000+(DWT_GetTimeline_s()-x_speed_time)*15000;
+    chassis_ctrl_cmd->vx=10000+(DWT_GetTimeline_s()-x_speed_time)*20000;
   }
   if (vx_initial < -10000) {
-    chassis_ctrl_cmd->vx=-10000-(DWT_GetTimeline_s()-x_speed_time)*15000;
+    chassis_ctrl_cmd->vx=-10000-(DWT_GetTimeline_s()-x_speed_time)*20000;
   }//速度绝对值在10000以上输出控制量=10000+10000t(s)
   if (abs(vy_initial)<=10000) {
     y_speed_time=DWT_GetTimeline_s();
     chassis_ctrl_cmd->vy=vy_initial;
   }//速度绝对值在10000以下输出控制量=输入控制量
   if (vy_initial > 10000 ) {
-    chassis_ctrl_cmd->vy=10000+(DWT_GetTimeline_s()-y_speed_time)*15000;
+    chassis_ctrl_cmd->vy=10000+(DWT_GetTimeline_s()-y_speed_time)*20000;
   }
   if (vy_initial < -10000) {
-    chassis_ctrl_cmd->vy=-10000-(DWT_GetTimeline_s()-y_speed_time)*15000;
+    chassis_ctrl_cmd->vy=-10000-(DWT_GetTimeline_s()-y_speed_time)*20000;
   }//速度绝对值在10000以上输出控制量=10000+10000t(s)
 
 if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   {
     gimbal_ctrl_cmd->yaw -= (float)rc_data[TEMP].mouse.x * 0.003f;  // 横向灵敏度调节
-    gimbal_ctrl_cmd->pitch += (float)rc_data[TEMP].mouse.y * 0.003f; // 纵向灵敏度调节 (负号反转Y轴)
+    gimbal_ctrl_cmd->pitch -= (float)rc_data[TEMP].mouse.y * 0.003f; // 纵向灵敏度调节 (负号反转Y轴)
   }
   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Z] % 3)  // Z键设置弹速
   {

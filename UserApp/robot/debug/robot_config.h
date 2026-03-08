@@ -7,6 +7,9 @@
 #pragma once
 
 #include "robot.h"
+#include "super_cap.h"
+#include "dji_motor.h"
+#include "dmmotor.h"
 
 static Motor_Init_Config_s J8009P_config = {
     .controller_param_init_config =
@@ -65,4 +68,11 @@ static Motor_Init_Config_s M3508_config = {
     .can_init_config.can_handle = &hcan1,
     .can_init_config.tx_id = 2,
     .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+};
+static SuperCap_Init_Config_s supercab_init_config = {
+    .can_config = {
+        .can_handle = &hcan1,  // 根据实际情况选择CAN接口，英雄的h7是can1
+        .rx_id = 0x211,        // 接收ID (CAN_SUPERCAP_ID)
+        .tx_id = 0X210,        // 发送ID
+      }
 };
