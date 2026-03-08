@@ -7,6 +7,7 @@
 #pragma once
 
 #include "robot.h"
+#include "can_comm.h"
 
 // 编译warning,提醒开发者修改机器人参数
 #ifndef ROBOT_CONFIG_PARAM_WARNING
