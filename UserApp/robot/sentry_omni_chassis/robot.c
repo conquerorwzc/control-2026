@@ -55,7 +55,7 @@ uint8_t has_non_zero_data(const Vision_Receive_s* data) {
 }
 static void CalcOffsetAngle() {
   #ifdef USE_DUAL_RC
-  angle = rc_data_old->Rotate_speed;
+  angle = rc_data_old->Yaw_motor_angle;
 #elifdef USE_DUAL_RC_NEW
   angle = rc_data_new->Yaw_motor_angle;
 #endif

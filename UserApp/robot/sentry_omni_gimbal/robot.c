@@ -312,8 +312,8 @@ static void RemoteControlSet() {
 
 static void MouseKeySet() {
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
-    gimbal_ctrl_cmd->yaw -= (float)vt13_rc_data->mouse_key.mouse.x * 0.007f;
-    gimbal_ctrl_cmd->pitch += (float)vt13_rc_data->mouse_key.mouse.y * 0.003f;
+    gimbal_ctrl_cmd->yaw -= (float)vt13_rc_data->mouse_key.mouse.x * 0.001f;
+    gimbal_ctrl_cmd->pitch -= (float)vt13_rc_data->mouse_key.mouse.y * 0.0005f;
   }
 
   // 弹速设置 (Z键)
