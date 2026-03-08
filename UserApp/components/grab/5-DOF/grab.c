@@ -42,11 +42,6 @@ static float total_angle_init_R = 0;
 static float total_angle_init_M = 0;
 static float total_angle_init_Video_forward = 0;
 static float total_angle_init_Video_pitch = 0;
-float a[5] = {0, 0, 0, 0, 0}; // 测试用电机目标位置
-/* ================= 半自动轨迹调试专区 ================= */
-float custom_trajectory[20][6] = {0};
-uint8_t custom_traj_length = 0;
-uint8_t save_point_trigger = 0;
 /* Private function prototypes -----------------------------------------------*/
 GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config); // 机械臂初始化，返回一个机械臂示例指针
 void GrabTask();                                              // 机械臂任务函数
@@ -125,20 +120,7 @@ void GrabTask()
 
 static void GrabCmdTask()
 {
-    if (save_point_trigger == 1)
-    {
-        if (custom_traj_length < 20) {
-            custom_trajectory[custom_traj_length][0] = grab_ctrl_cmd->base_joint;
-            custom_trajectory[custom_traj_length][1] = grab_ctrl_cmd->elbow_roll;
-            custom_trajectory[custom_traj_length][2] = grab_ctrl_cmd->elbow_pitch;
-            custom_trajectory[custom_traj_length][3] = grab_ctrl_cmd->wrist_pitch;
-            custom_trajectory[custom_traj_length][4] = grab_ctrl_cmd->wrist_roll;
-            custom_trajectory[custom_traj_length][5] = grab_ctrl_cmd->torque;
 
-            custom_traj_length++; // 存完长度自动加 1
-        }
-        save_point_trigger = 0; // 💥 核心：用完自动清零，就像按键弹起一样！
-    }
     // 👉 核心新增：增加软件限位保护 (只有标定完成后才生效拦截)
     if (grab->actuator->wrist_cali.state == CALI_STAGE_DONE)
     {

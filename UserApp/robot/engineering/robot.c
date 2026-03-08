@@ -23,13 +23,16 @@ static Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd; // 【新增】龙门架控制命令�
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last; // 遥控器数据,初始化时返回
 static float set_angle = 0;
-
+static int save_point_trigger = 0 ;
 static float angle = 0;
 static float target_angle = 0;
 static int mouse_l_count = 0;
 static Gantry_Param_s gantry_param;
 static Grab_Param_s grab_param;
 static GrabControlMode_e grab_control_mode = GRAB_CONTROL_KEYBOARD; // 默认为键鼠控制
+// 假设最大记录 50 步，原来是 [50][6]，现在改成 [50][7]
+float custom_trajectory[50][7];
+uint16_t custom_traj_length = 0; // 记录当前步数
 /* Private function prototypes -----------------------------------------------*/
 static void Gantry_Limit(Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd, const Gantry_Param_s *gantry_param);
 static void Grab_Limit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, const Gantry_Param_s *gantry_param);
@@ -39,7 +42,7 @@ static GPIO_Init_Config_s gpio_init_config_5v = {
     .GPIOx = POWER_5V_GPIO_Port,
     .pin_state = GPIO_PIN_SET,
 };
-
+static void Record_Current_Waypoint(void);
 static void RemoteControlSet();
 static void MouseKeySet();
 static void EmergencyHandler();
@@ -126,7 +129,7 @@ void RobotCMDTask()
     RemoteControlSet();
     MouseKeySet();
     // 只在自定义控制器模式下处理数据，避免与键鼠控制冲突
-
+     Record_Current_Waypoint();
     EmergencyHandler(); // 处理模块离线和遥控器急停等紧急情况
 }
 
@@ -237,15 +240,41 @@ static void MouseKeySet()
     }
 
     // ================= 5. 夹爪控制 (Shift + C 触发式) =================
-    if (rc_data[TEMP].key_count[KEY_PRESS_WITH_SHIFT][Key_C] % 2 == 1)
-    {
-        grab_ctrl_cmd->torque = 2.0f; // 夹紧
-    }
-    else
-    {
-        grab_ctrl_cmd->torque = -0.6f; // 松开
-    }
 
+    // 获取当前的计数值
+    uint32_t current_c_count = rc_data[TEMP].key_count[KEY_PRESS_WITH_SHIFT][Key_C];
+    static uint32_t last_grab_state = 0; // 0为松开状态，1为夹紧状态
+
+    if (grab_control_mode == GRAB_CONTROL_KEYBOARD || grab_control_mode == GRAB_CONTROL_CUSTOM)
+    {
+        // 正常模式：根据计数值奇偶判断
+        if (current_c_count % 2 == 1)
+        {
+            grab_ctrl_cmd->torque = 2.0f; // 夹紧
+            last_grab_state = 1;
+        }
+        else
+        {
+            grab_ctrl_cmd->torque = -0.6f; // 松开
+            last_grab_state = 0;
+        }
+    }
+    else if (grab_control_mode == GRAB_CONTROL_HALF_AUTO)
+    {
+        // 💥 核心修复：在半自动模式下，强行同步计数值
+        // 如果半自动让夹爪关上了，我们就把键盘计数值强行同步成 1（奇数）
+        // 如果半自动让夹爪开了，我们就把键盘计数值强行同步成 0（偶数）
+        // 这样当你切回手动时，按键状态永远是和物理现状对齐的，不会乱跳！
+
+        if (grab_ctrl_cmd->torque > 0.5f) // 判定当前半自动是夹紧的
+        {
+            rc_data[TEMP].key_count[KEY_PRESS_WITH_SHIFT][Key_C] = 1;
+        }
+        else // 判定当前半自动是松开的
+        {
+            rc_data[TEMP].key_count[KEY_PRESS_WITH_SHIFT][Key_C] = 0;
+        }
+    }
     // ================= 6. 图传云台控制 (ZX, VB) =================
     // Z/X: 控制普通图传 Pitch 俯仰角
     grab_ctrl_cmd->video_pitch +=
@@ -449,5 +478,31 @@ static void ProcessCustomControllerData()
 static void CalcOffsetAngle()
 {
     chassis_ctrl_cmd->offset_angle = set_angle - robot->ins_data->YawTotalAngle;
+}
+
+
+static void Record_Current_Waypoint(void)
+{
+    // 确保不会数组越界 (假设最大 50 步)
+
+    if (save_point_trigger == 1)
+    {
+        if (custom_traj_length < 50)
+        {
+            // 记录机械臂的 6 个参数
+            custom_trajectory[custom_traj_length][0] = grab_ctrl_cmd->base_joint;
+            custom_trajectory[custom_traj_length][1] = grab_ctrl_cmd->elbow_roll;
+            custom_trajectory[custom_traj_length][2] = grab_ctrl_cmd->elbow_pitch;
+            custom_trajectory[custom_traj_length][3] = grab_ctrl_cmd->wrist_pitch;
+            custom_trajectory[custom_traj_length][4] = grab_ctrl_cmd->wrist_roll;
+            custom_trajectory[custom_traj_length][5] = grab_ctrl_cmd->torque;
+
+
+            custom_trajectory[custom_traj_length][6] = chassis_ctrl_cmd->lift_ratio;
+
+            custom_traj_length++; // 步数加 1
+            save_point_trigger = 0;
+        }
+    }
 }
 /* ---------------------------------------------------------------------------*/
