@@ -29,14 +29,10 @@
 #define FRONT_RIGHT_STOP_MAX_OUT 4000.0f
 
 // ==================== 【后腿（滚珠丝杠+齿轮组） 2.0秒极速参数】 ====================
-#define REAR_TOTAL_TIME_SEC 3.0f     // 坚决贯彻 2.0 秒！
-#define REAR_ACCEL_TIME_SEC 1.0f     // 丝杠起步快，给 0.4 秒爆发加速
+#define REAR_TOTAL_TIME_SEC 3.0f     // 坚决贯彻 3.0 秒！
+#define REAR_ACCEL_TIME_SEC 1.0f     // 丝杠起步快，给 1.0 秒爆发加速
 #define REAR_MOVING_MAX_OUT 12000.0f // 突破静摩擦力的狂暴输出！
 #define REAR_STOP_MAX_OUT 0.0f       // 驻车力，靠齿轮摩擦力锁死即可
-
-// ==================== 【兑换模式（极慢无级调节）专属参数】 ====================
-#define EXCHANGE_TOTAL_TIME_SEC 20.0f // 兑换模式：虚拟总时间 (数字越大，底盘升降越平滑缓慢)
-#define EXCHANGE_ACCEL_TIME_SEC 4.0f  // 兑换模式：加速/减速缓冲时间
 
 // ==================== 【硬件基础信息】 ====================
 #define CALI_TASK_FREQ 500.0f  // 标定任务运行频率 (Hz) ，在ostask里得知
@@ -213,7 +209,7 @@ ChassisInstance *ChassisInit(Chassis_Init_Config_s *chassis_init_config)
 /* 机器人底盘控制核心任务 */
 void ChassisTask()
 {
-    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CALIBRATING && RemoteControlIsOnline())
+    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CALIBRATING)
     {
         for (int i = 0; i < 4; i++)
             DJIMotorStop(chassis->wheel_motor[i]);
@@ -245,7 +241,7 @@ void ChassisTask()
             // 用户中途切走了模式（主动取消标定）！
             MaxExtensionCalibrationTask(1); // 传入 1：触发任务内部重置清零！
 
-            // 🚨 修复 2：如果是因为急停触发的打断，绝对不许使能电机！防止 500Hz 疯狂启停！
+            // 如果是因为急停触发的打断，绝对不许使能电机！防止 500Hz 疯狂启停！
             if (chassis_ctrl_cmd->chassis_mode != CHASSIS_POWER_OFF)
             {
                 // 安全收腿保护：把腿安全地拉回物理零点，防止掉下来
@@ -254,7 +250,6 @@ void ChassisTask()
                     DJIMotorEnable(chassis->front_legs[i].motor);
                     DJIMotorEnable(chassis->rear_legs[i].motor);
 
-                    // 🚨 修复 1：把后腿改回 8000！800 是绝对拉不动丝杠的！
                     chassis->front_legs[i].motor->motor_controller.speed_PID.MaxOut = 8000.0f;
                     chassis->rear_legs[i].motor->motor_controller.speed_PID.MaxOut = 6000.0f;
 
@@ -319,9 +314,7 @@ static void Planner_Update(TrapezoidalPlanner_t *planner)
 {
     float remain_dist = fabsf(planner->target_pos - planner->current_ref);
 
-    // 🚨 架构级救命补丁：防零除死机！
-    // 如果加速度几乎为0（比如被屏蔽的腿，行程为0），说明根本不需要运动。
-    // 直接让它乖乖待在原地并退出，绝不能往下做除法！
+    // 防零除死机！
     if (planner->accel <= 0.0001f)
     {
         planner->current_vel = 0.0f;
@@ -424,9 +417,10 @@ static void LiftLeg_SetTarget(LiftLeg_t *leg, float target)
     leg->planner.target_pos = target;
 }
 
+// 🌟🌟🌟 全新加入的终极底层执行器 (支持模式 2 无级斜坡追踪) 🌟🌟🌟
 static void LiftLeg_Execute(LiftLeg_t *leg)
 {
-    if (leg->use_curve)
+    if (leg->use_curve == 1) // 模式1：原厂梯形曲线 (上台阶用，全速爆发)
     {
         Planner_Update(&leg->planner);
         if (leg->ff_channel)
@@ -436,7 +430,26 @@ static void LiftLeg_Execute(LiftLeg_t *leg)
             leg->planner.is_moving ? leg->moving_max_out : leg->stop_max_out;
         DJIMotorSetPIDRef(leg->motor, leg->planner.current_ref);
     }
-    else
+    else if (leg->use_curve == 2) // 🌟 模式2：兑换专属 (柔性无级追踪)
+    {
+        // 🛡️ 核心防御 1：一阶低通滤波 (LPF)！吸收跳变，消灭抽搐！
+        leg->planner.current_ref += (leg->target_pos - leg->planner.current_ref) * 0.15f;
+
+        // 🛡️ 核心防御 2：动态安全限流！力量削弱到70%，温柔发力不伤车！
+        float safe_moving_out = leg->moving_max_out * 0.9f;
+
+        // 🎯 核心防御 3：精准判断启停 (消灭滑行，松手即锁)
+        if (fabsf(leg->planner.current_ref - leg->target_pos) > 10.0f) {
+            leg->motor->motor_controller.speed_PID.MaxOut = safe_moving_out;
+        } else {
+            leg->motor->motor_controller.speed_PID.MaxOut = leg->stop_max_out;
+        }
+
+        // 兑换模式下关闭前馈速度扰动，纯靠过滤后的位置环牵引
+        if (leg->ff_channel) *(leg->ff_channel) = 0.0f;
+        DJIMotorSetPIDRef(leg->motor, leg->planner.current_ref);
+    }
+    else // 模式0：传统锁定
     {
         if (leg->ff_channel)
             *(leg->ff_channel) = 0.0f;
@@ -568,27 +581,44 @@ void Leg_FSM()
         is_legs_assembled = 1;
     }
 
-    // 🌟 核心突破：大模式切换时，动态改变电机的梯形曲线特性
+    // 🌟🌟🌟 大模式切换时，挂载不同的控制大脑 🌟🌟🌟
     if (chassis_ctrl_cmd->robot_mode != last_robot_mode)
     {
         if (chassis_ctrl_cmd->robot_mode == 2) // ROBOT_EXCHANGE_MODE (兑换模式)
         {
-            // 注入极慢速平滑基因 (使用宏定义，方便调参)
-            LiftLeg_UpdateSpeed(&chassis->front_legs[LEFT], EXCHANGE_TOTAL_TIME_SEC, EXCHANGE_ACCEL_TIME_SEC,
-                                stroke_front_l);
-            LiftLeg_UpdateSpeed(&chassis->front_legs[RIGHT], EXCHANGE_TOTAL_TIME_SEC, EXCHANGE_ACCEL_TIME_SEC,
-                                stroke_front_r);
-            LiftLeg_UpdateSpeed(&chassis->rear_legs[LEFT], EXCHANGE_TOTAL_TIME_SEC, EXCHANGE_ACCEL_TIME_SEC,
-                                stroke_rear_l);
-            LiftLeg_UpdateSpeed(&chassis->rear_legs[RIGHT], EXCHANGE_TOTAL_TIME_SEC, EXCHANGE_ACCEL_TIME_SEC,
-                                stroke_rear_r);
+            // 启用全新研发的 "模式2：无级斜坡追踪"
+            chassis->front_legs[LEFT].use_curve = 2;
+            chassis->front_legs[RIGHT].use_curve = 2;
+            chassis->rear_legs[LEFT].use_curve = 2;
+            chassis->rear_legs[RIGHT].use_curve = 2;
+
+            // 无缝切入：把底层四条腿现在的真实位置反推给上层的 lift_ratio，防止切模式瞬间抽搐下砸！
+            float current_stroke = chassis->front_legs[LEFT].motor->measure.total_angle - chassis->cali_state.init_angle[2];
+            chassis_ctrl_cmd->lift_ratio = current_stroke / stroke_front_l;
+            if(chassis_ctrl_cmd->lift_ratio < 0.0f) chassis_ctrl_cmd->lift_ratio = 0.0f;
+            if(chassis_ctrl_cmd->lift_ratio > 1.0f) chassis_ctrl_cmd->lift_ratio = 1.0f;
+
+            // 重置规划器参考点，紧咬当前位置
+            chassis->front_legs[LEFT].planner.current_ref = chassis->front_legs[LEFT].motor->measure.total_angle;
+            chassis->front_legs[RIGHT].planner.current_ref = chassis->front_legs[RIGHT].motor->measure.total_angle;
+            chassis->rear_legs[LEFT].planner.current_ref = chassis->rear_legs[LEFT].motor->measure.total_angle;
+            chassis->rear_legs[RIGHT].planner.current_ref = chassis->rear_legs[RIGHT].motor->measure.total_angle;
         }
         else // ROBOT_CLIMB_MODE 或 正常行车
         {
-            // 恢复原厂迅捷爆发基因 (直接切画面)
+            // 恢复原厂 "模式1：3秒 迅捷爆发梯形曲线"
+            chassis->front_legs[LEFT].use_curve = 1;
+            chassis->front_legs[RIGHT].use_curve = 1;
+            chassis->rear_legs[LEFT].use_curve = 1;
+            chassis->rear_legs[RIGHT].use_curve = 1;
+
+            chassis->front_legs[LEFT].planner.current_ref = chassis->front_legs[LEFT].motor->measure.total_angle;
+            chassis->front_legs[RIGHT].planner.current_ref = chassis->front_legs[RIGHT].motor->measure.total_angle;
+            chassis->rear_legs[LEFT].planner.current_ref = chassis->rear_legs[LEFT].motor->measure.total_angle;
+            chassis->rear_legs[RIGHT].planner.current_ref = chassis->rear_legs[RIGHT].motor->measure.total_angle;
+
             LiftLeg_UpdateSpeed(&chassis->front_legs[LEFT], FRONT_TOTAL_TIME_SEC, FRONT_ACCEL_TIME_SEC, stroke_front_l);
-            LiftLeg_UpdateSpeed(&chassis->front_legs[RIGHT], FRONT_TOTAL_TIME_SEC, FRONT_ACCEL_TIME_SEC,
-                                stroke_front_r);
+            LiftLeg_UpdateSpeed(&chassis->front_legs[RIGHT], FRONT_TOTAL_TIME_SEC, FRONT_ACCEL_TIME_SEC, stroke_front_r);
             LiftLeg_UpdateSpeed(&chassis->rear_legs[LEFT], REAR_TOTAL_TIME_SEC, REAR_ACCEL_TIME_SEC, stroke_rear_l);
             LiftLeg_UpdateSpeed(&chassis->rear_legs[RIGHT], REAR_TOTAL_TIME_SEC, REAR_ACCEL_TIME_SEC, stroke_rear_r);
         }
@@ -596,19 +626,39 @@ void Leg_FSM()
     }
 
     // 🎯 高度指令派发
+    // 🎯 高度指令派发
     if (chassis_ctrl_cmd->robot_mode == 2) // ROBOT_EXCHANGE_MODE
     {
         // 兑换模式：无级调节 (lift_ratio 0~1 映射到 物理行程)
         float ratio = chassis_ctrl_cmd->lift_ratio;
-        if (ratio < 0.0f)
-            ratio = 0.0f;
-        if (ratio > 1.0f)
-            ratio = 1.0f; // 限幅保护
+        if (ratio < 0.0f) ratio = 0.0f;
+        if (ratio > 1.0f) ratio = 1.0f; // 限幅保护
 
-        LiftLeg_SetTarget(&chassis->front_legs[LEFT], chassis->cali_state.init_angle[2] + stroke_front_l * ratio);
-        LiftLeg_SetTarget(&chassis->front_legs[RIGHT], chassis->cali_state.init_angle[3] + stroke_front_r * ratio);
-        LiftLeg_SetTarget(&chassis->rear_legs[LEFT], chassis->cali_state.init_angle[0] + stroke_rear_l * ratio);
-        LiftLeg_SetTarget(&chassis->rear_legs[RIGHT], chassis->cali_state.init_angle[1] + stroke_rear_r * ratio);
+        // 🌟🌟🌟 新增：前腿悬空分段补偿算法 🌟🌟🌟
+        float front_ratio = ratio;
+        float rear_ratio  = 0.0f;
+
+        // 这里的 0.10f 代表前腿悬空距离占总行程的 10%
+        // 如果实车测试发现还是前倾，可以把它调大 (比如 0.15f)
+        // 如果实车测试发现变成后仰了，就调小 (比如 0.05f)
+        float air_gap_ratio = 0.10f;
+
+        if (ratio <= air_gap_ratio)
+        {
+            // 阶段1：前腿先走前 10% 补齐悬空缝隙，后腿按兵不动 (0%)
+            rear_ratio = 0.0f;
+        }
+        else
+        {
+            // 阶段2：前腿触底后，后腿从 0% 开始，与前腿同步等比例发力
+            // 公式：(当前比例 - 悬空比例) / 剩余的有效比例
+            rear_ratio = (ratio - air_gap_ratio) / (1.0f - air_gap_ratio);
+        }
+
+        LiftLeg_SetTarget(&chassis->front_legs[LEFT], chassis->cali_state.init_angle[2] + stroke_front_l * front_ratio);
+        LiftLeg_SetTarget(&chassis->front_legs[RIGHT], chassis->cali_state.init_angle[3] + stroke_front_r * front_ratio);
+        LiftLeg_SetTarget(&chassis->rear_legs[LEFT], chassis->cali_state.init_angle[0] + stroke_rear_l * rear_ratio);
+        LiftLeg_SetTarget(&chassis->rear_legs[RIGHT], chassis->cali_state.init_angle[1] + stroke_rear_r * rear_ratio);
     }
     else // ROBOT_CLIMB_MODE
     {
