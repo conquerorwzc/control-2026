@@ -179,6 +179,11 @@ static bool parse_custom_controller_data(const uint8_t *packed_data, uint16_t pa
         unpacked_data->motors[i].is_online = data_ptr[5 + i * 5];
         // 扭矩状态字段已移除，保留为预留字节
     }
+        
+    // 解析夹爪状态 - 第 27 字节（索引 26）
+    // 0: 关闭，1: 打开
+    unpacked_data->gripper_opened = data_ptr[26];
+        
     return true;
 }
 

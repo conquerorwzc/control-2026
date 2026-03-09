@@ -27,6 +27,7 @@ typedef struct {
 // 解析后的控制器数据
 typedef struct {
     MotorData_t motors[5];           // 5 个 DM4310 电机的数据
+    uint8_t gripper_opened;          // 夹爪状态：0-关闭，1-打开
 } UnpackedControllerData_t;
 
 // 自定义控制器实例
