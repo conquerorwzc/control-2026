@@ -27,10 +27,12 @@ static int save_point_trigger = 0;
 static float angle = 0;
 static float target_angle = 0;
 static int mouse_l_count = 0;
+static uint32_t current_selfcontrol_gripper = 0;
+static uint32_t last_selfcontrol_gripper = 0;
 static Gantry_Param_s gantry_param;
 static Grab_Param_s grab_param;
 static GrabControlMode_e grab_control_mode = GRAB_CONTROL_KEYBOARD; // 默认为键鼠控制
-// 假设最大记录 50 步，原来是 [50][6]，现在改成 [50][7]
+
 float custom_trajectory[50][7];
 uint16_t custom_traj_length = 0; // 记录当前步数
 /* Private function prototypes -----------------------------------------------*/
@@ -46,9 +48,7 @@ static void Record_Current_Waypoint(void);
 static void RemoteControlSet();
 static void MouseKeySet();
 static void EmergencyHandler();
-
 static void ProcessCustomControllerData();
-
 static void CalcOffsetAngle();
 void RobotInit();
 void RobotCMDTask();
@@ -190,9 +190,9 @@ static void MouseKeySet()
         }
         else
         {
-            // 如果切出了兑换模式（比如去跑路或上台阶），强行把机械臂切回键鼠并锁定，防止外设误触
-            grab_control_mode = GRAB_CONTROL_KEYBOARD;
-            rc_data[TEMP].key_count[KEY_PRESS][Key_F] = 0;
+            // // 如果切出了兑换模式（比如去跑路或上台阶），强行把机械臂切回键鼠并锁定，防止外设误触
+            // grab_control_mode = GRAB_CONTROL_KEYBOARD;
+            // rc_data[TEMP].key_count[KEY_PRESS][Key_F] = 0;
         }
 
         // ================= 3. 底盘平移 (WASD 全局生效) =================
@@ -248,7 +248,7 @@ static void MouseKeySet()
     uint32_t current_c_count = rc_data[TEMP].key_count[KEY_PRESS_WITH_SHIFT][Key_C];
     static uint32_t last_grab_state = 0; // 0为松开状态，1为夹紧状态
 
-    if (grab_control_mode == GRAB_CONTROL_KEYBOARD || grab_control_mode == GRAB_CONTROL_CUSTOM)
+    if (grab_control_mode == GRAB_CONTROL_KEYBOARD )
     {
         // 正常模式：根据计数值奇偶判断
         if (current_c_count % 2 == 1)
@@ -262,13 +262,43 @@ static void MouseKeySet()
             last_grab_state = 0;
         }
     }
+    else if (grab_control_mode == GRAB_CONTROL_CUSTOM)
+    {
+        current_selfcontrol_gripper = robot->self_control->unpacked_data.gripper_opened;
+        if (current_selfcontrol_gripper != last_selfcontrol_gripper)
+        {
+            if (fabsf(grab_ctrl_cmd->torque+0.6) < 0.01f)
+            {
+                grab_ctrl_cmd->torque = 2.0f;
+            }
+            else if (fabsf(grab_ctrl_cmd->torque-2.0f) < 0.01f)
+            {
+                grab_ctrl_cmd->torque = -0.6f;
+            }
+
+        }
+        else if (current_selfcontrol_gripper == last_selfcontrol_gripper)
+        {
+            grab_ctrl_cmd->torque = grab_ctrl_cmd->torque;
+        }
+        last_selfcontrol_gripper = current_selfcontrol_gripper;
+        if (grab_ctrl_cmd->torque > 0.5f)
+        {
+            rc_data[TEMP].key_count[KEY_PRESS_WITH_SHIFT][Key_C] = 1;
+        }
+        else // 判定当前半自动是松开的
+        {
+            rc_data[TEMP].key_count[KEY_PRESS_WITH_SHIFT][Key_C] = 0;
+        }
+    }
     else if (grab_control_mode == GRAB_CONTROL_HALF_AUTO)
     {
         // 💥 核心修复：在半自动模式下，强行同步计数值
         // 如果半自动让夹爪关上了，我们就把键盘计数值强行同步成 1（奇数）
         // 如果半自动让夹爪开了，我们就把键盘计数值强行同步成 0（偶数）
         // 这样当你切回手动时，按键状态永远是和物理现状对齐的，不会乱跳！
-
+        current_selfcontrol_gripper = robot->self_control->unpacked_data.gripper_opened;
+        last_selfcontrol_gripper = current_selfcontrol_gripper;
         if (grab_ctrl_cmd->torque > 0.5f) // 判定当前半自动是夹紧的
         {
             rc_data[TEMP].key_count[KEY_PRESS_WITH_SHIFT][Key_C] = 1;
