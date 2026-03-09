@@ -739,14 +739,14 @@ static Grab_Init_Config_s
                                     .Kp = 30.0f,
                                     .Ki = 0.0f,
                                     .Kd = 0.0f,
-                                    .MaxOut = 10000.0f,
+                                    .MaxOut = 13000.0f,
                                 },
                             .speed_PID = {.Kp = 2.0f,
                                           .Ki = 0.0f,
                                           .Kd = 0.0f,
                                           .Improve = PID_Integral_Limit | PID_ErrorHandle,
                                           .IntegralLimit = 0.0f,
-                                          .MaxOut = 10000.0},
+                                          .MaxOut = 12000.0},
                         },
                     .controller_setting_init_config =
                         {
