@@ -33,7 +33,7 @@
 #define ROLL_SAFE_MAX_APS (ROLL_SAFE_MAX_RPM * 6.0f)
 #define ROLL_SAFE_MAX_DELTA_ANGLE 720.0f
 // Flash 模拟 EEPROM 地址 (存入最后几个扇区，请确保不与代码区冲突)
-#define ADDR_FLASH_ERROR_LOG ((uint32_t)0x081E0000)
+#define ADDR_FLASH_ERROR_LOG ((uint32_t)0x080E0000)
 
 /* Private variables ---------------------------------------------------------*/
 static GrabInstance *grab;

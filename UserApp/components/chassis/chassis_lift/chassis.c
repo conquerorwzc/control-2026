@@ -22,7 +22,7 @@
 #define FRONT_TOTAL_TIME_SEC 3.0f // 目标：完成单次最大行程的总时间(秒)
 #define FRONT_ACCEL_TIME_SEC 1.0f // 加速/减速缓冲段的时间(秒)
 
-// 🚨 左右非对称力量调参 (解决左侧偏重问题)：
+// 左右非对称力量调参 (解决左侧偏重问题)：
 #define FRONT_LEFT_MOVING_MAX_OUT 12000.0f // 左腿(重)：放宽限幅，允许拉到 12000
 #define FRONT_RIGHT_MOVING_MAX_OUT 7000.0f // 右腿(轻)：保持原来的健康参数
 #define FRONT_LEFT_STOP_MAX_OUT 6000.0f    // 驻车防掉兜底加大
@@ -40,7 +40,7 @@
 #define GEAR_RATIO_FRONT 19.0f // 前腿减速比
 
 // ==================== 【标定行为期望 (物理参数)】 ====================
-// 🚨 新增：前后腿独立的标定堵转电流阈值 (满载为 16384)
+// 前后腿独立的标定堵转电流阈值 (满载为 16384)
 #define FRONT_CALI_STALL_CURRENT 3000.0f // 前腿(齿条)：机械优势小，给大点电流才能判定撞墙
 #define REAR_CALI_STALL_CURRENT 5000.0f  // 后腿(丝杠)：推力极其恐怖，阈值给小一点，撞墙瞬间温柔停机防损坏
 
@@ -293,7 +293,6 @@ void ChassisTask()
         break;
     }
 
-    // 💥 无条件挂载最新腿部大脑
     Leg_FSM();
 
     static float sin_theta, cos_theta;
@@ -439,14 +438,18 @@ static void LiftLeg_Execute(LiftLeg_t *leg)
         float safe_moving_out = leg->moving_max_out * 0.9f;
 
         // 🎯 核心防御 3：精准判断启停 (消灭滑行，松手即锁)
-        if (fabsf(leg->planner.current_ref - leg->target_pos) > 10.0f) {
+        if (fabsf(leg->planner.current_ref - leg->target_pos) > 10.0f)
+        {
             leg->motor->motor_controller.speed_PID.MaxOut = safe_moving_out;
-        } else {
+        }
+        else
+        {
             leg->motor->motor_controller.speed_PID.MaxOut = leg->stop_max_out;
         }
 
         // 兑换模式下关闭前馈速度扰动，纯靠过滤后的位置环牵引
-        if (leg->ff_channel) *(leg->ff_channel) = 0.0f;
+        if (leg->ff_channel)
+            *(leg->ff_channel) = 0.0f;
         DJIMotorSetPIDRef(leg->motor, leg->planner.current_ref);
     }
     else // 模式0：传统锁定
@@ -593,10 +596,13 @@ void Leg_FSM()
             chassis->rear_legs[RIGHT].use_curve = 2;
 
             // 无缝切入：把底层四条腿现在的真实位置反推给上层的 lift_ratio，防止切模式瞬间抽搐下砸！
-            float current_stroke = chassis->front_legs[LEFT].motor->measure.total_angle - chassis->cali_state.init_angle[2];
+            float current_stroke =
+                chassis->front_legs[LEFT].motor->measure.total_angle - chassis->cali_state.init_angle[2];
             chassis_ctrl_cmd->lift_ratio = current_stroke / stroke_front_l;
-            if(chassis_ctrl_cmd->lift_ratio < 0.0f) chassis_ctrl_cmd->lift_ratio = 0.0f;
-            if(chassis_ctrl_cmd->lift_ratio > 1.0f) chassis_ctrl_cmd->lift_ratio = 1.0f;
+            if (chassis_ctrl_cmd->lift_ratio < 0.0f)
+                chassis_ctrl_cmd->lift_ratio = 0.0f;
+            if (chassis_ctrl_cmd->lift_ratio > 1.0f)
+                chassis_ctrl_cmd->lift_ratio = 1.0f;
 
             // 重置规划器参考点，紧咬当前位置
             chassis->front_legs[LEFT].planner.current_ref = chassis->front_legs[LEFT].motor->measure.total_angle;
@@ -618,7 +624,8 @@ void Leg_FSM()
             chassis->rear_legs[RIGHT].planner.current_ref = chassis->rear_legs[RIGHT].motor->measure.total_angle;
 
             LiftLeg_UpdateSpeed(&chassis->front_legs[LEFT], FRONT_TOTAL_TIME_SEC, FRONT_ACCEL_TIME_SEC, stroke_front_l);
-            LiftLeg_UpdateSpeed(&chassis->front_legs[RIGHT], FRONT_TOTAL_TIME_SEC, FRONT_ACCEL_TIME_SEC, stroke_front_r);
+            LiftLeg_UpdateSpeed(&chassis->front_legs[RIGHT], FRONT_TOTAL_TIME_SEC, FRONT_ACCEL_TIME_SEC,
+                                stroke_front_r);
             LiftLeg_UpdateSpeed(&chassis->rear_legs[LEFT], REAR_TOTAL_TIME_SEC, REAR_ACCEL_TIME_SEC, stroke_rear_l);
             LiftLeg_UpdateSpeed(&chassis->rear_legs[RIGHT], REAR_TOTAL_TIME_SEC, REAR_ACCEL_TIME_SEC, stroke_rear_r);
         }
@@ -631,12 +638,14 @@ void Leg_FSM()
     {
         // 兑换模式：无级调节 (lift_ratio 0~1 映射到 物理行程)
         float ratio = chassis_ctrl_cmd->lift_ratio;
-        if (ratio < 0.0f) ratio = 0.0f;
-        if (ratio > 1.0f) ratio = 1.0f; // 限幅保护
+        if (ratio < 0.0f)
+            ratio = 0.0f;
+        if (ratio > 1.0f)
+            ratio = 1.0f; // 限幅保护
 
         // 🌟🌟🌟 新增：前腿悬空分段补偿算法 🌟🌟🌟
         float front_ratio = ratio;
-        float rear_ratio  = 0.0f;
+        float rear_ratio = 0.0f;
 
         // 这里的 0.10f 代表前腿悬空距离占总行程的 10%
         // 如果实车测试发现还是前倾，可以把它调大 (比如 0.15f)
@@ -656,7 +665,8 @@ void Leg_FSM()
         }
 
         LiftLeg_SetTarget(&chassis->front_legs[LEFT], chassis->cali_state.init_angle[2] + stroke_front_l * front_ratio);
-        LiftLeg_SetTarget(&chassis->front_legs[RIGHT], chassis->cali_state.init_angle[3] + stroke_front_r * front_ratio);
+        LiftLeg_SetTarget(&chassis->front_legs[RIGHT],
+                          chassis->cali_state.init_angle[3] + stroke_front_r * front_ratio);
         LiftLeg_SetTarget(&chassis->rear_legs[LEFT], chassis->cali_state.init_angle[0] + stroke_rear_l * rear_ratio);
         LiftLeg_SetTarget(&chassis->rear_legs[RIGHT], chassis->cali_state.init_angle[1] + stroke_rear_r * rear_ratio);
     }
