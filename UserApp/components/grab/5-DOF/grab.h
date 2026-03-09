@@ -2,6 +2,7 @@
 #include "dji_motor.h"
 #include "dmmotor.h"
 #include "general_def.h"
+#include "stm32h7xx_hal.h"
 
 typedef enum
 {
@@ -15,6 +16,12 @@ typedef enum
     GRAB_CALI_MODE,
 } Grab_Cali_Mode_e;
 
+typedef enum
+{
+    GRAB_NO_ERROR = 0,
+    GRAB_ERR_ROLL_OVERSPEED   = 1, // Roll轴疯转
+    GRAB_ERR_ROLL_OVERANGLE  = 2  //  Roll轴角度超限
+} Grab_Error_e;
 
 typedef enum {
     CALI_STAGE_DM_WAIT_ZERO   = 0, // 0: 阶段一 - DM大臂等待物理归零
@@ -128,8 +135,11 @@ typedef struct
     ArmInstance *arm;
     ActuatorInstance *actuator;
     VideoInstance *video;
+    Grab_Error_e error_code;      // 当前实时错误码
+    Grab_Error_e last_error_log;  // 上一次断电前记录的错误
 } GrabInstance;
 
 GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config);
 
 void GrabTask();
+

@@ -22,18 +22,19 @@
 
 // 腕部堵转标定开关 (1: 开启自动撞墙标定 | 0: 关闭，把上电位置直接当做 0 度)
 #define USE_WRIST_STALL_CALI 1
-// 👇 新增：腕部 Pitch 电机物理挂载开关 (1: 启用发力并检测 | 0: 彻底断电卸力并不参与检测)
-#define USE_WRIST_LEFT_MOTOR 1  // 左侧电机 (目前使用)
-#define USE_WRIST_RIGHT_MOTOR 0 // 右侧电机 (暂时不用)
-// 👇 新增：腕部软件限位安全系数 (0.98 表示收缩 2% 作为缓冲空间)
+// 腕部 Pitch 电机物理挂载开关 (1: 启用发力并检测 | 0: 彻底断电卸力并不参与检测)
+#define USE_WRIST_LEFT_MOTOR 1  // 左侧电机
+#define USE_WRIST_RIGHT_MOTOR 0 // 右侧电机
+// 腕部软件限位安全系数
 #define WRIST_SOFT_LIMIT_MARGIN 0.90f
-// ================= 半自动轨迹调试专区 =================
-// 20个点，每个点6个参数 (base, elbow_r, elbow_p, wrist_p, wrist_r, torque)
-extern float custom_trajectory[20][6];
-extern uint8_t custom_traj_length;
 
-// Ozone 虚拟触发键 (仅存点)
-extern uint8_t save_point_trigger; // 设为 1 触发存点
+// Roll电机极限安全物理转速 (设定 5000 RPM 为疯转红线)
+#define ROLL_SAFE_MAX_RPM 5000.0f
+#define ROLL_SAFE_MAX_APS (ROLL_SAFE_MAX_RPM * 6.0f)
+#define ROLL_SAFE_MAX_DELTA_ANGLE 720.0f
+// Flash 模拟 EEPROM 地址 (存入最后几个扇区，请确保不与代码区冲突)
+#define ADDR_FLASH_ERROR_LOG ((uint32_t)0x081E0000)
+
 /* Private variables ---------------------------------------------------------*/
 static GrabInstance *grab;
 static Grab_Ctrl_Cmd_s *grab_ctrl_cmd;
@@ -42,6 +43,7 @@ static float total_angle_init_R = 0;
 static float total_angle_init_M = 0;
 static float total_angle_init_Video_forward = 0;
 static float total_angle_init_Video_pitch = 0;
+static int error_clear_triggle = 0;
 /* Private function prototypes -----------------------------------------------*/
 GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config); // 机械臂初始化，返回一个机械臂示例指针
 void GrabTask();                                              // 机械臂任务函数
@@ -50,6 +52,11 @@ static void MotorTask();                                      // 电机任务函
 static void Grab_Position_Calculate(GrabInstance *grab);      // 计算电机目标位置
 static void GrabCalibrationTask(void);                        // 机械臂两段式安全标定任务
 static void Grab_Real_Angle_Calculate(GrabInstance *grab);    // 计算机械臂实际角度
+static void GrabClearError(void);
+static void Flash_Write_Error(uint32_t code);
+static uint32_t Flash_Read_Error(void);
+static void Error_Check();
+static void GrabClearError(void);
 /* Private user code ---------------------------------------------------------*/
 /**
  * @brief 初始化机械臂
@@ -94,6 +101,20 @@ GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config)
         DMMotorCaliEncoder(grab->arm->grab_dmmotor[2]);
         DMMotorCaliEncoder(grab->actuator->grab_dmmotor[0]);
     }
+    // 🌟 唤醒“断电遗言”
+    grab->error_code = GRAB_NO_ERROR; // 当前默认无错
+    uint32_t saved_raw = Flash_Read_Error();
+
+    // 0xFFFFFFFF 是 Flash 擦除后的默认空白状态
+    if (saved_raw != 0xFFFFFFFF && saved_raw != 0)
+    {
+        grab->last_error_log = (Grab_Error_e)saved_raw;
+        // 如果能接上串口，这里可以加一句 printf 或 LOGERROR 打印出来
+    }
+    else
+    {
+        grab->last_error_log = GRAB_NO_ERROR;
+    }
     return grab_instance;
 }
 
@@ -105,6 +126,11 @@ void GrabTask()
     grab_ctrl_cmd = &grab->grab_ctrl_cmd;
     GrabCmdTask();
 
+    if (error_clear_triggle == 1)
+    {
+        GrabClearError();
+    }
+
     if (grab->actuator->wrist_cali.state != CALI_STAGE_DONE)
     {
         GrabCalibrationTask();
@@ -113,7 +139,9 @@ void GrabTask()
     {
         Grab_Position_Calculate(grab);
     }
+
     Grab_Real_Angle_Calculate(grab);
+
     MotorTask();
 }
 
@@ -141,6 +169,7 @@ static void GrabCmdTask()
 
 static void MotorTask()
 {
+    Error_Check();
     if (grab_ctrl_cmd->grab_mode == GRAB_POWER_OFF)
     {
         DMMotorStop(grab->arm->grab_dmmotor[0]);
@@ -571,4 +600,72 @@ static void Grab_Real_Angle_Calculate(GrabInstance *grab)
     total_angle_init_Video_forward) / MOTOR2006_REDUCTION_RATIO;
     }
     */
+}
+
+/**
+ * @brief 将错误码强行烧录进 Flash (断电不丢失)
+ */
+static void Flash_Write_Error(uint32_t code)
+{
+    HAL_FLASH_Unlock();
+
+    FLASH_EraseInitTypeDef EraseInitStruct;
+    uint32_t SectorError;
+    EraseInitStruct.TypeErase = FLASH_TYPEERASE_SECTORS;
+    EraseInitStruct.Banks = FLASH_BANK_1;    // H7 视具体型号定 Bank
+    EraseInitStruct.Sector = FLASH_SECTOR_7; // 使用扇区 7
+    EraseInitStruct.NbSectors = 1;
+    EraseInitStruct.VoltageRange = FLASH_VOLTAGE_RANGE_3;
+
+    // 擦除后写入 (H7 必须按 256 位或 128 位写入，这里填充占位符)
+    if (HAL_FLASHEx_Erase(&EraseInitStruct, &SectorError) == HAL_OK)
+    {
+        uint32_t data_to_write[8] = {code, 0, 0, 0, 0, 0, 0, 0};
+        HAL_FLASH_Program(FLASH_TYPEPROGRAM_FLASHWORD, ADDR_FLASH_ERROR_LOG, (uint32_t)data_to_write);
+    }
+    HAL_FLASH_Lock();
+}
+
+/**
+ * @brief 从 Flash 读取断电遗言
+ */
+static uint32_t Flash_Read_Error(void)
+{
+    return *(__IO uint32_t *)ADDR_FLASH_ERROR_LOG;
+}
+
+static void Error_Check()
+{
+
+    // 只有在没报错 且 处于使能状态时，才进行异常检测 (防止重复写入 Flash)
+    if (grab->error_code == GRAB_NO_ERROR && grab_ctrl_cmd->grab_mode == GRAB_POWER_ON)
+    {
+        // Roll 轴防疯转
+        if (DaemonIsOnline(grab->actuator->grab_djimotor[2]->daemon))
+        { // 防止转速过快
+            float current_roll_speed = fabsf(grab->actuator->grab_djimotor[2]->measure.speed_aps);
+            if (current_roll_speed > ROLL_SAFE_MAX_APS)
+            {
+                grab->error_code = GRAB_ERR_ROLL_OVERSPEED;
+            }
+            // 防止掉电出现问题，不可能有的突变超大角度
+            float current_roll_delta_angle = fabsf(grab->grab_measure.wrist_roll - grab->actuator->wrist_roll);
+            if (current_roll_delta_angle > ROLL_SAFE_MAX_DELTA_ANGLE)
+            {
+                grab->error_code = GRAB_ERR_ROLL_OVERANGLE;
+            }
+        }
+
+        if (grab->error_code != GRAB_NO_ERROR)
+        {
+            Flash_Write_Error((uint32_t)grab->error_code); // 死前刻入 Flash
+            grab_ctrl_cmd->grab_mode = GRAB_POWER_OFF;     // 强行锁死瘫痪
+        }
+    }
+}
+static void GrabClearError(void)
+{
+    grab->error_code = GRAB_NO_ERROR;
+    grab->last_error_log = GRAB_NO_ERROR;
+    Flash_Write_Error((uint32_t)GRAB_NO_ERROR);
 }
