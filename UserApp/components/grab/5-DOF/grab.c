@@ -17,7 +17,7 @@
 #define WRIST_CALI_MAX_TICKS 3000    // 阶段二：腕部抬头堵转最大允许时间 6 秒
 #define WRIST_CALI_SPEED 0.10f       // 腕部抬升速度
 #define WRIST_CALI_CHECK_TICKS 500   // 堵转检测时间
-#define WRIST_CALI_TOLERANCE 150.0f  // 堵转容差度数
+#define WRIST_CALI_TOLERANCE 300.0f  // 堵转容差度数
 #define WRIST_CALI_STALL_CURRENT 800 // 堵转电流阈值
 
 // 腕部堵转标定开关 (1: 开启自动撞墙标定 | 0: 关闭，把上电位置直接当做 0 度)
