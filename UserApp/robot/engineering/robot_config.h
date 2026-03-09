@@ -40,7 +40,7 @@
             {                                                                                                          \
                 .speed_PID =                                                                                           \
                     {                                                                                                  \
-                        .Kp = 0.5,                                                                                     \
+                        .Kp = 6,                                                                                     \
                         .Ki = 0,                                                                                       \
                         .Kd = 0,                                                                                       \
                         .IntegralLimit = 6000,                                                                         \
@@ -746,7 +746,7 @@ static Grab_Init_Config_s
                                           .Kd = 0.0f,
                                           .Improve = PID_Integral_Limit | PID_ErrorHandle,
                                           .IntegralLimit = 0.0f,
-                                          .MaxOut = 12000.0},
+                                          .MaxOut = 10000.0},
                         },
                     .controller_setting_init_config =
                         {
