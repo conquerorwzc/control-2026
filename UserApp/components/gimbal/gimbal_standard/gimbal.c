@@ -13,17 +13,32 @@
 
 #include "gimbal.h"
 
-#include "user_lib.h"
+#include "general_def.h"
 #include "ins_task.h"
+#include "user_lib.h"
 
 static GimbalInstance* gimbal;
 static Gimbal_Ctrl_Cmd_s* gimbal_ctrl_cmd;  // 声明但不初始化
+static float pitch_feedforward_scale;
+
+/**
+ * @brief pitch重力补偿前馈
+ *        F = k * cos(pitch)
+ *        pitch=0°水平时补偿最大，pitch=±90°时补偿为0
+ */
+static float GetPitchGravityFeedforward(void) {
+  float pitch_rad = gimbal->gimbal_IMU_data->Pitch * DEGREE_2_RAD;
+  return pitch_feedforward_scale * arm_cos_f32(pitch_rad);
+}
 
 // static BMI088Instance *bmi088; // 云台IMU
 GimbalInstance* GimbalInit(Gimbal_Init_Config_s* gimbal_init_config) {
   GimbalInstance* gimbal_instance = (GimbalInstance*)zmalloc(sizeof(GimbalInstance));
-  gimbal_instance->gimbal_IMU_data = INS_Init(&gimbal_init_config->imu_init_config);  // IMU先初始化,获取姿态数据指针赋给yaw电机的其他数据来源
+  gimbal_instance->gimbal_IMU_data =
+      INS_Init(&gimbal_init_config->imu_init_config);  // IMU先初始化,获取姿态数据指针赋给yaw电机的其他数据来源
 
+  // pitch重力补偿前馈
+  pitch_feedforward_scale = gimbal_init_config->pitch_feedforward_scale;
   // YAW控制器参数配置
   gimbal_init_config->yaw_motor_config.controller_param_init_config.other_angle_feedback_ptr =
       &gimbal_instance->gimbal_IMU_data->YawTotalAngle;
@@ -69,9 +84,6 @@ void GimbalTask() {
     DJIMotorEnable(gimbal->pitch_motor);
     DJIMotorSetPIDRef(gimbal->yaw_motor, gimbal_ctrl_cmd->yaw);  // yaw和pitch会在robot_cmd中处理好多圈和单圈
     DJIMotorSetPIDRef(gimbal->pitch_motor, gimbal_ctrl_cmd->pitch);
+    gimbal->pitch_motor->motor_controller.final_output += GetPitchGravityFeedforward();  // pitch重力补偿前馈
   }
-
-  // 在合适的地方添加pitch重力补偿前馈力矩
-  // 根据IMU姿态/pitch电机角度反馈计算出当前配重下的重力矩
-  // ...
 }

@@ -20,6 +20,7 @@ typedef struct {
   Motor_Init_Config_s yaw_motor_config;
   Motor_Init_Config_s pitch_motor_config;
   IMU_Init_Config_s imu_init_config;  // 用于修正IMU安装误差的参数（新增）
+  float pitch_feedforward_scale;  // 重力补偿系数（pitch=0时的final_output）
 } Gimbal_Init_Config_s;
 
 typedef struct {
