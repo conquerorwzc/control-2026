@@ -136,7 +136,6 @@ typedef struct
     ActuatorInstance *actuator;
     VideoInstance *video;
     Grab_Error_e error_code;      // 当前实时错误码
-    Grab_Error_e last_error_log;  // 上一次断电前记录的错误
 } GrabInstance;
 
 GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config);

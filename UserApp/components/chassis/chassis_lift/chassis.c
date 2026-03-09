@@ -632,8 +632,7 @@ void Leg_FSM()
         last_robot_mode = chassis_ctrl_cmd->robot_mode;
     }
 
-    // 🎯 高度指令派发
-    // 🎯 高度指令派发
+
     if (chassis_ctrl_cmd->robot_mode == 2) // ROBOT_EXCHANGE_MODE
     {
         // 兑换模式：无级调节 (lift_ratio 0~1 映射到 物理行程)
