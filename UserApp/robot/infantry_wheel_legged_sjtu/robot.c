@@ -57,26 +57,31 @@ void VOFATask() {
 #if defined(GIMBAL_BOARD)
   visualized_data[0] = robot->gimbal->gimbal_IMU_data->Yaw;
   visualized_data[1] = robot->gimbal->gimbal_IMU_data->Pitch;
-  visualized_data[2] = robot->shoot->friction_motor[0]->measure.speed_aps;
-  visualized_data[3] = robot->shoot->shoot_ctrl_cmd.initial_speed;
-  visualized_data[4] = robot->shoot->friction_motor[0]->motor_controller.pid_ref;
-  visualized_data[5] = robot->shoot->loader_motor->measure.total_angle;
-  visualized_data[6] = robot->dt;
+  visualized_data[2] = robot->shoot->friction_motor[0]->motor_controller.pid_ref;
+  visualized_data[3] = robot->shoot->friction_motor[0]->measure.speed_aps;
+  visualized_data[4] = robot->shoot->friction_motor[1]->motor_controller.pid_ref;
+  visualized_data[5] = robot->shoot->friction_motor[1]->measure.speed_aps;
+  visualized_data[6] = robot->shoot->shoot_ctrl_cmd.initial_speed;
+  visualized_data[7] = robot->shoot->loader_motor->measure.total_angle;
+  visualized_data[8] = robot->gimbal->pitch_motor->motor_controller.final_output;
 #elif defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   visualized_data[0] = robot->chassis->power_ctrl.P_total;
-  visualized_data[2] = robot->chassis->power_ctrl.vel_max;
-  visualized_data[4] = robot->chassis->power_ctrl.P_limit;
-  visualized_data[5] = robot->chassis->limited_vx;           // 限制后速度
-  visualized_data[6] = robot->chassis->chassis_ctrl_cmd.vx;  // 原始指令速度
-  visualized_data[7] = robot->chassis->state_var.v_b_h;      // 实际速度
+  visualized_data[1] = robot->chassis->power_ctrl.vel_max;
+  visualized_data[2] = robot->chassis->power_ctrl.P_limit;
+  visualized_data[3] = robot->chassis->limited_vx;           // 限制后速度
+  visualized_data[4] = robot->chassis->chassis_ctrl_cmd.vx;  // 原始指令速度
+  visualized_data[5] = robot->chassis->state_var.v_b_h;      // 实际速度
   // 新增：旋转占比（调试小陀螺功率分配）
   float w_L = robot->chassis->leg[1]->wheel_motor->measure.speed_aps * DEGREE_2_RAD;
   float w_R = robot->chassis->leg[0]->wheel_motor->measure.speed_aps * DEGREE_2_RAD;
   float w_sum = fabsf(w_L + w_R);
   float w_diff = fabsf(w_L - w_R);
-  visualized_data[8] = (w_sum + w_diff > 0.1f) ? w_diff / (w_sum + w_diff) : 0.0f;  // rotate_ratio
-  visualized_data[9] = robot->chassis->power_ctrl.P_wheel_L;
-  visualized_data[10] = robot->chassis->power_ctrl.P_wheel_R;
+  visualized_data[6] = (w_sum + w_diff > 0.1f) ? w_diff / (w_sum + w_diff) : 0.0f;  // rotate_ratio
+  visualized_data[7] = robot->chassis->power_ctrl.P_wheel_L;
+  visualized_data[8] = robot->chassis->power_ctrl.P_wheel_R;
+  visualized_data[9] = robot->chassis->imu->Yaw;
+  visualized_data[10] = robot->chassis->imu->Pitch;
+  visualized_data[11] = robot->chassis->imu->Roll;
 #endif
   VOFAJustFloatSend(visualized_data, 20);
 }
@@ -176,6 +181,7 @@ static void RemoteControlSet() {
       shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
       gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
       shoot_ctrl_cmd->friction_mode = FRICTION_ON;
+      // shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
       shoot_ctrl_cmd->load_mode = LOAD_STOP;
       // 待添加,视觉会发来和目标的误差,同样将其转化为total angle的增量进行控制
     }
@@ -192,11 +198,12 @@ static void RemoteControlSet() {
         shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
       } else {
         shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
+        // shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
       }
     }
     // 云台使能,或视觉未识别到目标,纯遥控器拨杆控制
     if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
-      gimbal_ctrl_cmd->pitch -= 0.0003f * (float)rc_data[TEMP].rc.rocker_r1;
+      gimbal_ctrl_cmd->pitch -= 0.00003f * (float)rc_data[TEMP].rc.rocker_r1;
     }
   } else {
     shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
@@ -206,7 +213,7 @@ static void RemoteControlSet() {
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
     // gimbal_ctrl_cmd->yaw += -0.00035f * (float)rc_data[TEMP].rc.rocker_r_;
     // gimbal_ctrl_cmd->yaw += -0.00034f * (float)rc_data[TEMP].rc.rocker_r_;
-    gimbal_ctrl_cmd->yaw += -0.00043f * (float)rc_data[TEMP].rc.rocker_r_;
+    gimbal_ctrl_cmd->yaw += -0.00005f * (float)rc_data[TEMP].rc.rocker_r_;
   }
   // 云台PITCH轴软件限位 todo:没在云台有点不好
   if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
@@ -218,27 +225,27 @@ static void RemoteControlSet() {
   switch (robot->robot_mode) {
     // 键鼠开了小陀螺，遥控器原地小陀螺不要开了，todo:之后可以把这个运动解算switch解耦出来，有点史
     case ROBOT_CHASSIS_ROTATE: {
-    // // 小陀螺频率设置
-    // rotate_frequency = 0.5f;
-    //
-    // // 小陀螺原地旋转
-    // rotate_omega = rotate_frequency * 2.0f * PI;
-    // chassis_ctrl_cmd->target_yaw += rotate_omega * robot->dt;
+      // // 小陀螺频率设置
+      // rotate_frequency = 0.5f;
+      //
+      // // 小陀螺原地旋转
+      // rotate_omega = rotate_frequency * 2.0f * PI;
+      // chassis_ctrl_cmd->target_yaw += rotate_omega * robot->dt;
 
-    // 设置目标速度矢量(vx,vy)
-    chassis_vx = 0.0025f * (float)rc_data[TEMP].rc.rocker_l_;
-    chassis_vy = 0.0025f * (float)rc_data[TEMP].rc.rocker_l1;
-    input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);  // 速度的模
+      // 设置目标速度矢量(vx,vy)
+      chassis_vx = 0.0025f * (float)rc_data[TEMP].rc.rocker_l_;
+      chassis_vy = 0.0025f * (float)rc_data[TEMP].rc.rocker_l1;
+      input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);  // 速度的模
 
-    // 转换角度坐标系
-    float target_angle_to_gimbal = atan2f(chassis_vy, chassis_vx);  // 目标方向矢量与云台正方向方向夹角
-    float target_angle_to_chassis = target_angle_to_gimbal + robot->offset_angle * DEGREE_2_RAD;
+      // 转换角度坐标系
+      float target_angle_to_gimbal = atan2f(chassis_vy, chassis_vx);  // 目标方向矢量与云台正方向方向夹角
+      float target_angle_to_chassis = target_angle_to_gimbal + robot->offset_angle * DEGREE_2_RAD;
 
-    // 相位补偿，单位是rad todo:参数，要测试
-    float phase_compensation = 0.03f;
-    // 正弦速度调制
-    chassis_ctrl_cmd->vx = input_mag * sinf(target_angle_to_chassis + phase_compensation);
-    break;
+      // 相位补偿，单位是rad todo:参数，要测试
+      float phase_compensation = 0.03f;
+      // 正弦速度调制
+      chassis_ctrl_cmd->vx = input_mag * sinf(target_angle_to_chassis + phase_compensation);
+      break;
     }
     case ROBOT_CHASSIS_FOLLOW: {
 #if (!defined(ONE_BOARD))
@@ -453,7 +460,7 @@ static void MouseKeySet() {
   if (abs(rc_data[TEMP].rc.dial) > 20 || rc_data[TEMP].key[KEY_PRESS].shift) {
     is_rotate_mode = 1;
   } else {
-   is_rotate_mode = 0;
+    is_rotate_mode = 0;
   }
   // // [B] 键跳跃逻辑：按住蹲下，松开跳跃
   // if (rc_data[TEMP].key[KEY_PRESS].b != b_key_last) {
