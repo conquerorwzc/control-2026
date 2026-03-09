@@ -52,7 +52,7 @@ static void GrabCalibrationTask(void);                        // 机械臂两段
 static void Grab_Real_Angle_Calculate(GrabInstance *grab);    // 计算机械臂实际角度
 static void GrabClearError(void);
 static void Error_Check();
-
+static void Wrist_Cali_Check();
 /* Private user code ---------------------------------------------------------*/
 /**
  * @brief 初始化机械臂
@@ -109,7 +109,7 @@ void GrabTask()
 {
     grab_ctrl_cmd = &grab->grab_ctrl_cmd;
     GrabCmdTask();
-
+    Wrist_Cali_Check();
     if (error_clear_trigger == 1)
     {
         GrabClearError();
@@ -623,4 +623,19 @@ void GrabClearError(void)
     {
         grab->error_code = GRAB_NO_ERROR;
     }
+}
+
+static void Wrist_Cali_Check()
+{
+    if (grab_ctrl_cmd->wrist_roll_cali == 1)
+    {
+        total_angle_init_M = grab->actuator->grab_djimotor[2]->measure.total_angle;
+        grab_ctrl_cmd->wrist_roll_cali = 0;
+    }
+    if (grab_ctrl_cmd->wrist_pitch_cali == 1)
+    {
+        grab->actuator->wrist_cali.state = CALI_STAGE_DM_WAIT_ZERO;
+        grab_ctrl_cmd->wrist_pitch_cali = 0;
+    }
+
 }

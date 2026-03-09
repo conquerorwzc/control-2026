@@ -81,6 +81,8 @@ typedef struct
     float video_forward; // 图传的前后移动距离
     float video_pitch;   // 图传的pitch旋转角度
     float torque;        // 夹爪电机目标扭矩
+    uint8_t wrist_roll_cali;
+    uint8_t wrist_pitch_cali;
     Grab_Mode_e grab_mode;
 } Grab_Ctrl_Cmd_s;
 

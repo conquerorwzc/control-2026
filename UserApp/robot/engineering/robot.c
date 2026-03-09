@@ -122,9 +122,8 @@ void RobotCMDTask()
     }
     else if (grab_control_mode == GRAB_CONTROL_HALF_AUTO)
     {
-        Half_auto_update(grab_ctrl_cmd, chassis_ctrl_cmd,
-                         rc_data->mouse.press_l, rc_data_last->mouse.press_l, rc_data->mouse.press_r,
-                         rc_data_last->mouse.press_r);
+        Half_auto_update(grab_ctrl_cmd, chassis_ctrl_cmd, rc_data->mouse.press_l, rc_data_last->mouse.press_l,
+                         rc_data->mouse.press_r, rc_data_last->mouse.press_r);
     }
     CalcOffsetAngle();
     RemoteControlSet();
@@ -184,7 +183,8 @@ static void MouseKeySet()
                 grab_control_mode = GRAB_CONTROL_HALF_AUTO;
                 break;
             case 2:
-                grab_control_mode = GRAB_CONTROL_CUSTOM;;
+                grab_control_mode = GRAB_CONTROL_CUSTOM;
+                ;
                 break;
             }
         }
@@ -248,7 +248,7 @@ static void MouseKeySet()
     uint32_t current_c_count = rc_data[TEMP].key_count[KEY_PRESS_WITH_SHIFT][Key_C];
     static uint32_t last_grab_state = 0; // 0为松开状态，1为夹紧状态
 
-    if (grab_control_mode == GRAB_CONTROL_KEYBOARD )
+    if (grab_control_mode == GRAB_CONTROL_KEYBOARD)
     {
         // 正常模式：根据计数值奇偶判断
         if (current_c_count % 2 == 1)
@@ -267,15 +267,14 @@ static void MouseKeySet()
         current_selfcontrol_gripper = robot->self_control->unpacked_data.gripper_opened;
         if (current_selfcontrol_gripper != last_selfcontrol_gripper)
         {
-            if (fabsf(grab_ctrl_cmd->torque+0.6) < 0.01f)
+            if (fabsf(grab_ctrl_cmd->torque + 0.6) < 0.01f)
             {
                 grab_ctrl_cmd->torque = 2.0f;
             }
-            else if (fabsf(grab_ctrl_cmd->torque-2.0f) < 0.01f)
+            else if (fabsf(grab_ctrl_cmd->torque - 2.0f) < 0.01f)
             {
                 grab_ctrl_cmd->torque = -0.6f;
             }
-
         }
         else if (current_selfcontrol_gripper == last_selfcontrol_gripper)
         {
@@ -316,6 +315,16 @@ static void MouseKeySet()
     // V/B: 控制 3508 图传 Pitch (映射到原有的 video_forward 变量上)
     grab_ctrl_cmd->video_forward +=
         (rc_data[TEMP].key[KEY_PRESS].v - rc_data[TEMP].key[KEY_PRESS].b) * grab_param.video_forward_sens_keyboard;
+
+    // ================= 机械臂标定 =================
+    if (rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].q)
+    {
+        grab_ctrl_cmd->wrist_roll_cali = 1;
+    }
+    else if (rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].e)
+    {
+        grab_ctrl_cmd->wrist_pitch_cali = 1;
+    }
 }
 
 /**
@@ -428,7 +437,6 @@ static void RemoteControlSet()
             switch_stable_cnt = 0;
         }
     }
-
     // 底盘运动控制（使用左侧摇杆）
     chassis_ctrl_cmd->vx = 60.0f * (float)rc_data[TEMP].rc.rocker_l_; // 水平方向
     chassis_ctrl_cmd->vy = 60.0f * (float)rc_data[TEMP].rc.rocker_l1; // 竖直方向
