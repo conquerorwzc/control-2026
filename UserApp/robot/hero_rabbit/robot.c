@@ -159,7 +159,7 @@ static void RemoteControlSet() {
   }
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
     chassis_ctrl_cmd->wz =
-        (25.0f) *
+        (40.0f) *
         (float)rc_data[TEMP]
             .rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
   }
@@ -455,7 +455,7 @@ void RobotInit() {
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
 
-  chassis_ctrl_cmd->power_distribute = 1.2f;
+  chassis_ctrl_cmd->power_distribute = 1.4f;
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;
@@ -466,7 +466,7 @@ void RobotInit() {
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
 void RobotCMDTask() {
-  chassis_ctrl_cmd->max_power = robot->referee_data->GameRobotState.chassis_power_limit;  // 随便给一个初始功率，后面应该要从裁判系统获取
+  chassis_ctrl_cmd->max_power = robot->referee_data->GameRobotState.chassis_power_limit+50;
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
   shoot_ctrl_cmd->initial_speed=robot->referee_data->ShootData.initial_speed;
   CalcOffsetAngle();
@@ -481,6 +481,6 @@ void RobotTask() {
   GimbalTask();
   ShootTask();
 
-  // ChassisTask();
+  ChassisTask();
 
 }
