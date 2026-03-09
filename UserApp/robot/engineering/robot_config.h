@@ -739,7 +739,7 @@ static Grab_Init_Config_s
                                     .Kp = 30.0f,
                                     .Ki = 0.0f,
                                     .Kd = 0.0f,
-                                    .MaxOut = 30000.0f,
+                                    .MaxOut = 3000.0f,
                                 },
                             .speed_PID = {.Kp = 2.0f,
                                           .Ki = 0.0f,

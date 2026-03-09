@@ -12,12 +12,12 @@
 #define PLANAR_GEAR_RATIO 1.571428f     // 平面齿轮传动比 11:7
 #define MOTOR2006_REDUCTION_RATIO 36.0f // 2006 ecd减速比36
 
-#define DM_HOMING_TOLERANCE 5.0f      // DM大臂物理归零的角度容差 (度)
-#define DM_CALI_MAX_TICKS 5000        // 阶段一：大臂归零最大允许时间 5 秒 (假设1ms调度)
-#define WRIST_CALI_MAX_TICKS 3000     // 阶段二：腕部抬头堵转最大允许时间 6 秒
-#define WRIST_CALI_SPEED 0.10f        // 腕部抬升速度
-#define WRIST_CALI_CHECK_TICKS 500    // 堵转检测时间
-#define WRIST_CALI_TOLERANCE 150.0f     // 堵转容差度数
+#define DM_HOMING_TOLERANCE 5.0f     // DM大臂物理归零的角度容差 (度)
+#define DM_CALI_MAX_TICKS 5000       // 阶段一：大臂归零最大允许时间 5 秒 (假设1ms调度)
+#define WRIST_CALI_MAX_TICKS 3000    // 阶段二：腕部抬头堵转最大允许时间 6 秒
+#define WRIST_CALI_SPEED 0.10f       // 腕部抬升速度
+#define WRIST_CALI_CHECK_TICKS 500   // 堵转检测时间
+#define WRIST_CALI_TOLERANCE 150.0f  // 堵转容差度数
 #define WRIST_CALI_STALL_CURRENT 800 // 堵转电流阈值
 
 // 腕部堵转标定开关 (1: 开启自动撞墙标定 | 0: 关闭，把上电位置直接当做 0 度)
@@ -26,7 +26,7 @@
 #define USE_WRIST_LEFT_MOTOR 1  // 左侧电机 (目前使用)
 #define USE_WRIST_RIGHT_MOTOR 0 // 右侧电机 (暂时不用)
 // 👇 新增：腕部软件限位安全系数 (0.98 表示收缩 2% 作为缓冲空间)
-#define WRIST_SOFT_LIMIT_MARGIN  0.90f
+#define WRIST_SOFT_LIMIT_MARGIN 0.90f
 // ================= 半自动轨迹调试专区 =================
 // 20个点，每个点6个参数 (base, elbow_r, elbow_p, wrist_p, wrist_r, torque)
 extern float custom_trajectory[20][6];
@@ -49,7 +49,7 @@ static void GrabCmdTask();                                    // 机械臂控制
 static void MotorTask();                                      // 电机任务函数
 static void Grab_Position_Calculate(GrabInstance *grab);      // 计算电机目标位置
 static void GrabCalibrationTask(void);                        // 机械臂两段式安全标定任务
-static void Grab_Real_Angle_Calculate(GrabInstance *grab); // 计算机械臂实际角度
+static void Grab_Real_Angle_Calculate(GrabInstance *grab);    // 计算机械臂实际角度
 /* Private user code ---------------------------------------------------------*/
 /**
  * @brief 初始化机械臂
@@ -105,7 +105,6 @@ void GrabTask()
     grab_ctrl_cmd = &grab->grab_ctrl_cmd;
     GrabCmdTask();
 
-    // 👉 核心闸门：通过结构体里的状态判断是否标定完成
     if (grab->actuator->wrist_cali.state != CALI_STAGE_DONE)
     {
         GrabCalibrationTask();
@@ -120,14 +119,14 @@ void GrabTask()
 
 static void GrabCmdTask()
 {
-
-    // 👉 核心新增：增加软件限位保护 (只有标定完成后才生效拦截)
     if (grab->actuator->wrist_cali.state == CALI_STAGE_DONE)
     {
-        if (grab_ctrl_cmd->wrist_pitch > grab->actuator->wrist_cali.max_pitch) {
+        if (grab_ctrl_cmd->wrist_pitch > grab->actuator->wrist_cali.max_pitch)
+        {
             grab_ctrl_cmd->wrist_pitch = grab->actuator->wrist_cali.max_pitch;
         }
-        if (grab_ctrl_cmd->wrist_pitch < grab->actuator->wrist_cali.min_pitch) {
+        if (grab_ctrl_cmd->wrist_pitch < grab->actuator->wrist_cali.min_pitch)
+        {
             grab_ctrl_cmd->wrist_pitch = grab->actuator->wrist_cali.min_pitch;
         }
     }
@@ -153,7 +152,6 @@ static void MotorTask()
         DJIMotorStop(grab->actuator->grab_djimotor[2]);
         DMMotorStop(grab->actuator->grab_dmmotor[0]);
 
-        // 👉 你的图传电机保留代码：
         // DJIMotorStop(grab->video->grab_djimotor[0]);
         // DJIMotorStop(grab->video->grab_djimotor[1]);
     }
@@ -287,14 +285,18 @@ static void GrabCalibrationTask(void)
         uint8_t all_online = 1;
 
 #if USE_WRIST_RIGHT_MOTOR
-        if (!DaemonIsOnline(grab->actuator->grab_djimotor[0]->daemon)) all_online = 0;
+        if (!DaemonIsOnline(grab->actuator->grab_djimotor[0]->daemon))
+            all_online = 0;
 #endif
 #if USE_WRIST_LEFT_MOTOR
-        if (!DaemonIsOnline(grab->actuator->grab_djimotor[1]->daemon)) all_online = 0;
+        if (!DaemonIsOnline(grab->actuator->grab_djimotor[1]->daemon))
+            all_online = 0;
 #endif
-        if (!DaemonIsOnline(grab->actuator->grab_djimotor[2]->daemon)) all_online = 0;
+        if (!DaemonIsOnline(grab->actuator->grab_djimotor[2]->daemon))
+            all_online = 0;
 
-        if (!all_online) return; // 没上线死等
+        if (!all_online)
+            return; // 没上线死等
 
         total_angle_init_R = grab->actuator->grab_djimotor[0]->measure.total_angle;
         total_angle_init_L = grab->actuator->grab_djimotor[1]->measure.total_angle;
@@ -376,10 +378,12 @@ static void GrabCalibrationTask(void)
 
             uint8_t stall_triggered = 1;
 #if USE_WRIST_RIGHT_MOTOR
-            if (!(diff_r < WRIST_CALI_TOLERANCE && curr_amp_r > WRIST_CALI_STALL_CURRENT)) stall_triggered = 0;
+            if (!(diff_r < WRIST_CALI_TOLERANCE && curr_amp_r > WRIST_CALI_STALL_CURRENT))
+                stall_triggered = 0;
 #endif
 #if USE_WRIST_LEFT_MOTOR
-            if (!(diff_l < WRIST_CALI_TOLERANCE && curr_amp_l > WRIST_CALI_STALL_CURRENT)) stall_triggered = 0;
+            if (!(diff_l < WRIST_CALI_TOLERANCE && curr_amp_l > WRIST_CALI_STALL_CURRENT))
+                stall_triggered = 0;
 #endif
 
             if (stall_triggered && (USE_WRIST_LEFT_MOTOR || USE_WRIST_RIGHT_MOTOR))
@@ -412,7 +416,8 @@ static void GrabCalibrationTask(void)
             block_cnt = 0;
         }
 
-        if (timeout_cnt > WRIST_CALI_MAX_TICKS) grab->actuator->wrist_cali.state = CALI_STAGE_ERROR;
+        if (timeout_cnt > WRIST_CALI_MAX_TICKS)
+            grab->actuator->wrist_cali.state = CALI_STAGE_ERROR;
         break;
     }
 
@@ -440,10 +445,12 @@ static void GrabCalibrationTask(void)
 
             uint8_t stall_triggered = 1;
 #if USE_WRIST_RIGHT_MOTOR
-            if (!(diff_r < WRIST_CALI_TOLERANCE && curr_amp_r > WRIST_CALI_STALL_CURRENT)) stall_triggered = 0;
+            if (!(diff_r < WRIST_CALI_TOLERANCE && curr_amp_r > WRIST_CALI_STALL_CURRENT))
+                stall_triggered = 0;
 #endif
 #if USE_WRIST_LEFT_MOTOR
-            if (!(diff_l < WRIST_CALI_TOLERANCE && curr_amp_l > WRIST_CALI_STALL_CURRENT)) stall_triggered = 0;
+            if (!(diff_l < WRIST_CALI_TOLERANCE && curr_amp_l > WRIST_CALI_STALL_CURRENT))
+                stall_triggered = 0;
 #endif
 
             if (stall_triggered && (USE_WRIST_LEFT_MOTOR || USE_WRIST_RIGHT_MOTOR))
@@ -462,7 +469,7 @@ static void GrabCalibrationTask(void)
 
                 // 👉 设定最低软件限位 (最低真实物理角度 * 0.98安全系数)
                 // (如果最低角度是 -30度，乘以0.98就是 -29.4度，完美向安全区收缩)
-                grab->actuator->wrist_cali.min_pitch = real_min_pitch *  WRIST_SOFT_LIMIT_MARGIN;
+                grab->actuator->wrist_cali.min_pitch = real_min_pitch * WRIST_SOFT_LIMIT_MARGIN;
 
                 // 防抽搐对齐：标定结束后，立刻把当前指令切到最低安全限位处
                 grab_ctrl_cmd->wrist_pitch = grab->actuator->wrist_cali.min_pitch;
@@ -476,11 +483,14 @@ static void GrabCalibrationTask(void)
             block_cnt = 0;
         }
 
-        if (timeout_cnt > WRIST_CALI_MAX_TICKS) grab->actuator->wrist_cali.state = CALI_STAGE_ERROR;
+        if (timeout_cnt > WRIST_CALI_MAX_TICKS)
+            grab->actuator->wrist_cali.state = CALI_STAGE_ERROR;
         break;
     }
 
-    case CALI_STAGE_DONE: { return; }
+    case CALI_STAGE_DONE: {
+        return;
+    }
     case CALI_STAGE_ERROR: {
         grab_ctrl_cmd->base_joint = 0.0f;
         grab_ctrl_cmd->elbow_pitch = 0.0f;
@@ -496,7 +506,6 @@ static void GrabCalibrationTask(void)
     }
 }
 
-
 /**
  * @brief 传动逆解算：全要素机械臂真实物理状态更新
  * @param grab 机械臂结构体指针
@@ -506,13 +515,16 @@ static void Grab_Real_Angle_Calculate(GrabInstance *grab)
     // =========================================================
     // 1. 解算 DM 大臂部分 (直接读取弧度并转为角度)
     // =========================================================
-    if (DaemonIsOnline(grab->arm->grab_dmmotor[0]->daemon)) {
+    if (DaemonIsOnline(grab->arm->grab_dmmotor[0]->daemon))
+    {
         grab->grab_measure.base_joint = grab->arm->grab_dmmotor[0]->measure.total_angle * RAD_2_DEGREE;
     }
-    if (DaemonIsOnline(grab->arm->grab_dmmotor[1]->daemon)) {
+    if (DaemonIsOnline(grab->arm->grab_dmmotor[1]->daemon))
+    {
         grab->grab_measure.elbow_roll = grab->arm->grab_dmmotor[1]->measure.total_angle * RAD_2_DEGREE;
     }
-    if (DaemonIsOnline(grab->arm->grab_dmmotor[2]->daemon)) {
+    if (DaemonIsOnline(grab->arm->grab_dmmotor[2]->daemon))
+    {
         grab->grab_measure.elbow_pitch = grab->arm->grab_dmmotor[2]->measure.total_angle * RAD_2_DEGREE;
     }
 
@@ -523,7 +535,7 @@ static void Grab_Real_Angle_Calculate(GrabInstance *grab)
     if (grab->actuator->wrist_cali.state == CALI_STAGE_DONE)
     {
         float ratio_pitch = MOTOR2006_REDUCTION_RATIO * PULLEY_GEAR_RATIO;
-        float ratio_roll  = MOTOR2006_REDUCTION_RATIO * PLANAR_GEAR_RATIO;
+        float ratio_roll = MOTOR2006_REDUCTION_RATIO * PLANAR_GEAR_RATIO;
 
         float curr_r = grab->actuator->grab_djimotor[0]->measure.total_angle;
         float curr_l = grab->actuator->grab_djimotor[1]->measure.total_angle;
@@ -546,7 +558,8 @@ static void Grab_Real_Angle_Calculate(GrabInstance *grab)
     // =========================================================
     // 3. 解算图传电机与夹爪力矩 (目前预留，如果你没接电机就不算)
     // =========================================================
-    if (DaemonIsOnline(grab->actuator->grab_dmmotor[0]->daemon)) {
+    if (DaemonIsOnline(grab->actuator->grab_dmmotor[0]->daemon))
+    {
         // 假设你要读末端夹爪 DM 电机的实时反馈电流/力矩
         grab->grab_measure.torque = grab->actuator->grab_dmmotor[0]->measure.torque;
     }
@@ -554,7 +567,8 @@ static void Grab_Real_Angle_Calculate(GrabInstance *grab)
     // 图传部分，等你把图传电机加回来再把下面注释解开
     /*
     if (DaemonIsOnline(grab->video->grab_djimotor[0]->daemon)) {
-        grab->grab_measure.video_forward = (grab->video->grab_djimotor[0]->measure.total_angle - total_angle_init_Video_forward) / MOTOR2006_REDUCTION_RATIO;
+        grab->grab_measure.video_forward = (grab->video->grab_djimotor[0]->measure.total_angle -
+    total_angle_init_Video_forward) / MOTOR2006_REDUCTION_RATIO;
     }
     */
 }

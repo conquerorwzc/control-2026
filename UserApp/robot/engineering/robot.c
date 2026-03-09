@@ -23,7 +23,7 @@ static Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd; // 【新增】龙门架控制命令�
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last; // 遥控器数据,初始化时返回
 static float set_angle = 0;
-static int save_point_trigger = 0 ;
+static int save_point_trigger = 0;
 static float angle = 0;
 static float target_angle = 0;
 static int mouse_l_count = 0;
@@ -122,14 +122,15 @@ void RobotCMDTask()
     }
     else if (grab_control_mode == GRAB_CONTROL_HALF_AUTO)
     {
-        Half_auto_update(grab_ctrl_cmd, rc_data->mouse.press_l, rc_data_last->mouse.press_l, rc_data->mouse.press_r,
+        Half_auto_update(grab_ctrl_cmd, chassis_ctrl_cmd,
+                         rc_data->mouse.press_l, rc_data_last->mouse.press_l, rc_data->mouse.press_r,
                          rc_data_last->mouse.press_r);
     }
     CalcOffsetAngle();
     RemoteControlSet();
     MouseKeySet();
     // 只在自定义控制器模式下处理数据，避免与键鼠控制冲突
-     Record_Current_Waypoint();
+    Record_Current_Waypoint();
     EmergencyHandler(); // 处理模块离线和遥控器急停等紧急情况
 }
 
@@ -180,10 +181,10 @@ static void MouseKeySet()
                 grab_control_mode = GRAB_CONTROL_KEYBOARD;
                 break;
             case 1:
-                grab_control_mode = GRAB_CONTROL_CUSTOM;
+                grab_control_mode = GRAB_CONTROL_HALF_AUTO;
                 break;
             case 2:
-                grab_control_mode = GRAB_CONTROL_HALF_AUTO;
+                grab_control_mode = GRAB_CONTROL_CUSTOM;;
                 break;
             }
         }
@@ -191,6 +192,7 @@ static void MouseKeySet()
         {
             // 如果切出了兑换模式（比如去跑路或上台阶），强行把机械臂切回键鼠并锁定，防止外设误触
             grab_control_mode = GRAB_CONTROL_KEYBOARD;
+            rc_data[TEMP].key_count[KEY_PRESS][Key_F] = 0;
         }
 
         // ================= 3. 底盘平移 (WASD 全局生效) =================
@@ -229,7 +231,8 @@ static void MouseKeySet()
             // if (rc_data[TEMP].key[KEY_PRESS].ctrl)  step_size *= 0.2f;  // Ctrl 极慢微调模式 (75秒)
 
             // 只保留 Q/E 控制
-            chassis_ctrl_cmd->lift_ratio += (rc_data[TEMP].key[KEY_PRESS].q - rc_data[TEMP].key[KEY_PRESS].e) * step_size;
+            chassis_ctrl_cmd->lift_ratio +=
+                (rc_data[TEMP].key[KEY_PRESS].q - rc_data[TEMP].key[KEY_PRESS].e) * step_size;
 
             // 安全限幅
             if (chassis_ctrl_cmd->lift_ratio < 0.0f)
@@ -339,7 +342,7 @@ static void RemoteControlSet()
         {
             chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
             chassis_ctrl_cmd->wz = 0;
-            set_angle += (rc_data[TEMP].rc.dial-20) * 0.0001;
+            set_angle += (rc_data[TEMP].rc.dial - 20) * 0.0001;
         }
         else
         {
@@ -480,7 +483,6 @@ static void CalcOffsetAngle()
     chassis_ctrl_cmd->offset_angle = set_angle - robot->ins_data->YawTotalAngle;
 }
 
-
 static void Record_Current_Waypoint(void)
 {
     // 确保不会数组越界 (假设最大 50 步)
@@ -496,7 +498,6 @@ static void Record_Current_Waypoint(void)
             custom_trajectory[custom_traj_length][3] = grab_ctrl_cmd->wrist_pitch;
             custom_trajectory[custom_traj_length][4] = grab_ctrl_cmd->wrist_roll;
             custom_trajectory[custom_traj_length][5] = grab_ctrl_cmd->torque;
-
 
             custom_trajectory[custom_traj_length][6] = chassis_ctrl_cmd->lift_ratio;
 
