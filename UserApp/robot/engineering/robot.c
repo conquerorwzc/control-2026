@@ -378,7 +378,6 @@ static void RemoteControlSet()
         {
             chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
         }
-        chassis_ctrl_cmd->wz = 0;
     }
     // 右[下]：控制底盘断电，但不触发整机紧急停止
     else if (switch_is_down(rc_data[TEMP].rc.switch_right))
@@ -388,8 +387,6 @@ static void RemoteControlSet()
     // 右[上]：进入爬楼梯总模式，根据左拨杆细分姿态
     else if (switch_is_up(rc_data[TEMP].rc.switch_right))
     {
-        chassis_ctrl_cmd->wz = 0;
-
         // 如果刚切过来，还没完成防抖，先给个 IDLE 状态，防止被拦截
         if (chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_IDLE &&
             chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_BOTH_EXTEND &&
@@ -436,11 +433,17 @@ static void RemoteControlSet()
     chassis_ctrl_cmd->vx = 60.0f * (float)rc_data[TEMP].rc.rocker_l_; // 水平方向
     chassis_ctrl_cmd->vy = 60.0f * (float)rc_data[TEMP].rc.rocker_l1; // 竖直方向
 
-    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW)
+    if (abs(rc_data[TEMP].rc.dial) > 20)
     {
+        if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_ALL_RETRACT ||
+            chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_FRONT_RETRACT)
+        {
+            set_angle += (rc_data[TEMP].rc.dial - 20) * 0.0001;
+        }
         chassis_ctrl_cmd->wz = 0;
-        set_angle += rc_data[TEMP].rc.dial * 0.0001;
     }
+
+    chassis_ctrl_cmd->wz = 0;
     *rc_data_last = *rc_data;
 }
 /**
