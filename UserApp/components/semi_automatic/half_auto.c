@@ -367,7 +367,7 @@ void grab_six_oclock_energy_unit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_Cm
         grab_ctrl_cmd->elbow_pitch = 4.68f;
         grab_ctrl_cmd->wrist_pitch = 45.48f;
         grab_ctrl_cmd->wrist_roll = -2.10f;
-        grab_ctrl_cmd->torque = -0.6f;
+        grab_ctrl_cmd->torque = 2.0f;
         break;
     case 1:
         grab_ctrl_cmd->base_joint = 42.93f;
@@ -526,7 +526,7 @@ void grab_four_oclock_energy_unit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_C
         grab_ctrl_cmd->elbow_pitch = 3.79f;
         grab_ctrl_cmd->wrist_pitch = 38.36f;
         grab_ctrl_cmd->wrist_roll = -0.79f;
-        grab_ctrl_cmd->torque = -0.6f;
+        grab_ctrl_cmd->torque = 2.0f;
         break;
     case 1:
         grab_ctrl_cmd->base_joint = 47.94f;
