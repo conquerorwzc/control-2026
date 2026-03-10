@@ -242,9 +242,9 @@ void INS_Task(void) {
     }
     BodyFrameToEarthFrame(INS.MotionAccel_b, INS.MotionAccel_n, INS.q);  // 转换回导航系n
 
-    INS.Gyro[X] = -INS.Gyro[X];
+    INS.Gyro[X] = INS.Gyro[X];
     INS.Yaw = QEKF_INS.Yaw;
-    INS.Pitch = -QEKF_INS.Pitch;
+    INS.Pitch = QEKF_INS.Pitch;
     INS.Roll = QEKF_INS.Roll;
     INS.YawTotalAngle = QEKF_INS.YawTotalAngle;
     // VisionSetAltitude(INS.Yaw, INS.Pitch, INS.Roll);
