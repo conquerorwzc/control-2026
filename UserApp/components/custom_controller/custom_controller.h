@@ -45,7 +45,8 @@ typedef struct {
 typedef struct {
     MotorUnit_t motors[5];                  // 电机单元数组（5 个电机：2 个 4310、2 个 3508、1 个 2006）
     float motor_angles[5];                  // 各电机角度反馈
-    float zero_offset[5];                   // 零位偏移值
+    int32_t dji_zero_total_round[3];        // 三个 DJI 电机的零点总圈数
+    uint16_t dji_zero_ecd[3];               // 三个 DJI 电机的零点编码器值
     bool motor_online_status[5];            // 电机在线状态（用于检测断电重启）
     MotorData_t motor_data[5];              // 电机数据（用于发送）
     USARTInstance* usart_instance;          // USART 通信实例
