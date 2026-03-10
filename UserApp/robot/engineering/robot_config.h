@@ -40,7 +40,7 @@
             {                                                                                                          \
                 .speed_PID =                                                                                           \
                     {                                                                                                  \
-                        .Kp = 6,                                                                                     \
+                        .Kp = 6,                                                                                       \
                         .Ki = 0,                                                                                       \
                         .Kd = 0,                                                                                       \
                         .IntegralLimit = 6000,                                                                         \
@@ -172,10 +172,166 @@ static Chassis_Init_Config_s chassis_init_config = {
             .backward_lift_out = 313280.938f,
 
         },
-    .wheel_motor_config[0] = WHEEL_MOTOR_CONFIG(&hcan3, 1),
-    .wheel_motor_config[1] = WHEEL_MOTOR_CONFIG(&hcan3, 4),
-    .wheel_motor_config[2] = WHEEL_MOTOR_CONFIG(&hcan3, 2),
-    .wheel_motor_config[3] = WHEEL_MOTOR_CONFIG(&hcan3, 3),
+    .wheel_motor_config[0] =
+        {
+            .controller_param_init_config =
+                {
+
+                    .speed_PID =
+                        {
+                            .Kp = 6,
+                            .Ki = 0,
+                            .Kd = 0,
+                            .IntegralLimit = 6000,
+                            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+                            .MaxOut = 15000,
+                        },
+                    .current_PID =
+                        {
+                            .Kp = 0,
+                            .Ki = 0,
+                            .Kd = 0,
+                            .IntegralLimit = 3000,
+                            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+                            .MaxOut = 15000,
+                        },
+                },
+            .controller_setting_init_config =
+                {
+                    .angle_feedback_source = MOTOR_FEED,
+                    .speed_feedback_source = MOTOR_FEED,
+                    .outer_loop_type = SPEED_LOOP,
+                    .close_loop_type = SPEED_LOOP,
+                    .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+                    .feedback_reverse_flag = MOTOR_DIRECTION_REVERSE,
+                },
+            .motor_type = M3508,
+            .can_init_config =
+                {
+                    .can_handle = &hcan3,
+                    .tx_id = 1,
+                },
+        },
+    .wheel_motor_config[1] =
+        {
+            .controller_param_init_config =
+                {
+
+                    .speed_PID =
+                        {
+                            .Kp = 5,
+                            .Ki = 0,
+                            .Kd = 0,
+                            .IntegralLimit = 6000,
+                            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+                            .MaxOut = 15000,
+                        },
+                    .current_PID =
+                        {
+                            .Kp = 0,
+                            .Ki = 0,
+                            .Kd = 0,
+                            .IntegralLimit = 3000,
+                            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+                            .MaxOut = 15000,
+                        },
+                },
+            .controller_setting_init_config =
+                {
+                    .angle_feedback_source = MOTOR_FEED,
+                    .speed_feedback_source = MOTOR_FEED,
+                    .outer_loop_type = SPEED_LOOP,
+                    .close_loop_type = SPEED_LOOP,
+                    .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+                    .feedback_reverse_flag = MOTOR_DIRECTION_REVERSE,
+                },
+            .motor_type = M3508,
+            .can_init_config =
+                {
+                    .can_handle = &hcan3,
+                    .tx_id = 4,
+                },
+        },
+    .wheel_motor_config[2] =
+        {
+            .controller_param_init_config =
+                {
+
+                    .speed_PID =
+                        {
+                            .Kp = 6,
+                            .Ki = 0,
+                            .Kd = 0,
+                            .IntegralLimit = 6000,
+                            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+                            .MaxOut = 15000,
+                        },
+                    .current_PID =
+                        {
+                            .Kp = 0,
+                            .Ki = 0,
+                            .Kd = 0,
+                            .IntegralLimit = 3000,
+                            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+                            .MaxOut = 15000,
+                        },
+                },
+            .controller_setting_init_config =
+                {
+                    .angle_feedback_source = MOTOR_FEED,
+                    .speed_feedback_source = MOTOR_FEED,
+                    .outer_loop_type = SPEED_LOOP,
+                    .close_loop_type = SPEED_LOOP,
+                    .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+                    .feedback_reverse_flag = MOTOR_DIRECTION_REVERSE,
+                },
+            .motor_type = M3508,
+            .can_init_config =
+                {
+                    .can_handle = &hcan3,
+                    .tx_id = 2,
+                },
+        },
+    .wheel_motor_config[3] =
+        {
+            .controller_param_init_config =
+                {
+
+                    .speed_PID =
+                        {
+                            .Kp = 5,
+                            .Ki = 0,
+                            .Kd = 0,
+                            .IntegralLimit = 6000,
+                            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+                            .MaxOut = 15000,
+                        },
+                    .current_PID =
+                        {
+                            .Kp = 0,
+                            .Ki = 0,
+                            .Kd = 0,
+                            .IntegralLimit = 3000,
+                            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+                            .MaxOut = 15000,
+                        },
+                },
+            .controller_setting_init_config =
+                {
+                    .angle_feedback_source = MOTOR_FEED,
+                    .speed_feedback_source = MOTOR_FEED,
+                    .outer_loop_type = SPEED_LOOP,
+                    .close_loop_type = SPEED_LOOP,
+                    .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+                    .feedback_reverse_flag = MOTOR_DIRECTION_REVERSE,
+                },
+            .motor_type = M3508,
+            .can_init_config =
+                {
+                    .can_handle = &hcan3,
+                    .tx_id = 3,
+                },
+        },
     .lift_forward_motor_config[0] = // 前左，0是左，1是右
     {
         .controller_param_init_config =
@@ -261,7 +417,7 @@ static Chassis_Init_Config_s chassis_init_config = {
     // 跟随PID
     .follow_pid =
         {
-            .Kp = 60.0f,
+            .Kp = 70.0f,
             .Ki = 0.0f,
             .Kd = 0.0f,
             .IntegralLimit = 2000.0f,
