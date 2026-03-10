@@ -45,6 +45,7 @@ typedef struct {
   float deadtime_onebullet;                   // 单发死时间
   float deadtime_burstfire;                   // 连发死时间
   float bullet_speed_adjustment;
+  float feedforward;
 } Shoot_Param_s;
 
 // cmd发布的发射控制数据,由shoot订阅
@@ -55,7 +56,7 @@ typedef struct {
   Bullet_Speed_e bullet_speed;  // 弹速枚举
   uint8_t rest_heat;
   float shoot_rate;  // 连续发射的射频,unit per s,发/秒
-
+  float initial_speed;  // 弹速
 } Shoot_Ctrl_Cmd_s;
 
 typedef struct {
