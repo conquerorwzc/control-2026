@@ -7,7 +7,7 @@
 #include "user_lib.h"
 
 /* Private macro -------------------------------------------------------------*/
-#define PULLEY_GEAR_RATIO 2.266667f          // 带轮传动比 34:15
+#define PULLEY_GEAR_RATIO 2.125f          // 带轮传动比 17:8
 #define BEVEL_GEAR_RATIO 1.6667f        // 锥齿轮传动比 5:3
 #define PLANAR_GEAR_RATIO 1.571428f     // 平面齿轮传动比 11:7
 #define MOTOR2006_REDUCTION_RATIO 36.0f // 2006 ecd减速比36
@@ -24,7 +24,7 @@
 #define USE_WRIST_STALL_CALI 1
 // 腕部 Pitch 电机物理挂载开关 (1: 启用发力并检测 | 0: 彻底断电卸力并不参与检测)
 #define USE_WRIST_LEFT_MOTOR 1  // 左侧电机
-#define USE_WRIST_RIGHT_MOTOR 0 // 右侧电机
+#define USE_WRIST_RIGHT_MOTOR 1 // 右侧电机
 // 腕部软件限位安全系数
 #define WRIST_SOFT_LIMIT_MARGIN 0.90f
 
