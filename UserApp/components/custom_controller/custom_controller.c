@@ -19,6 +19,8 @@ static float DM_RadianToDegree(float radian);
 static void CalibrateMotorZeroPosition(CustomController_t* controller);
 static bool CheckMotorOnlineStatus(CustomController_t* controller);
 static void MicroSwitchMonitor(CustomController_t* controller);
+static void CalculateDJIMotorAngle(CustomController_t* controller, uint8_t dji_index, 
+                                   uint8_t zero_array_index, bool reverse_direction);
 /* ----------------------- 公共函数实现 ----------------------------- */
 
 /**
@@ -120,6 +122,42 @@ CustomController_t* CustomControllerInit(CustomController_Init_Config_s* init_co
 }
 
 /**
+ * @brief 计算 DJI 电机角度（带借位处理和方向映射）
+ * @param controller 控制器实例
+ * @param dji_index 电机在 motors 数组中的索引 (2, 3, 4)
+ * @param zero_array_index 零点标定数组索引 (0, 1, 2)
+ * @param reverse_direction 是否反向
+ */
+static void CalculateDJIMotorAngle(CustomController_t* controller, uint8_t dji_index, 
+                                   uint8_t zero_array_index, bool reverse_direction)
+{
+    if (controller->motors[dji_index].dji_motor == NULL) {
+        return;
+    }
+    
+    // 计算校准后的 total_round 和 ecd
+    int32_t calibrated_total_round = controller->motors[dji_index].dji_motor->measure.total_round - 
+                                     controller->dji_zero_total_round[zero_array_index];
+    uint16_t raw_ecd = controller->motors[dji_index].dji_motor->measure.ecd;
+    uint16_t zero_ecd = controller->dji_zero_ecd[zero_array_index];
+    uint16_t calibrated_ecd;
+    
+    // 处理 ecd 借位：如果 raw_ecd < zero_ecd，需要向 total_round 借位
+    if (raw_ecd >= zero_ecd) {
+        calibrated_ecd = raw_ecd - zero_ecd;
+    } else {
+        calibrated_total_round -= 1;
+        calibrated_ecd = raw_ecd + 8192 - zero_ecd;
+    }
+    
+    // 计算角度
+    float calibrated_angle = calibrated_total_round * 360.0f + calibrated_ecd * 0.0439453125f;
+    
+    // 应用方向映射
+    controller->motor_angles[dji_index] = reverse_direction ? -calibrated_angle : calibrated_angle;
+}
+
+/**
  * @brief 控制器主任务函数
  * @param controller 控制器实例
  */
@@ -137,44 +175,18 @@ void CustomControllerTask(CustomController_t* controller)
         CalibrateMotorZeroPosition(controller);
     }
     
-    // 读取五个电机的角度值并应用零位偏移
-    if (controller->motors[0].dm_motor != NULL) {
-        // DM 电机角度转换：弧度转角度 (DM 电机已有固定零点，无需额外偏移)
-        float raw_angle = DM_RadianToDegree(controller->motors[0].dm_motor->measure.total_angle);
-        controller->motor_angles[0] = raw_angle;
+    // 读取两个 DM 电机的角度值
+    for (int i = 0; i < 2; i++) {
+        if (controller->motors[i].dm_motor != NULL) {
+            controller->motor_angles[i] = DM_RadianToDegree(controller->motors[i].dm_motor->measure.total_angle);
+        }
     }
-    if (controller->motors[1].dm_motor != NULL) {
-        // DM 电机角度转换：弧度转角度
-        float raw_angle = DM_RadianToDegree(controller->motors[1].dm_motor->measure.total_angle);
-        controller->motor_angles[1] = raw_angle;
-    }
-    if (controller->motors[2].dji_motor != NULL) {
-        // DJI 电机 1: 使用校准后的 total_round 和 ecd 计算角度
-        int32_t calibrated_total_round = controller->motors[2].dji_motor->measure.total_round - 
-                                         controller->dji_zero_total_round[0];
-        uint16_t calibrated_ecd = controller->motors[2].dji_motor->measure.ecd - 
-                                  controller->dji_zero_ecd[0];
-        float calibrated_angle = calibrated_total_round * 360.0f + calibrated_ecd * 0.0439453125f;
-        controller->motor_angles[2] = -calibrated_angle;  // 反向
-    }
-    if (controller->motors[3].dji_motor != NULL) {
-        // DJI 电机 2: 使用校准后的 total_round 和 ecd 计算角度
-        int32_t calibrated_total_round = controller->motors[3].dji_motor->measure.total_round - 
-                                         controller->dji_zero_total_round[1];
-        uint16_t calibrated_ecd = controller->motors[3].dji_motor->measure.ecd - 
-                                  controller->dji_zero_ecd[1];
-        float calibrated_angle = calibrated_total_round * 360.0f + calibrated_ecd * 0.0439453125f;
-        controller->motor_angles[3] = -calibrated_angle;  // 反向
-    }
-    if (controller->motors[4].dji_motor != NULL) {
-        // DJI 电机 3: 使用校准后的 total_round 和 ecd 计算角度
-        int32_t calibrated_total_round = controller->motors[4].dji_motor->measure.total_round - 
-                                         controller->dji_zero_total_round[2];
-        uint16_t calibrated_ecd = controller->motors[4].dji_motor->measure.ecd - 
-                                  controller->dji_zero_ecd[2];
-        float calibrated_angle = calibrated_total_round * 360.0f + calibrated_ecd * 0.0439453125f;
-        controller->motor_angles[4] = calibrated_angle;  // 正向
-    }
+    
+    // 读取三个 DJI 电机的角度值（带借位处理和方向映射）
+    // 索引 2, 3 反向，索引 4 正向
+    CalculateDJIMotorAngle(controller, 2, 0, true);   // DJI 电机 1 (M3508)
+    CalculateDJIMotorAngle(controller, 3, 1, true);   // DJI 电机 2 (M3508)
+    CalculateDJIMotorAngle(controller, 4, 2, false);  // DJI 电机 3 (M2006)
 
     // 更新电机数据用于发送
     CustomController_UpdateMotorData(controller);
@@ -233,12 +245,21 @@ void CustomController_SendAllData(CustomController_t* controller)
         uint16_t calibrated_ecd = 0;
         
         if (controller->motors[dji_index].dji_motor != NULL) {
+            // 第一步：计算校准后的 total_round 和 ecd（带借位处理）
             calibrated_total_round = controller->motors[dji_index].dji_motor->measure.total_round - 
                                      controller->dji_zero_total_round[i];
-            calibrated_ecd = controller->motors[dji_index].dji_motor->measure.ecd - 
-                            controller->dji_zero_ecd[i];
+            uint16_t raw_ecd = controller->motors[dji_index].dji_motor->measure.ecd;
+            uint16_t zero_ecd = controller->dji_zero_ecd[i];
             
-            // 根据方向映射处理数据：索引 2 和 3 反向，索引 4 正向
+            // 处理 ecd 借位：如果 raw_ecd < zero_ecd，需要向 total_round 借位
+            if (raw_ecd >= zero_ecd) {
+                calibrated_ecd = raw_ecd - zero_ecd;
+            } else {
+                calibrated_total_round -= 1;
+                calibrated_ecd = raw_ecd + 8192 - zero_ecd;
+            }
+            
+            // 第二步：根据方向映射处理数据：索引 2 和 3 反向，索引 4 正向
             if (dji_index == 2 || dji_index == 3) {
                 // 反向电机：对 total_round 和 ecd 取负
                 if (calibrated_ecd == 0) {
@@ -269,7 +290,7 @@ void CustomController_SendAllData(CustomController_t* controller)
     
     // 发送数据包
     uint16_t packed_length;
-    uint8_t *packed_data = custom_controller_protocol_pack(CMD_ID_CUSTOM_CONTROLLER, controller_data, sizeof(controller_data), &packed_length);
+    uint8_t *packed_data = custom_controller_protocol_pack(CMD_ID_CUSTOM_CONTROLLER, controller_data, 24, &packed_length);
     
     if (packed_data != NULL && packed_length > 0 && controller->usart_instance != NULL) {
         // 通过 UART 发送打包后的数据
