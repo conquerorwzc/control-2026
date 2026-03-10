@@ -184,23 +184,37 @@ static void MouseKeySet()
                 break;
             case 2:
                 grab_control_mode = GRAB_CONTROL_CUSTOM;
-                ;
                 break;
             }
         }
         else
         {
-            // // 如果切出了兑换模式（比如去跑路或上台阶），强行把机械臂切回键鼠并锁定，防止外设误触
-            // grab_control_mode = GRAB_CONTROL_KEYBOARD;
-            // rc_data[TEMP].key_count[KEY_PRESS][Key_F] = 0;
+            // 如果切出了兑换模式（比如去跑路或上台阶），强行把机械臂切回键鼠并锁定，防止外设误触
+            grab_control_mode = GRAB_CONTROL_KEYBOARD;
+            rc_data[TEMP].key_count[KEY_PRESS][Key_F] = 0;
         }
 
         // ================= 3. 底盘平移 (WASD 全局生效) =================
         float speed_buff = 20000; // 如果需要加速/减速，可以配合 Shift/Ctrl 修改此值
-        chassis_ctrl_cmd->vx = (rc_data[TEMP].key[KEY_PRESS].d - rc_data[TEMP].key[KEY_PRESS].a) * speed_buff;
-        chassis_ctrl_cmd->vy = (rc_data[TEMP].key[KEY_PRESS].w - rc_data[TEMP].key[KEY_PRESS].s) * speed_buff;
+        chassis_ctrl_cmd->vx = (float)(rc_data[TEMP].key[KEY_PRESS].d - rc_data[TEMP].key[KEY_PRESS].a) * speed_buff;
+        chassis_ctrl_cmd->vy = (float)(rc_data[TEMP].key[KEY_PRESS].w - rc_data[TEMP].key[KEY_PRESS].s) * speed_buff;
+        float angle_buff = 0.0005f;
+        if (robot->robot_mode == ROBOT_EXCHANGE_MODE)
+        {
+            if (chassis_ctrl_cmd->lift_ratio - 0.1f < 0.01f)
+            {
+                set_angle += (float)(rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].q - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].e) * angle_buff;
+            }
 
-        // 💥 关键修复 1：必须把大模式透传给底盘，否则底盘永远不知道切模式了！
+        }
+        else if (robot->robot_mode == ROBOT_CLIMB_MODE)
+        {
+            if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_ALL_RETRACT || chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_FRONT_RETRACT)
+            {
+                set_angle += (float)(rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].q - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].e) * angle_buff;
+            }
+        }
+        // 把大模式透传给底盘，否则底盘永远不知道切模式了
         chassis_ctrl_cmd->robot_mode = robot->robot_mode;
 
         // ================= 4. 姿态复用控制 (Q, E, R) 与 兑换模式无级调节 =================
