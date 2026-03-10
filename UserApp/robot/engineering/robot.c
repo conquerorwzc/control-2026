@@ -198,7 +198,7 @@ static void MouseKeySet()
         float speed_buff = 20000; // 如果需要加速/减速，可以配合 Shift/Ctrl 修改此值
         chassis_ctrl_cmd->vx = (float)(rc_data[TEMP].key[KEY_PRESS].d - rc_data[TEMP].key[KEY_PRESS].a) * speed_buff;
         chassis_ctrl_cmd->vy = (float)(rc_data[TEMP].key[KEY_PRESS].w - rc_data[TEMP].key[KEY_PRESS].s) * speed_buff;
-        float angle_buff = 0.0005f;
+        float angle_buff = 0.05f;
         if (robot->robot_mode == ROBOT_EXCHANGE_MODE)
         {
             if (chassis_ctrl_cmd->lift_ratio - 0.1f < 0.01f)
@@ -246,7 +246,7 @@ static void MouseKeySet()
 
             // 只保留 Q/E 控制
             chassis_ctrl_cmd->lift_ratio +=
-                (rc_data[TEMP].key[KEY_PRESS].q - rc_data[TEMP].key[KEY_PRESS].e) * step_size;
+                (float)((rc_data[TEMP].key[KEY_PRESS].q - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].q)- (rc_data[TEMP].key[KEY_PRESS].e-rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].e)) * step_size;
 
             // 安全限幅
             if (chassis_ctrl_cmd->lift_ratio < 0.0f)
