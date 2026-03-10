@@ -7,7 +7,7 @@
 #include "user_lib.h"
 
 /* Private macro -------------------------------------------------------------*/
-#define PULLEY_GEAR_RATIO 2.0f          // 带轮传动比
+#define PULLEY_GEAR_RATIO 2.266667f          // 带轮传动比 34:15
 #define BEVEL_GEAR_RATIO 1.6667f        // 锥齿轮传动比 5:3
 #define PLANAR_GEAR_RATIO 1.571428f     // 平面齿轮传动比 11:7
 #define MOTOR2006_REDUCTION_RATIO 36.0f // 2006 ecd减速比36
@@ -42,6 +42,7 @@ static float total_angle_init_M = 0;
 static float total_angle_init_Video_forward = 0;
 static float total_angle_init_Video_pitch = 0;
 static int error_clear_trigger = 0;
+static uint8_t cali_first_run = 1;
 /* Private function prototypes -----------------------------------------------*/
 GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config); // 机械臂初始化，返回一个机械臂示例指针
 void GrabTask();                                              // 机械臂任务函数
@@ -280,12 +281,12 @@ static void GrabCalibrationTask(void)
     static float last_r_angle = 0, last_l_angle = 0;
     static uint16_t block_cnt = 0;
     static uint32_t timeout_cnt = 0;
-    static uint8_t first_run = 1;
+
 
     // 1. 急停/未使能感知与记忆擦除
     if (grab_ctrl_cmd->grab_mode == GRAB_POWER_OFF)
     {
-        first_run = 1;
+        cali_first_run = 1;
         block_cnt = 0;
         timeout_cnt = 0;
         grab->actuator->wrist_cali.state = CALI_STAGE_DM_WAIT_ZERO;
@@ -293,7 +294,7 @@ static void GrabCalibrationTask(void)
     }
 
     // 2. 首次运行初始化
-    if (first_run)
+    if (cali_first_run)
     {
         uint8_t all_online = 1;
 
@@ -329,7 +330,7 @@ static void GrabCalibrationTask(void)
         grab->actuator->wrist_cali.state = CALI_STAGE_DONE;
 #endif
 
-        first_run = 0;
+        cali_first_run  = 0;
     }
 
     // 3. 核心状态机
@@ -635,6 +636,7 @@ static void Wrist_Cali_Check()
     if (grab_ctrl_cmd->wrist_pitch_cali == 1)
     {
         grab->actuator->wrist_cali.state = CALI_STAGE_DM_WAIT_ZERO;
+        cali_first_run = 1;
         grab_ctrl_cmd->wrist_pitch_cali = 0;
     }
 

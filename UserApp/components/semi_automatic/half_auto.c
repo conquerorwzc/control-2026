@@ -521,92 +521,92 @@ void grab_four_oclock_energy_unit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_C
     switch (step)
     {
     case 0: //
-        grab_ctrl_cmd->base_joint  = 2.46f;
-        grab_ctrl_cmd->elbow_roll  = -4.36f;
+        grab_ctrl_cmd->base_joint = 2.46f;
+        grab_ctrl_cmd->elbow_roll = -4.36f;
         grab_ctrl_cmd->elbow_pitch = 3.79f;
         grab_ctrl_cmd->wrist_pitch = 38.36f;
-        grab_ctrl_cmd->wrist_roll  = -0.79f;
-        grab_ctrl_cmd->torque      = -0.6f;
+        grab_ctrl_cmd->wrist_roll = -0.79f;
+        grab_ctrl_cmd->torque = -0.6f;
         break;
     case 1:
-        grab_ctrl_cmd->base_joint  = 47.94f;
-        grab_ctrl_cmd->elbow_roll  = -4.38f;
+        grab_ctrl_cmd->base_joint = 47.94f;
+        grab_ctrl_cmd->elbow_roll = -4.38f;
         grab_ctrl_cmd->elbow_pitch = -3.87f;
         grab_ctrl_cmd->wrist_pitch = 40.12f;
-        grab_ctrl_cmd->wrist_roll  = 1.97f;
-        grab_ctrl_cmd->torque      = -0.6f;
+        grab_ctrl_cmd->wrist_roll = 1.97f;
+        grab_ctrl_cmd->torque = -0.6f;
         break;
     case 2:
-        grab_ctrl_cmd->base_joint  = 56.24f;
-        grab_ctrl_cmd->elbow_roll  = -24.53f;
+        grab_ctrl_cmd->base_joint = 56.24f;
+        grab_ctrl_cmd->elbow_roll = -24.53f;
         grab_ctrl_cmd->elbow_pitch = 31.72f;
         grab_ctrl_cmd->wrist_pitch = 1.58f;
-        grab_ctrl_cmd->wrist_roll  = 11.33f;
-        grab_ctrl_cmd->torque      = -0.6f;
+        grab_ctrl_cmd->wrist_roll = 11.33f;
+        grab_ctrl_cmd->torque = -0.6f;
         break;
     case 3:
-        grab_ctrl_cmd->base_joint  = 61.17f;
-        grab_ctrl_cmd->elbow_roll  = -29.84f;
+        grab_ctrl_cmd->base_joint = 61.17f;
+        grab_ctrl_cmd->elbow_roll = -29.84f;
         grab_ctrl_cmd->elbow_pitch = 63.15f;
         grab_ctrl_cmd->wrist_pitch = -30.71f;
-        grab_ctrl_cmd->wrist_roll  = 5.75f;
-        grab_ctrl_cmd->torque      = -0.6f;
+        grab_ctrl_cmd->wrist_roll = 5.75f;
+        grab_ctrl_cmd->torque = -0.6f;
         break;
     case 4:
-        grab_ctrl_cmd->base_joint  = 68.24f;
-        grab_ctrl_cmd->elbow_roll  = -9.89f;
+        grab_ctrl_cmd->base_joint = 68.24f;
+        grab_ctrl_cmd->elbow_roll = -9.89f;
         grab_ctrl_cmd->elbow_pitch = 59.37f;
         grab_ctrl_cmd->wrist_pitch = -34.62f;
-        grab_ctrl_cmd->wrist_roll  = 28.47f;
-        grab_ctrl_cmd->torque      = -0.6f;
+        grab_ctrl_cmd->wrist_roll = 28.47f;
+        grab_ctrl_cmd->torque = -0.6f;
         break;
     case 5: // 🚩 夹取点：力矩突变为 2.0
-        grab_ctrl_cmd->base_joint  = 70.97f;
-        grab_ctrl_cmd->elbow_roll  = -9.89f;
+        grab_ctrl_cmd->base_joint = 70.97f;
+        grab_ctrl_cmd->elbow_roll = -9.89f;
         grab_ctrl_cmd->elbow_pitch = 59.37f;
         grab_ctrl_cmd->wrist_pitch = -34.98f;
-        grab_ctrl_cmd->wrist_roll  = 28.52f;
-        grab_ctrl_cmd->torque      = 2.0f;
+        grab_ctrl_cmd->wrist_roll = 28.52f;
+        grab_ctrl_cmd->torque = 2.0f;
         break;
     case 6: //
-        grab_ctrl_cmd->base_joint  = 59.23f;
-        grab_ctrl_cmd->elbow_roll  = -13.95f;
+        grab_ctrl_cmd->base_joint = 59.23f;
+        grab_ctrl_cmd->elbow_roll = -13.95f;
         grab_ctrl_cmd->elbow_pitch = 54.23f;
         grab_ctrl_cmd->wrist_pitch = -43.90f;
-        grab_ctrl_cmd->wrist_roll  = 31.55f;
-        grab_ctrl_cmd->torque      = 2.0f;
+        grab_ctrl_cmd->wrist_roll = 31.55f;
+        grab_ctrl_cmd->torque = 2.0f;
         break;
     case 7:
-        grab_ctrl_cmd->base_joint  = 55.41f;
-        grab_ctrl_cmd->elbow_roll  = -13.93f;
+        grab_ctrl_cmd->base_joint = 55.41f;
+        grab_ctrl_cmd->elbow_roll = -13.93f;
         grab_ctrl_cmd->elbow_pitch = 54.67f;
         grab_ctrl_cmd->wrist_pitch = -43.06f;
-        grab_ctrl_cmd->wrist_roll  = 28.47f;
-        grab_ctrl_cmd->torque      = 2.0f;
+        grab_ctrl_cmd->wrist_roll = 28.47f;
+        grab_ctrl_cmd->torque = 2.0f;
         break;
     case 8: //
-        grab_ctrl_cmd->base_joint  = 37.44f;
-        grab_ctrl_cmd->elbow_roll  = -13.75f;
+        grab_ctrl_cmd->base_joint = 37.44f;
+        grab_ctrl_cmd->elbow_roll = -13.75f;
         grab_ctrl_cmd->elbow_pitch = 51.11f;
         grab_ctrl_cmd->wrist_pitch = -41.26f;
-        grab_ctrl_cmd->wrist_roll  = 12.12f;
-        grab_ctrl_cmd->torque      = 2.0f;
+        grab_ctrl_cmd->wrist_roll = 12.12f;
+        grab_ctrl_cmd->torque = 2.0f;
         break;
     case 9:
-        grab_ctrl_cmd->base_joint  = 14.50f;
-        grab_ctrl_cmd->elbow_roll  = -13.75f;
+        grab_ctrl_cmd->base_joint = 14.50f;
+        grab_ctrl_cmd->elbow_roll = -13.75f;
         grab_ctrl_cmd->elbow_pitch = 34.39f;
         grab_ctrl_cmd->wrist_pitch = -17.84f;
-        grab_ctrl_cmd->wrist_roll  = -1.75f;
-        grab_ctrl_cmd->torque      = 2.0f;
+        grab_ctrl_cmd->wrist_roll = -1.75f;
+        grab_ctrl_cmd->torque = 2.0f;
         break;
     case 10:
-        grab_ctrl_cmd->base_joint  = -5.00f;
-        grab_ctrl_cmd->elbow_roll  = -13.71f;
+        grab_ctrl_cmd->base_joint = -5.00f;
+        grab_ctrl_cmd->elbow_roll = -13.71f;
         grab_ctrl_cmd->elbow_pitch = 12.03f;
         grab_ctrl_cmd->wrist_pitch = 57.04f;
-        grab_ctrl_cmd->wrist_roll  = -8.26f;
-        grab_ctrl_cmd->torque      = 2.0f;
+        grab_ctrl_cmd->wrist_roll = -8.26f;
+        grab_ctrl_cmd->torque = 2.0f;
         break;
     default:
         // 结束时保持最后抓着矿的状态
