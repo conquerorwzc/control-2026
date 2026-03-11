@@ -138,6 +138,9 @@ typedef struct
     float base_joint;  // 基座旋转关节角度
     float elbow_roll;  // 肘部关节旋转角度
     float elbow_pitch; // 肘部关节俯仰角度
+    float arm_lift;
+    float arm_lift_max;
+    float arm_lift_min;
 } ArmInstance;
 
 typedef struct

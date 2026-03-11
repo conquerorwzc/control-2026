@@ -195,37 +195,49 @@ static void MouseKeySet()
         }
 
         // ================= 3. 底盘平移 (WASD 全局生效) =================
+        //平移量
         float speed_buff = 20000; // 如果需要加速/减速，可以配合 Shift/Ctrl 修改此值
         if (robot->robot_mode == ROBOT_EXCHANGE_MODE)
         {
-            chassis_ctrl_cmd->vx = -(float)(rc_data[TEMP].key[KEY_PRESS].w - rc_data[TEMP].key[KEY_PRESS].s) * speed_buff;
-            chassis_ctrl_cmd->vy = (float)(rc_data[TEMP].key[KEY_PRESS].d - rc_data[TEMP].key[KEY_PRESS].a) * speed_buff;
-
+            chassis_ctrl_cmd->vx =
+                -(float)((rc_data[TEMP].key[KEY_PRESS].w - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].w) -
+                         (rc_data[TEMP].key[KEY_PRESS].s - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].s)) *
+                speed_buff;
+            chassis_ctrl_cmd->vy =
+                (float)((rc_data[TEMP].key[KEY_PRESS].d - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].d) -
+                        (rc_data[TEMP].key[KEY_PRESS].a - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].a)) *
+                speed_buff;
         }
         else
         {
-           chassis_ctrl_cmd->vx = (float)(rc_data[TEMP].key[KEY_PRESS].d - rc_data[TEMP].key[KEY_PRESS].a) * speed_buff;
-            chassis_ctrl_cmd->vy = (float)(rc_data[TEMP].key[KEY_PRESS].w - rc_data[TEMP].key[KEY_PRESS].s) * speed_buff;
-
+            chassis_ctrl_cmd->vx =
+                (float)((rc_data[TEMP].key[KEY_PRESS].d - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].d) -
+                        (rc_data[TEMP].key[KEY_PRESS].a - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].a)) *
+                speed_buff;
+            chassis_ctrl_cmd->vy =
+                (float)((rc_data[TEMP].key[KEY_PRESS].w - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].w) -
+                        (rc_data[TEMP].key[KEY_PRESS].s - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].s)) *
+                speed_buff;
         }
-      float angle_buff = 0.05f;
+        //旋转量
+        float angle_buff = 0.05f;
         if (robot->robot_mode == ROBOT_EXCHANGE_MODE)
         {
             if (chassis_ctrl_cmd->lift_ratio - 0.1f < 0.01f)
             {
-                set_angle += (float)(rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].q - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].e) * angle_buff;
+                set_angle +=
+                    (float)(rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].q - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].e) *
+                    angle_buff;
             }
-
         }
         else if (robot->robot_mode == ROBOT_CLIMB_MODE)
         {
-
-            float speed_buff = 20000; // 如果需要加速/减速，可以配合 Shift/Ctrl 修改此值
-            chassis_ctrl_cmd->vx = (float)(rc_data[TEMP].key[KEY_PRESS].d - rc_data[TEMP].key[KEY_PRESS].a) * speed_buff;
-            chassis_ctrl_cmd->vy = (float)(rc_data[TEMP].key[KEY_PRESS].w - rc_data[TEMP].key[KEY_PRESS].s) * speed_buff;
-            if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_ALL_RETRACT || chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_FRONT_RETRACT)
+            if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_ALL_RETRACT ||
+                chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_FRONT_RETRACT)
             {
-                set_angle += (float)(rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].q - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].e) * angle_buff;
+                set_angle +=
+                    (float)(rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].q - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].e) *
+                    angle_buff;
             }
         }
         // 把大模式透传给底盘，否则底盘永远不知道切模式了
@@ -260,13 +272,19 @@ static void MouseKeySet()
 
             // 只保留 Q/E 控制
             chassis_ctrl_cmd->lift_ratio +=
-                (float)((rc_data[TEMP].key[KEY_PRESS].q - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].q)- (rc_data[TEMP].key[KEY_PRESS].e-rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].e)) * step_size;
+                (float)((rc_data[TEMP].key[KEY_PRESS].q - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].q) -
+                        (rc_data[TEMP].key[KEY_PRESS].e - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].e)) *
+                step_size;
 
             // 安全限幅
             if (chassis_ctrl_cmd->lift_ratio < 0.0f)
                 chassis_ctrl_cmd->lift_ratio = 0.0f;
             if (chassis_ctrl_cmd->lift_ratio > 1.0f)
                 chassis_ctrl_cmd->lift_ratio = 1.0f;
+
+            grab_ctrl_cmd->arm_lift +=
+                (float)(rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].w - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].s) *
+                grab_param.arm_lift_sens_keyboard;
         }
     }
 

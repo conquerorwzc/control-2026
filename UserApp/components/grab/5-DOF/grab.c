@@ -7,14 +7,14 @@
 #include "user_lib.h"
 
 /* Private macro -------------------------------------------------------------*/
-#define PULLEY_GEAR_RATIO 2.125f          // 带轮传动比 17:8
+#define PULLEY_GEAR_RATIO 2.125f        // 带轮传动比 17:8
 #define BEVEL_GEAR_RATIO 1.6667f        // 锥齿轮传动比 5:3
 #define PLANAR_GEAR_RATIO 1.571428f     // 平面齿轮传动比 11:7
 #define MOTOR2006_REDUCTION_RATIO 36.0f // 2006 ecd减速比36
 // 👇 新增：3508电机减速比 (内部行星齿轮减速比为 19:1)
 #define MOTOR3508_REDUCTION_RATIO 51.0f
 // 如果你的抬升机构外部还有同步带/齿轮，传动比宏定义也要加上，例如：
-//#define LIFT_PULLEY_RATIO 1.5f
+// #define LIFT_PULLEY_RATIO 1.5f
 #define DM_HOMING_TOLERANCE 5.0f     // DM大臂物理归零的角度容差 (度)
 #define DM_CALI_MAX_TICKS 5000       // 阶段一：大臂归零最大允许时间 5 秒 (假设1ms调度)
 #define WRIST_CALI_MAX_TICKS 3000    // 阶段二：腕部抬头堵转最大允许时间 6 秒
@@ -36,6 +36,8 @@
 #define ROLL_SAFE_MAX_APS 13000.0f
 #define ROLL_SAFE_MAX_DELTA_ANGLE 720.0f
 
+//机械臂抬升相关参数
+#define LIFT_HEIGHT_MAX 420.0f
 /* Private variables ---------------------------------------------------------*/
 static GrabInstance *grab;
 static Grab_Ctrl_Cmd_s *grab_ctrl_cmd;
@@ -96,8 +98,11 @@ GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config)
     total_angle_init_M = grab_instance->actuator->grab_djimotor[2]->measure.total_angle;
 
     // 👇 新增：记录抬升电机的上电初始物理角度
-    if (grab->arm->arm_lift_motor != NULL) {
+    if (grab->arm->arm_lift_motor != NULL)
+    {
         total_angle_init_arm_lift = grab->arm->arm_lift_motor->measure.total_angle;
+        grab->arm->arm_lift_min = total_angle_init_arm_lift;
+        grab->arm->arm_lift_max = total_angle_init_arm_lift + LIFT_HEIGHT_MAX;
     }
 
     // total_angle_init_Video_pitch = grab->video->grab_djimotor[1]->measure.total_angle;
@@ -154,12 +159,22 @@ static void GrabCmdTask()
         }
     }
 
+    if (grab_ctrl_cmd->arm_lift >= grab->arm->arm_lift_max)
+    {
+        grab_ctrl_cmd->arm_lift = grab->arm->arm_lift_max;
+    }
+    else if (grab_ctrl_cmd->arm_lift < grab->arm->arm_lift_min)
+    {
+        grab_ctrl_cmd->arm_lift = grab->arm->arm_lift_min;
+    }
+
     grab->arm->base_joint = grab_ctrl_cmd->base_joint;
     grab->arm->elbow_roll = grab_ctrl_cmd->elbow_roll;
     grab->arm->elbow_pitch = grab_ctrl_cmd->elbow_pitch;
     grab->actuator->wrist_pitch = grab_ctrl_cmd->wrist_pitch;
     grab->actuator->wrist_roll = grab_ctrl_cmd->wrist_roll;
     grab->actuator->torque = grab_ctrl_cmd->torque;
+    grab->arm->arm_lift = grab_ctrl_cmd->arm_lift;
 }
 
 static void MotorTask()
@@ -288,7 +303,8 @@ static void Grab_Position_Calculate(GrabInstance *grab)
     // grab->video->P_target = total_angle_init_Video_pitch + grab->video->video_pitch;
     // 👇 新增：抬升电机的目标总角度解算
     // 目标角度 = 初始物理角度 + (指令设定高度 * 减速比 * 外设传动比)
-    grab->grab_ctrl_cmd.arm_lift_target = total_angle_init_arm_lift + grab_ctrl_cmd->arm_lift * MOTOR3508_REDUCTION_RATIO /* * LIFT_PULLEY_RATIO */;
+    grab->grab_ctrl_cmd.arm_lift_target =
+        total_angle_init_arm_lift + grab_ctrl_cmd->arm_lift * MOTOR3508_REDUCTION_RATIO /* * LIFT_PULLEY_RATIO */;
     grab->actuator->T_target = grab->actuator->torque;
 }
 /**
@@ -300,7 +316,6 @@ static void GrabCalibrationTask(void)
     static float last_r_angle = 0, last_l_angle = 0;
     static uint16_t block_cnt = 0;
     static uint32_t timeout_cnt = 0;
-
 
     // 1. 急停/未使能感知与记忆擦除
     if (grab_ctrl_cmd->grab_mode == GRAB_POWER_OFF)
@@ -349,7 +364,7 @@ static void GrabCalibrationTask(void)
         grab->actuator->wrist_cali.state = CALI_STAGE_DONE;
 #endif
 
-        cali_first_run  = 0;
+        cali_first_run = 0;
     }
 
     // 3. 核心状态机
@@ -607,7 +622,8 @@ static void Grab_Real_Angle_Calculate(GrabInstance *grab)
     if (DaemonIsOnline(grab->arm->arm_lift_motor->daemon))
     {
         float curr_lift = grab->arm->arm_lift_motor->measure.total_angle;
-        grab->grab_measure.arm_lift = (curr_lift - total_angle_init_arm_lift) / MOTOR3508_REDUCTION_RATIO /* / LIFT_PULLEY_RATIO */;
+        grab->grab_measure.arm_lift =
+            (curr_lift - total_angle_init_arm_lift) / MOTOR3508_REDUCTION_RATIO /* / LIFT_PULLEY_RATIO */;
     }
 }
 
@@ -664,5 +680,4 @@ static void Wrist_Cali_Check()
         cali_first_run = 1;
         grab_ctrl_cmd->wrist_pitch_cali = 0;
     }
-
 }

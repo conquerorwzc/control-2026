@@ -558,6 +558,7 @@ static Grab_Init_Config_s
                     .wrist_pitch_sens_keyboard = 0.05,
                     .video_forward_sens_keyboard = 0.01,
                     .video_pitch_sens_keyboard = 0.01,
+                    .arm_lift_sens_keyboard = 1.0,
                 },
 
             .Grab_motor_config[0] =
