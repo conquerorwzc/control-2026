@@ -165,21 +165,22 @@ static void VT13UpdateButtonStatus(void)
  *        自动由串口接收回调调用，外部通常无需手动调用
  * @param buf  接收缓冲区指针，长度须 >= VT13_FRAME_SIZE
  * @param len  数据长度
+ * @return     1=解析成功(有效帧), 0=失败
  */
-void VT13Decode(const uint8_t *buf, uint16_t len)
+static uint8_t VT13Decode(const uint8_t *buf, uint16_t len)
 {
-    if (buf == NULL || len < VT13_FRAME_SIZE) return;
+    if (buf == NULL || len < VT13_FRAME_SIZE) return 0u;
 
     /* 1. 验证帧头 */
     if (buf[0] != VT13_SOF_1 || buf[1] != VT13_SOF_2){
         LOGWARNING("[VT13] bad SOF: 0x%02X 0x%02X", buf[0], buf[1]);
-        return;
+        return 0u;
     }
 
     /* 2. CRC 校验（对前 19 字节计算，比对第 20、21 字节） */
     if (!vt13_verify_crc16(buf, VT13_FRAME_SIZE)){
         LOGWARNING("[VT13] CRC error");
-        return;
+        return 0u;
     }
 
     /* 3. 将 buf[2..9] 以小端方式加载到 64bit 整数，后续统一移位提取各字段 */
@@ -205,15 +206,17 @@ void VT13Decode(const uint8_t *buf, uint16_t len)
     
     /* 更新按钮状态和计数器 */
     VT13UpdateButtonStatus();
+    return 1u;
 }
 
 /**
- * @brief 串口接收完成回调：喂狗并解析数据
+ * @brief 串口接收完成回调：解析成功后喂狗
  */
 static void VT13RxCallback(void)
 {
-  DaemonReload(vt13_daemon);
-  VT13Decode(vt13_usart->recv_buff, VT13_FRAME_SIZE);
+  if (VT13Decode(vt13_usart->recv_buff, VT13_FRAME_SIZE)) {
+    DaemonReload(vt13_daemon);
+  }
 }
 
 /**
@@ -233,7 +236,8 @@ VT13_RC_t *VT13RemoteInit(UART_HandleTypeDef *huart)
 
     /* 注册守护进程：遥控器约 14ms 发一帧，100ms 未收到视为离线 */
     Daemon_Init_Config_s daemon_conf = {
-        .reload_count = 10,           // 10 * 10ms = 100ms 超时
+        .reload_count = 30,           // 10 * 10ms = 100ms 超时
+        .init_count   = 0,
         .callback     = VT13LostCallback,
         .owner_id     = NULL,
     };
@@ -244,4 +248,12 @@ VT13_RC_t *VT13RemoteInit(UART_HandleTypeDef *huart)
 
     vt13_init_flag = 1;
     return &vt13_rc;
+}
+
+uint8_t VT13RemoteIsOnline(void)
+{
+    if (vt13_init_flag && vt13_daemon != NULL) {
+        return DaemonIsOnline(vt13_daemon);
+    }
+    return 0u;
 }

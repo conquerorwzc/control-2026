@@ -199,5 +199,6 @@ typedef struct
 
 
 VT13_RC_t *VT13RemoteInit(UART_HandleTypeDef *huart);
+uint8_t VT13RemoteIsOnline(void);
 
 #endif  // CONTROL_2026_NEW_REMOTE_CONTROL_VT13_H
