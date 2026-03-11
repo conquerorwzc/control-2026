@@ -920,6 +920,48 @@ static Grab_Init_Config_s
                             .tx_id = 7,
                         },
                 },
+            .Grab_motor_config[9] =
+                    {
+                        .controller_param_init_config =
+                        {
+                            .angle_PID =
+                            {
+                                .Kp = 5.0f,
+                                .Ki = 0.0f,
+                                .Kd = 0.0f,
+                                .Improve = PID_Integral_Limit,
+                                .IntegralLimit = 0.0f,
+                                .MaxOut = 15000.0f,
+                            },
+                        .speed_PID =
+                            {
+                                .Kp = 4.0f,
+                                .Ki = 0.0f,
+                                .Kd = 0.0f,
+                                .Improve = PID_Integral_Limit,
+                                .IntegralLimit = 10000.0f,
+                                .MaxOut = 8000.0f,
+                            },
+
+                    },
+                .controller_setting_init_config =
+                        {
+                            .outer_loop_type = ANGLE_LOOP,
+                            .close_loop_type = SPEED_LOOP | ANGLE_LOOP,
+                            .angle_feedback_source = MOTOR_FEED,
+                            .speed_feedback_source = MOTOR_FEED,
+                            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+                            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
+                        },
+                    .motor_type = M3508,
+                    .can_init_config =
+                        {
+                            .can_handle = &hcan2,
+                            .tx_id = 5,
+                        },
+
+                },
+
 };
 
 // static SuperCap_Init_Config_s super_cap_config = {

@@ -11,7 +11,10 @@
 #define BEVEL_GEAR_RATIO 1.6667f        // 锥齿轮传动比 5:3
 #define PLANAR_GEAR_RATIO 1.571428f     // 平面齿轮传动比 11:7
 #define MOTOR2006_REDUCTION_RATIO 36.0f // 2006 ecd减速比36
-
+// 👇 新增：3508电机减速比 (内部行星齿轮减速比为 19:1)
+#define MOTOR3508_REDUCTION_RATIO 51.0f
+// 如果你的抬升机构外部还有同步带/齿轮，传动比宏定义也要加上，例如：
+//#define LIFT_PULLEY_RATIO 1.5f
 #define DM_HOMING_TOLERANCE 5.0f     // DM大臂物理归零的角度容差 (度)
 #define DM_CALI_MAX_TICKS 5000       // 阶段一：大臂归零最大允许时间 5 秒 (假设1ms调度)
 #define WRIST_CALI_MAX_TICKS 3000    // 阶段二：腕部抬头堵转最大允许时间 6 秒
@@ -41,6 +44,8 @@ static float total_angle_init_R = 0;
 static float total_angle_init_M = 0;
 static float total_angle_init_Video_forward = 0;
 static float total_angle_init_Video_pitch = 0;
+// 👇 新增：抬升电机的上电物理初始零点
+static float total_angle_init_arm_lift = 0;
 static int error_clear_trigger = 0;
 static uint8_t cali_first_run = 1;
 /* Private function prototypes -----------------------------------------------*/
@@ -68,7 +73,7 @@ GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config)
     grab_instance->actuator->grab_djimotor[0] = DJIMotorInit(&Grab_init_config->Grab_motor_config[3]);
     grab_instance->actuator->grab_djimotor[1] = DJIMotorInit(&Grab_init_config->Grab_motor_config[4]);
     grab_instance->actuator->grab_djimotor[2] = DJIMotorInit(&Grab_init_config->Grab_motor_config[8]);
-
+    grab_instance->arm->arm_lift_motor = DJIMotorInit(&Grab_init_config->Grab_motor_config[9]);
     // 在没有上电的情况下先不发使能帧给dm电机，即不初始化
     grab_instance->actuator->grab_dmmotor[0] = DMMotorInit(&Grab_init_config->Grab_motor_config[5]); // v2
     grab_instance->arm->grab_dmmotor[0] = DMMotorInit(&Grab_init_config->Grab_motor_config[0]);      // v3
@@ -89,6 +94,11 @@ GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config)
     total_angle_init_L = grab->actuator->grab_djimotor[1]->measure.total_angle;
     total_angle_init_R = grab->actuator->grab_djimotor[0]->measure.total_angle;
     total_angle_init_M = grab_instance->actuator->grab_djimotor[2]->measure.total_angle;
+
+    // 👇 新增：记录抬升电机的上电初始物理角度
+    if (grab->arm->arm_lift_motor != NULL) {
+        total_angle_init_arm_lift = grab->arm->arm_lift_motor->measure.total_angle;
+    }
 
     // total_angle_init_Video_pitch = grab->video->grab_djimotor[1]->measure.total_angle;
     if (Grab_init_config->Grab_cali_mode == GRAB_CALI_MODE)
@@ -160,7 +170,8 @@ static void MotorTask()
         DMMotorStop(grab->arm->grab_dmmotor[0]);
         DMMotorStop(grab->arm->grab_dmmotor[1]);
         DMMotorStop(grab->arm->grab_dmmotor[2]);
-
+        // 👇 新增：断电时卸力抬升电机
+        DJIMotorStop(grab->arm->arm_lift_motor);
         DJIMotorStop(grab->actuator->grab_djimotor[0]);
         DJIMotorStop(grab->actuator->grab_djimotor[1]);
         DJIMotorStop(grab->actuator->grab_djimotor[2]);
@@ -195,6 +206,12 @@ static void MotorTask()
         // 循环处理所有DJIMotor（actuator部分）
         for (int i = 0; i < 3; i++)
         {
+            // 👇 新增：在线则使能 3508 抬升电机，并下发 PID 目标
+            if (DaemonIsOnline(grab->arm->arm_lift_motor->daemon))
+            {
+                DJIMotorEnable(grab->arm->arm_lift_motor);
+                DJIMotorSetPIDRef(grab->arm->arm_lift_motor, grab->grab_ctrl_cmd.arm_lift_target);
+            }
             if (DaemonIsOnline(grab->actuator->grab_djimotor[i]->daemon))
             {
                 DJIMotorEnable(grab->actuator->grab_djimotor[i]);
@@ -269,7 +286,9 @@ static void Grab_Position_Calculate(GrabInstance *grab)
 
     // grab->video->F_target = total_angle_init_Video_forward + grab->video->video_forward * MOTOR2006_REDUCTION_RATIO;
     // grab->video->P_target = total_angle_init_Video_pitch + grab->video->video_pitch;
-
+    // 👇 新增：抬升电机的目标总角度解算
+    // 目标角度 = 初始物理角度 + (指令设定高度 * 减速比 * 外设传动比)
+    grab->grab_ctrl_cmd.arm_lift_target = total_angle_init_arm_lift + grab_ctrl_cmd->arm_lift * MOTOR3508_REDUCTION_RATIO /* * LIFT_PULLEY_RATIO */;
     grab->actuator->T_target = grab->actuator->torque;
 }
 /**
@@ -584,6 +603,12 @@ static void Grab_Real_Angle_Calculate(GrabInstance *grab)
     total_angle_init_Video_forward) / MOTOR2006_REDUCTION_RATIO;
     }
     */
+    // 👇 新增：抬升电机真实物理高度解算
+    if (DaemonIsOnline(grab->arm->arm_lift_motor->daemon))
+    {
+        float curr_lift = grab->arm->arm_lift_motor->measure.total_angle;
+        grab->grab_measure.arm_lift = (curr_lift - total_angle_init_arm_lift) / MOTOR3508_REDUCTION_RATIO /* / LIFT_PULLEY_RATIO */;
+    }
 }
 
 static void Error_Check()

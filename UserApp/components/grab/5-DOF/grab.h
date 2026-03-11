@@ -20,7 +20,7 @@ typedef enum
 {
     GRAB_NO_ERROR = 0,
     GRAB_ERR_ROLL_OVERSPEED   = 1, // Roll轴疯转
-    GRAB_ERR_ROLL_OVERANGLE  = 2  //  Roll轴角度超限
+    GRAB_ERR_ROLL_OVERANGLE  = 2  // Roll轴角度超限
 } Grab_Error_e;
 
 typedef enum {
@@ -38,35 +38,43 @@ typedef struct {
 } Motor_Cali_Data_s;
 
 typedef struct {
-    float wrist_roll_MAX;// 腕部关节旋转角度
+    float wrist_roll_MAX;    // 腕部关节旋转角度
     float wrist_roll_MIN;
     float wrist_pitch_MAX;   // 腕部关节俯仰角度
     float wrist_pitch_MIN;
     float base_joint_MAX;    // 基座旋转关节角度
     float base_joint_MIN;
-    float elbow_roll_MAX;   // 肘部关节旋转角度
+    float elbow_roll_MAX;    // 肘部关节旋转角度
     float elbow_roll_MIN;
     float elbow_pitch_MAX;   // 肘部关节俯仰角度
     float elbow_pitch_MIN;
-    float Video_forward_MAX;// 图传的前后移动距离
+    float Video_forward_MAX; // 图传的前后移动距离
     float Video_forward_MIN;
     float Video_pitch_MAX;   // 图传的pitch旋转角度
     float Video_pitch_MIN;
 
-    float base_joint_sens_keyboard;   // 基座旋转关节灵敏度(键鼠)
-    float elbow_roll_sens_keyboard;   // 肘部旋转关节灵敏度(键鼠)
-    float elbow_pitch_sens_keyboard;  // 肘部俯仰关节灵敏度(键鼠)
-    float wrist_roll_sens_keyboard;   // 腕部旋转关节灵敏度(键鼠)
-    float wrist_pitch_sens_keyboard;  // 腕部俯仰关节灵敏度(键鼠)
+
+    // 👇 新增：3508 抬升电机的软限位
+    float arm_lift_MAX;      // 机械臂整体抬升最大高度/角度
+    float arm_lift_MIN;      // 机械臂整体抬升最小高度/角度
+
+    float base_joint_sens_keyboard;    // 基座旋转关节灵敏度(键鼠)
+    float elbow_roll_sens_keyboard;    // 肘部旋转关节灵敏度(键鼠)
+    float elbow_pitch_sens_keyboard;   // 肘部俯仰关节灵敏度(键鼠)
+    float wrist_roll_sens_keyboard;    // 腕部旋转关节灵敏度(键鼠)
+    float wrist_pitch_sens_keyboard;   // 腕部俯仰关节灵敏度(键鼠)
     float video_forward_sens_keyboard; // 图传前后移动灵敏度(键鼠)
     float video_pitch_sens_keyboard;   // 图传pitch旋转灵敏度(键鼠)
 
+    // 👇 新增：3508 抬升电机的键盘控制灵敏度
+    float arm_lift_sens_keyboard;      // 抬升机构灵敏度(键鼠)
 
 } Grab_Param_s;
 
 typedef struct
 {
-    Motor_Init_Config_s Grab_motor_config[9]; // 修改为数组以支持多个电机
+    // 👇 极其重要：从 [9] 改为 [10]！因为多了一个 3508 抬升电机
+    Motor_Init_Config_s Grab_motor_config[10];
     Grab_Cali_Mode_e Grab_cali_mode;
     Grab_Param_s  Grab_param;
 } Grab_Init_Config_s;
@@ -81,6 +89,10 @@ typedef struct
     float video_forward; // 图传的前后移动距离
     float video_pitch;   // 图传的pitch旋转角度
     float torque;        // 夹爪电机目标扭矩
+
+    // 👇 新增：3508 抬升电机的目标指令
+    float arm_lift;      // 机械臂整体抬升的目标角度/高度
+    float arm_lift_target;
     uint8_t wrist_roll_cali;
     uint8_t wrist_pitch_cali;
     Grab_Mode_e grab_mode;
@@ -96,6 +108,9 @@ typedef struct
     float video_forward; // 实际：图传的前后移动距离
     float video_pitch;   // 实际：图传的pitch旋转角度
     float torque;        // 实际：夹爪电机当前扭矩
+
+    // 👇 新增：3508 抬升电机的实际反馈
+    float arm_lift;      // 实际：机械臂整体抬升的高度/角度
 } Grab_Real_Measure_s;
 
 typedef struct
@@ -116,6 +131,10 @@ typedef struct
 typedef struct
 {
     DMMotorInstance *grab_dmmotor[3];
+
+    // 👇 新增：3508 大疆电机实例指针 (用于控制机械臂抬升)
+    DJIMotorInstance *arm_lift_motor;
+
     float base_joint;  // 基座旋转关节角度
     float elbow_roll;  // 肘部关节旋转角度
     float elbow_pitch; // 肘部关节俯仰角度
@@ -143,4 +162,3 @@ typedef struct
 GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config);
 
 void GrabTask();
-
