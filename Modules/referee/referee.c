@@ -9,7 +9,7 @@
  *
  */
 
-#include "rm_referee.h"
+#include "referee.h"
 
 #include "bsp_log.h"
 #include "bsp_usart.h"

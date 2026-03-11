@@ -4,12 +4,10 @@
 #include "gimbal.h"
 #include "remote_control.h"
 #include "shoot.h"
-#include "rm_referee.h"
+#include "referee.h"
 #include "can_comm.h"
 #include "super_cap.h"
 #include "master_process.h"
-#include "main.h"
-#include "vofa.h"
 
 // todo: add vision_module
 

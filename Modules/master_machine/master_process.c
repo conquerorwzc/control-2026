@@ -17,7 +17,7 @@
 #include "navigator.h"
 #include "seasky_protocol.h"
 #include "srm_protocol.h"
-#include "rm_referee.h"
+#include "referee.h"
 #define VISION_USE_VCP
 
 
