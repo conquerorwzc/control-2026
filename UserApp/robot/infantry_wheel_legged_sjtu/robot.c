@@ -64,6 +64,7 @@ void VOFATask() {
   visualized_data[6] = robot->shoot->shoot_ctrl_cmd.initial_speed;
   visualized_data[7] = robot->shoot->loader_motor->measure.total_angle;
   visualized_data[8] = robot->gimbal->pitch_motor->motor_controller.final_output;
+  visualized_data[9] = robot->gimbal->pitch_motor->motor_controller.pid_ref;
 #elif defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   visualized_data[0] = robot->chassis->power_ctrl.P_total;
   visualized_data[1] = robot->chassis->power_ctrl.vel_max;
@@ -204,6 +205,7 @@ static void RemoteControlSet() {
     // 云台使能,或视觉未识别到目标,纯遥控器拨杆控制
     if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
       gimbal_ctrl_cmd->pitch -= 0.00003f * (float)rc_data[TEMP].rc.rocker_r1;
+      // gimbal_ctrl_cmd->pitch = 0.0f;
     }
   } else {
     shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
@@ -447,7 +449,7 @@ static void MouseKeySet() {
   // 2.3鼠标云台控制
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
     gimbal_ctrl_cmd->yaw -= (float)rc_data[TEMP].mouse.x * 0.002f;    // X轴灵敏度
-    gimbal_ctrl_cmd->pitch += (float)rc_data[TEMP].mouse.y * 0.001f;  // Y轴灵敏度
+    gimbal_ctrl_cmd->pitch -= (float)rc_data[TEMP].mouse.y * 0.001f;  // Y轴灵敏度
     // 云台Pitch限位
     if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE)
       gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
