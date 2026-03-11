@@ -73,9 +73,23 @@ static void RemoteControlSet() {
     }
   }
   // 云台使能,或视觉未识别到目标,纯遥控器拨杆控制
-  if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
-    gimbal_ctrl_cmd->yaw += -0.0016f * (float)rc_data[TEMP].rc.rocker_r_;
-    gimbal_ctrl_cmd->pitch -= 0.0003f * (float)rc_data[TEMP].rc.rocker_r1;
+  if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
+    // 1. 读取右侧摇杆原始数据
+    float rc_yaw_raw = (float)rc_data[TEMP].rc.rocker_r_;
+    float rc_pitch_raw = (float)rc_data[TEMP].rc.rocker_r1;
+
+    // 2. 添加摇杆死区 (Deadband)
+    // 如果摇杆的拨动量在 -10 到 10 之间，强行按 0 处理，滤除机械回中误差
+    if (fabsf(rc_yaw_raw) < 10.0f) {
+      rc_yaw_raw = 0.0f;
+    }
+    if (fabsf(rc_pitch_raw) < 10.0f) {
+      rc_pitch_raw = 0.0f;
+    }
+
+    // 3. 按照增益系数计算最终的角度增量
+    gimbal_ctrl_cmd->yaw += -0.0002f * rc_yaw_raw;
+    gimbal_ctrl_cmd->pitch -= 0.0001f * rc_pitch_raw;
   }
 
   // 云台PITCH轴软件限位 todo:没在云台有点不好
