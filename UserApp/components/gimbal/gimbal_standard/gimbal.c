@@ -84,6 +84,6 @@ void GimbalTask() {
     DJIMotorEnable(gimbal->pitch_motor);
     DJIMotorSetPIDRef(gimbal->yaw_motor, gimbal_ctrl_cmd->yaw);  // yaw和pitch会在robot_cmd中处理好多圈和单圈
     DJIMotorSetPIDRef(gimbal->pitch_motor, gimbal_ctrl_cmd->pitch);
-    gimbal->pitch_motor->motor_controller.final_output += GetPitchGravityFeedforward();  // pitch重力补偿前馈
+    // gimbal->pitch_motor->motor_controller.final_output += GetPitchGravityFeedforward();  // pitch重力补偿前馈
   }
 }

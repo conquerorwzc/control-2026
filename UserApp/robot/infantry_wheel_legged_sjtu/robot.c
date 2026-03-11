@@ -54,6 +54,7 @@ void VOFATask() {
   visualized_data[6] = robot->shoot->shoot_ctrl_cmd.initial_speed;
   visualized_data[7] = robot->shoot->loader_motor->measure.total_angle;
   visualized_data[8] = robot->gimbal->pitch_motor->motor_controller.final_output;
+  visualized_data[9] = robot->gimbal->pitch_motor->motor_controller.pid_ref;
 #elif defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   visualized_data[0] = robot->chassis->power_ctrl.P_total;
   visualized_data[1] = robot->chassis->power_ctrl.vel_max;
