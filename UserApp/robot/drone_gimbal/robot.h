@@ -7,6 +7,7 @@
 #include "shoot.h"
 #include "remote_control.h"
  #include "rm_referee.h"
+#include "vofa.h"
 // todo: add vision_module
 
 typedef enum {

@@ -59,18 +59,18 @@ ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
  * @brief 弹速控制函数，根据实际弹速与目标弹速的差异动态调整摩擦轮转速,后续实际弹速从裁判系统中获取
  */
 void ShootBulletSpeedControl(void) {
-  // 计算弹速误差
-  actual_bullet_speed = shoot_ctrl_cmd->initial_speed;
-  if (actual_bullet_speed == 0) {
-    return;
-  }
-  float speed_error = target_speed - actual_bullet_speed;
-  if (actual_bullet_speed <= target_speed + 0.3 &&  actual_bullet_speed >= target_speed-0.3) {
-    return;
-  }
-
-  // 将误差乘以系数后加到基础摩擦轮速度上
-  friction_speed = friction_speed + speed_error * bullet_speed_adjustment;
+  // // 计算弹速误差
+  // actual_bullet_speed = shoot_ctrl_cmd->initial_speed;
+  // if (actual_bullet_speed == 0) {
+  //   return;
+  // }
+  // float speed_error = target_speed - actual_bullet_speed;
+  // if (actual_bullet_speed <= target_speed + 0.3 &&  actual_bullet_speed >= target_speed-0.3) {
+  //   return;
+  // }
+  //
+  // // 将误差乘以系数后加到基础摩擦轮速度上
+  // friction_speed = friction_speed + speed_error * bullet_speed_adjustment;
 }
 
 // ... existing code ...
