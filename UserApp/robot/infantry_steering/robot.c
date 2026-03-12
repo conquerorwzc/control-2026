@@ -25,30 +25,11 @@ static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 float temp=24.0f;
 CanComm_Pack* cancomm_pack;
 Referee_Interactive_info_t *interactive_data;
-// typedef enum {
-//   SAFETY_MODE=0,//安全模式，超电电压低于8伏时进入，大于18伏退出，底盘限制30W
-//   PASSIVE_MODE,//被动模式，超电电压正常时的工作模式
-//   ACTIVE_MODE,//，主动模式，主动使用超电能量
-//   CHARGING_MODE,//充电模式，衰减底盘功率，保障电容电压健康
-//   FORCED_CHARGING_MODE,//强制充电模式，更极端的功率衰减，强制超电快速充电
-// } SuperCapMode;
-// static SuperCapMode supercap_mode = SAFETY_MODE;
-static uint8_t supercaplock=0;
 /* Intermediate variables calculated by private functions */
 static float trigger_time = 0;  // 触发时间
 static float angle=0;
 uint8_t* received_data = NULL;
 CANCommInstance* can_comm_instance = NULL;
-typedef union {
-  int16_t value16[32];
-  uint16_t valueu16[32];
-  uint8_t bytes[64];
-} int16_t_bytes;
-int16_t_bytes CanData={0};//底盘板can接收的遥控数据
-//static SuperCapInstance* supercap_instance;
-
-// static  DJIMotorInstance* debug_motor;
-
 /**
  * @brief 根据gimbal app传回的当前电机角度计算和零位的误差
  *        单圈绝对角度的范围是0~360,说明文档中有图示
@@ -65,88 +46,6 @@ static void CalcOffsetAngle() {
   if (abs(delta) < 2.0f) {
     delta =0.0f;
   }
- // chassis_ctrl_cmd->offset_angle = delta;
-}
-
-/**
- * @brief 控制输入为遥控器(调试时)的模式和控制量设置
- *
- */
-static void RemoteControlSet() {
-  // 右[中]，云台
-  if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-    if (abs(rc_data[TEMP].rc.dial) > 20) {
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
-    } else
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
-  }
-  // 右[上]，超电，保持底盘跟随云台
-  else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-    if (abs(rc_data[TEMP].rc.dial) > 20) {
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
-    } else
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
-  }
-  // 左[中],云台启动，摩擦轮启动，拨弹盘启动，准备射击
-  if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
-    shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-    shoot_ctrl_cmd->friction_mode = FRICTION_ON;
-    shoot_ctrl_cmd->load_mode = LOAD_STOP;
-    // 待添加,视觉会发来和目标的误差,同样将其转化为total angle的增量进行控制
-    // ...
-  } else if (switch_is_up(rc_data[TEMP].rc.switch_left))  // 开火，发射，根据时间判断单发或者连发
-  {
-    shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-    shoot_ctrl_cmd->friction_mode = FRICTION_ON;
-    shoot_ctrl_cmd->load_mode = LOAD_STOP;
-    if (switch_is_mid(rc_data_last[TEMP].rc.switch_left)) {
-      trigger_time = DWT_GetTimeline_s();
-    }
-    if (DWT_GetTimeline_s() - trigger_time > 1.0f) {
-      shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
-    } else {
-      shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
-    }
-  }
-  // 云台使能,或视觉未识别到目标,纯遥控器拨杆控制
-  if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
-    gimbal_ctrl_cmd->yaw -= -0.003f * (float)rc_data[TEMP].rc.rocker_r_;
-    gimbal_ctrl_cmd->pitch += 0.0006f * (float)rc_data[TEMP].rc.rocker_r1;
-  }
-
-  // 云台PITCH轴软件限位 todo:没在云台有点不好
-  if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
-    gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
-  } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
-    gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
-  }
-
-  // 底盘参数,系数需要调整
-  chassis_ctrl_cmd->vx = 60.0f * (float)rc_data[TEMP].rc.rocker_l_;  // _水平方向
-  chassis_ctrl_cmd->vy = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 1数值方向
-  // if (chassis_ctrl_cmd->vx<50) chassis_ctrl_cmd->vx = 0;//加个死区防止舵轮乱抖
-  // if (chassis_ctrl_cmd->vy<50) chassis_ctrl_cmd->vy = 0;
-  // if (chassis_ctrl_cmd->wz<50) chassis_ctrl_cmd->wz = 0;
-  if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
-    chassis_ctrl_cmd->wz =
-        60.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
-  }
-  if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
-    chassis_ctrl_cmd->wz =
-        (60.0f) *
-        (float)rc_data[TEMP]
-            .rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
-  }
-  // 发射参数
-
-  // 射频控制,固定每秒1发,后续可以根据左侧拨轮的值大小切换射频,
-  shoot_ctrl_cmd->shoot_rate = 8;
-
-  *rc_data_last = *rc_data;
 }
 //解析底盘板收到的遥控数据
 //value16数组0表示左遥感横向，1表示纵向，2表示右摇杆横，3表示左侧滚轮，byte10表示右侧拨杆
@@ -340,7 +239,7 @@ static void MouseKeySet() {
  *
  */
 static void EmergencyHandler() {
-  //底盘侧双板通信离线,好痛
+  //底盘侧双板通信离线
   if (!CANCommIsOnline(can_comm_instance)) {
     chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
     LOGERROR("[CMD] Emergency Stop! DualBoardComm Lost");
@@ -405,13 +304,6 @@ RobotInstance * RobotInit() {
   *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
 
   robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
-  //robot->super_cap = SuperCapInit(&supercab_init_config);
-  // robot->super_cap = QQSuperCapInit(&super_cap_config);
-
-// #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
-//   robot->gimbal = GimbalInit(&gimbal_init_config);
-//   robot->shoot = ShootInit(&shoot_init_config);
-// #endif
 
   robot->chassis = ChassisInit(&chassis_init_config);
   //robot->shoot=(ShootInstance*)zmalloc(sizeof(ShootInstance));

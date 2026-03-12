@@ -114,7 +114,7 @@ void GimbalTask()
             // 重新使能后yaw屏蔽失能时的控制，pitch回中
             gimbal_ctrl_cmd->yaw = gimbal->gimbal_IMU_data->YawTotalAngle;
             last_yaw_cmd=gimbal->gimbal_IMU_data->YawTotalAngle;
-            gimbal_ctrl_cmd->pitch = 0;
+            gimbal_ctrl_cmd->pitch = gimbal->gimbal_IMU_data->Pitch;
             disable_2_enable_flag = 1;
         }
         gimbal_ctrl_cmd->yaw = wrap180(gimbal_ctrl_cmd->yaw, last_yaw_cmd);

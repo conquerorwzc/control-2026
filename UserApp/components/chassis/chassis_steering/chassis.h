@@ -15,7 +15,7 @@
 #define LB 1
 #define RB 2
 #define RF 3
-#define MAX_WHEEL_SPEED 35000.0f
+#define MAX_WHEEL_SPEED 40000.0f
 //底盘模式
 // typedef enum {
 //   CHASSIS_VECTOR_FOLLOW_GIMBAL_YAW,   //底盘跟随云台
