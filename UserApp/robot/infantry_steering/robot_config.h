@@ -108,7 +108,7 @@
                       .Kd = 0,                                                                                 \
                       .IntegralLimit = 12500,                                                                   \
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
-                      .MaxOut = 22000,                                                                         \
+                      .MaxOut = 25000,                                                                         \
                   },                                                                                           \
               .current_PID =                                                                                   \
                   {                                                                                            \
