@@ -114,33 +114,37 @@ static Gimbal_Init_Config_s gimbal_init_config = {
         .Roll = 0.0f
       },
 };
-
+//原来参数是2.0f, 0.2f, 0.0f
 #define FRICTION_MOTOR_CONFIG(handle, id, direction) \
-((Motor_Init_Config_s) { \
-.controller_param_init_config = { \
-.speed_PID = { \
-.Kp = 2.0f, \
-.Ki = 0.2f, \
-.Kd = 0.0f, \
-.Improve = PID_Integral_Limit, \
-.IntegralLimit = 10000.0f, \
-.MaxOut = 15000.0f, \
-}, \
-}, \
-.controller_setting_init_config ={\
-  .angle_feedback_source = MOTOR_FEED,\
-  .speed_feedback_source = MOTOR_FEED,\
-  .outer_loop_type = SPEED_LOOP,\
-  .close_loop_type = SPEED_LOOP,\
-  .motor_reverse_flag = direction,\
-  .feedback_reverse_flag = direction,\
-},\
-.motor_type = M3508, \
-.can_init_config = { \
-.can_handle = handle, \
-.tx_id = id, \
-}, \
-})
+  ((Motor_Init_Config_s){                            \
+      .controller_param_init_config =                \
+          {                                          \
+              .speed_PID =                           \
+                  {                                  \
+                      .Kp = 1.5f,                    \
+                      .Ki = 0.1f,                    \
+                      .Kd = 0.0f,                    \
+                      .Improve = PID_Integral_Limit, \
+                      .IntegralLimit = 10000.0f,     \
+                      .MaxOut = 15000.0f,            \
+                  },                                 \
+          },                                         \
+      .controller_setting_init_config =              \
+          {                                          \
+              .angle_feedback_source = MOTOR_FEED,   \
+              .speed_feedback_source = MOTOR_FEED,   \
+              .outer_loop_type = SPEED_LOOP,         \
+              .close_loop_type = SPEED_LOOP,         \
+              .motor_reverse_flag = direction,       \
+              .feedback_reverse_flag = direction,    \
+          },                                         \
+      .motor_type = M3508,                           \
+      .can_init_config =                             \
+          {                                          \
+              .can_handle = handle,                  \
+              .tx_id = id,                           \
+          },                                         \
+  })
 
 static Shoot_Init_Config_s shoot_init_config = {
     .shoot_param =
@@ -151,14 +155,14 @@ static Shoot_Init_Config_s shoot_init_config = {
             .loader_direction = 1,                        // 拨盘旋转方向,1为正向，-1为反向
             .friction_num = 2,                            // 摩擦轮数量
             .friction_speed = 36000.0f,                   // 摩擦轮速度，36000时弹速23m/s
-            .friction_coefficients = {1.04f, 1.0f},  // 摩擦轮速度比例系数，1.04可以让原来没弹垢的摩擦轮开始有弹垢。1.02不如1.04效果更佳，可以尝试更大的值。
+            .friction_coefficients = {1.0f, -1.0f},  // 摩擦轮速度比例系数。
             .deadtime_burstfire = 50,
             .deadtime_onebullet = 500,
-            .target_speed = 0.0f,
+            .target_speed = 24.7f,
             .bullet_speed_adjustment = 10.0f,
         },
     .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan1, 2, MOTOR_DIRECTION_NORMAL),
-    .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan1, 1, MOTOR_DIRECTION_REVERSE),
+    .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan1, 1, MOTOR_DIRECTION_NORMAL),
   .loader_motor_config =
     {
       .controller_param_init_config =
