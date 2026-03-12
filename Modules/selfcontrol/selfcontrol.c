@@ -156,7 +156,7 @@ static bool parse_custom_controller_data(const uint8_t *packed_data, uint16_t pa
 {
     if (packed_data == NULL || unpacked_data == NULL)
         return false;
-    if (packed_size < 24)  // 最小长度：1(标识) + 4(DM) + 18(DJI) + 1(夹爪) = 24
+    if (packed_size < 22)  // 最小长度：1(标识) + 20(5 个 float 角度) + 1(夹爪) = 22
         return false;
     if (packed_data[0] != 0xA5)
         return false;
@@ -170,46 +170,25 @@ static bool parse_custom_controller_data(const uint8_t *packed_data, uint16_t pa
     if (data_ptr[0] != 0x20)
         return false;
 
-    // 解析 DM 电机数据 (2 个电机，每个 2 字节：角度×100)
-    for (int i = 0; i < 2; i++)
+    // 解析所有电机数据 (5 个电机，每个 4 字节：纯 float 角度值)
+    for (int i = 0; i < 5; i++)
     {
-        unpacked_data->motors[i].id = i + 1;  // DM 电机 ID: 1, 2
-        int16_t angle_raw = ((int16_t)data_ptr[2 + i*2] << 8) | data_ptr[1 + i*2];
-        unpacked_data->motors[i].angle = (float)angle_raw / 100.0f;
-        unpacked_data->motors[i].is_online= 1;  // 精简格式无在线状态，默认在线
-    }
-
-    // 解析 DJI 电机数据 (3 个电机，每个 6 字节：total_round 4 字节 + ecd 2 字节)
-    // 索引 2, 3, 4 对应三个 DJI 电机
-    for (int i = 0; i < 3; i++)
-    {
-        int motor_idx = i + 2;  // DJI 电机在数组中的索引
-        unpacked_data->motors[motor_idx].id = motor_idx + 1;  // DJI 电机 ID: 3, 4, 5
+        // 小端格式读取 float 角度（4 字节）
+        uint8_t angle_bytes[4];
+        angle_bytes[0] = data_ptr[1 + i*4];
+        angle_bytes[1] = data_ptr[2 + i*4];
+        angle_bytes[2] = data_ptr[3 + i*4];
+        angle_bytes[3] = data_ptr[4 + i*4];
         
-        // 小端格式读取 total_round (4 字节)
-        int32_t total_round = (int32_t)(
-            ((uint32_t)data_ptr[5 + i*6]) |
-            ((uint32_t)data_ptr[6 + i*6] << 8) |
-            ((uint32_t)data_ptr[7 + i*6] << 16) |
-            ((uint32_t)data_ptr[8 + i*6] << 24)
-        );
-        
-        // 小端格式读取 ecd (2 字节)
-        uint16_t ecd = (uint16_t)(
-            ((uint16_t)data_ptr[9 + i*6]) |
-            ((uint16_t)data_ptr[10 + i*6] << 8)
-        );
-        
-        // 计算角度：total_round × 360 + ecd × 0.0439453125
-        // 注意：下位机已经处理了方向映射和借位，这里直接使用即可
-        float angle = (float)total_round * 360.0f + (float)ecd * 0.0439453125f;
-        unpacked_data->motors[motor_idx].angle = angle;
-        unpacked_data->motors[motor_idx].is_online= 1;  // 精简格式无在线状态，默认在线
+        float angle;
+        memcpy(&angle, angle_bytes, sizeof(float));
+        unpacked_data->motors[i].angle = angle;
+        unpacked_data->motors[i].is_online = 1;  // 精简格式无在线状态，默认在线
     }
         
-    // 解析夹爪状态 - 第 23 字节（索引 23）
+    // 解析夹爪状态 - 第 21 字节（1+5*4=21）
     // 0: 关闭，1: 打开
-    unpacked_data->gripper_opened = data_ptr[23];
+    unpacked_data->gripper_opened = data_ptr[21];
         
     return true;
 }

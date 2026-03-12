@@ -19,8 +19,6 @@ static float DM_RadianToDegree(float radian);
 static void CalibrateMotorZeroPosition(CustomController_t* controller);
 static bool CheckMotorOnlineStatus(CustomController_t* controller);
 static void MicroSwitchMonitor(CustomController_t* controller);
-static void CalculateDJIMotorAngle(CustomController_t* controller, uint8_t dji_index, 
-                                   uint8_t zero_array_index, bool reverse_direction);
 /* ----------------------- 公共函数实现 ----------------------------- */
 
 /**
@@ -64,18 +62,11 @@ CustomController_t* CustomControllerInit(CustomController_Init_Config_s* init_co
     controller->motors[4].dm_motor = NULL;
     controller->motors[4].dji_motor = DJIMotorInit(&init_config->m2006_config);
     
-    // 初始化角度数据和零点标定数组
+    // 初始化角度数据
     for (int i = 0; i < 5; i++) {
         controller->motor_angles[i] = 0.0f;
-    }
-    // 初始化 DJI 电机零点标定数组（3 个 DJI 电机：索引 2, 3, 4）
-    for (int i = 0; i < 3; i++) {
-        controller->dji_zero_total_round[i] = 0;
-        controller->dji_zero_ecd[i] = 0;
-    }
-    // 初始化电机在线状态
-    for (int i = 0; i < 5; i++) {
-        controller->motor_online_status[i] = false;
+        controller->zero_offset[i] = 0.0f;  // 初始化零位偏移数组
+        controller->motor_online_status[i] = false;  // 初始化在线状态
     }
     
     // 初始化电机数据
@@ -117,44 +108,8 @@ CustomController_t* CustomControllerInit(CustomController_Init_Config_s* init_co
     // 首次上电校准
     CalibrateMotorZeroPosition(controller);
     
-    LOGINFO("CustomController: Initialized with 5 motors");
+    LOGINFO("CustomController: Initialized with 4 motors");
     return controller;
-}
-
-/**
- * @brief 计算 DJI 电机角度（带借位处理和方向映射）
- * @param controller 控制器实例
- * @param dji_index 电机在 motors 数组中的索引 (2, 3, 4)
- * @param zero_array_index 零点标定数组索引 (0, 1, 2)
- * @param reverse_direction 是否反向
- */
-static void CalculateDJIMotorAngle(CustomController_t* controller, uint8_t dji_index, 
-                                   uint8_t zero_array_index, bool reverse_direction)
-{
-    if (controller->motors[dji_index].dji_motor == NULL) {
-        return;
-    }
-    
-    // 计算校准后的 total_round 和 ecd
-    int32_t calibrated_total_round = controller->motors[dji_index].dji_motor->measure.total_round - 
-                                     controller->dji_zero_total_round[zero_array_index];
-    uint16_t raw_ecd = controller->motors[dji_index].dji_motor->measure.ecd;
-    uint16_t zero_ecd = controller->dji_zero_ecd[zero_array_index];
-    uint16_t calibrated_ecd;
-    
-    // 处理 ecd 借位：如果 raw_ecd < zero_ecd，需要向 total_round 借位
-    if (raw_ecd >= zero_ecd) {
-        calibrated_ecd = raw_ecd - zero_ecd;
-    } else {
-        calibrated_total_round -= 1;
-        calibrated_ecd = raw_ecd + 8192 - zero_ecd;
-    }
-    
-    // 计算角度
-    float calibrated_angle = calibrated_total_round * 360.0f + calibrated_ecd * 0.0439453125f;
-    
-    // 应用方向映射
-    controller->motor_angles[dji_index] = reverse_direction ? -calibrated_angle : calibrated_angle;
 }
 
 /**
@@ -175,18 +130,29 @@ void CustomControllerTask(CustomController_t* controller)
         CalibrateMotorZeroPosition(controller);
     }
     
-    // 读取两个 DM 电机的角度值
-    for (int i = 0; i < 2; i++) {
-        if (controller->motors[i].dm_motor != NULL) {
-            controller->motor_angles[i] = DM_RadianToDegree(controller->motors[i].dm_motor->measure.total_angle);
-        }
+    // 读取五个电机的角度值并应用零位偏移
+    // DM 电机 (索引 0-1): 不需要零点标定，直接使用 total_angle
+    if (controller->motors[0].dm_motor != NULL) {
+        // DM 电机角度转换：弧度转角度
+        controller->motor_angles[0] = DM_RadianToDegree(controller->motors[0].dm_motor->measure.total_angle);
     }
-    
-    // 读取三个 DJI 电机的角度值（带借位处理和方向映射）
-    // 索引 2, 3 反向，索引 4 正向
-    CalculateDJIMotorAngle(controller, 2, 0, true);   // DJI 电机 1 (M3508)
-    CalculateDJIMotorAngle(controller, 3, 1, true);   // DJI 电机 2 (M3508)
-    CalculateDJIMotorAngle(controller, 4, 2, false);  // DJI 电机 3 (M2006)
+    if (controller->motors[1].dm_motor != NULL) {
+        // DM 电机角度转换：弧度转角度
+        controller->motor_angles[1] = DM_RadianToDegree(controller->motors[1].dm_motor->measure.total_angle);
+    }
+    // DJI电机 (索引 2-4): 需要零点标定
+    if (controller->motors[2].dji_motor != NULL) {
+        float raw_angle = controller->motors[2].dji_motor->measure.total_angle;
+        controller->motor_angles[2] = raw_angle - controller->zero_offset[2];
+    }
+    if (controller->motors[3].dji_motor != NULL) {
+        float raw_angle = controller->motors[3].dji_motor->measure.total_angle;
+        controller->motor_angles[3] = raw_angle - controller->zero_offset[3];
+    }
+    if (controller->motors[4].dji_motor != NULL) {
+        float raw_angle = controller->motors[4].dji_motor->measure.total_angle;
+        controller->motor_angles[4] = raw_angle - controller->zero_offset[4];
+    }
 
     // 更新电机数据用于发送
     CustomController_UpdateMotorData(controller);
@@ -225,75 +191,29 @@ void CustomController_SendAllData(CustomController_t* controller)
     
     // 数据包类型标识
     controller_data[0] = 0x20; // 控制器数据包标识
-    
-    // DM 电机数据 - 每个电机占用 2 字节（仅角度值）
-    // 索引 0, 1 对应两个 DM 电机
-    for (int i = 0; i < 2; i++) {
-        // DM 电机角度值，放大 100 倍存储 (int16_t, 小端格式)
-        int16_t angle_value = (int16_t)(controller->motor_angles[i] * 100.0f);
-        controller_data[1 + i*2] = angle_value & 0xFF;
-        controller_data[2 + i*2] = (angle_value >> 8) & 0xFF;
+        
+    // 电机数据 - 每个电机只占用 4 字节（纯 float 角度值）
+    // 5 个电机共 20 字节，从索引 1 开始
+    for (int i = 0; i < 5; i++) {
+        // 电机角度值，使用 float 类型直接传输（4 字节，小端格式）
+        float angle = controller->motor_angles[i];
+        uint8_t* angle_bytes = (uint8_t*)&angle;
+        controller_data[1 + i*4] = angle_bytes[0];      // 第 1 字节
+        controller_data[2 + i*4] = angle_bytes[1];      // 第 2 字节
+        controller_data[3 + i*4] = angle_bytes[2];      // 第 3 字节
+        controller_data[4 + i*4] = angle_bytes[3];      // 第 4 字节
     }
-    
-    // DJI 电机数据 - 每个电机占用 6 字节（仅 total_round + ecd）
-    // 索引 2, 3, 4 对应三个 DJI 电机
-    for (int i = 0; i < 3; i++) {
-        int dji_index = i + 2;  // DJI 电机在数组中的索引
-            
-        // 发送校准后的 total_round 和 ecd（已考虑方向映射）
-        int32_t calibrated_total_round = 0;
-        uint16_t calibrated_ecd = 0;
         
-        if (controller->motors[dji_index].dji_motor != NULL) {
-            // 第一步：计算校准后的 total_round 和 ecd（带借位处理）
-            calibrated_total_round = controller->motors[dji_index].dji_motor->measure.total_round - 
-                                     controller->dji_zero_total_round[i];
-            uint16_t raw_ecd = controller->motors[dji_index].dji_motor->measure.ecd;
-            uint16_t zero_ecd = controller->dji_zero_ecd[i];
-            
-            // 处理 ecd 借位：如果 raw_ecd < zero_ecd，需要向 total_round 借位
-            if (raw_ecd >= zero_ecd) {
-                calibrated_ecd = raw_ecd - zero_ecd;
-            } else {
-                calibrated_total_round -= 1;
-                calibrated_ecd = raw_ecd + 8192 - zero_ecd;
-            }
-            
-            // 第二步：根据方向映射处理数据：索引 2 和 3 反向，索引 4 正向
-            if (dji_index == 2 || dji_index == 3) {
-                // 反向电机：对 total_round 和 ecd 取负
-                if (calibrated_ecd == 0) {
-                    calibrated_total_round = -calibrated_total_round;
-                    calibrated_ecd = 0;
-                } else {
-                    calibrated_total_round = -calibrated_total_round - 1;
-                    calibrated_ecd = 8192 - calibrated_ecd;
-                }
-            }
-            // 索引 4 (dji_index == 4) 保持正向，无需处理
-        }
-        
-        // 小端格式发送 total_round (4 字节)
-        controller_data[5 + i*6] = calibrated_total_round & 0xFF;
-        controller_data[6 + i*6] = (calibrated_total_round >> 8) & 0xFF;
-        controller_data[7 + i*6] = (calibrated_total_round >> 16) & 0xFF;
-        controller_data[8 + i*6] = (calibrated_total_round >> 24) & 0xFF;
-        
-        // 小端格式发送 ecd (2 字节)
-        controller_data[9 + i*6] = calibrated_ecd & 0xFF;
-        controller_data[10 + i*6] = (calibrated_ecd >> 8) & 0xFF;
-    }
-    
-    // 夹爪状态 - 放在电机数据之后（第 23 字节）
+    // 夹爪状态 - 放在电机数据之后（第 21 字节，1+5*4=21）
     // 0: 关闭，1: 打开
-    controller_data[23] = controller->gripper_opened ? 1 : 0;
+    controller_data[21] = controller->gripper_opened ? 1 : 0;
     
     // 发送数据包
     uint16_t packed_length;
-    uint8_t *packed_data = custom_controller_protocol_pack(CMD_ID_CUSTOM_CONTROLLER, controller_data, 24, &packed_length);
+    uint8_t *packed_data = custom_controller_protocol_pack(CMD_ID_CUSTOM_CONTROLLER, controller_data, 22, &packed_length);
     
     if (packed_data != NULL && packed_length > 0 && controller->usart_instance != NULL) {
-        // 通过 UART 发送打包后的数据
+        // 通过UART发送打包后的数据
         USARTSend(controller->usart_instance, packed_data, packed_length, USART_TRANSFER_DMA);
     }
 }
@@ -388,7 +308,7 @@ static float DM_RadianToDegree(float radian)
 }
 
 /**
- * @brief 校准电机零位，记录上电时的 total_round 和 ecd
+ * @brief 校准电机零位，将当前角度设为0度
  * @param controller 控制器实例
  */
 static void CalibrateMotorZeroPosition(CustomController_t* controller)
@@ -399,40 +319,33 @@ static void CalibrateMotorZeroPosition(CustomController_t* controller)
     
     LOGINFO("CustomController: Starting zero position calibration...");
     
-    // DM 电机已有固定零点，无需额外标定
-    // 仅对三个 DJI 电机进行零点标定（索引 2, 3, 4）
-    
-    // DJI 电机 1 (索引 2)
+    // 只校准 DJI电机 (索引 2-4)，DM 电机有固定零点不需要校准
+    float current_angles[5] = {0.0f};
+        
+    // 获取当前角度作为零位基准
     if (controller->motors[2].dji_motor != NULL) {
-        controller->dji_zero_total_round[0] = controller->motors[2].dji_motor->measure.total_round;
-        controller->dji_zero_ecd[0] = controller->motors[2].dji_motor->measure.ecd;
-        controller->motor_angles[2] = 0.0f;
-        controller->motor_online_status[2] = true;
-        LOGINFO("DJI Motor 1 zero calibrated: total_round=%ld, ecd=%u", 
-                controller->dji_zero_total_round[0], controller->dji_zero_ecd[0]);
+        current_angles[2] = controller->motors[2].dji_motor->measure.total_angle;
     }
-    
-    // DJI 电机 2 (索引 3)
     if (controller->motors[3].dji_motor != NULL) {
-        controller->dji_zero_total_round[1] = controller->motors[3].dji_motor->measure.total_round;
-        controller->dji_zero_ecd[1] = controller->motors[3].dji_motor->measure.ecd;
-        controller->motor_angles[3] = 0.0f;
-        controller->motor_online_status[3] = true;
-        LOGINFO("DJI Motor 2 zero calibrated: total_round=%ld, ecd=%u", 
-                controller->dji_zero_total_round[1], controller->dji_zero_ecd[1]);
+        current_angles[3] = controller->motors[3].dji_motor->measure.total_angle;
     }
-    
-    // DJI 电机 3 (索引 4)
     if (controller->motors[4].dji_motor != NULL) {
-        controller->dji_zero_total_round[2] = controller->motors[4].dji_motor->measure.total_round;
-        controller->dji_zero_ecd[2] = controller->motors[4].dji_motor->measure.ecd;
-        controller->motor_angles[4] = 0.0f;
-        controller->motor_online_status[4] = true;
-        LOGINFO("DJI Motor 3 zero calibrated: total_round=%ld, ecd=%u", 
-                controller->dji_zero_total_round[2], controller->dji_zero_ecd[2]);
+        current_angles[4] = controller->motors[4].dji_motor->measure.total_angle;
+    }
+        
+    // 设置零位偏移值（只对 DJI电机）
+    for (int i = 2; i < 5; i++) {
+        controller->zero_offset[i] = current_angles[i];
+        controller->motor_angles[i] = 0.0f;  // 初始化为 0
+        controller->motor_online_status[i] = true;  // 标记为在线
+        LOGINFO("DJI Motor %d zero offset set to: %.2f degrees", i+1, current_angles[i]);
     }
     
-    LOGINFO("CustomController: Zero position calibration completed");
+    // DM 电机零位偏移设为 0（不需要校准）
+    controller->zero_offset[0] = 0.0f;
+    controller->zero_offset[1] = 0.0f;
+    
+    LOGINFO("CustomController: Zero position calibration completed (DJI motors only)");
 }
 
 /**
@@ -444,43 +357,38 @@ static bool CheckMotorOnlineStatus(CustomController_t* controller)
 {
     bool need_recalibration = false;
     
-    // 检查 DM4310 电机 1 (索引 0)
+    // 检查 DM4310 电机 (索引 0-1)
     if (controller->motors[0].dm_motor != NULL) {
-        bool current_online = (controller->motors[0].dm_motor->measure.state == 0);  // 假设 state=0 表示在线
+        bool current_online = (controller->motors[0].dm_motor->measure.state == 0);  // state=0 表示在线
         if (!controller->motor_online_status[0] && current_online) {
-            // 电机从离线变为在线，需要重新校准
             need_recalibration = true;
-            LOGINFO("DM4310 motor 1 reconnected, triggering recalibration");
+            LOGINFO("DM4310 motor 0 reconnected, triggering recalibration");
         }
         controller->motor_online_status[0] = current_online;
     }
-    
-    // 检查 DM4310 电机 2 (索引 1)
     if (controller->motors[1].dm_motor != NULL) {
-        bool current_online= (controller->motors[1].dm_motor->measure.state == 0);
+        bool current_online = (controller->motors[1].dm_motor->measure.state == 0);
         if (!controller->motor_online_status[1] && current_online) {
             need_recalibration = true;
-            LOGINFO("DM4310 motor 2 reconnected, triggering recalibration");
+            LOGINFO("DM4310 motor 1 reconnected, triggering recalibration");
         }
         controller->motor_online_status[1] = current_online;
     }
     
-    // 检查 M3508 电机 1 (索引 2)
+    // 检查 M3508 电机 (索引 2-3)
     if (controller->motors[2].dji_motor != NULL) {
-        bool current_online = (controller->motors[2].dji_motor->daemon->temp_count > 0);  // 通过 daemon 计数判断
+        bool current_online = (controller->motors[2].dji_motor->daemon->temp_count > 0);
         if (!controller->motor_online_status[2] && current_online) {
             need_recalibration = true;
-            LOGINFO("M3508 motor 1 reconnected, triggering recalibration");
+            LOGINFO("M3508 motor 2 reconnected, triggering recalibration");
         }
         controller->motor_online_status[2] = current_online;
     }
-    
-    // 检查 M3508 电机 2 (索引 3)
     if (controller->motors[3].dji_motor != NULL) {
         bool current_online = (controller->motors[3].dji_motor->daemon->temp_count > 0);
         if (!controller->motor_online_status[3] && current_online) {
             need_recalibration = true;
-            LOGINFO("M3508 motor 2 reconnected, triggering recalibration");
+            LOGINFO("M3508 motor 3 reconnected, triggering recalibration");
         }
         controller->motor_online_status[3] = current_online;
     }
@@ -490,7 +398,7 @@ static bool CheckMotorOnlineStatus(CustomController_t* controller)
         bool current_online = (controller->motors[4].dji_motor->daemon->temp_count > 0);
         if (!controller->motor_online_status[4] && current_online) {
             need_recalibration = true;
-            LOGINFO("M2006 motor reconnected, triggering recalibration");
+            LOGINFO("M2006 motor 4 reconnected, triggering recalibration");
         }
         controller->motor_online_status[4] = current_online;
     }

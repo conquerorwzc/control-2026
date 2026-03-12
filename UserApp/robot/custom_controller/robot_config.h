@@ -95,6 +95,8 @@ static Motor_Init_Config_s M3508_config_1 = {
             .speed_feedback_source = MOTOR_FEED,
             .outer_loop_type = SPEED_LOOP,
             .close_loop_type = SPEED_LOOP,
+            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
         },
     .motor_type = M3508,
     .can_init_config.can_handle = &hcan1,
@@ -125,11 +127,12 @@ static Motor_Init_Config_s M3508_config_2 = {
             .speed_feedback_source = MOTOR_FEED,
             .outer_loop_type = SPEED_LOOP,
             .close_loop_type = SPEED_LOOP,
+            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
         },
     .motor_type = M3508,
     .can_init_config.can_handle = &hcan1,
     .can_init_config.tx_id = 2,
-    .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
 };
 
 // 2006电机配置
@@ -155,11 +158,12 @@ static Motor_Init_Config_s M2006_config = {
             .speed_feedback_source = MOTOR_FEED,
             .outer_loop_type = SPEED_LOOP,
             .close_loop_type = SPEED_LOOP,
+            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
         },
     .motor_type = M2006,
     .can_init_config.can_handle = &hcan1,
     .can_init_config.tx_id = 4,
-    .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
 };
 
 #endif // ROBOT_CONFIG_H
