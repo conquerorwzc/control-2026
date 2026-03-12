@@ -19,4 +19,6 @@ typedef struct {
     GimbalInstance* gimbal;
 
 } RobotInstance;
+void RobotInit();
+void RobotTask();
 #endif // CONTROL_2026_LASER_GIMBAL_H
