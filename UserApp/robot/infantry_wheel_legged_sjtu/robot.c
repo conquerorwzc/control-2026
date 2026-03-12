@@ -212,7 +212,7 @@ void RobotInit() {
   chassis_ctrl_cmd->max_power = 60;  // 测试用
 
   // UI初始化
-  MyUIInit(robot);
+  // MyUIInit(robot);
 }
 
 void RobotTask() {

@@ -6,6 +6,7 @@ For bug reports, read
 Info : auto-selecting first available session transport "swd". To override use 'transport select <transport>'.
 Info : Listening on port 6666 for tcl connections
 Info : Listening on port 4444 for telnet connections
+Warn : could not read product string for device 0x04f3:0x0c8c: Entity not found
 Info : CMSIS-DAP: SWD supported
 Info : CMSIS-DAP: JTAG supported
 Info : CMSIS-DAP: SWO-UART supported
@@ -15,20 +16,653 @@ Info : CMSIS-DAP: Interface Initialised (SWD)
 Info : SWCLK/TCK = 1 SWDIO/TMS = 1 TDI = 1 TDO = 1 nTRST = 1 nRESET = 1
 Info : CMSIS-DAP: Interface ready
 Info : clock speed 2000 kHz
-Info : SWD DPIDR 0x6ba02477
-Info : [stm32f4x.cpu] Cortex-M7 r1p2 processor detected
-Info : [stm32f4x.cpu] target has 8 breakpoints, 4 watchpoints
+Info : SWD DPIDR 0x2ba01477
+Info : [stm32f4x.cpu] Cortex-M4 r0p1 processor detected
+Info : [stm32f4x.cpu] target has 6 breakpoints, 4 watchpoints
 Info : starting gdb server for stm32f4x.cpu on 3333
 Info : Listening on port 3333 for gdb connections
-Error: CMSIS-DAP command mismatch. Expected 0x5 received 0x0
+Info : accepting 'gdb' connection on tcp/3333
+[stm32f4x.cpu] halted due to debug-request, current mode: Thread 
+xPSR: 0x41000000 pc: 0x08000f2a psp: 0x20002650
+Info : device id = 0x10076413
+Info : flash size = 1024 KiB
+Info : flash size = 512 bytes
+Info : The target is not running when halt was requested, stopping GDB.
+[stm32f4x.cpu] halted due to debug-request, current mode: Thread 
+xPSR: 0x21000000 pc: 0x08000f70 psp: 0x200025e0
+[stm32f4x.cpu] halted due to debug-request, current mode: Thread 
+xPSR: 0x01000000 pc: 0x080118b0 msp: 0x20020000
+[stm32f4x.cpu] halted due to debug-request, current mode: Thread 
+xPSR: 0x01000000 pc: 0xfffffffe msp: 0xfffffffc
+[stm32f4x.cpu] halted due to debug-request, current mode: Thread 
+xPSR: 0x01000000 pc: 0x080118b0 msp: 0x20020000
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1118 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1301 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1118 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1726 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1785 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1219 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1356 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1071 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1666 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1349 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1410 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1088 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1210 ms). Workaround: increase "set remotetimeout" in GDB
+Error: [stm32f4x.cpu] not halted (gdb fileio)
 Polling target stm32f4x.cpu failed, trying to reexamine
-Error: CMSIS-DAP command mismatch. Sent 0x3 received 0x0
+Info : SWD DPIDR 0x2ba01477
+Info : [stm32f4x.cpu] Cortex-M4 r0p1 processor detected
+Info : [stm32f4x.cpu] target has 6 breakpoints, 4 watchpoints
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1873 ms). Workaround: increase "set remotetimeout" in GDB
+Info : SWD DPIDR 0x2ba01477
+Error: Failed to read memory at 0x0e0e0004
+Info : SWD DPIDR 0x2ba01477
+Error: Failed to read memory at 0x0e0e0002
+Info : SWD DPIDR 0x2ba01477
+Error: Failed to read memory at 0x0e0e0004
+Info : SWD DPIDR 0x2ba01477
+Error: Failed to read memory at 0x0e0e0004
+Info : SWD DPIDR 0x2ba01477
+Error: Failed to read memory at 0x0e0e0008
+Info : SWD DPIDR 0x2ba01477
+Error: Failed to read memory at 0x0e0e0008
+Info : SWD DPIDR 0x2ba01477
+Error: Failed to read memory at 0x0e0e000c
+Info : SWD DPIDR 0x2ba01477
+Error: Failed to read memory at 0x0e0e000c
+Info : SWD DPIDR 0x2ba01477
+Error: Failed to read memory at 0x0e0e0010
+Info : SWD DPIDR 0x2ba01477
+Error: Failed to read memory at 0x0e0e0010
+Info : SWD DPIDR 0x2ba01477
+Error: Failed to read memory at 0x0e0e0014
+Info : SWD DPIDR 0x2ba01477
+Error: Failed to read memory at 0x0e0e0014
+Info : SWD DPIDR 0x2ba01477
+Error: Failed to read memory at 0x0e0e0018
+Info : SWD DPIDR 0x2ba01477
+Error: Failed to read memory at 0x0e0e0018
+Info : SWD DPIDR 0x2ba01477
+Error: Failed to read memory at 0x0e0e001c
+Info : SWD DPIDR 0x2ba01477
+Error: Failed to read memory at 0x0e0e001c
+Info : SWD DPIDR 0x2ba01477
+Error: Failed to read memory at 0x0e0e0020
+Info : SWD DPIDR 0x2ba01477
+Error: Failed to read memory at 0x0e0e0020
+Polling target stm32f4x.cpu failed, trying to reexamine
+Info : SWD DPIDR 0x2ba01477
+Info : [stm32f4x.cpu] Cortex-M4 r0p1 processor detected
+Info : [stm32f4x.cpu] target has 6 breakpoints, 4 watchpoints
+Polling target stm32f4x.cpu failed, trying to reexamine
+Info : SWD DPIDR 0x2ba01477
+Info : [stm32f4x.cpu] Cortex-M4 r0p1 processor detected
+Info : [stm32f4x.cpu] target has 6 breakpoints, 4 watchpoints
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (3624 ms). Workaround: increase "set remotetimeout" in GDB
+Polling target stm32f4x.cpu failed, trying to reexamine
+Error: CMSIS-DAP command mismatch. Sent 0x3 received 0x5
 Error: CMSIS-DAP command CMD_DISCONNECT failed.
-Error: CMSIS-DAP command mismatch. Sent 0x11 received 0x3
-Error: CMSIS-DAP command CMD_DAP_SWJ_CLOCK failed.
-Error: CMSIS-DAP command mismatch. Sent 0x3 received 0x1
-Error: CMSIS-DAP command CMD_DISCONNECT failed.
-Info : SWD DPIDR 0x6ba02477
-Info : [stm32f4x.cpu] Cortex-M7 r1p2 processor detected
-Info : [stm32f4x.cpu] target has 8 breakpoints, 4 watchpoints
+Info : SWD DPIDR 0x2ba01477
+Examination failed, GDB will be halted. Polling again in 100ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (10513 ms). Workaround: increase "set remotetimeout" in GDB
+Info : SWD DPIDR 0x2ba01477
+Polling target stm32f4x.cpu failed, trying to reexamine
+Info : [stm32f4x.cpu] Cortex-M4 r0p1 processor detected
+Info : [stm32f4x.cpu] target has 6 breakpoints, 4 watchpoints
+Polling target stm32f4x.cpu failed, trying to reexamine
+Info : SWD DPIDR 0x2ba01477
+Info : [stm32f4x.cpu] Cortex-M4 r0p1 processor detected
+Info : [stm32f4x.cpu] target has 6 breakpoints, 4 watchpoints
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1328 ms). Workaround: increase "set remotetimeout" in GDB
+Polling target stm32f4x.cpu failed, trying to reexamine
+Info : SWD DPIDR 0x2ba01477
+Info : [stm32f4x.cpu] Cortex-M4 r0p1 processor detected
+Info : [stm32f4x.cpu] target has 6 breakpoints, 4 watchpoints
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1973 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1096 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1372 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1034 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1507 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (2165 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1335 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (3217 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (2564 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1965 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1271 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1485 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1051 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1803 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1253 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1515 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1862 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1128 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1204 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1206 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1039 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1253 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1147 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1227 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1387 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1342 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (2960 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (2635 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1018 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1101 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1493 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1147 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (2841 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1489 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1090 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (2602 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1374 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (2042 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (3731 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (4012 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1992 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (2612 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1448 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (4667 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (2796 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1084 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1843 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1325 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1508 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1091 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1142 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1470 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1110 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (2704 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1064 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1235 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1461 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1145 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1156 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (2040 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1737 ms). Workaround: increase "set remotetimeout" in GDB
+Polling target stm32f4x.cpu failed, trying to reexamine
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 100ms
+Info : SWD DPIDR 0x2ba01477
+Polling target stm32f4x.cpu failed, trying to reexamine
+Examination failed, GDB will be halted. Polling again in 100ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1456 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1162 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (2141 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 700ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1269 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1478 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 1500ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1414 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 3100ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1164 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (2267 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (4346 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (4806 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1581 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (2974 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (2689 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (2899 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1243 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1157 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1709 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1459 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (3512 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1579 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1337 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (2611 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1155 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1552 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (2767 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1358 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1133 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1251 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1161 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1726 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1055 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (3180 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1289 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (3983 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1383 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1986 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (2143 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (2441 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1059 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1211 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1411 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1551 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1832 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1261 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1540 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1289 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1275 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1217 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1306 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1246 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (2052 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (3960 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1304 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (2909 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1259 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1108 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1511 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1194 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1767 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1508 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1223 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1334 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1336 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1538 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1617 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1002 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1531 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1212 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1553 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (2171 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1353 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1411 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1195 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1512 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1557 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1757 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1526 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1882 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1383 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1416 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1305 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (2447 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1149 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1322 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1428 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1834 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1162 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1254 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Info : dropped 'gdb' connection (error -400)
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Info : accepting 'gdb' connection on tcp/3333
+Warn : [stm32f4x.cpu] target was in unknown state when halt was requested
+Error: Error connecting DP: cannot read IDR
+Error: Error connecting DP: cannot read IDR
+Error executing event gdb-attach on target stm32f4x.cpu:
+
+Warn : GDB connection 1 on target stm32f4x.cpu not halted
+Error: Error connecting DP: cannot read IDR
+Error: Error connecting DP: cannot read IDR
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Error connecting DP: cannot read IDR
+Error: Error connecting DP: cannot read IDR
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Error connecting DP: cannot read IDR
+Error: Error connecting DP: cannot read IDR
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Error connecting DP: cannot read IDR
+Error: Error connecting DP: cannot read IDR
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Error connecting DP: cannot read IDR
+Error: Error connecting DP: cannot read IDR
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Error connecting DP: cannot read IDR
+Error: Error connecting DP: cannot read IDR
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Error connecting DP: cannot read IDR
+Error: Error connecting DP: cannot read IDR
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Error connecting DP: cannot read IDR
+Error: Error connecting DP: cannot read IDR
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Error connecting DP: cannot read IDR
+Error: Error connecting DP: cannot read IDR
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Error connecting DP: cannot read IDR
+Error: Error connecting DP: cannot read IDR
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Error connecting DP: cannot read IDR
+Error: Error connecting DP: cannot read IDR
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Error connecting DP: cannot read IDR
+Error: Error connecting DP: cannot read IDR
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Error connecting DP: cannot read IDR
+Error: Error connecting DP: cannot read IDR
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Error connecting DP: cannot read IDR
+Error: Error connecting DP: cannot read IDR
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Error connecting DP: cannot read IDR
+Error: Error connecting DP: cannot read IDR
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Error connecting DP: cannot read IDR
+Error: Error connecting DP: cannot read IDR
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Error connecting DP: cannot read IDR
+Error: Error connecting DP: cannot read IDR
+Error: Failed to read memory and, additionally, failed to find out where
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1245 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error on socket 'GDB': WSAGetLastError==10054, message: 远程主机强迫关闭了一个现有的连接。
+.
+Info : dropped 'gdb' connection (error -400)
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Error: Error connecting DP: cannot read IDR
+Polling target stm32f4x.cpu failed, trying to reexamine
+Error: Error connecting DP: cannot read IDR
+Examination failed, GDB will be halted. Polling again in 6300ms
+Info : accepting 'gdb' connection on tcp/3333
+Warn : [stm32f4x.cpu] target was in unknown state when halt was requested
+Error: Error connecting DP: cannot read IDR
+Error: Error connecting DP: cannot read IDR
+Error executing event gdb-attach on target stm32f4x.cpu:
+
+Warn : GDB connection 1 on target stm32f4x.cpu not halted
+Error: Error connecting DP: cannot read IDR
+Error: Error connecting DP: cannot read IDR
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Error connecting DP: cannot read IDR
+Error: Error connecting DP: cannot read IDR
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Error connecting DP: cannot read IDR
+Error: Error connecting DP: cannot read IDR
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Error connecting DP: cannot read IDR
+Error: Error connecting DP: cannot read IDR
+Error: Failed to read memory and, additionally, failed to find out where
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (2357 ms). Workaround: increase "set remotetimeout" in GDB
+Error: Error connecting DP: cannot read IDR
+Error: Error connecting DP: cannot read IDR
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Error connecting DP: cannot read IDR
 ^C

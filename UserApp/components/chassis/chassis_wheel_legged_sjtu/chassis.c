@@ -390,6 +390,8 @@ static void ChassisCtrlUpdate(void) {
 
   for (int i = 0; i < 2; i++) {
     JointTorqueUpdate(leg[i]);
+    // SpringCompensation(leg[i]);
+    JointLimitBarrier(leg[i]);
   }
 }
 
@@ -587,9 +589,6 @@ void ChassisTask(void) {
     default:
       break;
   }
-  for (int i = 0; i < 2; i++) {
-    // SpringCompensation(leg[i]);
-    // JointLimitBarrier(leg[i]);
-  }
+
   LimitChassisOutput();
 }

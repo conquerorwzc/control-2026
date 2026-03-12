@@ -74,7 +74,7 @@ void JoyStickCtrl(RobotInstance* robot) {
     }
     if (switch_is_up(rc_data[TEMP].rc.switch_left)) {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_JUMP_START;
-      chassis_ctrl_cmd->jump_force = 25 * JUMP_FORCE;
+      chassis_ctrl_cmd->jump_force = 30 * JUMP_FORCE;
       // chassis_ctrl_cmd->jump_force = 0;
     }
   }
@@ -106,7 +106,7 @@ void JoyStickCtrl(RobotInstance* robot) {
     }
     // 云台使能,或视觉未识别到目标,纯遥控器拨杆控制
     if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
-      gimbal_ctrl_cmd->pitch -= 0.00003f * (float)rc_data[TEMP].rc.rocker_r1;
+      gimbal_ctrl_cmd->pitch -= 0.00006f * (float)rc_data[TEMP].rc.rocker_r1;
     }
   } else {
     shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
@@ -114,9 +114,9 @@ void JoyStickCtrl(RobotInstance* robot) {
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
   }
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
-    // gimbal_ctrl_cmd->yaw += -0.00035f * (float)rc_data[TEMP].rc.rocker_r_;
+    gimbal_ctrl_cmd->yaw += -0.00035f * (float)rc_data[TEMP].rc.rocker_r_;
     // gimbal_ctrl_cmd->yaw += -0.00034f * (float)rc_data[TEMP].rc.rocker_r_;
-    gimbal_ctrl_cmd->yaw += -0.00005f * (float)rc_data[TEMP].rc.rocker_r_;
+    // gimbal_ctrl_cmd->yaw += -0.00005f * (float)rc_data[TEMP].rc.rocker_r_;
   }
   // 云台PITCH轴软件限位 todo:没在云台有点不好
   if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
