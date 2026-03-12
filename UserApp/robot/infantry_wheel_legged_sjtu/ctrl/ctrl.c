@@ -1,11 +1,15 @@
 #include "ctrl.h"
-#include "bsp_gpio.h"
-#include "general_def.h"
-#include "robot_config.h"
+
 #include <math.h>
 
+#include "general_def.h"
+#include "robot_config.h"
+
+
 // Static variables for control state
-static RC_ctrl_t* rc_data_last;
+static RC_ctrl_t* rc_data;
+static RC_ctrl_t rc_data_last;
+static uint8_t is_first_update = 1;
 
 // Intermediate variables
 static float chassis_vx;
@@ -19,11 +23,6 @@ static float trigger_time = 0;
 static float rotate_frequency;  // 小陀螺旋转的频率
 static float rotate_omega;      // 小陀螺旋转角速度
 
-// Local pointers for convenience (initialized in CtrlInit or derived from robot)
-// Note: We use local pointers to avoid long chains like robot->chassis->chassis_ctrl_cmd
-// but we must ensure they are valid. Since they point to fields in robot instance
-// which is allocated once, this is safe.
-
 // Ramp controller (externed in header)
 Ramp_Controller_t chassis_ramp = {
     .planning_v = 0.0f,
@@ -35,33 +34,18 @@ Ramp_Controller_t chassis_ramp = {
     .decel_base_speed = 0.8f,
 };
 
-// Internal helper function
-static uint8_t has_non_zero_data(const Vision_Receive_s* data) {
-  // Check for null pointer
-  if (data == NULL) {
-    return 0;
-  }
-  // Simplified logic: return 1 if any field is non-zero
-  return (data->gimbal_receive.pitch != 0) || (data->gimbal_receive.yaw != 0) || (data->shoot_receive.fire_flag != 0);
-}
-
-void CtrlInit(RobotInstance* robot) {
-    rc_data_last = (RC_ctrl_t*)zmalloc(sizeof(RC_ctrl_t));
-    if (robot->rc_data) {
-        *rc_data_last = *robot->rc_data;
-    } else {
-        // Handle case where rc_data might not be init yet if called too early
-        // But RobotInit calls this after RemoteControlInit
-    }
-}
-
-void RemoteControlSet(RobotInstance* robot) {
+void JoyStickCtrl(RobotInstance* robot) {
   // Helper pointers
-  RC_ctrl_t* rc_data = robot->rc_data;
+  rc_data = robot->rc_data;
   Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   Gimbal_Ctrl_Cmd_s* gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   Shoot_Ctrl_Cmd_s* shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
-  
+
+  if (is_first_update) {
+    rc_data_last = rc_data[TEMP];
+    is_first_update = 0;
+  }
+
   // Need to handle case where modules might be NULL if not initialized (e.g. ONE_BOARD vs GIMBAL_BOARD)
   // Assuming robot is fully initialized as per RobotInit logic
 
@@ -110,7 +94,7 @@ void RemoteControlSet(RobotInstance* robot) {
       gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
       shoot_ctrl_cmd->friction_mode = FRICTION_ON;
       shoot_ctrl_cmd->load_mode = LOAD_STOP;
-      if (switch_is_mid(rc_data_last[TEMP].rc.switch_left)) {
+      if (switch_is_mid(rc_data_last.rc.switch_left)) {
         trigger_time = DWT_GetTimeline_s();
       }
       if (DWT_GetTimeline_s() - trigger_time > 1.0f) {
@@ -230,17 +214,22 @@ void RemoteControlSet(RobotInstance* robot) {
     default:
       break;
   }
-  //  记录上一次数据，开键鼠的话注释掉
-  // *rc_data_last = *rc_data;
+  //  记录上一次数据
+  rc_data_last = rc_data[TEMP];
 }
 
-void MouseKeySet(RobotInstance* robot) {
+void MouseKeyCtrl(RobotInstance* robot) {
   // Helper pointers
-  RC_ctrl_t* rc_data = robot->rc_data;
+  rc_data = robot->rc_data;
   Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   Gimbal_Ctrl_Cmd_s* gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   Shoot_Ctrl_Cmd_s* shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   Vision_Receive_s* vision_recv_data = robot->vision_recv_data;
+
+  if (is_first_update) {
+    rc_data_last = rc_data[TEMP];
+    is_first_update = 0;
+  }
 
   // 1. 基础初始化
   static float speed_coff = 1.0f;      // 速度系数
@@ -270,8 +259,9 @@ void MouseKeySet(RobotInstance* robot) {
   }
   // 2. 云台
   // 2.1 [右键]按住开启自瞄
+
   if (rc_data[TEMP].mouse.press_r) {
-    if (has_non_zero_data(vision_recv_data) == 1) {
+    if (has_non_zero_data(vision_recv_data)) {
       gimbal_ctrl_cmd->gimbal_mode = GIMBAL_VISION;  // 右键自瞄开启
       gimbal_ctrl_cmd->yaw = vision_recv_data->gimbal_receive.yaw;
       gimbal_ctrl_cmd->pitch = vision_recv_data->gimbal_receive.pitch;
@@ -321,7 +311,7 @@ void MouseKeySet(RobotInstance* robot) {
   } else {
     is_rotate_mode = 0;
   }
-  
+
   // [X] 单次触发：转 180° 逃跑
   if (rc_data[TEMP].key[KEY_PRESS].x != x_key_last) {
     if (rc_data[TEMP].key[KEY_PRESS].x) {
@@ -499,5 +489,40 @@ void MouseKeySet(RobotInstance* robot) {
       break;
   }
   // 6.更新历史数据(遥控器有的话这里就不用)
-  *rc_data_last = *rc_data;
+  rc_data_last = rc_data[TEMP];
+}
+
+void EmergencyHandler(RobotInstance* robot) {
+  rc_data = robot->rc_data;
+  Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
+  Gimbal_Ctrl_Cmd_s* gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
+  Shoot_Ctrl_Cmd_s* shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
+
+  if (robot_lost_control) {
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_RECOVERY;
+  }
+  // 两switch都在下或者遥控器断连，断电
+  if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)) |
+      switch_is_off(rc_data[TEMP].rc.switch_right)) {
+    robot->robot_mode = ROBOT_POWER_OFF;
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
+    shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
+    shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
+    shoot_ctrl_cmd->load_mode = LOAD_STOP;
+    chassis_ramp.planning_v = 0.0f;
+    chassis_ramp.expected_a = 0.0f;
+    LOGERROR("[CMD] emergency stop!");
+
+  } else {
+    LOGINFO("[CMD] reinstate, robot ready");
+  }  // 底盘失能
+  if (switch_is_down(rc_data[TEMP].rc.switch_right)) {
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
+  }  // 发射失能
+  if (switch_is_down(rc_data[TEMP].rc.switch_left)) {
+    shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
+    shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
+    shoot_ctrl_cmd->load_mode = LOAD_STOP;
+  }
 }
