@@ -138,7 +138,6 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
       // 控制量增加一发弹丸的角度
       hibernate_time = DWT_GetTimeline_ms();  // 记录触发指令的时间
       dead_time = deadtime_onebullet;
-      // ...
       break;
     default:
       while (1);  // 未知模式,停止运行,检查指针越界,内存溢出等问题

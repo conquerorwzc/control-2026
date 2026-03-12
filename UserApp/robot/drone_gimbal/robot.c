@@ -57,7 +57,7 @@ uint8_t has_non_zero_data(const Vision_Receive_s *data) {
  *
  */
 static void RemoteControlSet() {
-  // 左[中],云台启动，拨弹盘启动，准备射击
+  // 左[中]，云台启动，若右[中]，摩擦轮开，若右[下]，摩擦轮关，若右[上]，拨弹盘反转(处理堵转)
   if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
     shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
@@ -66,9 +66,10 @@ static void RemoteControlSet() {
       shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     }else if (switch_is_down(rc_data[TEMP].rc.switch_right)) {
       shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
+    }else if (switch_is_up(rc_data_last[TEMP].rc.switch_left)) {
+      shoot_ctrl_cmd->load_mode = LOAD_REVERSE;
     }
-    // 待添加,视觉会发来和目标的误差,同样将其转化为total angle的增量进行控制
-    // ...
+    // 左[上]，拨弹盘启动
   } else if (switch_is_up(rc_data[TEMP].rc.switch_left))  // 开火，发射，根据时间判断单发或者连发
   {
     shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
