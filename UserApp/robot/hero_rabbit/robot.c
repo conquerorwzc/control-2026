@@ -371,24 +371,53 @@ static void MouseKeySet() {
       break;
       default:
       break;
+
   }
   // G键功率重新分配功能
-  if (rc_data[TEMP].key[KEY_PRESS].g && !rc_data_last[TEMP].key[KEY_PRESS].g) {
-    // 检测到H键按下边缘触发
-    f_power_boost_timer = DWT_GetTimeline_s();
-    f_power_boost_active = 1;
-    chassis_ctrl_cmd->power_distribute = 2.0f;  // 设置前轮功率优先
+  // if (rc_data[TEMP].key[KEY_PRESS].g && !rc_data_last[TEMP].key[KEY_PRESS].g) {
+  //   // 检测到H键按下边缘触发
+  //   f_power_boost_timer = DWT_GetTimeline_s();
+  //   f_power_boost_active = 1;
+  //   chassis_ctrl_cmd->power_distribute = 2.0f;  // 设置前轮功率优先
+  // }
+  //
+  // // 检查功率提升是否超时
+  // if (f_power_boost_active) {
+  //   if (DWT_GetTimeline_s() - f_power_boost_timer >= 1.0f) {
+  //     // 2秒时间到，恢复默认功率
+  //     f_power_boost_active = 0;
+  //     chassis_ctrl_cmd->power_distribute = 1.2f;  // 设置默认功率分配
+  //   }
+  // }
+  //吊射用代码，后续删掉
+  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_G] % 4)  // C键设置底盘速度
+  {
+    case 0:
+      break;
+    case 1:
+      gimbal_ctrl_cmd->yaw = 30.0f;
+      gimbal_ctrl_cmd->pitch = -15.0f;
+      break;
+    case 2:
+      gimbal_ctrl_cmd->yaw = 0.0f;
+      gimbal_ctrl_cmd->pitch = - 15.0f;
+      break;
+    case 3:
+      gimbal_ctrl_cmd->yaw = -30.0f;
+      gimbal_ctrl_cmd->pitch = -15.0f;
+      break;
+    default:
+      break;
   }
+  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 2)  // H键设置云台模式
+  {
+    case 0:
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
+    break;
+    default:
+      break;
 
-  // 检查功率提升是否超时
-  if (f_power_boost_active) {
-    if (DWT_GetTimeline_s() - f_power_boost_timer >= 1.0f) {
-      // 2秒时间到，恢复默认功率
-      f_power_boost_active = 0;
-      chassis_ctrl_cmd->power_distribute = 1.2f;  // 设置默认功率分配
-    }
   }
-
   *rc_data_last = *rc_data;
 }
 
