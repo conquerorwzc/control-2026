@@ -570,6 +570,15 @@ static void CalcOffsetAngle()
     chassis_ctrl_cmd->offset_angle = set_angle - robot->ins_data->YawTotalAngle;
 }
 
+/**
+ * @brief 获取机械臂控制模式
+ * @return GrabControlMode_e 机械臂控制模式
+ */
+GrabControlMode_e GetGrabControlMode(void)
+{
+    return grab_control_mode;
+}
+
 static void Record_Current_Waypoint(void)
 {
     // 确保不会数组越界 (假设最大 50 步)

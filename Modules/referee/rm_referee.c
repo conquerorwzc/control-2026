@@ -140,6 +140,12 @@ referee_info_t *RefereeInit(UART_HandleTypeDef *referee_usart_handle) {
   return &referee_info;
 }
 
+// 获取裁判系统数据的函数（供 UI 模块使用）
+referee_info_t* GetRefereeInfo(void)
+{
+    return &referee_info;
+}
+
 /**
  * @brief 裁判系统数据发送函数
  * @param

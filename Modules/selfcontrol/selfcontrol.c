@@ -7,7 +7,7 @@
 #include <math.h>
 #include <stdbool.h>
 
-#define SELF_CONTROL_FRAME_SIZE 39u // 接收缓冲区大小
+#define SELF_CONTROL_FRAME_SIZE 64u // 接收缓冲区大小（适配新数据包格式）
 #define ROBOT_INTERACTIVE_DATA_CMD_ID 0x0302
 
 // 下位机协议参数（与下位机 protocol_packed 固定 data_length=30 一致）
@@ -156,7 +156,7 @@ static bool parse_custom_controller_data(const uint8_t *packed_data, uint16_t pa
 {
     if (packed_data == NULL || unpacked_data == NULL)
         return false;
-    if (packed_size < 39)
+    if (packed_size < 22)  // 最小长度：1(标识) + 20(5 个 float 角度) + 1(夹爪) = 22
         return false;
     if (packed_data[0] != 0xA5)
         return false;
@@ -170,19 +170,25 @@ static bool parse_custom_controller_data(const uint8_t *packed_data, uint16_t pa
     if (data_ptr[0] != 0x20)
         return false;
 
-    // 解析电机数据 (4个电机)
+    // 解析所有电机数据 (5 个电机，每个 4 字节：纯 float 角度值)
     for (int i = 0; i < 5; i++)
     {
-        unpacked_data->motors[i].id = data_ptr[1 + i * 5];
-        int16_t angle_raw = ((int16_t)data_ptr[3 + i * 5] << 8) | data_ptr[2 + i * 5];
-        unpacked_data->motors[i].angle = (float)angle_raw / 100.0f;
-        unpacked_data->motors[i].is_online = data_ptr[5 + i * 5];
-        // 扭矩状态字段已移除，保留为预留字节
+        // 小端格式读取 float 角度（4 字节）
+        uint8_t angle_bytes[4];
+        angle_bytes[0] = data_ptr[1 + i*4];
+        angle_bytes[1] = data_ptr[2 + i*4];
+        angle_bytes[2] = data_ptr[3 + i*4];
+        angle_bytes[3] = data_ptr[4 + i*4];
+        
+        float angle;
+        memcpy(&angle, angle_bytes, sizeof(float));
+        unpacked_data->motors[i].angle = angle;
+        unpacked_data->motors[i].is_online = 1;  // 精简格式无在线状态，默认在线
     }
         
-    // 解析夹爪状态 - 第 27 字节（索引 26）
+    // 解析夹爪状态 - 第 21 字节（1+5*4=21）
     // 0: 关闭，1: 打开
-    unpacked_data->gripper_opened = data_ptr[26];
+    unpacked_data->gripper_opened = data_ptr[21];
         
     return true;
 }

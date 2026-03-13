@@ -13,20 +13,13 @@
 // 电机数据结构
 typedef struct {
     uint8_t id;           // 电机ID
-    float angle;          // 电机角度 (0-360度)
+    float angle;          // 电机角度
     uint8_t is_online;    // 电机在线状态
 } MotorData_t;
 
-// 电位器数据结构
-typedef struct {
-    uint8_t id;           // 电位器ID
-    float angle;          // 电位器角度 (0-360度)
-    float voltage;        // 电位器电压
-} PotentiometerData_t;
-
 // 解析后的控制器数据
 typedef struct {
-    MotorData_t motors[5];           // 5 个 DM4310 电机的数据
+    MotorData_t motors[5];           // 5 个电机的数据 (2 个 DM4310 + 3 个 DJI 电机)
     uint8_t gripper_opened;          // 夹爪状态：0-关闭，1-打开
 } UnpackedControllerData_t;
 

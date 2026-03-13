@@ -56,6 +56,19 @@ typedef struct
 	uint32_t lid_flag : 1;
 	uint32_t friction_flag : 1;
 	uint32_t Power_flag : 1;
+    uint32_t pitch_flag : 1;
+    uint32_t autoaim_flag : 1;
+    uint32_t cap_flag : 1;
+    uint32_t ammo_flag : 1;
+    uint32_t fric_flag : 1;
+    uint32_t yaw_flag : 1;
+        
+    // === 工程机器人专用 flag ===
+  uint32_t robot_mode_flag : 1;    // 机器人模式变化 (G 键控制)
+  uint32_t grab_control_flag : 1;  // 机械臂控制模式变化 (F 键控制)
+  uint32_t gripper_flag : 1;       // 夹爪状态变化
+  uint32_t motor_angle_flag : 1;   // 自定义控制器电机角度变化
+  uint32_t arm_angle_flag : 1;     // 机械臂关节角度变化
 } Referee_Interactive_Flag_t;
 
 
@@ -77,5 +90,11 @@ referee_info_t *RefereeInit(UART_HandleTypeDef *referee_usart_handle);
  * @param tx_len 发送长度
  */
 void RefereeSend(uint8_t *send, uint16_t tx_len);
+
+/**
+ * @brief 获取裁判系统数据
+ * @return referee_info_t* 裁判系统数据指针
+ */
+referee_info_t* GetRefereeInfo(void);
 
 #endif // !REFEREE_H

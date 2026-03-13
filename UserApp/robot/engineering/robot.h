@@ -47,7 +47,19 @@ typedef struct
 void RobotInit();
 
 /**
- * @brief 机器人任务,放入实时系统以一定频率运行,内部会调用各个应用的任务
+ * @brief 机器人任务，放入实时系统以一定频率运行，内部会调用各个应用的任务
  *
  */
 void RobotTask();
+
+/**
+ * @brief 获取机器人实例
+ * @return RobotInstance* 机器人实例指针
+ */
+RobotInstance* RobotGet(void);
+
+/**
+ * @brief 获取机械臂控制模式
+ * @return GrabControlMode_e 机械臂控制模式
+ */
+GrabControlMode_e GetGrabControlMode(void);
