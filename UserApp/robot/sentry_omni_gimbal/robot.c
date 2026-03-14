@@ -262,7 +262,7 @@ static void RemoteControlSet() {
 
   // 云台控制
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
-    gimbal_ctrl_cmd->yaw += -0.0005f * (float)vt13_rc_data->rc.rocker_r_;
+    gimbal_ctrl_cmd->yaw += -0.00015f * (float)vt13_rc_data->rc.rocker_r_;
     gimbal_ctrl_cmd->pitch -= 0.00015f * (float)vt13_rc_data->rc.rocker_r1;
   }
 
