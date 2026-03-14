@@ -141,7 +141,6 @@ typedef struct {
   ChassisInstance* chassis;
   GimbalInstance* gimbal;
   ShootInstance* shoot;
-
 } RobotInstance;
 
 

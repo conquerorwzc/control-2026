@@ -411,6 +411,20 @@ static void EmergencyHandler() {
 
 #endif
 }
+static void ModeControl() {
+  if (robot->referee_data->GameRobotState.current_HP<= robot->referee_data->GameRobotState.maximum_HP/3||
+    robot->referee_data->ProjectileAllowance.projectile_allowance_17mm==0||
+    robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat==0) {
+    robot->sentry_mode=DEFENSE_POSE;    //低于33.3%血或无可用弹丸进入防御姿态
+  }
+  else if (((robot->referee_data->EventData.event_type & 0x3U << 25) >> 25) == 1||
+    (float)robot->referee_data->GameRobotState.current_HP>= (float)robot->referee_data->GameRobotState.maximum_HP/1.5f) {
+    robot->sentry_mode=OFFENSE_POSE;    //高于66.7%血或占据堡垒进入进攻姿态
+  }
+  else {
+    robot->sentry_mode=MOBILITY_POSE;
+  }
+}
 static void SuperCapControl() {
   switch (supercap_mode) {
     case SAFETY_MODE:
@@ -568,6 +582,7 @@ void RobotTask() {
   RobotCMDTask();
   // SuperCapControl();
   chassis_ctrl_cmd->max_power = robot->referee_data->GameRobotState.chassis_power_limit;
+  ModeControl();
   ChassisTask();
 #endif
 }
