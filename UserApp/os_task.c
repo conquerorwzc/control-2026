@@ -53,16 +53,16 @@ void OSTaskInit() {
 
   // 由于是阻塞读取传感器,为姿态解算设置较高优先级,确保以1khz的频率执行
   // 后续修改为读取传感器数据准备好的中断处理
-  osThreadDef(motortask, StartMOTORTASK, osPriorityBelowNormal, 0, 256);
+  osThreadDef(motortask, StartMOTORTASK, osPriorityNormal, 0, 256);
   motorTaskHandle = osThreadCreate(osThread(motortask), NULL);
 
-   osThreadDef(daemontask, StartDAEMONTASK, osPriorityNormal, 0, 128);
+   osThreadDef(daemontask, StartDAEMONTASK, osPriorityHigh, 0, 128);
    daemonTaskHandle = osThreadCreate(osThread(daemontask), NULL);
 
-  osThreadDef(robottask, StartROBOTTASK, osPriorityNormal, 0, 1024);
+  osThreadDef(robottask, StartROBOTTASK, osPriorityAboveNormal, 0, 1024);
   robotTaskHandle = osThreadCreate(osThread(robottask), NULL);
 #ifdef USE_UI
-   osThreadDef(uitask, StartUITASK, osPriorityNormal, 0, 512);
+   osThreadDef(uitask, StartUITASK, osPriorityBelowNormal, 0, 512);
    uiTaskHandle = osThreadCreate(osThread(uitask), NULL);
 #endif
   // 初始化完成,开启中断
@@ -117,13 +117,14 @@ __attribute__((noreturn)) void StartROBOTTASK(void const *argument) {
 
 #ifdef USE_UI
 __attribute__((noreturn)) void StartUITASK(void const *argument) {
+    //osDelay(1000);
   LOGINFO("[freeRTOS] UI Task Start");
   MyUIInit();
   LOGINFO("[freeRTOS] UI Init Done, communication with ref has established");
   for (;;) {
     // 每给裁判系统发送一包数据会挂起一次,详见UITask函数的refereeSend()
     UITask();
-    osDelay(20);  // 即使没有任何UI需要刷新,也挂起一次,防止卡在UITask中无法切换
+    osDelay(30);  // 即使没有任何UI需要刷新,也挂起一次,防止卡在UITask中无法切换
   }
 }
 #endif

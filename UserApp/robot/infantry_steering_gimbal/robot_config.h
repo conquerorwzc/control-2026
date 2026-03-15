@@ -12,7 +12,7 @@
 #define YAW_CHASSIS_ALIGN_ECD 5550
 #define PITCH_HORIZON_ECD 5748  // 云台处于水平位置时编码器值,若对云台有机械改动需要修改
 #define PITCH_MAX_ANGLE 13.0f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
-#define PITCH_MIN_ANGLE -23.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define PITCH_MIN_ANGLE -24.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
 
 // 私有宏,自动将编码器转换成角度值
 #define YAW_ALIGN_ANGLE (YAW_CHASSIS_ALIGN_ECD * ECD_ANGLE_COEF_DJI)
@@ -28,11 +28,12 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                     {
-                      .Kp = 2.0f,  //0.8
+                      .Kp = 2.6f,  //0.8
                       .Ki = 0.0f,
-                      .Kd = 0.035f,
+                      .Kd = 0.1f,
                       .DeadBand = 0.0f,
-                      .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+                         .Derivative_LPF_RC=0.00085f,
+                        .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement|PID_DerivativeFilter,
                       .IntegralLimit = 5.0f,
                       .MaxOut = 25.0f,
                   },
@@ -61,22 +62,23 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 0.6f,  // 1
+                            .Kp = 0.55f,  // 1
                             .Ki = 0.00f,
                             .Kd = 0.00f,
                             .MaxOut = 20.0f,  //25
                             .DeadBand = 0.00f,
                          // .Derivative_LPF_RC=0.0085f,
-                            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+                            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement|PID_DerivativeFilter,
                             .IntegralLimit = 0.0f,  //5
                         },
                     .speed_PID =
                         {
-                            .Kp = 2.5f,  // 0.5
+                            .Kp = 1.5f,  // 0.5
                             .Ki = 30.f,  // 0.1
                             .Kd = 0.00f,
-                            .MaxOut = 11.5f,  //8
+                            .MaxOut =11.5f,  //8
                             .DeadBand = 0.0f,
+                            //.Derivative_LPF_RC = 0.0085f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                             .IntegralLimit = 1.5f,
                         },
@@ -145,10 +147,10 @@ static Shoot_Init_Config_s shoot_init_config = {
             .num_per_circle = 10,                      // 拨盘一圈的装载量6
             .loader_direction = 1,                    // 拨盘旋转方向,1为正向，-1为反向
             .friction_num = 2,                        //摩擦轮数量
-            .friction_speed = 45000.0f,               //摩擦轮速度
+            .friction_speed = 50000.0f,               //摩擦轮速度
             .friction_coefficients = {1.0f, -1.0f}, //摩擦轮速度比例系数
             .deadtime_burstfire = 100,
-            .deadtime_onebullet = 100,               //弹丸发射间隔
+            .deadtime_onebullet = 400,               //弹丸发射间隔
             .target_speed = 24.0f,
             .bullet_speed_adjustment = 10.0f,
         },
