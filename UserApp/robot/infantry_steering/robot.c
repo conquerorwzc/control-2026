@@ -20,8 +20,8 @@ static upload_data upload;
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
 static Gimbal_Ctrl_Cmd_s *gimbal_ctrl_cmd;
 static Shoot_Ctrl_Cmd_s *shoot_ctrl_cmd;
-static RC_ctrl_t *rc_data;
-static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
+//static RC_ctrl_t *rc_data;
+//static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 float temp=24.0f;
 CanComm_Pack* cancomm_pack;
 Referee_Interactive_info_t *interactive_data;
@@ -35,18 +35,7 @@ CANCommInstance* can_comm_instance = NULL;
  *        单圈绝对角度的范围是0~360,说明文档中有图示
  *
  */
-static void CalcOffsetAngle() {
-  angle = (uint16_t)CanData.valueu16[4];
-  float delta = angle-YAW_ALIGN_ANGLE;
-  if (delta > 180.0f) {
-    delta -= 360.0f;
-  } else if (delta <= -180.0f) {
-    delta += 360.0f;
-  }
-  if (abs(delta) < 2.0f) {
-    delta =0.0f;
-  }
-}
+
 //解析底盘板收到的遥控数据
 //value16数组0表示左遥感横向，1表示纵向，2表示右摇杆横，3表示左侧滚轮，byte10表示右侧拨杆
 static void DualBoardCtrlSet() {
@@ -73,33 +62,33 @@ static void DualBoardCtrlSet() {
     // robot->shoot->friction_motor[0]->measure.speed_aps = (float)cancomm_pack->friction_speed1;
     // robot->shoot->friction_motor[1]->measure.speed_aps = (float)cancomm_pack->friction_speed2;
    //
-   //    interactive_data->chassis_mode = robot->chassis->chassis_ctrl_cmd.chassis_mode;
+       interactive_data->chassis_mode = robot->chassis->chassis_ctrl_cmd.chassis_mode;
    //
-   // // interactive_data.gimbal_mode = robotdata->gimbal->gimbal_ctrl_cmd.gimbal_mode;
-   //   interactive_data->gimbal_mode = cancomm_pack->gimbal_mode;
+     //  interactive_data->gimbal_mode = robot->gimbal->gimbal_ctrl_cmd.gimbal_mode;
+      interactive_data->gimbal_mode = cancomm_pack->gimbal_mode;
    //
-   //  //interactive_data.shoot_mode = robotdata->shoot->shoot_ctrl_cmd.shoot_mode;
-   //   interactive_data->shoot_mode = cancomm_pack->shoot_mode;
+   //interactive_data-shoot_mode = robot->shoot->shoot_ctrl_cmd.shoot_mode;
+     interactive_data->shoot_mode = cancomm_pack->shoot_mode;
    //
    //  //interactive_data.friction_mode = robotdata->shoot->shoot_ctrl_cmd.friction_mode;
-   //   interactive_data->friction_mode = cancomm_pack->friction_mode;
+      interactive_data->friction_mode = cancomm_pack->friction_mode;
    //
    //  //interactive_data.lid_mode = robotdata->shoot->shoot_ctrl_cmd.load_mode;
-   //   interactive_data->lid_mode = cancomm_pack->load_mode;
+      interactive_data->lid_mode = cancomm_pack->load_mode;
    //
-   //  // interactive_data.Chassis_Power_Data.chassis_power_mx = robotdata->chassis->chassis_ctrl_cmd.max_power; // 示例功率值
+    interactive_data->Chassis_Power_Data.chassis_power_mx = robot->chassis->chassis_ctrl_cmd.max_power; // 示例功率值
    //
    //  //interactive_data.pitch_angle = robotdata->gimbal->gimbal_ctrl_cmd.pitch;
-   //   interactive_data->pitch_angle = -(float)cancomm_pack->pitch;
+      interactive_data->pitch_angle = -(float)cancomm_pack->pitch;
     //
     // // interactive_data.Shoot_heat = robotdata->shoot->shoot_ctrl_cmd.rest_heat;
-    //  interactive_data->Shoot_heat = cancomm_pack->rest_heat;
+      interactive_data->Shoot_heat = cancomm_pack->rest_heat;
     // // interactive_data.Shoot_rate = robotdata->shoot->shoot_ctrl_cmd.shoot_rate;
-    //  interactive_data->Shoot_rate = cancomm_pack->shoot_rate;
+      interactive_data->Shoot_rate = cancomm_pack->shoot_rate;
     //
     // // interactive_data.autoaim_mode = robotdata->gimbal->vision_mode;          // 自瞄模式
     // //interactive_data.autoaim_mode = robotdata->gimbal->gimbal_ctrl_cmd.gimbal_mode == GIMBAL_VISION ? 1 : 0;  // 自瞄模式(1为开启，0为关闭)
-    //  interactive_data->autoaim_mode = cancomm_pack->gimbal_mode == GIMBAL_VISION ? 1 : 0;  // 自瞄模式(1为开启，0为关闭)
+      interactive_data->autoaim_mode = cancomm_pack->gimbal_mode == GIMBAL_VISION ? 1 : 0;  // 自瞄模式(1为开启，0为关闭)
 
     // interactive_data.cap_voltage = robotdata->super_cap->cap_msg.vol / 1000.0f;
     // 检查使用的是哪种超级电容模块
@@ -245,44 +234,6 @@ static void EmergencyHandler() {
     LOGERROR("[CMD] Emergency Stop! DualBoardComm Lost");
   }
   else LOGINFO("[CMD]DualBoardComm is Online");
-  // 两switch都在下断电
-  switch (USECANREMOTE)//急停信号源
-  {
-    case 0:
-      if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)))  // 全部失能
-      {
-        robot->robot_mode = ROBOT_POWER_ON;
-        gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
-        chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
-        shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
-        shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
-        shoot_ctrl_cmd->load_mode = LOAD_STOP;
-        LOGERROR("[CMD] emergency stop!");
-      } else {
-        LOGINFO("[CMD] reinstate, robot ready");
-      }
-      if (switch_is_down(rc_data[TEMP].rc.switch_right))  // 底盘失能
-      {
-        chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
-      }
-      if (switch_is_down(rc_data[TEMP].rc.switch_left))  // 发射失能
-      {
-        shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
-        shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
-        shoot_ctrl_cmd->load_mode = LOAD_STOP;
-      }
-      // 遥控器右侧开关为[上],恢复正常运行
-      break;
-    case 1:
-
-      if (switch_is_down(CanData.bytes[10]))  // 底盘失能
-      {
-        chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
-      }
-      // 遥控器右侧开关为[上],恢复正常运行
-      break;
-  }
-
 }
 
 RobotInstance * RobotInit() {
@@ -295,25 +246,25 @@ RobotInstance * RobotInit() {
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
   //supercap_mode=SAFETY_MODE;
 #ifdef STM32F407xx
-  robot->rc_data = RemoteControlInit(&huart3);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
+ // robot->rc_data = RemoteControlInit(&huart3);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
 #elifdef STM32H723XX
   robot->rc_data = RemoteControlInit(&huart5);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
 #endif
 
-  rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
-  *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
+  //rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
+ // *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
 
   robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
 
   robot->chassis = ChassisInit(&chassis_init_config);
   //robot->shoot=(ShootInstance*)zmalloc(sizeof(ShootInstance));
-//    interactive_data=getUI();
+   interactive_data=getUI();
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   chassis_ctrl_cmd->max_power = 80;  // 随便给一个初始功率，后面应该要从裁判系统获取
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
-  rc_data = robot->rc_data;
+  //rc_data = robot->rc_data;
  // MyUIInit();
   return robot;
 }

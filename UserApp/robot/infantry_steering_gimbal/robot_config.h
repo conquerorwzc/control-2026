@@ -72,7 +72,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                         },
                     .speed_PID =
                         {
-                            .Kp = 3.0f,  // 0.5
+                            .Kp = 2.5f,  // 0.5
                             .Ki = 30.f,  // 0.1
                             .Kd = 0.00f,
                             .MaxOut = 11.5f,  //8
@@ -145,7 +145,7 @@ static Shoot_Init_Config_s shoot_init_config = {
             .num_per_circle = 10,                      // 拨盘一圈的装载量6
             .loader_direction = 1,                    // 拨盘旋转方向,1为正向，-1为反向
             .friction_num = 2,                        //摩擦轮数量
-            .friction_speed = 42000.0f,               //摩擦轮速度
+            .friction_speed = 45000.0f,               //摩擦轮速度
             .friction_coefficients = {1.0f, -1.0f}, //摩擦轮速度比例系数
             .deadtime_burstfire = 100,
             .deadtime_onebullet = 100,               //弹丸发射间隔
