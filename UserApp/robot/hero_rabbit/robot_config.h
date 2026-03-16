@@ -47,7 +47,7 @@
 // 腿部电机位置定义
 #define LEFT_LEG_MOTOR_NORMAL_POSITION -2.418f   // 腿部电机常规位置值
 #define LEFT_LEG_MOTOR_RAISE_POSITION  -1.938f  // 腿部电机抬起位置值
-#define LEFT_LEG_MOTOR_CRUISE_POSITION -2.088f
+#define LEFT_LEG_MOTOR_CRUISE_POSITION -2.118f
 #define LEFT_LEG_MOTOR_KIKE_POSITION -1.675f     // 腿部电机踢脚位置值
 #define RIGHT_LEG_MOTOR_NORMAL_POSITION 2.211f   // 腿部电机常规位置值
 #define RIGHT_LEG_MOTOR_RAISE_POSITION  1.731f  // 腿部电机抬起位置值

@@ -82,13 +82,13 @@ static void CalcOffsetAngle() {
 static void RemoteControlSet() {
   if (switch_is_down(rc_data[TEMP].rc.switch_right)) {
 
-    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_DOWN;
+    chassis_ctrl_cmd->leg_mode = LEG_NORMAL;
   } else if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
-    chassis_ctrl_cmd->leg_mode = LEG_HOLD;
+    chassis_ctrl_cmd->leg_mode = LEG_CRUISE;
 
   } else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
 
-    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_UP;
+    chassis_ctrl_cmd->leg_mode = LEG_IN_AIR;
 
   }
 
