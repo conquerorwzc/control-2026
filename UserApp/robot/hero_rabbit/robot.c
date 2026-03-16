@@ -413,6 +413,7 @@ static void MouseKeySet() {
   {
     case 0:
       chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
+      chassis_ctrl_cmd->leg_mode = LEG_DISABLE;
     break;
     default:
       break;
