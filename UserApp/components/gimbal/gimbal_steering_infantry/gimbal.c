@@ -17,6 +17,8 @@ static GimbalInstance *gimbal;
 static Gimbal_Ctrl_Cmd_s *gimbal_ctrl_cmd; // 声明但不初始化
 static int disable_2_enable_flag;
 static float last_yaw_cmd=0.0f;
+float pitchDynamicCorrect;
+
 static float normalizeAngle(float now, float last)
 {
     float diff = now - last;
@@ -79,7 +81,7 @@ GimbalInstance *GimbalInit(Gimbal_Init_Config_s *gimbal_init_config)
     gimbal_init_config->pitch_motor_config.controller_setting_init_config.speed_feedback_source = OTHER_FEED;
     gimbal_init_config->pitch_motor_config.controller_setting_init_config.outer_loop_type = ANGLE_LOOP;
     gimbal_init_config->pitch_motor_config.controller_setting_init_config.close_loop_type = SPEED_LOOP | ANGLE_LOOP;
-
+    pitchDynamicCorrect = gimbal_init_config->pitch_accel_coef;
     gimbal_instance->yaw_motor = DJIMotorInit(&gimbal_init_config->yaw_motor_config);
     gimbal_instance->pitch_motor = DMMotorInit(&gimbal_init_config->pitch_motor_config);
 
@@ -122,6 +124,7 @@ void GimbalTask()
             gimbal->yaw_motor,
             gimbal_ctrl_cmd->yaw); // yaw和pitch会在robot_cmd中处理好多圈和单圈GimbalMotorAbsoluteAngleControl(gimbal);
         DMMotorSetPIDRef(gimbal->pitch_motor, gimbal_ctrl_cmd->pitch);
+        //gimbal->pitch_motor->motor_controller.final_output+=gimbal->gimbal_IMU_data->MotionAccel_n[1]*pitchDynamicCorrect;
         last_yaw_cmd = gimbal_ctrl_cmd->yaw;
         // gimbal_ctrl_cmd->pitch=10.0f*sinf((float)HAL_GetTick()/100.0f);
         // DMMotorSetPIDRef(gimbal->pitch_motor, 20.0f*powf(sinf((float)HAL_GetTick()/100.0f),3)-5.0f);
