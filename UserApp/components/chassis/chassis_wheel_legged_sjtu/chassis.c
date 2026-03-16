@@ -84,7 +84,7 @@ static void StateVarUpdate(void) {
   sv->v_b_h = chassis->vaEstimateKF.FilteredValue[0];
   // 位移积分
   if (chassis->update_flag.is_controlled || sv->v_b_h > 0.15f ||
-      (leg[0]->update_flag.is_off_ground && leg[1]->update_flag.is_off_ground)) {
+      (leg[0]->update_flag.is_off_ground || leg[1]->update_flag.is_off_ground)) {
     sv->x_b_h = 0.0f;
   } else {
     sv->x_b_h += ((sv->v_b_h + chassis->last_state_var.v_b_h) / 2.0f) * chassis->dt;
@@ -294,6 +294,22 @@ static void LocomotionController(void) {
       u[i] -= chassis->LQR_K[i][j] * state_err[j];
     }
   }
+
+  /* 离地检测逻辑：T置零，Tp只保留theta的影响（不包含theta_b） */
+  /* 右腿 leg[0] */
+  if (leg[0]->update_flag.is_off_ground) {
+    u[2] = 0.0f;
+    // theta_r (idx 6) 和 dtheta_r (idx 7)
+    u[0] = (-chassis->LQR_K[0][6] * state_err[6] - chassis->LQR_K[0][7] * state_err[7]) * 0.5f;
+    u[0] = (-chassis->LQR_K[0][8] * state_err[8] - chassis->LQR_K[0][9] * state_err[9]) * 0.5f;
+  }
+  /* 左腿 leg[1] */
+  if (leg[1]->update_flag.is_off_ground) {
+    u[3] = 0.0f;
+    // theta_l (idx 4) 和 dtheta_l (idx 5)
+    u[1] = -chassis->LQR_K[1][4] * state_err[4] - chassis->LQR_K[1][5] * state_err[5];
+  }
+
   leg[0]->virtual_model.Tp = u[0];
   leg[1]->virtual_model.Tp = u[1];
   leg[0]->real_model.T = u[2];
@@ -318,11 +334,15 @@ static void LegController(void) {
   float f_gravity = 0.5f * chassis->param.body_mass * 9.81f;
   float f_inertial = 0.5f * chassis->param.body_mass * (l_avg / chassis->param.track_width) * chassis->state_var.dphi *
                      chassis->state_var.v_b_h;
-  // ★ 离心力限幅：不超过重力补偿的60%
-  // float f_inertial_max = f_gravity * 0.6f;
-  // VAL_LIMIT(f_inertial, -f_inertial_max, f_inertial_max);
+
   leg[0]->virtual_model.F = -f_psi + f_l_r + f_gravity + f_inertial * 5.5;
+  if (leg[0]->update_flag.is_off_ground) {
+    leg[0]->virtual_model.F = -f_psi * 0.3f + f_l_r + f_gravity;
+  }
   leg[1]->virtual_model.F = f_psi + f_l_l + f_gravity - f_inertial * 5.5;
+  if (leg[1]->update_flag.is_off_ground) {
+    leg[1]->virtual_model.F = f_psi * 0.3f + f_l_r + f_gravity;
+  }
 }
 
 static void ChassisCtrlUpdate(void) {
@@ -379,8 +399,8 @@ static void ChassisCtrlUpdate(void) {
       break;
     }
   }
-  VAL_LIMIT(leg[0]->virtual_model.F, -1900.0f, 1900.0f);
-  VAL_LIMIT(leg[1]->virtual_model.F, -1900.0f, 1900.0f);
+  VAL_LIMIT(leg[0]->virtual_model.F, -3500.0f, 3500.0f);
+  VAL_LIMIT(leg[1]->virtual_model.F, -3500.0f, 3500.0f);
 
   chassis->delta_theta_comp =
       PIDCalculate(&chassis->delta_theta_PID, leg[0]->virtual_model.theta - leg[1]->virtual_model.theta, 0);
@@ -390,7 +410,7 @@ static void ChassisCtrlUpdate(void) {
 
   for (int i = 0; i < 2; i++) {
     JointTorqueUpdate(leg[i]);
-    // SpringCompensation(leg[i]);
+    SpringCompensation(leg[i]);
     JointLimitBarrier(leg[i]);
   }
 }
@@ -470,8 +490,8 @@ static void ChassisJump(void) {
 
 static void LimitChassisOutput(void) {
   for (int i = 0; i < 2; i++) {
-    VAL_LIMIT(leg[i]->real_model.Tp_1, -33.0f, 33.0f);
-    VAL_LIMIT(leg[i]->real_model.Tp_2, -33.0f, 33.0f);
+    VAL_LIMIT(leg[i]->real_model.Tp_1, -35.0f, 35.0f);
+    VAL_LIMIT(leg[i]->real_model.Tp_2, -35.0f, 35.0f);
     VAL_LIMIT(leg[i]->real_model.T, -2.45f, 2.45f);
     DMMotorSetRef(leg[i]->joint_motor[0], leg[i]->real_model.Tp_1);
     DMMotorSetRef(leg[i]->joint_motor[1], leg[i]->real_model.Tp_2);
@@ -490,8 +510,8 @@ static void LimitChassisOutput(void) {
 ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   ChassisInstance* chassis_instance = (ChassisInstance*)zmalloc(sizeof(ChassisInstance));
 
-  chassis_instance->leg[0] = LegInit(&chassis_init_config->leg_init_config[0]);
   chassis_instance->leg[1] = LegInit(&chassis_init_config->leg_init_config[1]);
+  chassis_instance->leg[0] = LegInit(&chassis_init_config->leg_init_config[0]);
 
   PIDInit(&chassis_instance->delta_theta_PID, &chassis_init_config->delta_theta_PID_config);
   PIDInit(&chassis_instance->roll_PID, &chassis_init_config->roll_PID_config);

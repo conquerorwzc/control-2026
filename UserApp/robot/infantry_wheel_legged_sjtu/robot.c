@@ -34,6 +34,24 @@ static Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd;
 static Gimbal_Ctrl_Cmd_s* gimbal_ctrl_cmd;
 static Shoot_Ctrl_Cmd_s* shoot_ctrl_cmd;
 static Vision_Receive_s* vision_recv_data;
+// vofa数据
+float visualized_data[20];
+
+void VOFATask() {
+#if defined(GIMBAL_BOARD)
+  visualized_data[0] = robot->gimbal->gimbal_IMU_data->Yaw;
+  visualized_data[1] = robot->gimbal->gimbal_IMU_data->Pitch;
+#elif defined(ONE_BOARD) || defined(CHASSIS_BOARD)
+  visualized_data[0] = robot->chassis->leg[0]->joint_motor[0]->measure.torque;
+  visualized_data[1] = robot->chassis->leg[0]->joint_motor[1]->measure.torque;
+  visualized_data[2] = robot->chassis->leg[1]->joint_motor[0]->measure.torque;
+  visualized_data[3] = robot->chassis->leg[1]->joint_motor[1]->measure.torque;
+  visualized_data[4] = robot->chassis->leg[0]->virtual_model.F;
+  visualized_data[5] = robot->chassis->leg[1]->virtual_model.F;
+#endif
+  VOFAJustFloatSend(visualized_data, 20);
+}
+
 
 // 双板通信
 #if !defined(ONE_BOARD)
@@ -99,20 +117,6 @@ static void DoubleBoardComms() {
 }
 #endif
 
-// vofa数据
-float visualized_data[20];
-
-void VOFATask() {
-#if defined(GIMBAL_BOARD)
-  visualized_data[0] = robot->gimbal->gimbal_IMU_data->Yaw;
-  visualized_data[1] = robot->gimbal->gimbal_IMU_data->Pitch;
-#elif defined(ONE_BOARD) || defined(CHASSIS_BOARD)
-  visualized_data[0] = robot->chassis->power_ctrl.P_total;
-  visualized_data[1] = robot->chassis->power_ctrl.vel_max;
-#endif
-  VOFAJustFloatSend(visualized_data, 20);
-}
-
 /**
  * @brief 根据gimbal app传回的当前电机角度计算和零位的误差
  * @note 单圈绝对角度的范围是0~360,说明文档中有图示
@@ -173,7 +177,7 @@ void RobotCMDTask() {
 #if !defined(CHASSIS_BOARD)
   // TODO: OSDCtrl(robot); // 图传链路控制
   JoyStickCtrl(robot);
-  MouseKeyCtrl(robot);
+  // MouseKeyCtrl(robot);
 #if defined(GIMBAL_BOARD)
   CalcOffsetAngle();
   GimbalAlignToChassisForward();

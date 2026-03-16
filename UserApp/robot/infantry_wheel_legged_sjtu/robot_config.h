@@ -23,7 +23,7 @@
 
 // 机器人底盘修改的参数,单位为m(米)
 #define CENTER_GIMBAL_OFFSET_X 0     // 云台旋转中心距底盘几何中心的距离,前后方向,云台位于正中心时默认设为0
-#define CENTER_GIMBAL_OFFSET_Y 0     // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
+#define CENTER_GIMBAL_OFFSET_Y 0 9   // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
 #define WHEEL_RADIUS 0.077f          // 轮子半径
 #define WHEEL_REDUCTION_RATIO 19.0f  // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
 // #define PITCH_MAX_ANGLE 26.0f        // 云台竖直向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
@@ -31,7 +31,7 @@
 #define TRACK_WIDTH 0.495f
 #define ROBOT_MASS 22.0f
 #define LEG_MAX_LENGTH 0.370f  // 0.380f
-#define LEG_MIN_LENGTH 0.120f  // 0.112f
+#define LEG_MIN_LENGTH 0.117f  // 0.112f
 
 #define DELTA_LEG_LENGTH (LEG_MAX_LENGTH - LEG_MIN_LENGTH)
 // 跳台阶
@@ -130,13 +130,13 @@
               .wheel_reduction_ratio = 268.0f / 17.0f,                                                              \
               .joint_limit[0] = {.angle_min = -70.56f * DEGREE_2_RAD,                                               \
                                  .angle_max = 0.0f,                                                                 \
-                                 .buffer_zone = 0.15f,                                                              \
+                                 .buffer_zone = 0.05f,                                                              \
                                  .kp = 200.0f,                                                                      \
                                  .kd = 3.0f,                                                                        \
                                  .max_barrier_torque = 25.0f},                                                      \
               .joint_limit[1] = {.angle_min = 0.0f,                                                                 \
                                  .angle_max = 70.56f * DEGREE_2_RAD,                                                \
-                                 .buffer_zone = 0.15f,                                                              \
+                                 .buffer_zone = 0.05f,                                                              \
                                  .kp = 200.0f,                                                                      \
                                  .kd = 3.0f,                                                                        \
                                  .max_barrier_torque = 25.0f},                                                      \
@@ -361,7 +361,7 @@ static Shoot_Init_Config_s shoot_init_config = {
             .friction_speed = 40000.0f,                        // 摩擦轮速度
             .friction_coefficients = {1.0f, -1.0f},            // 摩擦轮速度比例系数
             .deadtime_burstfire = 50,
-            .deadtime_onebullet = 500,
+            .deadtime_onebullet = 350,
             .target_speed = 22.0f,
             .bullet_speed_adjustment = 200.0f,
             .feedforward = 200.0f,

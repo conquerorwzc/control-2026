@@ -136,7 +136,7 @@ static void OffGroundDetection(LegInstance* leg) {
 #define FN_FILTER_COEF 0.2f
   vm->FN = vm->FN * (1.0f - FN_FILTER_COEF) + current_FN * FN_FILTER_COEF;
 
-  if (vm->FN < 30.0f) {
+  if (vm->FN < 50.0f) {
     leg->update_flag.is_off_ground = 1;
   } else {
     leg->update_flag.is_off_ground = 0;

@@ -157,8 +157,8 @@ float ramp_controller_update(Ramp_Controller_t* ramp, float input_v, float dt) {
       // Acc_limit = P_const / v  =>  Acc_limit = (Max_Acc * Base_V) / Current_V
       current_limit = (ramp->max_accel * ramp->accel_base_speed) / abs_v;
       // 选填：为了防止加速度衰减得太狠（比如速度极高时加速度趋近0导致无法达到满速）
-      // 可以设置一个最低下限，比如 0.5 m/s^2
-      if (current_limit < 0.5f) current_limit = 0.5f;
+      // 可以设置一个最低下限，比如 0.5 m/s^2 -> 改为 0.05f
+      if (current_limit < 0.05f) current_limit = 0.05f;
     }
   } else {
     // 减速区：高速时衰减刹车力度，防止轮腿前倾翻车

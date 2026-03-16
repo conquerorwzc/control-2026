@@ -26,7 +26,7 @@ static float rotate_omega;      // 小陀螺旋转角速度
 // Ramp controller (externed in header)
 Ramp_Controller_t chassis_ramp = {
     .planning_v = 0.0f,
-    .max_v = 2.0f,
+    .max_v = 3.0f,
     .max_accel = 1.0f,
     .accel_base_speed = 0.3f,
     .max_decel = 4.0f,
@@ -74,7 +74,7 @@ void JoyStickCtrl(RobotInstance* robot) {
     }
     if (switch_is_up(rc_data[TEMP].rc.switch_left)) {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_JUMP_START;
-      chassis_ctrl_cmd->jump_force = 30 * JUMP_FORCE;
+      chassis_ctrl_cmd->jump_force = 55 * JUMP_FORCE;
       // chassis_ctrl_cmd->jump_force = 0;
     }
   }
@@ -296,7 +296,7 @@ void MouseKeyCtrl(RobotInstance* robot) {
   // 2.3鼠标云台控制
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
     gimbal_ctrl_cmd->yaw -= (float)rc_data[TEMP].mouse.x * 0.002f;    // X轴灵敏度
-    gimbal_ctrl_cmd->pitch += (float)rc_data[TEMP].mouse.y * 0.001f;  // Y轴灵敏度
+    gimbal_ctrl_cmd->pitch -= (float)rc_data[TEMP].mouse.y * 0.001f;  // Y轴灵敏度
     // 云台Pitch限位
     if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE)
       gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
