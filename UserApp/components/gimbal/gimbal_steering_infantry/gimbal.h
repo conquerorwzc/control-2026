@@ -29,7 +29,6 @@ typedef struct {
   Motor_Init_Config_s pitch_motor_config;
   IMU_Init_Config_s imu_init_config; //用于修正IMU安装误差的参数（新增）
   UART_HandleTypeDef* hi05_uart_handle;
-    float pitch_accel_coef;//用于云台pitch的加速度补偿
 } Gimbal_Init_Config_s;
 
 typedef struct {

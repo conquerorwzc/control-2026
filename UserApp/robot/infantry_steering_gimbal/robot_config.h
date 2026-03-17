@@ -9,7 +9,7 @@
 #define BOARD_RX_ID 0x311
 
 // 云台参数
-#define YAW_CHASSIS_ALIGN_ECD 5550
+#define YAW_CHASSIS_ALIGN_ECD 6353
 #define PITCH_HORIZON_ECD 5748  // 云台处于水平位置时编码器值,若对云台有机械改动需要修改
 #define PITCH_MAX_ANGLE 13.0f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
 #define PITCH_MIN_ANGLE -24.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
@@ -28,9 +28,9 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                     {
-                      .Kp = 2.6f,  //0.8
+                      .Kp = 2.0f,  //0.8
                       .Ki = 0.0f,
-                      .Kd = 0.1f,
+                      .Kd = 0.01f,
                       .DeadBand = 0.0f,
                          .Derivative_LPF_RC=0.00085f,
                         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement|PID_DerivativeFilter,
@@ -62,21 +62,21 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 0.6f,  // 1
+                            .Kp = 0.0f,  // 1
                             .Ki = 0.00f,
                             .Kd = 0.00f,
                             .MaxOut = 20.0f,  //25
                             .DeadBand = 0.00f,
                          // .Derivative_LPF_RC=0.0085f,
-                            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement|PID_DerivativeFilter,
+                            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                             .IntegralLimit = 0.0f,  //5
                         },
                     .speed_PID =
                         {
-                            .Kp = 1.8f,  // 0.5
-                            .Ki = 30.f,  // 0.1
+                            .Kp = 0.1f,  // 0.5
+                            .Ki = 5.f,  // 0.1
                             .Kd = 0.00f,
-                            .MaxOut =11.5f,  //8
+                            .MaxOut =8.5f,  //8
                             .DeadBand = 0.0f,
                             //.Derivative_LPF_RC = 0.0085f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
@@ -111,7 +111,6 @@ static Gimbal_Init_Config_s gimbal_init_config = {
       .Roll = 0.0f,
     .GyroOffset = {0.00253310893f, 0.00196733163f, 0.000239364381f},
   },
-    .pitch_accel_coef = -0.03f,
   //.hi05_uart_handle = &huart1,
 };
 //1.2 //0.2
