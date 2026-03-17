@@ -26,8 +26,8 @@ static float rotate_omega;      // 小陀螺旋转角速度
 // Ramp controller (externed in header)
 Ramp_Controller_t chassis_ramp = {
     .planning_v = 0.0f,
-    .max_v = 3.0f,
-    .max_accel = 1.0f,
+    .max_v = 15.0f,
+    .max_accel = 2.0f,
     .accel_base_speed = 0.3f,
     .max_decel = 4.0f,
     .min_decel = 1.0f,
@@ -200,7 +200,8 @@ void JoyStickCtrl(RobotInstance* robot) {
       chassis_ctrl_cmd->wz = 0.0f;
 #endif
       chassis_ctrl_cmd->vx =
-          ramp_controller_update(&chassis_ramp, (0.009f) * (float)rc_data[TEMP].rc.rocker_r1, robot->chassis->state_var.v_b_h, robot->dt);
+          ramp_controller_update(&chassis_ramp, (0.004f) * (float)rc_data[TEMP].rc.rocker_r1, robot->chassis->state_var.v_b_h, robot->dt);
+      // chassis_ctrl_cmd->vx = (0.0025f) * (float)rc_data[TEMP].rc.rocker_r1;
       // chassis_ctrl_cmd->theta_ff = chassis_ramp.expected_a / 9.81f;
       chassis_ctrl_cmd->theta_ff = 0.0f;
       chassis_ctrl_cmd->roll = 0.0004f * (float)rc_data[TEMP].rc.rocker_l_ * (abs(rc_data[TEMP].rc.rocker_l_) > 10);
