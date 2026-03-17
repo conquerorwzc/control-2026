@@ -220,6 +220,59 @@ void SpringCompensation(LegInstance* leg) {
 }
 
 /**
+ * @brief   根据关节力矩反解虚拟模型的 F 和 Tp（雅可比逆映射）
+ *
+ * 已知两个关节电机的实际力矩 Tp_1、Tp_2，通过雅可比矩阵的逆
+ * 反算出虚拟模型空间中的腿部推力 F 和髋关节力矩 Tp。
+ *
+ * 映射关系：
+ *   正向（JointTorqueUpdate）:  [Tp_1, Tp_2]^T = J * [F, Tp]^T
+ *   逆向（本函数）:             [F, Tp]^T = J^{-1} * [Tp_1, Tp_2]^T
+ *
+ * @param[in,out] leg    腿部实例
+ * @param[in]     Tp_1   关节0（phi1侧）的实际力矩 (Nm)
+ * @param[in]     Tp_2   关节1（phi4侧）的实际力矩 (Nm)
+ *
+ * @note 调用前需确保 RealModelUpdate() 和 VirtualModelUpdate() 已执行，
+ *       以保证 phi1~phi4、phi、length 等几何量为最新值。
+ *       函数会同步更新 leg->J[][] 雅可比矩阵。
+ *       解算结果写入 vm->F 和 vm->Tp。
+ */
+void VirtualForceFromJointTorque(LegInstance* leg, float Tp_1, float Tp_2) {
+  Real_Model_t* rm = &leg->real_model;
+  Virtual_Model_t* vm = &leg->virtual_model;
+  Leg_Param_t* p = &leg->param;
+  /* ── Step 1: 计算雅可比矩阵（与 JointTorqueUpdate 完全一致）── */
+  float denominator = msin(rm->phi3 - rm->phi2);
+  if (fabsf(denominator) < 1e-4f)
+    denominator = (denominator >= 0.0f) ? 1e-4f : -1e-4f;
+  leg->J[0][0] = (p->rod_length[0] * msin(vm->phi - rm->phi3) *
+                   msin(rm->phi1 - rm->phi2)) /
+                  denominator;
+  leg->J[0][1] = (p->rod_length[0] * mcos(vm->phi - rm->phi3) *
+                   msin(rm->phi1 - rm->phi2)) /
+                  (vm->length * denominator);
+  leg->J[1][0] = (p->rod_length[3] * msin(vm->phi - rm->phi2) *
+                   msin(rm->phi3 - rm->phi4)) /
+                  denominator;
+  leg->J[1][1] = (p->rod_length[3] * mcos(vm->phi - rm->phi2) *
+                   msin(rm->phi3 - rm->phi4)) /
+                  (vm->length * denominator);
+  /* ── Step 2: 计算行列式并保护除零 ── */
+  float det = leg->J[0][0] * leg->J[1][1] - leg->J[0][1] * leg->J[1][0];
+  if (fabsf(det) < 1e-6f)
+    det = (det >= 0.0f) ? 1e-6f : -1e-6f;
+  /* ── Step 3: 逆矩阵求解 ──
+   *   [F ]     1    [ J11  -J01 ] [Tp_1]
+   *   [Tp] = ----- * [-J10   J00 ] [Tp_2]
+   *           det
+   */
+  float inv_det = 1.0f / det;
+  vm->F  = inv_det * ( leg->J[1][1] * Tp_1 - leg->J[0][1] * Tp_2);
+  vm->Tp = inv_det * (-leg->J[1][0] * Tp_1 + leg->J[0][0] * Tp_2);
+}
+
+/**
  * @brief   计算关节力矩 (基于雅可比矩阵)
  */
 void JointTorqueUpdate(LegInstance* leg) {

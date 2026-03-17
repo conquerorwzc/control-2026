@@ -42,12 +42,8 @@ void VOFATask() {
   visualized_data[0] = robot->gimbal->gimbal_IMU_data->Yaw;
   visualized_data[1] = robot->gimbal->gimbal_IMU_data->Pitch;
 #elif defined(ONE_BOARD) || defined(CHASSIS_BOARD)
-  visualized_data[0] = robot->chassis->leg[0]->joint_motor[0]->measure.torque;
-  visualized_data[1] = robot->chassis->leg[0]->joint_motor[1]->measure.torque;
-  visualized_data[2] = robot->chassis->leg[1]->joint_motor[0]->measure.torque;
-  visualized_data[3] = robot->chassis->leg[1]->joint_motor[1]->measure.torque;
-  visualized_data[4] = robot->chassis->leg[0]->virtual_model.F;
-  visualized_data[5] = robot->chassis->leg[1]->virtual_model.F;
+  visualized_data[0] = robot->chassis->leg[0]->real_model.T;
+  visualized_data[1] = robot->chassis->leg[1]->real_model.T;
 #endif
   VOFAJustFloatSend(visualized_data, 20);
 }

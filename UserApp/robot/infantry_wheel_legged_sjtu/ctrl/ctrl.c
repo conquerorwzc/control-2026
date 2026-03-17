@@ -32,6 +32,7 @@ Ramp_Controller_t chassis_ramp = {
     .max_decel = 4.0f,
     .min_decel = 1.0f,
     .decel_base_speed = 0.8f,
+    .k_error_ff = 0.35f, // 速度误差前馈补偿系数，可根据实际测试调整
 };
 
 void JoyStickCtrl(RobotInstance* robot) {
@@ -153,8 +154,8 @@ void JoyStickCtrl(RobotInstance* robot) {
     case ROBOT_CHASSIS_FOLLOW: {
 #if (!defined(ONE_BOARD))
       // 获取输入
-      chassis_vx = 0.0045f * (float)rc_data[TEMP].rc.rocker_l_;
-      chassis_vy = 0.0045f * (float)rc_data[TEMP].rc.rocker_l1;
+      chassis_vx = 0.003f * (float)rc_data[TEMP].rc.rocker_l_;
+      chassis_vy = 0.003f * (float)rc_data[TEMP].rc.rocker_l1;
       input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
       if (input_mag > 0.0005f) {
         // 运动方向解算
@@ -180,8 +181,8 @@ void JoyStickCtrl(RobotInstance* robot) {
       if (align_attenuation < 0) align_attenuation = 0;
       input_mag *= align_attenuation * align_attenuation * align_attenuation;
       VAL_LIMIT(input_mag, -2.50, 2.50);
-      // chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, input_mag, robot->dt);
-      chassis_ctrl_cmd->vx = input_mag;
+      chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, input_mag, robot->chassis->state_var.v_b_h, robot->dt);
+      // chassis_ctrl_cmd->vx = input_mag;
       // chassis_ctrl_cmd->theta_ff = chassis_ramp.expected_a / 9.81f;
       chassis_ctrl_cmd->theta_ff = 0.0f;
       break;
@@ -199,7 +200,7 @@ void JoyStickCtrl(RobotInstance* robot) {
       chassis_ctrl_cmd->wz = 0.0f;
 #endif
       chassis_ctrl_cmd->vx =
-          ramp_controller_update(&chassis_ramp, (0.0045f) * (float)rc_data[TEMP].rc.rocker_r1, robot->dt);
+          ramp_controller_update(&chassis_ramp, (0.009f) * (float)rc_data[TEMP].rc.rocker_r1, robot->chassis->state_var.v_b_h, robot->dt);
       // chassis_ctrl_cmd->theta_ff = chassis_ramp.expected_a / 9.81f;
       chassis_ctrl_cmd->theta_ff = 0.0f;
       chassis_ctrl_cmd->roll = 0.0004f * (float)rc_data[TEMP].rc.rocker_l_ * (abs(rc_data[TEMP].rc.rocker_l_) > 10);
@@ -463,12 +464,11 @@ void MouseKeyCtrl(RobotInstance* robot) {
       if (align_attenuation < 0) align_attenuation = 0;
       input_mag *= align_attenuation * align_attenuation * align_attenuation;
       VAL_LIMIT(input_mag, -2.97, 2.97);
-      chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, input_mag, robot->dt);
+      chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, input_mag, robot->chassis->state_var.v_b_h, robot->dt);
       // chassis_ctrl_cmd->theta_ff = chassis_ramp.expected_a / 9.81f;
       chassis_ctrl_cmd->theta_ff = 0.0f;
       break;
 #endif
-
     case ROBOT_CHASSIS_FREE:
 #if (!defined(ONE_BOARD))
       // 双板：静止对齐云台
@@ -477,9 +477,9 @@ void MouseKeyCtrl(RobotInstance* robot) {
       chassis_ctrl_cmd->wz = 0.0f;
 #endif
       if (rc_data[TEMP].key[KEY_PRESS].w)
-        chassis_ctrl_cmd->vx += ramp_controller_update(&chassis_ramp, (0.99f) * speed_coff, robot->dt);
+        chassis_ctrl_cmd->vx += ramp_controller_update(&chassis_ramp, (0.99f) * speed_coff, robot->chassis->state_var.v_b_h, robot->dt);
       else if (rc_data[TEMP].key[KEY_PRESS].s)
-        chassis_ctrl_cmd->vx += ramp_controller_update(&chassis_ramp, (-0.99f) * speed_coff, robot->dt);
+        chassis_ctrl_cmd->vx += ramp_controller_update(&chassis_ramp, (-0.99f) * speed_coff, robot->chassis->state_var.v_b_h, robot->dt);
       else
         chassis_ctrl_cmd->vx += 0.0f;
 

@@ -88,6 +88,7 @@ typedef struct {
   float max_decel;         // 低速刹车加速度 (如 4.5 m/s^2)
   float min_decel;         // 高速刹车加速度下限 (如 1.0 m/s^2)
   float decel_base_speed;  // 减速衰减转折速度，低于此速度用 max_decel，高于后按 1/v 衰减
+  float k_error_ff;        // 误差前馈系数 (实际速度落后时的补偿)
 } Ramp_Controller_t;
 
 /**
@@ -121,7 +122,7 @@ float soft_limit(float x, float lim);
 
 void slope_following(float target, float* set, float acc_d);
 
-float ramp_controller_update(Ramp_Controller_t* ramp, float input_v, float dt);
+float ramp_controller_update(Ramp_Controller_t* ramp, float input_v, float actual_v, float dt);
 
 float* Norm3d(float* v);
 

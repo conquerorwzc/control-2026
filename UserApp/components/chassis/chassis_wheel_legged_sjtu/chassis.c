@@ -410,7 +410,7 @@ static void ChassisCtrlUpdate(void) {
 
   for (int i = 0; i < 2; i++) {
     JointTorqueUpdate(leg[i]);
-    SpringCompensation(leg[i]);
+    // SpringCompensation(leg[i]);
     JointLimitBarrier(leg[i]);
   }
 }
@@ -478,6 +478,7 @@ static void ChassisJump(void) {
       ChassisCtrlUpdate();
       if (fabsf(leg[0]->virtual_model.length - chassis->param.leg_min_length) <= 0.05f &&
           fabsf(leg[1]->virtual_model.length - chassis->param.leg_min_length) <= 0.05f) {
+        osDelay(200);
         chassis->jump_state = JUMP_STATE_IDLE;
       }
       break;
@@ -490,8 +491,8 @@ static void ChassisJump(void) {
 
 static void LimitChassisOutput(void) {
   for (int i = 0; i < 2; i++) {
-    VAL_LIMIT(leg[i]->real_model.Tp_1, -35.0f, 35.0f);
-    VAL_LIMIT(leg[i]->real_model.Tp_2, -35.0f, 35.0f);
+    VAL_LIMIT(leg[i]->real_model.Tp_1, -33.0f, 33.0f);
+    VAL_LIMIT(leg[i]->real_model.Tp_2, -33.0f, 33.0f);
     VAL_LIMIT(leg[i]->real_model.T, -2.45f, 2.45f);
     DMMotorSetRef(leg[i]->joint_motor[0], leg[i]->real_model.Tp_1);
     DMMotorSetRef(leg[i]->joint_motor[1], leg[i]->real_model.Tp_2);

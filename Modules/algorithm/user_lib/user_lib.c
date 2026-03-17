@@ -134,7 +134,7 @@ void slope_following(float target, float __packed* set, float acc_d) {
 /**
  * @brief 基于恒功率模型的动态斜坡更新
  */
-float ramp_controller_update(Ramp_Controller_t* ramp, float input_v, float dt) {
+float ramp_controller_update(Ramp_Controller_t* ramp, float input_v, float actual_v, float dt) {
   // 1. 输入限幅
   if (input_v > ramp->max_v) input_v = ramp->max_v;
   if (input_v < -ramp->max_v) input_v = -ramp->max_v;
@@ -182,7 +182,19 @@ float ramp_controller_update(Ramp_Controller_t* ramp, float input_v, float dt) {
     ramp->expected_a = (input_v - ramp->planning_v) / dt;
     ramp->planning_v = input_v;
   }
-  return ramp->planning_v;
+  
+  // 5. 增加实际速度静差前馈补偿
+  float output_v = ramp->planning_v;
+  if (ramp->k_error_ff > 0.0f) {
+    float vel_err = ramp->planning_v - actual_v;
+    output_v += ramp->k_error_ff * vel_err;
+  }
+
+  // 6. 输出限幅
+  // if (output_v > ramp->max_v) output_v = ramp->max_v;
+  // if (output_v < -ramp->max_v) output_v = -ramp->max_v;
+  
+  return output_v;
 }
 
 float soft_limit(float x, float lim) {
@@ -190,7 +202,6 @@ float soft_limit(float x, float lim) {
     float sign = (x > 0) ? 1.0f : -1.0f;
     return sign * (lim + (fabsf(x) - lim) / (1.0f + (fabsf(x) - lim)));
 }
-// 弧度格式化为-PI~PI
 
 // 角度格式化为-180~180
 float theta_format(float Ang) { return loop_float_constrain(Ang, -180.0f, 180.0f); }
