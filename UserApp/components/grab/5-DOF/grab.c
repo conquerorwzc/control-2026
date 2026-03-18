@@ -49,11 +49,11 @@ GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config)
     grab_instance->arm->grab_dmmotor[1] = DMMotorInit(&Grab_init_config->Grab_motor_config[1]);      // v4
     grab_instance->arm->grab_dmmotor[2] = DMMotorInit(&Grab_init_config->Grab_motor_config[2]);      // v4
 
-    //
-    // grab_instance->vedio->grab_djimotor[0] =
-    // DJIMotorInit(&Grab_init_config->Grab_motor_config[6]);
-    // grab_instance->vedio->grab_djimotor[1] =
-    // DJIMotorInit(&Grab_init_config->Grab_motor_config[7]);
+
+    grab_instance->vedio->grab_djimotor[0] =
+    DJIMotorInit(&Grab_init_config->Grab_motor_config[6]);
+    grab_instance->vedio->grab_djimotor[1] =
+    DJIMotorInit(&Grab_init_config->Grab_motor_config[7]);
 
     // 先赋值grab指针，再访问grab_instance中的成员
     grab = grab_instance;
@@ -63,6 +63,7 @@ GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config)
     osDelay(10);
     total_angle_init_L = grab->actuator->grab_djimotor[1]->measure.total_angle;
     total_angle_init_R = grab->actuator->grab_djimotor[0]->measure.total_angle;
+
     total_angle_init_vedio_forward = grab->vedio->grab_djimotor[0]->measure.total_angle;
     total_angle_init_vedio_pitch = grab->vedio->grab_djimotor[1]->measure.total_angle;
     if (Grab_init_config->Grab_cali_mode == GRAB_CALI_MODE)
@@ -93,8 +94,8 @@ static void GrabCmdTask()
     grab->actuator->wrist_pitch = grab_ctrl_cmd->wrist_pitch;
     grab->actuator->wrist_roll = grab_ctrl_cmd->wrist_roll;
     grab->actuator->torque = grab_ctrl_cmd->torque;
-    // grab->vedio->vedio_forward= grab_ctrl_cmd->vedio_forward;
-    // grab->vedio->vedio_pitch= grab_ctrl_cmd->vedio_pitch;
+    grab->vedio->vedio_forward= grab_ctrl_cmd->vedio_forward;
+    grab->vedio->vedio_pitch= grab_ctrl_cmd->vedio_pitch;
 }
 static void MotorTask()
 {
@@ -159,20 +160,20 @@ static void MotorTask()
             DMMotorSetRef(grab->actuator->grab_dmmotor[0], grab->actuator->T_target);
         }
 
-        // // 循环处理所有DJIMotor（vedio部分）
-        // for (int i = 0; i < 2; i++) {
-        //     if (DaemonIsOnline(grab->vedio->grab_djimotor[i]->daemon)) {
-        //         DJIMotorEnable(grab->vedio->grab_djimotor[i]);
-        //         switch (i) {
-        //             case 0:
-        //                 DJIMotorSetPIDRef(grab->vedio->grab_djimotor[i], grab->vedio->F_target);
-        //                 break;
-        //             case 1:
-        //                 DJIMotorSetPIDRef(grab->vedio->grab_djimotor[i], grab->vedio->P_target);
-        //                 break;
-        //         }
-        //     }
-        // }
+        // 循环处理所有DJIMotor（vedio部分）
+        for (int i = 0; i < 2; i++) {
+            if (DaemonIsOnline(grab->vedio->grab_djimotor[i]->daemon)) {
+                DJIMotorEnable(grab->vedio->grab_djimotor[i]);
+                switch (i) {
+                    case 0:
+                        DJIMotorSetPIDRef(grab->vedio->grab_djimotor[i], grab->vedio->F_target);
+                        break;
+                    case 1:
+                        DJIMotorSetPIDRef(grab->vedio->grab_djimotor[i], grab->vedio->P_target);
+                        break;
+                }
+            }
+        }
     }
 }
 
@@ -193,7 +194,7 @@ static void Grab_Position_Calculate(GrabInstance *grab)
     grab->actuator->L_target =
         total_angle_init_L + (-grab->actuator->wrist_pitch + grab->actuator->wrist_roll * BEVEL_GEAR_RATIO) *
                                  MOTOR2006_REDUCTION_RATIO * PULLEY_GEAR_RATIO;
-    // grab->vedio->F_target = total_angle_init_vedio_forward + grab->vedio->vedio_forward * MOTOR2006_REDUCTION_RATIO;
-    // grab->vedio->P_target = total_angle_init_vedio_pitch + grab->vedio->vedio_pitch;
+    grab->vedio->F_target = total_angle_init_vedio_forward + grab->vedio->vedio_forward * MOTOR2006_REDUCTION_RATIO;
+    grab->vedio->P_target = total_angle_init_vedio_pitch + grab->vedio->vedio_pitch;
     grab->actuator->T_target = grab->actuator->torque;
 }
