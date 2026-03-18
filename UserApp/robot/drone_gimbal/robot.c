@@ -18,6 +18,7 @@ static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 
 static float trigger_time = 0;  // 触发时间
+static float trigger_time_mouse = 0;  // 触发时间
 
 // vofa数据
 float visualized_data[20];
@@ -126,6 +127,7 @@ static void RemoteControlSet() {
  * @brief 输入为键鼠时模式和控制量设置
  *
  */
+/*
 static void MouseKeySet() {
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
     gimbal_ctrl_cmd->yaw -= (float)rc_data[TEMP].mouse.x * 0.007f;    // 横向灵敏度调节
@@ -181,6 +183,113 @@ static void MouseKeySet() {
   // }
   //
   // *rc_data_last = *rc_data;
+}
+*/
+static void MouseKeySet() {
+    // 空指针保护
+    if (rc_data == NULL || gimbal_ctrl_cmd == NULL || shoot_ctrl_cmd == NULL) {
+        LOGERROR("[MouseKey] Null pointer detected!");
+        return;
+    }
+
+    /****************** 右键自瞄切换 ******************/
+    static uint8_t right_pressed = 0;  // 记录右键按住状态
+    uint8_t right_mouse_state = rc_data[TEMP].mouse.press_r % 2;
+
+    if (right_mouse_state == 1 && !right_pressed) {  // 右键按下瞬间
+        right_pressed = 1;
+        if (vision_recv_data != NULL && has_non_zero_data(vision_recv_data)) {
+            gimbal_ctrl_cmd->gimbal_mode = GIMBAL_VISION;
+            gimbal_ctrl_cmd->yaw = vision_recv_data->gimbal_receive.yaw;
+            gimbal_ctrl_cmd->pitch = vision_recv_data->gimbal_receive.pitch;
+        } else {
+            gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+        }
+    } else if (right_mouse_state == 0 && right_pressed) {  // 右键释放瞬间
+        right_pressed = 0;
+        gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+    }
+
+    // 右键按住期间：若视觉数据突然无效，可切回手动
+    if (right_pressed && gimbal_ctrl_cmd->gimbal_mode == GIMBAL_VISION) {
+        if (vision_recv_data == NULL || !has_non_zero_data(vision_recv_data)) {
+            gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+        }
+    }
+
+    /****************** 鼠标控制云台（仅手动模式） ******************/
+    if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
+        // 鼠标死区
+        int16_t mouse_x = rc_data[TEMP].mouse.x;
+        int16_t mouse_y = rc_data[TEMP].mouse.y;
+        if (abs(mouse_x) < MOUSE_DEADBAND) mouse_x = 0;
+        if (abs(mouse_y) < MOUSE_DEADBAND) mouse_y = 0;
+
+        gimbal_ctrl_cmd->yaw += (float)mouse_x * YAW_MOUSE_SENS;
+        gimbal_ctrl_cmd->pitch -= (float)mouse_y * PITCH_MOUSE_SENS;
+    }
+
+    /****************** 左键发射控制 ******************/
+    static uint8_t e_mode = 0;                      // 0:单发+长按连发, 1:纯连发
+    static uint8_t last_e_state = 0;
+    uint8_t current_e_state = rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 2;
+    if (current_e_state != last_e_state && current_e_state == 1) {
+        e_mode = !e_mode;                            // E键按下切换
+    }
+    last_e_state = current_e_state;
+
+    static uint8_t last_left_state = 0;
+    static uint8_t single_fired = 0;                 // 单发已触发标志
+    static uint8_t last_friction_ok = 0;              // 上次摩擦轮状态
+    uint8_t left_mouse_state = rc_data[TEMP].mouse.press_l % 2;
+
+    // 左键边沿检测
+    if (left_mouse_state == 1 && last_left_state == 0) {
+        trigger_time_mouse = DWT_GetTimeline_s();          // 记录按下时刻
+        single_fired = 0;                             // 复位单发标志
+    } else if (left_mouse_state == 0 && last_left_state == 1) {
+        shoot_ctrl_cmd->load_mode = LOAD_STOP;
+    }
+    last_left_state = left_mouse_state;
+
+    // 左键按住时处理发射
+    if (left_mouse_state == 1) {
+        uint8_t friction_ok = (shoot_ctrl_cmd->friction_mode == FRICTION_ON);
+        if (!friction_ok) {
+            shoot_ctrl_cmd->load_mode = LOAD_STOP;
+        } else {
+            if (e_mode == 0) {  // 单发+长按连发
+                float hold_time = DWT_GetTimeline_s() - trigger_time_mouse;
+                if (hold_time > 1.0f) {
+                    shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+                } else {
+                    if (!single_fired) {
+                        shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
+                        single_fired = 1;
+                    } else {
+                        // 已触发过单发，不再重复发送
+                        // 保持当前模式不变（底层可能会自动清零）
+                    }
+                }
+            } else {  // 纯连发
+                shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+            }
+        }
+        last_friction_ok = friction_ok;
+    } else {
+        // 左键释放时重置单发标志（已在上方释放时处理，这里不需要）
+    }
+
+    /****************** 云台软件限位（所有模式） ******************/
+    if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE)
+        gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
+    else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE)
+        gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
+
+    if (gimbal_ctrl_cmd->yaw > YAW_MAX_ANGLE)
+        gimbal_ctrl_cmd->yaw = YAW_MAX_ANGLE;
+    else if (gimbal_ctrl_cmd->yaw < YAW_MIN_ANGLE)
+        gimbal_ctrl_cmd->yaw = YAW_MIN_ANGLE;
 }
 
 /**

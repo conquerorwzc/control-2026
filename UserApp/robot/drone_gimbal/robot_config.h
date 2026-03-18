@@ -24,6 +24,10 @@
 #define GYRO2GIMBAL_DIR_PITCH 1  // 陀螺仪数据相较于云台的pitch的方向,1为相同,-1为相反
 #define GYRO2GIMBAL_DIR_ROLL 1   // 陀螺仪数据相较于云台的roll的方向,1为相同,-1为相反
 
+#define MOUSE_DEADBAND     5      // 鼠标死区阈值
+#define YAW_MOUSE_SENS     0.007f // 云台偏航鼠标灵敏度
+#define PITCH_MOUSE_SENS   0.003f // 云台俯仰鼠标灵敏度
+
 static Gimbal_Init_Config_s gimbal_init_config = {
     .yaw_motor_config =
         {
