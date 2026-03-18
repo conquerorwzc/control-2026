@@ -256,7 +256,7 @@ static void RemoteControlSet() {
     if (vt13_rc_data->rc.trigger == 1) {
       if (vt13_rc_data->button_status.trigger_last==0) trigger_time = time;
       shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
-      if (time - trigger_time > 1.0f) shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+      if (time - trigger_time > 2.0f) shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
     }
   }
 

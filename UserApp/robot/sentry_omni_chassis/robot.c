@@ -324,7 +324,7 @@ static void MouseKeySet() {
 #elifdef USE_DUAL_RC_NEW
 static void RemoteControlSet() {
   if (switch_middle(vt13_rc_data->rc.mode_switch) || switch_right(vt13_rc_data->rc.mode_switch)) {
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
     if (abs(vt13_rc_data->rc.dial) > 20) chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
   }
 
@@ -413,8 +413,7 @@ static void EmergencyHandler() {
 }
 static void ModeControl() {
   if (robot->referee_data->GameRobotState.current_HP<= robot->referee_data->GameRobotState.maximum_HP/3||
-    robot->referee_data->ProjectileAllowance.projectile_allowance_17mm==0||
-    robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat==0) {
+    robot->referee_data->ProjectileAllowance.projectile_allowance_17mm==0) {
     robot->sentry_mode=DEFENSE_POSE;    //低于33.3%血或无可用弹丸进入防御姿态
   }
   else if (((robot->referee_data->EventData.event_type & 0x3U << 25) >> 25) == 1||
@@ -581,7 +580,7 @@ void RobotTask() {
   navigator_send(&huart1, robot->referee_data);
   RobotCMDTask();
   // SuperCapControl();
-  chassis_ctrl_cmd->max_power = robot->referee_data->GameRobotState.chassis_power_limit;
+  chassis_ctrl_cmd->max_power = 250;
   ModeControl();
   ChassisTask();
 #endif

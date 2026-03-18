@@ -19,8 +19,19 @@
 static GimbalInstance* gimbal;
 static Gimbal_Ctrl_Cmd_s* gimbal_ctrl_cmd;  // 声明但不初始化
 static Gimbal_Mode_e gimbal_mode_last;
+static float last_yaw_cmd=0.0f;
 
-// static BMI088Instance *bmi088; // 云台IMU
+//保证云台每一次旋转不会超过180度
+float wrap180(float now, float last) {
+  float diff = now - last;
+  // 1. 先把diff限制在 -360 到 360 之间 (其实fmod这一步可以省略，直接用while或if更直观)
+  // 2. 核心逻辑：找最短路径
+  while (diff > 180.0f)  diff -= 360.0f;
+  while (diff < -180.0f) diff += 360.0f;
+  return last + diff;
+}
+
+  // static BMI088Instance *bmi088; // 云台IMU
 GimbalInstance* GimbalInit(Gimbal_Init_Config_s* gimbal_init_config) {
   GimbalInstance* gimbal_instance = (GimbalInstance*)zmalloc(sizeof(GimbalInstance));
   gimbal_instance->gimbal_IMU_data = INS_Init(&gimbal_init_config->imu_init_config);  // IMU先初始化,获取姿态数据指针赋给yaw电机的其他数据来源
@@ -79,8 +90,10 @@ void GimbalTask() {
         gimbal_ctrl_cmd->yaw = gimbal->gimbal_IMU_data->YawTotalAngle;
         gimbal_ctrl_cmd->pitch = gimbal->gimbal_IMU_data->Pitch;
     }
+    gimbal_ctrl_cmd->yaw = wrap180(gimbal_ctrl_cmd->yaw, last_yaw_cmd);
     DJIMotorSetPIDRef(gimbal->yaw_motor, gimbal_ctrl_cmd->yaw);  // yaw和pitch会在robot_cmd中处理好多圈和单圈
     DJIMotorSetPIDRef(gimbal->pitch_motor, gimbal_ctrl_cmd->pitch);
+    last_yaw_cmd = gimbal_ctrl_cmd->yaw;
   }
   gimbal_mode_last = gimbal_ctrl_cmd->gimbal_mode;
 

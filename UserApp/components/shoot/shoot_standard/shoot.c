@@ -29,6 +29,29 @@ static float deadtime_onebullet;
 static float target_speed;
 static float bullet_speed_adjustment;
 static float feedforward;  // 前馈
+static float loader_speed_pid_maxout_default;
+
+// 单发分阶段参数：先回退5度，再轻推，再大步进到一发角度
+#define SINGLE_SHOT_RETREAT_DEG 3.0f
+#define SINGLE_SHOT_SOFT_PUSH_SPEED_DPS 20000.0f
+#define SINGLE_SHOT_SOFT_PUSH_PID_MAXOUT 900.0f
+#define SINGLE_SHOT_RETREAT_TIME_MS 50.0f
+#define SINGLE_SHOT_SOFT_PUSH_TIME_MS 400.0f
+
+typedef enum {
+  SINGLE_SHOT_IDLE = 0,
+  SINGLE_SHOT_RETREAT,
+  SINGLE_SHOT_SOFT_PUSH,
+  SINGLE_SHOT_MAIN_PUSH,
+} SingleShotStage_e;
+
+static SingleShotStage_e single_shot_stage = SINGLE_SHOT_IDLE;
+static float single_shot_base_angle = 0.0f;
+static float single_shot_soft_push_end_angle = 0.0f;
+
+static void SetLoaderSpeedPidMaxOut(float max_out) { shoot->loader_motor->motor_controller.speed_PID.MaxOut = max_out; }
+
+static void RestoreLoaderSpeedPidMaxOut(void) { SetLoaderSpeedPidMaxOut(loader_speed_pid_maxout_default); }
 
 ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
   ShootInstance* shoot_instance = (ShootInstance*)zmalloc(sizeof(ShootInstance));
@@ -42,6 +65,7 @@ ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
   target_speed = shoot_init_config->shoot_param.target_speed;
   bullet_speed_adjustment = shoot_init_config->shoot_param.bullet_speed_adjustment;
   feedforward = shoot_init_config->shoot_param.feedforward;
+  loader_speed_pid_maxout_default = shoot_init_config->loader_motor_config.controller_param_init_config.speed_PID.MaxOut;
   // 初始化弹速控制PID参数
   // 初始化弹速控制PID控制器
 
@@ -55,6 +79,7 @@ ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
 
   shoot = shoot_instance;
   shoot_ctrl_cmd = &shoot_instance->shoot_ctrl_cmd;  // 在运行时初始化指针
+  RestoreLoaderSpeedPidMaxOut();
   idx++;
   return shoot_instance;
 }
@@ -95,6 +120,10 @@ void ShootBulletSpeedControl(void) {
 /* 机器人发射机构控制核心任务 */
 void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，因为之前哨兵是双枪管的，时代的眼泪
   if (shoot_ctrl_cmd->shoot_mode == SHOOT_OFF) {
+    if (single_shot_stage != SINGLE_SHOT_IDLE) {
+      single_shot_stage = SINGLE_SHOT_IDLE;
+      RestoreLoaderSpeedPidMaxOut();
+    }
     for (int j = 0; j < FRICTION_NUM; j++) DJIMotorSetPIDRef(shoot->friction_motor[j], 0);
     DJIMotorStop(shoot->loader_motor);
   } else  // 恢复运行
@@ -111,15 +140,23 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
     }
   }
   // 如果上一次触发单发或3发指令的时间加上不应期仍然大于当前时间(尚未休眠完毕),直接返回即可
-  if (hibernate_time + dead_time > DWT_GetTimeline_ms()) return;
-  ;
-
-  if (shoot->loader_motor->motor_controller.speed_PID.ERRORHandler.ERRORType == PID_MOTOR_BLOCKED_ERROR) {
-    shoot->loader_motor->motor_controller.speed_PID.ERRORHandler.ERRORType = PID_ERROR_NONE;  // 清空标志位
-    shoot_ctrl_cmd->load_mode = LOAD_REVERSE;
+  float now_ms = DWT_GetTimeline_ms();
+  if (hibernate_time + dead_time > now_ms) {
+    // 单发三段流程在deadtime内也需要继续推进，其他模式保持原有行为
+    if (!(shoot_ctrl_cmd->load_mode == LOAD_1_BULLET && single_shot_stage != SINGLE_SHOT_IDLE)) return;
   }
 
+  // if (shoot->loader_motor->motor_controller.speed_PID.ERRORHandler.ERRORType == PID_MOTOR_BLOCKED_ERROR) {
+  //   shoot->loader_motor->motor_controller.speed_PID.ERRORHandler.ERRORType = PID_ERROR_NONE;  // 清空标志位
+  //   shoot_ctrl_cmd->load_mode = LOAD_REVERSE;
+  // }
+
   // 若不在休眠状态,根据robotCMD传来的控制模式进行拨盘电机参考值设定和模式切换
+  if (shoot_ctrl_cmd->load_mode != LOAD_1_BULLET && single_shot_stage != SINGLE_SHOT_IDLE) {
+    single_shot_stage = SINGLE_SHOT_IDLE;
+    RestoreLoaderSpeedPidMaxOut();
+  }
+
   switch (shoot_ctrl_cmd->load_mode) {
     // 停止拨盘
     case LOAD_STOP:
@@ -128,16 +165,40 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
       break;
       // 单发模式,根据鼠标按下的时间,触发一次之后需要进入不响应输入的状态(否则按下的时间内可能多次进入,导致多次发射)
     case LOAD_1_BULLET:  // 激活能量机关/干扰对方用,英雄用.
-      ShootBulletSpeedControl();
-      DJIMotorOuterLoop(shoot->loader_motor, ANGLE_LOOP);  // 切换到角度环
-      loader_set = shoot->loader_motor->measure.total_angle +
-                   one_bullet_delta_angle * reduction_ratio_loader * loader_direction;  // 控制量增加一发弹丸的角度
-      hibernate_time = DWT_GetTimeline_ms();                                            // 记录触发指令的时间
-      dead_time = deadtime_onebullet;                                                   // 完成1发弹丸发射的时间
+      // ShootBulletSpeedControl();
+      if (single_shot_stage == SINGLE_SHOT_IDLE) {
+        RestoreLoaderSpeedPidMaxOut();
+        single_shot_base_angle = shoot->loader_motor->measure.total_angle;
+        single_shot_stage = SINGLE_SHOT_RETREAT;
+        DJIMotorOuterLoop(shoot->loader_motor, ANGLE_LOOP);
+        loader_set = single_shot_base_angle -
+                     SINGLE_SHOT_RETREAT_DEG * reduction_ratio_loader * loader_direction;
+        hibernate_time = now_ms;
+        dead_time = SINGLE_SHOT_RETREAT_TIME_MS;
+      } else if (single_shot_stage == SINGLE_SHOT_RETREAT && hibernate_time + dead_time <= now_ms) {
+        single_shot_stage = SINGLE_SHOT_SOFT_PUSH;
+        SetLoaderSpeedPidMaxOut(SINGLE_SHOT_SOFT_PUSH_PID_MAXOUT);
+        DJIMotorOuterLoop(shoot->loader_motor, SPEED_LOOP);
+        loader_set = SINGLE_SHOT_SOFT_PUSH_SPEED_DPS * loader_direction;
+        hibernate_time = now_ms;
+        dead_time = SINGLE_SHOT_SOFT_PUSH_TIME_MS;
+      } else if (single_shot_stage == SINGLE_SHOT_SOFT_PUSH && hibernate_time + dead_time <= now_ms) {
+        single_shot_stage = SINGLE_SHOT_MAIN_PUSH;
+        RestoreLoaderSpeedPidMaxOut();
+        DJIMotorOuterLoop(shoot->loader_motor, ANGLE_LOOP);
+        // loader_set = single_shot_base_angle + one_bullet_delta_angle * reduction_ratio_loader * loader_direction;
+        single_shot_soft_push_end_angle = shoot->loader_motor->measure.total_angle;
+        loader_set = single_shot_soft_push_end_angle + one_bullet_delta_angle * reduction_ratio_loader * loader_direction;
+        hibernate_time = now_ms;
+        dead_time = deadtime_onebullet;
+      } else if (single_shot_stage == SINGLE_SHOT_MAIN_PUSH && hibernate_time + dead_time <= now_ms) {
+        single_shot_stage = SINGLE_SHOT_IDLE;
+        RestoreLoaderSpeedPidMaxOut();
+      }
       break;
       // 连发模式,对位置闭环,射频根据dead_time改变；原版是速度闭环，可能会更柔和一些？
     case LOAD_BURSTFIRE:
-      ShootBulletSpeedControl();
+      // ShootBulletSpeedControl();
       DJIMotorOuterLoop(shoot->loader_motor, ANGLE_LOOP);  // 切换到角度环
       loader_set = shoot->loader_motor->measure.total_angle +
                    one_bullet_delta_angle * reduction_ratio_loader * loader_direction;  // 控制量增加一发弹丸的角度

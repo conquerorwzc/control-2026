@@ -55,12 +55,12 @@
     }, \
     .controller_param_init_config = { \
         .speed_PID = { \
-            .Kp = 2, \
+            .Kp = 4, \
             .Ki = 0, \
             .Kd = 0, \
-            .IntegralLimit = 3000, \
+            .IntegralLimit = 8000, \
             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
-            .MaxOut = 12000, \
+            .MaxOut = 16000, \
         }, \
         .current_PID = { \
             .Kp = 0, \
@@ -106,7 +106,7 @@ static Chassis_Init_Config_s chassis_init_config = {
     .wheel_motor_config[3] = WHEEL_MOTOR_CONFIG(&hcan1,3),
     //跟随PID
     .follow_pid={
-        .Kp = -100.0f,
+        .Kp = -80.0f,
         .Ki = 0.0f,
         .Kd = 0.0f,
         .DeadBand = 0.0f,
