@@ -58,7 +58,7 @@ void RobotTask();
 void RobotInit()
 {
     robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
-
+    robot->referee_data = RefereeInit(&huart1);  // 裁判系统初始化
 #ifdef STM32F4
     robot->rc_data = RemoteControlInit(&huart3); // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
 #elifdef STM32H7
@@ -577,6 +577,15 @@ static void CalcOffsetAngle()
 GrabControlMode_e GetGrabControlMode(void)
 {
     return grab_control_mode;
+}
+
+/**
+ * @brief 获取机器人实例指针
+ * @return RobotInstance* 机器人实例指针
+ */
+RobotInstance* RobotGet(void)
+{
+    return robot;
 }
 
 static void Record_Current_Waypoint(void)

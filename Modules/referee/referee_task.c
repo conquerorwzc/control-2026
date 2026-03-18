@@ -428,9 +428,21 @@ void MyUIInit()
 void UITask()
 {
     // 首次运行时初始化指针
-    // if (referee_recv_info == NULL) {
-    //     referee_recv_info = RefereeInit(&huart6); // 假设使用默认串口
-    // }
+    if (robotdata == NULL) {
+        robotdata = RobotGet();
+        if (robotdata == NULL) {
+            // Robot 实例还未初始化，等待一下
+            osDelay(100);
+            return;
+        }
+    }
+    
+    // 安全检查：确保 chassis 不为 NULL
+    if (robotdata->chassis == NULL) {
+        // chassis 还未初始化，等待一下
+        osDelay(100);
+        return;
+    }
 
     // 更新交互数据（模拟从系统其他部分获取数据）
     interactive_data.chassis_mode = robotdata->chassis->chassis_ctrl_cmd.chassis_mode;
