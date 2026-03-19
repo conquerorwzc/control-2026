@@ -50,9 +50,8 @@ static String_Data_t UI_engineer_mode_text[2];   // 机器人模式显示 (G 键
 static String_Data_t UI_grab_control_text[2];    // 机械臂控制模式显示 (F 键控制): 标签 + 值
 static String_Data_t UI_gripper_status_text[2];  // 夹爪状态显示：标签 + 值
 static String_Data_t UI_motor_angle_name[5];     // 5 个控制器电机名称标签
-static String_Data_t UI_motor_angle_value[6];    // 5 个控制器电机角度数值 + 1 个标题
-static String_Data_t UI_arm_angle_name[5];       // 5 个机械臂关节名称标签
-static String_Data_t UI_arm_angle_value[6];      // 5 个机械臂关节角度数值 + 1 个标题
+static String_Data_t UI_motor_angle_value[5];    // 5 个控制器电机角度数值
+static String_Data_t UI_arm_angle_value[5];      // 5 个机械臂关节角度数值
 
 typedef enum
 {
@@ -135,33 +134,11 @@ static void UIChangeCheck(Referee_Interactive_info_t *_Interactive_data)
         _Interactive_data->last_gripper_opened = _Interactive_data->gripper_opened;
     }
     
-    // 电机角度变化检测 (任意一个电机角度变化超过 1 度)
-    for (int i = 0; i < 5; i++)
-    {
-        if (fabsf(_Interactive_data->motor_angles[i] - _Interactive_data->last_motor_angles[i]) > 1.0f)
-        {
-            _Interactive_data->Referee_Interactive_Flag.motor_angle_flag = 1;
-            for (int j = 0; j < 5; j++)
-            {
-                _Interactive_data->last_motor_angles[j] = _Interactive_data->motor_angles[j];
-            }
-            break;
-        }
-    }
+    // 电机角度变化检测（每次都刷新）
+    _Interactive_data->Referee_Interactive_Flag.motor_angle_flag = 1;
     
-    // 机械臂关节角度变化检测 (任意一个关节角度变化超过 1 度)
-    for (int i = 0; i < 5; i++)
-    {
-        if (fabsf(_Interactive_data->arm_angles[i] - _Interactive_data->last_arm_angles[i]) > 1.0f)
-        {
-            _Interactive_data->Referee_Interactive_Flag.arm_angle_flag = 1;
-            for (int j = 0; j < 5; j++)
-            {
-                _Interactive_data->last_arm_angles[j] = _Interactive_data->arm_angles[j];
-            }
-            break;
-        }
-    }
+    // 机械臂关节角度变化检测（每次都刷新）
+    _Interactive_data->Referee_Interactive_Flag.arm_angle_flag = 1;
 }
 
 // UI更新函数
@@ -199,36 +176,36 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
       // 1. 机器人模式显示 (G 键控制)
       if (interactive_data->Referee_Interactive_Flag.robot_mode_flag == 1)
       {
-          char *mode_str;
+          char mode_buf[20];
           uint32_t mode_color;
           switch (interactive_data->robot_mode)
           {
               case ROBOT_POWER_OFF:
-                  mode_str = "POWER OFF";
+                  snprintf(mode_buf, sizeof(mode_buf), "%-10s", "POWER OFF");
                   mode_color = UI_Color_Purplish_red;
                   break;
               case ROBOT_POWER_ON:
-                  mode_str = "NORMAL";
+                  snprintf(mode_buf, sizeof(mode_buf), "%-10s", "NORMAL");
                   mode_color = UI_Color_Green;
                   break;
               case ROBOT_EXCHANGE_MODE:
-                  mode_str = "EXCHANGE";
+                  snprintf(mode_buf, sizeof(mode_buf), "%-10s", "EXCHANGE");
                   mode_color = UI_Color_Cyan;
                   break;
               case ROBOT_CLIMB_MODE:
-                  mode_str = "CLIMB";
+                  snprintf(mode_buf, sizeof(mode_buf), "%-10s", "CLIMB");
                   mode_color = UI_Color_Yellow;
                   break;
               case ROBOT_EMERGENCY_STOP:
-                  mode_str = "E-STOP";
+                  snprintf(mode_buf, sizeof(mode_buf), "%-10s", "E-STOP");
                   mode_color = UI_Color_Purplish_red;
                   break;
               default:
-                  mode_str = "UNKNOWN";
+                  snprintf(mode_buf, sizeof(mode_buf), "%-10s", "UNKNOWN");
                   mode_color = UI_Color_White;
                   break;
           }
-          UICharDraw(&UI_engineer_mode_text[1], "rs1", UI_Graph_Change, 7, mode_color, 20, 3, 1200, 230, mode_str);
+          UICharDraw(&UI_engineer_mode_text[1], "rs1", UI_Graph_Change, 7, mode_color, 16, 2, 350, 860, mode_buf);
           UICharRefresh(&referee_recv_info->referee_id, UI_engineer_mode_text[1]);
           interactive_data->Referee_Interactive_Flag.robot_mode_flag = 0;
       }
@@ -236,28 +213,28 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
       // 2. 机械臂控制模式显示 (F 键控制)
       if (interactive_data->Referee_Interactive_Flag.grab_control_flag == 1)
       {
-          char *ctrl_str;
+          char ctrl_buf[20];
           uint32_t ctrl_color;
           switch (interactive_data->grab_control_mode)
           {
               case GRAB_CONTROL_KEYBOARD:
-                  ctrl_str = "KEYBOARD";
+                  snprintf(ctrl_buf, sizeof(ctrl_buf), "%-10s", "KEYBOARD");
                   ctrl_color = UI_Color_Green;
                   break;
               case GRAB_CONTROL_CUSTOM:
-                  ctrl_str = "CUSTOM";
+                  snprintf(ctrl_buf, sizeof(ctrl_buf), "%-10s", "CUSTOM");
                   ctrl_color = UI_Color_Cyan;
                   break;
               case GRAB_CONTROL_HALF_AUTO:
-                  ctrl_str = "HALF-AUTO";
+                  snprintf(ctrl_buf, sizeof(ctrl_buf), "%-10s", "HALF-AUTO");
                   ctrl_color = UI_Color_Yellow;
                   break;
               default:
-                  ctrl_str = "UNKNOWN";
+                  snprintf(ctrl_buf, sizeof(ctrl_buf), "%-10s", "UNKNOWN");
                   ctrl_color = UI_Color_White;
                   break;
           }
-          UICharDraw(&UI_grab_control_text[1], "cs1", UI_Graph_Change, 7, ctrl_color, 18, 2, 1200, 290, ctrl_str);
+          UICharDraw(&UI_grab_control_text[1], "cs1", UI_Graph_Change, 7, ctrl_color, 16, 2, 350, 820, ctrl_buf);
           UICharRefresh(&referee_recv_info->referee_id, UI_grab_control_text[1]);
           interactive_data->Referee_Interactive_Flag.grab_control_flag = 0;
       }
@@ -265,37 +242,43 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
       // 3. 夹爪状态显示
       if (interactive_data->Referee_Interactive_Flag.gripper_flag == 1)
       {
-          char *gripper_str;
+          char gripper_buf[20];
           uint32_t gripper_color;
           if (interactive_data->gripper_opened)
           {
-              gripper_str = "OPEN";
+              snprintf(gripper_buf, sizeof(gripper_buf), "%-10s", "OPEN");
               gripper_color = UI_Color_Green;
           }
           else
           {
-              gripper_str = "CLOSED";
+              snprintf(gripper_buf, sizeof(gripper_buf), "%-10s", "CLOSED");
               gripper_color = UI_Color_Pink;
           }
-          UICharDraw(&UI_gripper_status_text[1], "gs1", UI_Graph_Change, 7, gripper_color, 18, 2, 1200, 350, gripper_str);
+          UICharDraw(&UI_gripper_status_text[1], "gs1", UI_Graph_Change, 7, gripper_color, 16, 2, 350, 780, gripper_buf);
           UICharRefresh(&referee_recv_info->referee_id, UI_gripper_status_text[1]);
           interactive_data->Referee_Interactive_Flag.gripper_flag = 0;
       }
 
+    LOGINFO("[UI] arm = %d %d %d %d %d",
+            (int)(interactive_data->arm_angles[0] * 10.0f),
+            (int)(interactive_data->arm_angles[1] * 10.0f),
+            (int)(interactive_data->arm_angles[2] * 10.0f),
+            (int)(interactive_data->arm_angles[3] * 10.0f),
+            (int)(interactive_data->arm_angles[4] * 10.0f));
       // 4. 5 个电机角度显示（仅文字）
       if (interactive_data->Referee_Interactive_Flag.motor_angle_flag == 1)
       {
       for (int i = 0; i < 5; i++)
         {
             // 绘制角度数值
-   char angle_buf[10];
+   char angle_buf[16];
    char graph_name[4];
      snprintf(graph_name, sizeof(graph_name), "mv%d", i);  // 生成唯一图形名：mv0~mv4 (motor value)
-            snprintf(angle_buf, sizeof(angle_buf), "%.1f°", interactive_data->motor_angles[i]);
+            snprintf(angle_buf, sizeof(angle_buf), "%.1f  ", interactive_data->motor_angles[i]);
             UICharDraw(&UI_motor_angle_value[i], graph_name, UI_Graph_Change, 7, UI_Color_Green, 16, 2,
-                    1200 + i * 120, 420, angle_buf);  // X: 1200 起，Y: 420（与初始化一致）
+                    1200 + i * 120, 830, angle_buf);
         }
-             
+
        // 发送文字更新（角度值）
        for (int i = 0; i < 5; i++)
         {
@@ -311,14 +294,14 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
       for (int i = 0; i < 5; i++)
         {
             // 绘制角度数值
-   char angle_buf[10];
+   char angle_buf[16];
    char graph_name[4];
      snprintf(graph_name, sizeof(graph_name), "av%d", i);  // 生成唯一图形名：av0~av4 (arm value)
-            snprintf(angle_buf, sizeof(angle_buf), "%.1f°", interactive_data->arm_angles[i]);
-            UICharDraw(&UI_arm_angle_value[i], graph_name, UI_Graph_Change, 7, UI_Color_Green, 16, 2,
-                    1200 + i * 120, 490, angle_buf);  // X: 1200 起，Y: 490（与初始化一致）
+            snprintf(angle_buf, sizeof(angle_buf), "%.1f  ", interactive_data->arm_angles[i]);
+            UICharDraw(&UI_arm_angle_value[i], graph_name, UI_Graph_Change, 7, UI_Color_Cyan, 16, 2,
+                    1200 + i * 120, 800, angle_buf);
         }
-             
+
        // 发送文字更新（角度值）
        for (int i = 0; i < 5; i++)
         {
@@ -346,83 +329,73 @@ void MyUIInit()
     // === 工程机器人 UI 初始化 ===
     
     // 1. 机器人模式显示 (G 键控制) - 静态标签
-    UICharDraw(&UI_engineer_mode_text[0], "rs0", UI_Graph_ADD, 7, UI_Color_White, 16, 2, 1200, 200, "Robot State:");
+    UICharDraw(&UI_engineer_mode_text[0], "rs0", UI_Graph_ADD, 7, UI_Color_White, 16, 2, 80, 860, "Robot State:");
     UICharRefresh(&referee_recv_info->referee_id, UI_engineer_mode_text[0]);
     // 动态值初始化为 POWER OFF
-    UICharDraw(&UI_engineer_mode_text[1], "rs1", UI_Graph_ADD, 7, UI_Color_Purplish_red, 20, 3, 1200, 230, "POWER OFF");
+    UICharDraw(&UI_engineer_mode_text[1], "rs1", UI_Graph_ADD, 7, UI_Color_Purplish_red, 16, 2, 350, 860, "POWER OFF");
     UICharRefresh(&referee_recv_info->referee_id, UI_engineer_mode_text[1]);
     
     // 2. 机械臂控制模式显示 (F 键控制) - 静态标签
-    UICharDraw(&UI_grab_control_text[0], "cs0", UI_Graph_ADD, 7, UI_Color_White, 16, 2, 1200, 260, "Control Source:");
+    UICharDraw(&UI_grab_control_text[0], "cs0", UI_Graph_ADD, 7, UI_Color_White, 16, 2, 80, 820, "Control Source:");
     UICharRefresh(&referee_recv_info->referee_id, UI_grab_control_text[0]);
     // 动态值初始化为 KEYBOARD
-    UICharDraw(&UI_grab_control_text[1], "cs1", UI_Graph_ADD, 7, UI_Color_Green, 18, 2, 1200, 290, "KEYBOARD");
+    UICharDraw(&UI_grab_control_text[1], "cs1", UI_Graph_ADD, 7, UI_Color_Green, 16, 2, 350, 820, "KEYBOARD");
     UICharRefresh(&referee_recv_info->referee_id, UI_grab_control_text[1]);
     
     // 3. 夹爪状态显示 - 静态标签
-    UICharDraw(&UI_gripper_status_text[0], "gs0", UI_Graph_ADD, 7, UI_Color_White, 16, 2, 1200, 320, "Gripper State:");
+    UICharDraw(&UI_gripper_status_text[0], "gs0", UI_Graph_ADD, 7, UI_Color_White, 16, 2, 80, 780, "Gripper State:");
     UICharRefresh(&referee_recv_info->referee_id, UI_gripper_status_text[0]);
     // 动态值初始化为 CLOSED
-    UICharDraw(&UI_gripper_status_text[1], "gs1", UI_Graph_ADD, 7, UI_Color_Pink, 18, 2, 1200, 350, "CLOSED");
+    UICharDraw(&UI_gripper_status_text[1], "gs1", UI_Graph_ADD, 7, UI_Color_Pink, 16, 2, 350, 780, "CLOSED");
     UICharRefresh(&referee_recv_info->referee_id, UI_gripper_status_text[1]);
-    
-    
+
+
     // 初始化 5 个电机角度数值（仅文字，无进度条）
-   const char* motor_names[] = {"Base", "Elbow Roll", "Elbow Pitch", "Wrist Pitch", "Wrist Roll"};
+   const char* motor_names[] = {"Base", "E_Roll", "E_Pitch", "W_Pitch", "W_Roll"};
    for (int i = 0; i < 5; i++)
    {
        // 绘制电机名称标签
     char graph_name[4];
      snprintf(graph_name, sizeof(graph_name), "mn%d", i);  // 生成唯一图形名：mn0~mn4 (motor name)
-       UICharDraw(&UI_motor_angle_name[i], graph_name, UI_Graph_ADD, 7, UI_Color_Yellow, 14, 2, 
-                1200 + i * 120, 390, motor_names[i]);  // Y: 390（状态区下方）
-       
+       UICharDraw(&UI_motor_angle_name[i], graph_name, UI_Graph_ADD, 7, UI_Color_Yellow, 14, 2,
+                1200 + i * 120, 860, motor_names[i]);  // Y: 390（状态区下方）
+
        // 初始化电机角度数值为 0°
     char angle_graph_name[4];
      snprintf(angle_graph_name, sizeof(angle_graph_name), "mv%d", i);  // 生成唯一图形名：mv0~mv4 (motor value)
        UICharDraw(&UI_motor_angle_value[i], angle_graph_name, UI_Graph_ADD, 7, UI_Color_Green, 16, 2,
-                1200 + i * 120, 420, "0.0°");  // Y: 420（名称下方 30px）
+                1200 + i * 120, 830, "0.0");  // Y: 420（名称下方 30px）
    }
-   
+
    // 发送文字更新（电机名称）
    for (int i = 0; i < 5; i++)
    {
        UICharRefresh(&referee_recv_info->referee_id, UI_motor_angle_name[i]);
    }
-   
+
    // 发送文字更新（电机角度初始值）
    for (int i = 0; i < 5; i++)
    {
        UICharRefresh(&referee_recv_info->referee_id, UI_motor_angle_value[i]);
    }
-   
-   const char* arm_joint_names[] = {"Base", "Elbow Roll", "Elbow Pitch", "Wrist Pitch", "Wrist Roll"};
-   for (int i = 0; i < 5; i++)
-   {
-       // 绘制关节名称标签
-    char graph_name[4];
-     snprintf(graph_name, sizeof(graph_name), "an%d", i);  // 生成唯一图形名：an0~an4 (arm name)
-       UICharDraw(&UI_arm_angle_name[i], graph_name, UI_Graph_ADD, 7, UI_Color_Yellow, 14, 2,
-                 1200 + i * 120, 460, arm_joint_names[i]);  // Y: 460（电机角度下方 40px）
-       
-       // 初始化机械臂角度数值为 0°
-    char angle_graph_name[4];
-     snprintf(angle_graph_name, sizeof(angle_graph_name), "av%d", i);  // 生成唯一图形名：av0~av4 (arm value)
-       UICharDraw(&UI_arm_angle_value[i], angle_graph_name, UI_Graph_ADD, 7, UI_Color_Green, 16, 2,
-                1200 + i * 120, 490, "0.0°");  // Y: 490（名称下方 30px）
-   }
-   
-   // 发送文字更新（机械臂关节名称）
-   for (int i = 0; i < 5; i++)
-   {
-       UICharRefresh(&referee_recv_info->referee_id, UI_arm_angle_name[i]);
-   }
-   
+
+    for (int i = 0; i < 5; i++)
+    {
+        char angle_graph_name[4];
+        snprintf(angle_graph_name, sizeof(angle_graph_name), "av%d", i);
+        UICharDraw(&UI_arm_angle_value[i], angle_graph_name, UI_Graph_ADD, 7, UI_Color_Cyan, 16, 2,
+                 1200 + i * 120, 800, "0.0");
+    }
+
    // 发送文字更新（机械臂角度初始值）
    for (int i = 0; i < 5; i++)
    {
        UICharRefresh(&referee_recv_info->referee_id, UI_arm_angle_value[i]);
    }
+   
+   // 强制触发电机和机械臂角度首次显示
+   interactive_data.Referee_Interactive_Flag.arm_angle_flag = 1;
+   interactive_data.Referee_Interactive_Flag.motor_angle_flag = 1;
 }
 
 void UITask()
@@ -477,13 +450,14 @@ void UITask()
     }
     
     // 获取 5 个机械臂关节角度 (从机械臂模块)
-    if (robotdata->grab != NULL && robotdata->grab->arm != NULL)
+    if (robotdata->grab != NULL && robotdata->grab->arm != NULL &&
+        robotdata->grab->actuator != NULL)
     {
      interactive_data.arm_angles[0] = robotdata->grab->arm->base_joint;     // 基座旋转
      interactive_data.arm_angles[1] = robotdata->grab->arm->elbow_roll;     // 肘部旋转
      interactive_data.arm_angles[2] = robotdata->grab->arm->elbow_pitch;    // 肘部俯仰
-     interactive_data.arm_angles[3] = robotdata->grab->actuator->wrist_pitch;  // 腕部俯仰 (需要根据实际硬件调整)
-     interactive_data.arm_angles[4] = robotdata->grab->actuator->wrist_roll;  // 腕部旋转 (需要根据实际硬件调整)
+     interactive_data.arm_angles[3] = robotdata->grab->actuator->wrist_pitch;  // 腕部俯仰
+     interactive_data.arm_angles[4] = robotdata->grab->actuator->wrist_roll;  // 腕部旋转
     }
     else
     {
