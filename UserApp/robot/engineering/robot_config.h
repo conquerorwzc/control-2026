@@ -827,7 +827,7 @@ static Grab_Init_Config_s
                                           .Kd = 0.0f,
                                           .Improve = PID_Integral_Limit | PID_ErrorHandle,
                                           .IntegralLimit = 0.0f,
-                                          .MaxOut = 10000.0},
+                                          .MaxOut = 8000.0},
                         },
                     .controller_setting_init_config =
                         {
@@ -865,7 +865,7 @@ static Grab_Init_Config_s
                                     .Kd = 0.0f,
                                     .Improve = PID_Integral_Limit,
                                     .IntegralLimit = 10000.0f,
-                                    .MaxOut = 15000.0f,
+                                    .MaxOut = 8000.0f,
                                 },
 
                         },

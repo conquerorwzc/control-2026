@@ -353,16 +353,12 @@ static void MouseKeySet()
             rc_data[TEMP].key_count[KEY_PRESS_WITH_SHIFT][Key_C] = 0;
         }
     }
-    // ================= 6. 图传云台控制 (ZX, VB) =================
-    // Z/X: 控制普通图传 Pitch 俯仰角
-    grab_ctrl_cmd->video_pitch +=
-        (rc_data[TEMP].key[KEY_PRESS].x - rc_data[TEMP].key[KEY_PRESS].z) * grab_param.video_pitch_sens_keyboard;
 
-    // V/B: 控制 3508 图传 Pitch (映射到原有的 video_forward 变量上)
-    grab_ctrl_cmd->video_forward +=
-        (rc_data[TEMP].key[KEY_PRESS].b - rc_data[TEMP].key[KEY_PRESS].v) * grab_param.video_forward_sens_keyboard;
+    // robot.c 约 300 行：只管发意图 (-1, 0, 1)，不要累加！
+    grab_ctrl_cmd->video_pitch = (float)(rc_data[TEMP].key[KEY_PRESS].x - rc_data[TEMP].key[KEY_PRESS].z);
+    grab_ctrl_cmd->video_forward = (float)(rc_data[TEMP].key[KEY_PRESS].b - rc_data[TEMP].key[KEY_PRESS].v);
 
-    // ================= 机械臂标定 =================
+    // ================= 机械臂与图传标定 =================
     if (rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].q)
     {
         grab_ctrl_cmd->wrist_roll_cali = 1;
@@ -370,6 +366,11 @@ static void MouseKeySet()
     else if (rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].e)
     {
         grab_ctrl_cmd->wrist_pitch_cali = 1;
+    }
+    // 🌟 重新标定触发：按住 Ctrl + V
+    else if (rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].v)
+    {
+        grab_ctrl_cmd->video_cali = 1;
     }
 }
 
