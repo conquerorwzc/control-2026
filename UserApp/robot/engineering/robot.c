@@ -356,11 +356,11 @@ static void MouseKeySet()
     // ================= 6. 图传云台控制 (ZX, VB) =================
     // Z/X: 控制普通图传 Pitch 俯仰角
     grab_ctrl_cmd->video_pitch +=
-        (rc_data[TEMP].key[KEY_PRESS].z - rc_data[TEMP].key[KEY_PRESS].x) * grab_param.video_pitch_sens_keyboard;
+        (rc_data[TEMP].key[KEY_PRESS].x - rc_data[TEMP].key[KEY_PRESS].z) * grab_param.video_pitch_sens_keyboard;
 
     // V/B: 控制 3508 图传 Pitch (映射到原有的 video_forward 变量上)
     grab_ctrl_cmd->video_forward +=
-        (rc_data[TEMP].key[KEY_PRESS].v - rc_data[TEMP].key[KEY_PRESS].b) * grab_param.video_forward_sens_keyboard;
+        (rc_data[TEMP].key[KEY_PRESS].b - rc_data[TEMP].key[KEY_PRESS].v) * grab_param.video_forward_sens_keyboard;
 
     // ================= 机械臂标定 =================
     if (rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].q)
