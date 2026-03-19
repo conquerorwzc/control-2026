@@ -179,7 +179,7 @@ static Chassis_Init_Config_s chassis_init_config = {
 
                     .speed_PID =
                         {
-                            .Kp = 6,
+                            .Kp = 5,
                             .Ki = 0,
                             .Kd = 0,
                             .IntegralLimit = 6000,
@@ -219,7 +219,7 @@ static Chassis_Init_Config_s chassis_init_config = {
 
                     .speed_PID =
                         {
-                            .Kp = 5,
+                            .Kp = 4.5,
                             .Ki = 0,
                             .Kd = 0,
                             .IntegralLimit = 6000,
@@ -259,7 +259,7 @@ static Chassis_Init_Config_s chassis_init_config = {
 
                     .speed_PID =
                         {
-                            .Kp = 6,
+                            .Kp = 5,
                             .Ki = 0,
                             .Kd = 0,
                             .IntegralLimit = 6000,
@@ -299,7 +299,7 @@ static Chassis_Init_Config_s chassis_init_config = {
 
                     .speed_PID =
                         {
-                            .Kp = 5,
+                            .Kp = 4.5,
                             .Ki = 0,
                             .Kd = 0,
                             .IntegralLimit = 6000,
@@ -817,10 +817,10 @@ static Grab_Init_Config_s
                         {
                             .angle_PID =
                                 {
-                                    .Kp = 30.0f,
+                                    .Kp = 40.0f,
                                     .Ki = 0.0f,
                                     .Kd = 0.0f,
-                                    .MaxOut = 30000.0f,
+                                    .MaxOut = 6666.0f,
                                 },
                             .speed_PID = {.Kp = 2.0f,
                                           .Ki = 0.0f,
@@ -856,7 +856,7 @@ static Grab_Init_Config_s
                                     .Kd = 0.0f,
                                     .Improve = PID_Integral_Limit,
                                     .IntegralLimit = 0.0f,
-                                    .MaxOut = 1500.0f,
+                                    .MaxOut = 6666.0f,
                                 },
                             .speed_PID =
                                 {

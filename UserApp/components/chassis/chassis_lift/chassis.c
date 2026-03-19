@@ -171,13 +171,19 @@ ChassisInstance *ChassisInit(Chassis_Init_Config_s *chassis_init_config)
         chassis_instance->front_legs[i].motor = DJIMotorInit(&chassis_init_config->lift_forward_motor_config[i]);
         chassis_instance->rear_legs[i].motor = DJIMotorInit(&chassis_init_config->lift_backward_motor_config[i]);
 
-        chassis_instance->front_legs[i].motor->motor_settings.feedforward_flag = SPEED_FEEDFORWARD;
-        chassis_instance->front_legs[i].motor->motor_controller.speed_feedforward_ptr = &lift_speed_feedforward[i + 2];
+        // 🛡️ 终极防空指针装甲：确认电机指针不是 NULL，才允许往里写参数！
+        if (chassis_instance->front_legs[i].motor != NULL)
+        {
+            chassis_instance->front_legs[i].motor->motor_settings.feedforward_flag = SPEED_FEEDFORWARD;
+            chassis_instance->front_legs[i].motor->motor_controller.speed_feedforward_ptr = &lift_speed_feedforward[i + 2];
+        }
 
-        chassis_instance->rear_legs[i].motor->motor_settings.feedforward_flag = SPEED_FEEDFORWARD;
-        chassis_instance->rear_legs[i].motor->motor_controller.speed_feedforward_ptr = &lift_speed_feedforward[i];
+        if (chassis_instance->rear_legs[i].motor != NULL)
+        {
+            chassis_instance->rear_legs[i].motor->motor_settings.feedforward_flag = SPEED_FEEDFORWARD;
+            chassis_instance->rear_legs[i].motor->motor_controller.speed_feedforward_ptr = &lift_speed_feedforward[i];
+        }
     }
-
     chassis = chassis_instance;
     chassis_ctrl_cmd = &chassis->chassis_ctrl_cmd;
     chassis_ctrl_cmd->backward_lift_in = chassis_param.backward_lift_in;

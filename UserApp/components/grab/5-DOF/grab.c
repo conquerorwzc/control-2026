@@ -102,10 +102,12 @@ GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config)
         grab->arm->arm_lift_min = total_angle_init_arm_lift;
         grab->arm->arm_lift_max = total_angle_init_arm_lift + LIFT_HEIGHT_MAX;
     }
-
-    total_angle_init_Video_pitch = grab->video->grab_djimotor[1]->measure.total_angle;
-    total_angle_init_Video_forward = grab->video->grab_djimotor[0]->measure.total_angle;
-
+    if(grab->video->grab_djimotor[0] != NULL) {
+        total_angle_init_Video_forward = grab->video->grab_djimotor[0]->measure.total_angle;
+    }
+    if(grab->video->grab_djimotor[1] != NULL) {
+        total_angle_init_Video_pitch = grab->video->grab_djimotor[1]->measure.total_angle;
+    }
     if (Grab_init_config->Grab_cali_mode == GRAB_CALI_MODE)
     {
         DMMotorCaliEncoder(grab->arm->grab_dmmotor[0]);
@@ -262,19 +264,24 @@ static void MotorTask()
 
         // 👉 你的图传电机保留代码：
         // 循环处理所有DJIMotor（Video部分）
+        // 循环处理所有DJIMotor（Video部分）
         for (int i = 0; i < 2; i++)
         {
-            if (DaemonIsOnline(grab->video->grab_djimotor[i]->daemon))
+            // 🌟 如果指针为空，直接跳过，绝对不允许访问 daemon！
+            if (grab->video->grab_djimotor[i] != NULL)
             {
-                DJIMotorEnable(grab->video->grab_djimotor[i]);
-                switch (i)
+                if (DaemonIsOnline(grab->video->grab_djimotor[i]->daemon))
                 {
-                case 0:
-                    DJIMotorSetPIDRef(grab->video->grab_djimotor[i], grab->video->F_target);
-                    break;
-                case 1:
-                    DJIMotorSetPIDRef(grab->video->grab_djimotor[i], grab->video->P_target);
-                    break;
+                    DJIMotorEnable(grab->video->grab_djimotor[i]);
+                    switch (i)
+                    {
+                    case 0:
+                        DJIMotorSetPIDRef(grab->video->grab_djimotor[i], grab->video->F_target);
+                        break;
+                    case 1:
+                        DJIMotorSetPIDRef(grab->video->grab_djimotor[i], grab->video->P_target);
+                        break;
+                    }
                 }
             }
         }
@@ -617,17 +624,27 @@ static void Grab_Real_Angle_Calculate(GrabInstance *grab)
 
     // 图传部分，等你把图传电机加回来再把下面注释解开
 
-    if (DaemonIsOnline(grab->video->grab_djimotor[0]->daemon))
+    // =========================================================
+    // 3. 解算图传电机 (🌟 加入终极防空指针装甲)
+    // =========================================================
+    // 必须先判断指针存在，再去判断 Daemon 状态！
+    if (grab->video->grab_djimotor[0] != NULL)
     {
-        grab->grab_measure.video_forward =
-            (grab->video->grab_djimotor[0]->measure.total_angle - total_angle_init_Video_forward) /
-            MOTOR2006_REDUCTION_RATIO;
+        if (DaemonIsOnline(grab->video->grab_djimotor[0]->daemon))
+        {
+            grab->grab_measure.video_forward =
+                (grab->video->grab_djimotor[0]->measure.total_angle - total_angle_init_Video_forward) /
+                MOTOR2006_REDUCTION_RATIO;
+        }
     }
-    if (DaemonIsOnline(grab->video->grab_djimotor[1]->daemon))
+
+    if (grab->video->grab_djimotor[1] != NULL)
     {
-        grab->grab_measure.video_pitch =
-            (grab->video->grab_djimotor[1]->measure.total_angle - total_angle_init_Video_pitch) /
-            MOTOR2006_REDUCTION_RATIO;
+        if (DaemonIsOnline(grab->video->grab_djimotor[1]->daemon))
+        {
+            grab->grab_measure.video_pitch =
+                grab->video->grab_djimotor[1]->measure.total_angle - total_angle_init_Video_pitch;
+        }
     }
 
     // 👇 新增：抬升电机真实物理高度解算

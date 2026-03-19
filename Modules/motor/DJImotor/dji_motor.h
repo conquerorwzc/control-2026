@@ -21,7 +21,7 @@
 #include "motor_def.h"
 #include "stdint.h"
 
-#define DJI_MOTOR_CNT 12
+#define DJI_MOTOR_CNT 18
 
 /* 滤波系数设置为1的时候即关闭滤波 */
 #define SPEED_SMOOTH_COEF 0.85f       // 最好大于0.85
