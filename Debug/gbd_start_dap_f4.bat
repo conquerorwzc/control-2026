@@ -2,10 +2,10 @@
 chcp 65001 >nul 2>&1
 title OpenOCD - STM32F4 (Auto Reconnect)
 
-:: ====== ÅäÖÃ ======
+:: ====== ï¿½ï¿½ï¿½ï¿½ ======
 set INTERFACE=interface\cmsis-dap.cfg
 set TARGET=target\stm32f4x.cfg
-set LOGFILE=%~dp0openocd_f4.log
+set LOGFILE=%TEMP%\openocd_f4.tmp
 set CHECK_INTERVAL=2
 :: ==================
 

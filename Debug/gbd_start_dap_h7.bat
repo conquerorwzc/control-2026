@@ -5,7 +5,7 @@ title OpenOCD - STM32H7 (Auto Reconnect)
 :: ====== 配置 ======
 set INTERFACE=interface\cmsis-dap.cfg
 set TARGET=target\stm32h7x.cfg
-set LOGFILE=%~dp0openocd_h7.log
+set LOGFILE=%TEMP%\openocd_h7.tmp
 set CHECK_INTERVAL=2
 :: ==================
 

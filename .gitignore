@@ -93,12 +93,11 @@ JLinkLog.txt
 *.jlink
 
 # IDE / Editor
-.cursor/
-.idea/
-.vscode/
 .history/
 
 # cmake build directory
-cmake-build-debug-stm32/
+cmake-build-debug/
 
 *.jdebug.user
+
+*.log
