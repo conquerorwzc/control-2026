@@ -1,0 +1,33 @@
+{
+  "cmake.generator": "Ninja",
+  "cmake.buildDirectory": "${workspaceFolder}/cmake-build-debug",
+  "cmake.configureSettings": {
+    "buildType": "Debug"
+  },
+  "C_Cpp.default.compileCommands": "${workspaceFolder}/cmake-build-debug/compile_commands.json",
+  "todo-tree.tree.scanMode": "workspace",
+  "files.associations": {
+    "*.h": "c",
+    "cstdint": "cpp"
+  },
+  "editor.formatOnSave": true,
+  "[c]": {
+    "editor.formatOnSave": false
+  },
+  "cortex-debug.variableUseNaturalFormat": true,
+  "cmake.configureOnOpen": true,
+  "cmake.options.advanced": {
+    "configurePreset": {
+      "statusBarVisibility": "visible"
+    },
+    "build": {
+      "statusBarVisibility": "hidden"
+    },
+    "launch": {
+      "statusBarVisibility": "hidden"
+    },
+    "debug": {
+      "statusBarVisibility": "hidden"
+    }
+  }
+}

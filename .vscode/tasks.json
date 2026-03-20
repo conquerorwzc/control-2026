@@ -1,0 +1,111 @@
+{
+  "version": "2.0.0",
+  "inputs": [
+    {
+      "id": "mcuSuffix",
+      "type": "pickString",
+      "description": "Select MCU Type",
+      "options": [
+        "f4",
+        "h7"
+      ],
+      "default": "f4"
+    },
+    {
+      "id": "debuggerAction",
+      "type": "pickString",
+      "description": "Select Action",
+      "options": [
+        "dap (Flash)",
+        "jlink (Flash)",
+        "dap (Ozone)",
+        "jlink (Ozone)"
+      ],
+      "default": "dap (Flash)"
+    }
+  ],
+  "tasks": [
+    {
+      "label": "CMake: Configure (Ninja)",
+      "type": "shell",
+      "command": "cmake",
+      "args": [
+        "-G",
+        "Ninja",
+        "-S",
+        ".",
+        "-B",
+        "cmake-build-debug",
+        "-DCMAKE_BUILD_TYPE=Debug",
+        "-DMCU_TYPE=stm32-${input:mcuSuffix}"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "CMake: Build (Ninja)",
+      "type": "shell",
+      "command": "cmake",
+      "args": [
+        "--build",
+        "cmake-build-debug"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": [
+        {
+          "owner": "cpp",
+          "fileLocation": [
+            "relative",
+            "${workspaceFolder}"
+          ],
+          "pattern": {
+            "regexp": "^(.*):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
+            "file": 1,
+            "line": 2,
+            "column": 3,
+            "severity": 4,
+            "message": 5
+          }
+        }
+      ],
+      "dependsOn": [
+        "CMake: Configure (Ninja)"
+      ]
+    },
+    {
+      "label": "OpenOCD: Flash/Debug (Selected MCU)",
+      "type": "shell",
+      "command": "if ('${input:debuggerAction}' -match 'dap \\(Ozone\\)') { Start-Process cmd -ArgumentList '/c start ${workspaceFolder}/Debug/gbd_start_dap_${input:mcuSuffix}.bat'; if (Get-Command Ozone -ErrorAction SilentlyContinue) { Start-Process Ozone -ArgumentList '${workspaceFolder}/Debug/ozone/control-2026-${input:mcuSuffix}.jdebug' } else { Write-Error 'Ozone executable not found in PATH. Please add your Ozone installation directory to your system PATH environment variable.' } } elseif ('${input:debuggerAction}' -match 'jlink \\(Ozone\\)') { if (Get-Command Ozone -ErrorAction SilentlyContinue) { Start-Process Ozone -ArgumentList '${workspaceFolder}/Debug/ozone/control-2026-${input:mcuSuffix}.jdebug' } else { Write-Error 'Ozone executable not found in PATH. Please add your Ozone installation directory to your system PATH environment variable.' } } elseif ('${input:debuggerAction}' -match 'dap \\(Flash\\)') { openocd -f Debug/config/openocd_dap_${input:mcuSuffix}.cfg -c 'program cmake-build-debug/control-2026.elf verify reset exit' } elseif ('${input:debuggerAction}' -match 'jlink \\(Flash\\)') { openocd -f Debug/config/openocd_jlink_${input:mcuSuffix}.cfg -c 'program cmake-build-debug/control-2026.elf verify reset exit' }",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "dependsOn": [
+        "CMake: Build (Ninja)"
+      ]
+    }
+      "problemMatcher": [],
+      "dependsOn": [
+        "CMake: Build (Ninja)"
+      ]
+    }
+  ]
+}

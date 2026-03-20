@@ -241,22 +241,22 @@ static void RemoteControlSet() {
     case ROBOT_CHASSIS_FREE:
 #if defined(ONE_BOARD)
       static float target_angle;
-      target_angle += (-0.25f) * (float)rc_data[TEMP].rc.rocker_r_ * robot->dt;
+      target_angle += (-0.1f) * (float)rc_data[TEMP].rc.rocker_r_ * robot->dt;
       chassis_ctrl_cmd->wz =
-          -0.0015f * (float)rc_data[TEMP].rc.rocker_r_ +
+          -0.0002f * (float)rc_data[TEMP].rc.rocker_r_ +
           PIDCalculate(&robot->chassis_follow_PID, robot->chassis->chassis_IMU->YawTotalAngle, target_angle);
       // chassis_ctrl_cmd->vx = (0.0025f) * (float)rc_data[TEMP].rc.rocker_r1;
 #else
       chassis_ctrl_cmd->wz = -0.0035f * (float)rc_data[TEMP].rc.rocker_r_ +
                              PIDCalculate(&robot->chassis_follow_PID, robot->offset_angle, 0);
-      chassis_ctrl_cmd->vx = (0.0025f) * (float)rc_data[TEMP].rc.rocker_r1;
+      chassis_ctrl_cmd->vx = (0.0028f) * (float)rc_data[TEMP].rc.rocker_r1;
 #endif
       // slope_following((0.0045f) * (float)rc_data[TEMP].rc.rocker_r1, &chassis_ctrl_cmd->vx,
       // 1.5f * robot->dt);  // 0.0045(最大3m/s)
 
-      chassis_ctrl_cmd->vx =
-          -ramp_controller_update(&chassis_ramp, (0.0045f) * (float)rc_data[TEMP].rc.rocker_r1, robot->dt);
-      // chassis_ctrl_cmd->vx = (0.0025f) * (float)rc_data[TEMP].rc.rocker_r1;
+      // chassis_ctrl_cmd->vx =
+          // -ramp_controller_update(&chassis_ramp, (0.0045f) * (float)rc_data[TEMP].rc.rocker_r1, robot->dt);
+      chassis_ctrl_cmd->vx = (0.0032f) * (float)rc_data[TEMP].rc.rocker_r1;
       // chassis_ctrl_cmd->theta_ff = chassis_ramp.expected_a / 9.81f;
 
       chassis_ctrl_cmd->roll = 0.0004f * (float)rc_data[TEMP].rc.rocker_l_ * (abs(rc_data[TEMP].rc.rocker_l_) > 10);
@@ -472,7 +472,7 @@ void RobotTask() {
   robot->dt = DWT_GetDeltaT(&robot->DWT_CNT);
   RobotCMDTask();
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
-  // GimbalTask();
+  GimbalTask();
   // ShootTask();
 #endif
 

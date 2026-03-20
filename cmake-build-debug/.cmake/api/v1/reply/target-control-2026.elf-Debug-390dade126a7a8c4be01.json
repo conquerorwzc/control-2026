@@ -1,0 +1,3132 @@
+{
+	"artifacts" : 
+	[
+		{
+			"path" : "control-2026.elf"
+		}
+	],
+	"backtrace" : 1,
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"add_executable",
+			"add_link_options",
+			"link_directories",
+			"include",
+			"target_link_libraries",
+			"add_compile_options",
+			"add_definitions",
+			"add_compile_definitions",
+			"include_directories",
+			"include_sub_directories_recursively"
+		],
+		"files" : 
+		[
+			"CMakeLists.txt",
+			"Hardware/stm32-f4/stm32-f4.cmake",
+			"UserApp/robot/infantry_wheel_legged/robot.cmake"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 101,
+				"parent" : 0
+			},
+			{
+				"command" : 1,
+				"file" : 0,
+				"line" : 47,
+				"parent" : 0
+			},
+			{
+				"command" : 3,
+				"file" : 0,
+				"line" : 41,
+				"parent" : 0
+			},
+			{
+				"file" : 1,
+				"parent" : 3
+			},
+			{
+				"command" : 2,
+				"file" : 1,
+				"line" : 5,
+				"parent" : 4
+			},
+			{
+				"command" : 4,
+				"file" : 0,
+				"line" : 102,
+				"parent" : 0
+			},
+			{
+				"command" : 5,
+				"file" : 0,
+				"line" : 44,
+				"parent" : 0
+			},
+			{
+				"command" : 5,
+				"file" : 0,
+				"line" : 94,
+				"parent" : 0
+			},
+			{
+				"command" : 6,
+				"file" : 1,
+				"line" : 15,
+				"parent" : 4
+			},
+			{
+				"command" : 6,
+				"file" : 0,
+				"line" : 95,
+				"parent" : 0
+			},
+			{
+				"command" : 3,
+				"file" : 0,
+				"line" : 80,
+				"parent" : 0
+			},
+			{
+				"file" : 2,
+				"parent" : 11
+			},
+			{
+				"command" : 7,
+				"file" : 2,
+				"line" : 12,
+				"parent" : 12
+			},
+			{
+				"command" : 7,
+				"file" : 2,
+				"line" : 9,
+				"parent" : 12
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 68,
+				"parent" : 0
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 15
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 15
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 17
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 17
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 19
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 19
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 21
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 21
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 23
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 23
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 25
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 25
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 27
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 25
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 29
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 29
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 31
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 19
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 33
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 17
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 35
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 35
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 37
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 37
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 39
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 35
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 41
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 15
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 43
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 15
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 45
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 45
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 47
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 47
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 49
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 49
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 51
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 51
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 53
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 51
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 55
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 47
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 57
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 57
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 59
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 59
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 61
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 61
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 63
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 61
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 65
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 57
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 67
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 67
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 69
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 67
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 71
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 45
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 73
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 73
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 75
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 75
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 77
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 77
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 79
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 77
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 81
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 77
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 83
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 83
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 85
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 85
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 87
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 83
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 89
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 73
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 91
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 91
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 93
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 91
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 95
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 15
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 97
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 15
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 99
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 69,
+				"parent" : 0
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 101
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 101
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 103
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 101
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 105
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 101
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 107
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 101
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 109
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 101
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 111
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 101
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 113
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 101
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 115
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 101
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 117
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 101
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 119
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 101
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 121
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 70,
+				"parent" : 0
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 123
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 123
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 125
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 123
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 127
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 127
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 129
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 127
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 131
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 127
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 133
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 127
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 135
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 127
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 137
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 127
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 139
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 127
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 141
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 123
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 143
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 123
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 145
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 123
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 147
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 123
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 149
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 123
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 151
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 123
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 153
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 153
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 155
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 153
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 157
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 153
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 159
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 123
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 161
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 123
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 163
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 123
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 165
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 123
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 167
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 123
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 169
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 71,
+				"parent" : 0
+			},
+			{
+				"command" : 9,
+				"file" : 2,
+				"line" : 15,
+				"parent" : 12
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 172
+			},
+			{
+				"command" : 9,
+				"file" : 2,
+				"line" : 16,
+				"parent" : 12
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 174
+			},
+			{
+				"command" : 9,
+				"file" : 2,
+				"line" : 17,
+				"parent" : 12
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 176
+			},
+			{
+				"command" : 9,
+				"file" : 2,
+				"line" : 18,
+				"parent" : 12
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 178
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 178
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 180
+			},
+			{
+				"command" : 9,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 178
+			},
+			{
+				"command" : 8,
+				"file" : 0,
+				"line" : 57,
+				"parent" : 182
+			}
+		]
+	},
+	"compileGroups" : 
+	[
+		{
+			"compileCommandFragments" : 
+			[
+				{
+					"fragment" : "-g -std=gnu11 -fdiagnostics-color=always"
+				},
+				{
+					"backtrace" : 7,
+					"fragment" : "-pipe"
+				},
+				{
+					"backtrace" : 7,
+					"fragment" : "-mcpu=cortex-m4"
+				},
+				{
+					"backtrace" : 7,
+					"fragment" : "-mthumb"
+				},
+				{
+					"backtrace" : 7,
+					"fragment" : "-mthumb-interwork"
+				},
+				{
+					"backtrace" : 7,
+					"fragment" : "-mfloat-abi=hard"
+				},
+				{
+					"backtrace" : 7,
+					"fragment" : "-mfpu=fpv4-sp-d16"
+				},
+				{
+					"backtrace" : 7,
+					"fragment" : "-Wall"
+				},
+				{
+					"backtrace" : 7,
+					"fragment" : "-fmessage-length=0"
+				},
+				{
+					"backtrace" : 7,
+					"fragment" : "-ffunction-sections"
+				},
+				{
+					"backtrace" : 7,
+					"fragment" : "-fdata-sections"
+				},
+				{
+					"backtrace" : 7,
+					"fragment" : "-fno-common"
+				},
+				{
+					"backtrace" : 8,
+					"fragment" : "-Og"
+				},
+				{
+					"backtrace" : 8,
+					"fragment" : "-g"
+				},
+				{
+					"backtrace" : 8,
+					"fragment" : "-gdwarf-2"
+				}
+			],
+			"defines" : 
+			[
+				{
+					"backtrace" : 9,
+					"define" : "ARM_MATH_CM4"
+				},
+				{
+					"backtrace" : 10,
+					"define" : "ESC_DEBUG"
+				},
+				{
+					"backtrace" : 13,
+					"define" : "FRICTION_NUM=2"
+				},
+				{
+					"backtrace" : 14,
+					"define" : "GIMBAL_BOARD"
+				},
+				{
+					"backtrace" : 9,
+					"define" : "STM32F407xx"
+				},
+				{
+					"backtrace" : 9,
+					"define" : "USE_HAL_DRIVER"
+				},
+				{
+					"backtrace" : 9,
+					"define" : "__FPU_PRESENT=1U"
+				}
+			],
+			"includes" : 
+			[
+				{
+					"backtrace" : 16,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4"
+				},
+				{
+					"backtrace" : 18,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Drivers"
+				},
+				{
+					"backtrace" : 20,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Drivers/CMSIS"
+				},
+				{
+					"backtrace" : 22,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Drivers/CMSIS/Device"
+				},
+				{
+					"backtrace" : 24,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Drivers/CMSIS/Device/ST"
+				},
+				{
+					"backtrace" : 26,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Drivers/CMSIS/Device/ST/STM32F4xx"
+				},
+				{
+					"backtrace" : 28,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Drivers/CMSIS/Device/ST/STM32F4xx/Include"
+				},
+				{
+					"backtrace" : 30,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Drivers/CMSIS/Device/ST/STM32F4xx/Source"
+				},
+				{
+					"backtrace" : 32,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Drivers/CMSIS/Device/ST/STM32F4xx/Source/Templates"
+				},
+				{
+					"backtrace" : 34,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Drivers/CMSIS/Include"
+				},
+				{
+					"backtrace" : 36,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver"
+				},
+				{
+					"backtrace" : 38,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Inc"
+				},
+				{
+					"backtrace" : 40,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Inc/Legacy"
+				},
+				{
+					"backtrace" : 42,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src"
+				},
+				{
+					"backtrace" : 44,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Inc"
+				},
+				{
+					"backtrace" : 46,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares"
+				},
+				{
+					"backtrace" : 48,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/ST"
+				},
+				{
+					"backtrace" : 50,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/ST/ARM"
+				},
+				{
+					"backtrace" : 52,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/ST/ARM/DSP"
+				},
+				{
+					"backtrace" : 54,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/ST/ARM/DSP/Inc"
+				},
+				{
+					"backtrace" : 56,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/ST/ARM/DSP/Lib"
+				},
+				{
+					"backtrace" : 58,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/ST/STM32_USB_Device_Library"
+				},
+				{
+					"backtrace" : 60,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/ST/STM32_USB_Device_Library/Class"
+				},
+				{
+					"backtrace" : 62,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/ST/STM32_USB_Device_Library/Class/CDC"
+				},
+				{
+					"backtrace" : 64,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc"
+				},
+				{
+					"backtrace" : 66,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src"
+				},
+				{
+					"backtrace" : 68,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/ST/STM32_USB_Device_Library/Core"
+				},
+				{
+					"backtrace" : 70,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/ST/STM32_USB_Device_Library/Core/Inc"
+				},
+				{
+					"backtrace" : 72,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/ST/STM32_USB_Device_Library/Core/Src"
+				},
+				{
+					"backtrace" : 74,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/Third_Party"
+				},
+				{
+					"backtrace" : 76,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/Third_Party/FreeRTOS"
+				},
+				{
+					"backtrace" : 78,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/Third_Party/FreeRTOS/Source"
+				},
+				{
+					"backtrace" : 80,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS"
+				},
+				{
+					"backtrace" : 82,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/Third_Party/FreeRTOS/Source/include"
+				},
+				{
+					"backtrace" : 84,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/Third_Party/FreeRTOS/Source/portable"
+				},
+				{
+					"backtrace" : 86,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/Third_Party/FreeRTOS/Source/portable/GCC"
+				},
+				{
+					"backtrace" : 88,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F"
+				},
+				{
+					"backtrace" : 90,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/Third_Party/FreeRTOS/Source/portable/MemMang"
+				},
+				{
+					"backtrace" : 92,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/Third_Party/SEGGER"
+				},
+				{
+					"backtrace" : 94,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/Third_Party/SEGGER/Config"
+				},
+				{
+					"backtrace" : 96,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/Third_Party/SEGGER/RTT"
+				},
+				{
+					"backtrace" : 98,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Src"
+				},
+				{
+					"backtrace" : 100,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Startup"
+				},
+				{
+					"backtrace" : 102,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Bsp"
+				},
+				{
+					"backtrace" : 104,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Bsp/can"
+				},
+				{
+					"backtrace" : 106,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Bsp/dwt"
+				},
+				{
+					"backtrace" : 108,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Bsp/flash"
+				},
+				{
+					"backtrace" : 110,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Bsp/gpio"
+				},
+				{
+					"backtrace" : 112,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Bsp/iic"
+				},
+				{
+					"backtrace" : 114,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Bsp/log"
+				},
+				{
+					"backtrace" : 116,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Bsp/pwm"
+				},
+				{
+					"backtrace" : 118,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Bsp/spi"
+				},
+				{
+					"backtrace" : 120,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Bsp/usart"
+				},
+				{
+					"backtrace" : 122,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Bsp/usb"
+				},
+				{
+					"backtrace" : 124,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules"
+				},
+				{
+					"backtrace" : 126,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/alarm"
+				},
+				{
+					"backtrace" : 128,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/algorithm"
+				},
+				{
+					"backtrace" : 130,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/algorithm/QuaternionEKF"
+				},
+				{
+					"backtrace" : 132,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/algorithm/controller"
+				},
+				{
+					"backtrace" : 134,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/algorithm/crc16"
+				},
+				{
+					"backtrace" : 136,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/algorithm/crc8"
+				},
+				{
+					"backtrace" : 138,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/algorithm/crc_navigator"
+				},
+				{
+					"backtrace" : 140,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/algorithm/kalman_filter"
+				},
+				{
+					"backtrace" : 142,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/algorithm/user_lib"
+				},
+				{
+					"backtrace" : 144,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/can_comm"
+				},
+				{
+					"backtrace" : 146,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/daemon"
+				},
+				{
+					"backtrace" : 148,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/imu"
+				},
+				{
+					"backtrace" : 150,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/master_machine"
+				},
+				{
+					"backtrace" : 152,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/message_center"
+				},
+				{
+					"backtrace" : 154,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/motor"
+				},
+				{
+					"backtrace" : 156,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/motor/DJImotor"
+				},
+				{
+					"backtrace" : 158,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/motor/DMmotor"
+				},
+				{
+					"backtrace" : 160,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/motor/servo_motor"
+				},
+				{
+					"backtrace" : 162,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/oled"
+				},
+				{
+					"backtrace" : 164,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/referee"
+				},
+				{
+					"backtrace" : 166,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/remote"
+				},
+				{
+					"backtrace" : 168,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/super_cap"
+				},
+				{
+					"backtrace" : 170,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/vofa"
+				},
+				{
+					"backtrace" : 171,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/UserApp"
+				},
+				{
+					"backtrace" : 173,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/UserApp/robot/infantry_wheel_legged"
+				},
+				{
+					"backtrace" : 175,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/UserApp/components/shoot/shoot_standard"
+				},
+				{
+					"backtrace" : 177,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/UserApp/components/gimbal/gimbal_standard"
+				},
+				{
+					"backtrace" : 179,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/UserApp/components/chassis/chassis_wheel_legged"
+				},
+				{
+					"backtrace" : 181,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/UserApp/components/chassis/chassis_wheel_legged/parallel_leg"
+				},
+				{
+					"backtrace" : 183,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/UserApp/components/chassis/chassis_wheel_legged/speed_observer"
+				}
+			],
+			"language" : "C",
+			"languageStandard" : 
+			{
+				"backtraces" : 
+				[
+					1
+				],
+				"standard" : "11"
+			},
+			"sourceIndexes" : 
+			[
+				0,
+				1,
+				2,
+				3,
+				4,
+				5,
+				6,
+				7,
+				8,
+				9,
+				10,
+				11,
+				12,
+				13,
+				14,
+				15,
+				16,
+				17,
+				18,
+				19,
+				20,
+				21,
+				22,
+				23,
+				24,
+				25,
+				26,
+				27,
+				28,
+				29,
+				30,
+				31,
+				32,
+				33,
+				34,
+				35,
+				36,
+				37,
+				38,
+				39,
+				40,
+				41,
+				42,
+				43,
+				44,
+				45,
+				46,
+				47,
+				48,
+				49,
+				50,
+				51,
+				52,
+				53,
+				54,
+				55,
+				56,
+				57,
+				58,
+				59,
+				60,
+				61,
+				62,
+				63,
+				64,
+				65,
+				66,
+				67,
+				68,
+				69,
+				70,
+				71,
+				72,
+				73,
+				74,
+				75,
+				76,
+				77,
+				78,
+				79,
+				80,
+				81,
+				82,
+				83,
+				84,
+				85,
+				86,
+				87,
+				88,
+				89,
+				90,
+				91,
+				92,
+				93,
+				94,
+				95,
+				96,
+				97,
+				98,
+				99,
+				100,
+				101,
+				102,
+				103,
+				104,
+				105,
+				106,
+				107,
+				108,
+				109,
+				110,
+				111,
+				112,
+				113,
+				114,
+				115,
+				116,
+				117
+			]
+		},
+		{
+			"compileCommandFragments" : 
+			[
+				{
+					"fragment" : "-g"
+				},
+				{
+					"backtrace" : 7,
+					"fragment" : "-pipe"
+				},
+				{
+					"backtrace" : 7,
+					"fragment" : "-mcpu=cortex-m4"
+				},
+				{
+					"backtrace" : 7,
+					"fragment" : "-mthumb"
+				},
+				{
+					"backtrace" : 7,
+					"fragment" : "-mthumb-interwork"
+				},
+				{
+					"backtrace" : 7,
+					"fragment" : "-mfloat-abi=hard"
+				},
+				{
+					"backtrace" : 7,
+					"fragment" : "-mfpu=fpv4-sp-d16"
+				},
+				{
+					"backtrace" : 7,
+					"fragment" : "-Wall"
+				},
+				{
+					"backtrace" : 7,
+					"fragment" : "-fmessage-length=0"
+				},
+				{
+					"backtrace" : 7,
+					"fragment" : "-ffunction-sections"
+				},
+				{
+					"backtrace" : 7,
+					"fragment" : "-fdata-sections"
+				},
+				{
+					"backtrace" : 7,
+					"fragment" : "-fno-common"
+				},
+				{
+					"backtrace" : 8,
+					"fragment" : "-Og"
+				},
+				{
+					"backtrace" : 8,
+					"fragment" : "-g"
+				},
+				{
+					"backtrace" : 8,
+					"fragment" : "-gdwarf-2"
+				},
+				{
+					"fragment" : "-x assembler-with-cpp"
+				}
+			],
+			"defines" : 
+			[
+				{
+					"backtrace" : 9,
+					"define" : "ARM_MATH_CM4"
+				},
+				{
+					"backtrace" : 10,
+					"define" : "ESC_DEBUG"
+				},
+				{
+					"backtrace" : 13,
+					"define" : "FRICTION_NUM=2"
+				},
+				{
+					"backtrace" : 14,
+					"define" : "GIMBAL_BOARD"
+				},
+				{
+					"backtrace" : 9,
+					"define" : "STM32F407xx"
+				},
+				{
+					"backtrace" : 9,
+					"define" : "USE_HAL_DRIVER"
+				},
+				{
+					"backtrace" : 9,
+					"define" : "__FPU_PRESENT=1U"
+				}
+			],
+			"includes" : 
+			[
+				{
+					"backtrace" : 16,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4"
+				},
+				{
+					"backtrace" : 18,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Drivers"
+				},
+				{
+					"backtrace" : 20,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Drivers/CMSIS"
+				},
+				{
+					"backtrace" : 22,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Drivers/CMSIS/Device"
+				},
+				{
+					"backtrace" : 24,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Drivers/CMSIS/Device/ST"
+				},
+				{
+					"backtrace" : 26,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Drivers/CMSIS/Device/ST/STM32F4xx"
+				},
+				{
+					"backtrace" : 28,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Drivers/CMSIS/Device/ST/STM32F4xx/Include"
+				},
+				{
+					"backtrace" : 30,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Drivers/CMSIS/Device/ST/STM32F4xx/Source"
+				},
+				{
+					"backtrace" : 32,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Drivers/CMSIS/Device/ST/STM32F4xx/Source/Templates"
+				},
+				{
+					"backtrace" : 34,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Drivers/CMSIS/Include"
+				},
+				{
+					"backtrace" : 36,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver"
+				},
+				{
+					"backtrace" : 38,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Inc"
+				},
+				{
+					"backtrace" : 40,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Inc/Legacy"
+				},
+				{
+					"backtrace" : 42,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src"
+				},
+				{
+					"backtrace" : 44,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Inc"
+				},
+				{
+					"backtrace" : 46,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares"
+				},
+				{
+					"backtrace" : 48,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/ST"
+				},
+				{
+					"backtrace" : 50,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/ST/ARM"
+				},
+				{
+					"backtrace" : 52,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/ST/ARM/DSP"
+				},
+				{
+					"backtrace" : 54,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/ST/ARM/DSP/Inc"
+				},
+				{
+					"backtrace" : 56,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/ST/ARM/DSP/Lib"
+				},
+				{
+					"backtrace" : 58,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/ST/STM32_USB_Device_Library"
+				},
+				{
+					"backtrace" : 60,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/ST/STM32_USB_Device_Library/Class"
+				},
+				{
+					"backtrace" : 62,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/ST/STM32_USB_Device_Library/Class/CDC"
+				},
+				{
+					"backtrace" : 64,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc"
+				},
+				{
+					"backtrace" : 66,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src"
+				},
+				{
+					"backtrace" : 68,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/ST/STM32_USB_Device_Library/Core"
+				},
+				{
+					"backtrace" : 70,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/ST/STM32_USB_Device_Library/Core/Inc"
+				},
+				{
+					"backtrace" : 72,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/ST/STM32_USB_Device_Library/Core/Src"
+				},
+				{
+					"backtrace" : 74,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/Third_Party"
+				},
+				{
+					"backtrace" : 76,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/Third_Party/FreeRTOS"
+				},
+				{
+					"backtrace" : 78,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/Third_Party/FreeRTOS/Source"
+				},
+				{
+					"backtrace" : 80,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS"
+				},
+				{
+					"backtrace" : 82,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/Third_Party/FreeRTOS/Source/include"
+				},
+				{
+					"backtrace" : 84,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/Third_Party/FreeRTOS/Source/portable"
+				},
+				{
+					"backtrace" : 86,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/Third_Party/FreeRTOS/Source/portable/GCC"
+				},
+				{
+					"backtrace" : 88,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F"
+				},
+				{
+					"backtrace" : 90,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/Third_Party/FreeRTOS/Source/portable/MemMang"
+				},
+				{
+					"backtrace" : 92,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/Third_Party/SEGGER"
+				},
+				{
+					"backtrace" : 94,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/Third_Party/SEGGER/Config"
+				},
+				{
+					"backtrace" : 96,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Middlewares/Third_Party/SEGGER/RTT"
+				},
+				{
+					"backtrace" : 98,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Src"
+				},
+				{
+					"backtrace" : 100,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/Startup"
+				},
+				{
+					"backtrace" : 102,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Bsp"
+				},
+				{
+					"backtrace" : 104,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Bsp/can"
+				},
+				{
+					"backtrace" : 106,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Bsp/dwt"
+				},
+				{
+					"backtrace" : 108,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Bsp/flash"
+				},
+				{
+					"backtrace" : 110,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Bsp/gpio"
+				},
+				{
+					"backtrace" : 112,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Bsp/iic"
+				},
+				{
+					"backtrace" : 114,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Bsp/log"
+				},
+				{
+					"backtrace" : 116,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Bsp/pwm"
+				},
+				{
+					"backtrace" : 118,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Bsp/spi"
+				},
+				{
+					"backtrace" : 120,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Bsp/usart"
+				},
+				{
+					"backtrace" : 122,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Bsp/usb"
+				},
+				{
+					"backtrace" : 124,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules"
+				},
+				{
+					"backtrace" : 126,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/alarm"
+				},
+				{
+					"backtrace" : 128,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/algorithm"
+				},
+				{
+					"backtrace" : 130,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/algorithm/QuaternionEKF"
+				},
+				{
+					"backtrace" : 132,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/algorithm/controller"
+				},
+				{
+					"backtrace" : 134,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/algorithm/crc16"
+				},
+				{
+					"backtrace" : 136,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/algorithm/crc8"
+				},
+				{
+					"backtrace" : 138,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/algorithm/crc_navigator"
+				},
+				{
+					"backtrace" : 140,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/algorithm/kalman_filter"
+				},
+				{
+					"backtrace" : 142,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/algorithm/user_lib"
+				},
+				{
+					"backtrace" : 144,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/can_comm"
+				},
+				{
+					"backtrace" : 146,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/daemon"
+				},
+				{
+					"backtrace" : 148,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/imu"
+				},
+				{
+					"backtrace" : 150,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/master_machine"
+				},
+				{
+					"backtrace" : 152,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/message_center"
+				},
+				{
+					"backtrace" : 154,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/motor"
+				},
+				{
+					"backtrace" : 156,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/motor/DJImotor"
+				},
+				{
+					"backtrace" : 158,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/motor/DMmotor"
+				},
+				{
+					"backtrace" : 160,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/motor/servo_motor"
+				},
+				{
+					"backtrace" : 162,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/oled"
+				},
+				{
+					"backtrace" : 164,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/referee"
+				},
+				{
+					"backtrace" : 166,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/remote"
+				},
+				{
+					"backtrace" : 168,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/super_cap"
+				},
+				{
+					"backtrace" : 170,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/Modules/vofa"
+				},
+				{
+					"backtrace" : 171,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/UserApp"
+				},
+				{
+					"backtrace" : 173,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/UserApp/robot/infantry_wheel_legged"
+				},
+				{
+					"backtrace" : 175,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/UserApp/components/shoot/shoot_standard"
+				},
+				{
+					"backtrace" : 177,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/UserApp/components/gimbal/gimbal_standard"
+				},
+				{
+					"backtrace" : 179,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/UserApp/components/chassis/chassis_wheel_legged"
+				},
+				{
+					"backtrace" : 181,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/UserApp/components/chassis/chassis_wheel_legged/parallel_leg"
+				},
+				{
+					"backtrace" : 183,
+					"path" : "G:/dev/RoboMaster/6.SRM/control-2026/UserApp/components/chassis/chassis_wheel_legged/speed_observer"
+				}
+			],
+			"language" : "ASM",
+			"sourceIndexes" : 
+			[
+				118,
+				119
+			]
+		}
+	],
+	"id" : "control-2026.elf::@6890427a1f51a3e7e1df",
+	"link" : 
+	{
+		"commandFragments" : 
+		[
+			{
+				"fragment" : "-g",
+				"role" : "flags"
+			},
+			{
+				"fragment" : "",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 2,
+				"fragment" : "-pipe",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 2,
+				"fragment" : "-mcpu=cortex-m4",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 2,
+				"fragment" : "-mthumb",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 2,
+				"fragment" : "-mthumb-interwork",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 2,
+				"fragment" : "-mfloat-abi=hard",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 2,
+				"fragment" : "-mfpu=fpv4-sp-d16",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 2,
+				"fragment" : "-TG:/dev/RoboMaster/6.SRM/control-2026/Hardware/stm32-f4/STM32F407IGHX_FLASH.ld",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 2,
+				"fragment" : "-Wl,--no-warn-rwx-segments",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 2,
+				"fragment" : "-lm",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 2,
+				"fragment" : "-lc",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 2,
+				"fragment" : "-Wl,--gc-sections",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 2,
+				"fragment" : "-flto",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 2,
+				"fragment" : "-specs=nano.specs",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 2,
+				"fragment" : "-Wl,-Map=G:/dev/RoboMaster/6.SRM/control-2026/cmake-build-debug/control-2026.map",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 2,
+				"fragment" : "-Wl,--cref",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 2,
+				"fragment" : "-Wl,--print-memory-usage",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 5,
+				"fragment" : "-LG:\\dev\\RoboMaster\\6.SRM\\control-2026\\Hardware\\stm32-f4\\Middlewares\\ST\\ARM\\DSP\\Lib",
+				"role" : "libraryPath"
+			},
+			{
+				"backtrace" : 6,
+				"fragment" : "-lCMSISDSP",
+				"role" : "libraries"
+			},
+			{
+				"backtrace" : 6,
+				"fragment" : "-lm",
+				"role" : "libraries"
+			}
+		],
+		"language" : "C"
+	},
+	"name" : "control-2026.elf",
+	"nameOnDisk" : "control-2026.elf",
+	"paths" : 
+	{
+		"build" : ".",
+		"source" : "."
+	},
+	"sourceGroups" : 
+	[
+		{
+			"name" : "Source Files",
+			"sourceIndexes" : 
+			[
+				0,
+				1,
+				2,
+				3,
+				4,
+				5,
+				6,
+				7,
+				8,
+				9,
+				10,
+				11,
+				12,
+				13,
+				14,
+				15,
+				16,
+				17,
+				18,
+				19,
+				20,
+				21,
+				22,
+				23,
+				24,
+				25,
+				26,
+				27,
+				28,
+				29,
+				30,
+				31,
+				32,
+				33,
+				34,
+				35,
+				36,
+				37,
+				38,
+				39,
+				40,
+				41,
+				42,
+				43,
+				44,
+				45,
+				46,
+				47,
+				48,
+				49,
+				50,
+				51,
+				52,
+				53,
+				54,
+				55,
+				56,
+				57,
+				58,
+				59,
+				60,
+				61,
+				62,
+				63,
+				64,
+				65,
+				66,
+				67,
+				68,
+				69,
+				70,
+				71,
+				72,
+				73,
+				74,
+				75,
+				76,
+				77,
+				78,
+				79,
+				80,
+				81,
+				82,
+				83,
+				84,
+				85,
+				86,
+				87,
+				88,
+				89,
+				90,
+				91,
+				92,
+				93,
+				94,
+				95,
+				96,
+				97,
+				98,
+				99,
+				100,
+				101,
+				102,
+				103,
+				104,
+				105,
+				106,
+				107,
+				108,
+				109,
+				110,
+				111,
+				112,
+				113,
+				114,
+				115,
+				116,
+				117
+			]
+		},
+		{
+			"name" : "",
+			"sourceIndexes" : 
+			[
+				118,
+				119,
+				120
+			]
+		}
+	],
+	"sources" : 
+	[
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Bsp/bsp_tools.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Bsp/can/bsp_can.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Bsp/dwt/bsp_dwt.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Bsp/flash/bsp_flash.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Bsp/gpio/bsp_gpio.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Bsp/iic/bsp_iic.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Bsp/log/bsp_log.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Bsp/pwm/bsp_pwm.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Bsp/spi/bsp_spi.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Bsp/usart/bsp_usart.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Bsp/usb/bsp_usb.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_adc.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_adc_ex.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_can.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cortex.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_crc.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dac.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dac_ex.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma_ex.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_exti.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash_ex.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash_ramfunc.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_gpio.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_i2c.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_i2c_ex.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pcd.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pcd_ex.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pwr.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pwr_ex.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc_ex.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rng.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rtc.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rtc_ex.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_spi.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim_ex.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_adc.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_usb.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_core.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ctlreq.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ioreq.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Middlewares/Third_Party/FreeRTOS/Source/croutine.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Middlewares/Third_Party/FreeRTOS/Source/event_groups.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Middlewares/Third_Party/FreeRTOS/Source/list.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F/port.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Middlewares/Third_Party/FreeRTOS/Source/portable/MemMang/heap_4.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Middlewares/Third_Party/FreeRTOS/Source/queue.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Middlewares/Third_Party/FreeRTOS/Source/stream_buffer.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Middlewares/Third_Party/FreeRTOS/Source/tasks.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Middlewares/Third_Party/FreeRTOS/Source/timers.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Middlewares/Third_Party/SEGGER/RTT/SEGGER_RTT.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Middlewares/Third_Party/SEGGER/RTT/SEGGER_RTT_printf.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Src/adc.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Src/can.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Src/crc.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Src/dac.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Src/dma.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Src/freertos.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Src/gpio.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Src/i2c.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Src/main.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Src/rng.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Src/rtc.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Src/spi.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Src/stm32f4xx_hal_msp.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Src/stm32f4xx_hal_timebase_tim.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Src/stm32f4xx_it.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Src/sysmem.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Src/system_stm32f4xx.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Src/tim.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Src/usart.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Src/usb_device.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Src/usbd_cdc_if.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Src/usbd_conf.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Hardware/stm32-f4/Src/usbd_desc.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Modules/alarm/buzzer.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Modules/algorithm/QuaternionEKF/QuaternionEKF.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Modules/algorithm/controller/controller.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Modules/algorithm/crc16/crc16.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Modules/algorithm/crc8/crc8.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Modules/algorithm/crc_navigator/crc_func.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Modules/algorithm/kalman_filter/kalman_filter.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Modules/algorithm/user_lib/user_lib.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Modules/can_comm/can_comm.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Modules/daemon/daemon.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Modules/imu/BMI088Middleware.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Modules/imu/BMI088driver.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Modules/imu/ins_task.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Modules/master_machine/master_process.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Modules/master_machine/navigator.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Modules/master_machine/seasky_protocol.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Modules/master_machine/srm_protocol.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Modules/message_center/message_center.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Modules/motor/DJImotor/dji_motor.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Modules/motor/DMmotor/dmmotor.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Modules/motor/motor_task.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Modules/motor/servo_motor/servo_motor.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Modules/oled/oled.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Modules/referee/referee_UI.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Modules/referee/referee_task.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Modules/referee/rm_referee.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Modules/remote/remote_control.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Modules/super_cap/super_cap.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Modules/vofa/vofa.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "UserApp/os_task.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "UserApp/components/chassis/chassis_wheel_legged/chassis.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "UserApp/components/chassis/chassis_wheel_legged/parallel_leg/parallel_leg.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "UserApp/components/chassis/chassis_wheel_legged/speed_observer/speed_observer.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "UserApp/components/gimbal/gimbal_standard/gimbal.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "UserApp/components/shoot/shoot_standard/shoot.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "UserApp/robot/infantry_wheel_legged/robot.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 1,
+			"path" : "Hardware/stm32-f4/Startup/startup_stm32f407ighx.s",
+			"sourceGroupIndex" : 1
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 1,
+			"path" : "Hardware/stm32-f4/Middlewares/Third_Party/SEGGER/RTT/SEGGER_RTT_ASM_ARMv7M.s",
+			"sourceGroupIndex" : 1
+		},
+		{
+			"backtrace" : 1,
+			"path" : "Hardware/stm32-f4/STM32F407IGHX_FLASH.ld",
+			"sourceGroupIndex" : 1
+		}
+	],
+	"type" : "EXECUTABLE"
+}
