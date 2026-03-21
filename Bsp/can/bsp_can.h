@@ -8,7 +8,7 @@
 #define hcan2 hfdcan2
 #define hcan3 hfdcan3
 
-#define CAN_MX_REGISTER_CNT 16        // 这个数量取决于CAN总线的负载
+#define CAN_MX_REGISTER_CNT 20        // 这个数量取决于CAN总线的负载
 #define MX_FDCAN_FILTER_CNT (3 * 28)  // H7系列FDCAN每个实例最多28个标准ID过滤器
 #define DEVICE_CAN_CNT 3              // H723VG有3个FDCAN
 

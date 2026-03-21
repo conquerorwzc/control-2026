@@ -30,7 +30,14 @@ typedef enum {
     CALI_STAGE_DONE           = 3, // 3: 标定大功告成
     CALI_STAGE_ERROR          = 4  // 4: 标定超时或异常
 } GrabCaliStage_e;
-
+// 图传标定状态机
+typedef enum {
+    VIDEO_CALI_START = 0,
+    VIDEO_CALI_FIND_MAX,
+    VIDEO_CALI_FIND_MIN,
+    VIDEO_CALI_DONE,
+    VIDEO_CALI_ERROR
+} VideoCaliState_e;
 typedef struct {
     GrabCaliStage_e state;
     float max_pitch; // 自动生成的最高软件限位 (如 90 * 0.98 = 88.2度)
@@ -95,6 +102,7 @@ typedef struct
     float arm_lift_target;
     uint8_t wrist_roll_cali;
     uint8_t wrist_pitch_cali;
+    uint8_t video_cali;
     Grab_Mode_e grab_mode;
 } Grab_Ctrl_Cmd_s;
 
@@ -150,8 +158,14 @@ typedef struct
     float Video_pitch;   // 图传的pitch旋转角度
     float F_target;      // 前后移动电机目标角度
     float P_target;      // pitch轴电机目标角度
-} VideoInstance;
 
+    // ================= 图传标定专用数据 =================
+    VideoCaliState_e video_cali_state;
+    float video_max_f;   // forward 寻找到的最大角度
+    float video_min_f;   // forward 寻找到的最小角度
+    float video_max_p;   // pitch 寻找到的最大角度
+    float video_min_p;   // pitch 寻找到的最小角度
+} VideoInstance;
 typedef struct
 {
     Grab_Ctrl_Cmd_s grab_ctrl_cmd;

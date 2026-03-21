@@ -179,7 +179,7 @@ static Chassis_Init_Config_s chassis_init_config = {
 
                     .speed_PID =
                         {
-                            .Kp = 6,
+                            .Kp = 5,
                             .Ki = 0,
                             .Kd = 0,
                             .IntegralLimit = 6000,
@@ -219,7 +219,7 @@ static Chassis_Init_Config_s chassis_init_config = {
 
                     .speed_PID =
                         {
-                            .Kp = 5,
+                            .Kp = 4.5,
                             .Ki = 0,
                             .Kd = 0,
                             .IntegralLimit = 6000,
@@ -259,7 +259,7 @@ static Chassis_Init_Config_s chassis_init_config = {
 
                     .speed_PID =
                         {
-                            .Kp = 6,
+                            .Kp = 5,
                             .Ki = 0,
                             .Kd = 0,
                             .IntegralLimit = 6000,
@@ -299,7 +299,7 @@ static Chassis_Init_Config_s chassis_init_config = {
 
                     .speed_PID =
                         {
-                            .Kp = 5,
+                            .Kp = 4.5,
                             .Ki = 0,
                             .Kd = 0,
                             .IntegralLimit = 6000,
@@ -556,8 +556,8 @@ static Grab_Init_Config_s
                     .elbow_pitch_sens_keyboard = 0.05,
                     .wrist_roll_sens_keyboard = 0.05,
                     .wrist_pitch_sens_keyboard = 0.05,
-                    .video_forward_sens_keyboard = 0.01,
-                    .video_pitch_sens_keyboard = 0.01,
+                    .video_forward_sens_keyboard = 0.001,
+                    .video_pitch_sens_keyboard = 0.001,
                     .arm_lift_sens_keyboard = 1.0,
                 },
 
@@ -817,17 +817,17 @@ static Grab_Init_Config_s
                         {
                             .angle_PID =
                                 {
-                                    .Kp = 30.0f,
+                                    .Kp = 40.0f,
                                     .Ki = 0.0f,
                                     .Kd = 0.0f,
-                                    .MaxOut = 30000.0f,
+                                    .MaxOut = 6666.0f,
                                 },
                             .speed_PID = {.Kp = 2.0f,
                                           .Ki = 0.0f,
                                           .Kd = 0.0f,
                                           .Improve = PID_Integral_Limit | PID_ErrorHandle,
                                           .IntegralLimit = 0.0f,
-                                          .MaxOut = 10000.0},
+                                          .MaxOut = 8000.0},
                         },
                     .controller_setting_init_config =
                         {
@@ -841,8 +841,8 @@ static Grab_Init_Config_s
                     .motor_type = M2006,
                     .can_init_config =
                         {
-                            .can_handle = &hcan1,
-                            .tx_id = 3,
+                            .can_handle = &hcan3,
+                            .tx_id = 5, // 接在轮电机之后，forward
                         },
                 },
             .Grab_motor_config[7] =
@@ -856,7 +856,7 @@ static Grab_Init_Config_s
                                     .Kd = 0.0f,
                                     .Improve = PID_Integral_Limit,
                                     .IntegralLimit = 0.0f,
-                                    .MaxOut = 1500.0f,
+                                    .MaxOut = 6666.0f,
                                 },
                             .speed_PID =
                                 {
@@ -865,7 +865,7 @@ static Grab_Init_Config_s
                                     .Kd = 0.0f,
                                     .Improve = PID_Integral_Limit,
                                     .IntegralLimit = 10000.0f,
-                                    .MaxOut = 15000.0f,
+                                    .MaxOut = 8000.0f,
                                 },
 
                         },
@@ -881,8 +881,8 @@ static Grab_Init_Config_s
                     .motor_type = M3508,
                     .can_init_config =
                         {
-                            .can_handle = &hcan1,
-                            .tx_id = 4,
+                            .can_handle = &hcan3,
+                            .tx_id = 6, // 接在轮电机之后，pitch
                         },
 
                 },
@@ -922,30 +922,30 @@ static Grab_Init_Config_s
                         },
                 },
             .Grab_motor_config[9] =
-                    {
-                        .controller_param_init_config =
+                {
+                    .controller_param_init_config =
                         {
                             .angle_PID =
-                            {
-                                .Kp = 5.0f,
-                                .Ki = 0.0f,
-                                .Kd = 0.0f,
-                                .Improve = PID_Integral_Limit,
-                                .IntegralLimit = 0.0f,
-                                .MaxOut = 15000.0f,
-                            },
-                        .speed_PID =
-                            {
-                                .Kp = 4.0f,
-                                .Ki = 0.0f,
-                                .Kd = 0.0f,
-                                .Improve = PID_Integral_Limit,
-                                .IntegralLimit = 10000.0f,
-                                .MaxOut = 8000.0f,
-                            },
+                                {
+                                    .Kp = 5.0f,
+                                    .Ki = 0.0f,
+                                    .Kd = 0.0f,
+                                    .Improve = PID_Integral_Limit,
+                                    .IntegralLimit = 0.0f,
+                                    .MaxOut = 15000.0f,
+                                },
+                            .speed_PID =
+                                {
+                                    .Kp = 4.0f,
+                                    .Ki = 0.0f,
+                                    .Kd = 0.0f,
+                                    .Improve = PID_Integral_Limit,
+                                    .IntegralLimit = 10000.0f,
+                                    .MaxOut = 8000.0f,
+                                },
 
-                    },
-                .controller_setting_init_config =
+                        },
+                    .controller_setting_init_config =
                         {
                             .outer_loop_type = ANGLE_LOOP,
                             .close_loop_type = SPEED_LOOP | ANGLE_LOOP,
