@@ -510,13 +510,20 @@ void UITask()
     interactive_data.grab_control_mode = GetGrabControlMode();  // 机械臂控制模式 (F 键控制)
         
     // 获取夹爪状态 (从自定义控制器)
-    if (robotdata->self_control != NULL && robotdata->self_control->unpacked_data.gripper_opened != 0)
+    if (robotdata->grab != NULL)
     {
-        interactive_data.gripper_opened = 1;
+        if (robotdata->grab->grab_measure.torque > 0.5f)
+        {
+            interactive_data.gripper_opened = 0;   // CLOSED
+        }
+        else
+        {
+            interactive_data.gripper_opened = 1;   // OPEN
+        }
     }
     else
     {
-        interactive_data.gripper_opened = 0;
+        interactive_data.gripper_opened = 0;       // grab 不存在时默认 CLOSED
     }
         
     // 获取 5 个电机角度 (从自定义控制器)
