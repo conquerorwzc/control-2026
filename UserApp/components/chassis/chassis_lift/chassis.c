@@ -440,18 +440,14 @@ static void LiftLeg_Execute(LiftLeg_t *leg)
         // 🛡️ 核心防御 1：一阶低通滤波 (LPF)！吸收跳变，消灭抽搐！
         leg->planner.current_ref += (leg->target_pos - leg->planner.current_ref) * 0.15f;
 
-        // 🛡️ 核心防御 2：动态安全限流！力量削弱到70%，温柔发力不伤车！
+        // 🛡️ 核心防御 2：动态安全限流！力量削弱到90%，温柔发力不伤车！
         float safe_moving_out = leg->moving_max_out * 0.9f;
 
-        // 🎯 核心防御 3：精准判断启停 (消灭滑行，松手即锁)
-        if (fabsf(leg->planner.current_ref - leg->target_pos) > 10.0f)
-        {
-            leg->motor->motor_controller.speed_PID.MaxOut = safe_moving_out;
-        }
-        else
-        {
-            leg->motor->motor_controller.speed_PID.MaxOut = leg->stop_max_out;
-        }
+        // 🌟 修复：兑换模式(Mode 2)下的目标会极慢地随动，导致误差经常小于 10.0f。
+        // 如果进入 else 分支把最大输出电流掐成 0 (针对后腿 stop_max_out=0)，电机的支撑力瞬间归零，
+        // 就会直接被车体自重压垮，导致 "突然失去力气支撑不住" 断断续续地下砸！
+        // 因此在兑换模式下，必须取消这个低误差断电机制，交由 PID 根据重力自行输出稳态支撑流！
+        leg->motor->motor_controller.speed_PID.MaxOut = safe_moving_out;
 
         // 兑换模式下关闭前馈速度扰动，纯靠过滤后的位置环牵引
         if (leg->ff_channel)

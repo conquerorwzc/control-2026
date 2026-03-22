@@ -150,8 +150,8 @@ static void MouseKeySet()
     }
 
     // ================= 1. 大模式切换 (按 G 键循环切换) =================
-    // 状态顺序: 正常行车(0) -> 兑换(1) -> 上台阶(2)
-    switch (rc_data[TEMP].key_count[KEY_PRESS][Key_G] % 3)
+    // 状态顺序: 正常行车(0) -> 兑换(1) 
+    switch (rc_data[TEMP].key_count[KEY_PRESS][Key_G] % 2) // 暂时去掉上台阶模式，改为2挡切换
     {
     case 0:
         robot->robot_mode = ROBOT_POWER_ON;
@@ -159,9 +159,9 @@ static void MouseKeySet()
     case 1:
         robot->robot_mode = ROBOT_EXCHANGE_MODE;
         break;
-    case 2:
-        robot->robot_mode = ROBOT_CLIMB_MODE;
-        break;
+    // case 2:
+    //     robot->robot_mode = ROBOT_CLIMB_MODE;
+    //     break;
     }
 
     // 只有在非断电、非急停状态下，才允许执行后续控制指令
@@ -197,7 +197,9 @@ static void MouseKeySet()
         // ================= 3. 底盘平移 (WASD 全局生效) =================
         //平移量
         float speed_buff = 20000; // 如果需要加速/减速，可以配合 Shift/Ctrl 修改此值
-        if (robot->robot_mode == ROBOT_EXCHANGE_MODE)
+        
+        // 单独加入一个切换底盘运动的前后左右方向的按键 (使用 R 键单独切换)
+        if (rc_data[TEMP].key_count[KEY_PRESS][Key_R] % 2 == 1)
         {
             chassis_ctrl_cmd->vx =
                 -(float)((rc_data[TEMP].key[KEY_PRESS].w - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].w) -
@@ -230,37 +232,38 @@ static void MouseKeySet()
                     angle_buff;
             }
         }
-        else if (robot->robot_mode == ROBOT_CLIMB_MODE)
-        {
-            if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_ALL_RETRACT ||
-                chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_FRONT_RETRACT)
-            {
-                set_angle +=
-                    (float)(rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].q - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].e) *
-                    angle_buff;
-            }
-        }
+        // else if (robot->robot_mode == ROBOT_CLIMB_MODE)
+        // {
+        //     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_ALL_RETRACT ||
+        //         chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_FRONT_RETRACT)
+        //     {
+        //         set_angle +=
+        //             (float)(rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].q - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].e) *
+        //             angle_buff;
+        //     }
+        // }
         // 把大模式透传给底盘，否则底盘永远不知道切模式了
         chassis_ctrl_cmd->robot_mode = robot->robot_mode;
 
         // ================= 4. 姿态复用控制 (Q, E, R) 与 兑换模式无级调节 =================
-        if (robot->robot_mode == ROBOT_CLIMB_MODE)
-        {
-            // 【上台阶模式】：控制四腿伸缩姿态
-            if (rc_data[TEMP].key[KEY_PRESS].q)
-            {
-                chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_BOTH_EXTEND; // Q: 全升 (前伸后伸)
-            }
-            else if (rc_data[TEMP].key[KEY_PRESS].e)
-            {
-                chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_ALL_RETRACT; // E: 全收 (前收后收)
-            }
-            else if (rc_data[TEMP].key[KEY_PRESS].r)
-            {
-                chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_FRONT_RETRACT; // R: 半收 (前收后伸)
-            }
-        }
-        else if (robot->robot_mode == ROBOT_EXCHANGE_MODE)
+        // if (robot->robot_mode == ROBOT_CLIMB_MODE)
+        // {
+        //     // 【上台阶模式】：控制四腿伸缩姿态
+        //     if (rc_data[TEMP].key[KEY_PRESS].q)
+        //     {
+        //         chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_BOTH_EXTEND; // Q: 全升 (前伸后伸)
+        //     }
+        //     else if (rc_data[TEMP].key[KEY_PRESS].e)
+        //     {
+        //         chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_ALL_RETRACT; // E: 全收 (前收后收)
+        //     }
+        //     else if (rc_data[TEMP].key[KEY_PRESS].r)
+        //     {
+        //         chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_FRONT_RETRACT; // R: 半收 (前收后伸)
+        //     }
+        // }
+        // else if (robot->robot_mode == ROBOT_EXCHANGE_MODE)
+        if (robot->robot_mode == ROBOT_EXCHANGE_MODE)
         {
             // 【兑换模式】底盘高度无级调节 (lift_ratio 0.0~1.0)
             // 目标：纯 QE 控制，15秒全伸展。任务频率 200Hz -> 总循环 3000 次 -> 步长 = 1.0f / 3000.0f
@@ -354,9 +357,18 @@ static void MouseKeySet()
         }
     }
 
-    // robot.c 约 300 行：只管发意图 (-1, 0, 1)，不要累加！
-    grab_ctrl_cmd->video_pitch = (float)(rc_data[TEMP].key[KEY_PRESS].x - rc_data[TEMP].key[KEY_PRESS].z);
-    grab_ctrl_cmd->video_forward = (float)(rc_data[TEMP].key[KEY_PRESS].b - rc_data[TEMP].key[KEY_PRESS].v);
+    // 融合键盘 (-1, 0, 1) 和鼠标相对位移 (缩放量级匹配键盘)
+    // 扣除 Shift 和 Ctrl 修饰键，防止在控制机械臂(Shift)或标定(Ctrl)时误触云台
+    grab_ctrl_cmd->video_pitch =
+        (float)((rc_data[TEMP].key[KEY_PRESS].x - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].x) -
+                (rc_data[TEMP].key[KEY_PRESS].z - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].z)) -
+        (float)rc_data[TEMP].mouse.y * 0.155f;
+
+    grab_ctrl_cmd->video_yaw =
+        (float)((rc_data[TEMP].key[KEY_PRESS].b - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].b) -
+                (rc_data[TEMP].key[KEY_PRESS].v - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].v -
+                 rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].v)) +
+        (float)rc_data[TEMP].mouse.x * 0.155f;
 
     // ================= 机械臂与图传标定 =================
     if (rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].q)

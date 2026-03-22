@@ -556,7 +556,7 @@ static Grab_Init_Config_s
                     .elbow_pitch_sens_keyboard = 0.05,
                     .wrist_roll_sens_keyboard = 0.05,
                     .wrist_pitch_sens_keyboard = 0.05,
-                    .video_forward_sens_keyboard = 0.001,
+                    .video_yaw_sens_keyboard = 0.001,
                     .video_pitch_sens_keyboard = 0.001,
                     .arm_lift_sens_keyboard = 1.0,
                 },
@@ -816,18 +816,23 @@ static Grab_Init_Config_s
                     .controller_param_init_config =
                         {
                             .angle_PID =
-                                {
-                                    .Kp = 40.0f,
-                                    .Ki = 0.0f,
-                                    .Kd = 0.0f,
-                                    .MaxOut = 6666.0f,
-                                },
-                            .speed_PID = {.Kp = 2.0f,
-                                          .Ki = 0.0f,
-                                          .Kd = 0.0f,
-                                          .Improve = PID_Integral_Limit | PID_ErrorHandle,
-                                          .IntegralLimit = 0.0f,
-                                          .MaxOut = 8000.0},
+                        {
+                            .Kp = 80.0f,
+                            .Ki = 0.0f,
+                            .Kd = 0.05f,
+                            .Improve = PID_Integral_Limit,
+                            .IntegralLimit = 0.0f,
+                            .MaxOut = 6666.0f,
+                        },
+                    .speed_PID =
+                        {
+                            .Kp = 2.5f,
+                            .Ki = 0.0f,
+                            .Kd = 0.0f,
+                            .Improve = PID_Integral_Limit,
+                            .IntegralLimit = 10000.0f,
+                            .MaxOut = 12000.0f,
+                        },
                         },
                     .controller_setting_init_config =
                         {
@@ -838,11 +843,11 @@ static Grab_Init_Config_s
                             .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
                             .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
                         },
-                    .motor_type = M2006,
+                    .motor_type = M3508,
                     .can_init_config =
                         {
                             .can_handle = &hcan3,
-                            .tx_id = 5, // 接在轮电机之后，forward
+                            .tx_id = 5, // 接在轮电机之后，yaw
                         },
                 },
             .Grab_motor_config[7] =
@@ -851,9 +856,9 @@ static Grab_Init_Config_s
                         {
                             .angle_PID =
                                 {
-                                    .Kp = 66.0f,
+                                    .Kp = 220.0f,
                                     .Ki = 0.0f,
-                                    .Kd = 0.0f,
+                                    .Kd = 0.1f,
                                     .Improve = PID_Integral_Limit,
                                     .IntegralLimit = 0.0f,
                                     .MaxOut = 6666.0f,
@@ -865,7 +870,7 @@ static Grab_Init_Config_s
                                     .Kd = 0.0f,
                                     .Improve = PID_Integral_Limit,
                                     .IntegralLimit = 10000.0f,
-                                    .MaxOut = 8000.0f,
+                                    .MaxOut = 15000.0f,
                                 },
 
                         },
