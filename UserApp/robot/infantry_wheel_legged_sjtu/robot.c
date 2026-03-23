@@ -41,6 +41,15 @@ void VOFATask() {
 #if defined(GIMBAL_BOARD)
   visualized_data[0] = robot->gimbal->gimbal_IMU_data->Yaw;
   visualized_data[1] = robot->gimbal->gimbal_IMU_data->Pitch;
+  visualized_data[2] = robot->shoot->friction_motor[0]->motor_controller.pid_ref;
+  visualized_data[3] = robot->shoot->friction_motor[0]->measure.speed_aps;
+  visualized_data[4] = robot->shoot->friction_motor[1]->motor_controller.pid_ref;
+  visualized_data[5] = robot->shoot->friction_motor[1]->measure.speed_aps;
+  visualized_data[6] = robot->shoot->shoot_ctrl_cmd.initial_speed;
+  visualized_data[7] = robot->shoot->loader_motor->measure.total_angle;
+  visualized_data[8] = robot->gimbal->pitch_motor->motor_controller.pid_ref;
+  visualized_data[9] = robot->gimbal->yaw_motor->motor_controller.pid_ref;
+  visualized_data[10] = robot->gimbal->pitch_motor->motor_controller.final_output;
 #elif defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   visualized_data[0] = robot->chassis->leg[0]->real_model.T;
   visualized_data[1] = robot->chassis->leg[1]->real_model.T;
@@ -174,9 +183,9 @@ static void GimbalAlignToChassisForward(void) {
 void RobotCMDTask() {
 // 控制板指令处理与控制逻辑 (只有底盘板不用处理)
 #if !defined(CHASSIS_BOARD)
-  // TODO: OSDCtrl(robot); // 图传链路控制
+  // TODO: OSDCtrl(robot); // 图传链路控制9
   JoyStickCtrl(robot);
-  // MouseKeyCtrl(robot);
+  MouseKeyCtrl(robot);
 #if defined(GIMBAL_BOARD)
   CalcOffsetAngle();
   GimbalAlignToChassisForward();

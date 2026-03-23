@@ -23,7 +23,7 @@
 
 // 机器人底盘修改的参数,单位为m(米)
 #define CENTER_GIMBAL_OFFSET_X 0     // 云台旋转中心距底盘几何中心的距离,前后方向,云台位于正中心时默认设为0
-#define CENTER_GIMBAL_OFFSET_Y 0 9   // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
+#define CENTER_GIMBAL_OFFSET_Y 0     // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
 #define WHEEL_RADIUS 0.077f          // 轮子半径
 #define WHEEL_REDUCTION_RATIO 19.0f  // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
 // #define PITCH_MAX_ANGLE 26.0f        // 云台竖直向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
@@ -258,9 +258,9 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 1.5f,
+                            .Kp = 2.0f,
                             .Ki = 0.0f,
-                            .Kd = 0.015f,
+                            .Kd = 0.03f,
                             .DeadBand = 0.01f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                             .IntegralLimit = 5.0f,
@@ -268,7 +268,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                         },
                     .speed_PID =
                         {
-                            .Kp = -4000.0f,
+                            .Kp = -5000.0f,
                             .Ki = -100.0f,
                             .Kd = 0.0f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
@@ -291,9 +291,9 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 1.0f,
+                            .Kp = 1.5f,
                             .Ki = 0.0f,
-                            .Kd = 0.01f,
+                            .Kd = 0.02f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                             .IntegralLimit = 5.0f,
                             .MaxOut = 25.0f,
@@ -326,7 +326,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
               .speed_PID =                                                     \
                   {                                                            \
                       .Kp = 1.5f,                                              \
-                      .Ki = 0.1f,                                              \
+                      .Ki = 0.2f,                                              \
                       .Kd = 0.0f,                                              \
                       .Improve = PID_Integral_Limit,                           \
                       .IntegralLimit = 10000.0f,                               \
@@ -358,11 +358,11 @@ static Shoot_Init_Config_s shoot_init_config = {
             .num_per_circle = NUM_PER_CIRCLE,                  // 拨盘一圈的装载量
             .loader_direction = 1,                             // 拨盘旋转方向,1为正向，-1为反向
             .friction_num = 2,                                 // 摩擦轮数量
-            .friction_speed = 40000.0f,                        // 摩擦轮速度
+            .friction_speed = 42000.0f,                        // 摩擦轮速度
             .friction_coefficients = {1.0f, -1.0f},            // 摩擦轮速度比例系数
             .deadtime_burstfire = 50,
             .deadtime_onebullet = 350,
-            .target_speed = 22.0f,
+            .target_speed = 25.5f,
             .bullet_speed_adjustment = 200.0f,
             .feedforward = 200.0f,
         },
