@@ -35,7 +35,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 0.8f,
+                            .Kp = 1.0f,
                             .Ki = 0.0f,
                             .Kd = 0.004f,
                             .DeadBand = 0.0f,
@@ -68,7 +68,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 0.5f,
+                            .Kp = 0.6f,
                             .Ki = 0.0f,
                             .Kd = 0.005f,
                             .MaxOut = 15.0f,
