@@ -387,7 +387,7 @@ static Chassis_Init_Config_s chassis_init_config = {
                             .Kd = 0,
                             .IntegralLimit = 0,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                            .MaxOut = 4000.0f,
+                            .MaxOut = 4600.0f,
                         },
                     .speed_PID =
                         {
@@ -427,8 +427,15 @@ static Chassis_Init_Config_s chassis_init_config = {
 
 };
 
-static IMU_Init_Config_s imu_init_config = {
-    .flag = 1, .scale = {1.0f, 1.0f, 1.0f}, .Yaw = 0.0f, .Pitch = 0.0f, .Roll = 0.0f};
+static IMU_Init_Config_s imu_init_config = {.flag = 1,
+                                            .scale = {1.0f, 1.0f, 1.0f},
+                                            .Yaw = 0.0f,
+                                            .Pitch = 0.0f,
+                                            .Roll = 0.0f,
+                                            .GyroOffset[0] = 0.000841554138f,
+                                            .GyroOffset[1] = -0.00300184754f,
+                                            .GyroOffset[2] = 0.0022677423f,
+                                            .offset_flag = 1};
 // 龙门架M3508电机配置宏 (抬升和前伸电机)
 #define GANTRY_M3508_CONFIG(handle, id, angle_kp, angle_kd, speed_kp, speed_ki, direction)                             \
     ((Motor_Init_Config_s){                                                                                            \
@@ -567,10 +574,10 @@ static Grab_Init_Config_s
                         {
                             .angle_PID =
                                 {
-                                    .Kp = 15.0f,
+                                    .Kp = 100.0f,
                                     .Ki = 0.00f,
-                                    .Kd = 0.00f,
-                                    .MaxOut = 2.0f,
+                                    .Kd = 0.01f,
+                                    .MaxOut = 5.0f,
                                     .DeadBand = 0.01f,
                                     .Improve = PID_Integral_Limit,
                                     .IntegralLimit = 0.0f,
@@ -816,23 +823,23 @@ static Grab_Init_Config_s
                     .controller_param_init_config =
                         {
                             .angle_PID =
-                        {
-                            .Kp = 80.0f,
-                            .Ki = 0.0f,
-                            .Kd = 0.05f,
-                            .Improve = PID_Integral_Limit,
-                            .IntegralLimit = 0.0f,
-                            .MaxOut = 6666.0f,
-                        },
-                    .speed_PID =
-                        {
-                            .Kp = 2.5f,
-                            .Ki = 0.0f,
-                            .Kd = 0.0f,
-                            .Improve = PID_Integral_Limit,
-                            .IntegralLimit = 10000.0f,
-                            .MaxOut = 12000.0f,
-                        },
+                                {
+                                    .Kp = 80.0f,
+                                    .Ki = 0.0f,
+                                    .Kd = 0.05f,
+                                    .Improve = PID_Integral_Limit,
+                                    .IntegralLimit = 0.0f,
+                                    .MaxOut = 6666.0f,
+                                },
+                            .speed_PID =
+                                {
+                                    .Kp = 2.5f,
+                                    .Ki = 0.0f,
+                                    .Kd = 0.0f,
+                                    .Improve = PID_Integral_Limit,
+                                    .IntegralLimit = 10000.0f,
+                                    .MaxOut = 12000.0f,
+                                },
                         },
                     .controller_setting_init_config =
                         {
