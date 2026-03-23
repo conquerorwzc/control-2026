@@ -249,7 +249,8 @@ static Chassis_Init_Config_s
                              .Roll = 0.0f,
                              .CenterOffset[0] = 0.15413f,
                              .CenterOffset[1] = 0.04612f,
-                             .CenterOffset[2] = 0.09348f}};
+                             .CenterOffset[2] = 0.09348f,
+                             .offset_flag = 0}};
 
 static Gimbal_Init_Config_s gimbal_init_config = {
     .yaw_motor_config =
@@ -316,7 +317,8 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 },
             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
         },
-    .imu_init_config = {.flag = 1, .scale = {1.0f, 1.0f, 1.0f}, .Yaw = -90.0f, .Pitch = 0.0f, .Roll = 0.0f},
+    .imu_init_config =
+        {.flag = 1, .scale = {1.0f, 1.0f, 1.0f}, .Yaw = -90.0f, .Pitch = 0.0f, .Roll = 0.0f, .offset_flag = 0},
     .pitch_feedforward_scale = 7000.0f};
 
 #define FRICTION_MOTOR_CONFIG(handle, id, motor_direction, feedback_direction) \
