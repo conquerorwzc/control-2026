@@ -1,7 +1,3 @@
-//
-// Created by ASUS on 2025/11/23.
-//
-
 #ifndef __PROTOCOL_H
 #define __PROTOCOL_H
 

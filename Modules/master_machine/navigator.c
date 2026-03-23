@@ -30,7 +30,7 @@ static uint8_t* protocol_packed(const uint8_t* data_ptr, uint16_t pack_id, uint1
   }
 
   // 2. 计算总帧长并检查缓冲区是否足够
-  uint16_t total_frame_len = PROTOCOL_HEADER_LEN + 4 + data_len + 2;
+  uint16_t total_frame_len = PROTOCOL_HEADER_LEN + 2 + data_len + 2;
   if (total_frame_len > BUFFER_MAX_SIZE) {
     *tx_buff_len = 0;
     return NULL;
@@ -264,7 +264,7 @@ static uint8_t send_robot_status(UART_HandleTypeDef* huart, const ext_game_robot
     if (huart == NULL || robot_status == NULL) return 0;
 
     uint32_t timestamp = HAL_GetTick();
-    return protocol_send(huart, timestamp,
+    return protocol_send(huart, 0x00B,
                         (uint8_t*)robot_status,
                         sizeof(ext_game_robot_state_t),
                         PKT_ID_ROBOT_STATUS, 10);
@@ -288,33 +288,33 @@ static  uint8_t send_joint_state(UART_HandleTypeDef* huart, const joint_state_t*
 
 
 
-void update_senddata(void) {
-  send_data.game_status.game_type=0x0A;
-  send_data.game_status.game_progress=0x0B;
-  // send_data.game_status.stage_remain_time=0xAABB;
-  send_data.game_status.sync_time_stamp=0xEFEFEFEFEFEFEFEF;
-  if (test_flag<40) {
-    test_flag++;
-    send_data.game_status.stage_remain_time=0x102C;
-  }else if (test_flag>=40&&test_flag<=80) {
-    send_data.game_status.stage_remain_time=0x011C;
-    test_flag++;
-  }else if (test_flag>80) {
-    test_flag=0;
-  }
-}
+// void update_senddata(void) {
+//   send_data.game_status.game_type=0x0A;
+//   send_data.game_status.game_progress=0x0B;
+//   // send_data.game_status.stage_remain_time=0xAABB;
+//   send_data.game_status.sync_time_stamp=0xEFEFEFEFEFEFEFEF;
+//   if (test_flag<40) {
+//     test_flag++;
+//     send_data.game_status.stage_remain_time=0x102C;
+//   }else if (test_flag>=40&&test_flag<=80) {
+//     send_data.game_status.stage_remain_time=0x011C;
+//     test_flag++;
+//   }else if (test_flag>80) {
+//     test_flag=0;
+//   }
+// }
 
 void navigator_send(UART_HandleTypeDef *instance,referee_info_t* referee_data) {
-  update_senddata();
-  // send_all_robot_hp(instance,&referee_data->GameRobotHP);
+  // update_senddata();
+  //send_all_robot_hp(instance,&referee_data->GameRobotHP);
   // send_event_data(instance,&send_data.event_data);
-   send_game_status(instance,&referee_data->GameState);
+  // send_game_status(instance,&referee_data->GameState);
   // send_ground_robot_position(instance,&send_data.ground_robot_position);
   // send_joint_state(instance,&send_data.joint_state);
   // send_rfid_status(instance,&send_data.rfid_status);
   // send_robot_motion(instance,&send_data.robot_motion);
   // send_robot_state_info(instance,&send_data.state_info);
-  send_robot_status(instance,&referee_data->GameRobotState);
+   send_robot_status(instance,&referee_data->GameRobotState);
 
 }
 
