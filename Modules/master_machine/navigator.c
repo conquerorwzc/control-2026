@@ -266,7 +266,7 @@ static uint8_t send_robot_status(UART_HandleTypeDef* huart, const ext_game_robot
     uint32_t timestamp = HAL_GetTick();
     return protocol_send(huart, timestamp,
                         (uint8_t*)robot_status,
-                        sizeof(robot_status_t),
+                        sizeof(ext_game_robot_state_t),
                         PKT_ID_ROBOT_STATUS, 10);
 }
 
@@ -308,7 +308,7 @@ void navigator_send(UART_HandleTypeDef *instance,referee_info_t* referee_data) {
   update_senddata();
   // send_all_robot_hp(instance,&referee_data->GameRobotHP);
   // send_event_data(instance,&send_data.event_data);
-  send_game_status(instance,&referee_data->GameState);
+   send_game_status(instance,&referee_data->GameState);
   // send_ground_robot_position(instance,&send_data.ground_robot_position);
   // send_joint_state(instance,&send_data.joint_state);
   // send_rfid_status(instance,&send_data.rfid_status);
