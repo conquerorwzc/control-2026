@@ -166,7 +166,6 @@ static void RemoteControlSet() {
   // 发射参数
 
   // 射频控制,固定每秒1发,后续可以根据左侧拨轮的值大小切换射频,
-  shoot_ctrl_cmd->shoot_rate = 8;
 
 }
 
@@ -499,6 +498,7 @@ void RobotCMDTask() {
   chassis_ctrl_cmd->max_power = robot->referee_data->GameRobotState.chassis_power_limit+50;
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
   shoot_ctrl_cmd->initial_speed=robot->referee_data->ShootData.initial_speed;
+  
   CalcOffsetAngle();
   RemoteControlSet();
   MouseKeySet();
