@@ -441,7 +441,7 @@ static void ChassisRecovery(void) {
   }
 }
 
-static void SuperCapStateMachineJL() {
+static void SuperCapStateMachine() {
   switch (chassis->super_cap_mode)
   {
     case SAFETY_MODE:
@@ -486,6 +486,7 @@ static void SuperCapStateMachineJL() {
       chassis->super_cap_mode = SAFETY_MODE;
   }
 }
+
 static void ChassisJump(void) {
   switch (chassis->jump_state) {
     case JUMP_STATE_COMPRESS:
@@ -587,6 +588,8 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   leg[1] = chassis->leg[1];
   chassis_ctrl_cmd = &chassis->chassis_ctrl_cmd;
 
+  chassis->super_cap_mode = SAFETY_MODE;
+
   DWT_GetDeltaT(&chassis->DWT_CNT);
   return chassis_instance;
 }
@@ -606,6 +609,8 @@ void ChassisTask(void) {
       DJIMotorEnable(chassis->leg[i]->wheel_motor);
     }
   }
+
+  SuperCapStateMachine();
 
   // if (chassis->update_flag.is_recovered == 0) {
   //   chassis->chassis_ctrl_cmd.chassis_mode = CHASSIS_RECOVERY;
@@ -639,7 +644,8 @@ void ChassisTask(void) {
       break;
   }
 
-  SuperCapSendMessage(chassis->super_cap, (int16_t)200, referee_data->PowerHeatData.buffer_energy,
+  SuperCapSendMessage(chassis->super_cap, (int16_t)referee_data->GameRobotState.chassis_power_limit, referee_data->PowerHeatData.buffer_energy,
                     referee_data->GameRobotState.power_management_chassis_output);
+
   LimitChassisOutput();
 }
