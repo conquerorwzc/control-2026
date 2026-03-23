@@ -472,7 +472,7 @@ void RobotInit() {
 
   robot->referee_data = RefereeInit(&huart7);  // 裁判系统初始化
 
-  // robot->super_cap = SuperCapInit(&super_cap_config);
+  robot->super_cap = SuperCapInit(&super_cap_config);
 
  #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
    robot->gimbal = GimbalInit(&gimbal_init_config);

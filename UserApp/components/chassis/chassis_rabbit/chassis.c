@@ -13,6 +13,7 @@ static Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd;  // 声明但不初始化
 static Chassis_Param_s chassis_param;          // 声明为静态局部变量
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
 static float chassis_vx, chassis_vy;     // 将云台系的速度投影到底盘
+static referee_info_t *referee_data;
 static float vt_lf, vt_rf, vt_lb, vt_rb;  // 底盘速度解算后的临时输出,待进行限幅
 static float lf_radius;
 static float rf_radius;
@@ -565,6 +566,7 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
                     (half_wheel_base + center_gimbal_offset_y) * (half_wheel_base + center_gimbal_offset_y)) *
               DEGREE_2_RAD;
   PIDInit(&follow_pid,&chassis_init_config->follow_pid);
+  chassis_instance->super_cap = SuperCapInit(&chassis_init_config->super_cap_config);
   for (int i = 0; i < 4; i++) {
     chassis_init_config->wheel_motor_config[i].controller_setting_init_config.angle_feedback_source = MOTOR_FEED;
     chassis_init_config->wheel_motor_config[i].controller_setting_init_config.speed_feedback_source = MOTOR_FEED;
@@ -583,6 +585,50 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
 }
 /* 机器人底盘控制核心任务 */
 void ChassisTask() {
+
+switch (chassis->super_cap_mode)
+    {
+    case SAFETY_MODE:
+        if (chassis->super_cap->cap_msg.cap_v > 18.0f)
+            chassis->super_cap_mode = PASSIVE_MODE;
+        chassis->chassis_ctrl_cmd.max_power =
+          300;  // referee_data->GameRobotState.chassis_power_limit;//TODO:用超电记得改;
+        break;
+    case FORCED_CHARGING_MODE:
+        if (chassis->super_cap->cap_msg.cap_v < 8.0f)
+            chassis->super_cap_mode = SAFETY_MODE;
+        if (chassis->super_cap->cap_msg.cap_v > 18.0f)
+            chassis->super_cap_mode = PASSIVE_MODE;
+        chassis->chassis_ctrl_cmd.max_power = (uint16_t)(0.4 * referee_data->GameRobotState.chassis_power_limit);
+        break;
+    case CHARGING_MODE:
+        if (chassis->super_cap->cap_msg.cap_v < 10.0f)
+            chassis->super_cap_mode = FORCED_CHARGING_MODE;
+        if (chassis->super_cap->cap_msg.cap_v > 18.0f)
+            chassis->super_cap_mode = PASSIVE_MODE;
+        chassis->chassis_ctrl_cmd.max_power =
+            referee_data->GameRobotState.chassis_power_limit -
+            (uint16_t)powf((float)referee_data->GameRobotState.chassis_power_limit * 0.05f, 2);
+        break;
+    case PASSIVE_MODE:
+        if (chassis_ctrl_cmd->SuperCapBoost == 1)
+            chassis->super_cap_mode = ACTIVE_MODE;
+        if (chassis->super_cap->cap_msg.cap_v < 12.0f)
+            chassis->super_cap_mode = CHARGING_MODE;
+        chassis->chassis_ctrl_cmd.max_power =
+            referee_data->GameRobotState.chassis_power_limit -
+            (uint16_t)powf((float)referee_data->GameRobotState.chassis_power_limit * 0.04f, 2);
+        break;
+    case ACTIVE_MODE:
+        if (chassis->super_cap->cap_msg.cap_v < 12.0f)
+            chassis->super_cap_mode = CHARGING_MODE;
+        if (chassis_ctrl_cmd->SuperCapBoost != 1)
+            chassis->super_cap_mode = PASSIVE_MODE;
+        chassis->chassis_ctrl_cmd.max_power = 200;
+        break;
+    default:
+        chassis->super_cap_mode = SAFETY_MODE;
+    }
 
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_POWER_OFF) {
     // 如果出现重要模块离线或遥控器设置为急停,让电机停止
@@ -647,6 +693,8 @@ void ChassisTask() {
   // 根据控制模式进行正运动学解算,计算底盘输出
   MecanumCalculate();
 
+  SuperCapSendMessage(chassis->super_cap, (int16_t)300, referee_data->PowerHeatData.buffer_energy,
+                        referee_data->GameRobotState.power_management_chassis_output);
   // 功率控制与输出限幅
   LimitChassisOutput();
 

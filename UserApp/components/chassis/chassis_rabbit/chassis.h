@@ -36,6 +36,7 @@
 #include "dji_motor.h"
 #include "dmmotor.h"
 #include "external_imu/external_imu.h"
+#include "super_cap.h"
 typedef enum {
   CHASSIS_POWER_OFF = 0,     // 电流零输入
   CHASSIS_ROTATE,            // 小陀螺模式
@@ -66,8 +67,19 @@ typedef struct {
   float power_distribute;  //前后轮功率分配系数
   // UI部分
   //  ...
-
+  uint8_t SuperCapBoost;
 } Chassis_Ctrl_Cmd_s;
+
+#pragma pack()
+//超级电容策略结构体
+
+typedef enum {
+  SAFETY_MODE=0,//安全模式，超电电压低于8伏时进入，大于18伏退出，底盘限制30W
+  PASSIVE_MODE,//被动模式，超电电压正常时的工作模式
+  ACTIVE_MODE,//，主动模式，主动使用超电能量
+  CHARGING_MODE,//充电模式，衰减底盘功率，保障电容电压健康
+  FORCED_CHARGING_MODE,//强制充电模式，更极端的功率衰减，强制超电快速充电
+} SuperCapMode;
 
 typedef struct {
   float k0;
@@ -99,6 +111,7 @@ typedef struct {
     uint8_t mst_id;
     FDCAN_HandleTypeDef *can_handle;
   } external_imu; // External IMU sensor configuration
+  SuperCap_Init_Config_s super_cap_config;
 } Chassis_Init_Config_s;
 
 typedef struct {
@@ -106,6 +119,8 @@ typedef struct {
   DJIMotorInstance* wheel_motor[4];// left right forward back
   DMMotorInstance* leg_motor[2];
   external_imu_t* chassis_external_imu;  // 底盘外部IMU数据
+  SuperCapInstance* super_cap;
+  SuperCapMode super_cap_mode;
 } ChassisInstance;
 
 /**
