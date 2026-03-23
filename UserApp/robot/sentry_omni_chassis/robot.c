@@ -324,7 +324,7 @@ static void MouseKeySet() {
 #elifdef USE_DUAL_RC_NEW
 static void RemoteControlSet() {
   if (switch_middle(vt13_rc_data->rc.mode_switch) || switch_right(vt13_rc_data->rc.mode_switch)) {
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
     if (abs(vt13_rc_data->rc.dial) > 20) chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
   }
 
@@ -408,14 +408,18 @@ static void EmergencyHandler() {
 #endif
 }
 static void ModeControl() {
-  if (robot->referee_data->ProjectileAllowance.projectile_allowance_17mm==0) {
-    robot->sentry_mode=DEFENSE_POSE;    //无可用弹丸进入防御姿态
-  }
-  else if (robot->chassis->chassis_ctrl_cmd.vx==0&&robot->chassis->chassis_ctrl_cmd.vy==0) {
-    robot->sentry_mode=OFFENSE_POSE;    //高于50%血或占据堡垒进入进攻姿态
-  }
-  else {
-    robot->sentry_mode=MOBILITY_POSE;
+  if (robot->control_mode==AUTO_MODE){
+    if (robot->referee_data->ProjectileAllowance.projectile_allowance_17mm==0) {
+      robot->sentry_mode=DEFENSE_POSE;    //无可用弹丸进入防御姿态
+      // robot->chassis->chassis_ctrl_cmd.wz=30000;
+    }
+    else if (robot->chassis->chassis_ctrl_cmd.vx==0&&robot->chassis->chassis_ctrl_cmd.vy==0) {
+      robot->sentry_mode=OFFENSE_POSE;    //高于50%血或占据堡垒进入进攻姿态
+      // robot->chassis->chassis_ctrl_cmd.wz=10000;
+    }
+    else {
+      robot->sentry_mode=MOBILITY_POSE;
+    }
   }
 }
 static void SuperCapControl() {
@@ -574,7 +578,7 @@ void RobotTask() {
   navigator_send(&huart1, robot->referee_data);
   RobotCMDTask();
   // SuperCapControl();
-  chassis_ctrl_cmd->max_power = 250;
+  chassis_ctrl_cmd->max_power = 100;
   ModeControl();
   ChassisTask();
 #endif
