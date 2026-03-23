@@ -566,7 +566,6 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
                     (half_wheel_base + center_gimbal_offset_y) * (half_wheel_base + center_gimbal_offset_y)) *
               DEGREE_2_RAD;
   PIDInit(&follow_pid,&chassis_init_config->follow_pid);
-  chassis_instance->super_cap = SuperCapInit(&chassis_init_config->super_cap_config);
   for (int i = 0; i < 4; i++) {
     chassis_init_config->wheel_motor_config[i].controller_setting_init_config.angle_feedback_source = MOTOR_FEED;
     chassis_init_config->wheel_motor_config[i].controller_setting_init_config.speed_feedback_source = MOTOR_FEED;
@@ -693,8 +692,8 @@ switch (chassis->super_cap_mode)
   // 根据控制模式进行正运动学解算,计算底盘输出
   MecanumCalculate();
 
-  SuperCapSendMessage(chassis->super_cap, (int16_t)300, referee_data->PowerHeatData.buffer_energy,
-                        referee_data->GameRobotState.power_management_chassis_output);
+  // SuperCapSendMessage(chassis->super_cap, (int16_t)300, referee_data->PowerHeatData.buffer_energy,
+  //                       referee_data->GameRobotState.power_management_chassis_output);
   // 功率控制与输出限幅
   LimitChassisOutput();
 

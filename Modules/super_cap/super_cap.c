@@ -62,3 +62,7 @@ void SuperCapSendMessage(SuperCapInstance *instance, int16_t power, uint16_t buf
     CANTransmit(instance->can_ins, 1);
 }
 
+SuperCap_Measure_s SuperCapGet(SuperCapInstance *instance)
+{
+    return instance->cap_msg;
+}

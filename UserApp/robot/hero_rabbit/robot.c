@@ -512,5 +512,9 @@ void RobotTask() {
   ShootTask();
 
   ChassisTask();
+  SuperCapSendMessage(robot->super_cap,
+      (int16_t)robot->referee_data->GameRobotState.chassis_power_limit,
+      robot->referee_data->PowerHeatData.buffer_energy,
+      robot->referee_data->GameRobotState.power_management_chassis_output);
 
 }
