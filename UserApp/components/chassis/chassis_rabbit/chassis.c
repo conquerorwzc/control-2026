@@ -579,7 +579,7 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   chassis = chassis_instance;
   chassis_ctrl_cmd = &chassis->chassis_ctrl_cmd;  // 在运行时初始化指针
   chassis_ctrl_cmd->power_distribute=1.2f;
-
+  chassis_instance->super_cap_mode = SAFETY_MODE;
   return chassis_instance;
 }
 /* 机器人底盘控制核心任务 */
@@ -591,7 +591,7 @@ switch (chassis->super_cap_mode)
         if (chassis->super_cap->cap_msg.cap_v > 18.0f)
             chassis->super_cap_mode = PASSIVE_MODE;
         chassis->chassis_ctrl_cmd.max_power =
-          300;  // referee_data->GameRobotState.chassis_power_limit;//TODO:用超电记得改;
+          100;  // referee_data->GameRobotState.chassis_power_limit;//TODO:用超电记得改;
         break;
     case FORCED_CHARGING_MODE:
         if (chassis->super_cap->cap_msg.cap_v < 8.0f)
@@ -623,7 +623,7 @@ switch (chassis->super_cap_mode)
             chassis->super_cap_mode = CHARGING_MODE;
         if (chassis_ctrl_cmd->SuperCapBoost != 1)
             chassis->super_cap_mode = PASSIVE_MODE;
-        chassis->chassis_ctrl_cmd.max_power = 200;
+        chassis->chassis_ctrl_cmd.max_power = 100;
         break;
     default:
         chassis->super_cap_mode = SAFETY_MODE;
@@ -692,8 +692,6 @@ switch (chassis->super_cap_mode)
   // 根据控制模式进行正运动学解算,计算底盘输出
   MecanumCalculate();
 
-  // SuperCapSendMessage(chassis->super_cap, (int16_t)300, referee_data->PowerHeatData.buffer_energy,
-  //                       referee_data->GameRobotState.power_management_chassis_output);
   // 功率控制与输出限幅
   LimitChassisOutput();
 
