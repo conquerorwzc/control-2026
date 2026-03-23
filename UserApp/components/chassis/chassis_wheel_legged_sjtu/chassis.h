@@ -24,6 +24,7 @@
 
 #include "ins_task.h"
 #include "parallel_leg.h"
+#include "super_cap.h"
 
 // 中科大的功率模型
 // ===== M3508轮毂电机 6参数模型系数 =====
@@ -84,6 +85,7 @@ typedef struct {
   int chassis_speed_buff;
   uint16_t max_power;
   Chassis_Mode_e chassis_mode;
+  uint8_t SuperCapBoost;
 } Chassis_Ctrl_Cmd_s;
 /* SJTU model: 10-dim state vector */
 typedef struct {
@@ -101,6 +103,15 @@ typedef struct {
 
 /* K matrix 4x10, 2D poly fitting coeffs [p00,p10,p01,p20,p11,p02] per element */
 
+//超级电容策略结构体
+typedef enum {
+  SAFETY_MODE=0,//安全模式，超电电压低于8伏时进入，大于18伏退出，底盘限制30W
+  PASSIVE_MODE,//被动模式，超电电压正常时的工作模式
+  ACTIVE_MODE,//，主动模式，主动使用超电能量
+  CHARGING_MODE,//充电模式，衰减底盘功率，保障电容电压健康
+  FORCED_CHARGING_MODE,//强制充电模式，更极端的功率衰减，强制超电快速充电
+} SuperCapMode;
+
 typedef struct {
   float track_width;
   float body_mass;
@@ -116,6 +127,7 @@ typedef struct {
   PID_Init_Config_s delta_theta_PID_config;
   PID_Init_Config_s roll_PID_config;
   IMU_Init_Config_s imu_init_config;
+  SuperCap_Init_Config_s super_cap_config;
 } Chassis_Init_Config_s;
 
 /**
@@ -183,6 +195,9 @@ typedef struct {
     uint8_t is_controlled : 1;      // 是否处于受控状态, 1表示受控（如有前进指令时）, 0表示非受控, 用于切换控制策略
     uint8_t is_recovered : 1;       // 本次倒地自起是否已完成，pitch<阈值后置1并退出 recovery，未失控时由上层清零
   } update_flag;
+
+  SuperCapInstance* super_cap;
+  SuperCapMode super_cap_mode;
 } ChassisInstance;
 
 ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config);
