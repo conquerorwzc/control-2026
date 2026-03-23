@@ -222,7 +222,7 @@ static void MouseKeySet()
                 speed_buff;
         }
         //旋转量
-        float angle_buff = 0.05f;
+        float angle_buff = 0.15f;
         if (robot->robot_mode == ROBOT_EXCHANGE_MODE)
         {
             if (chassis_ctrl_cmd->lift_ratio - 0.1f < 0.01f)
