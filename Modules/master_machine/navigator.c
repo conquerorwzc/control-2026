@@ -190,7 +190,7 @@ static uint8_t send_all_robot_hp(UART_HandleTypeDef* huart, const ext_game_robot
  * @param game_status 游戏状态结构体指针
  * @return 发送成功返回1，失败返回0
  */
-static uint8_t send_game_status(UART_HandleTypeDef* huart, const game_status_t* game_status)
+static uint8_t send_game_status(UART_HandleTypeDef* huart, const ext_game_state_t* game_status)
 {
     if (huart == NULL||game_status==NULL) return 0;
     return protocol_send(huart, 0x0001,
@@ -259,7 +259,7 @@ static uint8_t send_rfid_status(UART_HandleTypeDef* huart, const rfid_status_t* 
  * @param robot_status 机器人状态结构体指针
  * @return 发送成功返回1，失败返回0
  */
-static uint8_t send_robot_status(UART_HandleTypeDef* huart, const robot_status_t* robot_status)
+static uint8_t send_robot_status(UART_HandleTypeDef* huart, const ext_game_robot_state_t* robot_status)
 {
     if (huart == NULL || robot_status == NULL) return 0;
 
@@ -306,15 +306,15 @@ void update_senddata(void) {
 
 void navigator_send(UART_HandleTypeDef *instance,referee_info_t* referee_data) {
   update_senddata();
-  send_all_robot_hp(instance,&referee_data->GameRobotHP);
+  // send_all_robot_hp(instance,&referee_data->GameRobotHP);
   // send_event_data(instance,&send_data.event_data);
-  //send_game_status(instance,&send_data.game_status);
+  send_game_status(instance,&referee_data->GameState);
   // send_ground_robot_position(instance,&send_data.ground_robot_position);
   // send_joint_state(instance,&send_data.joint_state);
   // send_rfid_status(instance,&send_data.rfid_status);
   // send_robot_motion(instance,&send_data.robot_motion);
   // send_robot_state_info(instance,&send_data.state_info);
-  // send_robot_status(instance,&send_data.robot_status);
+  send_robot_status(instance,&referee_data->GameRobotState);
 
 }
 
