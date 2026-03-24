@@ -556,7 +556,7 @@ void RobotInit() {
 void RobotCMDTask() {
   time = DWT_GetTimeline_s();
   shoot_ctrl_cmd->initial_speed=RefereeData->initial_speed;
-  shoot_ctrl_cmd->shooter_barrel_heat=RefereeData->projectile_allowance_17mm;
+  shoot_ctrl_cmd->shooter_barrel_heat=RefereeData->shooter_17mm_barrel_heat;
   RemoteControlSet();
   DualBoardCtrlSet();
   // MouseKeySet();
