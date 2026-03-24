@@ -348,17 +348,17 @@ static void MouseKeySet() {
   }
 
   // 弹速设置 (Z键)
-  switch (__builtin_popcount(vt13_rc_data->mouse_key.keyboard.z) % 3) {
-    case 0:
-      shoot_ctrl_cmd->bullet_speed = 15;
-      break;
-    case 1:
-      shoot_ctrl_cmd->bullet_speed = 18;
-      break;
-    default:
-      shoot_ctrl_cmd->bullet_speed = 30;
-      break;
-  }
+  // switch (__builtin_popcount(vt13_rc_data->mouse_key.keyboard.z) % 3) {
+  //   case 0:
+  //     shoot_ctrl_cmd->bullet_speed = 15;
+  //     break;
+  //   case 1:
+  //     shoot_ctrl_cmd->bullet_speed = 18;
+  //     break;
+  //   default:
+  //     shoot_ctrl_cmd->bullet_speed = 30;
+  //     break;
+  // }
 
   // 右键自瞄
   switch (vt13_rc_data->mouse_key.mouse.press_r % 2) {
@@ -396,7 +396,7 @@ static void MouseKeySet() {
       break;
   }
 
-  shoot_ctrl_cmd->shoot_rate = 8;
+  // shoot_ctrl_cmd->shoot_rate = 8;
 }
 #else
 // 如果没有定义任何遥控器宏，提供空实现
@@ -545,6 +545,8 @@ void RobotInit() {
   // chassis_ctrl_cmd->max_power = 80;  // 随便给一个初始功率，后面应该要从裁判系统获取
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
+  shoot_ctrl_cmd->heat_mode=REFEREE_CONTROL;
+  shoot_ctrl_cmd->bullet_speed_mode=ENABLE_BULLET_SPEED;
   // navigator_data  = robot->navigator_data;
   vision_recv_data=VisionInit(&gimbal_init_config.imu_init_config);
   can_comm_instance = CANCommInit(&comm_config);
@@ -553,6 +555,8 @@ void RobotInit() {
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
 void RobotCMDTask() {
   time = DWT_GetTimeline_s();
+  shoot_ctrl_cmd->initial_speed=RefereeData->initial_speed;
+  shoot_ctrl_cmd->shooter_barrel_heat=RefereeData->projectile_allowance_17mm;
   RemoteControlSet();
   DualBoardCtrlSet();
   // MouseKeySet();

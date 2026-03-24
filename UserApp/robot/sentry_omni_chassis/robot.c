@@ -466,30 +466,23 @@ static void SuperCapControl() {
                       robot->referee_data->GameRobotState.power_management_chassis_output);
 }
 void Chassis_CANCommSend() {
-#ifdef USE_DUAL_RC
+  #ifdef USE_DUAL_RC
   if (can_comm_instance == NULL || rc_data == NULL) {
     return;
   }
   referee_data->projectile_allowance_17mm = robot->referee_data->ProjectileAllowance.projectile_allowance_17mm;
-
   referee_data->buffer_energy = robot->referee_data->PowerHeatData.buffer_energy;
-
   referee_data->shooter_17mm_barrel_heat = robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
-
   CANCommSend(can_comm_instance, (void *)referee_data);
-#elifdef USE_DUAL_RC_NEW
+  #elifdef USE_DUAL_RC_NEW
   if (can_comm_instance == NULL || vt13_rc_data == NULL) {
     return;
   }
-
   referee_data->projectile_allowance_17mm = robot->referee_data->ProjectileAllowance.projectile_allowance_17mm;
-
-  referee_data->buffer_energy = robot->referee_data->PowerHeatData.buffer_energy;
-
+  referee_data->initial_speed = robot->referee_data->ShootData.initial_speed;
   referee_data->shooter_17mm_barrel_heat = robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
-#endif
-
   CANCommSend(can_comm_instance, (void *)referee_data);
+  #endif
 }
 // 解析底盘板收到的遥控数据
 static void DualBoardCtrlSet() {

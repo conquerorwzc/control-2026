@@ -25,7 +25,7 @@ typedef enum {
 //联合体定义
 typedef struct {
   uint16_t projectile_allowance_17mm;    // 机器人自身拥有的17mm弹丸允许发弹量
-  uint16_t buffer_energy;                //缓冲能量
+  float initial_speed;                   //弹速
   uint16_t shooter_17mm_barrel_heat;     //17mm弹丸允许发弹量
   uint16_t shooter_barrel_heat_limit;    // 机器人射击热量上限
   uint16_t shooter_barrel_cooling_value; // 机器人射击热量每秒冷却值
