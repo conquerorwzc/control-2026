@@ -31,8 +31,8 @@
 // 云台参数
 #define YAW_CHASSIS_ALIGN_ECD 2220
 #define PITCH_HORIZON_ECD 490  // 云台处于水平位置时编码器值,若对云台有机械改动需要修改
-#define PITCH_MAX_ANGLE -38.0f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
-#define PITCH_MIN_ANGLE 8.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define PITCH_MAX_ANGLE 13.0f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define PITCH_MIN_ANGLE -4.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
 #define PITCH_HORIZON_ecd 4230
 
 // 添加基于编码器的限位值定义
@@ -259,9 +259,9 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 3.0f,
+                            .Kp = 2.0f,
                             .Ki = 0.0f,
-                            .Kd = 0.02f,
+                            .Kd = 0.03f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                             .IntegralLimit = 5.0f,
                             .MaxOut = 25.0f,
@@ -337,10 +337,14 @@ static Shoot_Init_Config_s shoot_init_config = {
             .friction_num = 3,                            // 摩擦轮数量
             .friction_speed = 26500.0f,                   // 摩擦轮速度
             .friction_coefficients = {1.0f, -1.0f, 1.1f},  // 摩擦轮速度比例系数
-            .deadtime_burstfire = 500,
-            .deadtime_onebullet = 1000,
-            .target_speed = 11.5f,
-            .bullet_speed_adjustment = 0.0f,
+            .deadtime_burstfire = 500,//连发时间间隔
+            .deadtime_onebullet = 1000,//单发时间间隔
+            .target_speed = 11.5f,//目标弹速
+            .bullet_speed_deadband = 0.3f,//弹速死区，hero小些，步兵可以大些
+            .bullet_speed_adjustment = 200.0f,
+            .one_barrel_heat_value = 100,//一发弹丸所需热量
+            .shooter_barrel_cooling_value = 24,//每秒冷却回复
+            .shooter_barrel_heat_limit = 200,//热量上限
 
         },
     .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan2, 1, MOTOR_DIRECTION_NORMAL),

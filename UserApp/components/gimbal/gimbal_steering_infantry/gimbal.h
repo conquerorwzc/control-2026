@@ -6,6 +6,10 @@
 #include "dji_motor.h"
 #include "dmmotor.h"
 #include "ins_task.h"
+#include "HI05.h"
+
+#define BMI088_CTRL
+//#define HI05_CTRL
 
 typedef enum {
   GIMBAL_POWER_OFF = 0,  // 电流零输入
@@ -24,6 +28,8 @@ typedef struct {
   Motor_Init_Config_s yaw_motor_config;
   Motor_Init_Config_s pitch_motor_config;
   IMU_Init_Config_s imu_init_config; //用于修正IMU安装误差的参数（新增）
+  UART_HandleTypeDef* hi05_uart_handle;
+    float pitch_accel_coef;//用于云台pitch的加速度补偿
 } Gimbal_Init_Config_s;
 
 typedef struct {
@@ -31,6 +37,7 @@ typedef struct {
   DJIMotorInstance *yaw_motor;
   DMMotorInstance *pitch_motor;
   INS_t* gimbal_IMU_data;  // 云台IMU数据
+  HI05_t* gimbal_hi05_data;   // 外置陀螺仪HI05数据
 } GimbalInstance;
 
 /**

@@ -18,6 +18,15 @@
 
 static GimbalInstance* gimbal;
 static Gimbal_Ctrl_Cmd_s* gimbal_ctrl_cmd;  // 声明但不初始化
+static float last_yaw_cmd=0.0f;
+
+float wrap180(float now, float last)
+{
+  float diff = now - last;
+  diff = fmodf(diff, 360.0f);
+  diff=diff-360.0f*floorf(diff/360.0f+0.5f);
+  return last + diff;
+}
 
 // static BMI088Instance *bmi088; // 云台IMU
 GimbalInstance* GimbalInit(Gimbal_Init_Config_s* gimbal_init_config) {
@@ -71,8 +80,10 @@ void GimbalTask() {
     DJIMotorEnable(gimbal->pitch_motor);
     //pid调参测试用
     //gimbal_ctrl_cmd->yaw=40*sin(DWT_GetTimeline_s()*2.5f);
+    gimbal_ctrl_cmd->yaw = wrap180(gimbal_ctrl_cmd->yaw, last_yaw_cmd);
     DJIMotorSetPIDRef(gimbal->yaw_motor, gimbal_ctrl_cmd->yaw);  // yaw和pitch会在robot_cmd中处理好多圈和单圈
     DJIMotorSetPIDRef(gimbal->pitch_motor, gimbal_ctrl_cmd->pitch);
+    last_yaw_cmd = gimbal_ctrl_cmd->yaw;
   }
   //
   // // 在合适的地方添加pitch重力补偿前馈力矩

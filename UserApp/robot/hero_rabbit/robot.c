@@ -129,26 +129,27 @@ static void RemoteControlSet() {
     gimbal_ctrl_cmd->yaw += -0.003f * (float)rc_data[TEMP].rc.rocker_r_;
     gimbal_ctrl_cmd->pitch += 0.0006f * (float)rc_data[TEMP].rc.rocker_r1;
   }
-  int16_t current_pitch_ecd = (int16_t)robot->gimbal->pitch_motor->measure.ecd;
+  //int16_t current_pitch_ecd = (int16_t)robot->gimbal->pitch_motor->measure.ecd;
 
   // 通过编码器差值计算实际pitch角度
-  float relative_pitch_angle = (current_pitch_ecd- PITCH_HORIZON_ecd-
-    (robot->gimbal->gimbal_IMU_data->Pitch/ECD_ANGLE_COEF_DJI)) * ECD_ANGLE_COEF_DJI;
-  new_max_pitch= PITCH_MAX_ANGLE - relative_pitch_angle;
-  new_min_pitch= PITCH_MIN_ANGLE - relative_pitch_angle;
-      // 当腿部抬起时，使用编码器解算的角度进行限位，防止机械碰撞
-      if (gimbal_ctrl_cmd->pitch < new_max_pitch) {
-          // 如果实际角度超过上限，限制目标角度
-          gimbal_ctrl_cmd->pitch = new_max_pitch;
-      } else if (gimbal_ctrl_cmd->pitch > new_min_pitch) {
-          // 如果实际角度低于下限，限制目标角度
-          gimbal_ctrl_cmd->pitch = new_min_pitch;
-      }
-  // // // 云台PITCH轴软件限位 todo:没在云台有点不好
-  // // else if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
-  // //   gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
-  // // } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
-  // //   gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
+  // float relative_pitch_angle = (current_pitch_ecd- PITCH_HORIZON_ecd-
+  //   (robot->gimbal->gimbal_IMU_data->Pitch/ECD_ANGLE_COEF_DJI)) * ECD_ANGLE_COEF_DJI;
+  // new_max_pitch= PITCH_MAX_ANGLE - relative_pitch_angle;
+  // new_min_pitch= PITCH_MIN_ANGLE - relative_pitch_angle;
+  //     // 当腿部抬起时，使用编码器解算的角度进行限位，防止机械碰撞
+  //     if (gimbal_ctrl_cmd->pitch < new_max_pitch) {
+  //         // 如果实际角度超过上限，限制目标角度
+  //         gimbal_ctrl_cmd->pitch = new_max_pitch;
+  //     } else if (gimbal_ctrl_cmd->pitch > new_min_pitch) {
+  //         // 如果实际角度低于下限，限制目标角度
+  //         gimbal_ctrl_cmd->pitch = new_min_pitch;
+  //    }
+  // 云台PITCH轴软件限位 todo:没在云台有点不好
+  if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
+    gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
+  } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
+    gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
+  }
   // }
   // 底盘参数,系数需要调整
    vx_initial= 60.0f * (float)rc_data[TEMP].rc.rocker_l_;  // _水平方向
@@ -166,7 +167,6 @@ static void RemoteControlSet() {
   // 发射参数
 
   // 射频控制,固定每秒1发,后续可以根据左侧拨轮的值大小切换射频,
-  shoot_ctrl_cmd->shoot_rate = 8;
 
 }
 
@@ -206,14 +206,19 @@ static void MouseKeySet() {
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   {
     gimbal_ctrl_cmd->yaw -= (float)rc_data[TEMP].mouse.x * 0.007f;  // 横向灵敏度调节
-    gimbal_ctrl_cmd->pitch += (float)rc_data[TEMP].mouse.y * 0.003f; // 纵向灵敏度调节 (负号反转Y轴)
+    gimbal_ctrl_cmd->pitch -= (float)rc_data[TEMP].mouse.y * 0.003f; // 纵向灵敏度调节 (负号反转Y轴)
     // 当腿部抬起时，使用编码器解算的角度进行限位，防止机械碰撞
-    if (gimbal_ctrl_cmd->pitch < new_max_pitch) {
-      // 如果实际角度超过上限，限制目标角度
-      gimbal_ctrl_cmd->pitch = new_max_pitch;
-    } else if (gimbal_ctrl_cmd->pitch > new_min_pitch) {
-      // 如果实际角度低于下限，限制目标角度
-      gimbal_ctrl_cmd->pitch = new_min_pitch;
+    // if (gimbal_ctrl_cmd->pitch < new_max_pitch) {
+    //   // 如果实际角度超过上限，限制目标角度
+    //   gimbal_ctrl_cmd->pitch = new_max_pitch;
+    // } else if (gimbal_ctrl_cmd->pitch > new_min_pitch) {
+    //   // 如果实际角度低于下限，限制目标角度
+    //   gimbal_ctrl_cmd->pitch = new_min_pitch;
+    // }
+    if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
+      gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
+    } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
+      gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
     }
   }
   // 添加R键和F键控制腿部升降,腿在leg in air模式时这两个按键不起作用
@@ -280,16 +285,6 @@ static void MouseKeySet() {
       }
       break;
   }
-  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Z] % 3)
-  {
-    case 0:
-      break;
-    case 1:
-      break;
-    default:
-      break;
-  }
-
   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_C] % 4)  // C键设置底盘速度
   {
     case 0:
@@ -389,36 +384,58 @@ static void MouseKeySet() {
   //     chassis_ctrl_cmd->power_distribute = 1.2f;  // 设置默认功率分配
   //   }
   // }
-  //吊射用代码，后续删掉
-  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_G] % 4)  // C键设置底盘速度
+  // switch (rc_data[TEMP].key_count[KEY_PRESS][Key_G] % 4)  // C键设置底盘速度
+  // {
+  //   case 0:
+  //     break;
+  //   case 1:
+  //     gimbal_ctrl_cmd->yaw = 30.0f;
+  //     gimbal_ctrl_cmd->pitch = -15.0f;
+  //     break;
+  //   case 2:
+  //     gimbal_ctrl_cmd->yaw = 0.0f;
+  //     gimbal_ctrl_cmd->pitch = - 15.0f;
+  //     break;
+  //   case 3:
+  //     gimbal_ctrl_cmd->yaw = -30.0f;
+  //     gimbal_ctrl_cmd->pitch = -15.0f;
+  //     break;
+  //   default:
+  //     break;
+  // }
+  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Q] % 3)  // E按键设置热量控制类型
   {
     case 0:
+      shoot_ctrl_cmd->heat_mode=REFEREE_CONTROL;
       break;
     case 1:
-      gimbal_ctrl_cmd->yaw = 30.0f;
-      gimbal_ctrl_cmd->pitch = -15.0f;
-      break;
-    case 2:
-      gimbal_ctrl_cmd->yaw = 0.0f;
-      gimbal_ctrl_cmd->pitch = - 15.0f;
-      break;
-    case 3:
-      gimbal_ctrl_cmd->yaw = -30.0f;
-      gimbal_ctrl_cmd->pitch = -15.0f;
-      break;
-    default:
-      break;
-  }
-  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 2)  // H键设置云台模式
-  {
-    case 1:
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
-      chassis_ctrl_cmd->leg_mode = LEG_DISABLE;
+      shoot_ctrl_cmd->heat_mode=SIMULLATE_CONTROL;
     break;
+    case 2:
+      shoot_ctrl_cmd->heat_mode=NO_CONTROL;
     default:
       break;
-
   }
+
+//   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 3)  // E按键设置热量控制类型
+//   {
+//     case 0:
+//       shoot_ctrl_cmd->bullet_speed_mode=ENABLE_BULLET_SPEED;
+//       break;
+//     case 1:
+//       shoot_ctrl_cmd->bullet_speed_mode=MANUAL_BULLET_SPEED;
+//       if (rc_data[TEMP].key[KEY_PRESS].z==1&&rc_data_last[TEMP].key[KEY_PRESS].z==0) {
+//         shoot_ctrl_cmd->friction_speed+=shoot_init_config.shoot_param.bullet_speed_adjustment;
+//       }
+//       else if (rc_data[TEMP].key[KEY_PRESS].x==1&&rc_data_last[TEMP].key[KEY_PRESS].x==0) {
+//         shoot_ctrl_cmd->friction_speed-=shoot_init_config.shoot_param.bullet_speed_adjustment;
+//       }
+//       break;
+//     case 2:
+//       shoot_ctrl_cmd->bullet_speed_mode=DISABLE_BULLET_SPEED;
+//     default:
+//       break;
+//   }
   *rc_data_last = *rc_data;
 }
 
@@ -489,6 +506,7 @@ void RobotInit() {
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;
+  shoot_ctrl_cmd->bullet_speed_mode=ENABLE_BULLET_SPEED;
   vision_recv_data=VisionInit(&gimbal_init_config.imu_init_config);
   gpio_5V_EN = GPIORegister(&gpio_init_config_5v);
   GPIOSet(gpio_5V_EN);
@@ -496,9 +514,9 @@ void RobotInit() {
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
 void RobotCMDTask() {
-  chassis_ctrl_cmd->max_power = robot->referee_data->GameRobotState.chassis_power_limit;
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
   shoot_ctrl_cmd->initial_speed=robot->referee_data->ShootData.initial_speed;
+  shoot_ctrl_cmd->shooter_barrel_heat=robot->referee_data->PowerHeatData.shooter_42mm_barrel_heat;
   CalcOffsetAngle();
   RemoteControlSet();
   MouseKeySet();

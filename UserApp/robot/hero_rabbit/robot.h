@@ -8,7 +8,7 @@
 #include "gimbal.h"
 #include "shoot.h"
 #include "remote_control.h"
- #include "rm_referee.h"
+#include "rm_referee.h"
 #include "super_cap.h"
 // todo: add vision_module
 

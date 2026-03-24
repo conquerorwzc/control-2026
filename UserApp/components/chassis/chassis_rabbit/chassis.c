@@ -383,9 +383,6 @@ static void MecanumCalculate() {
  * @todo 有待模块化,djimotor也得改改
  */
 static void PowerControl() {
-  //把前后轮电机的功率分配留个接口，以后可以动态分配
-  float power_param_f=chassis_ctrl_cmd->power_distribute;
-  float power_param_b=2.0f-power_param_f;
   // 获取电机速度反馈,化成单位rad/s
   float motor_speed_fdb[4];
   for (int i = 0; i < 4; i++) {
@@ -402,21 +399,7 @@ static void PowerControl() {
   float initial_total_power = 0.0f;      // 估计初始总功率
 
   // 计算每个电机的功率贡献
-  //前腿功率加和
-  for (int i = 0; i < 2; i++) {
-    initial_give_power[i] =
-        k0 + k1 * motor_current_list[i] / (16384.0f / 20.0f) + k2 * motor_speed_fdb[i] * (2.0f * PI / 60.0f) +
-        k3 * motor_current_list[i] / (16384.0f / 20.0f) * motor_speed_fdb[i] * (2.0f * PI / 60.0f) +
-        k4 * motor_current_list[i] / (16384.0f / 20.0f) * motor_current_list[i] / (16384.0f / 20.0f) +
-        k5 * motor_speed_fdb[i] * (2.0f * PI / 60.0f) * motor_speed_fdb[i] * (2.0f * PI / 60.0f);
-
-    // 只累加正向功率
-    if (initial_give_power[i] > 0) {
-      initial_total_power += initial_give_power[i];
-    }
-  }
-  //后腿部功率加和
-  for (int i = 2; i < 4; i++) {
+  for (int i = 0; i < 4; i++) {
     initial_give_power[i] =
         k0 + k1 * motor_current_list[i] / (16384.0f / 20.0f) + k2 * motor_speed_fdb[i] * (2.0f * PI / 60.0f) +
         k3 * motor_current_list[i] / (16384.0f / 20.0f) * motor_speed_fdb[i] * (2.0f * PI / 60.0f) +
@@ -430,48 +413,15 @@ static void PowerControl() {
   }
   // 功率超限时进行动态调整
   if (initial_total_power > (float)chassis_ctrl_cmd->max_power) {
-    float power_scale_F = power_param_f*(float)chassis_ctrl_cmd->max_power / initial_total_power;  // 削减功率比例
-    float power_scale_B = power_param_b*(float)chassis_ctrl_cmd->max_power / initial_total_power;  // 削减功率比例
+    float power_scale = (float)chassis_ctrl_cmd->max_power / initial_total_power;  // 削减功率比例
     float scaled_give_power[4];
     // 计算缩放后的功率目标
-    for (int i = 0; i < 2; i++) {
-      scaled_give_power[i] = initial_give_power[i] * power_scale_F;
+    for (int i = 0; i < 4; i++) {
+      scaled_give_power[i] = initial_give_power[i] * power_scale;
     }
-    for (int i = 2; i < 4; i++) {
-      scaled_give_power[i] = initial_give_power[i] * power_scale_B;
-    }
-    // 重新计算每个电机的电流参考值
-    //前腿的
-    for (int i = 0; i < 2; i++) {
-      // 二次方程系数计算，参数
-      float a = k4 / (16384.0f / 20.0f) / (16384.0f / 20.0f);
-      float b = k1 / (16384.0f / 20.0f) + k3 * motor_speed_fdb[i] * (2.0f * PI / 60.0f) / (16384.0f / 20.0f);
-      float c = k2 * motor_speed_fdb[i] * (2.0f * PI / 60.0f) +
-                k5 * motor_speed_fdb[i] * (2.0f * PI / 60.0f) * motor_speed_fdb[i] * (2.0f * PI / 60.0f) -
-                scaled_give_power[i] + k0;
-      float discriminant = b * b - 4 * a * c;  // 判别式
-      if (discriminant >= 0) {
-        float sqrt_disc = sqrtf(discriminant);
-        float temp1 = (-b + sqrt_disc) / (2 * a);
-        float temp2 = (-b - sqrt_disc) / (2 * a);
 
-        // 选择最接近当前电流的解
-        if (motor_current_list[i] > 0) {
-          motor_current_list[i] = (fabsf(temp1 - motor_current_list[i]) < fabsf(temp2 - motor_current_list[i]))
-                                      ? fminf(16000.f, temp1)
-                                      : fminf(16000.f, temp2);
-        } else {
-          motor_current_list[i] = (fabsf(temp1 - motor_current_list[i]) < fabsf(temp2 - motor_current_list[i]))
-                                      ? fmaxf(-16000.f, temp1)
-                                      : fmaxf(-16000.f, temp2);
-        }
-      } else {
-        // 无解时归零
-        motor_current_list[i] = 0.0f;
-      }
-    }
-    //后腿的
-    for (int i = 2; i < 4; i++) {
+    // 重新计算每个电机的电流参考值
+    for (int i = 0; i < 4; i++) {
       // 二次方程系数计算，参数
       float a = k4 / (16384.0f / 20.0f) / (16384.0f / 20.0f);
       float b = k1 / (16384.0f / 20.0f) + k3 * motor_speed_fdb[i] * (2.0f * PI / 60.0f) / (16384.0f / 20.0f);
@@ -505,6 +455,7 @@ static void PowerControl() {
   }
 }
 
+
 /**
  * @brief 预测电机功率并进行限制
  *
@@ -530,7 +481,7 @@ static void EstimateSpeed() {
 
 ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   ChassisInstance* chassis_instance = (ChassisInstance*)zmalloc(sizeof(ChassisInstance));
-
+  referee_data = GetReferee();
   // 初始化底盘外部IMU
   chassis_instance->chassis_external_imu = ExternalIMUInit(
       chassis_init_config->external_imu.can_id,
@@ -579,7 +530,6 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   chassis = chassis_instance;
   chassis_ctrl_cmd = &chassis->chassis_ctrl_cmd;  // 在运行时初始化指针
   chassis_ctrl_cmd->power_distribute=1.2f;
-  chassis_instance->super_cap_mode = SAFETY_MODE;
   return chassis_instance;
 }
 /* 机器人底盘控制核心任务 */
@@ -590,8 +540,7 @@ switch (chassis->super_cap_mode)
     case SAFETY_MODE:
         if (chassis->super_cap->cap_msg.cap_v > 18.0f)
             chassis->super_cap_mode = PASSIVE_MODE;
-        chassis->chassis_ctrl_cmd.max_power =
-          100;  // referee_data->GameRobotState.chassis_power_limit;//TODO:用超电记得改;
+        chassis->chassis_ctrl_cmd.max_power =referee_data->GameRobotState.chassis_power_limit+50;//TODO:用超电记得改;
         break;
     case FORCED_CHARGING_MODE:
         if (chassis->super_cap->cap_msg.cap_v < 8.0f)
