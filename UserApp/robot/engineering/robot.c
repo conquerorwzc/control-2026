@@ -143,8 +143,7 @@ static void MouseKeySet()
         return;
 
     // 屏蔽遥控器摇杆输入干扰 (使用死区 5 防止摇杆零漂导致键鼠永久失效)
-    if (abs(rc_data[TEMP].rc.dial) > 5 || abs(rc_data[TEMP].rc.rocker_l1) > 5 || abs(rc_data[TEMP].rc.rocker_l_) > 5 ||
-        abs(rc_data[TEMP].rc.rocker_r1) > 5 || abs(rc_data[TEMP].rc.rocker_r_) > 5)
+    if (abs(rc_data[TEMP].rc.dial) > 5 || abs(rc_data[TEMP].rc.rocker_l1) > 5 || abs(rc_data[TEMP].rc.rocker_l_) > 5)
     {
         return;
     }
