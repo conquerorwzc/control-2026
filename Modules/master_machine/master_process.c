@@ -56,7 +56,7 @@ void UpdateGimbalAttitude(Vision_Send_s *vision_send) {
   vision_send->gimbal_send.roll=current_attitude->Roll;
   vision_send->gimbal_send.mode=0;
   vision_send->gimbal_send.color=referee_info->GameRobotState.robot_id;
-  vision_send->shoot_send.bullet_speed=referee_info->ShootData.initial_speed;
+  // vision_send->shoot_send.bullet_speed=referee_info->ShootData.initial_speed;  // initial_speed 字段不存在，注释掉
 
 }
 
@@ -168,7 +168,7 @@ Vision_Receive_s *VisionInit(IMU_Init_Config_s* imu_init_config)
         .reload_count = 5, // 50ms
     };
     vision_daemon_instance = DaemonRegister(&daemon_conf);
-    referee_info = GetReferee();
+    referee_info = GetRefereeInfo();  // 修正函数名
 
     return &recv_data;
 }

@@ -384,7 +384,7 @@ ChassisInstance *ChassisInit(Chassis_Init_Config_s *chassis_init_config)
     ChassisInstance *chassis_instance = (ChassisInstance *)zmalloc(sizeof(ChassisInstance));
 
     chassis_param = chassis_init_config->chassis_param; // 在运行时赋值
-    referee_data = GetReferee();
+    referee_data = GetRefereeInfo();  // 修正函数名
     float half_wheel_base = chassis_param.wheel_base / 2.0f;
     float half_track_width = chassis_param.track_width / 2.0f;
     float center_gimbal_offset_x = chassis_param.center_gimbal_offset_x;

@@ -487,7 +487,7 @@ void RobotInit() {
   rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
   *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
 
-  robot->referee_data = RefereeInit(&huart7);  // 裁判系统初始化
+  robot->referee_data = RefereeInit(&huart1);  // 裁判系统初始化
 
   robot->super_cap = SuperCapInit(&super_cap_config);
 
@@ -514,8 +514,8 @@ void RobotInit() {
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
 void RobotCMDTask() {
-  // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
-  shoot_ctrl_cmd->initial_speed=robot->referee_data->ShootData.initial_speed;
+  // 根据 gimbcal 的反馈值计算云台和底盘正方向的夹角，不需要传参，通过 static 私有变量完成
+  shoot_ctrl_cmd->initial_speed=robot->referee_data->ShootData.bullet_speed;  // 修正字段名：initial_speed → bullet_speed
   shoot_ctrl_cmd->shooter_barrel_heat=robot->referee_data->PowerHeatData.shooter_42mm_barrel_heat;
   CalcOffsetAngle();
   RemoteControlSet();
@@ -535,4 +535,9 @@ void RobotTask() {
       robot->referee_data->PowerHeatData.buffer_energy,
       robot->referee_data->GameRobotState.power_management_chassis_output);
 
+}
+
+RobotInstance* RobotGet(void)
+{
+    return robot;
 }

@@ -28,18 +28,18 @@ typedef struct
 	ext_game_result_t GameResult;						   // 0x0002
 	ext_game_robot_HP_t GameRobotHP;					   // 0x0003
 	ext_event_data_t EventData;							   // 0x0101
-	//ext_supply_projectile_action_t SupplyProjectileAction; // 0x0102
-        ext_referee_warning_t RefereeWarning;                  //0x0104
+	ext_supply_projectile_action_t SupplyProjectileAction; // 0x0102
+        referee_warning_t RefereeWarning;                      //0x0104
 	ext_game_robot_state_t GameRobotState;				   // 0x0201
 	ext_power_heat_data_t PowerHeatData;				   // 0x0202
 	ext_game_robot_pos_t GameRobotPos;					   // 0x0203
 	ext_buff_musk_t BuffMusk;							   // 0x0204
-	//aerial_robot_energy_t AerialRobotEnergy;			   // 0x0205
+	aerial_robot_energy_t AerialRobotEnergy;			   // 0x0205
 	ext_robot_hurt_t RobotHurt;							   // 0x0206
 	ext_shoot_data_t ShootData;							   // 0x0207
-        ext_projectile_allowance_t ProjectileAllowance;                       //0x0208
-        ext_rfid_status_t RFIDStatus;                                         //0x0209
-        ext_sentry_info_t SentryInfo;   //0x020D
+        projectile_allowance_t ProjectileAllowance;                       //0x0208
+        rfid_status_referee_t RFIDStatus;                                         //0x0209
+
 	// 自定义交互数据的接收
 	Communicate_ReceiveData_t ReceiveData;
 
@@ -56,6 +56,19 @@ typedef struct
 	uint32_t lid_flag : 1;
 	uint32_t friction_flag : 1;
 	uint32_t Power_flag : 1;
+    uint32_t pitch_flag : 1;
+    uint32_t autoaim_flag : 1;
+    uint32_t cap_flag : 1;
+    uint32_t ammo_flag : 1;
+    uint32_t fric_flag : 1;
+    uint32_t yaw_flag : 1;
+        
+    // === 工程机器人专用 flag ===
+  uint32_t robot_mode_flag : 1;    // 机器人模式变化 (G 键控制)
+  uint32_t grab_control_flag : 1;  // 机械臂控制模式变化 (F 键控制)
+  uint32_t gripper_flag : 1;       // 夹爪状态变化
+  uint32_t motor_angle_flag : 1;   // 自定义控制器电机角度变化
+  uint32_t arm_angle_flag : 1;     // 机械臂关节角度变化
 } Referee_Interactive_Flag_t;
 
 
@@ -80,9 +93,8 @@ void RefereeSend(uint8_t *send, uint16_t tx_len);
 
 /**
  * @brief 获取裁判系统数据
- *
- * @return referee_info_t*
+ * @return referee_info_t* 裁判系统数据指针
  */
-referee_info_t *GetReferee();
+referee_info_t* GetRefereeInfo(void);
 
 #endif // !REFEREE_H

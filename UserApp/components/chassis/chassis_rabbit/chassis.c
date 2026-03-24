@@ -481,7 +481,7 @@ static void EstimateSpeed() {
 
 ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   ChassisInstance* chassis_instance = (ChassisInstance*)zmalloc(sizeof(ChassisInstance));
-  referee_data = GetReferee();
+  referee_data = GetRefereeInfo();  // 修正函数名
   // 初始化底盘外部IMU
   chassis_instance->chassis_external_imu = ExternalIMUInit(
       chassis_init_config->external_imu.can_id,
