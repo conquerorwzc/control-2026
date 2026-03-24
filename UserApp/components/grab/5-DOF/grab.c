@@ -742,32 +742,8 @@ static void Grab_Real_Angle_Calculate(GrabInstance *grab)
 
 static void Error_Check()
 {
-    // 只有在没报错 且 处于使能状态时，才进行异常检测
-    if (grab->error_code == GRAB_NO_ERROR && grab_ctrl_cmd->grab_mode == GRAB_POWER_ON)
-    {
-        // Roll 轴防疯转与防掉电突变
-        if (DaemonIsOnline(grab->actuator->grab_djimotor[2]->daemon))
-        {
-            // 监控1: 防止转速过快
-            float current_roll_speed = fabsf(grab->actuator->grab_djimotor[2]->measure.speed_aps);
-            if (current_roll_speed > ROLL_SAFE_MAX_APS)
-            {
-                grab->error_code = GRAB_ERR_ROLL_OVERSPEED;
-            }
-
-            // 监控2: 防止掉电出现问题，不可能有的突变超大角度
-            float current_roll_delta_angle = fabsf(grab->grab_measure.wrist_roll - grab->actuator->wrist_roll);
-            if (current_roll_delta_angle > ROLL_SAFE_MAX_DELTA_ANGLE)
-            {
-                grab->error_code = GRAB_ERR_ROLL_OVERANGLE;
-            }
-        }
-
-        if (grab->error_code != GRAB_NO_ERROR)
-        {
-            grab_ctrl_cmd->grab_mode = GRAB_POWER_OFF; // 强行锁死瘫痪
-        }
-    }
+    // Roll 轴保护已移除（超速/超角检测在重连时易误触导致机械臂意外断电）
+    // 如需恢复，可在此处重新添加对 grab_djimotor[2] 的监控逻辑
 }
 /**
  * @brief 清除机械臂的错误状态，允许重新使能
