@@ -33,14 +33,14 @@
 // 云台参数
 #define YAW_CHASSIS_ALIGN_ECD 3845  // 云台和底盘对齐指向相同方向时的电机编码器值,若对云台有机械改动需要修改
 #define PITCH_HORIZON_ECD 2900      // 云台处于水平位置时编码器值,若对云台有机械改动需要修改
-#define PITCH_MAX_ANGLE 30.0f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
-#define PITCH_MIN_ANGLE -37.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define PITCH_MAX_ANGLE 165.0f   // 云台竖直方向最大角度 (注意是电机角度)
+#define PITCH_MIN_ANGLE 100.0f  // 云台竖直方向最小角度 (注意是电机角度)
 
 // 私有宏,自动将编码器转换成角度值
 #define YAW_ALIGN_ANGLE (YAW_CHASSIS_ALIGN_ECD * ECD_ANGLE_COEF_DJI) // 对齐时的角度,0-360
 #define PTICH_HORIZON_ANGLE (PITCH_HORIZON_ECD * ECD_ANGLE_COEF_DJI)  // pitch水平时电机的角度,0-360
 #define GYRO2GIMBAL_DIR_YAW 1    // 陀螺仪数据相较于云台的yaw的方向,1为相同,-1为相反
-#define GYRO2GIMBAL_DIR_PITCH 1  // 陀螺仪数据相较于云台的pitch的方向,1为相同,-1为相反
+#define GYRO2GIMBAL_DIR_PITCH -1  // 陀螺仪数据相较于云台的pitch的方向,1为相同,-1为相反
 #define GYRO2GIMBAL_DIR_ROLL 1   // 陀螺仪数据相较于云台的roll的方向,1为相同,-1为相反
 static Gimbal_Init_Config_s gimbal_init_config = {
     .yaw_motor_config =
@@ -158,7 +158,7 @@ static Shoot_Init_Config_s shoot_init_config = {
             .friction_speed = 40000.0f,                   // 摩擦轮速度，36000时弹速23m/s
             .friction_coefficients = {1.0f, -1.0f},  // 摩擦轮速度比例系数。
             .deadtime_burstfire = 50,
-            .deadtime_onebullet = 100,
+            .deadtime_onebullet = 500,
             .target_speed = 24.7f,
             .bullet_speed_adjustment = 10.0f,
         },

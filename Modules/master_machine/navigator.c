@@ -308,7 +308,7 @@ void navigator_send(UART_HandleTypeDef *instance,referee_info_t* referee_data) {
   // update_senddata();
   //send_all_robot_hp(instance,&referee_data->GameRobotHP);
   // send_event_data(instance,&send_data.event_data);
-  // send_game_status(instance,&referee_data->GameState);
+  send_game_status(instance,&referee_data->GameState);
   // send_ground_robot_position(instance,&send_data.ground_robot_position);
   // send_joint_state(instance,&send_data.joint_state);
   // send_rfid_status(instance,&send_data.rfid_status);

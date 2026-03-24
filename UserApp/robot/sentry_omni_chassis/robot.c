@@ -324,8 +324,12 @@ static void MouseKeySet() {
 #elifdef USE_DUAL_RC_NEW
 static void RemoteControlSet() {
   if (switch_middle(vt13_rc_data->rc.mode_switch) || switch_right(vt13_rc_data->rc.mode_switch)) {
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
     if (abs(vt13_rc_data->rc.dial) > 20) chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+  }
+
+  if (robot->referee_data->GameState.game_progress == 4) {
+    robot->control_mode = AUTO_MODE;
   }
 
   // 底盘控制部分,系数需要调整
@@ -344,7 +348,7 @@ static void RemoteControlSet() {
     vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vy * 10000;
     // vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vx*5000;
     vy_initial = robot->navigator_data->robot_cmd.speed_vector.vx * 10000;
-    chassis_ctrl_cmd->wz = robot->navigator_data->robot_cmd.speed_vector.wz * 100;
+    chassis_ctrl_cmd->wz = robot->navigator_data->robot_cmd.speed_vector.wz * 0;//10000;
     // gimbal_ctrl_cmd->yaw-=robot->navigator_data->robot_cmd.speed_vector.wz*0.01;
   }
   // 缓加速
@@ -406,22 +410,25 @@ static void EmergencyHandler() {
   }
 
 #endif
+
 }
 static void ModeControl() {
   if (robot->control_mode==AUTO_MODE){
     if (robot->referee_data->ProjectileAllowance.projectile_allowance_17mm==0) {
       robot->sentry_mode=DEFENSE_POSE;    //无可用弹丸进入防御姿态
-      // robot->chassis->chassis_ctrl_cmd.wz=30000;
+      robot->chassis->chassis_ctrl_cmd.wz=1500;
     }
     else if (robot->chassis->chassis_ctrl_cmd.vx==0&&robot->chassis->chassis_ctrl_cmd.vy==0) {
       robot->sentry_mode=OFFENSE_POSE;    //高于50%血或占据堡垒进入进攻姿态
-      // robot->chassis->chassis_ctrl_cmd.wz=10000;
+      robot->chassis->chassis_ctrl_cmd.wz=1500;
     }
     else {
       robot->sentry_mode=MOBILITY_POSE;
+      robot->chassis->chassis_ctrl_cmd.wz=1000;
     }
   }
 }
+
 static void SuperCapControl() {
   switch (supercap_mode) {
     case SAFETY_MODE:
@@ -566,7 +573,7 @@ void RobotCMDTask() {
   CalcOffsetAngle();
   RemoteControlSet();
   // MouseKeySet();
-  SentryRefereeSend();
+  // SentryRefereeSend();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
 
@@ -578,7 +585,7 @@ void RobotTask() {
   navigator_send(&huart1, robot->referee_data);
   RobotCMDTask();
   // SuperCapControl();
-  chassis_ctrl_cmd->max_power = 100;
+  chassis_ctrl_cmd->max_power = robot->referee_data->GameRobotState.chassis_power_limit;
   ModeControl();
   ChassisTask();
 #endif
