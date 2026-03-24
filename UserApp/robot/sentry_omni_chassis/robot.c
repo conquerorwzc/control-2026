@@ -323,6 +323,7 @@ static void MouseKeySet() {
 
 #elifdef USE_DUAL_RC_NEW
 static void RemoteControlSet() {
+  static float auto_mode_time = 0;
   if (switch_middle(vt13_rc_data->rc.mode_switch) || switch_right(vt13_rc_data->rc.mode_switch)) {
     chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
     if (abs(vt13_rc_data->rc.dial) > 20) chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
@@ -342,14 +343,15 @@ static void RemoteControlSet() {
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
       chassis_ctrl_cmd->wz = (2.0f) * (float)vt13_rc_data->rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
     }
+    auto_mode_time=DWT_GetTimeline_s();
   } else if (robot->control_mode == AUTO_MODE)  // 自动控制，直接收上位机控制量
   {
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
-    vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vy * 10000;
-    // vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vx*5000;
-    vy_initial = robot->navigator_data->robot_cmd.speed_vector.vx * 10000;
-    chassis_ctrl_cmd->wz = robot->navigator_data->robot_cmd.speed_vector.wz * 0;//10000;
-    // gimbal_ctrl_cmd->yaw-=robot->navigator_data->robot_cmd.speed_vector.wz*0.01;
+    // if (robot->referee_data->GameState.game_progress == 4 || auto_mode_time-DWT_GetTimeline_s()>180.0f) {
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+      vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vy * 10000;
+      vy_initial = robot->navigator_data->robot_cmd.speed_vector.vx * 10000;
+      chassis_ctrl_cmd->wz = robot->navigator_data->robot_cmd.speed_vector.wz * 0;//10000;
+    // }
   }
   // 缓加速
   if (abs(vx_initial) <= 10000) {
