@@ -30,16 +30,6 @@ typedef enum {
     CALI_STAGE_DONE           = 3, // 3: 标定大功告成
     CALI_STAGE_ERROR          = 4  // 4: 标定超时或异常
 } GrabCaliStage_e;
-// 图传标定状态机
-typedef enum {
-    VIDEO_CALI_START = 0,
-    VIDEO_CALI_WAIT_BTN,
-    VIDEO_CALI_START_PITCH,
-    VIDEO_CALI_FIND_MAX,
-    VIDEO_CALI_FIND_MIN,
-    VIDEO_CALI_DONE,
-    VIDEO_CALI_ERROR
-} VideoCaliState_e;
 typedef struct {
     GrabCaliStage_e state;
     float max_pitch; // 自动生成的最高软件限位 (如 90 * 0.98 = 88.2度)
@@ -57,12 +47,6 @@ typedef struct {
     float elbow_roll_MIN;
     float elbow_pitch_MAX;   // 肘部关节俯仰角度
     float elbow_pitch_MIN;
-    float Video_yaw_MAX; // 图传的Yaw旋转角度
-    float Video_yaw_MIN;
-    float Video_pitch_MAX;   // 图传的pitch旋转角度
-    float Video_pitch_MIN;
-
-
     // 👇 新增：3508 抬升电机的软限位
     float arm_lift_MAX;      // 机械臂整体抬升最大高度/角度
     float arm_lift_MIN;      // 机械臂整体抬升最小高度/角度
@@ -72,9 +56,6 @@ typedef struct {
     float elbow_pitch_sens_keyboard;   // 肘部俯仰关节灵敏度(键鼠)
     float wrist_roll_sens_keyboard;    // 腕部旋转关节灵敏度(键鼠)
     float wrist_pitch_sens_keyboard;   // 腕部俯仰关节灵敏度(键鼠)
-    float video_yaw_sens_keyboard; // 图传Yaw旋转灵敏度(键鼠)
-    float video_pitch_sens_keyboard;   // 图传pitch旋转灵敏度(键鼠)
-
     // 👇 新增：3508 抬升电机的键盘控制灵敏度
     float arm_lift_sens_keyboard;      // 抬升机构灵敏度(键鼠)
 
@@ -83,7 +64,7 @@ typedef struct {
 typedef struct
 {
     // 👇 极其重要：从 [9] 改为 [10]！因为多了一个 3508 抬升电机
-    Motor_Init_Config_s Grab_motor_config[10];
+    Motor_Init_Config_s Grab_motor_config[8];
     Grab_Cali_Mode_e Grab_cali_mode;
     Grab_Param_s  Grab_param;
 } Grab_Init_Config_s;
@@ -95,8 +76,6 @@ typedef struct
     float base_joint;    // 基座旋转关节角度
     float elbow_roll;    // 肘部关节旋转角度
     float elbow_pitch;   // 肘部关节俯仰角度
-    float video_yaw; // 图传的Yaw旋转角度
-    float video_pitch;   // 图传的pitch旋转角度
     float torque;        // 夹爪电机目标扭矩
 
     // 👇 新增：3508 抬升电机的目标指令
@@ -104,7 +83,6 @@ typedef struct
     float arm_lift_target;
     uint8_t wrist_roll_cali;
     uint8_t wrist_pitch_cali;
-    uint8_t video_cali;
     Grab_Mode_e grab_mode;
 } Grab_Ctrl_Cmd_s;
 
@@ -115,8 +93,6 @@ typedef struct
     float base_joint;    // 实际：基座旋转关节角度
     float elbow_roll;    // 实际：肘部关节旋转角度
     float elbow_pitch;   // 实际：肘部关节俯仰角度
-    float video_yaw; // 实际：图传的Yaw旋转角度
-    float video_pitch;   // 实际：图传的pitch旋转角度
     float torque;        // 实际：夹爪电机当前扭矩
 
     // 👇 新增：3508 抬升电机的实际反馈
@@ -155,24 +131,10 @@ typedef struct
 
 typedef struct
 {
-    DJIMotorInstance *grab_djimotor[2];
-    float Video_yaw; // 图传的Yaw旋转角度
-    float Video_pitch;   // 图传的pitch旋转角度
-    float Y_target;      // Yaw轴电机目标角度
-    float P_target;      // pitch轴电机目标角度
-
-    // ================= 图传标定专用数据 =================
-    VideoCaliState_e video_cali_state;
-    float video_max_p;   // pitch 寻找到的最大角度
-    float video_min_p;   // pitch 寻找到的最小角度
-} VideoInstance;
-typedef struct
-{
     Grab_Ctrl_Cmd_s grab_ctrl_cmd;
     Grab_Real_Measure_s grab_measure;
     ArmInstance *arm;
     ActuatorInstance *actuator;
-    VideoInstance *video;
     Grab_Error_e error_code;      // 当前实时错误码
 } GrabInstance;
 

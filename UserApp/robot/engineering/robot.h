@@ -3,6 +3,7 @@
 #include "chassis.h"
 #include "gantry.h"
 #include "grab.h"
+#include "gimbal_video.h"
 #include "remote_control.h"
 
 #include "selfcontrol.h"
@@ -37,6 +38,7 @@ typedef struct
     ChassisInstance *chassis;
     GantryInstance *gantry;
     GrabInstance *grab;
+    VideoGimbalInstance *video_gimbal; // 图传云台独立组件
     SelfC *self_control; // 自定义控制器实例
 } RobotInstance;
 

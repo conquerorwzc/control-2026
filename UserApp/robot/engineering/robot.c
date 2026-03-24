@@ -20,6 +20,7 @@ static RobotInstance *robot;
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
 static Grab_Ctrl_Cmd_s *grab_ctrl_cmd;
 static Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd; // 【新增】龙门架控制命令指针
+static VideoGimbal_Ctrl_Cmd_s *video_gimbal_ctrl_cmd;
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last; // 遥控器数据,初始化时返回
 static float set_angle = 0;
@@ -71,6 +72,7 @@ void RobotInit()
     robot->ins_data = INS_Init(&imu_init_config);
     // robot->gantry = GantryInit(&gantry_init_config);
     robot->grab = GrabInit(&grab_init_config);
+    robot->video_gimbal = VideoGimbalInit(&video_gimbal_init_config);
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
     robot->chassis = ChassisInit(&chassis_init_config);
@@ -80,6 +82,7 @@ void RobotInit()
     chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
     chassis_ctrl_cmd->max_power = 80; // 随便给一个初始功率，后面应该要从裁判系统获取
     grab_ctrl_cmd = &robot->grab->grab_ctrl_cmd;
+    video_gimbal_ctrl_cmd = &robot->video_gimbal->ctrl_cmd;
     // 【新增】龙门架控制命令指针
     // if (robot->gantry != NULL)
     // {
@@ -108,6 +111,7 @@ void RobotTask()
 #if defined(ONE_BOARD) // 假设龙门架逻辑运行在主控板
     // GantryTask();
     GrabTask();
+    VideoGimbalTask();
     // 机械臂使能由按键G控制，在MouseKeySet()中处理
     // grab_ctrl_cmd->grab_mode = b;
 #endif
@@ -169,6 +173,7 @@ static void MouseKeySet()
     {
         // 既然在工作模式，机械臂默认给电使能
         grab_ctrl_cmd->grab_mode = GRAB_POWER_ON;
+        video_gimbal_ctrl_cmd->power = VIDEO_POWER_ON;
 
         // ================= 2. 机械臂控制权切换 (仅在兑换模式下 F 键生效) =================
         if (robot->robot_mode == ROBOT_EXCHANGE_MODE)
@@ -358,12 +363,12 @@ static void MouseKeySet()
 
     // 融合键盘 (-1, 0, 1) 和鼠标相对位移 (缩放量级匹配键盘)
     // 扣除 Shift 和 Ctrl 修饰键，防止在控制机械臂(Shift)或标定(Ctrl)时误触云台
-    grab_ctrl_cmd->video_pitch =
+    video_gimbal_ctrl_cmd->video_pitch =
         (float)((rc_data[TEMP].key[KEY_PRESS].x - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].x) -
                 (rc_data[TEMP].key[KEY_PRESS].z - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].z)) -
         (float)rc_data[TEMP].mouse.y * 0.155f;
 
-    grab_ctrl_cmd->video_yaw =
+    video_gimbal_ctrl_cmd->video_yaw =
         (float)((rc_data[TEMP].key[KEY_PRESS].b - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].b) -
                 (rc_data[TEMP].key[KEY_PRESS].v - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].v -
                  rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].v)) +
@@ -378,10 +383,10 @@ static void MouseKeySet()
     {
         grab_ctrl_cmd->wrist_pitch_cali = 1;
     }
-    // 🌟 重新标定触发：按住 Ctrl + V
+    // Ctrl+V：触发图传 Pitch 双向堵转标定
     else if (rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].v)
     {
-        grab_ctrl_cmd->video_cali = 1;
+        video_gimbal_ctrl_cmd->video_cali = 1;
     }
 
 }
@@ -405,6 +410,7 @@ static void EmergencyHandler()
         chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
         // gantry_ctrl_cmd->Gantry_mode = GANTRY_MODE_POWER_OFF;
         grab_ctrl_cmd->grab_mode = GRAB_POWER_OFF;
+        video_gimbal_ctrl_cmd->power = VIDEO_POWER_OFF;
         LOGINFO("[CMD] emergency stop!");
     }
 }

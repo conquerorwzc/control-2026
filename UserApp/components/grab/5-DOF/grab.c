@@ -39,24 +39,12 @@
 // 机械臂抬升相关参数
 #define LIFT_HEIGHT_MAX 420.0f
 
-// ==================== 【图传双向标定参数】 ====================
-#define VIDEO_CALI_SPEED_P 0.5f         // M3508 俯仰寻零速度 (度/tick) -> 改为约 100度/秒，温柔寻零
-#define VIDEO_CALI_STALL_CURRENT_Y 2500 // M3508 堵转认定电流
-#define VIDEO_CALI_STALL_CURRENT_P 2500 // M3508 堵转认定电流 -> 稍微放宽一点防止启动瞬间误触
-#define VIDEO_CALI_MAX_TICKS 5000       // 单次寻零超时时间 (10秒)
-#define VIDEO_CALI_SLIP_LIMIT_P 60.0f   // P电机目标角度最大超前量 -> 改为 60 防止 PID 算力被卡死导致输出电流不够
-#define VIDEO_CALI_MAXOUT_P 6000.0f     // 寻零期间，P电机最大输出(温柔摸墙)
-#define VIDEO_SAFE_RANGE_RATIO 0.95f
-#define VIDEO_CALI_STALL_SPEED      20.0f   // 转速阈值。低于 30 APS 才判堵转
-#define VIDEO_CALI_STALL_TICKS      300     // 连续 150 帧 (0.3秒) 堵转条件才判定成功
 /* Private variables ---------------------------------------------------------*/
 static GrabInstance *grab;
 static Grab_Ctrl_Cmd_s *grab_ctrl_cmd;
 static float total_angle_init_L = 0;
 static float total_angle_init_R = 0;
 static float total_angle_init_M = 0;
-static float total_angle_init_Video_yaw = 0;
-static float total_angle_init_Video_pitch = 0;
 // 👇 新增：抬升电机的上电物理初始零点
 static float total_angle_init_arm_lift = 0;
 static int error_clear_trigger = 0;
@@ -72,8 +60,7 @@ static void Grab_Real_Angle_Calculate(GrabInstance *grab);    // 计算机械臂
 static void GrabClearError(void);
 static void Error_Check();
 static void Wrist_Cali_Check();
-static void VideoCalibrationTask(void);
-static void Video_Position_Calculate(GrabInstance *grab);
+
 /* Private user code ---------------------------------------------------------*/
 /**
  * @brief 初始化机械臂
@@ -83,8 +70,6 @@ GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config)
     GrabInstance *grab_instance = (GrabInstance *)zmalloc(sizeof(GrabInstance));
     grab_instance->actuator = (ActuatorInstance *)zmalloc(sizeof(ActuatorInstance));
     grab_instance->arm = (ArmInstance *)zmalloc(sizeof(ArmInstance));
-    grab_instance->video = (VideoInstance *)zmalloc(sizeof(VideoInstance));
-
     grab_instance->actuator->grab_djimotor[0] = DJIMotorInit(&Grab_init_config->Grab_motor_config[3]);
     grab_instance->actuator->grab_djimotor[1] = DJIMotorInit(&Grab_init_config->Grab_motor_config[4]);
     grab_instance->actuator->grab_djimotor[2] = DJIMotorInit(&Grab_init_config->Grab_motor_config[8]);
@@ -95,9 +80,7 @@ GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config)
     grab_instance->arm->grab_dmmotor[1] = DMMotorInit(&Grab_init_config->Grab_motor_config[1]);      // v4
     grab_instance->arm->grab_dmmotor[2] = DMMotorInit(&Grab_init_config->Grab_motor_config[2]);      // v4
 
-    grab_instance->video->grab_djimotor[0] = DJIMotorInit(&Grab_init_config->Grab_motor_config[6]);
-    grab_instance->video->grab_djimotor[1] = DJIMotorInit(&Grab_init_config->Grab_motor_config[7]);
-    grab_instance->video->video_cali_state = VIDEO_CALI_START;
+
     // 先赋值grab指针，再访问grab_instance中的成员
     grab = grab_instance;
     grab_ctrl_cmd = &grab->grab_ctrl_cmd;
@@ -114,14 +97,6 @@ GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config)
         total_angle_init_arm_lift = grab->arm->arm_lift_motor->measure.total_angle;
         grab->arm->arm_lift_min = total_angle_init_arm_lift;
         grab->arm->arm_lift_max = total_angle_init_arm_lift + LIFT_HEIGHT_MAX;
-    }
-    if (grab->video->grab_djimotor[0] != NULL)
-    {
-        total_angle_init_Video_yaw = grab->video->grab_djimotor[0]->measure.total_angle;
-    }
-    if (grab->video->grab_djimotor[1] != NULL)
-    {
-        total_angle_init_Video_pitch = grab->video->grab_djimotor[1]->measure.total_angle;
     }
     if (Grab_init_config->Grab_cali_mode == GRAB_CALI_MODE)
     {
@@ -158,16 +133,6 @@ void GrabTask()
         Grab_Position_Calculate(grab); // 标定完：由遥控指令控制目标
     }
 
-    // ================= 模块 2: 图传云台逻辑 =================
-    if (grab->video->video_cali_state != VIDEO_CALI_DONE)
-    {
-        VideoCalibrationTask(); // 标定中：由图传标定函数控制 F/P_target
-    }
-    else
-    {
-        Video_Position_Calculate(grab); // 标定完：开启百分比解算和软着陆
-    }
-
     Grab_Real_Angle_Calculate(grab); // 计算机械臂实际物理位置
     MotorTask(); // 统一发送给电机
 }
@@ -196,30 +161,6 @@ static void GrabCmdTask()
     }
 
 
-    // ================= 图传云台状态更新与硬限幅 =================
-    // 键盘输入为离散量 (-1, 0, 1)，步长调回适合键盘的比例
-    float video_step = 1.0f / 1550.0f;
-
-    // Yaw只要初始化过了 (不在 START 或 ERROR) 就可以控制
-    if (grab->video->video_cali_state != VIDEO_CALI_START && grab->video->video_cali_state != VIDEO_CALI_ERROR)
-    {
-        grab->video->Video_yaw += grab_ctrl_cmd->video_yaw * video_step;
-        // 移除 0~1 的限幅，允许 Yaw 无限旋转
-    }
-
-    // Pitch必须等待标定完全完成才能控制
-    if (grab->video->video_cali_state == VIDEO_CALI_DONE)
-    {
-        grab->video->Video_pitch += grab_ctrl_cmd->video_pitch * video_step;
-        if (grab->video->Video_pitch >= 1.0f)
-        {
-            grab->video->Video_pitch = 1.0f;
-        }
-        else if (grab->video->Video_pitch < 0.0f)
-        {
-            grab->video->Video_pitch = 0.0f;
-        }
-    }
     // ================= 赋值给底层实体 =================
     grab->arm->base_joint = grab_ctrl_cmd->base_joint;
     grab->arm->elbow_roll = grab_ctrl_cmd->elbow_roll;
@@ -244,8 +185,7 @@ static void MotorTask()
         DJIMotorStop(grab->actuator->grab_djimotor[2]);
         DMMotorStop(grab->actuator->grab_dmmotor[0]);
 
-        DJIMotorStop(grab->video->grab_djimotor[0]);
-        DJIMotorStop(grab->video->grab_djimotor[1]);
+
     }
     else
     {
@@ -312,42 +252,8 @@ static void MotorTask()
             DMMotorSetRef(grab->actuator->grab_dmmotor[0], grab->actuator->T_target);
         }
 
-        // 👉 你的图传电机保留代码：
-        // 循环处理所有DJIMotor（Video部分）
-        // 循环处理所有DJIMotor（Video部分）
-        for (int i = 0; i < 2; i++)
-        {
-            // 🌟 如果指针为空，直接跳过，绝对不允许访问 daemon！
-            if (grab->video->grab_djimotor[i] != NULL)
-            {
-                if (DaemonIsOnline(grab->video->grab_djimotor[i]->daemon))
-                {
-                    DJIMotorEnable(grab->video->grab_djimotor[i]);
-                    switch (i)
-                    {
-                    case 0:
-                        DJIMotorSetPIDRef(grab->video->grab_djimotor[i], grab->video->Y_target);
-                        break;
-                    case 1:
-                        DJIMotorSetPIDRef(grab->video->grab_djimotor[i], grab->video->P_target);
-                        break;
-                    }
-                }
-                else 
-                {
-                    // 🌟 必须调用 Stop：这会彻底清空电机底层维持的 PID 旧积分，
-                    // 杜绝“重连后直接把掉线期间积累的巨大 I 爆发出引起猛烈跳转”！
-                    DJIMotorStop(grab->video->grab_djimotor[i]);
-                }
-            }
-        }
     }
 }
-
-/**
- * @brief 根据pitch和roll角度解算出电机的转动角度
- * @param arm 机械臂结构体指针
- */
 static void Grab_Position_Calculate(GrabInstance *grab)
 {
     /**
@@ -376,33 +282,6 @@ static void Grab_Position_Calculate(GrabInstance *grab)
 
    }
 
-/**
- * @brief 图传云台独立逆解算 (百分比映射 + 90%安全限幅 + LPF软着陆)
- */
-static void Video_Position_Calculate(GrabInstance *grab)
-{
-    if (grab->video->video_cali_state != VIDEO_CALI_START && grab->video->video_cali_state != VIDEO_CALI_ERROR)
-    {
-        // 取消 90 度软限位限制，允许无限旋转。
-        // 改变 1 的 Video_yaw 相当于 180 度。 0.0 作为最初的记录零点 (控制量清零)。
-        float theoretical_target_y = total_angle_init_Video_yaw + grab->video->Video_yaw * 180.0f;
-        grab->video->Y_target += (theoretical_target_y - grab->video->Y_target) * 0.15f;
-    }
-
-    // 🛡️ 只有图传标定完成了，才允许 Pitch 进行软着陆计算
-    if (grab->video->video_cali_state == VIDEO_CALI_DONE)
-    {
-        float p_stroke = grab->video->video_max_p - grab->video->video_min_p;
-        float margin = (1.0f - VIDEO_SAFE_RANGE_RATIO) / 2.0f;
-        float safe_ratio_p = margin + grab->video->Video_pitch * VIDEO_SAFE_RANGE_RATIO;
-
-        if (safe_ratio_p < margin) safe_ratio_p = margin;
-        if (safe_ratio_p > 1.0f - margin) safe_ratio_p = 1.0f - margin;
-
-        float theoretical_target_p = grab->video->video_min_p + p_stroke * safe_ratio_p;
-        grab->video->P_target += (theoretical_target_p - grab->video->P_target) * 0.15f;
-    }
-}
 /**
  * @brief 三段式安全标定任务 (底层归零 -> 找最高点90度 -> 找最低点)
  */
@@ -699,36 +578,11 @@ static void Grab_Real_Angle_Calculate(GrabInstance *grab)
     }
 
     // =========================================================
-    // 3. 解算图传电机与夹爪力矩 (目前预留，如果你没接电机就不算)
+    // 3. 解算图传电机与夹爪力矩
     // =========================================================
     if (DaemonIsOnline(grab->actuator->grab_dmmotor[0]->daemon))
     {
-        // 假设你要读末端夹爪 DM 电机的实时反馈电流/力矩
         grab->grab_measure.torque = grab->actuator->grab_dmmotor[0]->measure.torque;
-    }
-
-    // 图传部分，等你把图传电机加回来再把下面注释解开
-
-    // =========================================================
-    // 3. 解算图传电机 (🌟 加入终极防空指针装甲)
-    // =========================================================
-    // 必须先判断指针存在，再去判断 Daemon 状态！
-    if (grab->video->grab_djimotor[0] != NULL)
-    {
-        if (DaemonIsOnline(grab->video->grab_djimotor[0]->daemon))
-        {
-            grab->grab_measure.video_yaw =
-                grab->video->grab_djimotor[0]->measure.total_angle - total_angle_init_Video_yaw;
-        }
-    }
-
-    if (grab->video->grab_djimotor[1] != NULL)
-    {
-        if (DaemonIsOnline(grab->video->grab_djimotor[1]->daemon))
-        {
-            grab->grab_measure.video_pitch =
-                grab->video->grab_djimotor[1]->measure.total_angle - total_angle_init_Video_pitch;
-        }
     }
 
     // 👇 新增：抬升电机真实物理高度解算
@@ -768,139 +622,5 @@ static void Wrist_Cali_Check()
         grab->actuator->wrist_cali.state = CALI_STAGE_DM_WAIT_ZERO;
         cali_first_run = 1;
         grab_ctrl_cmd->wrist_pitch_cali = 0;
-    }
-
-    // 🌟 新增：检测到图传标定请求，强制重置状态机
-    if (grab_ctrl_cmd->video_cali == 1)
-    {
-        if (grab->video->video_cali_state == VIDEO_CALI_WAIT_BTN || grab->video->video_cali_state == VIDEO_CALI_DONE)
-        {
-            grab->video->video_cali_state = VIDEO_CALI_START_PITCH;
-        }
-        grab_ctrl_cmd->video_cali = 0;
-    }
-}
-static void VideoCalibrationTask(void)
-{
-    if (grab->video->grab_djimotor[0] == NULL || grab->video->grab_djimotor[1] == NULL) return;
-
-    // 1. 最高优先级指令：整机切入断电保护模式时，强制恢复所有状态为出厂刚上电水平！
-    if (grab_ctrl_cmd->grab_mode == GRAB_POWER_OFF) {
-        grab->video->video_cali_state = VIDEO_CALI_START;
-        grab->video->Video_yaw = 0.0f; // 断电瞬间立刻把底层控制期望清零
-        grab_ctrl_cmd->video_yaw = 0.0f; // 顺带把上层发送的 cmd 指令也强制抹除
-        grab_ctrl_cmd->video_pitch = 0.0f;
-        return;
-    }
-
-    // 2. 硬件断联保护：一旦任何一个电机掉线（如杜邦线松动、CAN被干扰等）
-    // 必须立刻将状态机打回原形！因为重连时相对多圈编码器角度已经失效，必须拿上线第一帧作为新的基准！
-    if (!DaemonIsOnline(grab->video->grab_djimotor[0]->daemon) || 
-        !DaemonIsOnline(grab->video->grab_djimotor[1]->daemon)) {
-        grab->video->video_cali_state = VIDEO_CALI_START;
-        grab->video->Video_yaw = 0.0f; // 掉线瞬间立刻把底层控制期望清零
-        grab_ctrl_cmd->video_yaw = 0.0f; // 同上，拔线的瞬间抹除一切上层指令残留
-        grab_ctrl_cmd->video_pitch = 0.0f;
-        return;
-    }
-
-    // 3. 安全检查完毕，如果已经标定圆满结束，直接跳过任务以节省算力
-    if (grab->video->video_cali_state == VIDEO_CALI_DONE) return;
-
-    static float cali_target_p = 0.0f;
-    static uint16_t p_stall_cnt = 0; // 🌟 连续堵转计数器
-    static uint32_t timeout_cnt = 0;
-    static uint8_t p_done = 0;
-
-    // 获取当前物理反馈
-    float curr_y = grab->video->grab_djimotor[0]->measure.total_angle;
-    float curr_p = grab->video->grab_djimotor[1]->measure.total_angle;
-    float curr_amp_p = fabsf((float)grab->video->grab_djimotor[1]->measure.real_current);
-    float curr_spd_p = fabsf((float)grab->video->grab_djimotor[1]->measure.speed_aps);
-
-    static float hold_target_p = 0.0f;
-
-    switch (grab->video->video_cali_state)
-    {
-    case VIDEO_CALI_START:
-        total_angle_init_Video_yaw = curr_y; // Yaw 上电立刻获取当前中心点
-        
-        // 🌟 完全清零：Yaw 积累的控制量在重置时彻底归 0，不再是以前的 0.5
-        grab->video->Video_yaw = 0.0f; 
-        
-        // 🌟 核心：为防止“瞎转”，必须在此立刻初始化目标值为当前位置
-        grab->video->Y_target = curr_y; 
-        hold_target_p = curr_p; 
-        grab->video->P_target = hold_target_p;
-        
-        grab->video->video_cali_state = VIDEO_CALI_WAIT_BTN;
-        break;
-
-    case VIDEO_CALI_WAIT_BTN:
-        // 此状态下 Pitch 挂起防卡线，Yaw 不受堵转影响
-        // 🌟 必须锁死在上电初始位置，不能随波逐流等于 curr_p，否则会抗拒不了重力掉下来
-        grab->video->P_target = hold_target_p; 
-        break;
-
-    case VIDEO_CALI_START_PITCH:
-        cali_target_p = curr_p;
-        p_stall_cnt = 0; timeout_cnt = 0;
-        p_done = 0;
-        grab->video->video_cali_state = VIDEO_CALI_FIND_MAX;
-        break;
-
-    case VIDEO_CALI_FIND_MAX:
-    case VIDEO_CALI_FIND_MIN:
-        timeout_cnt++;
-        // 设置限速输出力矩
-        grab->video->grab_djimotor[1]->motor_controller.speed_PID.MaxOut = VIDEO_CALI_MAXOUT_P;
-
-        // 根据阶段决定增量方向
-        float dir = (grab->video->video_cali_state == VIDEO_CALI_FIND_MAX) ? 1.0f : -1.0f;
-
-        if (!p_done) cali_target_p += dir * VIDEO_CALI_SPEED_P;
-
-        // 虚拟弹簧限位
-        if (cali_target_p > curr_p + VIDEO_CALI_SLIP_LIMIT_P) cali_target_p = curr_p + VIDEO_CALI_SLIP_LIMIT_P;
-        if (cali_target_p < curr_p - VIDEO_CALI_SLIP_LIMIT_P) cali_target_p = curr_p - VIDEO_CALI_SLIP_LIMIT_P;
-
-        // Yaw 不能被强行等于 curr_y，否则会和鼠标平滑控制互殴！删去！
-        grab->video->P_target = cali_target_p;
-
-        // 🌟 核心：改用转速 + 电流 双重判定
-        // 判断 P 电机 (M3508)
-        if (!p_done) {
-            if (curr_spd_p < VIDEO_CALI_STALL_SPEED && curr_amp_p > VIDEO_CALI_STALL_CURRENT_P) p_stall_cnt++;
-            else p_stall_cnt = 0;
-            if (p_stall_cnt > VIDEO_CALI_STALL_TICKS) {
-                p_done = 1;
-                if (grab->video->video_cali_state == VIDEO_CALI_FIND_MAX) grab->video->video_max_p = curr_p;
-                else grab->video->video_min_p = curr_p;
-            }
-        }
-
-        // 检查阶段切换
-        if (p_done) {
-            if (grab->video->video_cali_state == VIDEO_CALI_FIND_MAX) {
-                grab->video->video_cali_state = VIDEO_CALI_FIND_MIN;
-                p_done = 0; p_stall_cnt = 0; timeout_cnt = 0;
-            } else {
-                // 🌟 终点：Pitch 标定成功，强制归中
-                total_angle_init_Video_pitch = (grab->video->video_max_p + grab->video->video_min_p) / 2.0f;
-                // Yaw 维持最初独立分配的值，不可篡改
-                
-                grab->video->Video_pitch = 0.5f;   // 归中
-                grab_ctrl_cmd->video_pitch = 0.0f;
-                grab->video->grab_djimotor[1]->motor_controller.speed_PID.MaxOut = 15000.0f;
-                grab->video->video_cali_state = VIDEO_CALI_DONE;
-            }
-        }
-        if (timeout_cnt > VIDEO_CALI_MAX_TICKS) grab->video->video_cali_state = VIDEO_CALI_ERROR;
-        break;
-
-    case VIDEO_CALI_ERROR:
-        grab->video->Y_target = curr_y;
-        grab->video->P_target = curr_p;
-        break;
     }
 }
