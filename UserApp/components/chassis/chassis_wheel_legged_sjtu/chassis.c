@@ -15,10 +15,12 @@
 #include "parallel_leg.h"
 #include "speed_observer.h"
 #include "user_lib.h"
+#include "referee.h"
 
 static ChassisInstance* chassis;
 static LegInstance* leg[2];
 static Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd;
+static referee_info_t *referee_data;
 
 /**
  * @brief  计算LQR增益矩阵K
@@ -119,27 +121,7 @@ static float MotorPowerCalc(const float k[6], float I, float w) {
   return (P > 0.0f) ? P : 0.0f;
 }
 
-/**
- * @brief  功率控制主逻辑（无超级电容版本）
- *
- * 对应SJTU文档中的功率控制思路（简化版，无 f1(Vcap) 和 f2(Ebuffer)）：
- *
- *   P_ref = P_limit                          （无超级电容，直接使用上限）
- *   ṡd_max = Kp * sqrt(P_ref)               （开环基准速度）
- *           + PI(P_limit - P_filtered)       （闭环修正）
- *
- * 执行流程：
- *   Step 1: 同步功率上限 P_limit
- *   Step 2: 估算当前总功率 P_total，低通滤波得 P_filtered
- *   Step 3: 计算开环基准最大速度 vel_max_base
- *   Step 4: PI闭环计算速度修正量 delta_vel
- *   Step 5: vel_max = vel_max_base + delta_vel，非对称低通滤波
- *   Step 6: 对目标速度做幅值限制
- *   Step 7: 斜率限制，输出 limited_vx
- *
- * @note 无超级电容时，不再需要 E_buffer、buffer_ratio 等虚拟缓冲量。
- *       功率超限完全靠 PI 闭环 + vel_max 非对称低通来抑制。
- */
+
 static void PowerControl(void) {
   PowerCtrl_t* pc = &chassis->power_ctrl;
 
@@ -459,6 +441,52 @@ static void ChassisRecovery(void) {
   }
 }
 
+static void SuperCapStateMachine() {
+  switch (chassis->super_cap_mode)
+  {
+    case SAFETY_MODE:
+      if (chassis->super_cap->cap_msg.cap_v > 18.0f)
+        chassis->super_cap_mode = PASSIVE_MODE;
+      chassis->chassis_ctrl_cmd.max_power =
+        300;  // referee_data->GameRobotState.chassis_power_limit;//TODO:用超电记得改;
+      break;
+    case FORCED_CHARGING_MODE:
+      if (chassis->super_cap->cap_msg.cap_v < 8.0f)
+        chassis->super_cap_mode = SAFETY_MODE;
+      if (chassis->super_cap->cap_msg.cap_v > 18.0f)
+        chassis->super_cap_mode = PASSIVE_MODE;
+      chassis->chassis_ctrl_cmd.max_power = (uint16_t)(0.4 * referee_data->GameRobotState.chassis_power_limit);
+      break;
+    case CHARGING_MODE:
+      if (chassis->super_cap->cap_msg.cap_v < 10.0f)
+        chassis->super_cap_mode = FORCED_CHARGING_MODE;
+      if (chassis->super_cap->cap_msg.cap_v > 18.0f)
+        chassis->super_cap_mode = PASSIVE_MODE;
+      chassis->chassis_ctrl_cmd.max_power =
+          referee_data->GameRobotState.chassis_power_limit -
+          (uint16_t)powf((float)referee_data->GameRobotState.chassis_power_limit * 0.05f, 2);
+      break;
+    case PASSIVE_MODE:
+      if (chassis_ctrl_cmd->SuperCapBoost == 1)
+        chassis->super_cap_mode = ACTIVE_MODE;
+      if (chassis->super_cap->cap_msg.cap_v < 12.0f)
+        chassis->super_cap_mode = CHARGING_MODE;
+      chassis->chassis_ctrl_cmd.max_power =
+          referee_data->GameRobotState.chassis_power_limit -
+          (uint16_t)powf((float)referee_data->GameRobotState.chassis_power_limit * 0.04f, 2);
+      break;
+    case ACTIVE_MODE:
+      if (chassis->super_cap->cap_msg.cap_v < 12.0f)
+        chassis->super_cap_mode = CHARGING_MODE;
+      if (chassis_ctrl_cmd->SuperCapBoost != 1)
+        chassis->super_cap_mode = PASSIVE_MODE;
+      chassis->chassis_ctrl_cmd.max_power = 200;
+      break;
+    default:
+      chassis->super_cap_mode = SAFETY_MODE;
+  }
+}
+
 static void ChassisJump(void) {
   switch (chassis->jump_state) {
     case JUMP_STATE_COMPRESS:
@@ -511,6 +539,7 @@ static void LimitChassisOutput(void) {
 ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   ChassisInstance* chassis_instance = (ChassisInstance*)zmalloc(sizeof(ChassisInstance));
 
+  referee_data = GetReferee();
   chassis_instance->leg[1] = LegInit(&chassis_init_config->leg_init_config[1]);
   chassis_instance->leg[0] = LegInit(&chassis_init_config->leg_init_config[0]);
 
@@ -559,6 +588,8 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   leg[1] = chassis->leg[1];
   chassis_ctrl_cmd = &chassis->chassis_ctrl_cmd;
 
+  chassis->super_cap_mode = SAFETY_MODE;
+
   DWT_GetDeltaT(&chassis->DWT_CNT);
   return chassis_instance;
 }
@@ -578,6 +609,8 @@ void ChassisTask(void) {
       DJIMotorEnable(chassis->leg[i]->wheel_motor);
     }
   }
+
+  SuperCapStateMachine();
 
   // if (chassis->update_flag.is_recovered == 0) {
   //   chassis->chassis_ctrl_cmd.chassis_mode = CHASSIS_RECOVERY;
@@ -610,6 +643,9 @@ void ChassisTask(void) {
     default:
       break;
   }
+
+  SuperCapSendMessage(chassis->super_cap, (int16_t)referee_data->GameRobotState.chassis_power_limit, referee_data->PowerHeatData.buffer_energy,
+                    referee_data->GameRobotState.power_management_chassis_output);
 
   LimitChassisOutput();
 }

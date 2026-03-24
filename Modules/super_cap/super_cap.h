@@ -10,18 +10,19 @@
 
 #include "bsp_can.h"
 
-#pragma pack(1)
-typedef struct {
-  uint16_t vol;      // 电压
-  uint16_t current;  // 电流
-  uint16_t power;    // 功率
-} SuperCap_Msg_s;
-#pragma pack()
+typedef struct
+{
+  float cap_v;
+  uint8_t error_detect;
+  float out_p;//除以100以后单位是W
+  float in_p;//除以100以后单位是W
+} SuperCap_Measure_s;
 
 /* 超级电容实例 */
-typedef struct {
-  CANInstance* can_ins;    // CAN实例
-  SuperCap_Msg_s cap_msg;  // 超级电容信息
+typedef struct
+{
+    CANInstance *can_ins; // CAN实例
+    SuperCap_Measure_s cap_msg; // 超级电容信息
 } SuperCapInstance;
 
 /* 超级电容初始化配置 */
@@ -35,14 +36,17 @@ typedef struct {
  * @param supercap_config 超级电容初始化配置
  * @return SuperCapInstance* 超级电容实例指针
  */
-SuperCapInstance* SuperCapInit(SuperCap_Init_Config_s* supercap_config);
+SuperCapInstance *SuperCapInit(SuperCap_Init_Config_s *supercap_config);
+
 
 /**
- * @brief 发送超级电容控制信息
- *
+ * @brief 发送超级电容控制消息
+ * 
  * @param instance 超级电容实例
- * @param data 超级电容控制信息
+ * @param power 功率值
+ * @param buffer 缓冲区值
+ * @param state 状态值
  */
-void SuperCapSend(SuperCapInstance* instance, uint8_t* data);
+void SuperCapSendMessage(SuperCapInstance *instance, int16_t power, uint16_t buffer, uint8_t state);
 
-#endif  // !SUPER_CAP_Hd
+#endif // !SUPER_CAP_H

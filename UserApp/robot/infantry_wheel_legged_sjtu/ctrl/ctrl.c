@@ -17,7 +17,6 @@ static float chassis_vy;
 static float input_mag;
 static float follow_err;
 static float align_attenuation;
-static float trigger_time = 0;
 
 // 小陀螺相关参数 (moved from robot.c static)
 static float rotate_frequency;  // 小陀螺旋转的频率
@@ -41,6 +40,7 @@ void JoyStickCtrl(RobotInstance* robot) {
   Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   Gimbal_Ctrl_Cmd_s* gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   Shoot_Ctrl_Cmd_s* shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
+  static float trigger_time = 0;
 
   if (is_first_update) {
     rc_data_last = rc_data[TEMP];
@@ -98,11 +98,10 @@ void JoyStickCtrl(RobotInstance* robot) {
       if (switch_is_mid(rc_data_last.rc.switch_left)) {
         trigger_time = DWT_GetTimeline_s();
       }
-      if (DWT_GetTimeline_s() - trigger_time > 1.0f) {
+      if (DWT_GetTimeline_s() - trigger_time > 0.5f) {
         shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
       } else {
         shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
-        // shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
       }
     }
     // 云台使能,或视觉未识别到目标,纯遥控器拨杆控制
@@ -217,7 +216,7 @@ void JoyStickCtrl(RobotInstance* robot) {
       break;
   }
   //  记录上一次数据
-  rc_data_last = rc_data[TEMP];
+  // rc_data_last = rc_data[TEMP];
 }
 
 void MouseKeyCtrl(RobotInstance* robot) {
@@ -241,6 +240,7 @@ void MouseKeyCtrl(RobotInstance* robot) {
   static uint8_t ctrl_g_key_last = 0;  // 记录上一次Ctrl+R键状态
   static uint8_t c_key_last = 0;       // 记录上一次C键状态
   static uint8_t is_rotate_mode = 0;   // 小陀螺模式标志位
+  static float trigger_time = 0;       // 开火时间
 
   // [Ctrl+Z]键设置速度，测试用
   switch (rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL][Key_Z] % 3) {

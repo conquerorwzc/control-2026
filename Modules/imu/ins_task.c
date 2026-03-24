@@ -179,7 +179,19 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
     IMU_Temperature_Ctrl();
     DWT_Delay(0.001);
   }
-  INS_CalibrateGyroForDebug(5000);
+  //是否在线标定
+  if (imu_init_config->offset_flag==1) {
+    for (uint8_t i=0;i<3;i++)
+      BMI088.GyroOffset[i]=imu_init_config->GyroOffset[i];
+  }
+  else {
+    INS_CalibrateGyroForDebug(5000);
+  }
+  //for (uint8_t i = 0; i < 3; i++) {
+    //BMI088.GyroOffset[0] = 0.00253310893f;
+    //BMI088.GyroOffset[1] = 0.00196733163f;
+    //BMI088.GyroOffset[2] = 0.000239364381;
+
 
   // 手动计算加速度缩放因子，因为我们跳过了完整的校准过程
   BMI088.AccelScale = 9.81f / BMI088.gNorm;
@@ -199,9 +211,8 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
   float init_quaternion[4] = {0};
   InitQuaternion(init_quaternion);
   // 改进的初始化方式：使用更稳定的四元数初始化
-  // float init_quaternion[4] = {1.0f, 0.0f, 0.0f, 0.0f};  // 单位四元数
-  IMU_QuaternionEKF_Init(init_quaternion, 10, 0.001f, 10000000, 0.9996f,
-                         0.0085f);  // 增加测量噪声，启用渐消因子和低通滤波
+  //float init_quaternion[4] = {1.0f, 0.0f, 0.0f, 0.0f};  // 单位四元数
+  IMU_QuaternionEKF_Init(init_quaternion, 10, 0.001f, 10000000, 0.9996f, 0.0085f);  // 增加测量噪声，启用渐消因子和低通滤波
   // imu heat init
   PID_Init_Config_s config = {.MaxOut = 2000,
                               .IntegralLimit = 300,
