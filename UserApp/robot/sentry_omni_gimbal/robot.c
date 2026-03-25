@@ -328,7 +328,7 @@ static void RemoteControlSet() {
       NotFoundTime=time;                   //识别到装甲板
       search_start_flag = 0;
     }
-    else if (time-NotFoundTime>0.5f){      //丢失目标超0.5秒，进入寻敌模式
+    else if (time-NotFoundTime>1.25f){      //丢失目标超0.5秒，进入寻敌模式
       const float search_center = 10.0f;
       const float search_amp = 10.0f;
       const float search_omega = PI * 4.0f;  // 对应2Hz
