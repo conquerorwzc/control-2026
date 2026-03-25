@@ -1,10 +1,7 @@
-//
-// Created by ASUS on 2025/11/23.
-//
 #include "navigator.h"
+#include "bsp_dwt.h"
 #include "bsp_usart.h"
 #include "crc_func.h"
-#include "bsp_dwt.h"
 #include "rm_referee.h"
 
 static navigator_send_t send_data;
@@ -375,8 +372,10 @@ static void DecodeNavigator() {
             // 校验通过，处理数据包
             uint16_t data_index = index + PROTOCOL_HEADER_LEN; // 跳过帧头和时间戳
             uint8_t check_len=sizeof(navigator_recv_t)-6;
-            if (header->len == (check_len))
-                memcpy(&recv_data, &buffer[data_index], sizeof(navigator_recv_t));
+            if (header->len == (check_len)) {
+                memcpy(&recv_data, &buffer[data_index], check_len);
+                recv_data.last_update_time=DWT_GetTimeline_ms()/1000;
+            }
             // 移动索引到下一帧
             index += total_frame_len;
             processed_len = index;

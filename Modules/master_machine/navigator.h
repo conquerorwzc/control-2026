@@ -1,14 +1,16 @@
 #ifndef __PROTOCOL_H
 #define __PROTOCOL_H
 
-#include <stdint.h>
 #include <stdbool.h>
-#include "usart.h"
+#include <stdint.h>
+
+#include "arm_math.h"
+#include "bsp_usart.h"
+#include "cmsis_os.h"
 #include "crc_func.h"
 #include "rm_referee.h"
 #include "string.h"
-#include "bsp_usart.h"
-#include "cmsis_os.h"
+#include "usart.h"
 
 // 协议帧头定义
 #define PROTOCOL_SOF              0xA5
@@ -223,7 +225,7 @@ typedef struct {
 typedef struct {
   robot_cmd_t robot_cmd;
   // 接收状态信息
-  uint32_t last_update_time;
+  float32_t last_update_time;
   uint8_t data_valid;
   uint8_t crc_errors;
 } __attribute__((__packed__)) navigator_recv_t;
