@@ -89,6 +89,7 @@
     {
       "label": "OpenOCD: Flash/Debug (Selected MCU)",
       "type": "shell",
+      "command": "if ('${input:debuggerAction}' -match 'dap \\(Ozone\\)') { Start-Process cmd -ArgumentList '/c start ${workspaceFolder}/Debug/gbd_start_dap_${input:mcuSuffix}.bat'; if (Get-Command Ozone -ErrorAction SilentlyContinue) { Start-Process Ozone -ArgumentList '${workspaceFolder}/Debug/ozone/control-2026-${input:mcuSuffix}.jdebug' } else { Write-Error 'Ozone executable not found in PATH. Please add your Ozone installation directory to your system PATH environment variable.' } } elseif ('${input:debuggerAction}' -match 'jlink \\(Ozone\\)') { if (Get-Command Ozone -ErrorAction SilentlyContinue) { Start-Process Ozone -ArgumentList '${workspaceFolder}/Debug/ozone/control-2026-${input:mcuSuffix}.jdebug' } else { Write-Error 'Ozone executable not found in PATH. Please add your Ozone installation directory to your system PATH environment variable.' } } elseif ('${input:debuggerAction}' -match 'dap \\(Flash\\)') { openocd -f Debug/config/openocd_dap_${input:mcuSuffix}.cfg -c 'program cmake-build-debug/control-2026.elf verify reset exit' } elseif ('${input:debuggerAction}' -match 'jlink \\(Flash\\)') { openocd -f Debug/config/openocd_jlink_${input:mcuSuffix}.cfg -c 'program cmake-build-debug/control-2026.elf verify reset exit' }",
       "group": {
         "kind": "build",
         "isDefault": true
@@ -99,35 +100,12 @@
       },
       "dependsOn": [
         "CMake: Build (Ninja)"
-      ],
-      "windows": {
-        "options": {
-          "shell": {
-            "executable": "powershell",
-            "args": [
-              "-NoProfile",
-              "-ExecutionPolicy",
-              "Bypass",
-              "-Command"
-            ]
-          }
-        },
-        "command": "if ('${input:debuggerAction}' -match 'dap \\(Ozone\\)') { Start-Process cmd -ArgumentList '/c start ${workspaceFolder}/Debug/gbd_server/gbd_start_dap_${input:mcuSuffix}.bat'; if (Get-Command Ozone -ErrorAction SilentlyContinue) { Start-Process Ozone -ArgumentList '${workspaceFolder}/Debug/ozone/control-2026-${input:mcuSuffix}.jdebug' } else { Write-Error 'Ozone executable not found in PATH. Please add your Ozone installation directory to your system PATH environment variable.' } } elseif ('${input:debuggerAction}' -match 'jlink \\(Ozone\\)') { if (Get-Command Ozone -ErrorAction SilentlyContinue) { Start-Process Ozone -ArgumentList '${workspaceFolder}/Debug/ozone/control-2026-${input:mcuSuffix}.jdebug' } else { Write-Error 'Ozone executable not found in PATH. Please add your Ozone installation directory to your system PATH environment variable.' } } elseif ('${input:debuggerAction}' -match 'dap \\(Flash\\)') { openocd -f Debug/config/openocd_dap_${input:mcuSuffix}.cfg -c 'program cmake-build-debug/control-2026.elf verify reset exit' } elseif ('${input:debuggerAction}' -match 'jlink \\(Flash\\)') { openocd -f Debug/config/openocd_jlink_${input:mcuSuffix}.cfg -c 'program cmake-build-debug/control-2026.elf verify reset exit' }"
-      },
-      "osx": {
-        "command": "bash",
-        "args": [
-          "-lc",
-          "SEL=\"${input:debuggerAction}\"; MCU=\"${input:mcuSuffix}\"; if [[ \"$SEL\" =~ ^dap\\ \\(Ozone\\)$ ]]; then open -a Terminal \"${workspaceFolder}/Debug/gbd_server/gbd_start_dap_${input:mcuSuffix}.sh\"; if command -v Ozone >/dev/null 2>&1; then Ozone \"${workspaceFolder}/Debug/ozone/control-2026-${input:mcuSuffix}.jdebug\"; elif [ -x \"/Applications/SEGGER/Ozone_V340g/Ozone.app/Contents/MacOS/Ozone\" ]; then \"/Applications/SEGGER/Ozone_V340g/Ozone.app/Contents/MacOS/Ozone\" \"${workspaceFolder}/Debug/ozone/control-2026-${input:mcuSuffix}.jdebug\"; else echo \"Ozone executable not found in PATH or Applications. Please add Ozone to PATH.\" >&2; exit 1; fi; elif [[ \"$SEL\" =~ ^jlink\\ \\(Ozone\\)$ ]]; then if command -v Ozone >/dev/null 2>&1; then Ozone \"${workspaceFolder}/Debug/ozone/control-2026-${input:mcuSuffix}.jdebug\"; elif [ -x \"/Applications/SEGGER/Ozone_V340g/Ozone.app/Contents/MacOS/Ozone\" ]; then \"/Applications/SEGGER/Ozone_V340g/Ozone.app/Contents/MacOS/Ozone\" \"${workspaceFolder}/Debug/ozone/control-2026-${input:mcuSuffix}.jdebug\"; else echo \"Ozone executable not found in PATH or Applications. Please add Ozone to PATH.\" >&2; exit 1; fi; elif [[ \"$SEL\" =~ ^dap\\ \\(Flash\\)$ ]]; then openocd -f Debug/config/openocd_dap_${input:mcuSuffix}.cfg -c \"program cmake-build-debug/control-2026.elf verify reset exit\"; elif [[ \"$SEL\" =~ ^jlink\\ \\(Flash\\)$ ]]; then openocd -f Debug/config/openocd_jlink_${input:mcuSuffix}.cfg -c \"program cmake-build-debug/control-2026.elf verify reset exit\"; else echo \"Unknown selection\" >&2; exit 2; fi"
-        ]
-      },
-      "linux": {
-        "command": "bash",
-        "args": [
-          "-lc",
-          "SEL=\"${input:debuggerAction}\"; MCU=\"${input:mcuSuffix}\"; if [[ \"$SEL\" =~ ^dap\\ \\(Ozone\\)$ ]]; then bash \"${workspaceFolder}/Debug/gbd_server/gbd_start_dap_${input:mcuSuffix}.sh\" & if command -v Ozone >/dev/null 2>&1; then Ozone \"${workspaceFolder}/Debug/ozone/control-2026-${input:mcuSuffix}.jdebug\"; else echo \"Ozone executable not found in PATH. Please add Ozone to PATH.\" >&2; exit 1; fi; elif [[ \"$SEL\" =~ ^jlink\\ \\(Ozone\\)$ ]]; then if command -v Ozone >/dev/null 2>&1; then Ozone \"${workspaceFolder}/Debug/ozone/control-2026-${input:mcuSuffix}.jdebug\"; else echo \"Ozone executable not found in PATH. Please add Ozone to PATH.\" >&2; exit 1; fi; elif [[ \"$SEL\" =~ ^dap\\ \\(Flash\\)$ ]]; then openocd -f Debug/config/openocd_dap_${input:mcuSuffix}.cfg -c \"program cmake-build-debug/control-2026.elf verify reset exit\"; elif [[ \"$SEL\" =~ ^jlink\\ \\(Flash\\)$ ]]; then openocd -f Debug/config/openocd_jlink_${input:mcuSuffix}.cfg -c \"program cmake-build-debug/control-2026.elf verify reset exit\"; else echo \"Unknown selection\" >&2; exit 2; fi"
-        ]
-      }
+      ]
+    }
+      "problemMatcher": [],
+      "dependsOn": [
+        "CMake: Build (Ninja)"
+      ]
     }
   ]
 }

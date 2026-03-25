@@ -23,14 +23,15 @@ static float rotate_frequency;  // 小陀螺旋转的频率
 static float rotate_omega;      // 小陀螺旋转角速度
 
 // Ramp controller (externed in header)
+// 挺好用的一版
 Ramp_Controller_t chassis_ramp = {
     .planning_v = 0.0f,
     .max_v = 15.0f,
-    .max_accel = 2.0f,
+    .max_accel = 1.0f,
     .accel_base_speed = 0.3f,
-    .max_decel = 4.0f,
+    .max_decel = 3.7f,
     .min_decel = 1.0f,
-    .decel_base_speed = 0.8f,
+    .decel_base_speed = 0.3f,
     .k_error_ff = 0.35f, // 速度误差前馈补偿系数，可根据实际测试调整
 };
 
@@ -180,7 +181,7 @@ void JoyStickCtrl(RobotInstance* robot) {
       if (align_attenuation < 0) align_attenuation = 0;
       input_mag *= align_attenuation * align_attenuation * align_attenuation;
       VAL_LIMIT(input_mag, -2.50, 2.50);
-      chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, input_mag, robot->chassis->state_var.v_b_h, robot->dt);
+      // chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, input_mag, robot->chassis->state_var.v_b_h, robot->dt);
       // chassis_ctrl_cmd->vx = input_mag;
       // chassis_ctrl_cmd->theta_ff = chassis_ramp.expected_a / 9.81f;
       chassis_ctrl_cmd->theta_ff = 0.0f;
@@ -245,16 +246,16 @@ void MouseKeyCtrl(RobotInstance* robot) {
   // [Ctrl+Z]键设置速度，测试用
   switch (rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL][Key_Z] % 3) {
     case 0:
-      speed_coff = 1.0f;
-      rotate_coff = 1.0f;
-      break;
-    case 1:
       speed_coff = 1.5f;
       rotate_coff = 1.5f;
       break;
-    case 2:
+    case 1:
       speed_coff = 2.0f;
       rotate_coff = 2.0f;
+      break;
+    case 2:
+      speed_coff = 2.5f;
+      rotate_coff = 2.5f;
       break;
     default:
       break;
@@ -298,7 +299,7 @@ void MouseKeyCtrl(RobotInstance* robot) {
   // 2.3鼠标云台控制
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
     gimbal_ctrl_cmd->yaw -= (float)rc_data[TEMP].mouse.x * 0.002f;    // X轴灵敏度
-    gimbal_ctrl_cmd->pitch -= (float)rc_data[TEMP].mouse.y * 0.001f;  // Y轴灵敏度
+    gimbal_ctrl_cmd->pitch -= (float)rc_data[TEMP].mouse.y * 0.002f;  // Y轴灵敏度
     // 云台Pitch限位
     if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE)
       gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
@@ -360,9 +361,9 @@ void MouseKeyCtrl(RobotInstance* robot) {
 
   // [Ctrl+R] 持续按住：升高腿长，[Ctrl+F] 持续按住：下降腿长
   if (rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].r) {
-    chassis_ctrl_cmd->leg_length += 0.0000005f * 330.0f;
+    chassis_ctrl_cmd->leg_length += 0.0000005f * 630.0f;
   } else if (rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].f) {
-    chassis_ctrl_cmd->leg_length -= 0.0000005f * 330.0f;
+    chassis_ctrl_cmd->leg_length -= 0.0000005f * 630.0f;
   }
 
   // 腿长限位
@@ -394,18 +395,18 @@ void MouseKeyCtrl(RobotInstance* robot) {
 
       // 设置目标速度矢量 (vx, vy),单位为m/s
       if (rc_data[TEMP].key[KEY_PRESS].w)
-        chassis_vy += 0.5f * speed_coff;
+        chassis_vy = 0.5f * speed_coff;
       else if (rc_data[TEMP].key[KEY_PRESS].s)
-        chassis_vy += -0.5f * speed_coff;
+        chassis_vy = -0.5f * speed_coff;
       else
-        chassis_vy += 0.0f;
+        chassis_vy = 0.0f;
 
       if (rc_data[TEMP].key[KEY_PRESS].d)
-        chassis_vx += 0.5f * speed_coff;
+        chassis_vx = 0.5f * speed_coff;
       else if (rc_data[TEMP].key[KEY_PRESS].a)
-        chassis_vx += -0.5f * speed_coff;
+        chassis_vx = -0.5f * speed_coff;
       else
-        chassis_vx += 0.0f;
+        chassis_vx = 0.0f;
 
       input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);  // 速度的模
 
@@ -416,25 +417,25 @@ void MouseKeyCtrl(RobotInstance* robot) {
       // 相位补偿，单位是rad todo:参数，要测试
       float phase_compensation = 0.03f;
       // 正弦速度调制
-      chassis_ctrl_cmd->vx += input_mag * sinf(target_angle_to_chassis + phase_compensation);
+      chassis_ctrl_cmd->vx = input_mag * sinf(target_angle_to_chassis + phase_compensation);
       break;
 
     case ROBOT_CHASSIS_FOLLOW:
 #if (!defined(ONE_BOARD))
       // 设置目标速度矢量 (vx, vy),单位为m/s
       if (rc_data[TEMP].key[KEY_PRESS].w)
-        chassis_vy += 0.5f * speed_coff;
+        chassis_vy = 0.5f * speed_coff;
       else if (rc_data[TEMP].key[KEY_PRESS].s)
-        chassis_vy += -0.5f * speed_coff;
+        chassis_vy = -0.5f * speed_coff;
       else
-        chassis_vy += 0.0f;
+        chassis_vy = 0.0f;
 
       if (rc_data[TEMP].key[KEY_PRESS].d)
-        chassis_vx += 0.5f * speed_coff;
+        chassis_vx = 0.5f * speed_coff;
       else if (rc_data[TEMP].key[KEY_PRESS].a)
-        chassis_vx += -0.5f * speed_coff;
+        chassis_vx = -0.5f * speed_coff;
       else
-        chassis_vx += 0.0f;
+        chassis_vx = 0.0f;
 
       input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
       if (input_mag > 0.0005f) {
@@ -466,6 +467,7 @@ void MouseKeyCtrl(RobotInstance* robot) {
       input_mag *= align_attenuation * align_attenuation * align_attenuation;
       VAL_LIMIT(input_mag, -2.97, 2.97);
       chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, input_mag, robot->chassis->state_var.v_b_h, robot->dt);
+      // chassis_ctrl_cmd->vx = input_mag; 
       // chassis_ctrl_cmd->theta_ff = chassis_ramp.expected_a / 9.81f;
       chassis_ctrl_cmd->theta_ff = 0.0f;
       break;
@@ -478,11 +480,11 @@ void MouseKeyCtrl(RobotInstance* robot) {
       chassis_ctrl_cmd->wz = 0.0f;
 #endif
       if (rc_data[TEMP].key[KEY_PRESS].w)
-        chassis_ctrl_cmd->vx += ramp_controller_update(&chassis_ramp, (0.99f) * speed_coff, robot->chassis->state_var.v_b_h, robot->dt);
+        chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, (0.99f) * speed_coff, robot->chassis->state_var.v_b_h, robot->dt);
       else if (rc_data[TEMP].key[KEY_PRESS].s)
-        chassis_ctrl_cmd->vx += ramp_controller_update(&chassis_ramp, (-0.99f) * speed_coff, robot->chassis->state_var.v_b_h, robot->dt);
+        chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, (-0.99f) * speed_coff, robot->chassis->state_var.v_b_h, robot->dt);
       else
-        chassis_ctrl_cmd->vx += 0.0f;
+        chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, 0.0f, robot->chassis->state_var.v_b_h, robot->dt);
 
       chassis_ctrl_cmd->theta_ff = 0.0f;
       break;

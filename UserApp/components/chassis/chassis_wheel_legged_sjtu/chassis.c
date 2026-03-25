@@ -317,11 +317,11 @@ static void LegController(void) {
   float f_inertial = 0.5f * chassis->param.body_mass * (l_avg / chassis->param.track_width) * chassis->state_var.dphi *
                      chassis->state_var.v_b_h;
 
-  leg[0]->virtual_model.F = -f_psi + f_l_r + f_gravity + f_inertial * 5.5;
+  leg[0]->virtual_model.F = -f_psi + f_l_r + f_gravity + f_inertial * 1.5;
   if (leg[0]->update_flag.is_off_ground) {
     leg[0]->virtual_model.F = -f_psi * 0.3f + f_l_r + f_gravity;
   }
-  leg[1]->virtual_model.F = f_psi + f_l_l + f_gravity - f_inertial * 5.5;
+  leg[1]->virtual_model.F = f_psi + f_l_l + f_gravity - f_inertial * 1.5;
   if (leg[1]->update_flag.is_off_ground) {
     leg[1]->virtual_model.F = f_psi * 0.3f + f_l_r + f_gravity;
   }
@@ -342,20 +342,6 @@ static void ChassisCtrlUpdate(void) {
   LegModelUpdate(leg[1], chassis->imu);
 
   StateVarUpdate();
-
-  // static float smoothed_target_yaw = 0.0f;
-  // if (chassis->update_flag.is_restart) {
-  //   smoothed_target_yaw = chassis->state_var.phi;  // 重启时同步
-  // }
-  // float yaw_diff = chassis_ctrl_cmd->target_yaw - smoothed_target_yaw;
-  // // 归一化到 [-π, π]
-  // while (yaw_diff > PI) yaw_diff -= 2.0f * PI;
-  // while (yaw_diff < -PI) yaw_diff += 2.0f * PI;
-  // // 最大转向速率 3 rad/s，可调
-  // float max_step = 3.0f * chassis->dt;
-  // VAL_LIMIT(yaw_diff, -max_step, max_step);
-  // smoothed_target_yaw += yaw_diff;
-  // chassis_ctrl_cmd->target_yaw = smoothed_target_yaw;
 
   // PowerControl();
   LocomotionController();

@@ -33,7 +33,7 @@ void OnProjectLoad (void) {
   //
   // User settings
   //
-  Edit.SysVar (VAR_HSS_SPEED, FREQ_2_KHZ);
+  Edit.SysVar (VAR_HSS_SPEED, FREQ_200_HZ);
   File.Open ("G:/dev/RoboMaster/6.SRM/control-2026/cmake-build-debug/control-2026.elf");
 }
 
