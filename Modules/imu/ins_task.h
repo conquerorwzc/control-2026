@@ -71,14 +71,13 @@ typedef struct {
  */
 typedef struct {
   uint8_t flag;  // 参数更新标志位，当参数发生变化时置1
-  uint8_t offset_flag; //是否采用离线标注参数，0-在线标定 1-离线标定
 
   float scale[3];  // 三轴标度因数修正系数 [0]-X轴 [1]-Y轴 [2]-Z轴
 
   float Yaw;    // Yaw轴安装偏角修正 单位: °
   float Pitch;  // Pitch轴安装偏角修正 单位: °
   float Roll;   // Roll轴安装偏角修正 单位: °
-  float GyroOffset[3];
+
   // ==================== 【新增】 ====================
   // IMU中心相对于底盘旋转中心的物理偏移量 (单位: 米)
   // X: 前后偏移 (前正后负)

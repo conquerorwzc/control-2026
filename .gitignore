@@ -99,6 +99,7 @@ JLinkLog.txt
 cmake-build-debug/
 
 *.jdebug.user
+*.jdebug
 
 *.log
 /cmake-build-debug/
