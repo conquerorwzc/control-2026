@@ -84,7 +84,7 @@ void ShootBulletSpeedControl(void) {
       return;
     }
     float speed_error = target_speed - actual_bullet_speed;
-    if (actual_bullet_speed <= target_speed + 0.3 &&  actual_bullet_speed >= target_speed-0.3) {
+    if (actual_bullet_speed <= target_speed + bullet_speed_deadband &&  actual_bullet_speed >= target_speed-bullet_speed_deadband) {
       return;
     }
 
@@ -103,7 +103,7 @@ void HeatControl() {
     case DISABLE:
       return;
     case REFEREE_CONTROL:
-        remain_heat=shooter_barrel_heat_limit-shoot_ctrl_cmd->shooter_barrel_heat;
+        remain_heat = shooter_barrel_heat_limit-shoot_ctrl_cmd->shooter_barrel_heat;
       break;
     case SIMULLATE_CONTROL:
       //冷却恢复，每1s回24点
@@ -122,7 +122,7 @@ void HeatControl() {
     default:
       break;
     }
-     if (remain_heat< one_barrel_heat_value) shoot_ctrl_cmd->load_mode = LOAD_STOP;
+     if (remain_heat < 2*one_barrel_heat_value) shoot_ctrl_cmd->load_mode = LOAD_STOP;
 }
 
 

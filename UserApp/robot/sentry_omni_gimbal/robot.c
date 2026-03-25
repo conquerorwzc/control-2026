@@ -25,6 +25,12 @@ static Referee_Data *RefereeData;
 /* Intermediate variables calculated by private functions */
 static float time=0;  //判断按钮按下需要重复读取时间，这里简化成一次读取
 
+static float DecodeBulletSpeedFromU16(uint16_t speed_raw) {
+  float speed_mps = (float)speed_raw / 100.0f;
+  if (speed_mps > 30.0f) return 30.0f;
+  return speed_mps;
+}
+
 static float ClampFloat(float value, float min_value, float max_value) {
   if (value < min_value) return min_value;
   if (value > max_value) return max_value;
@@ -326,7 +332,7 @@ static void RemoteControlSet() {
       const float search_center = 10.0f;
       const float search_amp = 10.0f;
       const float search_omega = PI * 4.0f;  // 对应2Hz
-      gimbal_ctrl_cmd->yaw -= 0.15f;
+      // gimbal_ctrl_cmd->yaw += 0.15f;
       if (!search_start_flag) {
         const float normalized = ClampFloat((gimbal_ctrl_cmd->pitch - search_center) / search_amp, -1.0f, 1.0f);
         search_phase = asinf(normalized);  // 把当前pitch角度转化到相位
@@ -555,7 +561,7 @@ void RobotInit() {
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
 void RobotCMDTask() {
   time = DWT_GetTimeline_s();
-  shoot_ctrl_cmd->initial_speed=RefereeData->initial_speed;
+  shoot_ctrl_cmd->initial_speed = DecodeBulletSpeedFromU16(RefereeData->initial_speed);
   shoot_ctrl_cmd->shooter_barrel_heat=RefereeData->shooter_17mm_barrel_heat;
   RemoteControlSet();
   DualBoardCtrlSet();

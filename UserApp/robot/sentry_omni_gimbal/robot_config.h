@@ -108,10 +108,12 @@ static Gimbal_Init_Config_s gimbal_init_config = {
         },
     .imu_init_config = {
         .flag = 1,
+        .offset_flag=1,
         .scale = {1.0f, 1.0f, 1.0f},
         .Yaw = -90.0f,
         .Pitch = 0.0f,
-        .Roll = 0.0f
+        .Roll = 0.0f,
+        .GyroOffset ={0.00356437545,-0.0010182939,0.0019077817},
       },
 };
 //原来参数是2.0f, 0.2f, 0.0f
@@ -155,13 +157,13 @@ static Shoot_Init_Config_s shoot_init_config = {
             .num_per_circle = 10,                          // 拨盘一圈的装载量
             .loader_direction = 1,                        // 拨盘旋转方向,1为正向，-1为反向
             .friction_num = 2,                            // 摩擦轮数量
-            .friction_speed = 40000.0f,                   // 摩擦轮速度，36000时弹速23m/s
+            .friction_speed = 37500.0f,                   // 摩擦轮速度
             .friction_coefficients = {1.0f, -1.0f},  // 摩擦轮速度比例系数。
-            .deadtime_burstfire = 50,
+            .deadtime_burstfire = 67,
             .deadtime_onebullet = 500,
             .target_speed = 22.0f,
-            .bullet_speed_adjustment = 0.0f, //100.0f,
-            .bullet_speed_deadband = 0.5f,//弹速死区，正负deadband。
+            .bullet_speed_adjustment = 50.0f,
+            .bullet_speed_deadband = 0.2f,//弹速死区，正负deadband。
             .one_barrel_heat_value = 10,//一发弹丸所需热量
             .shooter_barrel_cooling_value = 30,//每秒冷却回复
             .shooter_barrel_heat_limit = 260,//热量上限
