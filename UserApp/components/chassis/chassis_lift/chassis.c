@@ -14,7 +14,7 @@
 // 设为 1 代表屏蔽该腿（不参与标定和运动），设为 0 代表正常工作
 // ⚠️ 注意：正常比赛时，必须全部为 0！
 #define DISABLE_LEG_REAR_LEFT 0   // 左后腿 (Leg 0)
-#define DISABLE_LEG_REAR_RIGHT 0  // 右后腿 (Leg 1)
+#define DISABLE_LEG_REAR_RIGHT 1  // 右后腿 (Leg 1)
 #define DISABLE_LEG_FRONT_LEFT 0  // 左前腿 (Leg 2)
 #define DISABLE_LEG_FRONT_RIGHT 0 // 右前腿 (Leg 3)
 

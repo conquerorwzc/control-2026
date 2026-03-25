@@ -198,7 +198,7 @@ static Motor_Init_Config_s GM6020_config = {
     .motor_type = GM6020,
     .can_init_config =
         {
-            .can_handle = &hcan1,
+            .can_handle = &hcan3,
             .tx_id = 5,
         },
 };

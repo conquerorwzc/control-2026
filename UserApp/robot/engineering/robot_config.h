@@ -899,51 +899,52 @@ static VideoGimbal_Init_Config_s video_gimbal_init_config = {
     // GM6020 Yaw (hcan3, id=5)
     .yaw_motor_config = {
         .controller_param_init_config = {
-            .angle_PID = {
-                .Kp = 40.0f,
-                .Ki = 0.0f,
-                .Kd = 0.0f,
-                .DeadBand = 0.0f,
-                .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                .IntegralLimit = 5.0f,
-                .MaxOut = 5000.0f,
-            },
-            .speed_PID = {
-                .Kp = 6.0f,
-                .Ki = 0.0f,
-                .Kd = 0.0f,
-                .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                .IntegralLimit = 12000.0f,
-                .MaxOut = 10000.0f,
+            .angle_PID =                                                                                     \
+            {                                                                                            \
+                .Kp = 80,                                                                                \
+                .Ki = 0,                                                                                 \
+                .Kd = 1,                                                                               \
+                .IntegralLimit = 960,                                                                  \
+                .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
+                .MaxOut = 1500,                                                                          \
+            },                                                                                           \
+        .speed_PID =                                                                                     \
+            {                                                                                            \
+                .Kp = 4,                                                                                 \
+                .Ki = 40,                                                                                \
+                .Kd = 0,                                                                                 \
+                .IntegralLimit = 12500,                                                                   \
+                .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
+                .MaxOut = 20000,                                                                         \
             },
         },
         .controller_setting_init_config = {
             .outer_loop_type = ANGLE_LOOP,
-            .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
+            .close_loop_type = SPEED_LOOP|ANGLE_LOOP,
             .angle_feedback_source = MOTOR_FEED,
             .speed_feedback_source = MOTOR_FEED,
-            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
-            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
         },
         .motor_type = GM6020,
         .can_init_config = {
-            .can_handle = &hcan3,
-            .tx_id = 5,
+            .can_handle = &hcan2,
+            .tx_id = 3,
         },
     },
     // M3508 Pitch (hcan3, id=6)
     .pitch_motor_config = {
         .controller_param_init_config = {
             .angle_PID = {
-                .Kp = 220.0f,
-                .Ki = 0.0f,
-                .Kd = 0.1f,
+                .Kp = 180.0f,
+                .Ki = 8.0f,
+                .Kd = 3.0f,
                 .Improve = PID_Integral_Limit,
                 .IntegralLimit = 0.0f,
-                .MaxOut = 6666.0f,
+                .MaxOut = 5000.0f,
             },
             .speed_PID = {
-                .Kp = 2.0f,
+                .Kp = 5.0f,
                 .Ki = 0.0f,
                 .Kd = 0.0f,
                 .Improve = PID_Integral_Limit,
@@ -968,7 +969,7 @@ static VideoGimbal_Init_Config_s video_gimbal_init_config = {
 
     // ⚙️  GM6020 Yaw 固定零点：用 vofa/调试器读到朝向正前方时的 total_angle，填到这里
     // 填 0.0f = 上电当前位置作零点（不管云台在哪里，那里就是中位）
-    .yaw_zero_angle = 0.0f,
+    .yaw_zero_angle = 242.491074f,
 };
 
 // static SuperCap_Init_Config_s super_cap_config = {

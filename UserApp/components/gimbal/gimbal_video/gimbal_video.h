@@ -1,14 +1,12 @@
+/**
+* @file    gimbal_video.h
+ * @brief   图传云台控制逻辑头文件
+ */
+
 #pragma once
 
 #include "dji_motor.h"
 #include "daemon.h"
-
-/* ================================================================
- * VideoGimbal 独立组件
- *
- * Yaw  : GM6020（绝对值编码器，无需堵转标定）
- * Pitch : M3508（相对编码器，双向堵转自动标定）
- * ================================================================ */
 
 /* ----------- 对外依赖：断电状态来自 robot 层 ----------- */
 typedef enum {
@@ -30,7 +28,7 @@ typedef enum {
 /* ----------- 上层控制指令 ----------- */
 typedef struct {
     float video_yaw;          // Yaw 控制增量（每帧）
-    float video_pitch;        // Pitch 控制增量（每帧）
+    float video_pitch;        // Pitch 控制绝对量（0.0~1.0）
 
     uint8_t video_cali;       // 触发 Pitch 双向堵转标定
 
@@ -43,7 +41,6 @@ typedef struct {
     Motor_Init_Config_s pitch_motor_config; // M3508  Pitch
 
     // GM6020 Yaw 固定物理零点（total_angle 单位，度）
-    // 填 0.0f = 上电当前位置作零点；填实测值 = 每次上电软着陆到该朝向
     float yaw_zero_angle;
 } VideoGimbal_Init_Config_s;
 
@@ -54,8 +51,8 @@ typedef struct {
     DJIMotorInstance *yaw_motor;    // GM6020
     DJIMotorInstance *pitch_motor;  // M3508
 
-    /* 控制量（百分比/多圈） */
-    float Video_yaw;    // 累积 yaw 控制量（0=零点）
+    /* 控制量 */
+    float Video_yaw;    // 累积 yaw 控制量（相对零点）
     float Video_pitch;  // 0.0~1.0 百分比
 
     /* 底层 PID 目标 */
