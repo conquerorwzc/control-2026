@@ -900,10 +900,10 @@ static VideoGimbal_Init_Config_s video_gimbal_init_config = {
     .yaw_motor_config = {
         .controller_param_init_config = {
             .angle_PID = {
-                .Kp = 80.0f,
+                .Kp = 40.0f,
                 .Ki = 0.0f,
                 .Kd = 0.0f,
-                .DeadBand = 0.1f,
+                .DeadBand = 0.0f,
                 .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                 .IntegralLimit = 5.0f,
                 .MaxOut = 5000.0f,
@@ -914,7 +914,7 @@ static VideoGimbal_Init_Config_s video_gimbal_init_config = {
                 .Kd = 0.0f,
                 .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                 .IntegralLimit = 12000.0f,
-                .MaxOut = 18000.0f,
+                .MaxOut = 10000.0f,
             },
         },
         .controller_setting_init_config = {

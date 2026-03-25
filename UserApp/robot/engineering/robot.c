@@ -15,6 +15,10 @@
 /* Private define ------------------------------------------------------------*/
 // 0.3s消抖阈值 (基于2ms的任务周期: 300ms / 2ms = 150)
 #define SWITCH_STABLE_TICKS 150
+/* ==================== 图传控制灵敏度 ==================== */
+// 鼠标移动折算成图传指令的比例系数 (越大转越快)
+#define VIDEO_MOUSE_YAW_SENS    0.155f
+#define VIDEO_MOUSE_PITCH_SENS  0.155f
 /* Intermediate variables calculated by private functions */
 static RobotInstance *robot;
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
@@ -363,16 +367,17 @@ static void MouseKeySet()
 
     // 融合键盘 (-1, 0, 1) 和鼠标相对位移 (缩放量级匹配键盘)
     // 扣除 Shift 和 Ctrl 修饰键，防止在控制机械臂(Shift)或标定(Ctrl)时误触云台
+    // 灵敏度：VIDEO_MOUSE_PITCH_SENS / VIDEO_MOUSE_YAW_SENS 在顶部宏调节
     video_gimbal_ctrl_cmd->video_pitch =
         (float)((rc_data[TEMP].key[KEY_PRESS].x - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].x) -
                 (rc_data[TEMP].key[KEY_PRESS].z - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].z)) -
-        (float)rc_data[TEMP].mouse.y * 0.155f;
+        (float)rc_data[TEMP].mouse.y * VIDEO_MOUSE_PITCH_SENS;
 
     video_gimbal_ctrl_cmd->video_yaw =
         (float)((rc_data[TEMP].key[KEY_PRESS].b - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].b) -
                 (rc_data[TEMP].key[KEY_PRESS].v - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].v -
                  rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].v)) +
-        (float)rc_data[TEMP].mouse.x * 0.155f;
+        (float)rc_data[TEMP].mouse.x * VIDEO_MOUSE_YAW_SENS;
 
     // ================= 机械臂与图传标定 =================
     if (rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].q)

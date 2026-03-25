@@ -10,7 +10,7 @@
 #include <math.h>
 
 /* ==================== 宏参数 ==================== */
-#define VIDEO_CALI_SPEED_P       1.0f      // Pitch 标定每 tick 移动角度
+#define VIDEO_CALI_SPEED_P       0.5f      // Pitch 标定每 tick 移动角度
 #define VIDEO_CALI_STALL_CURRENT_P 2500    // Pitch 堵转电流阈值
 #define VIDEO_CALI_MAX_TICKS     5000      // 单次寻零超时
 #define VIDEO_CALI_SLIP_LIMIT_P  60.0f     // P 电机目标超前量限制
@@ -18,7 +18,15 @@
 #define VIDEO_SAFE_RANGE_RATIO   0.95f     // Pitch 安全范围比例
 #define VIDEO_CALI_STALL_SPEED   20.0f     // 转速低于此值才判堵转 (APS)
 #define VIDEO_CALI_STALL_TICKS   300       // 连续 300 帧判定堵转成功
+/* ==================== 图传灵敏度调节宏 ==================== */
+// Yaw 轴转速基准：ctrl_cmd->video_yaw == 1 时（即单独按下 B/V 键）对应的物理转速
+// 鼠标是连续输入，实际转速 = mouse.x × VIDEO_MOUSE_YAW_SENS × VIDEO_YAW_SPEED_DPS
+#define VIDEO_YAW_SPEED_DPS      7.0f  // 单独按 B/V 键时的 Yaw 转速 (°/s)
+#define VIDEO_YAW_LPF            0.01f   // Yaw 轴软着陆平滑系数 (0.01~1.0，越小越顺滑，越大越跟手)
 
+// Pitch 轴：ctrl_cmd->video_pitch 每单位对应的行程百分比累加速度（%/帧）
+#define VIDEO_PITCH_SENSITIVITY  0.001f
+#define VIDEO_PITCH_LPF          0.15f   // Pitch 轴软着陆平滑系数
 /* ==================== 模块私有变量 ==================== */
 static VideoGimbalInstance *video_gimbal;
 static VideoGimbal_Ctrl_Cmd_s *ctrl_cmd;
@@ -70,14 +78,11 @@ void VideoGimbalTask(void)
     }
     else
     {
-        /* 累积上层控制量 */
-        float step = 1.0f / 1550.0f;
-
-        // Yaw：无限旋转
-        video_gimbal->Video_yaw += ctrl_cmd->video_yaw * step;
+        // Yaw：以°/s 速度累积，除以任务频率(200Hz)换算为每帧增量
+        video_gimbal->Video_yaw += ctrl_cmd->video_yaw * VIDEO_YAW_SPEED_DPS / 200.0f;
 
         // Pitch：0~1 百分比限幅
-        video_gimbal->Video_pitch += ctrl_cmd->video_pitch * step;
+        video_gimbal->Video_pitch += ctrl_cmd->video_pitch * VIDEO_PITCH_SENSITIVITY;
         if (video_gimbal->Video_pitch > 1.0f) video_gimbal->Video_pitch = 1.0f;
         if (video_gimbal->Video_pitch < 0.0f) video_gimbal->Video_pitch = 0.0f;
 
@@ -250,10 +255,11 @@ static void VideoPositionCalculate(void)
     VideoCaliState_e state = video_gimbal->video_cali_state;
 
     // Yaw：只要不是初始 START/ERROR 就可以解算
+    // Video_yaw 已经是度(°)单位，直接叠加零点即可
     if (state != VIDEO_CALI_START && state != VIDEO_CALI_ERROR)
     {
-        float target_y = total_angle_init_yaw + video_gimbal->Video_yaw * 180.0f;
-        video_gimbal->Y_target += (target_y - video_gimbal->Y_target) * 0.15f;
+        float target_y = total_angle_init_yaw + video_gimbal->Video_yaw;
+        video_gimbal->Y_target += (target_y - video_gimbal->Y_target) * VIDEO_YAW_LPF;
     }
 
     // Pitch：仅标定完才解算
@@ -267,7 +273,7 @@ static void VideoPositionCalculate(void)
         if (safe_p > 1.0f - margin)    safe_p = 1.0f - margin;
 
         float target_p = video_gimbal->video_min_p + stroke * safe_p;
-        video_gimbal->P_target += (target_p - video_gimbal->P_target) * 0.15f;
+        video_gimbal->P_target += (target_p - video_gimbal->P_target) * VIDEO_PITCH_LPF;
     }
 }
 
@@ -283,6 +289,8 @@ static void VideoMotorTask(void)
         video_gimbal->Video_yaw = 0.0f;
         ctrl_cmd->video_yaw   = 0.0f;
         ctrl_cmd->video_pitch = 0.0f;
+        if (video_gimbal->yaw_motor != NULL) DJIMotorStop(video_gimbal->yaw_motor);
+        if (video_gimbal->pitch_motor != NULL) DJIMotorStop(video_gimbal->pitch_motor);
         return;
     }
 
