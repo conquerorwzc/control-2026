@@ -428,7 +428,7 @@ static void ModeControl() {
     // else
     if (robot->chassis->chassis_ctrl_cmd.vx==0&&robot->chassis->chassis_ctrl_cmd.vy==0) {
       robot->sentry_mode=OFFENSE_POSE;    //高于50%血或占据堡垒进入进攻姿态
-      robot->chassis->chassis_ctrl_cmd.wz=-1000;
+      robot->chassis->chassis_ctrl_cmd.wz=-2000;
     }
     else {
       robot->sentry_mode=MOBILITY_POSE;
