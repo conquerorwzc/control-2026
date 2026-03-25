@@ -332,7 +332,7 @@ static void RemoteControlSet() {
       const float search_center = 10.0f;
       const float search_amp = 10.0f;
       const float search_omega = PI * 4.0f;  // 对应2Hz
-      // gimbal_ctrl_cmd->yaw += 0.15f;
+      gimbal_ctrl_cmd->yaw += 0.15f;
       if (!search_start_flag) {
         const float normalized = ClampFloat((gimbal_ctrl_cmd->pitch - search_center) / search_amp, -1.0f, 1.0f);
         search_phase = asinf(normalized);  // 把当前pitch角度转化到相位
