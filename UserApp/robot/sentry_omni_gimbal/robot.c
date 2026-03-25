@@ -298,10 +298,9 @@ static void RemoteControlSet() {
           break;
       }
       NotFoundTime=time;                   //识别到装甲板
-    }
-    else if (time-NotFoundTime>0.5f){      //丢失目标超0.5秒，进入寻敌模式
+    }else if (time-NotFoundTime>1.25f){      //丢失目标超1秒，进入寻敌模式
       gimbal_ctrl_cmd->yaw+=0.15f;
-      gimbal_ctrl_cmd->pitch=5+5.0f*cosf(PI*4*time);//cos里数字越大，旋转速度越快
+      gimbal_ctrl_cmd->pitch=10+5.0f*cosf(PI*4*time);//cos里数字越大，旋转速度越快
     }
   }
 }

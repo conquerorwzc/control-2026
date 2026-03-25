@@ -409,13 +409,14 @@ static void EmergencyHandler() {
 }
 static void ModeControl() {
   if (robot->control_mode==AUTO_MODE){
-    if (robot->referee_data->ProjectileAllowance.projectile_allowance_17mm==0) {
-      robot->sentry_mode=DEFENSE_POSE;    //无可用弹丸进入防御姿态
-      // robot->chassis->chassis_ctrl_cmd.wz=30000;
-    }
-    else if (robot->chassis->chassis_ctrl_cmd.vx==0&&robot->chassis->chassis_ctrl_cmd.vy==0) {
+    // if (robot->referee_data->ProjectileAllowance.projectile_allowance_17mm==0) {
+    //   robot->sentry_mode=DEFENSE_POSE;    //无可用弹丸进入防御姿态
+    //   robot->chassis->chassis_ctrl_cmd.wz=1000;
+    // }
+    // else
+      if (robot->chassis->chassis_ctrl_cmd.vx==0&&robot->chassis->chassis_ctrl_cmd.vy==0) {
       robot->sentry_mode=OFFENSE_POSE;    //高于50%血或占据堡垒进入进攻姿态
-      // robot->chassis->chassis_ctrl_cmd.wz=10000;
+      robot->chassis->chassis_ctrl_cmd.wz=1000;
     }
     else {
       robot->sentry_mode=MOBILITY_POSE;
