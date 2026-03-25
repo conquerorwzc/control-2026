@@ -115,7 +115,7 @@ static void INS_CalibrateGyroForDebug(uint16_t sample_count) {
       BMI088_Read(&BMI088);
       IMU_Temperature_Ctrl();
       DWT_Delay(0.001);
-    } while (BMI088.Temperature <= 39.0f || BMI088.Temperature >= 41.0f);
+    } while (BMI088.Temperature <= 39.5f || BMI088.Temperature >= 40.5f);
 
     // 累加陀螺仪读数
     for (uint8_t j = 0; j < 3; j++) {
@@ -158,13 +158,19 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
                               .Improve = 0x01};  // enable integratiaon limit
   PIDInit(&TempCtrl, &config);
 
-  for (int i=0;i<1000;i++) {
+  for (int i=0;i<3000;i++) {
     BMI088_Read(&BMI088);
     IMU_Temperature_Ctrl();
     DWT_Delay(0.001f);
   }
-
-  INS_CalibrateGyroForDebug(4000);
+  //是否在线标定
+  if (imu_init_config->offset_flag==1) {
+    for (uint8_t i=0;i<3;i++)
+      BMI088.GyroOffset[i]=imu_init_config->GyroOffset[i];
+  }
+  else {
+    INS_CalibrateGyroForDebug(30000);
+  }
 
   // 手动计算加速度缩放因子，因为我们跳过了完整的校准过程
   BMI088.AccelScale = 9.81f / BMI088.gNorm;

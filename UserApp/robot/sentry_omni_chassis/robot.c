@@ -37,6 +37,12 @@ static float vx_initial;        // x轴输入控制量
 static float vy_initial;        // y轴输入控制量
 // static  DJIMotorInstance* debug_motor;
 
+static uint16_t EncodeBulletSpeedToU16(float speed_mps) {
+  if (speed_mps <= 0.0f) return 0u;
+  if (speed_mps >= 30.0f) return (uint16_t)(30.0f * 100.0f);
+  return (uint16_t)(speed_mps * 100.0f);
+}
+
 /**
  * @brief 根据gimbal app传回的当前电机角度计算和零位的误差
  *        单圈绝对角度的范围是0~360,说明文档中有图示
@@ -171,7 +177,7 @@ static void RemoteControlSet() {
     x_speed_time = DWT_GetTimeline_s();
     chassis_ctrl_cmd->vx = vx_initial;
   }  // 速度绝对值在10000以下输出控制量=输入控制量
-  if (vx_initial > 10000 && chassis_ctrl_cmd->vx <= 60.0f * (float)rc_data[TEMP].rc.rocker_) {
+  if (vx_initial > 10000 && chassis_ctrl_cmd->vx <= 60.0f * (float)rc_data[TEMP].rc.rocker_l_) {
     chassis_ctrl_cmd->vx = 10000 + (DWT_GetTimeline_s() - x_speed_time) * 10000;
   }
   if (vx_initial < -10000 && chassis_ctrl_cmd->vx >= 60.0f * (float)rc_data[TEMP].rc.rocker_l_) {
@@ -323,9 +329,14 @@ static void MouseKeySet() {
 
 #elifdef USE_DUAL_RC_NEW
 static void RemoteControlSet() {
+  static float auto_mode_time = 0;
   if (switch_middle(vt13_rc_data->rc.mode_switch) || switch_right(vt13_rc_data->rc.mode_switch)) {
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
     if (abs(vt13_rc_data->rc.dial) > 20) chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+  }
+
+  if (robot->referee_data->GameState.game_progress == 4) {
+    robot->control_mode = AUTO_MODE;
   }
 
   // 底盘控制部分,系数需要调整
@@ -338,14 +349,15 @@ static void RemoteControlSet() {
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
       chassis_ctrl_cmd->wz = (2.0f) * (float)vt13_rc_data->rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
     }
+    auto_mode_time=DWT_GetTimeline_s();
   } else if (robot->control_mode == AUTO_MODE)  // 自动控制，直接收上位机控制量
   {
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
-    vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vy * 10000;
-    // vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vx*5000;
-    vy_initial = robot->navigator_data->robot_cmd.speed_vector.vx * 10000;
-    chassis_ctrl_cmd->wz = robot->navigator_data->robot_cmd.speed_vector.wz * 100;
-    // gimbal_ctrl_cmd->yaw-=robot->navigator_data->robot_cmd.speed_vector.wz*0.01;
+    // if (robot->referee_data->GameState.game_progress == 4 || auto_mode_time-DWT_GetTimeline_s()>180.0f) {
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+      vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vy * 10000;
+      vy_initial = robot->navigator_data->robot_cmd.speed_vector.vx * 10000;
+      chassis_ctrl_cmd->wz = robot->navigator_data->robot_cmd.speed_vector.wz * 0;//10000;
+    // }
   }
   // 缓加速
   if (abs(vx_initial) <= 10000) {
@@ -411,15 +423,16 @@ static void ModeControl() {
   if (robot->control_mode==AUTO_MODE){
     // if (robot->referee_data->ProjectileAllowance.projectile_allowance_17mm==0) {
     //   robot->sentry_mode=DEFENSE_POSE;    //无可用弹丸进入防御姿态
-    //   robot->chassis->chassis_ctrl_cmd.wz=1000;
+    //   robot->chassis->chassis_ctrl_cmd.wz=1500;
     // }
     // else
-      if (robot->chassis->chassis_ctrl_cmd.vx==0&&robot->chassis->chassis_ctrl_cmd.vy==0) {
+    if (robot->chassis->chassis_ctrl_cmd.vx==0&&robot->chassis->chassis_ctrl_cmd.vy==0) {
       robot->sentry_mode=OFFENSE_POSE;    //高于50%血或占据堡垒进入进攻姿态
       robot->chassis->chassis_ctrl_cmd.wz=1000;
     }
     else {
       robot->sentry_mode=MOBILITY_POSE;
+      robot->chassis->chassis_ctrl_cmd.wz=1500;
     }
   }
 }
@@ -465,25 +478,19 @@ void Chassis_CANCommSend() {
     return;
   }
   referee_data->projectile_allowance_17mm = robot->referee_data->ProjectileAllowance.projectile_allowance_17mm;
-
+  referee_data->initial_speed = EncodeBulletSpeedToU16(robot->referee_data->ShootData.initial_speed);
   referee_data->buffer_energy = robot->referee_data->PowerHeatData.buffer_energy;
-
   referee_data->shooter_17mm_barrel_heat = robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
-
   CANCommSend(can_comm_instance, (void *)referee_data);
-#elifdef USE_DUAL_RC_NEW
+  #elifdef USE_DUAL_RC_NEW
   if (can_comm_instance == NULL || vt13_rc_data == NULL) {
     return;
   }
-
   referee_data->projectile_allowance_17mm = robot->referee_data->ProjectileAllowance.projectile_allowance_17mm;
-
-  referee_data->buffer_energy = robot->referee_data->PowerHeatData.buffer_energy;
-
+  referee_data->initial_speed = EncodeBulletSpeedToU16(robot->referee_data->ShootData.initial_speed);
   referee_data->shooter_17mm_barrel_heat = robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
-#endif
-
   CANCommSend(can_comm_instance, (void *)referee_data);
+  #endif
 }
 // 解析底盘板收到的遥控数据
 static void DualBoardCtrlSet() {
@@ -567,7 +574,7 @@ void RobotCMDTask() {
   CalcOffsetAngle();
   RemoteControlSet();
   // MouseKeySet();
-  SentryRefereeSend();
+  // SentryRefereeSend();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
 
@@ -579,7 +586,7 @@ void RobotTask() {
   navigator_send(&huart1, robot->referee_data);
   RobotCMDTask();
   // SuperCapControl();
-  chassis_ctrl_cmd->max_power = 100;
+  chassis_ctrl_cmd->max_power = robot->referee_data->GameRobotState.chassis_power_limit;
   ModeControl();
   ChassisTask();
 #endif

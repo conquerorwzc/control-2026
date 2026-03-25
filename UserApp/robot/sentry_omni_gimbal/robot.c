@@ -23,8 +23,36 @@ static VT13_RC_t *vt13_rc_data;
 static CANCommInstance* can_comm_instance = NULL;
 static Referee_Data *RefereeData;
 /* Intermediate variables calculated by private functions */
-static float trigger_time = 0;  // 触发时间
-static float time=0;//判断按钮按下需要重复读取时间，这里简化成一次读取
+static float time=0;  //判断按钮按下需要重复读取时间，这里简化成一次读取
+
+static float DecodeBulletSpeedFromU16(uint16_t speed_raw) {
+  float speed_mps = (float)speed_raw / 100.0f;
+  if (speed_mps > 30.0f) return 30.0f;
+  return speed_mps;
+}
+
+static float ClampFloat(float value, float min_value, float max_value) {
+  if (value < min_value) return min_value;
+  if (value > max_value) return max_value;
+  return value;
+}
+
+/**
+ * @brief 将pitch电机机械限位(电机total_angle域)实时映射到IMU pitch控制域
+ *        这样车体倾斜时限位会跟随IMU反馈平移，避免固定IMU角限位误判
+ */
+static void PitchAngleLimit(void) {
+  if (robot == NULL || robot->gimbal == NULL || gimbal_ctrl_cmd == NULL) return;
+  if (robot->gimbal->pitch_motor == NULL || robot->gimbal->gimbal_IMU_data == NULL) return;
+  if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_POWER_OFF) return;
+
+  const float mech_ang = robot->gimbal->pitch_motor->measure.total_angle;
+  const float imu_ang = robot->gimbal->gimbal_IMU_data->Pitch;
+
+  const float imu_max = imu_ang + (float)GYRO2GIMBAL_DIR_PITCH * (PITCH_MIN_ANGLE - mech_ang);
+  const float imu_min = imu_ang + (float)GYRO2GIMBAL_DIR_PITCH * (PITCH_MAX_ANGLE - mech_ang);
+  gimbal_ctrl_cmd->pitch = ClampFloat(gimbal_ctrl_cmd->pitch, imu_min, imu_max);
+}
 
 /**
  * @brief 根据gimbal app传回的当前电机角度计算和零位的误差
@@ -61,6 +89,10 @@ uint8_t has_non_zero_data(const Vision_Receive_s* data) {
  */
 #ifdef USE_DUAL_RC
 static void RemoteControlSet() {
+  static float NotFoundTime = 0.0f;      // 最后一次识别到目标的时间
+  static float search_start_time = 0.0f;
+  static float search_phase = 0.0f;
+  static uint8_t search_wave_inited = 0;
   // 右[中]，云台
    if (switch_is_mid(rc_data[TEMP].rc.switch_right))
    {
@@ -107,20 +139,14 @@ static void RemoteControlSet() {
       gimbal_ctrl_cmd->yaw += -0.0003f * (float)rc_data[TEMP].rc.rocker_r_;
       gimbal_ctrl_cmd->pitch -= 0.0001f * (float)rc_data[TEMP].rc.rocker_r1;
     }
-    // 云台PITCH轴软件限位 todo:没在云台有点不好
-    if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
-      gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
-    } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
-      gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
-    }
 
     // 底盘控制部分,系数需要调整
     if (robot->control_mode == MANUAL_MODE)//手动控制，遥控器控制量
     {
+      search_wave_inited = 0;
     }
     else if (robot->control_mode == AUTO_MODE) // 自动控制，直接接收上位机控制量
     {
-      float NotFoundTime=0;                                 //没有识别到装甲板的时间
       gimbal_ctrl_cmd->gimbal_mode=GIMBAL_VISION;           //自瞄开启
       if (has_non_zero_data(vision_recv_data)==1){
         gimbal_ctrl_cmd->yaw=vision_recv_data->gimbal_receive.yaw;
@@ -134,10 +160,20 @@ static void RemoteControlSet() {
             break;
         }
         NotFoundTime=time;                   //识别到装甲板
+        search_wave_inited = 0;
       }
       else if (time-NotFoundTime>0.5f){      //丢失目标超0.5秒，进入寻敌模式
+        const float search_center = 10.0f;
+        const float search_amp = 10.0f;
+        const float search_omega = PI * 4.0f;  // 对应2Hz
         gimbal_ctrl_cmd->yaw+=0.15f;
-        gimbal_ctrl_cmd->pitch+=0.045f*cosf(PI*1.5*time);
+        if (!search_wave_inited) {
+          const float normalized = ClampFloat((gimbal_ctrl_cmd->pitch - search_center) / search_amp, -1.0f, 1.0f);
+          search_phase = asinf(normalized);
+          search_start_time = time;
+          search_wave_inited = 1;
+        }
+        gimbal_ctrl_cmd->pitch = search_center + search_amp * sinf(search_omega * (time - search_start_time) + search_phase);
       }
     }
     *rc_data_last = *rc_data;
@@ -234,14 +270,14 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
       break;
   }
   shoot_ctrl_cmd->shoot_rate = 8;// 射频控制,固定每秒1发,后续可以根据左侧拨轮的值大小切换射频,
-  if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
-    gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
-  } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
-    gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
-  }
 }
 # elifdef USE_DUAL_RC_NEW
 static void RemoteControlSet() {
+  static float trigger_time = 0;  // 扳机触发时间
+  static float NotFoundTime = 0.0f;      // 最后一次识别到目标的时间
+  static float search_start_time = 0.0f;
+  static float search_phase = 0.0f;
+  static uint8_t search_start_flag = 0;
   // 使用VT13遥控器的新控制逻辑
   // 控制云台&打弹
   if (switch_middle(vt13_rc_data->rc.mode_switch)) {  // 中档
@@ -253,8 +289,8 @@ static void RemoteControlSet() {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
+    if (vt13_rc_data->rc.trigger == 0) trigger_time = time;
     if (vt13_rc_data->rc.trigger == 1) {
-      if (vt13_rc_data->button_status.trigger_last==0) trigger_time = time;
       shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
       if (time - trigger_time > 2.0f) shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
     }
@@ -266,13 +302,6 @@ static void RemoteControlSet() {
     gimbal_ctrl_cmd->pitch -= 0.00015f * (float)vt13_rc_data->rc.rocker_r1;
   }
 
-  // 云台PITCH轴软件限位
-  if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
-    gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
-  } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
-    gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
-  }
-
   // 控制模式切换
   if (vt13_rc_data->button_status.fn_2_flag == 1) {  // 按功能右键切换模式
     robot->control_mode = AUTO_MODE;
@@ -280,12 +309,8 @@ static void RemoteControlSet() {
     robot->control_mode = MANUAL_MODE;
   }
 
-  if (robot->control_mode == AUTO_MODE) {
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_VISION;
-  }
-
   if (vt13_rc_data->button_status.fn_1_flag==1) {
-    float NotFoundTime=0;                                 //没有识别到装甲板的时间
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_VISION;
     if (has_non_zero_data(vision_recv_data)==1){
       gimbal_ctrl_cmd->yaw=vision_recv_data->gimbal_receive.yaw;
       gimbal_ctrl_cmd->pitch=vision_recv_data->gimbal_receive.pitch;
@@ -293,36 +318,53 @@ static void RemoteControlSet() {
         case 0:
           shoot_ctrl_cmd->load_mode=LOAD_STOP;
           break;
-        default:
+        case 1:
           shoot_ctrl_cmd->load_mode=LOAD_BURSTFIRE;
+          break;
+        default:
+          shoot_ctrl_cmd->load_mode=LOAD_STOP;
           break;
       }
       NotFoundTime=time;                   //识别到装甲板
-    }else if (time-NotFoundTime>1.25f){      //丢失目标超1秒，进入寻敌模式
-      gimbal_ctrl_cmd->yaw+=0.15f;
-      gimbal_ctrl_cmd->pitch=10+5.0f*cosf(PI*4*time);//cos里数字越大，旋转速度越快
+      search_start_flag = 0;
     }
+    else if (time-NotFoundTime>0.5f){      //丢失目标超0.5秒，进入寻敌模式
+      const float search_center = 10.0f;
+      const float search_amp = 10.0f;
+      const float search_omega = PI * 4.0f;  // 对应2Hz
+      gimbal_ctrl_cmd->yaw -= 0.15f;
+      if (!search_start_flag) {
+        const float normalized = ClampFloat((gimbal_ctrl_cmd->pitch - search_center) / search_amp, -1.0f, 1.0f);
+        search_phase = asinf(normalized);  // 把当前pitch角度转化到相位
+        search_start_time = time;
+        search_start_flag = 1;
+      }
+      gimbal_ctrl_cmd->pitch = search_center + search_amp * sinf(search_omega * (time - search_start_time) + search_phase);
+    }
+  } else {
+    search_start_flag = 0;
   }
 }
 
 static void MouseKeySet() {
+  static float trigger_time = 0;  // 触发时间
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
     gimbal_ctrl_cmd->yaw -= (float)vt13_rc_data->mouse_key.mouse.x * 0.001f;
     gimbal_ctrl_cmd->pitch -= (float)vt13_rc_data->mouse_key.mouse.y * 0.0005f;
   }
 
   // 弹速设置 (Z键)
-  switch (__builtin_popcount(vt13_rc_data->mouse_key.keyboard.z) % 3) {
-    case 0:
-      shoot_ctrl_cmd->bullet_speed = 15;
-      break;
-    case 1:
-      shoot_ctrl_cmd->bullet_speed = 18;
-      break;
-    default:
-      shoot_ctrl_cmd->bullet_speed = 30;
-      break;
-  }
+  // switch (__builtin_popcount(vt13_rc_data->mouse_key.keyboard.z) % 3) {
+  //   case 0:
+  //     shoot_ctrl_cmd->bullet_speed = 15;
+  //     break;
+  //   case 1:
+  //     shoot_ctrl_cmd->bullet_speed = 18;
+  //     break;
+  //   default:
+  //     shoot_ctrl_cmd->bullet_speed = 30;
+  //     break;
+  // }
 
   // 右键自瞄
   switch (vt13_rc_data->mouse_key.mouse.press_r % 2) {
@@ -342,7 +384,7 @@ static void MouseKeySet() {
   // 左键发射
   switch (vt13_rc_data->mouse_key.mouse.press_l) {
     case 0:
-      if (vt13_rc_data->rc.trigger != 1) {
+      if (vt13_rc_data->rc.trigger == 0) {
         // 停止发射逻辑
         shoot_ctrl_cmd->load_mode = LOAD_STOP;
         trigger_time = time;
@@ -360,13 +402,7 @@ static void MouseKeySet() {
       break;
   }
 
-  shoot_ctrl_cmd->shoot_rate = 8;
-
-  if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
-    gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
-  } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
-    gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
-  }
+  // shoot_ctrl_cmd->shoot_rate = 8;
 }
 #else
 // 如果没有定义任何遥控器宏，提供空实现
@@ -515,6 +551,8 @@ void RobotInit() {
   // chassis_ctrl_cmd->max_power = 80;  // 随便给一个初始功率，后面应该要从裁判系统获取
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
+  shoot_ctrl_cmd->heat_mode=REFEREE_CONTROL;
+  shoot_ctrl_cmd->bullet_speed_mode=ENABLE_BULLET_SPEED;
   // navigator_data  = robot->navigator_data;
   vision_recv_data=VisionInit(&gimbal_init_config.imu_init_config);
   can_comm_instance = CANCommInit(&comm_config);
@@ -523,9 +561,12 @@ void RobotInit() {
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
 void RobotCMDTask() {
   time = DWT_GetTimeline_s();
+  shoot_ctrl_cmd->initial_speed = DecodeBulletSpeedFromU16(RefereeData->initial_speed);
+  shoot_ctrl_cmd->shooter_barrel_heat=RefereeData->shooter_17mm_barrel_heat;
   RemoteControlSet();
   DualBoardCtrlSet();
-  MouseKeySet();
+  // MouseKeySet();
+  PitchAngleLimit();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
 
