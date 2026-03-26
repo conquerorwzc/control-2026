@@ -335,6 +335,7 @@ static void RemoteControlSet() {
     if (abs(vt13_rc_data->rc.dial) > 20) chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
   }
 
+  //比赛时这段禁用掉
   if (robot->referee_data->GameState.game_progress == 4) {
     robot->control_mode = AUTO_MODE;
   }
@@ -352,7 +353,7 @@ static void RemoteControlSet() {
     auto_mode_time=DWT_GetTimeline_s();
   } else if (robot->control_mode == AUTO_MODE)  // 自动控制，直接收上位机控制量
   {
-    // if (robot->referee_data->GameState.game_progress == 4 || auto_mode_time-DWT_GetTimeline_s()>180.0f) {
+    // if (robot->referee_data->GameState.game_progress == 4 || auto_mode_time-DWT_GetTimeline_s()>180.0f) {//比赛时这段取消引用
       chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
       vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vy * 10000;
       vy_initial = robot->navigator_data->robot_cmd.speed_vector.vx * 10000;
@@ -428,11 +429,11 @@ static void ModeControl() {
     // else
     if (robot->chassis->chassis_ctrl_cmd.vx==0&&robot->chassis->chassis_ctrl_cmd.vy==0) {
       robot->sentry_mode=OFFENSE_POSE;    //高于50%血或占据堡垒进入进攻姿态
-      robot->chassis->chassis_ctrl_cmd.wz=-4500;
+      robot->chassis->chassis_ctrl_cmd.wz=-3000;
     }
     else {
       robot->sentry_mode=MOBILITY_POSE;
-      robot->chassis->chassis_ctrl_cmd.wz=-2000;
+      robot->chassis->chassis_ctrl_cmd.wz=-1500;
     }
   }
 }
