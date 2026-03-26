@@ -166,7 +166,9 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
       DJIMotorOuterLoop(shoot->loader_motor, ANGLE_LOOP);  // 切换到角度环
       loader_set = shoot->loader_motor->measure.total_angle +
                    one_bullet_delta_angle * reduction_ratio_loader * loader_direction;  // 控制量增加一发弹丸的角度
-      shooter_barrel_heat+=one_barrel_heat_value;                                       // 减去一个弹丸的消耗
+      if(shoot_ctrl_cmd->heat_mode==SIMULLATE_CONTROL) {
+        shooter_barrel_heat += one_barrel_heat_value;  // 增加一发弹丸消耗热量，只在模拟控制中有效
+      }                            
       hibernate_time = DWT_GetTimeline_ms();                                            // 记录触发指令的时间
       dead_time = deadtime_onebullet;                                                   // 完成1发弹丸发射的时间
       break;
@@ -176,7 +178,9 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
       DJIMotorOuterLoop(shoot->loader_motor, ANGLE_LOOP);  // 切换到角度环
       loader_set = shoot->loader_motor->measure.total_angle +
                    one_bullet_delta_angle * reduction_ratio_loader * loader_direction;  // 控制量增加一发弹丸的角度
-      shooter_barrel_heat += one_barrel_heat_value;                  // 减去一个弹丸的消耗
+      if (shoot_ctrl_cmd->heat_mode == SIMULLATE_CONTROL) {
+        shooter_barrel_heat += one_barrel_heat_value;//增加一发弹丸消耗热量，只在模拟控制中有效
+      }
       hibernate_time = DWT_GetTimeline_ms();                                            // 记录触发指令的时间
          
       dead_time = deadtime_burstfire;                                                   // 弹频
