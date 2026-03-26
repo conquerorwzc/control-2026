@@ -116,7 +116,7 @@ static void MouseKeySet()
     {
         return;
     }
-    
+
     if (rc_data[TEMP].rc.dial !=0 ||rc_data[TEMP].rc.rocker_l1 !=0 || rc_data[TEMP].rc.rocker_l_ !=0 ||rc_data[TEMP].rc.rocker_r1 !=0 || rc_data[TEMP].rc.rocker_r_ !=0)
     {
         return; // 有摇杆输入时不进行键鼠控制

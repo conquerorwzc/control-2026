@@ -30,6 +30,7 @@ static IMU_Init_Config_s IMU_Param;
 static PIDInstance TempCtrl = {0};
 static osThreadId insTaskHandle;
 
+// body2earth
 const float xb[3] = {1, 0, 0};
 const float yb[3] = {0, 1, 0};
 const float zb[3] = {0, 0, 1};
@@ -37,7 +38,6 @@ const float zb[3] = {0, 0, 1};
 // 用于获取两次采样之间的时间间隔
 static uint32_t INS_DWT_Count = 0;
 static float dt = 0, t = 0;
-static float RefTemp = 40;  // 恒温设定温度
 
 static void IMU_Param_Correction(IMU_Init_Config_s *param, float gyro[3], float accel[3]);
 
@@ -53,7 +53,7 @@ static void IMUPWMSet(uint16_t pwm) {
  *
  */
 static void IMU_Temperature_Ctrl(void) {
-  PIDCalculate(&TempCtrl, BMI088.Temperature, RefTemp);
+  PIDCalculate(&TempCtrl, BMI088.Temperature, 40);
   IMUPWMSet(float_constrain(float_rounding(TempCtrl.Output), 0, UINT32_MAX));
 }
 
@@ -65,6 +65,7 @@ static void InitQuaternion(float *init_q4) {
   // 读取100次加速度计数据,取平均值作为初始值
   for (uint8_t i = 0; i < 100; ++i) {
     BMI088_Read(&BMI088);
+    IMU_Param_Correction(&IMU_Param, BMI088.Gyro, BMI088.Accel);
     acc_init[X] += BMI088.Accel[X];
     acc_init[Y] += BMI088.Accel[Y];
     acc_init[Z] += BMI088.Accel[Z];
@@ -109,7 +110,12 @@ static void INS_CalibrateGyroForDebug(uint16_t sample_count) {
 
   // 采集指定次数的数据
   for (uint16_t i = 0; i < sample_count; i++) {
-    BMI088_Read(&BMI088);
+
+    do {
+      BMI088_Read(&BMI088);
+      IMU_Temperature_Ctrl();
+      DWT_Delay(0.001);
+    } while (BMI088.Temperature <= 39.5f || BMI088.Temperature >= 40.5f);
 
     // 累加陀螺仪读数
     for (uint8_t j = 0; j < 3; j++) {
@@ -141,21 +147,7 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
   while (BMI088Init(&hspi2, 0) != BMI088_NO_ERROR);
 #endif
   // 使用我们的调试校准函数来测量陀螺仪零偏值，绕过预定义值
-  INS_CalibrateGyroForDebug(2000);
 
-  // 手动计算加速度缩放因子，因为我们跳过了完整的校准过程
-  BMI088.AccelScale = 9.81f / BMI088.gNorm;
-  IMU_Param.scale[X] = 1;
-  IMU_Param.scale[Y] = 1;
-  IMU_Param.scale[Z] = 1;
-  IMU_Param.Yaw = 0;
-  IMU_Param.Pitch = 0;
-  IMU_Param.Roll = 0;
-  IMU_Param.flag = 1;
-  // BMI088CalibrateGyroForDebug(BMI,1000);
-  float init_quaternion[4] = {0};
-  InitQuaternion(init_quaternion);
-  IMU_QuaternionEKF_Init(init_quaternion, 10, 0.001, 1000000, 1, 0);
   // imu heat init
   PID_Init_Config_s config = {.MaxOut = 2000,
                               .IntegralLimit = 300,
@@ -165,6 +157,37 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
                               .Kd = 0,
                               .Improve = 0x01};  // enable integratiaon limit
   PIDInit(&TempCtrl, &config);
+
+  for (int i=0;i<3000;i++) {
+    BMI088_Read(&BMI088);
+    IMU_Temperature_Ctrl();
+    DWT_Delay(0.001f);
+  }
+  //是否在线标定
+  if (imu_init_config->offset_flag==1) {
+    for (uint8_t i=0;i<3;i++)
+      BMI088.GyroOffset[i]=imu_init_config->GyroOffset[i];
+  }
+  else {
+    INS_CalibrateGyroForDebug(30000);
+  }
+
+  // 手动计算加速度缩放因子，因为我们跳过了完整的校准过程
+  BMI088.AccelScale = 9.81f / BMI088.gNorm;
+  IMU_Param.scale[X] = imu_init_config->scale[X];
+  IMU_Param.scale[Y] = imu_init_config->scale[Y];
+  IMU_Param.scale[Z] = imu_init_config->scale[Z];
+  IMU_Param.Yaw = imu_init_config->Yaw;
+  IMU_Param.Pitch = imu_init_config->Pitch;
+  IMU_Param.Roll = imu_init_config->Roll;
+  IMU_Param.flag = imu_init_config->flag;
+
+  // BMI088CalibrateGyroForDebug(BMI,1000);
+  float init_quaternion[4] = {0};
+  InitQuaternion(init_quaternion);
+  // 改进的初始化方式：使用更稳定的四元数初始化
+  //float init_quaternion[4] = {1.0f, 0.0f, 0.0f, 0.0f};  // 单位四元数
+  IMU_QuaternionEKF_Init(init_quaternion, 10, 0.001f, 10000000, 0.9996f, 0.0085f);  // 增加测量噪声，启用渐消因子和低通滤波
 
   // noise of accel is relatively big and of high freq,thus lpf is used
   INS.AccelLPF = 0.0085;
@@ -178,7 +201,7 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
 /* 注意以1kHz的频率运行此任务 */
 void INS_Task(void) {
   static uint32_t count = 0;
-  const float gravity[3] = {0, 0, 9.81f};
+  const float gravity[3] = {0, 0, 9.81f};  // 使用本地重力加速度值
 
   dt = DWT_GetDeltaT(&INS_DWT_Count);
   t += dt;
@@ -194,7 +217,7 @@ void INS_Task(void) {
     INS.Gyro[Y] = BMI088.Gyro[Y];
     INS.Gyro[Z] = BMI088.Gyro[Z];
 
-    // demo function,用于修正安装误差,可以不管,本demo暂时没用
+    // 修正安装误差
     IMU_Param_Correction(&IMU_Param, INS.Gyro, INS.Accel);
 
     // 计算重力加速度矢量和b系的XY两轴的夹角,可用作功能扩展,本demo暂时没用
@@ -315,7 +338,7 @@ static void IMU_Param_Correction(IMU_Init_Config_s *param, float gyro[3], float 
   gyro[Z] = c_31 * gyro_temp[X] + c_32 * gyro_temp[Y] + c_33 * gyro_temp[Z];
 
   float accel_temp[3];
-  for (uint8_t i = 0; i < 3; ++i) accel_temp[i] = accel[i];
+  for (uint8_t i = 0; i < 3; ++i) accel_temp[i] = accel[i] * param->scale[i];
 
   accel[X] = c_11 * accel_temp[X] + c_12 * accel_temp[Y] + c_13 * accel_temp[Z];
   accel[Y] = c_21 * accel_temp[X] + c_22 * accel_temp[Y] + c_23 * accel_temp[Z];

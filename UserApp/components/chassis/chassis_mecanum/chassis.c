@@ -70,6 +70,7 @@ static void PowerControl() {
       initial_total_power += initial_give_power[i];
     }
   }
+
   // 功率超限时进行动态调整
   if (initial_total_power > (float)chassis_ctrl_cmd->max_power) {
     float power_scale = (float)chassis_ctrl_cmd->max_power / initial_total_power;  // 削减功率比例
@@ -77,6 +78,7 @@ static void PowerControl() {
     // 计算缩放后的功率目标
     for (int i = 0; i < 4; i++) {
       scaled_give_power[i] = initial_give_power[i] * power_scale;
+      chassis->wheel_motor[i]->scaled_give_power = scaled_give_power[i];
     }
 
     // 重新计算每个电机的电流参考值
@@ -206,11 +208,15 @@ void ChassisTask() {
   }
   // 根据云台和底盘的角度offset将控制量映射到底盘坐标系上
   // 底盘逆时针旋转为角度正方向;云台命令的方向以云台指向的方向为x,采用右手系(x指向正北时y在正东)
-  static float sin_theta, cos_theta;
-  cos_theta = arm_cos_f32(chassis_ctrl_cmd->offset_angle * DEGREE_2_RAD);
-  sin_theta = arm_sin_f32(chassis_ctrl_cmd->offset_angle * DEGREE_2_RAD);
-  chassis_vx = chassis_ctrl_cmd->vx * cos_theta +chassis_ctrl_cmd->vy * sin_theta;
-  chassis_vy = -chassis_ctrl_cmd->vx * sin_theta + chassis_ctrl_cmd->vy * cos_theta;
+  // static float sin_theta, cos_theta;
+  // cos_theta = arm_cos_f32(chassis_ctrl_cmd->offset_angle * DEGREE_2_RAD);
+  // sin_theta = arm_sin_f32(chassis_ctrl_cmd->offset_angle * DEGREE_2_RAD);
+  // chassis_vx = chassis_ctrl_cmd->vx * cos_theta +chassis_ctrl_cmd->vy * sin_theta;
+  // chassis_vy = -chassis_ctrl_cmd->vx * sin_theta + chassis_ctrl_cmd->vy * cos_theta;
+
+  chassis_vx = chassis_ctrl_cmd->vx;
+  chassis_vy = chassis_ctrl_cmd->vy;
+
   // 根据电机的反馈速度和IMU(如果有)计算真实速度
   EstimateSpeed();
 

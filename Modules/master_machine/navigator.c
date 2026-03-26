@@ -1,10 +1,8 @@
-//
-// Created by ASUS on 2025/11/23.
-//
 #include "navigator.h"
+#include "bsp_dwt.h"
 #include "bsp_usart.h"
 #include "crc_func.h"
-#include "bsp_dwt.h"
+#include "rm_referee.h"
 
 static navigator_send_t send_data;
 static USARTInstance *navigator_usart_instance ;
@@ -29,7 +27,7 @@ static uint8_t* protocol_packed(const uint8_t* data_ptr, uint16_t pack_id, uint1
   }
 
   // 2. 计算总帧长并检查缓冲区是否足够
-  uint16_t total_frame_len = PROTOCOL_HEADER_LEN + 4 + data_len + 2;
+  uint16_t total_frame_len = PROTOCOL_HEADER_LEN + 2 + data_len + 2;
   if (total_frame_len > BUFFER_MAX_SIZE) {
     *tx_buff_len = 0;
     return NULL;
@@ -100,9 +98,7 @@ uint8_t protocol_send(UART_HandleTypeDef* huart, uint16_t pack_id, const uint8_t
       HAL_UART_DMAStop(huart);
       return 0;
     }
-    osDelay(1);
   }
-
   return 1;
 }
 
@@ -175,13 +171,13 @@ static uint8_t send_event_data(UART_HandleTypeDef* huart, const event_data_t* ev
  * @param robot_hp 血量数据结构体指针
  * @return 发送成功返回1，失败返回0
  */
-static uint8_t send_all_robot_hp(UART_HandleTypeDef* huart, const all_robot_hp_t* robot_hp)
+static uint8_t send_all_robot_hp(UART_HandleTypeDef* huart, const ext_game_robot_HP_t* robot_hp)
 {
     if (huart == NULL || robot_hp == NULL) return 0;
 
     return protocol_send(huart, 0x0003,
                         (uint8_t*)robot_hp,
-                        sizeof(all_robot_hp_t),
+                        sizeof(ext_game_robot_HP_t),
                         PKT_ID_ALL_ROBOT_HP, 10);
 }
 
@@ -191,7 +187,7 @@ static uint8_t send_all_robot_hp(UART_HandleTypeDef* huart, const all_robot_hp_t
  * @param game_status 游戏状态结构体指针
  * @return 发送成功返回1，失败返回0
  */
-static uint8_t send_game_status(UART_HandleTypeDef* huart, const game_status_t* game_status)
+static uint8_t send_game_status(UART_HandleTypeDef* huart, const ext_game_state_t* game_status)
 {
     if (huart == NULL||game_status==NULL) return 0;
     return protocol_send(huart, 0x0001,
@@ -260,14 +256,14 @@ static uint8_t send_rfid_status(UART_HandleTypeDef* huart, const rfid_status_t* 
  * @param robot_status 机器人状态结构体指针
  * @return 发送成功返回1，失败返回0
  */
-static uint8_t send_robot_status(UART_HandleTypeDef* huart, const robot_status_t* robot_status)
+static uint8_t send_robot_status(UART_HandleTypeDef* huart, const ext_game_robot_state_t* robot_status)
 {
     if (huart == NULL || robot_status == NULL) return 0;
 
     uint32_t timestamp = HAL_GetTick();
-    return protocol_send(huart, timestamp,
+    return protocol_send(huart, 0x00B,
                         (uint8_t*)robot_status,
-                        sizeof(robot_status_t),
+                        sizeof(ext_game_robot_state_t),
                         PKT_ID_ROBOT_STATUS, 10);
 }
 
@@ -289,33 +285,33 @@ static  uint8_t send_joint_state(UART_HandleTypeDef* huart, const joint_state_t*
 
 
 
-void updata_senddata(void) {
-  send_data.game_status.game_type=0x0A;
-  send_data.game_status.game_progress=0x0B;
-  // send_data.game_status.stage_remain_time=0xAABB;
-  send_data.game_status.sync_time_stamp=0xEFEFEFEFEFEFEFEF;
-  if (test_flag<40) {
-    test_flag++;
-    send_data.game_status.stage_remain_time=0x102C;
-  }else if (test_flag>=40&&test_flag<=80) {
-    send_data.game_status.stage_remain_time=0x011C;
-    test_flag++;
-  }else if (test_flag>80) {
-    test_flag=0;
-  }
-}
+// void update_senddata(void) {
+//   send_data.game_status.game_type=0x0A;
+//   send_data.game_status.game_progress=0x0B;
+//   // send_data.game_status.stage_remain_time=0xAABB;
+//   send_data.game_status.sync_time_stamp=0xEFEFEFEFEFEFEFEF;
+//   if (test_flag<40) {
+//     test_flag++;
+//     send_data.game_status.stage_remain_time=0x102C;
+//   }else if (test_flag>=40&&test_flag<=80) {
+//     send_data.game_status.stage_remain_time=0x011C;
+//     test_flag++;
+//   }else if (test_flag>80) {
+//     test_flag=0;
+//   }
+// }
 
-void navigator_send(UART_HandleTypeDef *instance) {
-  updata_senddata();
-  send_all_robot_hp(instance,&send_data.all_robot_hp);
+void navigator_send(UART_HandleTypeDef *instance,referee_info_t* referee_data) {
+  // update_senddata();
+  //send_all_robot_hp(instance,&referee_data->GameRobotHP);
   // send_event_data(instance,&send_data.event_data);
-  //send_game_status(instance,&send_data.game_status);
+  send_game_status(instance,&referee_data->GameState);
   // send_ground_robot_position(instance,&send_data.ground_robot_position);
   // send_joint_state(instance,&send_data.joint_state);
   // send_rfid_status(instance,&send_data.rfid_status);
   // send_robot_motion(instance,&send_data.robot_motion);
   // send_robot_state_info(instance,&send_data.state_info);
-  // send_robot_status(instance,&send_data.robot_status);
+   send_robot_status(instance,&referee_data->GameRobotState);
 
 }
 
@@ -376,18 +372,10 @@ static void DecodeNavigator() {
             // 校验通过，处理数据包
             uint16_t data_index = index + PROTOCOL_HEADER_LEN; // 跳过帧头和时间戳
             uint8_t check_len=sizeof(navigator_recv_t)-6;
-            // 根据数据包ID进行处理
-            switch (header->id) {
-                case PKT_ID_ROBOT_CMD: {
-                    if (header->len == (check_len)) {
-                        memcpy(&recv_data, &buffer[data_index], sizeof(navigator_recv_t));
-                    }
-                    break;
-                }
-                default:
-                    break;
+            if (header->len == (check_len)) {
+                memcpy(&recv_data, &buffer[data_index], check_len);
+                recv_data.last_update_time=DWT_GetTimeline_ms()/1000;
             }
-
             // 移动索引到下一帧
             index += total_frame_len;
             processed_len = index;

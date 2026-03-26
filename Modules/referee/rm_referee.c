@@ -24,6 +24,7 @@
 static USARTInstance *referee_usart_instance;  // 裁判系统串口实例
 static DaemonInstance *referee_daemon;         // 裁判系统守护进程
 static referee_info_t referee_info;            // 裁判系统数据
+static uint8_t IsRefereeInit = 0;
 
 /**
  * @brief  读取裁判数据,中断中读取保证速度
@@ -64,9 +65,6 @@ static void JudgeReadData(uint8_t *buff) {
           case ID_event_data:  // 0x0101
             memcpy(&referee_info.EventData, (buff + DATA_Offset), LEN_event_data);
             break;
-          case ID_supply_projectile_action:  // 0x0102
-            memcpy(&referee_info.SupplyProjectileAction, (buff + DATA_Offset), LEN_supply_projectile_action);
-            break;
           case ID_referee_warning:  // 0x0104
             memcpy(&referee_info.RefereeWarning, (buff + DATA_Offset), LEN_referee_warning);
             break;
@@ -97,7 +95,10 @@ static void JudgeReadData(uint8_t *buff) {
           case ID_RFID_info:  // 0x0209
             memcpy(&referee_info.RFIDStatus, (buff + DATA_Offset), LEN_RFID_info);
             break;
-          case ID_student_interactive:  // 0x0301   syhtodo接收代码未测试
+          case ID_sentry_info:
+            memcpy(&referee_info.SentryInfo,(buff + DATA_Offset), LEN_sentry_info);
+            break;
+          case ID_student_interactive:  // 0x0301   todo接收代码未测试
             memcpy(&referee_info.ReceiveData, (buff + DATA_Offset), LEN_receive_data);
             break;
         }
@@ -124,6 +125,8 @@ static void RefereeLostCallback(void *arg) {
 
 /* 裁判系统通信初始化 */
 referee_info_t *RefereeInit(UART_HandleTypeDef *referee_usart_handle) {
+  if (IsRefereeInit==1)
+    return &referee_info;
   USART_Init_Config_s conf;
   conf.module_callback = RefereeRxCallback;
   conf.usart_handle = referee_usart_handle;
@@ -135,8 +138,13 @@ referee_info_t *RefereeInit(UART_HandleTypeDef *referee_usart_handle) {
       .owner_id = referee_usart_instance,
       .reload_count = 30,  // 0.3s没有收到数据,则认为丢失,重启串口接收
   };
+  IsRefereeInit = 1;
   referee_daemon = DaemonRegister(&daemon_conf);
 
+  return &referee_info;
+}
+//当c板未初始化裁判系统但又需要裁判系统结构体时使用，例如双板通信传输裁判系统数据时
+referee_info_t *GetReferee() {
   return &referee_info;
 }
 
@@ -147,4 +155,12 @@ referee_info_t *RefereeInit(UART_HandleTypeDef *referee_usart_handle) {
 void RefereeSend(uint8_t *send, uint16_t tx_len) {
   USARTSend(referee_usart_instance, send, tx_len, USART_TRANSFER_DMA);
   osDelay(115);
+}
+
+/**
+ * @brief 裁判系统数据发送函数
+ * @param
+ */
+void SentrySend(uint8_t *send, uint16_t tx_len) {
+  USARTSend(referee_usart_instance, send, tx_len, USART_TRANSFER_DMA);
 }

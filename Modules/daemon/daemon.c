@@ -10,15 +10,21 @@ static uint8_t idx; // 用于记录当前的daemon instance数量,配合回调�
 
 DaemonInstance *DaemonRegister(Daemon_Init_Config_s *config)
 {
+    if (config == NULL || idx >= DAEMON_MX_CNT) {
+        return NULL;
+    }
+
     DaemonInstance *instance = (DaemonInstance *)malloc(sizeof(DaemonInstance));
+    if (instance == NULL) {
+        return NULL;
+    }
     memset(instance, 0, sizeof(DaemonInstance));
 
     instance->owner_id = config->owner_id;
     instance->reload_count = config->reload_count == 0 ? 100 : config->reload_count; // 默认值为100
     instance->callback = config->callback;
-    instance->temp_count = config->init_count == 0 ? 100 : config->init_count; // 默认值为100,初始计数
+    instance->temp_count = config->init_count == 0 ? instance->reload_count : config->init_count; // 初始计数默认使用reload_count
 
-    instance->temp_count = config->reload_count;
     daemon_instances[idx++] = instance;
     return instance;
 }
@@ -26,12 +32,15 @@ DaemonInstance *DaemonRegister(Daemon_Init_Config_s *config)
 /* "喂狗"函数 */
 void DaemonReload(DaemonInstance *instance)
 {
+    if (instance == NULL) {
+        return;
+    }
     instance->temp_count = instance->reload_count;
 }
 
 uint8_t DaemonIsOnline(DaemonInstance *instance)
 {
-    return instance->temp_count > 0;
+    return (instance != NULL) && (instance->temp_count > 0);
 }
 
 void DaemonTask()
@@ -41,6 +50,10 @@ void DaemonTask()
     {
 
         dins = daemon_instances[i];
+        if (dins == NULL) {
+            continue;
+        }
+
         if (dins->temp_count > 0) // 如果计数器还有值,说明上一次喂狗后还没有超时,则计数器减一
             dins->temp_count--;
         else if (dins->callback) // 等于零说明超时了,调用回调函数(如果有的话)
@@ -52,5 +65,5 @@ void DaemonTask()
 }
 // (需要id的原因是什么?) 下面是copilot的回答!
 // 需要id的原因是因为有些module可能有多个实例,而我们需要知道具体是哪个实例offline
-// 如果只有一个实例,则可以不用id,直接调用callback即可
+// 如果只有一个实例,則可以不用id,直接调用callback即可
 // 比如: 有一个module叫做"电机",它有两个实例,分别是"电机1"和"电机2",那么我们调用电机的离线处理函数时就需要知道是哪个电机offline
