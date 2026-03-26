@@ -98,10 +98,6 @@ static void RemoteControlSet() {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
-    if (abs(rc_data[TEMP].rc.dial) > 20) {
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
-    } else
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
     // 待添加,视觉会发来和目标的误差,同样将其转化为total angle的增量进行控制
     // ...
     // 左上，开火，发射，根据时间判断单发或者连发
@@ -111,10 +107,6 @@ static void RemoteControlSet() {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
-    if (abs(rc_data[TEMP].rc.dial) > 20) {
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
-    } else
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
     if (switch_is_mid(rc_data_last[TEMP].rc.switch_left)) {
       trigger_time = DWT_GetTimeline_s();
     }
