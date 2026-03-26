@@ -98,10 +98,6 @@ static void RemoteControlSet() {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
-    if (abs(rc_data[TEMP].rc.dial) > 20) {
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
-    } else
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
     // 待添加,视觉会发来和目标的误差,同样将其转化为total angle的增量进行控制
     // ...
     // 左上，开火，发射，根据时间判断单发或者连发
@@ -111,10 +107,6 @@ static void RemoteControlSet() {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
-    if (abs(rc_data[TEMP].rc.dial) > 20) {
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
-    } else
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
     if (switch_is_mid(rc_data_last[TEMP].rc.switch_left)) {
       trigger_time = DWT_GetTimeline_s();
     }
@@ -266,7 +258,7 @@ static void MouseKeySet() {
       }
       break;
     default:
-      switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 2)  // E键设置发射模式
+      switch (rc_data[TEMP].key_count[KEY_PRESS][Key_G] % 2)  // G键设置发射模式
       {
       case 0:                                              //单发+长按连发
           if (shoot_ctrl_cmd->friction_mode==FRICTION_ON)   //需预先开启摩擦轮，F键
@@ -309,13 +301,6 @@ static void MouseKeySet() {
       if (rc_data[TEMP].key[KEY_PRESS].b==1&&rc_data_last[TEMP].key[KEY_PRESS].b==0) {
           // 偶数次按压 - 跟随车头模式
             gimbal_ctrl_cmd->yaw += 180.0f;
-
-            //将角度规范化到-180到180度范围内
-            if (gimbal_ctrl_cmd->yaw > 180.0f) {
-              gimbal_ctrl_cmd->yaw -= 360.0f;
-            } else if (gimbal_ctrl_cmd->yaw < -180.0f) {
-              gimbal_ctrl_cmd->yaw += 360.0f;
-            }
         if (rc_data[TEMP].key_count[KEY_PRESS][Key_B]% 2==1) {
           rc_data[TEMP].key_count[KEY_PRESS][Key_B]++;
         }
@@ -333,13 +318,6 @@ static void MouseKeySet() {
           // 偶数次按压 - 跟随车头模式
           if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW_REAR_END) {
             gimbal_ctrl_cmd->yaw += 180.0f;
-
-            //将角度规范化到-180到180度范围内
-            if (gimbal_ctrl_cmd->yaw > 180.0f) {
-              gimbal_ctrl_cmd->yaw -= 360.0f;
-            } else if (gimbal_ctrl_cmd->yaw < -180.0f) {
-              gimbal_ctrl_cmd->yaw += 360.0f;
-            }
           }
           chassis_ctrl_cmd->wz = 0.0f;
           chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
@@ -349,13 +327,6 @@ static void MouseKeySet() {
           // 奇数次按压 - 跟随车尾模式
           if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
             gimbal_ctrl_cmd->yaw += 180.0f;
-
-            // 将角度规范化到-180到180度范围内
-            if (gimbal_ctrl_cmd->yaw > 180.0f) {
-              gimbal_ctrl_cmd->yaw -= 360.0f;
-            } else if (gimbal_ctrl_cmd->yaw < -180.0f) {
-              gimbal_ctrl_cmd->yaw += 360.0f;
-            }
           }
           chassis_ctrl_cmd->wz = 0.0f;
           chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW_REAR_END;
@@ -403,7 +374,7 @@ static void MouseKeySet() {
   //   default:
   //     break;
   // }
-  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Q] % 3)  // E按键设置热量控制类型
+  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Q] % 3)  // Q按键设置热量控制类型
   {
     case 0:
       shoot_ctrl_cmd->heat_mode=REFEREE_CONTROL;
@@ -417,25 +388,25 @@ static void MouseKeySet() {
       break;
   }
 
-//   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 3)  // E按键设置热量控制类型
-//   {
-//     case 0:
-//       shoot_ctrl_cmd->bullet_speed_mode=ENABLE_BULLET_SPEED;
-//       break;
-//     case 1:
-//       shoot_ctrl_cmd->bullet_speed_mode=MANUAL_BULLET_SPEED;
-//       if (rc_data[TEMP].key[KEY_PRESS].z==1&&rc_data_last[TEMP].key[KEY_PRESS].z==0) {
-//         shoot_ctrl_cmd->friction_speed+=shoot_init_config.shoot_param.bullet_speed_adjustment;
-//       }
-//       else if (rc_data[TEMP].key[KEY_PRESS].x==1&&rc_data_last[TEMP].key[KEY_PRESS].x==0) {
-//         shoot_ctrl_cmd->friction_speed-=shoot_init_config.shoot_param.bullet_speed_adjustment;
-//       }
-//       break;
-//     case 2:
-//       shoot_ctrl_cmd->bullet_speed_mode=DISABLE_BULLET_SPEED;
-//     default:
-//       break;
-//   }
+   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 3)  // E按键设置热量控制类型
+   {
+     case 0:
+       shoot_ctrl_cmd->bullet_speed_mode=ENABLE_BULLET_SPEED;
+       break;
+     case 1:
+       shoot_ctrl_cmd->bullet_speed_mode=MANUAL_BULLET_SPEED;
+       if (rc_data[TEMP].key[KEY_PRESS].z==1&&rc_data_last[TEMP].key[KEY_PRESS].z==0) {
+         shoot_ctrl_cmd->friction_speed+=shoot_init_config.shoot_param.bullet_speed_adjustment;
+       }
+       else if (rc_data[TEMP].key[KEY_PRESS].x==1&&rc_data_last[TEMP].key[KEY_PRESS].x==0) {
+         shoot_ctrl_cmd->friction_speed-=shoot_init_config.shoot_param.bullet_speed_adjustment;
+       }
+       break;
+     case 2:
+       shoot_ctrl_cmd->bullet_speed_mode=DISABLE_BULLET_SPEED;
+     default:
+       break;
+   }
   *rc_data_last = *rc_data;
 }
 
@@ -449,7 +420,7 @@ static void MouseKeySet() {
  */
 static void EmergencyHandler() {
   // 两switch都在下断电
-  if ( switch_is_down(rc_data[TEMP].rc.switch_left))  // 全部失能
+  if ( switch_is_down(rc_data[TEMP].rc.switch_left)||!RemoteControlIsOnline())  // 全部失能
   {
     robot->robot_mode = ROBOT_POWER_ON;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;

@@ -123,9 +123,8 @@ static void RemoteControlSet() {
   }
 
   // 射频控制,固定每秒1发,后续可以根据左侧拨轮的值大小切换射频,
-  shoot_ctrl_cmd->shoot_rate = 8;
 
-  *rc_data_last = *rc_data;
+
 }
 
 static void MouseKeySet() {
@@ -161,18 +160,7 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   gimbal_ctrl_cmd->yaw -= (float)rc_data[TEMP].mouse.x * 0.007f;  // 横向灵敏度调节
   gimbal_ctrl_cmd->pitch += (float)rc_data[TEMP].mouse.y * 0.003f; // 纵向灵敏度调节 (负号反转Y轴)
   }
-  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Z] % 3)  // Z键设置弹速
-  {
-    case 0:
-      shoot_ctrl_cmd->bullet_speed = 15;
-      break;
-    case 1:
-      shoot_ctrl_cmd->bullet_speed = 18;
-      break;
-    default:
-      shoot_ctrl_cmd->bullet_speed = 30;
-      break;
-  }
+
   switch (rc_data[TEMP].mouse.press_r % 2) {  //右键进入自瞄预备模式
   case 1:
       if (has_non_zero_data(vision_recv_data)==1){
@@ -244,23 +232,31 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   //     chassis_ctrl_cmd-> chassis_mode = CHASSIS_ROTATE ;
   //     break;
   // }
-
-  switch (rc_data[TEMP].key[KEY_PRESS].shift)  // 待添加 按shift允许超功率 消耗缓冲能量
+  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 3)  // E按键设置热量控制类型
   {
-    case 1:
-
+    case 0:
+      shoot_ctrl_cmd->bullet_speed_mode=ENABLE_BULLET_SPEED;
       break;
-
+    case 1:
+      shoot_ctrl_cmd->bullet_speed_mode=MANUAL_BULLET_SPEED;
+      if (rc_data[TEMP].key[KEY_PRESS].z==1&&rc_data_last[TEMP].key[KEY_PRESS].z==0) {
+        shoot_ctrl_cmd->friction_speed+=shoot_init_config.shoot_param.bullet_speed_adjustment;
+      }
+      else if (rc_data[TEMP].key[KEY_PRESS].x==1&&rc_data_last[TEMP].key[KEY_PRESS].x==0) {
+        shoot_ctrl_cmd->friction_speed-=shoot_init_config.shoot_param.bullet_speed_adjustment;
+      }
+      break;
+    case 2:
+      shoot_ctrl_cmd->bullet_speed_mode=DISABLE_BULLET_SPEED;
     default:
-
       break;
   }
-  shoot_ctrl_cmd->shoot_rate = 8;// 射频控制,固定每秒1发,后续可以根据左侧拨轮的值大小切换射频,
   if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
     gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
   } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
     gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
   }
+  *rc_data_last = *rc_data;
 }
 /**
  * @brief  紧急停止,包括遥控器左上侧拨轮打满/重要模块离线/双板通信失效等
@@ -317,7 +313,7 @@ void RobotInit() {
   rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
   *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
 
-  // robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
+  robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
 
   // robot->super_cap = SuperCapInit(&super_cap_config);
 

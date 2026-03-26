@@ -176,13 +176,15 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 },
             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
         },
-    .imu_init_config = {
-        .flag = 1,
-        .scale = {1.0f, 1.0f, 1.0f},
-        .Yaw = 0.0f,
-        .Pitch = 0.0f,
-        .Roll = 0.0f
-      },
+  .imu_init_config = {
+      .flag = 1,
+      .scale = {1.0f, 1.0f, 1.0f},
+      .offset_flag=1,
+      .GyroOffset ={0.00351617043,-0.00259744748,-0.00255452027},
+      .Yaw = 0.0f,
+      .Pitch = 0.0f,
+      .Roll = 0.0f
+    },
     .hi05_uart_handle = &huart1,
 };
 
@@ -221,13 +223,16 @@ static Shoot_Init_Config_s shoot_init_config = {
             .num_per_circle = 8,                      // 拨盘一圈的装载量
             .loader_direction = 1,                    // 拨盘旋转方向,1为正向，-1为反向
             .friction_num = 2,
-      .friction_speed = 35000.0f,
+      .friction_speed = 36000.0f,
       .friction_coefficients = {1.0f, -1.0f}, //摩擦轮速度比例系数
-      .deadtime_burstfire = 300,
-      .deadtime_onebullet = 500,               //弹丸发射间隔
-
-      .target_speed = 0.0f,
-      .bullet_speed_adjustment = 10.0f,
+      .deadtime_burstfire = 80,
+      .deadtime_onebullet = 100,               //弹丸发射间隔
+      .target_speed = 22.f,//目标弹速
+           .bullet_speed_deadband = 0.5f,//弹速死区，hero小些，步兵可以大些
+           .bullet_speed_adjustment = 0.0f,
+           .one_barrel_heat_value = 10,//一发弹丸所需热量
+           .shooter_barrel_cooling_value = 24,//每秒冷却回复
+           .shooter_barrel_heat_limit = 80,//热量上限
         },
     .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan2, 1, MOTOR_DIRECTION_NORMAL),
     .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan2, 2, MOTOR_DIRECTION_NORMAL),
