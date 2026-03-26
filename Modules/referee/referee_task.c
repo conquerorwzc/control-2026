@@ -346,8 +346,22 @@ void MyUIInit()
 {
     robotdata = RobotGet();
     referee_recv_info = GetRefereeInfo();  // 从裁判系统模块获取数据
-    while (referee_recv_info->GameRobotState.robot_id == 0)
-        osDelay(100); // 若还未收到裁判系统数据，等待一段时间后再检查
+    
+    // 等待裁判系统数据，最多等待 3 秒 (30*100ms)
+    int timeout_count = 0;
+    while (referee_recv_info->GameRobotState.robot_id == 0 && timeout_count < 30)
+    {
+        osDelay(100);
+        timeout_count++;
+    }
+    
+    // 如果超时仍未收到 robot_id，使用默认值 (红色 1 号机器人)
+    if (referee_recv_info->GameRobotState.robot_id == 0)
+    {
+        LOGWARNING("[UI] referee system not detected, using default robot ID (Red 1)");
+        referee_recv_info->GameRobotState.robot_id = 1;  // 默认红色 1 号
+    }
+    
     DeterminRobotID();                                            // 确定 ui 要发送到的目标客户端
     UIDelete(&referee_recv_info->referee_id, UI_Data_Del_ALL, 0); // 清空 UI
 
@@ -465,14 +479,6 @@ void UITask()
             osDelay(100);
             return;
         }
-    }
-
-    // 安全检查：确保 chassis 不为 NULL
-    if (robotdata->chassis == NULL)
-    {
-        // chassis 还未初始化，等待一下
-        osDelay(100);
-        return;
     }
 
     // === 获取标定状态 (简化版本，固定为未标定) ===

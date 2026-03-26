@@ -492,48 +492,47 @@ void RobotInit() {
   robot->super_cap = SuperCapInit(&super_cap_config);
 
  #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
-   robot->gimbal = GimbalInit(&gimbal_init_config);
-   robot->shoot = ShootInit(&shoot_init_config);
+   // robot->gimbal = GimbalInit(&gimbal_init_config);  // 注释掉云台初始化，防止电机上电
+   // robot->shoot = ShootInit(&shoot_init_config);     // 注释掉发射初始化，防止电机上电
 #endif
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
-  robot->chassis = ChassisInit(&chassis_init_config);
+  // robot->chassis = ChassisInit(&chassis_init_config);  // 注释掉底盘初始化，防止电机上电
 #endif
 
   // 初始化控制命令指针
-  chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
-
-  chassis_ctrl_cmd->power_distribute = 1.0f;
-  gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
-  shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
+  // chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;  // 注释掉，防止空指针崩溃
+  // chassis_ctrl_cmd->power_distribute = 1.0f;
+  // gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
+  // shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;
-  shoot_ctrl_cmd->bullet_speed_mode=ENABLE_BULLET_SPEED;
+  // shoot_ctrl_cmd->bullet_speed_mode=ENABLE_BULLET_SPEED;
   vision_recv_data=VisionInit(&gimbal_init_config.imu_init_config);
   gpio_5V_EN = GPIORegister(&gpio_init_config_5v);
   GPIOSet(gpio_5V_EN);
 }
 
-/* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
+/* 机器人核心控制任务,200Hz 频率运行 (必须高于视觉发送频率) */
 void RobotCMDTask() {
   // 根据 gimbcal 的反馈值计算云台和底盘正方向的夹角，不需要传参，通过 static 私有变量完成
-  shoot_ctrl_cmd->initial_speed=robot->referee_data->ShootData.bullet_speed;  // 修正字段名：initial_speed → bullet_speed
-  shoot_ctrl_cmd->shooter_barrel_heat=robot->referee_data->PowerHeatData.shooter_42mm_barrel_heat;
-  CalcOffsetAngle();
-  RemoteControlSet();
-  MouseKeySet();
-  EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
+  // shoot_ctrl_cmd->initial_speed=robot->referee_data->ShootData.bullet_speed;
+  // shoot_ctrl_cmd->shooter_barrel_heat=robot->referee_data->PowerHeatData.shooter_42mm_barrel_heat;
+  // CalcOffsetAngle();
+  // RemoteControlSet();  // 注释掉，防止访问未初始化的控制指针
+  // MouseKeySet();
+  // EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
 
 void RobotTask() {
-  VisionSend();
+  // VisionSend();  // 可选：如果不需要视觉也可以注释掉
   RobotCMDTask();
-  GimbalTask();
-  ShootTask();
+  // GimbalTask();   // 注释掉云台任务，防止电机疯转
+  // ShootTask();    // 注释掉发射任务，防止电机疯转
 
-  ChassisTask();
-  SuperCapSendMessage(robot->super_cap,
-      (int16_t)robot->referee_data->GameRobotState.chassis_power_limit,
-      robot->referee_data->PowerHeatData.buffer_energy,
-      robot->referee_data->GameRobotState.power_management_chassis_output);
+  // ChassisTask();  // 注释掉底盘任务，防止电机疯转
+  // SuperCapSendMessage(robot->super_cap,
+  //     (int16_t)robot->referee_data->GameRobotState.chassis_power_limit,
+  //     robot->referee_data->PowerHeatData.buffer_energy,
+  //     robot->referee_data->GameRobotState.power_management_chassis_output);
 
 }
 
