@@ -13,18 +13,18 @@
 static VideoGimbalInstance *video_gimbal;
 
 /* ==================== 极度舒适的实车标定参数 ==================== */
-#define VIDEO_CALI_SPEED_P          0.5f    // M3508 俯仰寻零速度 (度/tick)
-#define VIDEO_CALI_STALL_CURRENT_P  2500.0f // M3508 堵转认定电流 (原始值)
-#define VIDEO_CALI_STALL_SPEED      20.0f   // 转速阈值 (rpm)
-#define VIDEO_CALI_STALL_TICKS      300     // 连续 300 帧判定成功 (0.3秒)
-#define VIDEO_CALI_MAX_TICKS        5000    // 单次寻零超时时间 (5秒)
-#define VIDEO_CALI_SLIP_LIMIT_P     60.0f   // P电机目标角度最大超前量
-#define VIDEO_CALI_MAXOUT_P         6000.0f // 寻零期间，P电机最大输出 (温柔摸墙)
-#define VIDEO_SAFE_RANGE_RATIO      0.95f   // 软限位安全系数
+#define VIDEO_CALI_SPEED_P 0.5f            // M3508 俯仰寻零速度 (度/tick)
+#define VIDEO_CALI_STALL_CURRENT_P 2500.0f // M3508 堵转认定电流 (原始值)
+#define VIDEO_CALI_STALL_SPEED 20.0f       // 转速阈值 (rpm)
+#define VIDEO_CALI_STALL_TICKS 300         // 连续 300 帧判定成功 (0.3秒)
+#define VIDEO_CALI_MAX_TICKS 5000          // 单次寻零超时时间 (5秒)
+#define VIDEO_CALI_SLIP_LIMIT_P 60.0f      // P电机目标角度最大超前量
+#define VIDEO_CALI_MAXOUT_P 6000.0f        // 寻零期间，P电机最大输出 (温柔摸墙)
+#define VIDEO_SAFE_RANGE_RATIO 0.95f       // 软限位安全系数
 // Yaw轴：系数 0.05f 对应按键按下时 50度/秒 (1000Hz * 1.0 * 0.05)
-#define VIDEO_YAW_SPEED_SENS    0.05f
+#define VIDEO_YAW_SPEED_SENS 0.05f
 // Pitch轴：系数 0.0005f 对应按键按下时，从最底到最顶需要 2 秒 (1000Hz * 1.0 * 0.0005 = 0.5/s)
-#define VIDEO_PITCH_SPEED_SENS  0.0005f
+#define VIDEO_PITCH_SPEED_SENS 0.0005f
 /* ==================== 初始化 ==================== */
 VideoGimbalInstance *VideoGimbalInit(VideoGimbal_Init_Config_s *config)
 {
@@ -46,19 +46,45 @@ VideoGimbalInstance *VideoGimbalInit(VideoGimbal_Init_Config_s *config)
 /* ==================== 主任务 ==================== */
 void VideoGimbalTask(void)
 {
-    if (video_gimbal == NULL || video_gimbal->yaw_motor == NULL || video_gimbal->pitch_motor == NULL) return;
+    if (video_gimbal == NULL || video_gimbal->yaw_motor == NULL || video_gimbal->pitch_motor == NULL)
+        return;
 
-    // 断电保护逻辑
-    if (video_gimbal->ctrl_cmd.power == VIDEO_POWER_OFF) {
+    // ================= 1. 真实掉线检测 (借用看门狗 Daemon) =================
+    // 只要 Pitch 或 Yaw 任意一个电机离线，立刻切入 ERROR 状态死锁全车图传
+    if (!DaemonIsOnline(video_gimbal->pitch_motor->daemon) || !DaemonIsOnline(video_gimbal->yaw_motor->daemon))
+    {
+        video_gimbal->video_cali_state = VIDEO_CALI_ERROR;
+    }
+    // ================= 2. 正常软急停 (遥控器双 down) =================
+    if (video_gimbal->ctrl_cmd.power == VIDEO_POWER_OFF)
+    {
         DJIMotorStop(video_gimbal->yaw_motor);
         DJIMotorStop(video_gimbal->pitch_motor);
-        video_gimbal->video_cali_state = VIDEO_CALI_START; // 重置标定状态
-        return;
-    } else {
-        DJIMotorEnable(video_gimbal->yaw_motor);
-        DJIMotorEnable(video_gimbal->pitch_motor);
-    }
 
+        // 【软着陆逻辑】：急停耷拉期间，让 P_target 实时跟随物理下垂的实际角度。
+        // 解除双 down 时，电机从“当前位置”接管，不会暴力弹回原位！
+        if (video_gimbal->video_cali_state == VIDEO_CALI_DONE)
+        {
+            video_gimbal->P_target = video_gimbal->pitch_motor->measure.total_angle;
+
+            // 同步反算 Video_pitch 比例 (0~1.0)，防止遥控器逻辑突变
+            float pitch_range = video_gimbal->video_max_p - video_gimbal->video_min_p;
+            if (pitch_range > 0.01f)
+            {
+                video_gimbal->Video_pitch = (video_gimbal->P_target - video_gimbal->video_min_p) / pitch_range;
+            }
+        }
+        return; // 急停时仅返回，绝不改变正常工作中的标定状态机
+    }
+    else
+    {
+        // 没发生真掉线，且解除了急停，则正常给电
+        if (video_gimbal->video_cali_state != VIDEO_CALI_ERROR)
+        {
+            DJIMotorEnable(video_gimbal->yaw_motor);
+            DJIMotorEnable(video_gimbal->pitch_motor);
+        }
+    }
     // --------------------------------------------------------
     // 【 Yaw 轴控制逻辑 】- GM6020
     // --------------------------------------------------------
@@ -76,122 +102,144 @@ void VideoGimbalTask(void)
     static float orig_speed_max_out = 0.0f;
     static float orig_current_max_out = 0.0f;
 
-    float pitch_speed   = video_gimbal->pitch_motor->measure.speed_aps;
-    float pitch_angle   = video_gimbal->pitch_motor->measure.total_angle;
+    float pitch_speed = video_gimbal->pitch_motor->measure.speed_aps;
+    float pitch_angle = video_gimbal->pitch_motor->measure.total_angle;
     float pitch_current = video_gimbal->pitch_motor->measure.real_current;
 
     switch (video_gimbal->video_cali_state)
     {
-        case VIDEO_CALI_START:
-            stall_counter = 0;
-            timeout_counter = 0;
+    case VIDEO_CALI_START:
+        stall_counter = 0;
+        timeout_counter = 0;
+        video_gimbal->video_cali_state = VIDEO_CALI_START_PITCH;
+        break;
+    case VIDEO_CALI_WAIT_BTN:
+        DJIMotorStop(video_gimbal->pitch_motor); // 等待期间 Pitch 轴卸力
+        if (video_gimbal->ctrl_cmd.video_cali == 1)
+        {
             video_gimbal->video_cali_state = VIDEO_CALI_START_PITCH;
-            break;
+            video_gimbal->ctrl_cmd.video_cali = 0; // 【关键】清除标志位，防止死循环
+        }
+        break;
+    case VIDEO_CALI_START_PITCH:
+        video_gimbal->P_target = pitch_angle;
+        stall_counter = 0;
+        timeout_counter = 0;
 
-        case VIDEO_CALI_WAIT_BTN:
-            if (video_gimbal->ctrl_cmd.video_cali == 1) {
-                video_gimbal->video_cali_state = VIDEO_CALI_START_PITCH;
-            }
-            break;
+        // 【黑魔法：保存初始值，并限制输出】
+        // 注意：如果你的 controller.h 里成员变量大写了 (例如 MaxOut)，请自行将 max_out 改为 MaxOut
+        orig_speed_max_out = video_gimbal->pitch_motor->motor_controller.speed_PID.MaxOut;
+        orig_current_max_out = video_gimbal->pitch_motor->motor_controller.current_PID.MaxOut;
 
-        case VIDEO_CALI_START_PITCH:
-            video_gimbal->P_target = pitch_angle;
+        video_gimbal->pitch_motor->motor_controller.speed_PID.MaxOut = VIDEO_CALI_MAXOUT_P;
+        video_gimbal->pitch_motor->motor_controller.current_PID.MaxOut = VIDEO_CALI_MAXOUT_P;
+
+        video_gimbal->video_cali_state = VIDEO_CALI_FIND_MAX;
+        break;
+
+    case VIDEO_CALI_FIND_MAX:
+        timeout_counter++;
+        if (timeout_counter > VIDEO_CALI_MAX_TICKS)
+        {
+            video_gimbal->video_cali_state = VIDEO_CALI_ERROR;
+            break;
+        }
+
+        // 1. 目标角度累加 (斜坡)
+        video_gimbal->P_target += VIDEO_CALI_SPEED_P;
+
+        // 2. 超前量限制 (防止 PID 误差过大)
+        if (video_gimbal->P_target > pitch_angle + VIDEO_CALI_SLIP_LIMIT_P)
+        {
+            video_gimbal->P_target = pitch_angle + VIDEO_CALI_SLIP_LIMIT_P;
+        }
+
+        DJIMotorSetPIDRef(video_gimbal->pitch_motor, video_gimbal->P_target);
+
+        // 3. 电流速度双判定
+        if (fabs(pitch_speed) < VIDEO_CALI_STALL_SPEED && fabs(pitch_current) > VIDEO_CALI_STALL_CURRENT_P)
+        {
+            stall_counter++;
+        }
+        else
+        {
             stall_counter = 0;
-            timeout_counter = 0;
+        }
 
-            // 【黑魔法：保存初始值，并限制输出】
-            // 注意：如果你的 controller.h 里成员变量大写了 (例如 MaxOut)，请自行将 max_out 改为 MaxOut
-            orig_speed_max_out = video_gimbal->pitch_motor->motor_controller.speed_PID.MaxOut;
-            orig_current_max_out = video_gimbal->pitch_motor->motor_controller.current_PID.MaxOut;
+        if (stall_counter > VIDEO_CALI_STALL_TICKS)
+        {
+            video_gimbal->video_max_p = pitch_angle;
+            stall_counter = 0;
+            timeout_counter = 0; // 重置超时，准备找下限位
+            video_gimbal->video_cali_state = VIDEO_CALI_FIND_MIN;
+        }
+        break;
 
-            video_gimbal->pitch_motor->motor_controller.speed_PID.MaxOut= VIDEO_CALI_MAXOUT_P;
-            video_gimbal->pitch_motor->motor_controller.current_PID.MaxOut = VIDEO_CALI_MAXOUT_P;
-
-            video_gimbal->video_cali_state = VIDEO_CALI_FIND_MAX;
+    case VIDEO_CALI_FIND_MIN:
+        timeout_counter++;
+        if (timeout_counter > VIDEO_CALI_MAX_TICKS)
+        {
+            video_gimbal->video_cali_state = VIDEO_CALI_ERROR;
             break;
+        }
 
-        case VIDEO_CALI_FIND_MAX:
-            timeout_counter++;
-            if (timeout_counter > VIDEO_CALI_MAX_TICKS) {
-                video_gimbal->video_cali_state = VIDEO_CALI_ERROR;
-                break;
-            }
+        video_gimbal->P_target -= VIDEO_CALI_SPEED_P;
 
-            // 1. 目标角度累加 (斜坡)
-            video_gimbal->P_target += VIDEO_CALI_SPEED_P;
+        // 超前量限制 (向下寻找，限制负向误差)
+        if (video_gimbal->P_target < pitch_angle - VIDEO_CALI_SLIP_LIMIT_P)
+        {
+            video_gimbal->P_target = pitch_angle - VIDEO_CALI_SLIP_LIMIT_P;
+        }
 
-            // 2. 超前量限制 (防止 PID 误差过大)
-            if (video_gimbal->P_target > pitch_angle + VIDEO_CALI_SLIP_LIMIT_P) {
-                video_gimbal->P_target = pitch_angle + VIDEO_CALI_SLIP_LIMIT_P;
-            }
+        DJIMotorSetPIDRef(video_gimbal->pitch_motor, video_gimbal->P_target);
 
-            DJIMotorSetPIDRef(video_gimbal->pitch_motor, video_gimbal->P_target);
+        if (fabs(pitch_speed) < VIDEO_CALI_STALL_SPEED && fabs(pitch_current) > VIDEO_CALI_STALL_CURRENT_P)
+        {
+            stall_counter++;
+        }
+        else
+        {
+            stall_counter = 0;
+        }
 
-            // 3. 电流速度双判定
-            if (fabs(pitch_speed) < VIDEO_CALI_STALL_SPEED && fabs(pitch_current) > VIDEO_CALI_STALL_CURRENT_P) {
-                stall_counter++;
-            } else {
-                stall_counter = 0;
-            }
+        if (stall_counter > VIDEO_CALI_STALL_TICKS)
+        {
+            video_gimbal->video_min_p = pitch_angle;
+            stall_counter = 0;
 
-            if (stall_counter > VIDEO_CALI_STALL_TICKS) {
-                video_gimbal->video_max_p = pitch_angle;
-                stall_counter = 0;
-                timeout_counter = 0; // 重置超时，准备找下限位
-                video_gimbal->video_cali_state = VIDEO_CALI_FIND_MIN;
-            }
-            break;
+            // 【用完即焚：恢复正常的 PID 输出上限】
+            video_gimbal->pitch_motor->motor_controller.speed_PID.MaxOut = orig_speed_max_out;
+            video_gimbal->pitch_motor->motor_controller.current_PID.MaxOut = orig_current_max_out;
 
-        case VIDEO_CALI_FIND_MIN:
-            timeout_counter++;
-            if (timeout_counter > VIDEO_CALI_MAX_TICKS) {
-                video_gimbal->video_cali_state = VIDEO_CALI_ERROR;
-                break;
-            }
+            // 应用安全系数缩进物理限位 (避免正常运动时撞墙)
+            float range = video_gimbal->video_max_p - video_gimbal->video_min_p;
+            float safe_margin = range * (1.0f - VIDEO_SAFE_RANGE_RATIO) / 2.0f;
+            video_gimbal->video_max_p -= safe_margin;
+            video_gimbal->video_min_p += safe_margin;
 
-            video_gimbal->P_target -= VIDEO_CALI_SPEED_P;
-
-            // 超前量限制 (向下寻找，限制负向误差)
-            if (video_gimbal->P_target < pitch_angle - VIDEO_CALI_SLIP_LIMIT_P) {
-                video_gimbal->P_target = pitch_angle - VIDEO_CALI_SLIP_LIMIT_P;
-            }
-
-            DJIMotorSetPIDRef(video_gimbal->pitch_motor, video_gimbal->P_target);
-
-            if (fabs(pitch_speed) < VIDEO_CALI_STALL_SPEED && fabs(pitch_current) > VIDEO_CALI_STALL_CURRENT_P) {
-                stall_counter++;
-            } else {
-                stall_counter = 0;
-            }
-
-            if (stall_counter > VIDEO_CALI_STALL_TICKS) {
-                video_gimbal->video_min_p = pitch_angle;
-                stall_counter = 0;
-
-                // 【用完即焚：恢复正常的 PID 输出上限】
-                video_gimbal->pitch_motor->motor_controller.speed_PID.MaxOut = orig_speed_max_out;
-                video_gimbal->pitch_motor->motor_controller.current_PID.MaxOut = orig_current_max_out;
-
-                // 应用安全系数缩进物理限位 (避免正常运动时撞墙)
-                float range = video_gimbal->video_max_p - video_gimbal->video_min_p;
-                float safe_margin = range * (1.0f - VIDEO_SAFE_RANGE_RATIO) / 2.0f;
-                video_gimbal->video_max_p -= safe_margin;
-                video_gimbal->video_min_p += safe_margin;
-
-                // 回正
-                video_gimbal->P_target = (video_gimbal->video_max_p + video_gimbal->video_min_p) / 2.0f;
-                video_gimbal->Video_pitch = 0.5f;
-                video_gimbal->video_cali_state = VIDEO_CALI_DONE;
-            }
-            break;
+            // 回正
+            video_gimbal->P_target = (video_gimbal->video_max_p + video_gimbal->video_min_p) / 2.0f;
+            video_gimbal->Video_pitch = 0.5f;
+            video_gimbal->video_cali_state = VIDEO_CALI_DONE;
+        }
+        break;
 
     case VIDEO_CALI_DONE:
+        // 工作期间也可以随时按 Ctrl+V 强制重新标定
+        if (video_gimbal->ctrl_cmd.video_cali == 1)
+        {
+            video_gimbal->video_cali_state = VIDEO_CALI_START_PITCH;
+            video_gimbal->ctrl_cmd.video_cali = 0; // 清除标志
+            break;
+        }
         // 1. 把传入的指令作为“增量”加到基础比例上
         // 摇杆往上推为正，往下推为负，松手为 0
         video_gimbal->Video_pitch += video_gimbal->ctrl_cmd.video_pitch * VIDEO_PITCH_SPEED_SENS;
         // 2. 限制比例池永远在 0.0 ~ 1.0 之间 (0% 到 100%)
-        if (video_gimbal->Video_pitch > 1.0f) video_gimbal->Video_pitch = 1.0f;
-        if (video_gimbal->Video_pitch < 0.0f) video_gimbal->Video_pitch = 0.0f;
+        if (video_gimbal->Video_pitch > 1.0f)
+            video_gimbal->Video_pitch = 1.0f;
+        if (video_gimbal->Video_pitch < 0.0f)
+            video_gimbal->Video_pitch = 0.0f;
 
         // 3. 映射出实际的物理目标角度
         float pitch_range = video_gimbal->video_max_p - video_gimbal->video_min_p;
@@ -201,12 +249,21 @@ void VideoGimbalTask(void)
         DJIMotorSetPIDRef(video_gimbal->pitch_motor, video_gimbal->P_target);
         break;
 
-        case VIDEO_CALI_ERROR:
-            // 标定超时或异常，切断输出
-            DJIMotorStop(video_gimbal->pitch_motor);
-            break;
+    case VIDEO_CALI_ERROR:
+        // 发生掉线！持续切断输出，死死挂起
+        DJIMotorStop(video_gimbal->pitch_motor);
+        DJIMotorStop(video_gimbal->yaw_motor); // 【补全】把 Yaw 轴也停了，防止意外发疯
 
-        default:
-            break;
+        // 只有当两个电机的硬件线缆都接好（看门狗恢复在线），且操作手按下 Ctrl+V，才允许重新寻零
+        if (DaemonIsOnline(video_gimbal->pitch_motor->daemon) && DaemonIsOnline(video_gimbal->yaw_motor->daemon) &&
+            video_gimbal->ctrl_cmd.video_cali == 1)
+        {
+            video_gimbal->video_cali_state = VIDEO_CALI_START_PITCH;
+            video_gimbal->ctrl_cmd.video_cali = 0; // 清除标志
+        }
+        break;
+
+    default:
+        break;
     }
 }
