@@ -38,3 +38,5 @@ void RobotInit();
  *
  */
 void RobotTask();
+
+RobotInstance* RobotGet();

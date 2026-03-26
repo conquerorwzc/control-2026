@@ -362,3 +362,9 @@ void RobotTask() {
 #endif
 
 }
+
+RobotInstance* RobotGet() {
+  if (robot!=NULL)
+    return robot;
+  return NULL;
+}
