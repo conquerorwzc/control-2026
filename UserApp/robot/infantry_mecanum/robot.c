@@ -3,6 +3,7 @@
 #include "bsp_gpio.h"
 #include "general_def.h"
 #include "master_process.h"
+#include "rm_referee.h"
 #include "robot_config.h"
 #include "user_lib.h"
 
