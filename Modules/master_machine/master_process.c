@@ -15,29 +15,30 @@
 #include "daemon.h"
 #include "ins_task.h"
 #include "navigator.h"
+#include "referee.h"
 #include "seasky_protocol.h"
 #include "srm_protocol.h"
-#include "referee.h"
 #define VISION_USE_VCP
-
 
 #ifdef VISION_USE_VCP
 static DaemonInstance *vision_daemon_instance;
 
-static  Vision_Receive_s recv_data;//接收数据
-static  Vision_Send_s send_data;//发送数据
-static  INS_t* current_attitude;
-static  referee_info_t *referee_info;
+static Vision_Receive_s recv_data;  // 接收数据
+static Vision_Send_s send_data;     // 发送数据
+static INS_t *current_attitude;
+static referee_info_t *referee_info;
 
-//打包，注册
-static  Message receive;
-static  Message send;
+// 打包，注册
+static Message receive;
+static Message send;
+
+static float vision_bullet_speed = 22.0f;  // 默认初速度，防止0值异常
+static uint8_t vision_robot_id = 0;
 
 uint8_t custom_data[] = {0x40, 0x50, 0x60, 0x70};
 uint16_t packed_length;
 void InitParam(void) {
-
-  #define RIGISTER_ID(data, id, packet) \
+#define RIGISTER_ID(data, id, packet) \
   data.ptr_list[id] = &(packet);      \
   data.size_list[id] = sizeof(packet);
 
@@ -48,13 +49,24 @@ void InitParam(void) {
   RIGISTER_ID(send, 2, send_data.shoot_send);
 }
 
+/**
+ * @brief 由双板通信将底盘回传的裁判系统数据注入视觉发送模块
+ * @note  云台板上裁判系统未直连，需通过此接口从底盘板获取数据
+ * @param bullet_speed 弹丸初速度
+ * @param robot_id     本机器人ID
+ */
+void VisionSetRefereeData(float bullet_speed, uint8_t robot_id) {
+  vision_bullet_speed = bullet_speed;
+  vision_robot_id = robot_id;
+}
+
 void UpdateGimbalAttitude(Vision_Send_s *vision_send) {
   vision_send->gimbal_send.yaw = current_attitude->Yaw;
   vision_send->gimbal_send.pitch = current_attitude->Pitch;
   vision_send->gimbal_send.roll = current_attitude->Roll;
   vision_send->gimbal_send.mode = 0;
-  vision_send->gimbal_send.color = 0;
-  vision_send->shoot_send.bullet_speed = referee_info->ShootData.initial_speed;
+  vision_send->shoot_send.bullet_speed = vision_bullet_speed;
+  vision_send->gimbal_send.color = vision_robot_id;
 }
 
 /**

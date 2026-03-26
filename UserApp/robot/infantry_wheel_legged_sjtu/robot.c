@@ -21,6 +21,7 @@
 // modules
 #include "can_comm.h"
 #include "general_def.h"
+#include "master_process.h"
 #include "user_lib.h"
 #include "vofa.h"
 // robot components
@@ -59,7 +60,6 @@ void VOFATask() {
 #endif
   VOFAJustFloatSend(visualized_data, 20);
 }
-
 
 // 双板通信
 #if !defined(ONE_BOARD)
@@ -100,26 +100,29 @@ static void DoubleBoardCommsInit() {
 
 static void DoubleBoardComms() {
 #if defined(GIMBAL_BOARD)
-// 接收底盘回传数据
+  // 接收底盘回传数据
   *chassis_upload_data = *(Chassis_Upload_Data_s*)CANCommGet(robot->can_comm);
   robot->chassis->imu->Roll = chassis_upload_data->Roll;
   robot->chassis->imu->Pitch = chassis_upload_data->Pitch;
   robot->chassis->imu->YawTotalAngle = chassis_upload_data->YawTotalAngle;
   robot->chassis->imu->Gyro[2] = chassis_upload_data->YawSpeed;
   shoot_ctrl_cmd->initial_speed = chassis_upload_data->bullet_speed;
-// 发送底盘控制指令
+  VisionSetRefereeData(chassis_upload_data->bullet_speed, chassis_upload_data->robot_id);
+  // 发送底盘控制指令
   chassis_fetch_data->chassis_ctrl_cmd = *chassis_ctrl_cmd;
   CANCommSend(robot->can_comm, (void*)chassis_fetch_data);
 #elif defined(CHASSIS_BOARD)
-// 接收底盘控制指令
+  // 接收底盘控制指令
   *chassis_fetch_data = *(Chassis_Fetch_Data_s*)CANCommGet(robot->can_comm);
   robot->chassis->chassis_ctrl_cmd = chassis_fetch_data->chassis_ctrl_cmd;
-// 发送底盘回传数据
+  // 发送底盘回传数据
   chassis_upload_data->Pitch = robot->chassis->imu->Pitch;
   chassis_upload_data->Roll = robot->chassis->imu->Roll;
   chassis_upload_data->YawTotalAngle = robot->chassis->imu->YawTotalAngle;
   chassis_upload_data->YawSpeed = robot->chassis->imu->Gyro[2];
   chassis_upload_data->bullet_speed = robot->referee_data->ShootData.initial_speed;
+  chassis_upload_data->robot_id = robot->referee_data->GameRobotState.robot_id;
+
   CANCommSend(robot->can_comm, (void*)chassis_upload_data);
 #endif
 }
@@ -221,7 +224,7 @@ void RobotInit() {
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   chassis_ctrl_cmd->leg_length = chassis_init_config.param.initial_leg_length;  // 初始腿长
   DWT_GetDeltaT(&robot->DWT_CNT);
-  chassis_ctrl_cmd->max_power = 60;  // 测试用
+  // chassis_ctrl_cmd->max_power = 60;  // 测试用
 
   // UI初始化
   // MyUIInit(robot);

@@ -27,6 +27,7 @@ typedef struct {
   // Enemy_Color_e enemy_color;    // 0 for blue, 1 for red
   // 裁判系统数据
   float bullet_speed;
+  uint8_t robot_id;
 } Chassis_Upload_Data_s;  // means the Chassis board, not the component
 
 typedef struct {
