@@ -529,7 +529,7 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
 
   chassis = chassis_instance;
   chassis_ctrl_cmd = &chassis->chassis_ctrl_cmd;  // 在运行时初始化指针
-  chassis_ctrl_cmd->power_distribute=1.2f;
+  chassis_ctrl_cmd->power_distribute=1.0f;
   return chassis_instance;
 }
 /* 机器人底盘控制核心任务 */
