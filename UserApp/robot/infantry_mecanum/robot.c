@@ -344,7 +344,7 @@ void RobotCMDTask() {
   // robot->gimbal->gimbal_ctrl_cmd.pitch=30;
   // robot->gimbal->gimbal_ctrl_cmd.yaw=0;
   //}
-  chassis_ctrl_cmd->max_power = robot->referee_data->GameRobotState.chassis_power_limit;
+  chassis_ctrl_cmd->max_power = 70; //robot->referee_data->GameRobotState.chassis_power_limit
   CalcOffsetAngle();
   RemoteControlSet();
   MouseKeySet();
@@ -363,10 +363,13 @@ void RobotTask() {
   ChassisTask();
 #endif
 
-  SuperCapSendMessage(robot->super_cap,
-      (int16_t)robot->referee_data->GameRobotState.chassis_power_limit,
-      robot->referee_data->PowerHeatData.buffer_energy,
-      robot->referee_data->GameRobotState.power_management_chassis_output);
+//   SuperCapSendMessage(robot->super_cap,
+//       (int16_t)robot->referee_data->GameRobotState.chassis_power_limit,
+//       robot->referee_data->PowerHeatData.buffer_energy,
+//       robot->referee_data->GameRobotState.power_management_chassis_output);
+// }
+
+  SuperCapSendMessage(robot->super_cap,60,0,1);
 }
 
 RobotInstance* RobotGet() {
