@@ -13,14 +13,14 @@
 
 #include "general_def.h"
 #include "parallel_leg.h"
+#include "referee.h"
 #include "speed_observer.h"
 #include "user_lib.h"
-#include "referee.h"
 
 static ChassisInstance* chassis;
 static LegInstance* leg[2];
 static Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd;
-static referee_info_t *referee_data;
+static referee_info_t* referee_data;
 
 /**
  * @brief  计算LQR增益矩阵K
@@ -121,117 +121,53 @@ static float MotorPowerCalc(const float k[6], float I, float w) {
   return (P > 0.0f) ? P : 0.0f;
 }
 
-
+/**
+ * @brief 功率控制器
+ *
+ * 对应SJTU文档第7节:
+ *   s_d_max = Kp * sqrt(P_ref)
+ *   P_ref   = P_limit  (无超级电容，f1=f2=0)
+ *
+ * 斜率限制对应文档4-(b)(c):
+ *   (b) 加速中段: Ks/(2Rω) * ṡ*(s_d-s) → 限制加速斜率
+ *   (c) 急减速:   Ks/(2Rω) * ṡ*(s-s_d) → 限制减速斜率
+ */
 static void PowerControl(void) {
   PowerCtrl_t* pc = &chassis->power_ctrl;
-
-  // ── 重启保护 ────────────────────────────────────────
   if (chassis->update_flag.is_restart) {
     chassis->limited_vx = 0.0f;
     pc->vx_ramp = 0.0f;
-    pc->pi_integral = 0.0f;
-    pc->P_filtered = 0.0f;
-    // 重启时给一个保守的初始 vel_max
-    float P_init = (chassis_ctrl_cmd->max_power > 0) ? (float)chassis_ctrl_cmd->max_power : POWER_DEFAULT_LIMIT;
-    pc->vel_max = pc->Kp_vel * sqrtf(P_init * 0.8f);
     return;
   }
 
-  // ── Step 1: 同步功率上限 ────────────────────────────
-  // 优先使用裁判系统给定的功率上限，否则用默认值
-  pc->P_limit = (chassis_ctrl_cmd->max_power > 0) ? (float)chassis_ctrl_cmd->max_power : POWER_DEFAULT_LIMIT;
-
-  // ── Step 2: 估算当前总功率 + 低通滤波 ───────────────
-  // 用 final_output（电调给定值）反算电流，再乘上转速估算功率
-  // 注意：这里用的是"给定电流"而非"实测电流"
-  // 好处：响应快，不受电流传感器延迟影响
-  // 缺点：与实际功率有误差（电机特性非理想线性）
-  // float I_L = (float)leg[1]->wheel_motor->motor_controller.final_output / DJI_CURRENT_SCALE;
-  // float I_R = (float)leg[0]->wheel_motor->motor_controller.final_output / DJI_CURRENT_SCALE;
-  float I_L = (float)leg[1]->wheel_motor->measure.real_current / DJI_CURRENT_SCALE;
-  float I_R = (float)leg[0]->wheel_motor->measure.real_current / DJI_CURRENT_SCALE;
-  // speed_aps 是转子侧角速度 (deg/s)，转换为 rad/s
+  float I_L_Pre = leg[1]->wheel_motor->motor_controller.final_output / DJI_CURRENT_SCALE;
+  float I_R_Pre = leg[0]->wheel_motor->motor_controller.final_output / DJI_CURRENT_SCALE;
+  float I_L_Real = leg[1]->wheel_motor->measure.real_current / DJI_CURRENT_SCALE;
+  float I_R_Real = leg[0]->wheel_motor->measure.real_current / DJI_CURRENT_SCALE;
   float w_L = leg[1]->wheel_motor->measure.speed_aps * DEGREE_2_RAD;
   float w_R = leg[0]->wheel_motor->measure.speed_aps * DEGREE_2_RAD;
+  pc->P_wheel_L = MotorPowerCalc(pc->wheel_k, I_L_Pre, w_L);
+  pc->P_wheel_R = MotorPowerCalc(pc->wheel_k, I_R_Pre, w_R);
+  pc->P_total_pre = pc->P_wheel_L + pc->P_wheel_R;
+  pc->P_real = MotorPowerCalc(pc->wheel_k, I_L_Real, w_L) + MotorPowerCalc(pc->wheel_k, I_R_Real, w_R);
 
-  pc->P_wheel_L = MotorPowerCalc(pc->wheel_k, I_L, w_L);
-  pc->P_wheel_R = MotorPowerCalc(pc->wheel_k, I_R, w_R);
-  pc->P_total = pc->P_wheel_L + pc->P_wheel_R;
-
-  // 一阶低通滤波，抑制电流噪声导致的 vel_max 抖动
-  // P_filtered = (1-alpha)*P_filtered + alpha*P_total
-  // alpha=0.1, dt=1ms → 时间常数约 9ms
-  pc->P_filtered = (1.0f - POWER_LPF_ALPHA) * pc->P_filtered + POWER_LPF_ALPHA * pc->P_total;
-
-  // ── Step 3: 开环基准最大速度 ────────────────────────
-  // 根据文档：ṡd_max = Kp * sqrt(P_ref)，P_ref = P_limit（无超级电容）
-  // 这是稳态的理论最大速度，实际还需要 PI 修正
-  float vel_max_base = pc->Kp_vel * sqrtf(pc->P_limit);
-  VAL_LIMIT(vel_max_base, 0.0f, POWER_VEL_HARD_LIMIT);
-
-  // ── Step 4: PI 闭环速度修正 ─────────────────────────
-  // 功率误差：正值表示还有余量，可以加速；负值表示超功率，需要减速
-  float power_error = pc->P_limit - pc->P_filtered;
-
-  // 积分项更新
-  // 注意：积分只在速度未达到硬限幅时累积（防止 windup）
-  //       当 vel_max 已经在硬限幅时，多余的正误差积分没有意义
-  uint8_t at_hard_limit = (pc->vel_max >= POWER_VEL_HARD_LIMIT - 0.01f);
-  if (!(at_hard_limit && power_error > 0.0f)) {
-    pc->pi_integral += pc->Ki_power * power_error * chassis->dt;
-  }
-  // 积分限幅：防止长期超功率导致积分过大，也防止积分过负
-  VAL_LIMIT(pc->pi_integral, -POWER_PI_INTEGRAL_MAX, POWER_PI_INTEGRAL_MAX);
-
-  // PI 输出：速度修正量
-  // 功率富余(error>0) → delta_vel > 0 → vel_max 增大
-  // 功率超限(error<0) → delta_vel < 0 → vel_max 减小
-  float delta_vel = pc->Kp_power * power_error + pc->pi_integral;
-
-  // ── Step 5: 计算目标 vel_max_raw，非对称低通滤波 ─────
-  // 目标速度 = 开环基准 + PI修正
-  float vel_max_raw = vel_max_base + delta_vel;
-  VAL_LIMIT(vel_max_raw, POWER_VEL_MIN, POWER_VEL_HARD_LIMIT);
-
-  // 非对称低通：
-  //   超功率时（vel_max_raw < vel_max）：快速压制，防止裁判系统扣血
-  //   功率富余时（vel_max_raw > vel_max）：缓慢恢复，防止功率振荡
-  // 对应SJTU文档中"合理目标速度的平方与功率成正比"的思想：
-  //   功率超限 → 立即降速；功率富余 → 慢慢升速
-  if (vel_max_raw < pc->vel_max) {
-    // 快速降：alpha_down 大，响应快
-    pc->vel_max = pc->vel_max * (1.0f - VEL_MAX_ALPHA_DOWN) + vel_max_raw * VEL_MAX_ALPHA_DOWN;
-  } else {
-    // 缓慢升：alpha_up 小，恢复慢
-    pc->vel_max = pc->vel_max * (1.0f - VEL_MAX_ALPHA_UP) + vel_max_raw * VEL_MAX_ALPHA_UP;
-  }
-  VAL_LIMIT(pc->vel_max, POWER_VEL_MIN, POWER_VEL_HARD_LIMIT);
-
-  // ── Step 6: 幅值限制 ────────────────────────────────
-  // 对遥控器输入的目标速度进行限幅
+  float P_ref = (pc->P_limit > 0.0f) ? (float)pc->P_limit : POWER_DEFAULT_LIMIT;
+  // s_d_max = Kp * sqrt(P_ref)
+  float s_d_max = pc->Kp_vel * sqrtf(P_ref);
+  // 幅值限制
   float vx_target = chassis_ctrl_cmd->vx;
-  VAL_LIMIT(vx_target, -pc->vel_max, pc->vel_max);
-
-  // ── Step 7: 斜率限制 ────────────────────────────────
-  // 对应SJTU文档中的峰值场景(b)(c)：
-  //   (b) 加速中段：斜率限制防止(ṡd-ṡ)过大，控制 K_s*(ṡd-ṡ) 产生的功率峰值
-  //   (c) 急减速：斜率限制防止突然减速时轮子惯性前冲产生大力矩
-  // 判断加减速：目标速度幅值 > 当前斜率速度幅值 → 加速；否则 → 减速
+  VAL_LIMIT(vx_target, -s_d_max, s_d_max);
+  // 斜率限制
   float vx_diff = vx_target - pc->vx_ramp;
-  uint8_t is_accel = (fabsf(vx_target) >= fabsf(pc->vx_ramp) - 0.02f);
-  float ramp_rate = is_accel ? pc->vx_ramp_acc : pc->vx_ramp_dec;
-  float max_step = ramp_rate * chassis->dt;
-
+  uint8_t is_accel = (fabsf(vx_target) >= fabsf(pc->vx_ramp));
+  float max_step = (is_accel ? pc->vx_ramp_acc : pc->vx_ramp_dec) * chassis->dt;
   if (vx_diff > max_step)
     pc->vx_ramp += max_step;
   else if (vx_diff < -max_step)
     pc->vx_ramp -= max_step;
   else
     pc->vx_ramp = vx_target;
-
-  VAL_LIMIT(pc->vx_ramp, -pc->vel_max, pc->vel_max);
-
-  // 输出最终限速后的目标速度给 LQR
+  VAL_LIMIT(pc->vx_ramp, -s_d_max, s_d_max);
   chassis->limited_vx = pc->vx_ramp;
 }
 
@@ -251,8 +187,8 @@ static void LocomotionController(void) {
   // TODO: 状态误差限幅
   float state_err[10];
   state_err[0] = sv->x_b_h - 0.0f;
-  state_err[1] = sv->v_b_h - chassis_ctrl_cmd->vx;
-  // state_err[1] = (sv->v_b_h - chassis->limited_vx) * 1;
+  // state_err[1] = sv->v_b_h - chassis_ctrl_cmd->vx;
+  state_err[1] = sv->v_b_h - chassis->limited_vx;
   VAL_LIMIT(state_err[1], -2.7f, 2.7f);
   state_err[2] = sv->phi - chassis_ctrl_cmd->target_yaw;
   VAL_LIMIT(state_err[2], -0.52f, 0.52f);  // ±30°
@@ -283,7 +219,6 @@ static void LocomotionController(void) {
     u[2] = 0.0f;
     // theta_r (idx 6) 和 dtheta_r (idx 7)
     u[0] = (-chassis->LQR_K[0][6] * state_err[6] - chassis->LQR_K[0][7] * state_err[7]) * 0.5f;
-    u[0] = (-chassis->LQR_K[0][8] * state_err[8] - chassis->LQR_K[0][9] * state_err[9]) * 0.5f;
   }
   /* 左腿 leg[1] */
   if (leg[1]->update_flag.is_off_ground) {
@@ -343,7 +278,7 @@ static void ChassisCtrlUpdate(void) {
 
   StateVarUpdate();
 
-  // PowerControl();
+  PowerControl();
   LocomotionController();
   LegController();
 
@@ -427,45 +362,36 @@ static void ChassisRecovery(void) {
   }
 }
 
-static void SuperCapStateMachine() {
-  switch (chassis->super_cap_mode)
-  {
+static void SuperCapModeControl() {
+  switch (chassis->super_cap_mode) {
     case SAFETY_MODE:
-      if (chassis->super_cap->cap_msg.cap_v > 18.0f)
-        chassis->super_cap_mode = PASSIVE_MODE;
+      if (chassis->super_cap->cap_msg.cap_v > 18.0f) chassis->super_cap_mode = PASSIVE_MODE;
       chassis->chassis_ctrl_cmd.max_power =
-        300;  // referee_data->GameRobotState.chassis_power_limit;//TODO:用超电记得改;
+          referee_data->GameRobotState
+              .chassis_power_limit;  // referee_data->GameRobotState.chassis_power_limit;//TODO:用超电记得改;
       break;
     case FORCED_CHARGING_MODE:
-      if (chassis->super_cap->cap_msg.cap_v < 8.0f)
-        chassis->super_cap_mode = SAFETY_MODE;
-      if (chassis->super_cap->cap_msg.cap_v > 18.0f)
-        chassis->super_cap_mode = PASSIVE_MODE;
+      if (chassis->super_cap->cap_msg.cap_v < 8.0f) chassis->super_cap_mode = SAFETY_MODE;
+      if (chassis->super_cap->cap_msg.cap_v > 18.0f) chassis->super_cap_mode = PASSIVE_MODE;
       chassis->chassis_ctrl_cmd.max_power = (uint16_t)(0.4 * referee_data->GameRobotState.chassis_power_limit);
       break;
     case CHARGING_MODE:
-      if (chassis->super_cap->cap_msg.cap_v < 10.0f)
-        chassis->super_cap_mode = FORCED_CHARGING_MODE;
-      if (chassis->super_cap->cap_msg.cap_v > 18.0f)
-        chassis->super_cap_mode = PASSIVE_MODE;
+      if (chassis->super_cap->cap_msg.cap_v < 10.0f) chassis->super_cap_mode = FORCED_CHARGING_MODE;
+      if (chassis->super_cap->cap_msg.cap_v > 18.0f) chassis->super_cap_mode = PASSIVE_MODE;
       chassis->chassis_ctrl_cmd.max_power =
           referee_data->GameRobotState.chassis_power_limit -
           (uint16_t)powf((float)referee_data->GameRobotState.chassis_power_limit * 0.05f, 2);
       break;
     case PASSIVE_MODE:
-      if (chassis_ctrl_cmd->SuperCapBoost == 1)
-        chassis->super_cap_mode = ACTIVE_MODE;
-      if (chassis->super_cap->cap_msg.cap_v < 12.0f)
-        chassis->super_cap_mode = CHARGING_MODE;
+      if (chassis_ctrl_cmd->SuperCapBoost == 1) chassis->super_cap_mode = ACTIVE_MODE;
+      if (chassis->super_cap->cap_msg.cap_v < 12.0f) chassis->super_cap_mode = CHARGING_MODE;
       chassis->chassis_ctrl_cmd.max_power =
           referee_data->GameRobotState.chassis_power_limit -
           (uint16_t)powf((float)referee_data->GameRobotState.chassis_power_limit * 0.04f, 2);
       break;
     case ACTIVE_MODE:
-      if (chassis->super_cap->cap_msg.cap_v < 12.0f)
-        chassis->super_cap_mode = CHARGING_MODE;
-      if (chassis_ctrl_cmd->SuperCapBoost != 1)
-        chassis->super_cap_mode = PASSIVE_MODE;
+      if (chassis->super_cap->cap_msg.cap_v < 12.0f) chassis->super_cap_mode = CHARGING_MODE;
+      if (chassis_ctrl_cmd->SuperCapBoost != 1) chassis->super_cap_mode = PASSIVE_MODE;
       chassis->chassis_ctrl_cmd.max_power = 200;
       break;
     default:
@@ -525,7 +451,7 @@ static void LimitChassisOutput(void) {
 ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   ChassisInstance* chassis_instance = (ChassisInstance*)zmalloc(sizeof(ChassisInstance));
 
-  // referee_data = GetReferee();
+  referee_data = GetReferee();
   chassis_instance->leg[1] = LegInit(&chassis_init_config->leg_init_config[1]);
   chassis_instance->leg[0] = LegInit(&chassis_init_config->leg_init_config[0]);
 
@@ -534,7 +460,7 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   chassis_instance->imu = INS_Init(&chassis_init_config->imu_init_config);
   xvEstimateKF_Init(&chassis_instance->vaEstimateKF);
 
-  // =========== 功率控制初始化（无超级电容版本）===========
+  // =========== 功率控制初始化（无超级电容简化版）===========
   PowerCtrl_t* pc = &chassis_instance->power_ctrl;
   // 6参数模型系数
   pc->wheel_k[0] = WHEEL_K0;
@@ -543,22 +469,16 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   pc->wheel_k[3] = WHEEL_K3;
   pc->wheel_k[4] = WHEEL_K4;
   pc->wheel_k[5] = WHEEL_K5;
-  // 控制参数
+  // ===== 功率控制初始化 =====
   pc->Kp_vel = POWER_KP_VEL;
-  pc->Kp_power = POWER_PI_KP;
-  pc->Ki_power = POWER_PI_KI;
-  // 斜率限制
   pc->vx_ramp_acc = POWER_VX_RAMP_ACC;
   pc->vx_ramp_dec = POWER_VX_RAMP_DEC;
-  // 初始状态：保守初始化，防止上电冲击
-  pc->P_limit = POWER_DEFAULT_LIMIT;
-  pc->P_filtered = 0.0f;
-  pc->pi_integral = 0.0f;
   pc->vx_ramp = 0.0f;
-  // 初始 vel_max 用 80% 功率估算，留余量
-  pc->vel_max = POWER_KP_VEL * sqrtf(POWER_DEFAULT_LIMIT * 0.8f);
+  // pc->P_limit = referee_data->GameRobotState.chassis_power_limit;
+  pc->P_limit = POWER_DEFAULT_LIMIT;
   chassis_instance->limited_vx = 0.0f;
-  // ========================================================
+
+  // =========================================================
 
   chassis_instance->param = chassis_init_config->param;
 
@@ -596,7 +516,7 @@ void ChassisTask(void) {
     }
   }
 
-  // SuperCapStateMachine();
+  // SuperCapModeControl();
 
   // if (chassis->update_flag.is_recovered == 0) {
   //   chassis->chassis_ctrl_cmd.chassis_mode = CHASSIS_RECOVERY;
@@ -630,8 +550,8 @@ void ChassisTask(void) {
       break;
   }
 
-  // SuperCapSendMessage(chassis->super_cap, (int16_t)referee_data->GameRobotState.chassis_power_limit, referee_data->PowerHeatData.buffer_energy,
-                    // referee_data->GameRobotState.power_management_chassis_output);
+  // SuperCapSendMessage(chassis->super_cap, (int16_t)referee_data->GameRobotState.chassis_power_limit,
+  // referee_data->PowerHeatData.buffer_energy, referee_data->GameRobotState.power_management_chassis_output);
 
   LimitChassisOutput();
 }
