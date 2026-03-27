@@ -175,7 +175,6 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
               DEGREE_2_RAD;
 
   PIDInit(&follow_pid, &chassis_init_config->follow_pid);
-  chassis_instance->super_cap = SuperCapInit(&chassis_init_config->super_cap_config);
 
   for (int i = 0; i < 4; i++) {
     chassis_init_config->wheel_motor_config[i].controller_setting_init_config.angle_feedback_source = MOTOR_FEED;
@@ -187,6 +186,7 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
 
   chassis = chassis_instance;
   chassis_ctrl_cmd = &chassis->chassis_ctrl_cmd;  // 在运行时初始化指针
+  chassis_instance->super_cap_mode = SAFETY_MODE;
   return chassis_instance;
 }
 
@@ -198,7 +198,7 @@ void ChassisTask() {
       if (chassis->super_cap->cap_msg.cap_v > 18.0f)
         chassis->super_cap_mode = PASSIVE_MODE;
       chassis->chassis_ctrl_cmd.max_power =
-        300;  // referee_data->GameRobotState.chassis_power_limit;//TODO:用超电记得改;
+        100;  // referee_data->GameRobotState.chassis_power_limit;//TODO:用超电记得改;
       break;
     case FORCED_CHARGING_MODE:
       if (chassis->super_cap->cap_msg.cap_v < 8.0f)
@@ -230,7 +230,7 @@ void ChassisTask() {
         chassis->super_cap_mode = CHARGING_MODE;
       if (chassis_ctrl_cmd->SuperCapBoost != 1)
         chassis->super_cap_mode = PASSIVE_MODE;
-      chassis->chassis_ctrl_cmd.max_power = 200;
+      chassis->chassis_ctrl_cmd.max_power = 100;
       break;
     default:
       chassis->super_cap_mode = SAFETY_MODE;
@@ -271,8 +271,8 @@ void ChassisTask() {
   // 根据控制模式进行正运动学解算,计算底盘输出
   MecanumCalculate();
 
-  SuperCapSendMessage(chassis->super_cap, (int16_t)300, referee_data->PowerHeatData.buffer_energy,
-                        referee_data->GameRobotState.power_management_chassis_output);
+  // SuperCapSendMessage(chassis->super_cap, (int16_t)300, referee_data->PowerHeatData.buffer_energy,
+  //                       referee_data->GameRobotState.power_management_chassis_output);
 
   // 功率控制与输出限幅
   LimitChassisOutput();
