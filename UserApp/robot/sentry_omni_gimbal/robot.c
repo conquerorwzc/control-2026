@@ -22,7 +22,6 @@ static VT13_RC_t *vt13_rc_data;
 #endif
 static CANCommInstance* can_comm_instance = NULL;
 static Referee_Data *RefereeData;
-/* Intermediate variables calculated by private functions */
 static float time=0;  //判断按钮按下需要重复读取时间，这里简化成一次读取
 
 static float DecodeBulletSpeedFromU16(uint16_t speed_raw) {
@@ -332,7 +331,7 @@ static void RemoteControlSet() {
       const float search_center = 10.0f;
       const float search_amp = 10.0f;
       const float search_omega = PI * 4.0f;  // 对应2Hz
-      gimbal_ctrl_cmd->yaw = robot->gimbal->yaw_motor->measure.total_angle + 0.15f;
+      if (robot->gimbal->yaw_motor->daemon->temp_count==2) gimbal_ctrl_cmd->yaw += 0.15f;
       if (!search_start_flag) {
         const float normalized = ClampFloat((gimbal_ctrl_cmd->pitch - search_center) / search_amp, -1.0f, 1.0f);
         search_phase = asinf(normalized);  // 把当前pitch角度转化到相位
@@ -455,6 +454,8 @@ static void EmergencyHandler() {
     shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
     shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
+    gimbal_ctrl_cmd->yaw=robot->gimbal->gimbal_IMU_data->YawTotalAngle;
+    robot->gimbal->yaw_motor->motor_controller.pid_ref=robot->gimbal->gimbal_IMU_data->YawTotalAngle;
     LOGERROR("[CMD] emergency stop!");
   } else {
     LOGINFO("[CMD] reinstate, robot ready");
@@ -526,6 +527,7 @@ static void DualBoardCtrlSet() {
 void RobotInit() {
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
   RefereeData = (Referee_Data* )zmalloc(sizeof(Referee_Data));
+
 #ifdef USE_DUAL_RC
   // 使用旧遥控器
   robot->rc_data = RemoteControlInit(&huart3);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
@@ -540,9 +542,6 @@ void RobotInit() {
   send_data_new = (Send_Data_RC_NEW *)zmalloc(sizeof(Send_Data_RC_NEW));
 #endif
 
-  robot->vision_recv_data = VisionInit(&gimbal_init_config.imu_init_config);
-  // robot->super_cap = SuperCapInit(&super_cap_config);
-
   robot->gimbal = GimbalInit(&gimbal_init_config);
   robot->shoot = ShootInit(&shoot_init_config);
 
@@ -551,20 +550,33 @@ void RobotInit() {
   // chassis_ctrl_cmd->max_power = 80;  // 随便给一个初始功率，后面应该要从裁判系统获取
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
+
+  robot->vision_recv_data = VisionInit(&gimbal_init_config.imu_init_config, &shoot_ctrl_cmd->initial_speed, &RefereeData->robot_id);
+  // robot->super_cap = SuperCapInit(&super_cap_config)
+
   shoot_ctrl_cmd->heat_mode=REFEREE_CONTROL;
   shoot_ctrl_cmd->bullet_speed_mode=ENABLE_BULLET_SPEED;
   // navigator_data  = robot->navigator_data;
-  vision_recv_data=VisionInit(&gimbal_init_config.imu_init_config);
+  vision_recv_data = robot->vision_recv_data;
   can_comm_instance = CANCommInit(&comm_config);
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
 void RobotCMDTask() {
+  static float last_rc_dualboard_time = 0.0f;
+  static uint8_t rc_dualboard_first_run = 1;
+
   time = DWT_GetTimeline_s();
+  // 双板数据按100Hz更新，其他安全逻辑维持高频
+  if (rc_dualboard_first_run || (time - last_rc_dualboard_time) >= 0.01f) {
+    rc_dualboard_first_run = 0;
+    last_rc_dualboard_time = time;
+    Gimbal_CANCommSend();
+  }
+  DualBoardCtrlSet();
   shoot_ctrl_cmd->initial_speed = DecodeBulletSpeedFromU16(RefereeData->initial_speed);
   shoot_ctrl_cmd->shooter_barrel_heat=RefereeData->shooter_17mm_barrel_heat;
   RemoteControlSet();
-  DualBoardCtrlSet();
   // MouseKeySet();
   PitchAngleLimit();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
@@ -573,7 +585,6 @@ void RobotCMDTask() {
 void RobotTask() {
   VisionSend();
   RobotCMDTask();
-  Gimbal_CANCommSend();
   GimbalTask();
   ShootTask();
 

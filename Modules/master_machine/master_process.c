@@ -16,13 +16,14 @@
 #include "srm_protocol.h"
 #include "ins_task.h"
 #include  "HI05.h"
-#include "rm_referee.h"
+// #include "rm_referee.h"
 #define VISION_USE_VCP
 
 
 #ifdef VISION_USE_VCP
 static DaemonInstance *vision_daemon_instance;
-static  referee_info_t* referee_info;
+static uint8_t *robot_id_ptr;
+static float *initial_speed_ptr;
 static  Vision_Receive_s recv_data;//接收数据
 static  Vision_Send_s send_data;//发送数据
 static  INS_t* current_attitude;
@@ -56,8 +57,8 @@ void UpdateGimbalAttitude(Vision_Send_s *vision_send) {
   vision_send->gimbal_send.pitch = current_attitude_Cboard->Pitch;
   vision_send->gimbal_send.roll = current_attitude_Cboard->Roll;
   vision_send->gimbal_send.mode=0;
-  vision_send->gimbal_send.color=referee_info->GameRobotState.robot_id;
-  vision_send->shoot_send.bullet_speed=referee_info->ShootData.initial_speed;
+  vision_send->gimbal_send.color = (int)*robot_id_ptr;
+  vision_send->shoot_send.bullet_speed = *initial_speed_ptr;
 
 }
 
@@ -156,7 +157,7 @@ static void DecodeVision(uint16_t recv_len)
 }
 
 /* 视觉通信初始化 */
-Vision_Receive_s *VisionInit(IMU_Init_Config_s* imu_init_config)
+Vision_Receive_s *VisionInit(IMU_Init_Config_s* imu_init_config, float* initial_speed, uint8_t* robot_id)
 {
     current_attitude_Cboard=INS_Init(imu_init_config);
     // current_attitude = HI05_Init(&huart1);
@@ -170,7 +171,8 @@ Vision_Receive_s *VisionInit(IMU_Init_Config_s* imu_init_config)
         .reload_count = 5, // 50ms
     };
     vision_daemon_instance = DaemonRegister(&daemon_conf);
-  referee_info = GetReferee();
+    robot_id_ptr = robot_id;
+    initial_speed_ptr = initial_speed;
     return &recv_data;
 }
 

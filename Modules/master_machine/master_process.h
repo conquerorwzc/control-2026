@@ -115,7 +115,7 @@ typedef struct
  *
  * @param handle 用于和视觉通信的串口handle(C板上一般为USART1,丝印为USART2,4pin)
  */
-Vision_Receive_s *VisionInit(IMU_Init_Config_s* imu_init_config);
+Vision_Receive_s *VisionInit(IMU_Init_Config_s* imu_init_config, float* initial_speed, uint8_t* robot_id);
 
 // /**
 //  * @brief 发送视觉数据

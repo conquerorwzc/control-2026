@@ -199,9 +199,8 @@ typedef struct {
     float vy;
     float wz;
     // 决策状态：0=正常巡逻，1=回血中
-    uint8_t is_recovering;
   } __attribute__((__packed__)) speed_vector;
-
+  uint8_t is_recovering;
 //   // 底盘控制
 //   struct {
 //     float roll;

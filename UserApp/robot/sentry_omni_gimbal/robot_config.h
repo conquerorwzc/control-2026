@@ -27,8 +27,7 @@
 // #define VISION_USE_UART // 使用串口发送视觉数据
 
 #define BOARD_TX_ID 0x10
-#define BOARD_RX_ID 0x311
-
+#define BOARD_RX_ID 0x11
 
 // 云台参数
 #define YAW_CHASSIS_ALIGN_ECD 3845  // 云台和底盘对齐指向相同方向时的电机编码器值,若对云台有机械改动需要修改
@@ -166,7 +165,7 @@ static Shoot_Init_Config_s shoot_init_config = {
             .bullet_speed_deadband = 0.2f,//弹速死区，正负deadband。
             .one_barrel_heat_value = 10,//一发弹丸所需热量
             .shooter_barrel_cooling_value = 30,//每秒冷却回复
-            .shooter_barrel_heat_limit = 260,//热量上限
+            .shooter_barrel_heat_limit = 220,//热量上限
         },
     .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan1, 2, MOTOR_DIRECTION_NORMAL),
     .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan1, 1, MOTOR_DIRECTION_NORMAL),
@@ -207,8 +206,8 @@ static Shoot_Init_Config_s shoot_init_config = {
 },
 };
 static CANComm_Init_Config_s comm_config = {
-  .recv_data_len = 24,        // 接收数据长度，根据实际需求调整
-  .send_data_len = 24,        // 发送数据长度，根据实际需求调整
+  .recv_data_len = 30,        // 接收数据长度，根据实际需求调整
+  .send_data_len = 30,        // 发送数据长度，根据实际需求调整
   .daemon_count = 1000,      // 看门狗重载计数，根据实际需求调整
   .can_config = {
     .can_handle = &hcan2,  // 假设使用CAN2，根据实际使用的CAN句柄调整

@@ -25,11 +25,11 @@ static VT13_RC_t *vt13_rc_data;
 #endif
 static Sentry_Cmd_t sentry_cmd = {0};
 static SuperCapMode supercap_mode = SAFETY_MODE;
-/* Intermediate variables calculated by private functions */
 float trigger_time = 0;  // 触发时间
 static float angle = 0;
 CANCommInstance *can_comm_instance = NULL;
 static Referee_Data *referee_data;
+static float time=0;  //判断按钮按下需要重复读取时间，这里简化成一次读取
 
 static float x_speed_time = 0;  // x方向加速触发时间
 static float y_speed_time = 0;  // y方向加速触发时间
@@ -122,9 +122,9 @@ static void RemoteControlSet() {
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
     if (switch_is_mid(rc_data_last[TEMP].rc.switch_left)) {
-      trigger_time = DWT_GetTimeline_s();
+      trigger_time = time;
     }
-    if (DWT_GetTimeline_s() - trigger_time > 1.0f) {
+    if (time - trigger_time > 1.0f) {
       shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
     } else {
       shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
@@ -174,24 +174,24 @@ static void RemoteControlSet() {
   }
   // 缓加速
   if (abs(vx_initial) <= 10000) {
-    x_speed_time = DWT_GetTimeline_s();
+    x_speed_time = time;
     chassis_ctrl_cmd->vx = vx_initial;
   }  // 速度绝对值在10000以下输出控制量=输入控制量
   if (vx_initial > 10000 && chassis_ctrl_cmd->vx <= 60.0f * (float)rc_data[TEMP].rc.rocker_l_) {
-    chassis_ctrl_cmd->vx = 10000 + (DWT_GetTimeline_s() - x_speed_time) * 10000;
+    chassis_ctrl_cmd->vx = 10000 + (time - x_speed_time) * 10000;
   }
   if (vx_initial < -10000 && chassis_ctrl_cmd->vx >= 60.0f * (float)rc_data[TEMP].rc.rocker_l_) {
-    chassis_ctrl_cmd->vx = -10000 - (DWT_GetTimeline_s() - x_speed_time) * 10000;
+    chassis_ctrl_cmd->vx = -10000 - (time - x_speed_time) * 10000;
   }  // 速度绝对值在10000以上输出控制量=10000+10000t(s)
   if (abs(vy_initial) <= 10000) {
-    y_speed_time = DWT_GetTimeline_s();
+    y_speed_time = time;
     chassis_ctrl_cmd->vy = vy_initial;
   }  // 速度绝对值在10000以下输出控制量=输入控制量
   if (vy_initial > 10000 && chassis_ctrl_cmd->vy <= 60.0f * (float)rc_data[TEMP].rc.rocker_l1) {
-    chassis_ctrl_cmd->vy = 10000 + (DWT_GetTimeline_s() - y_speed_time) * 10000;
+    chassis_ctrl_cmd->vy = 10000 + (time - y_speed_time) * 10000;
   }
   if (vy_initial < -10000 && chassis_ctrl_cmd->vy >= 60.0f * (float)rc_data[TEMP].rc.rocker_l1) {
-    chassis_ctrl_cmd->vy = -10000 - (DWT_GetTimeline_s() - y_speed_time) * 10000;
+    chassis_ctrl_cmd->vy = -10000 - (time - y_speed_time) * 10000;
   }  // 速度绝对值在10000以上输出控制量=10000+10000t(s)
   *rc_data_last = *rc_data;
 }
@@ -204,24 +204,24 @@ static void MouseKeySet() {
 
   // 缓加速
   if (abs(vx_initial) <= 10000) {
-    x_speed_time = DWT_GetTimeline_s();
+    x_speed_time = time;
     chassis_ctrl_cmd->vx = vx_initial;
   }  // 速度绝对值在10000以下输出控制量=输入控制量
   if (vx_initial > 10000 && chassis_ctrl_cmd->vx <= 60.0f * (float)rc_data[TEMP].rc.rocker_l_) {
-    chassis_ctrl_cmd->vx = 10000 + (DWT_GetTimeline_s() - x_speed_time) * 10000;
+    chassis_ctrl_cmd->vx = 10000 + (time - x_speed_time) * 10000;
   }
   if (vx_initial < -10000 && chassis_ctrl_cmd->vx >= 60.0f * (float)rc_data[TEMP].rc.rocker_l_) {
-    chassis_ctrl_cmd->vx = -10000 - (DWT_GetTimeline_s() - x_speed_time) * 10000;
+    chassis_ctrl_cmd->vx = -10000 - (time - x_speed_time) * 10000;
   }  // 速度绝对值在10000以上输出控制量=10000+10000t(s)
   if (abs(vy_initial) <= 10000) {
-    y_speed_time = DWT_GetTimeline_s();
+    y_speed_time = time;
     chassis_ctrl_cmd->vy = vy_initial;
   }  // 速度绝对值在10000以下输出控制量=输入控制量
   if (vy_initial > 10000 && chassis_ctrl_cmd->vy <= 60.0f * (float)rc_data[TEMP].rc.rocker_l1) {
-    chassis_ctrl_cmd->vy = 10000 + (DWT_GetTimeline_s() - y_speed_time) * 10000;
+    chassis_ctrl_cmd->vy = 10000 + (time - y_speed_time) * 10000;
   }
   if (vy_initial < -10000 && chassis_ctrl_cmd->vy >= 60.0f * (float)rc_data[TEMP].rc.rocker_l1) {
-    chassis_ctrl_cmd->vy = -10000 - (DWT_GetTimeline_s() - y_speed_time) * 10000;
+    chassis_ctrl_cmd->vy = -10000 - (time - y_speed_time) * 10000;
   }  // 速度绝对值在10000以上输出控制量=10000+10000t(s)
 
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
@@ -259,7 +259,7 @@ static void MouseKeySet() {
     case 0:
       if (!switch_is_up(rc_data[TEMP].rc.switch_left)) {
         shoot_ctrl_cmd->load_mode = LOAD_STOP;
-        trigger_time = DWT_GetTimeline_s();
+        trigger_time = time;
       }
       break;
     default:
@@ -270,7 +270,7 @@ static void MouseKeySet() {
               (vision_recv_data->shoot_receive.fire_flag || rc_data[TEMP].mouse.press_r % 2 == 0))  // 需预先开启摩擦轮
           {
             shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
-            if (DWT_GetTimeline_s() - trigger_time > 1.0f)  // 长按检测，1秒
+            if (time - trigger_time > 1.0f)  // 长按检测，1秒
             {
               shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
             }
@@ -350,10 +350,10 @@ static void RemoteControlSet() {
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
       chassis_ctrl_cmd->wz = (2.0f) * (float)vt13_rc_data->rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
     }
-    auto_mode_time=DWT_GetTimeline_s();
+    auto_mode_time=time;
   } else if (robot->control_mode == AUTO_MODE)  // 自动控制，直接收上位机控制量
   {
-    // if (robot->referee_data->GameState.game_progress == 4 || auto_mode_time-DWT_GetTimeline_s()>180.0f) {//比赛时这段取消引用
+    // if (robot->referee_data->GameState.game_progress == 4 || auto_mode_time-time>180.0f) {//比赛时这段取消引用
       chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
       vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vy * 10000;
       vy_initial = robot->navigator_data->robot_cmd.speed_vector.vx * 10000;
@@ -362,24 +362,24 @@ static void RemoteControlSet() {
   }
   // 缓加速
   if (abs(vx_initial) <= 10000) {
-    x_speed_time = DWT_GetTimeline_s();
+    x_speed_time = time;
     chassis_ctrl_cmd->vx = vx_initial;
   }  // 速度绝对值在10000以下输出控制量=输入控制量
   if (vx_initial > 10000 && chassis_ctrl_cmd->vx <= 60.0f * (float)vt13_rc_data->rc.rocker_l_) {
-    chassis_ctrl_cmd->vx = 10000 + (DWT_GetTimeline_s() - x_speed_time) * 10000;
+    chassis_ctrl_cmd->vx = 10000 + (time - x_speed_time) * 10000;
   }
   if (vx_initial < -10000 && chassis_ctrl_cmd->vx >= 60.0f * (float)vt13_rc_data->rc.rocker_l_) {
-    chassis_ctrl_cmd->vx = -10000 - (DWT_GetTimeline_s() - x_speed_time) * 10000;
+    chassis_ctrl_cmd->vx = -10000 - (time - x_speed_time) * 10000;
   }  // 速度绝对值在10000以上输出控制量=10000+10000t(s)
   if (abs(vy_initial) <= 10000) {
-    y_speed_time = DWT_GetTimeline_s();
+    y_speed_time = time;
     chassis_ctrl_cmd->vy = vy_initial;
   }  // 速度绝对值在10000以下输出控制量=输入控制量
   if (vy_initial > 10000 && chassis_ctrl_cmd->vy <= 60.0f * (float)vt13_rc_data->rc.rocker_l1) {
-    chassis_ctrl_cmd->vy = 10000 + (DWT_GetTimeline_s() - y_speed_time) * 10000;
+    chassis_ctrl_cmd->vy = 10000 + (time - y_speed_time) * 10000;
   }
   if (vy_initial < -10000 && chassis_ctrl_cmd->vy >= 60.0f * (float)vt13_rc_data->rc.rocker_l1) {
-    chassis_ctrl_cmd->vy = -10000 - (DWT_GetTimeline_s() - y_speed_time) * 10000;
+    chassis_ctrl_cmd->vy = -10000 - (time - y_speed_time) * 10000;
   }  // 速度绝对值在10000以上输出控制量=10000+10000t(s)
 }
 
@@ -429,11 +429,11 @@ static void ModeControl() {
     // else
     if (robot->chassis->chassis_ctrl_cmd.vx==0&&robot->chassis->chassis_ctrl_cmd.vy==0) {
       robot->sentry_mode=OFFENSE_POSE;    //高于50%血或占据堡垒进入进攻姿态
-      robot->chassis->chassis_ctrl_cmd.wz=-3000;
+      robot->chassis->chassis_ctrl_cmd.wz=-3500;
     }
     else {
       robot->sentry_mode=MOBILITY_POSE;
-      robot->chassis->chassis_ctrl_cmd.wz=-1500;
+      robot->chassis->chassis_ctrl_cmd.wz=-1000;
     }
   }
 }
@@ -487,9 +487,10 @@ void Chassis_CANCommSend() {
   if (can_comm_instance == NULL || vt13_rc_data == NULL) {
     return;
   }
-  referee_data->projectile_allowance_17mm = robot->referee_data->ProjectileAllowance.projectile_allowance_17mm;
+  // referee_data->projectile_allowance_17mm = robot->referee_data->ProjectileAllowance.projectile_allowance_17mm;
   referee_data->initial_speed = EncodeBulletSpeedToU16(robot->referee_data->ShootData.initial_speed);
   referee_data->shooter_17mm_barrel_heat = robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
+  referee_data->robot_id = robot->referee_data->GameRobotState.robot_id;
   CANCommSend(can_comm_instance, (void *)referee_data);
   #endif
 }
@@ -569,13 +570,20 @@ void RobotInit() {
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发频率) */
 void RobotCMDTask() {
-  // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
+  static float last_rc_dualboard_time = 0.0f;
+  static uint8_t rc_dualboard_first_run = 1;
+  time = DWT_GetTimeline_s();
+  // 双板数据按100Hz更新，其他安全逻辑维持高频
+  if (rc_dualboard_first_run || (time - last_rc_dualboard_time) >= 0.01f) {
+    rc_dualboard_first_run = 0;
+    last_rc_dualboard_time = time;
+    Chassis_CANCommSend();
+    // SentryRefereeSend();
+  }
   DualBoardCtrlSet();
-  Chassis_CANCommSend();
   CalcOffsetAngle();
   RemoteControlSet();
   // MouseKeySet();
-  // SentryRefereeSend();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
 
