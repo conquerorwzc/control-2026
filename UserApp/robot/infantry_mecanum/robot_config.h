@@ -89,11 +89,11 @@ static Chassis_Init_Config_s chassis_init_config = {
             .wheel_reduction_ratio = 19.0f,  // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
             //3508功率模型参数
             .power_param.k0=0.7441993412640775f,
-            .power_param.k1=0.006444284468539646f,
-            .power_param.k2=0.0001423857226262331f,
-            .power_param.k3=0.015644430204543864f,
-            .power_param.k4=0.1580143850678086f,
-            .power_param.k5=2.896721772539512e-05f,
+            .power_param.k1=0.0090164284468539646f,
+            .power_param.k2=0.0001988857226262331f,
+            .power_param.k3=0.024694430204543864f,
+            .power_param.k4=0.20160143850678086f,
+            .power_param.k5=3.715221772539512e-05f,
         },
     .wheel_motor_config[0] = WHEEL_MOTOR_CONFIG(&hcan1,1),
     .wheel_motor_config[1] = WHEEL_MOTOR_CONFIG(&hcan1,4),

@@ -24,6 +24,7 @@ static float rf_radius;
 static float lb_radius;
 static float rb_radius;
 static PIDInstance follow_pid;
+static float power;
 static float k0, k1, k2, k3, k4, k5;  // 中科大的功率模型
 
 /**
@@ -50,12 +51,16 @@ static void PowerControl() {
 
   // 获取当前电机参考电流，统一位单位为A
   float motor_current_list[4];
+  float motor_real_current_list[4];
   for (int i = 0; i < 4; i++) {
     motor_current_list[i] = (float)chassis->wheel_motor[i]->motor_controller.final_output;
+    motor_real_current_list[i]=(float)chassis->wheel_motor[i]->measure.real_current;
   }
 
   float initial_give_power[4] = {0.0f};  // 每个电机的初始估计功率
+  float initial_give_real_power[4] = {0.0f};  // 每个电机的初始估计功率
   float initial_total_power = 0.0f;      // 估计初始总功率
+  power=0;
 
   // 计算每个电机的功率贡献
   for (int i = 0; i < 4; i++) {
@@ -69,6 +74,17 @@ static void PowerControl() {
     if (initial_give_power[i] > 0) {
       initial_total_power += initial_give_power[i];
     }
+  }
+
+  // 计算每个电机的功率贡献
+  for (int i = 0; i < 4; i++) {
+    initial_give_real_power[i] =
+        k0 + k1 * motor_real_current_list[i] / (16384.0f / 20.0f) + k2 * motor_speed_fdb[i] * (2.0f * PI / 60.0f) +
+        k3 * motor_real_current_list[i] / (16384.0f / 20.0f) * motor_speed_fdb[i] * (2.0f * PI / 60.0f) +
+        k4 * motor_real_current_list[i] / (16384.0f / 20.0f) * motor_real_current_list[i] / (16384.0f / 20.0f) +
+        k5 * motor_speed_fdb[i] * (2.0f * PI / 60.0f) * motor_speed_fdb[i] * (2.0f * PI / 60.0f);
+
+      power += initial_give_real_power[i];
   }
 
   // 功率超限时进行动态调整
