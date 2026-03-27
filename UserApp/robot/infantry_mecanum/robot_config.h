@@ -101,7 +101,7 @@ static Chassis_Init_Config_s chassis_init_config = {
     .wheel_motor_config[3] = WHEEL_MOTOR_CONFIG(&hcan1,3),
     //跟随PID
     .follow_pid={
-        .Kp = -200.0f,
+        .Kp = -175.0f,
         .Ki = 0.0f,
         .Kd = 0.0f,
         .IntegralLimit = 1000.0f,
@@ -226,13 +226,13 @@ static Shoot_Init_Config_s shoot_init_config = {
       .friction_speed = 36000.0f,
       .friction_coefficients = {1.0f, -1.0f}, //摩擦轮速度比例系数
       .deadtime_burstfire = 80,
-      .deadtime_onebullet = 100,               //弹丸发射间隔
+      .deadtime_onebullet = 120,               //弹丸发射间隔
       .target_speed = 22.f,//目标弹速
            .bullet_speed_deadband = 0.5f,//弹速死区，hero小些，步兵可以大些
            .bullet_speed_adjustment = 0.0f,
            .one_barrel_heat_value = 10,//一发弹丸所需热量
            .shooter_barrel_cooling_value = 24,//每秒冷却回复
-           .shooter_barrel_heat_limit = 80,//热量上限
+           .shooter_barrel_heat_limit = 88,//热量上限
         },
     .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan2, 1, MOTOR_DIRECTION_NORMAL),
     .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan2, 2, MOTOR_DIRECTION_NORMAL),
