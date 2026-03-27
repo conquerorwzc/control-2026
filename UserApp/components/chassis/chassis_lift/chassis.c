@@ -175,7 +175,8 @@ ChassisInstance *ChassisInit(Chassis_Init_Config_s *chassis_init_config)
         if (chassis_instance->front_legs[i].motor != NULL)
         {
             chassis_instance->front_legs[i].motor->motor_settings.feedforward_flag = SPEED_FEEDFORWARD;
-            chassis_instance->front_legs[i].motor->motor_controller.speed_feedforward_ptr = &lift_speed_feedforward[i + 2];
+            chassis_instance->front_legs[i].motor->motor_controller.speed_feedforward_ptr =
+                &lift_speed_feedforward[i + 2];
         }
 
         if (chassis_instance->rear_legs[i].motor != NULL)
@@ -633,7 +634,6 @@ void Leg_FSM()
         }
         last_robot_mode = chassis_ctrl_cmd->robot_mode;
     }
-
 
     if (chassis_ctrl_cmd->robot_mode == 2) // ROBOT_EXCHANGE_MODE
     {
