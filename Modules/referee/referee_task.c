@@ -123,14 +123,14 @@ static void UIChangeCheck(Referee_Interactive_info_t *_Interactive_data)
     // Arm 标定状态变化检测
     if (_Interactive_data->arm_cali_state != _Interactive_data->last_arm_cali_state)
     {
-        _Interactive_data->Referee_Interactive_Flag.chassis_flag = 1;
+        _Interactive_data->Referee_Interactive_Flag.arm_cali_flag = 1;
         _Interactive_data->last_arm_cali_state = _Interactive_data->arm_cali_state;
     }
     
     // Lift 标定状态变化检测
     if (_Interactive_data->lift_cali_state != _Interactive_data->last_lift_cali_state)
     {
-        _Interactive_data->Referee_Interactive_Flag.chassis_flag = 1;
+        _Interactive_data->Referee_Interactive_Flag.lift_cali_flag = 1;
         _Interactive_data->last_lift_cali_state = _Interactive_data->lift_cali_state;
     }
     
@@ -161,61 +161,69 @@ static void UIChangeCheck(Referee_Interactive_info_t *_Interactive_data)
 // UI 更新函数
 static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
 {
-    // === 标定状态刷新（持续刷新） ===
-    char arm_buf[20];
-    char lift_buf[20];
-    uint32_t arm_color;
-    uint32_t lift_color;
-
-    // Arm 状态
-    switch (interactive_data->arm_cali_state)
+    // === 标定状态刷新（仅在状态变化时刷新） ===
+    
+    // Arm 标定状态
+    if (interactive_data->Referee_Interactive_Flag.arm_cali_flag == 1)
     {
-        case 0:
-            snprintf(arm_buf, sizeof(arm_buf), "%-14s", "Not Calib");
-            arm_color = UI_Color_Purplish_red;
-            break;
-        case 1:
-            snprintf(arm_buf, sizeof(arm_buf), "%-14s", "Calibrating");
-            arm_color = UI_Color_Yellow;
-            break;
-        case 2:
-            snprintf(arm_buf, sizeof(arm_buf), "%-14s", "Calib OK");
-            arm_color = UI_Color_Green;
-            break;
-        default:
-            snprintf(arm_buf, sizeof(arm_buf), "%-14s", "Unknown");
-            arm_color = UI_Color_White;
-            break;
+        char arm_buf[20];
+        uint32_t arm_color;
+        
+        switch (interactive_data->arm_cali_state)
+        {
+            case 0:
+                snprintf(arm_buf, sizeof(arm_buf), "%-14s", "Not Calib");
+                arm_color = UI_Color_Purplish_red;
+                break;
+            case 1:
+                snprintf(arm_buf, sizeof(arm_buf), "%-14s", "Calibrating");
+                arm_color = UI_Color_Yellow;
+                break;
+            case 2:
+                snprintf(arm_buf, sizeof(arm_buf), "%-14s", "Calib OK");
+                arm_color = UI_Color_Green;
+                break;
+            default:
+                snprintf(arm_buf, sizeof(arm_buf), "%-14s", "Unknown");
+                arm_color = UI_Color_White;
+                break;
+        }
+        
+        UICharDraw(&UI_cali_state_text[1], "ac1", UI_Graph_Change, 7, arm_color, 16, 2, 350, 740, arm_buf);
+        UICharRefresh(&referee_recv_info->referee_id, UI_cali_state_text[1]);
+        interactive_data->Referee_Interactive_Flag.arm_cali_flag = 0;  // 清除标志位
     }
-
-    // Lift 状态
-    switch (interactive_data->lift_cali_state)
+    
+    // Lift 标定状态
+    if (interactive_data->Referee_Interactive_Flag.lift_cali_flag == 1)
     {
-        case 0:
-            snprintf(lift_buf, sizeof(lift_buf), "%-14s", "Not Calib");
-            lift_color = UI_Color_Purplish_red;
-            break;
-        case 1:
-            snprintf(lift_buf, sizeof(lift_buf), "%-14s", "Calibrating");
-            lift_color = UI_Color_Yellow;
-            break;
-        case 2:
-            snprintf(lift_buf, sizeof(lift_buf), "%-14s", "Calib OK");
-            lift_color = UI_Color_Green;
-            break;
-        default:
-            snprintf(lift_buf, sizeof(lift_buf), "%-14s", "Unknown");
-            lift_color = UI_Color_White;
-            break;
+        char lift_buf[20];
+        uint32_t lift_color;
+        
+        switch (interactive_data->lift_cali_state)
+        {
+            case 0:
+                snprintf(lift_buf, sizeof(lift_buf), "%-14s", "Not Calib");
+                lift_color = UI_Color_Purplish_red;
+                break;
+            case 1:
+                snprintf(lift_buf, sizeof(lift_buf), "%-14s", "Calibrating");
+                lift_color = UI_Color_Yellow;
+                break;
+            case 2:
+                snprintf(lift_buf, sizeof(lift_buf), "%-14s", "Calib OK");
+                lift_color = UI_Color_Green;
+                break;
+            default:
+                snprintf(lift_buf, sizeof(lift_buf), "%-14s", "Unknown");
+                lift_color = UI_Color_White;
+                break;
+        }
+        
+        UICharDraw(&UI_cali_state_text[3], "lc1", UI_Graph_Change, 7, lift_color, 16, 2, 350, 700, lift_buf);
+        UICharRefresh(&referee_recv_info->referee_id, UI_cali_state_text[3]);
+        interactive_data->Referee_Interactive_Flag.lift_cali_flag = 0;  // 清除标志位
     }
-
-    // 第一行：Arm
-    UICharDraw(&UI_cali_state_text[1], "ac1", UI_Graph_Change, 7, arm_color, 16, 2, 350, 740, arm_buf);
-    UICharRefresh(&referee_recv_info->referee_id, UI_cali_state_text[1]);
-
-    // 第二行：Lift
-    UICharDraw(&UI_cali_state_text[3], "lc1", UI_Graph_Change, 7, lift_color, 16, 2, 350, 700, lift_buf);
-    UICharRefresh(&referee_recv_info->referee_id, UI_cali_state_text[3]);
 
     // === 工程机器人 UI 刷新 ===
 
@@ -430,6 +438,21 @@ void MyUIInit()
     // 动态值初始化为 CLOSED
     UICharDraw(&UI_gripper_status_text[1], "gs1", UI_Graph_ADD, 7, UI_Color_Pink, 16, 2, 350, 780, "CLOSED");
     UICharRefresh(&referee_recv_info->referee_id, UI_gripper_status_text[1]);
+
+    // 4. 标定状态显示 - 静态标签
+    // Arm 标签
+    UICharDraw(&UI_cali_state_text[0], "as0", UI_Graph_ADD, 7, UI_Color_White, 16, 2, 80, 740, "Arm State:");
+    UICharRefresh(&referee_recv_info->referee_id, UI_cali_state_text[0]);
+    // Arm 初始值：Not Calib
+    UICharDraw(&UI_cali_state_text[1], "ac1", UI_Graph_ADD, 7, UI_Color_Purplish_red, 16, 2, 350, 740, "Not Calib");
+    UICharRefresh(&referee_recv_info->referee_id, UI_cali_state_text[1]);
+    
+    // Lift 标签
+    UICharDraw(&UI_cali_state_text[2], "ls0", UI_Graph_ADD, 7, UI_Color_White, 16, 2, 80, 700, "Lift State:");
+    UICharRefresh(&referee_recv_info->referee_id, UI_cali_state_text[2]);
+    // Lift 初始值：Not Calib
+    UICharDraw(&UI_cali_state_text[3], "lc1", UI_Graph_ADD, 7, UI_Color_Purplish_red, 16, 2, 350, 700, "Not Calib");
+    UICharRefresh(&referee_recv_info->referee_id, UI_cali_state_text[3]);
 
 
     // 初始化 5 个电机角度数值（仅文字，无进度条）
