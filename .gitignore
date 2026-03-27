@@ -95,6 +95,9 @@ JLinkLog.txt
 # IDE / Editor
 .history/
 
+# macOS
+.DS_Store
+
 # cmake build directory
 cmake-build-debug/
 
