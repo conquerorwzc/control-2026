@@ -95,8 +95,7 @@ GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config)
     if (grab->arm->arm_lift_motor != NULL)
     {
         total_angle_init_arm_lift = grab->arm->arm_lift_motor->measure.total_angle;
-        grab->arm->arm_lift_min = total_angle_init_arm_lift;
-        // 👇 这里改为读取配置结构体中的最大高度
+        grab->arm->arm_lift_min = 0;
         grab->arm->arm_lift_max = total_angle_init_arm_lift + grab_param.arm_lift_max;
     }
     if (Grab_init_config->Grab_cali_mode == GRAB_CALI_MODE)
