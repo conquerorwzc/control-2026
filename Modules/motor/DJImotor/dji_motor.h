@@ -61,6 +61,7 @@ typedef struct {
   DaemonInstance* daemon;
   uint32_t feed_cnt;
   float dt;
+  float scaled_give_power;
 } DJIMotorInstance;
 
 /**

@@ -407,6 +407,12 @@ static void MouseKeySet() {
      default:
        break;
    }
+  if (rc_data[TEMP].key[KEY_PRESS].shift) {
+    chassis_ctrl_cmd->SuperCapBoost=1;
+  }
+  else {
+    chassis_ctrl_cmd->SuperCapBoost=0;
+  }
   *rc_data_last = *rc_data;
 }
 
@@ -468,6 +474,7 @@ void RobotInit() {
 #endif
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   robot->chassis = ChassisInit(&chassis_init_config);
+  robot->chassis->super_cap=robot->super_cap;
 #endif
 
   // 初始化控制命令指针
@@ -488,6 +495,7 @@ void RobotCMDTask() {
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
   shoot_ctrl_cmd->initial_speed=robot->referee_data->ShootData.initial_speed;
   shoot_ctrl_cmd->shooter_barrel_heat=robot->referee_data->PowerHeatData.shooter_42mm_barrel_heat;
+  chassis_ctrl_cmd->max_power=robot->referee_data->GameRobotState.chassis_power_limit;
   CalcOffsetAngle();
   RemoteControlSet();
   MouseKeySet();

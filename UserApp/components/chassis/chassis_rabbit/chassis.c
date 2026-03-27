@@ -24,6 +24,7 @@ static float normal_follow_tick;//记录最后一次follow前方的时间戳
 static float reverse_follow_tick;//记录最后一次follow后方的时间戳
 static PIDInstance follow_pid;
 static float k0,k1,k2,k3,k4,k5;       //中科大的功率模型
+static float power;
 //左右腿与最低点的差值
 static float  left_delta=0.0f;
 static float  right_delta=0.0f;
@@ -43,6 +44,7 @@ static float leg_current_position_right = 0.0f;
 // 原始PID参数备份
 static PID_Init_Config_s original_left_pid_config;
 static PID_Init_Config_s original_right_pid_config;
+static uint8_t super_cap_error_flag = 0; //电容故障标志
 
 /**
  * @brief 动态更新电机PID参数
@@ -391,12 +393,17 @@ static void PowerControl() {
 
   // 获取当前电机参考电流，统一位单位为A
   float motor_current_list[4];
+  float motor_real_current_list[4];
   for (int i = 0; i < 4; i++) {
     motor_current_list[i] = (float)chassis->wheel_motor[i]->motor_controller.final_output;
+    motor_real_current_list[i]=(float)chassis->wheel_motor[i]->measure.real_current;
   }
 
   float initial_give_power[4] = {0.0f};  // 每个电机的初始估计功率
+  float initial_give_real_power[4] = {0.0f};  // 每个电机的初始估计功率
   float initial_total_power = 0.0f;      // 估计初始总功率
+  power=0;
+
 
   // 计算每个电机的功率贡献
   for (int i = 0; i < 4; i++) {
@@ -411,6 +418,17 @@ static void PowerControl() {
       initial_total_power += initial_give_power[i];
     }
   }
+
+  // 计算每个电机的功率贡献
+  for (int i = 0; i < 4; i++) {
+    initial_give_real_power[i] =
+        k0 + k1 * motor_real_current_list[i] / (16384.0f / 20.0f) + k2 * motor_speed_fdb[i] * (2.0f * PI / 60.0f) +
+        k3 * motor_real_current_list[i] / (16384.0f / 20.0f) * motor_speed_fdb[i] * (2.0f * PI / 60.0f) +
+        k4 * motor_real_current_list[i] / (16384.0f / 20.0f) * motor_real_current_list[i] / (16384.0f / 20.0f) +
+        k5 * motor_speed_fdb[i] * (2.0f * PI / 60.0f) * motor_speed_fdb[i] * (2.0f * PI / 60.0f);
+
+    power += initial_give_real_power[i];
+  }
   // 功率超限时进行动态调整
   if (initial_total_power > (float)chassis_ctrl_cmd->max_power) {
     float power_scale = (float)chassis_ctrl_cmd->max_power / initial_total_power;  // 削减功率比例
@@ -418,6 +436,7 @@ static void PowerControl() {
     // 计算缩放后的功率目标
     for (int i = 0; i < 4; i++) {
       scaled_give_power[i] = initial_give_power[i] * power_scale;
+      chassis->wheel_motor[i]->scaled_give_power = scaled_give_power[i];
     }
 
     // 重新计算每个电机的电流参考值
@@ -534,45 +553,49 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
 }
 /* 机器人底盘控制核心任务 */
 void ChassisTask() {
-
+  if (chassis->super_cap->cap_msg.error_detect==0) {
+    super_cap_error_flag=0;
+  }
+  else {
+    super_cap_error_flag=1;
+  }
 switch (chassis->super_cap_mode)
     {
     case SAFETY_MODE:
-        if (chassis->super_cap->cap_msg.cap_v > 18.0f)
+        if (super_cap_error_flag==0&&chassis->super_cap->cap_msg.cap_v > 18.0f)
             chassis->super_cap_mode = PASSIVE_MODE;
         chassis->chassis_ctrl_cmd.max_power =referee_data->GameRobotState.chassis_power_limit+50;//TODO:用超电记得改;
         break;
     case FORCED_CHARGING_MODE:
-        if (chassis->super_cap->cap_msg.cap_v < 8.0f)
+        if (super_cap_error_flag==0&&chassis->super_cap->cap_msg.cap_v < 8.0f)
             chassis->super_cap_mode = SAFETY_MODE;
-        if (chassis->super_cap->cap_msg.cap_v > 18.0f)
+        if (super_cap_error_flag==0&&chassis->super_cap->cap_msg.cap_v > 18.0f)
             chassis->super_cap_mode = PASSIVE_MODE;
         chassis->chassis_ctrl_cmd.max_power = (uint16_t)(0.4 * referee_data->GameRobotState.chassis_power_limit);
         break;
     case CHARGING_MODE:
-        if (chassis->super_cap->cap_msg.cap_v < 10.0f)
+        if (super_cap_error_flag==0&&chassis->super_cap->cap_msg.cap_v < 10.0f)
             chassis->super_cap_mode = FORCED_CHARGING_MODE;
-        if (chassis->super_cap->cap_msg.cap_v > 18.0f)
+        if (super_cap_error_flag==0&&chassis->super_cap->cap_msg.cap_v > 18.0f)
             chassis->super_cap_mode = PASSIVE_MODE;
         chassis->chassis_ctrl_cmd.max_power =
             referee_data->GameRobotState.chassis_power_limit -
             (uint16_t)powf((float)referee_data->GameRobotState.chassis_power_limit * 0.05f, 2);
         break;
     case PASSIVE_MODE:
-        if (chassis_ctrl_cmd->SuperCapBoost == 1)
+        if (super_cap_error_flag==0&&chassis_ctrl_cmd->SuperCapBoost == 1)
             chassis->super_cap_mode = ACTIVE_MODE;
-        if (chassis->super_cap->cap_msg.cap_v < 12.0f)
+        if (super_cap_error_flag==0&&chassis->super_cap->cap_msg.cap_v < 12.0f)
             chassis->super_cap_mode = CHARGING_MODE;
         chassis->chassis_ctrl_cmd.max_power =
-            referee_data->GameRobotState.chassis_power_limit -
-            (uint16_t)powf((float)referee_data->GameRobotState.chassis_power_limit * 0.04f, 2);
+            referee_data->GameRobotState.chassis_power_limit;
         break;
     case ACTIVE_MODE:
-        if (chassis->super_cap->cap_msg.cap_v < 12.0f)
+        if (super_cap_error_flag==0&&chassis->super_cap->cap_msg.cap_v < 12.0f)
             chassis->super_cap_mode = CHARGING_MODE;
-        if (chassis_ctrl_cmd->SuperCapBoost != 1)
+        if (super_cap_error_flag==0&&chassis_ctrl_cmd->SuperCapBoost != 1)
             chassis->super_cap_mode = PASSIVE_MODE;
-        chassis->chassis_ctrl_cmd.max_power = 100;
+        chassis->chassis_ctrl_cmd.max_power = 180;
         break;
     default:
         chassis->super_cap_mode = SAFETY_MODE;
