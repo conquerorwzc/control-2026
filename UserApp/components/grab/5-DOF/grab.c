@@ -11,10 +11,8 @@
 #define BEVEL_GEAR_RATIO 1.6667f        // 锥齿轮传动比 5:3
 #define PLANAR_GEAR_RATIO 1.571428f     // 平面齿轮传动比 11:7
 #define MOTOR2006_REDUCTION_RATIO 36.0f // 2006 ecd减速比36
-// 👇 新增：3508电机减速比 (内部行星齿轮减速比为 19:1)
-#define MOTOR3508_REDUCTION_RATIO 51.0f
-// 如果你的抬升机构外部还有同步带/齿轮，传动比宏定义也要加上，例如：
-// #define LIFT_PULLEY_RATIO 1.5f
+#define MOTOR3508_REDUCTION_RATIO 51.0f // 3508电机减速比
+
 #define DM_HOMING_TOLERANCE 5.0f     // DM大臂物理归零的角度容差 (度)
 #define DM_CALI_MAX_TICKS 5000       // 阶段一：大臂归零最大允许时间 5 秒 (假设1ms调度)
 #define WRIST_CALI_MAX_TICKS 3000    // 阶段二：腕部抬头堵转最大允许时间 6 秒
@@ -36,19 +34,18 @@
 #define ROLL_SAFE_MAX_APS 13000.0f
 #define ROLL_SAFE_MAX_DELTA_ANGLE 720.0f
 
-// 机械臂抬升相关参数
-#define LIFT_HEIGHT_MAX 420.0f
-
 /* Private variables ---------------------------------------------------------*/
 static GrabInstance *grab;
 static Grab_Ctrl_Cmd_s *grab_ctrl_cmd;
 static float total_angle_init_L = 0;
 static float total_angle_init_R = 0;
 static float total_angle_init_M = 0;
-// 👇 新增：抬升电机的上电物理初始零点
-static float total_angle_init_arm_lift = 0;
+static float total_angle_init_arm_lift = 0; // 抬升电机的上电物理初始零点
 static int error_clear_trigger = 0;
 static uint8_t cali_first_run = 1;
+
+static Grab_Param_s grab_param; // 新增：用于存储从 config 传过来的限位与灵敏度配置
+
 /* Private function prototypes -----------------------------------------------*/
 GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config); // 机械臂初始化，返回一个机械臂示例指针
 void GrabTask();                                              // 机械臂任务函数
@@ -74,16 +71,19 @@ GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config)
     grab_instance->actuator->grab_djimotor[1] = DJIMotorInit(&Grab_init_config->Grab_motor_config[4]);
     grab_instance->actuator->grab_djimotor[2] = DJIMotorInit(&Grab_init_config->Grab_motor_config[6]);
     grab_instance->arm->arm_lift_motor = DJIMotorInit(&Grab_init_config->Grab_motor_config[7]);
+
     // 在没有上电的情况下先不发使能帧给dm电机，即不初始化
     grab_instance->actuator->grab_dmmotor[0] = DMMotorInit(&Grab_init_config->Grab_motor_config[5]); // v2
     grab_instance->arm->grab_dmmotor[0] = DMMotorInit(&Grab_init_config->Grab_motor_config[0]);      // v3
     grab_instance->arm->grab_dmmotor[1] = DMMotorInit(&Grab_init_config->Grab_motor_config[1]);      // v4
     grab_instance->arm->grab_dmmotor[2] = DMMotorInit(&Grab_init_config->Grab_motor_config[2]);      // v4
 
-
     // 先赋值grab指针，再访问grab_instance中的成员
     grab = grab_instance;
     grab_ctrl_cmd = &grab->grab_ctrl_cmd;
+
+    // 👇 核心修改：将传入的配置拷贝到静态变量中，供全局使用
+    grab_param = Grab_init_config->Grab_param;
 
     // 初始化电机初始角度，必须要发生在grab的赋值之后
     osDelay(10);
@@ -91,12 +91,13 @@ GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config)
     total_angle_init_R = grab->actuator->grab_djimotor[0]->measure.total_angle;
     total_angle_init_M = grab_instance->actuator->grab_djimotor[2]->measure.total_angle;
 
-    // 👇 新增：记录抬升电机的上电初始物理角度
+    // 记录抬升电机的上电初始物理角度
     if (grab->arm->arm_lift_motor != NULL)
     {
         total_angle_init_arm_lift = grab->arm->arm_lift_motor->measure.total_angle;
         grab->arm->arm_lift_min = total_angle_init_arm_lift;
-        grab->arm->arm_lift_max = total_angle_init_arm_lift + LIFT_HEIGHT_MAX;
+        // 👇 这里改为读取配置结构体中的最大高度
+        grab->arm->arm_lift_max = total_angle_init_arm_lift + grab_param.arm_lift_max;
     }
     if (Grab_init_config->Grab_cali_mode == GRAB_CALI_MODE)
     {
@@ -139,6 +140,7 @@ void GrabTask()
 
 static void GrabCmdTask()
 {
+    // ====== 原有：腕部限位 ======
     if (grab->actuator->wrist_cali.state == CALI_STAGE_DONE)
     {
         if (grab_ctrl_cmd->wrist_pitch > grab->actuator->wrist_cali.max_pitch)
@@ -151,6 +153,7 @@ static void GrabCmdTask()
         }
     }
 
+    // ====== 原有：抬升限位 ======
     if (grab_ctrl_cmd->arm_lift >= grab->arm->arm_lift_max)
     {
         grab_ctrl_cmd->arm_lift = grab->arm->arm_lift_max;
@@ -160,6 +163,18 @@ static void GrabCmdTask()
         grab_ctrl_cmd->arm_lift = grab->arm->arm_lift_min;
     }
 
+    // 👇 修改：使用 grab_param 配置项进行三大关节严格物理限位 👇
+    // 1. 大 Pitch 限位
+    if (grab_ctrl_cmd->elbow_pitch > grab_param.elbow_pitch_max) grab_ctrl_cmd->elbow_pitch = grab_param.elbow_pitch_max;
+    else if (grab_ctrl_cmd->elbow_pitch < grab_param.elbow_pitch_min) grab_ctrl_cmd->elbow_pitch = grab_param.elbow_pitch_min;
+
+    // 2. 大 Yaw 限位
+    if (grab_ctrl_cmd->base_joint > grab_param.base_joint_max) grab_ctrl_cmd->base_joint = grab_param.base_joint_max;
+    else if (grab_ctrl_cmd->base_joint < grab_param.base_joint_min) grab_ctrl_cmd->base_joint = grab_param.base_joint_min;
+
+    // 3. 大 Roll 限位
+    if (grab_ctrl_cmd->elbow_roll > grab_param.elbow_roll_max) grab_ctrl_cmd->elbow_roll = grab_param.elbow_roll_max;
+    else if (grab_ctrl_cmd->elbow_roll < grab_param.elbow_roll_min) grab_ctrl_cmd->elbow_roll = grab_param.elbow_roll_min;
 
     // ================= 赋值给底层实体 =================
     grab->arm->base_joint = grab_ctrl_cmd->base_joint;
@@ -170,6 +185,7 @@ static void GrabCmdTask()
     grab->actuator->torque = grab_ctrl_cmd->torque;
     grab->arm->arm_lift = grab_ctrl_cmd->arm_lift;
 }
+
 static void MotorTask()
 {
     Error_Check();
@@ -178,14 +194,12 @@ static void MotorTask()
         DMMotorStop(grab->arm->grab_dmmotor[0]);
         DMMotorStop(grab->arm->grab_dmmotor[1]);
         DMMotorStop(grab->arm->grab_dmmotor[2]);
-        // 👇 新增：断电时卸力抬升电机
+        // 断电时卸力抬升电机
         DJIMotorStop(grab->arm->arm_lift_motor);
         DJIMotorStop(grab->actuator->grab_djimotor[0]);
         DJIMotorStop(grab->actuator->grab_djimotor[1]);
         DJIMotorStop(grab->actuator->grab_djimotor[2]);
         DMMotorStop(grab->actuator->grab_dmmotor[0]);
-
-
     }
     else
     {
@@ -213,7 +227,7 @@ static void MotorTask()
         // 循环处理所有DJIMotor（actuator部分）
         for (int i = 0; i < 3; i++)
         {
-            // 👇 新增：在线则使能 3508 抬升电机，并下发 PID 目标
+            // 在线则使能 3508 抬升电机，并下发 PID 目标
             if (DaemonIsOnline(grab->arm->arm_lift_motor->daemon))
             {
                 DJIMotorEnable(grab->arm->arm_lift_motor);
@@ -251,9 +265,9 @@ static void MotorTask()
             DMMotorEnable(grab->actuator->grab_dmmotor[0]);
             DMMotorSetRef(grab->actuator->grab_dmmotor[0], grab->actuator->T_target);
         }
-
     }
 }
+
 static void Grab_Position_Calculate(GrabInstance *grab)
 {
     /**
@@ -271,16 +285,12 @@ static void Grab_Position_Calculate(GrabInstance *grab)
     grab->actuator->M_target =
         total_angle_init_M + grab->actuator->wrist_roll * MOTOR2006_REDUCTION_RATIO * PLANAR_GEAR_RATIO;
 
-
     // 目标角度 = 初始物理角度 + (指令设定高度 * 减速比 * 外设传动比)
     grab->grab_ctrl_cmd.arm_lift_target =
-        total_angle_init_arm_lift + grab_ctrl_cmd->arm_lift * MOTOR3508_REDUCTION_RATIO /* * LIFT_PULLEY_RATIO */;
+        total_angle_init_arm_lift + grab_ctrl_cmd->arm_lift * MOTOR3508_REDUCTION_RATIO;
 
     grab->actuator->T_target = grab->actuator->torque;
-
-
-
-   }
+}
 
 /**
  * @brief 三段式安全标定任务 (底层归零 -> 找最高点90度 -> 找最低点)
@@ -490,7 +500,6 @@ static void GrabCalibrationTask(void)
 #endif
 
                 // 👉 设定最低软件限位 (最低真实物理角度 * 0.98安全系数)
-                // (如果最低角度是 -30度，乘以0.98就是 -29.4度，完美向安全区收缩)
                 grab->actuator->wrist_cali.min_pitch = real_min_pitch * WRIST_SOFT_LIMIT_MARGIN;
 
                 // 防抽搐对齐：标定结束后，立刻把当前指令切到最低安全限位处

@@ -6,8 +6,8 @@
 */
 #pragma once
 
-#include "robot.h"
 #include "gimbal_video.h"
+#include "robot.h"
 
 // 编译warning,提醒开发者修改机器人参数
 #ifndef ROBOT_CONFIG_PARAM_WARNING
@@ -552,429 +552,441 @@ static Gantry_Init_Config_s gantry_init_config = {
     .sidesway_motor_config = GANTRY_M2006_CONFIG(&hfdcan2, 5, 0.0f, 0.0f, 0.0f, 0.0f,
                                                  MOTOR_DIRECTION_REVERSE), // 电机方向 (对应老代码中的 - ratio)
 };
-static Grab_Init_Config_s grab_init_config =
-    {
-        .Grab_cali_mode = GRAB_PRE_CALI_MODE,
+static Grab_Init_Config_s
+    grab_init_config =
+        {
+            .Grab_cali_mode = GRAB_PRE_CALI_MODE,
 
-        .Grab_param =
-            {
-                .base_joint_sens_keyboard = 0.05,
-                .elbow_roll_sens_keyboard = 0.05,
-                .elbow_pitch_sens_keyboard = 0.05,
-                .wrist_roll_sens_keyboard = 0.05,
-                .wrist_pitch_sens_keyboard = 0.05,
-                .arm_lift_sens_keyboard = 1.0,
-            },
+            .Grab_param =
+                {
+                    .base_joint_sens_keyboard = 0.05,
+                    .elbow_roll_sens_keyboard = 0.05,
+                    .elbow_pitch_sens_keyboard = 0.05,
+                    .wrist_roll_sens_keyboard = 0.05,
+                    .wrist_pitch_sens_keyboard = 0.05,
+                    .arm_lift_sens_keyboard = 1.0,
 
-        .Grab_motor_config[0] =
-            {
-                .controller_param_init_config =
-                    {
-                        .angle_PID =
-                            {
-                                .Kp = 100.0f,
-                                .Ki = 0.00f,
-                                .Kd = 0.01f,
-                                .MaxOut = 5.0f,
-                                .DeadBand = 0.01f,
-                                .Improve = PID_Integral_Limit,
-                                .IntegralLimit = 0.0f,
-                            },
-                        .speed_PID =
-                            {
-                                .Kp = 6.0f,
-                                .Ki = 0.0f,
-                                .Kd = 0.00f,
-                                .MaxOut = 28.0f,
-                                .DeadBand = 0.01f,
-                                .Improve = PID_Integral_Limit,
-                                .IntegralLimit = 0.5f,
-                            },
-                    },
-                .controller_setting_init_config =
-                    {
-                        .outer_loop_type = ANGLE_LOOP,
-                        .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
-                        .angle_feedback_source = MOTOR_FEED,
-                        .speed_feedback_source = MOTOR_FEED,
-                        .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
-                        .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
-                    },
-                .motor_type = J4340,
-                .can_init_config =
-                    {
-                        .can_handle = &hcan1,
-                        .tx_id = 0x01,
-                        .rx_id = 0x11,
-                    },
-            },
-        .Grab_motor_config[1] =
-            {
-                .controller_param_init_config =
-                    {
-                        .angle_PID =
-                            {
-                                .Kp = 15.0f,
-                                .Ki = 0.00f,
-                                .Kd = 0.00f,
-                                .MaxOut = 2.0f,
-                                .DeadBand = 0.01f,
-                                .Improve = PID_Integral_Limit,
-                                .IntegralLimit = 0.0f,
-                            },
-                        .speed_PID =
-                            {
-                                .Kp = 6.0f,
-                                .Ki = 0.0f,
-                                .Kd = 0.00f,
-                                .MaxOut = 28.0f,
-                                .DeadBand = 0.01f,
-                                .Improve = PID_Integral_Limit,
-                                .IntegralLimit = 0.5f,
-                            },
-                    },
-                .controller_setting_init_config =
-                    {
-                        .outer_loop_type = ANGLE_LOOP,
-                        .close_loop_type = SPEED_LOOP | ANGLE_LOOP,
-                        .angle_feedback_source = MOTOR_FEED,
-                        .speed_feedback_source = MOTOR_FEED,
-                        .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
-                        .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
-                    },
-                .motor_type = J4340,
-                .can_init_config =
-                    {
-                        .can_handle = &hcan1,
-                        .tx_id = 0x02,
-                        .rx_id = 0x12,
-                    },
+                    .elbow_pitch_max = 97.143158f,
+                    .elbow_pitch_min = -106.869514f,
+                    .base_joint_max = 125.338615f,
+                    .base_joint_min = -20.0f,
+                    .elbow_roll_max = 464.973602f,
+                    .elbow_roll_min = -362.617554f,
+                    .arm_lift_max = 420.0f,
+                },
 
-            },
-        .Grab_motor_config[2] =
-            {
-                .controller_param_init_config =
-                    {
-                        .angle_PID =
-                            {
-                                .Kp = 15.0f,
-                                .Ki = 0.00f,
-                                .Kd = 0.00f,
-                                .MaxOut = 2.0f,
-                                .DeadBand = 0.01f,
-                                .Improve = PID_Integral_Limit,
-                                .IntegralLimit = 0.0f,
-                            },
-                        .speed_PID =
-                            {
-                                .Kp = 6.0f,
-                                .Ki = 0.0f,
-                                .Kd = 0.00f,
-                                .MaxOut = 28.0f,
-                                .DeadBand = 0.01f,
-                                .Improve = PID_Integral_Limit,
-                                .IntegralLimit = 0.5f,
-                            },
-                    },
-                .controller_setting_init_config =
-                    {
-                        .outer_loop_type = ANGLE_LOOP,
-                        .close_loop_type = SPEED_LOOP | ANGLE_LOOP,
-                        .angle_feedback_source = MOTOR_FEED,
-                        .speed_feedback_source = MOTOR_FEED,
-                        .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
-                        .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
-                    },
-                .motor_type = J4340,
-                .can_init_config =
-                    {
-                        .can_handle = &hcan1,
-                        .tx_id = 0x03,
-                        .rx_id = 0x13,
-                    },
+            .Grab_motor_config[0] =
+                {
+                    .controller_param_init_config =
+                        {
+                            .angle_PID =
+                                {
+                                    .Kp = 100.0f,
+                                    .Ki = 0.00f,
+                                    .Kd = 0.01f,
+                                    .MaxOut = 5.0f,
+                                    .DeadBand = 0.01f,
+                                    .Improve = PID_Integral_Limit,
+                                    .IntegralLimit = 0.0f,
+                                },
+                            .speed_PID =
+                                {
+                                    .Kp = 6.0f,
+                                    .Ki = 0.0f,
+                                    .Kd = 0.00f,
+                                    .MaxOut = 28.0f,
+                                    .DeadBand = 0.01f,
+                                    .Improve = PID_Integral_Limit,
+                                    .IntegralLimit = 0.5f,
+                                },
+                        },
+                    .controller_setting_init_config =
+                        {
+                            .outer_loop_type = ANGLE_LOOP,
+                            .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
+                            .angle_feedback_source = MOTOR_FEED,
+                            .speed_feedback_source = MOTOR_FEED,
+                            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+                            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+                        },
+                    .motor_type = J4340,
+                    .can_init_config =
+                        {
+                            .can_handle = &hcan1,
+                            .tx_id = 0x01,
+                            .rx_id = 0x11,
+                        },
+                },
+            .Grab_motor_config[1] =
+                {
+                    .controller_param_init_config =
+                        {
+                            .angle_PID =
+                                {
+                                    .Kp = 15.0f,
+                                    .Ki = 0.00f,
+                                    .Kd = 0.00f,
+                                    .MaxOut = 2.0f,
+                                    .DeadBand = 0.01f,
+                                    .Improve = PID_Integral_Limit,
+                                    .IntegralLimit = 0.0f,
+                                },
+                            .speed_PID =
+                                {
+                                    .Kp = 6.0f,
+                                    .Ki = 0.0f,
+                                    .Kd = 0.00f,
+                                    .MaxOut = 28.0f,
+                                    .DeadBand = 0.01f,
+                                    .Improve = PID_Integral_Limit,
+                                    .IntegralLimit = 0.5f,
+                                },
+                        },
+                    .controller_setting_init_config =
+                        {
+                            .outer_loop_type = ANGLE_LOOP,
+                            .close_loop_type = SPEED_LOOP | ANGLE_LOOP,
+                            .angle_feedback_source = MOTOR_FEED,
+                            .speed_feedback_source = MOTOR_FEED,
+                            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+                            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+                        },
+                    .motor_type = J4340,
+                    .can_init_config =
+                        {
+                            .can_handle = &hcan1,
+                            .tx_id = 0x02,
+                            .rx_id = 0x12,
+                        },
 
-            },
-        .Grab_motor_config[3] =
-            {
-                .controller_param_init_config =
-                    {
-                        .angle_PID =
-                            {
-                                .Kp = 30.0f,
-                                .Ki = 0.0f,
-                                .Kd = 0.0f,
-                                .MaxOut = 15000.0f,
-                            },
-                        .speed_PID = {.Kp = 2.0f,
-                                      .Ki = 0.0f,
-                                      .Kd = 0.0f,
-                                      .Improve = PID_Integral_Limit | PID_ErrorHandle,
-                                      .IntegralLimit = 0.0f,
-                                      .MaxOut = 8000.0},
-                    },
-                .controller_setting_init_config =
-                    {
-                        .outer_loop_type = ANGLE_LOOP,
-                        .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
-                        .angle_feedback_source = MOTOR_FEED,
-                        .speed_feedback_source = MOTOR_FEED,
-                        .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
-                        .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
-                    },
-                .motor_type = M2006,
-                .can_init_config =
-                    {
-                        .can_handle = &hcan1,
-                        .tx_id = 5,
-                    },
+                },
+            .Grab_motor_config[2] =
+                {
+                    .controller_param_init_config =
+                        {
+                            .angle_PID =
+                                {
+                                    .Kp = 15.0f,
+                                    .Ki = 0.00f,
+                                    .Kd = 0.00f,
+                                    .MaxOut = 2.0f,
+                                    .DeadBand = 0.01f,
+                                    .Improve = PID_Integral_Limit,
+                                    .IntegralLimit = 0.0f,
+                                },
+                            .speed_PID =
+                                {
+                                    .Kp = 6.0f,
+                                    .Ki = 0.0f,
+                                    .Kd = 0.00f,
+                                    .MaxOut = 28.0f,
+                                    .DeadBand = 0.01f,
+                                    .Improve = PID_Integral_Limit,
+                                    .IntegralLimit = 0.5f,
+                                },
+                        },
+                    .controller_setting_init_config =
+                        {
+                            .outer_loop_type = ANGLE_LOOP,
+                            .close_loop_type = SPEED_LOOP | ANGLE_LOOP,
+                            .angle_feedback_source = MOTOR_FEED,
+                            .speed_feedback_source = MOTOR_FEED,
+                            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+                            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
+                        },
+                    .motor_type = J4340,
+                    .can_init_config =
+                        {
+                            .can_handle = &hcan1,
+                            .tx_id = 0x03,
+                            .rx_id = 0x13,
+                        },
 
-            },
-        .Grab_motor_config[4] =
-            {
-                .controller_param_init_config =
-                    {
-                        .angle_PID =
-                            {
-                                .Kp = 30.0f,
-                                .Ki = 0.0f,
-                                .Kd = 0.0f,
-                                .MaxOut = 15000.0f,
-                            },
-                        .speed_PID = {.Kp = 2.0f,
-                                      .Ki = 0.0f,
-                                      .Kd = 0.0f,
-                                      .Improve = PID_Integral_Limit | PID_ErrorHandle,
-                                      .IntegralLimit = 0.0f,
-                                      .MaxOut = 8000.0},
-                    },
-                .controller_setting_init_config =
-                    {
-                        .outer_loop_type = ANGLE_LOOP,
-                        .close_loop_type = SPEED_LOOP | ANGLE_LOOP,
-                        .angle_feedback_source = MOTOR_FEED,
-                        .speed_feedback_source = MOTOR_FEED,
-                        .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
-                        .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
-                    },
-                .motor_type = M2006,
-                .can_init_config =
-                    {
-                        .can_handle = &hcan1,
-                        .tx_id = 6,
-                    },
+                },
+            .Grab_motor_config[3] =
+                {
+                    .controller_param_init_config =
+                        {
+                            .angle_PID =
+                                {
+                                    .Kp = 30.0f,
+                                    .Ki = 0.0f,
+                                    .Kd = 0.0f,
+                                    .MaxOut = 15000.0f,
+                                },
+                            .speed_PID = {.Kp = 2.0f,
+                                          .Ki = 0.0f,
+                                          .Kd = 0.0f,
+                                          .Improve = PID_Integral_Limit | PID_ErrorHandle,
+                                          .IntegralLimit = 0.0f,
+                                          .MaxOut = 8000.0},
+                        },
+                    .controller_setting_init_config =
+                        {
+                            .outer_loop_type = ANGLE_LOOP,
+                            .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
+                            .angle_feedback_source = MOTOR_FEED,
+                            .speed_feedback_source = MOTOR_FEED,
+                            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+                            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+                        },
+                    .motor_type = M2006,
+                    .can_init_config =
+                        {
+                            .can_handle = &hcan1,
+                            .tx_id = 5,
+                        },
 
-            },
-        .Grab_motor_config[5] =
-            {
-                .controller_param_init_config =
-                    {
-                        .current_PID =
-                            {
-                                .Kp = 0.0f, // 12
-                                .Ki = 0.00f,
-                                .Kd = 0.00f,
-                                .MaxOut = 8.0f,
-                                .DeadBand = 0.01f,
-                                .Improve = PID_Integral_Limit,
-                                .IntegralLimit = 3.0f,
-                            },
-                        .angle_PID =
-                            {
-                                .Kp = 12.0f, // 12
-                                .Ki = 0.00f,
-                                .Kd = 0.00f,
-                                .MaxOut = 8.0f,
-                                .DeadBand = 0.01f,
-                                .Improve = PID_Integral_Limit,
-                                .IntegralLimit = 0.0f,
-                            },
-                        .speed_PID =
-                            {
-                                .Kp = 0.5f, // 0.5
-                                .Ki = 0.1f, // 0.1
-                                .Kd = 0.00f,
-                                .MaxOut = 8.0f,
-                                .DeadBand = 0.01f,
-                                .Improve = PID_Integral_Limit,
-                                .IntegralLimit = 0.5f,
-                            },
-                    },
-                .controller_setting_init_config =
-                    {
-                        .outer_loop_type = ANGLE_LOOP,
-                        .close_loop_type = ANGLE_LOOP | SPEED_LOOP | CURRENT_LOOP,
-                        .angle_feedback_source = MOTOR_FEED,
-                        .speed_feedback_source = MOTOR_FEED,
-                        .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
-                        .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
-                    },
-                .motor_type = J4310,
-                .can_init_config =
-                    {
-                        .can_handle = &hcan1,
-                        .tx_id = 0x04,
-                        .rx_id = 0x14,
-                    },
-            },
-        .Grab_motor_config[6] =
+                },
+            .Grab_motor_config[4] =
+                {
+                    .controller_param_init_config =
+                        {
+                            .angle_PID =
+                                {
+                                    .Kp = 30.0f,
+                                    .Ki = 0.0f,
+                                    .Kd = 0.0f,
+                                    .MaxOut = 15000.0f,
+                                },
+                            .speed_PID = {.Kp = 2.0f,
+                                          .Ki = 0.0f,
+                                          .Kd = 0.0f,
+                                          .Improve = PID_Integral_Limit | PID_ErrorHandle,
+                                          .IntegralLimit = 0.0f,
+                                          .MaxOut = 8000.0},
+                        },
+                    .controller_setting_init_config =
+                        {
+                            .outer_loop_type = ANGLE_LOOP,
+                            .close_loop_type = SPEED_LOOP | ANGLE_LOOP,
+                            .angle_feedback_source = MOTOR_FEED,
+                            .speed_feedback_source = MOTOR_FEED,
+                            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+                            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+                        },
+                    .motor_type = M2006,
+                    .can_init_config =
+                        {
+                            .can_handle = &hcan1,
+                            .tx_id = 6,
+                        },
 
-            {
-                .controller_param_init_config =
-                    {
-                        .angle_PID =
-                            {
-                                .Kp = 30.0f,
-                                .Ki = 0.0f,
-                                .Kd = 0.0f,
-                                .MaxOut = 13000.0f,
-                            },
-                        .speed_PID = {.Kp = 2.0f,
-                                      .Ki = 0.0f,
-                                      .Kd = 0.0f,
-                                      .Improve = PID_Integral_Limit | PID_ErrorHandle,
-                                      .IntegralLimit = 0.0f,
-                                      .MaxOut = 10000.0},
-                    },
-                .controller_setting_init_config =
-                    {
-                        .outer_loop_type = ANGLE_LOOP,
-                        .close_loop_type = SPEED_LOOP | ANGLE_LOOP,
-                        .angle_feedback_source = MOTOR_FEED,
-                        .speed_feedback_source = MOTOR_FEED,
-                        .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
-                        .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
-                    },
-                .motor_type = M2006,
-                .can_init_config =
-                    {
-                        .can_handle = &hcan1,
-                        .tx_id = 7,
-                    },
-            },
-        .Grab_motor_config[7] =
-            {
-                .controller_param_init_config =
-                    {
-                        .angle_PID =
-                            {
-                                .Kp = 5.0f,
-                                .Ki = 0.0f,
-                                .Kd = 0.0f,
-                                .Improve = PID_Integral_Limit,
-                                .IntegralLimit = 0.0f,
-                                .MaxOut = 15000.0f,
-                            },
-                        .speed_PID =
-                            {
-                                .Kp = 4.0f,
-                                .Ki = 0.0f,
-                                .Kd = 0.0f,
-                                .Improve = PID_Integral_Limit,
-                                .IntegralLimit = 10000.0f,
-                                .MaxOut = 8000.0f,
-                            },
+                },
+            .Grab_motor_config[5] =
+                {
+                    .controller_param_init_config =
+                        {
+                            .current_PID =
+                                {
+                                    .Kp = 0.0f, // 12
+                                    .Ki = 0.00f,
+                                    .Kd = 0.00f,
+                                    .MaxOut = 8.0f,
+                                    .DeadBand = 0.01f,
+                                    .Improve = PID_Integral_Limit,
+                                    .IntegralLimit = 3.0f,
+                                },
+                            .angle_PID =
+                                {
+                                    .Kp = 12.0f, // 12
+                                    .Ki = 0.00f,
+                                    .Kd = 0.00f,
+                                    .MaxOut = 8.0f,
+                                    .DeadBand = 0.01f,
+                                    .Improve = PID_Integral_Limit,
+                                    .IntegralLimit = 0.0f,
+                                },
+                            .speed_PID =
+                                {
+                                    .Kp = 0.5f, // 0.5
+                                    .Ki = 0.1f, // 0.1
+                                    .Kd = 0.00f,
+                                    .MaxOut = 8.0f,
+                                    .DeadBand = 0.01f,
+                                    .Improve = PID_Integral_Limit,
+                                    .IntegralLimit = 0.5f,
+                                },
+                        },
+                    .controller_setting_init_config =
+                        {
+                            .outer_loop_type = ANGLE_LOOP,
+                            .close_loop_type = ANGLE_LOOP | SPEED_LOOP | CURRENT_LOOP,
+                            .angle_feedback_source = MOTOR_FEED,
+                            .speed_feedback_source = MOTOR_FEED,
+                            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+                            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+                        },
+                    .motor_type = J4310,
+                    .can_init_config =
+                        {
+                            .can_handle = &hcan1,
+                            .tx_id = 0x04,
+                            .rx_id = 0x14,
+                        },
+                },
+            .Grab_motor_config[6] =
 
-                    },
-                .controller_setting_init_config =
-                    {
-                        .outer_loop_type = ANGLE_LOOP,
-                        .close_loop_type = SPEED_LOOP | ANGLE_LOOP,
-                        .angle_feedback_source = MOTOR_FEED,
-                        .speed_feedback_source = MOTOR_FEED,
-                        .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
-                        .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
-                    },
-                .motor_type = M3508,
-                .can_init_config =
-                    {
-                        .can_handle = &hcan2,
-                        .tx_id = 5,
-                    },
+                {
+                    .controller_param_init_config =
+                        {
+                            .angle_PID =
+                                {
+                                    .Kp = 30.0f,
+                                    .Ki = 0.0f,
+                                    .Kd = 0.0f,
+                                    .MaxOut = 13000.0f,
+                                },
+                            .speed_PID = {.Kp = 2.0f,
+                                          .Ki = 0.0f,
+                                          .Kd = 0.0f,
+                                          .Improve = PID_Integral_Limit | PID_ErrorHandle,
+                                          .IntegralLimit = 0.0f,
+                                          .MaxOut = 10000.0},
+                        },
+                    .controller_setting_init_config =
+                        {
+                            .outer_loop_type = ANGLE_LOOP,
+                            .close_loop_type = SPEED_LOOP | ANGLE_LOOP,
+                            .angle_feedback_source = MOTOR_FEED,
+                            .speed_feedback_source = MOTOR_FEED,
+                            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+                            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+                        },
+                    .motor_type = M2006,
+                    .can_init_config =
+                        {
+                            .can_handle = &hcan1,
+                            .tx_id = 7,
+                        },
+                },
+            .Grab_motor_config[7] =
+                {
+                    .controller_param_init_config =
+                        {
+                            .angle_PID =
+                                {
+                                    .Kp = 5.0f,
+                                    .Ki = 0.0f,
+                                    .Kd = 0.0f,
+                                    .Improve = PID_Integral_Limit,
+                                    .IntegralLimit = 0.0f,
+                                    .MaxOut = 15000.0f,
+                                },
+                            .speed_PID =
+                                {
+                                    .Kp = 4.0f,
+                                    .Ki = 0.0f,
+                                    .Kd = 0.0f,
+                                    .Improve = PID_Integral_Limit,
+                                    .IntegralLimit = 10000.0f,
+                                    .MaxOut = 8000.0f,
+                                },
 
-            },
+                        },
+                    .controller_setting_init_config =
+                        {
+                            .outer_loop_type = ANGLE_LOOP,
+                            .close_loop_type = SPEED_LOOP | ANGLE_LOOP,
+                            .angle_feedback_source = MOTOR_FEED,
+                            .speed_feedback_source = MOTOR_FEED,
+                            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+                            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
+                        },
+                    .motor_type = M3508,
+                    .can_init_config =
+                        {
+                            .can_handle = &hcan2,
+                            .tx_id = 5,
+                        },
+
+                },
 
 };
 
 static VideoGimbal_Init_Config_s video_gimbal_init_config = {
     // GM6020 Yaw (hcan3, id=5)
-    .yaw_motor_config = {
-        .controller_param_init_config = {
-            .angle_PID =                                                                                     \
-            {                                                                                            \
-                .Kp = 80,                                                                                \
-                .Ki = 0,                                                                                 \
-                .Kd = 1,                                                                               \
-                .IntegralLimit = 960,                                                                  \
-                .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
-                .MaxOut = 1500,                                                                          \
-            },                                                                                           \
-        .speed_PID =                                                                                     \
-            {                                                                                            \
-                .Kp = 4,                                                                                 \
-                .Ki = 40,                                                                                \
-                .Kd = 0,                                                                                 \
-                .IntegralLimit = 12500,                                                                   \
-                .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
-                .MaxOut = 20000,                                                                         \
-            },
+    .yaw_motor_config =
+        {
+            .controller_param_init_config =
+                {
+                    .angle_PID =
+                        {
+                            .Kp = 80,
+                            .Ki = 0,
+                            .Kd = 1,
+                            .IntegralLimit = 960,
+                            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+                            .MaxOut = 1500,
+                        },
+                    .speed_PID =
+                        {
+                            .Kp = 4,
+                            .Ki = 40,
+                            .Kd = 0,
+                            .IntegralLimit = 12500,
+                            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+                            .MaxOut = 20000,
+                        },
+                },
+            .controller_setting_init_config =
+                {
+                    .outer_loop_type = ANGLE_LOOP,
+                    .close_loop_type = SPEED_LOOP | ANGLE_LOOP,
+                    .angle_feedback_source = MOTOR_FEED,
+                    .speed_feedback_source = MOTOR_FEED,
+                    .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+                    .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
+                },
+            .motor_type = GM6020,
+            .can_init_config =
+                {
+                    .can_handle = &hcan2,
+                    .tx_id = 3,
+                },
         },
-        .controller_setting_init_config = {
-            .outer_loop_type = ANGLE_LOOP,
-            .close_loop_type = SPEED_LOOP|ANGLE_LOOP,
-            .angle_feedback_source = MOTOR_FEED,
-            .speed_feedback_source = MOTOR_FEED,
-            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
-            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
-        },
-        .motor_type = GM6020,
-        .can_init_config = {
-            .can_handle = &hcan2,
-            .tx_id = 3,
-        },
-    },
     // M3508 Pitch (hcan3, id=6)
-    .pitch_motor_config = {
-        .controller_param_init_config = {
-            .angle_PID = {
-                .Kp = 180.0f,
-                .Ki = 8.0f,
-                .Kd = 3.0f,
-                .Improve = PID_Integral_Limit,
-                .IntegralLimit = 0.0f,
-                .MaxOut = 5000.0f,
-            },
-            .speed_PID = {
-                .Kp = 5.0f,
-                .Ki = 0.0f,
-                .Kd = 0.0f,
-                .Improve = PID_Integral_Limit,
-                .IntegralLimit = 10000.0f,
-                .MaxOut = 15000.0f,
-            },
+    .pitch_motor_config =
+        {
+            .controller_param_init_config =
+                {
+                    .angle_PID =
+                        {
+                            .Kp = 180.0f,
+                            .Ki = 8.0f,
+                            .Kd = 3.0f,
+                            .Improve = PID_Integral_Limit,
+                            .IntegralLimit = 0.0f,
+                            .MaxOut = 5000.0f,
+                        },
+                    .speed_PID =
+                        {
+                            .Kp = 5.0f,
+                            .Ki = 0.0f,
+                            .Kd = 0.0f,
+                            .Improve = PID_Integral_Limit,
+                            .IntegralLimit = 10000.0f,
+                            .MaxOut = 15000.0f,
+                        },
+                },
+            .controller_setting_init_config =
+                {
+                    .outer_loop_type = ANGLE_LOOP,
+                    .close_loop_type = SPEED_LOOP | ANGLE_LOOP,
+                    .angle_feedback_source = MOTOR_FEED,
+                    .speed_feedback_source = MOTOR_FEED,
+                    .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+                    .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+                },
+            .motor_type = M3508,
+            .can_init_config =
+                {
+                    .can_handle = &hcan3,
+                    .tx_id = 6, // pitch
+                },
         },
-        .controller_setting_init_config = {
-            .outer_loop_type = ANGLE_LOOP,
-            .close_loop_type = SPEED_LOOP | ANGLE_LOOP,
-            .angle_feedback_source = MOTOR_FEED,
-            .speed_feedback_source = MOTOR_FEED,
-            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
-            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
-        },
-        .motor_type = M3508,
-        .can_init_config = {
-            .can_handle = &hcan3,
-            .tx_id = 6, // pitch
-        },
-    },
 
     // ⚙️  GM6020 Yaw 固定零点：用 vofa/调试器读到朝向正前方时的 total_angle，填到这里
     // 填 0.0f = 上电当前位置作零点（不管云台在哪里，那里就是中位）
     .yaw_zero_angle = 242.491074f,
 };
-
-// static SuperCap_Init_Config_s super_cap_config = {
-//     .can_config = {
-//         .can_handle = &hcan2,
-//         .tx_id = 0x302,  // 超级电容默认接收id
-//         .rx_id = 0x301,  // 超级电容默认发送id,注意tx和rx在其他人看来是反的
-//     }};

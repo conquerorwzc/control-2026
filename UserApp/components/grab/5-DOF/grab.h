@@ -59,6 +59,13 @@ typedef struct {
     // 👇 新增：3508 抬升电机的键盘控制灵敏度
     float arm_lift_sens_keyboard;      // 抬升机构灵敏度(键鼠)
 
+    float elbow_pitch_max;
+    float elbow_pitch_min;
+    float base_joint_max;
+    float base_joint_min;
+    float elbow_roll_max;
+    float elbow_roll_min;
+    float arm_lift_max;
 } Grab_Param_s;
 
 typedef struct
