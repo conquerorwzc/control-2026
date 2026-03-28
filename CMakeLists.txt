@@ -31,8 +31,9 @@ endif()
 #set(ROBOT_TYPE "sentry_mecanum")
 #set(ROBOT_TYPE "engineering")
 #set(ROBOT_TYPE "infantry_wheel_legged_heu")
-set(ROBOT_TYPE "infantry_wheel_legged_sjtu")
+#set(ROBOT_TYPE "infantry_wheel_legged_sjtu")
 #set(ROBOT_TYPE "infantry_wheel_legged_demo")
+set(ROBOT_TYPE "infantry_six_wheel")
 #set(ROBOT_TYPE "hero_mecanum")
 #set(ROBOT_TYPE "infantry_steering")
 #set(ROBOT_TYPE "infantry_mecanum")
@@ -99,7 +100,12 @@ endif ()
 set_source_files_properties(${ASM_SOURCES} PROPERTIES COMPILE_FLAGS "-x assembler-with-cpp")
 
 # build binary and hex file
-add_executable(${PROJECT_NAME}.elf ${SOURCES} ${ASM_SOURCES} ${LINKER_SCRIPT})
+add_executable(${PROJECT_NAME}.elf ${SOURCES} ${ASM_SOURCES} ${LINKER_SCRIPT}
+        UserApp/components/chassis/chassis_six_wheel/chassis.c
+        UserApp/components/chassis/chassis_six_wheel/chassis.h
+        UserApp/robot/infantry_six_wheel/robot.c
+        UserApp/robot/infantry_six_wheel/robot.h
+        UserApp/robot/infantry_six_wheel/robot_config.h)
 target_link_libraries(${PROJECT_NAME}.elf ${DSP_NAME} m) # link DSP lib and math lib
 
 add_custom_command(
