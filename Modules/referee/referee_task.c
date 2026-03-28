@@ -14,6 +14,21 @@
 #include "string.h"
 #include "cmsis_os.h"
 #include "robot.h"
+#include "stdio.h"
+#include "stdint.h"
+
+// 定点一位小数格式化函数：将 float 转为 x.y 格式的字符串
+static void fmt_1dp(char *buf, size_t n, float x)
+{
+    int32_t x10 = (int32_t)(x * 10.0f + (x >= 0 ? 0.5f : -0.5f));  // 乘 10 后四舍五入
+    int32_t ip = x10 / 10;   // 整数部分
+    int32_t fp = x10 % 10;   // 小数部分
+    
+    if (fp < 0)
+        fp = -fp;  // 确保小数部分为正
+    
+    snprintf(buf, n, "%ld.%01ld", (long)ip, (long)fp);
+}
 
 static referee_info_t *referee_recv_info;            // 接收到的裁判系统数据
 RobotInstance* robotdata;
@@ -372,9 +387,11 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
         char angle_buf[16];
         char graph_name[4];
         snprintf(graph_name, sizeof(graph_name), "mv%d", i);  // 生成唯一图形名：mv0~mv4 (motor value)
-        // 使用固定宽度格式化，右对齐，不足补空格，确保每次长度一致
-        snprintf(angle_buf, sizeof(angle_buf), "%6.1f", interactive_data->motor_angles[i]);
-        UICharDraw(&UI_motor_angle_value[i], graph_name, UI_Graph_Change, 7, UI_Color_Green, 16, 2,
+        
+        // 使用定点一位小数格式化
+        fmt_1dp(angle_buf, sizeof(angle_buf), interactive_data->motor_angles[i]);
+        
+        UICharDraw(&UI_motor_angle_value[i], graph_name, UI_Graph_Change, 7, UI_Color_Green, 14, 4,
                   1200 + i * 120, 830, angle_buf);
     }
 
@@ -391,9 +408,11 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
         char angle_buf[16];
         char graph_name[4];
         snprintf(graph_name, sizeof(graph_name), "av%d", i);  // 生成唯一图形名：av0~av4 (arm value)
-        // 使用固定宽度格式化，右对齐，不足补空格，确保每次长度一致
-        snprintf(angle_buf, sizeof(angle_buf), "%6.1f", interactive_data->arm_angles[i]);
-        UICharDraw(&UI_arm_angle_value[i], graph_name, UI_Graph_Change, 7, UI_Color_Cyan, 16, 2,
+        
+        // 使用定点一位小数格式化
+        fmt_1dp(angle_buf, sizeof(angle_buf), interactive_data->arm_angles[i]);
+        
+        UICharDraw(&UI_arm_angle_value[i], graph_name, UI_Graph_Change, 7, UI_Color_Cyan, 14, 4,
                   1200 + i * 120, 800, angle_buf);
     }
 
