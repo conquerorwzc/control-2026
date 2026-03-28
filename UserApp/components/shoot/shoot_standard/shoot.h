@@ -16,6 +16,18 @@ typedef enum {
 } Friction_Mode_e;
 
 typedef enum {
+  NO_CONTROL = 0,       // 不启用热量控制
+  REFEREE_CONTROL,      // 裁判系统数据控制
+  SIMULLATE_CONTROL,    // 模拟控制，不采用裁判系统数据，程序模拟，独立计算
+} HEAT_Mode_e;
+
+typedef enum {
+  DISABLE_BULLET_SPEED= 0,          // 不启用弹速控制
+  ENABLE_BULLET_SPEED,              // 裁判系统数据控制
+  MANUAL_BULLET_SPEED,              // 操作手自己加减
+} BULLET_Speed_Mode_e;
+
+typedef enum {
   LOAD_STOP = 0,   // 停止发射
   LOAD_REVERSE,    // 反转
   LOAD_1_BULLET,   // 单发
@@ -46,6 +58,10 @@ typedef struct {
   float deadtime_burstfire;                   // 连发死时间
   float bullet_speed_adjustment;
   float feedforward;
+  float bullet_speed_deadband;                //速度死区
+  uint16_t shooter_barrel_cooling_value;      // 机器人射击热量每秒冷却值
+  uint16_t shooter_barrel_heat_limit;         // 机器人射击热量上限
+  uint16_t one_barrel_heat_value;             // 一个弹丸的热量
 } Shoot_Param_s;
 
 // cmd发布的发射控制数据,由shoot订阅
@@ -53,10 +69,11 @@ typedef struct {
   Shoot_Mode_e shoot_mode;
   Loader_Mode_e load_mode;
   Friction_Mode_e friction_mode;
-  Bullet_Speed_e bullet_speed;  // 弹速枚举
-  uint8_t rest_heat;
-  float shoot_rate;  // 连续发射的射频,unit per s,发/秒
-  float initial_speed;  // 弹速
+  BULLET_Speed_Mode_e bullet_speed_mode;
+  HEAT_Mode_e heat_mode;
+  uint16_t shooter_barrel_heat;// 机器人当前射击热量,从裁判系统获取
+  float initial_speed;  // 当前弹速
+  float friction_speed; //摩擦轮转速
 } Shoot_Ctrl_Cmd_s;
 
 typedef struct {
