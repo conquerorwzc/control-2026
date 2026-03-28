@@ -23,8 +23,8 @@ if(NOT DEFINED CMAKE_BUILD_TYPE)
 endif() # Debug Release RelWithDebInfo MinSizeRel
 
 if(NOT DEFINED MCU_TYPE)
-#     set(MCU_TYPE "stm32-f4")
-    set(MCU_TYPE "stm32-h7")
+     set(MCU_TYPE "stm32-f4")
+#    set(MCU_TYPE "stm32-h7")
 endif()
 
 #set(ROBOT_TYPE "steering_infantry_gimbal")

@@ -44,12 +44,11 @@ void JoyStickCtrl(RobotInstance* robot) {
   }
   // 右[上]，自由底盘运动
   else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
-    chassis_ctrl_cmd->chassis_mode = ROBOT_CHASSIS_PROSTRATE_FREE;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     if (abs(rc_data[TEMP].rc.dial) > 20 || rc_data[TEMP].key[KEY_PRESS].shift) {
       robot->robot_mode = ROBOT_CHASSIS_PROSTRATE_ROTATE;
     } else {
-      robot->robot_mode = ROBOT_CHASSIS_PROSTRATE_FOLLOW;
+      robot->robot_mode = ROBOT_CHASSIS_PROSTRATE_FREE;
     }
   }
 
@@ -149,17 +148,14 @@ void JoyStickCtrl(RobotInstance* robot) {
     case ROBOT_CHASSIS_PROSTRATE_FREE: {
        // 左竖直 → 前进后退
        chassis_ctrl_cmd->vx = (float)rc_data[TEMP].rc.rocker_l1;
-       // 右水平 → 直接控制底盘旋转（积分到target_yaw）
-       float yaw_rate_cmd = -0.0015f * (float)rc_data[TEMP].rc.rocker_r_;  // 增益可调
-       chassis_ctrl_cmd->target_yaw += yaw_rate_cmd;
-       chassis_ctrl_cmd->wz = 0.0f;  // 无前馈，靠PID跟踪target_yaw
+       chassis_ctrl_cmd->wz = (float)rc_data[TEMP].rc.rocker_l_;
        break;
     }
     default:
       break;
   }
   //  记录上一次数据
-  // rc_data_last = rc_data[TEMP];
+  rc_data_last = rc_data[TEMP];
 }
 
 void MouseKeyCtrl(RobotInstance* robot) {

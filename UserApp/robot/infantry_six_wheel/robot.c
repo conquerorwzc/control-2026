@@ -55,7 +55,10 @@ void VOFATask() {
   visualized_data[12] = shoot_init_config.shoot_param.shooter_barrel_cooling_value;
   visualized_data[13] = shoot_init_config.shoot_param.shooter_barrel_cooling_value;
 #elif defined(ONE_BOARD) || defined(CHASSIS_BOARD)
-
+  visualized_data[0] = robot->chassis->wheel_motor[0]->motor_controller.pid_ref;
+  visualized_data[1] = robot->chassis->chassis_ctrl_cmd.vx;
+  visualized_data[2] = robot->chassis->wheel_motor[0]->measure.speed_aps;
+  visualized_data[3] = robot->chassis->imu->Yaw;
 #endif
   VOFAJustFloatSend(visualized_data, 20);
 }
@@ -173,7 +176,7 @@ void RobotCMDTask() {
 // 控制板指令处理与控制逻辑 (只有底盘板不用处理)
 #if !defined(CHASSIS_BOARD)
   JoyStickCtrl(robot);
-  MouseKeyCtrl(robot);
+  // MouseKeyCtrl(robot);
 #if defined(GIMBAL_BOARD)
   CalcOffsetAngle();
   GimbalAlignToChassisForward();

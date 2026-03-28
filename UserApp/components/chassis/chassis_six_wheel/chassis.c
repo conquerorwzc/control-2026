@@ -72,23 +72,23 @@ void ChassisProstrateMode(void) {
                               chassis_ctrl_cmd->target_yaw);
 
 #define VX_TO_MOTOR (30000.0f / 660.0f)
-#define WZ_TO_MOTOR 3000.0f
+#define WZ_TO_MOTOR (30000.0f / 660.0f)
 
   float vx_motor = chassis_ctrl_cmd->vx * VX_TO_MOTOR;
   float wz_motor = (wz_pid + chassis_ctrl_cmd->wz) * WZ_TO_MOTOR;
 
   // 差速分配
-  wheel_speed_ref[0] = vx_motor + wz_motor;  // 右轮 leg[0]
-  wheel_speed_ref[1] = vx_motor - wz_motor;  // 左轮 leg[1]
+  wheel_speed_ref[0] = -1.0f * (vx_motor - wz_motor);  // 右轮 leg[0]
+  wheel_speed_ref[1] = vx_motor + wz_motor;  // 左轮 leg[1]
 }
 
 static void EnableJointMotor() {
   for (int i=0;i<4;i++)
     DMMotorOuterLoop(chassis->joint_motor[i], ANGLE_LOOP);
-  DMMotorSetPIDRef(chassis->joint_motor[0], -0.1f);
-  DMMotorSetPIDRef(chassis->joint_motor[1], 0.1f);
-  DMMotorSetPIDRef(chassis->joint_motor[2], -0.1f);
-  DMMotorSetPIDRef(chassis->joint_motor[3], 0.1f);
+  DMMotorSetPIDRef(chassis->joint_motor[0], 0.1f);
+  DMMotorSetPIDRef(chassis->joint_motor[1], -0.1f);
+  DMMotorSetPIDRef(chassis->joint_motor[2], 0.1f);
+  DMMotorSetPIDRef(chassis->joint_motor[3], -0.1f);
 }
 
 
