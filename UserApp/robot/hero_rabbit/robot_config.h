@@ -31,8 +31,8 @@
 // 云台参数
 #define YAW_CHASSIS_ALIGN_ECD 2220
 #define PITCH_HORIZON_ECD 490  // 云台处于水平位置时编码器值,若对云台有机械改动需要修改
-#define PITCH_MAX_ANGLE 13.0f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
-#define PITCH_MIN_ANGLE -4.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define PITCH_MAX_ANGLE 14.7f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define PITCH_MIN_ANGLE -34.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
 #define PITCH_HORIZON_ecd 4230
 
 // 添加基于编码器的限位值定义
@@ -177,10 +177,10 @@ static Chassis_Init_Config_s chassis_init_config = {
     .chassis_param =
         {
             // 机器人底盘修改的参数,单位为mm(毫米)
-            .wheel_base = 350.0f,            // 纵向轴距(前进后退方向)
-            .track_width = 300.0f,           // 横向轮距(左右平移方向)
+            .wheel_base = 408.0f,            // 纵向轴距(前进后退方向)
+            .track_width = 476.0f,           // 横向轮距(左右平移方向)
             .center_gimbal_offset_x = 0.0f,  // 云台旋转中心距底盘几何中心的距离,前后方向,云台位于正中心时默认设为0
-            .center_gimbal_offset_y = 0.0f,  // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
+            .center_gimbal_offset_y = -18.0f,  // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
             .wheel_radius = 60.0f,           // 轮子半径
             .wheel_reduction_ratio = 19.0f,  // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
                                              // 3508功率模型参数
@@ -392,6 +392,6 @@ static Shoot_Init_Config_s shoot_init_config = {
 static SuperCap_Init_Config_s super_cap_config = {
     .can_config = {
         .can_handle = &hcan3,
-        .tx_id = 0x210,  // 超级电容默认接收id
+        .tx_id = 0x110,  // 超级电容默认接收id
         .rx_id = 0x211,  // 超级电容默认发送id,注意tx和rx在其他人看来是反的
     }};
