@@ -346,36 +346,27 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
     // 发送前景图形更新
     UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_lift_bar_chassis_fg);
     
-    // === 6. 机械臂抬升显示（进度条 + 文字，每次刷新） ===
-    // 使用标准归一化公式：(当前值 - 最小值) / (最大值 - 最小值)
-    // 结果与 lift_ratio 保持一致，为 0~1 的比例值
-    float arm_ratio = 0.0f;  // 0~1 的比例值
+    // === 6. 机械臂抬升显示（进度条 + 文字，每次刷新）===
+    float arm_ratio = 0.0f;
     
-    if (robotdata != NULL &&
-        robotdata->grab != NULL &&
-        robotdata->grab->arm != NULL)
+    // interactive_data.arm_lift 是实际抬升物理量，不是 0~1 比例
+    // 使用固定量程 420.0 进行归一化
+    if (robotdata != NULL && robotdata->grab != NULL)
     {
-        float arm_range = robotdata->grab->arm->arm_lift_max - robotdata->grab->arm->arm_lift_min;
-        if (arm_range > 0.0f)
-        {
-            arm_ratio = (interactive_data->arm_lift - robotdata->grab->arm->arm_lift_min) / arm_range;
-        }
+        arm_ratio = interactive_data->arm_lift / 420.0f;
     }
     
     // 限制比例范围 0~1
     if (arm_ratio < 0.0f) arm_ratio = 0.0f;
     if (arm_ratio > 1.0f) arm_ratio = 1.0f;
     
-    // 转换为百分比用于显示和绘制
-    int arm_bar_height = (int)(arm_ratio * 140.0f);
+    // 映射到 140 像素高度
+    uint16_t arm_bar_height = (uint16_t)(arm_ratio * 140.0f);
+    uint16_t arm_top_y = 610 - arm_bar_height;
     
-    // 计算顶部 Y 坐标并确保不小于 470
-    int arm_top_y = 610 - arm_bar_height;
-    if (arm_top_y < 470) arm_top_y = 470;
-    
-    // 绘制机械臂抬升进度条前景（竖直矩形填充）
+    // 修改机械臂前景条（和底盘条保持一致：从顶部到底部）
     UIRectangleDraw(&UI_lift_bar_arm_fg, "laf", UI_Graph_Change, 7, UI_Color_Yellow,
-                   6, 1645, arm_top_y, 1670, 610);  // x1=1645, y1=arm_top_y, x2=1670, y2=610
+                    6, 1645, arm_top_y, 1670, 610);
     
     // 发送前景图形更新
     UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_lift_bar_arm_fg);
@@ -391,7 +382,7 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
         // 使用定点一位小数格式化
         fmt_1dp(angle_buf, sizeof(angle_buf), interactive_data->motor_angles[i]);
         
-        UICharDraw(&UI_motor_angle_value[i], graph_name, UI_Graph_Change, 7, UI_Color_Green, 14, 4,
+        UICharDraw(&UI_motor_angle_value[i], graph_name, UI_Graph_Change, 7, UI_Color_Green, 16, 2,
                   1200 + i * 120, 830, angle_buf);
     }
 
@@ -412,7 +403,7 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
         // 使用定点一位小数格式化
         fmt_1dp(angle_buf, sizeof(angle_buf), interactive_data->arm_angles[i]);
         
-        UICharDraw(&UI_arm_angle_value[i], graph_name, UI_Graph_Change, 7, UI_Color_Cyan, 14, 4,
+        UICharDraw(&UI_arm_angle_value[i], graph_name, UI_Graph_Change, 7, UI_Color_Cyan, 16, 2,
                   1200 + i * 120, 800, angle_buf);
     }
 
@@ -523,11 +514,21 @@ void MyUIInit()
     UIRectangleDraw(&UI_lift_bar_arm_bg, "lab", UI_Graph_ADD, 7, UI_Color_Yellow,
                    2, 1645, 470, 1670, 610);  // x1=1645, y1=470, x2=1670, y2=610（竖直长条，宽 25px）
     UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_lift_bar_arm_bg);
+    
+    // ARM 前景条：初始高度为 0
+    UIRectangleDraw(&UI_lift_bar_arm_fg, "laf", UI_Graph_ADD, 7, UI_Color_Yellow,
+                    6, 1645, 610, 1670, 610);  // 左下 (1645,610) → 右上 (1670,610)，初始高度为 0
+    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_lift_bar_arm_fg);
 
     // CHS 背景条（右，竖条）
     UIRectangleDraw(&UI_lift_bar_chassis_bg, "lbb", UI_Graph_ADD, 7, UI_Color_Cyan,
                    2, 1705, 470, 1730, 610);  // x1=1705, y1=470, x2=1730, y2=610（竖直长条，宽 25px）
     UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_lift_bar_chassis_bg);
+    
+    // 底盘抬升前景条：初始高度为 0
+    UIRectangleDraw(&UI_lift_bar_chassis_fg, "lbf", UI_Graph_ADD, 7, UI_Color_Cyan,
+                    6, 1705, 610, 1730, 610);  // 左下 (1705,610) → 右上 (1730,610)，初始高度为 0
+    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_lift_bar_chassis_fg);
 
     // ARM 文字（放在条下面）
     UICharDraw(&UI_lift_bar_arm_text, "lat", UI_Graph_ADD, 7, UI_Color_Yellow, 14, 2,
