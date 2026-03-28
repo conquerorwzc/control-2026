@@ -163,6 +163,6 @@ void EarthFrameToBodyFrame(const float *vecEF, float *vecBF, float *q);
  * @param gyro  当前三轴角速度 (rad/s)
  * @param offset IMU中心到旋转中心的偏移量 (m)
  */
-static void IMU_LeverArm_Compensation(float accel[3], float gyro[3], float offset[3]);
+// static void IMU_LeverArm_Compensation(float accel[3], float gyro[3], float offset[3]);
 
 #endif

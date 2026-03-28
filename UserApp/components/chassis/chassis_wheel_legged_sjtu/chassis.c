@@ -16,6 +16,7 @@
 #include "referee.h"
 #include "speed_observer.h"
 #include "user_lib.h"
+#include "power_control.h"
 
 static ChassisInstance* chassis;
 static LegInstance* leg[2];
@@ -45,8 +46,8 @@ static void LQR_K_Calc(float K[4][10], const float coef[40][6], float l_l, float
   //      3.236183f},  // T_r_to_b
   //     {-10.215290f, -8.848348f, 21.428168f, 4.233207f, -23.529793f, -2.118162f, 5.299104f, 0.213924f, 41.806390f,
   //      3.236183f},  // T_l_to_b
-  //     {3.816384f, 3.495197f, -5.392899f, -0.783657f, 4.301872f, 0.133936f, 8.740520f, 0.828690f, 11.190289f,
-  //      1.421862f},  // T_wr_to_r
+  //     {3.816384f, 3.495197f, -5.392899f, -0.783657f, 4.301872f, 0.133936f, 8.740520f, 0.828690f, 11.190289f, 1.421862f},  
+  //     // T_wr_to_r
   //     {3.816384f, 3.495197f, 5.392899f, 0.783657f, 8.740520f, 0.828690f, 4.301872f, 0.133936f, 11.190289f, 1.421862f}
   //     // T_wl_to_l
   // };
@@ -67,9 +68,9 @@ static void SpeedEstimate(void) {
 
 /**
  * SJTU 状态与 VMC/IMU 映射（须与 MATLAB 线性化/推导文档约定一致）:
- *   phi, dphi     ← chassis_IMU->YawTotalAngle (rad), IMU Gyro[2] (yaw, rad/s)
+ *   phi, phi_d     ← chassis_IMU->YawTotalAngle (rad), IMU Gyro[2] (yaw, rad/s)
  *   theta_b      ← IMU Pitch (rad)，俯仰角
- *   dtheta_b      ← IMU Gyro[0] (pitch 角速度, rad/s)
+ *   theta_b_d      ← IMU Gyro[0] (pitch 角速度, rad/s)
  *   theta_l       ← leg[1]->state_var.theta (左腿与 Z 负方向夹角，VMC 解算)
  *   theta_r       ← leg[0]->state_var.theta (右腿)
  * 若 IMU 或 VMC 的符号/零点与推导文档不一致，LQR 反馈可能反号，需在文档或测试中核对。
@@ -78,98 +79,32 @@ static void StateVarUpdate(void) {
   State_Var_t* sv = &chassis->state_var;
   INS_t* imu = chassis->imu;
   if (chassis->update_flag.is_restart) {
-    chassis->state_var.x_b_h = 0.0f;
+    chassis->state_var.x_b = 0.0f;
     chassis->last_state_var = chassis->state_var;
   }
-  /* x_b_h: no position sensor, keep 0 or integrate in observer path */
+  /* x_b: no position sensor, keep 0 or integrate in observer path */
   SpeedEstimate();
-  sv->v_b_h = chassis->vaEstimateKF.FilteredValue[0];
+  sv->x_b_d = chassis->vaEstimateKF.FilteredValue[0];
   // 位移积分
-  if (chassis->update_flag.is_controlled || sv->v_b_h > 0.15f ||
+  if (chassis->update_flag.is_controlled || sv->x_b_d > 0.15f ||
       (leg[0]->update_flag.is_off_ground || leg[1]->update_flag.is_off_ground)) {
-    sv->x_b_h = 0.0f;
+    sv->x_b = 0.0f;
   } else {
-    sv->x_b_h += ((sv->v_b_h + chassis->last_state_var.v_b_h) / 2.0f) * chassis->dt;
+    sv->x_b += ((sv->x_b_d + chassis->last_state_var.x_b_d) / 2.0f) * chassis->dt;
   }
   sv->phi = imu->YawTotalAngle * DEGREE_2_RAD;
-  sv->dphi = imu->Gyro[2];
+  sv->phi_d = imu->Gyro[2];
   /* Left leg = leg[1], Right leg = leg[0] */
   sv->theta_r = leg[0]->virtual_model.theta;
-  sv->dtheta_r = leg[0]->virtual_model.theta_d;
+  sv->theta_r_d = leg[0]->virtual_model.theta_d;
   sv->theta_l = leg[1]->virtual_model.theta;
-  sv->dtheta_l = leg[1]->virtual_model.theta_d;
+  sv->theta_l_d = leg[1]->virtual_model.theta_d;
   sv->theta_b = -imu->Pitch * DEGREE_2_RAD;
-  sv->dtheta_b = -imu->Gyro[0];
+  sv->theta_b_d = -imu->Gyro[0];
 
   chassis->last_state_var = *sv;
 }
 
-/**
- * @brief  单电机6参数功率估算（中科大模型）
- *         P = k0 + k1*|I| + k2*|w| + k3*|I|*|w| + k4*I^2 + k5*w^2
- *
- * @param  k  系数数组 [k0..k5]
- * @param  I  电调电流 (A)，由 final_output / (16384/20) 换算得到
- * @param  w  转子角速度 (rad/s)，由 speed_aps * DEGREE_2_RAD 换算得到
- *            注意：speed_aps 是转子侧 deg/s，不除减速比
- * @return 估算电功率 (W)，钳位到 [0, +inf)
- */
-static float MotorPowerCalc(const float k[6], float I, float w) {
-  float abs_I = fabsf(I);
-  float abs_w = fabsf(w);
-  float P = k[0] + k[1] * abs_I + k[2] * abs_w + k[3] * abs_I * abs_w + k[4] * I * I + k[5] * w * w;
-  return (P > 0.0f) ? P : 0.0f;
-}
-
-/**
- * @brief 功率控制器
- *
- * 对应SJTU文档第7节:
- *   s_d_max = Kp * sqrt(P_ref)
- *   P_ref   = P_limit  (无超级电容，f1=f2=0)
- *
- * 斜率限制对应文档4-(b)(c):
- *   (b) 加速中段: Ks/(2Rω) * ṡ*(s_d-s) → 限制加速斜率
- *   (c) 急减速:   Ks/(2Rω) * ṡ*(s-s_d) → 限制减速斜率
- */
-static void PowerControl(void) {
-  PowerCtrl_t* pc = &chassis->power_ctrl;
-  if (chassis->update_flag.is_restart) {
-    chassis->limited_vx = 0.0f;
-    pc->vx_ramp = 0.0f;
-    return;
-  }
-
-  float I_L_Pre = leg[1]->wheel_motor->motor_controller.final_output / DJI_CURRENT_SCALE;
-  float I_R_Pre = leg[0]->wheel_motor->motor_controller.final_output / DJI_CURRENT_SCALE;
-  float I_L_Real = leg[1]->wheel_motor->measure.real_current / DJI_CURRENT_SCALE;
-  float I_R_Real = leg[0]->wheel_motor->measure.real_current / DJI_CURRENT_SCALE;
-  float w_L = leg[1]->wheel_motor->measure.speed_aps * DEGREE_2_RAD;
-  float w_R = leg[0]->wheel_motor->measure.speed_aps * DEGREE_2_RAD;
-  pc->P_wheel_L = MotorPowerCalc(pc->wheel_k, I_L_Pre, w_L);
-  pc->P_wheel_R = MotorPowerCalc(pc->wheel_k, I_R_Pre, w_R);
-  pc->P_total_pre = pc->P_wheel_L + pc->P_wheel_R;
-  pc->P_real = MotorPowerCalc(pc->wheel_k, I_L_Real, w_L) + MotorPowerCalc(pc->wheel_k, I_R_Real, w_R);
-
-  float P_ref = (pc->P_limit > 0.0f) ? (float)pc->P_limit : POWER_DEFAULT_LIMIT;
-  // s_d_max = Kp * sqrt(P_ref)
-  float s_d_max = pc->Kp_vel * sqrtf(P_ref);
-  // 幅值限制
-  float vx_target = chassis_ctrl_cmd->vx;
-  VAL_LIMIT(vx_target, -s_d_max, s_d_max);
-  // 斜率限制
-  float vx_diff = vx_target - pc->vx_ramp;
-  uint8_t is_accel = (fabsf(vx_target) >= fabsf(pc->vx_ramp));
-  float max_step = (is_accel ? pc->vx_ramp_acc : pc->vx_ramp_dec) * chassis->dt;
-  if (vx_diff > max_step)
-    pc->vx_ramp += max_step;
-  else if (vx_diff < -max_step)
-    pc->vx_ramp -= max_step;
-  else
-    pc->vx_ramp = vx_target;
-  VAL_LIMIT(pc->vx_ramp, -s_d_max, s_d_max);
-  chassis->limited_vx = pc->vx_ramp;
-}
 
 static void LocomotionController(void) {
   State_Var_t* sv = &chassis->state_var;
@@ -178,7 +113,7 @@ static void LocomotionController(void) {
   float l_l = leg[1]->virtual_model.length;
   float l_r = leg[0]->virtual_model.length;
   LQR_K_Calc(chassis->LQR_K, chassis->param.LQR_K_Coefficients, l_l, l_r);
-  // 减小phi和dphi的权重
+  // 减小phi和phi_d的权重
   // chassis->LQR_K[0][2] *= 0.2f;
   // chassis->LQR_K[0][3] *= 0.2f;
   // chassis->LQR_K[1][2] *= 0.2f;
@@ -186,20 +121,19 @@ static void LocomotionController(void) {
 
   // TODO: 状态误差限幅
   float state_err[10];
-  state_err[0] = sv->x_b_h - 0.0f;
-  // state_err[1] = sv->v_b_h - chassis_ctrl_cmd->vx;
-  state_err[1] = sv->v_b_h - chassis->limited_vx;
+  state_err[0] = sv->x_b - 0.0f;
+  state_err[1] = sv->x_b_d - chassis_ctrl_cmd->vx;
   VAL_LIMIT(state_err[1], -2.7f, 2.7f);
   state_err[2] = sv->phi - chassis_ctrl_cmd->target_yaw;
   VAL_LIMIT(state_err[2], -0.52f, 0.52f);  // ±30°
-  state_err[3] = sv->dphi - 0;
+  state_err[3] = sv->phi_d - 0;
   VAL_LIMIT(state_err[3], -2.0f, 2.0f);
   state_err[4] = sv->theta_l - chassis_ctrl_cmd->theta_ff;
-  state_err[5] = sv->dtheta_l;
+  state_err[5] = sv->theta_l_d;
   state_err[6] = sv->theta_r - chassis_ctrl_cmd->theta_ff;
-  state_err[7] = sv->dtheta_r;
+  state_err[7] = sv->theta_r_d;
   state_err[8] = sv->theta_b;
-  state_err[9] = sv->dtheta_b;
+  state_err[9] = sv->theta_b_d;
 
   /* u[0] = T_{r→b} (hip torque on body, same convention as virtual_model.Tp)
    * u[1] = T_{l→b}
@@ -217,13 +151,13 @@ static void LocomotionController(void) {
   /* 右腿 leg[0] */
   if (leg[0]->update_flag.is_off_ground) {
     u[2] = 0.0f;
-    // theta_r (idx 6) 和 dtheta_r (idx 7)
-    u[0] = (-chassis->LQR_K[0][6] * state_err[6] - chassis->LQR_K[0][7] * state_err[7]) * 0.5f;
+    // theta_r (idx 6) 和 theta_r_d (idx 7)
+    u[0] = -chassis->LQR_K[0][6] * state_err[6] - chassis->LQR_K[0][7] * state_err[7];
   }
   /* 左腿 leg[1] */
   if (leg[1]->update_flag.is_off_ground) {
     u[3] = 0.0f;
-    // theta_l (idx 4) 和 dtheta_l (idx 5)
+    // theta_l (idx 4) 和 theta_l_d (idx 5)
     u[1] = -chassis->LQR_K[1][4] * state_err[4] - chassis->LQR_K[1][5] * state_err[5];
   }
 
@@ -238,7 +172,7 @@ static void LocomotionController(void) {
  *   F_bl,l = +F_psi + F_l + F_gravity - F_inertial   (LEFT = leg[1])
  *   F_bl,r = -F_psi + F_l + F_gravity + F_inertial   (RIGHT = leg[0])
  * F_psi = roll_comp: positive when body rolls left → boost left support.
- * 离心力补偿符号：dphi>0 为左转，机身向外（右）倾，右腿(leg[0])需更大支撑 → leg[0] +f_inertial, leg[1]
+ * 离心力补偿符号：phi_d>0 为左转，机身向外（右）倾，右腿(leg[0])需更大支撑 → leg[0] +f_inertial, leg[1]
  * -f_inertial，当前实现正确。
  */
 static void LegController(void) {
@@ -249,8 +183,8 @@ static void LegController(void) {
   float f_l_l =
       PIDCalculate(&chassis->leg[1]->length_PID, leg[1]->virtual_model.length, chassis->chassis_ctrl_cmd.leg_length);
   float f_gravity = 0.5f * chassis->param.body_mass * 9.81f;
-  float f_inertial = 0.5f * chassis->param.body_mass * (l_avg / chassis->param.track_width) * chassis->state_var.dphi *
-                     chassis->state_var.v_b_h;
+  float f_inertial = 0.5f * chassis->param.body_mass * (l_avg / chassis->param.track_width) * chassis->state_var.phi_d *
+                     chassis->state_var.x_b_d;
 
   leg[0]->virtual_model.F = -f_psi + f_l_r + f_gravity + f_inertial * 1.5;
   if (leg[0]->update_flag.is_off_ground) {
@@ -278,7 +212,7 @@ static void ChassisCtrlUpdate(void) {
 
   StateVarUpdate();
 
-  PowerControl();
+  PowerControl(chassis);
   LocomotionController();
   LegController();
 
@@ -304,12 +238,6 @@ static void ChassisCtrlUpdate(void) {
   }
   VAL_LIMIT(leg[0]->virtual_model.F, -3500.0f, 3500.0f);
   VAL_LIMIT(leg[1]->virtual_model.F, -3500.0f, 3500.0f);
-
-  chassis->delta_theta_comp =
-      PIDCalculate(&chassis->delta_theta_PID, leg[0]->virtual_model.theta - leg[1]->virtual_model.theta, 0);
-  for (int i = 0; i < 2; i++) {
-    leg[i]->virtual_model.Tp -= (float)(1 - 2 * i) * chassis->delta_theta_comp;
-  }
 
   for (int i = 0; i < 2; i++) {
     JointTorqueUpdate(leg[i]);
@@ -455,31 +383,12 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   chassis_instance->leg[1] = LegInit(&chassis_init_config->leg_init_config[1]);
   chassis_instance->leg[0] = LegInit(&chassis_init_config->leg_init_config[0]);
 
-  PIDInit(&chassis_instance->delta_theta_PID, &chassis_init_config->delta_theta_PID_config);
   PIDInit(&chassis_instance->roll_PID, &chassis_init_config->roll_PID_config);
   chassis_instance->imu = INS_Init(&chassis_init_config->imu_init_config);
   xvEstimateKF_Init(&chassis_instance->vaEstimateKF);
 
-  // =========== 功率控制初始化（无超级电容简化版）===========
-  PowerCtrl_t* pc = &chassis_instance->power_ctrl;
-  // 6参数模型系数
-  pc->wheel_k[0] = WHEEL_K0;
-  pc->wheel_k[1] = WHEEL_K1;
-  pc->wheel_k[2] = WHEEL_K2;
-  pc->wheel_k[3] = WHEEL_K3;
-  pc->wheel_k[4] = WHEEL_K4;
-  pc->wheel_k[5] = WHEEL_K5;
-  // ===== 功率控制初始化 =====
-  pc->Kp_vel = POWER_KP_VEL;
-  pc->vx_ramp_acc = POWER_VX_RAMP_ACC;
-  pc->vx_ramp_dec = POWER_VX_RAMP_DEC;
-  pc->vx_ramp = 0.0f;
-  // pc->P_limit = referee_data->GameRobotState.chassis_power_limit;
-  pc->P_limit = POWER_DEFAULT_LIMIT;
-  chassis_instance->limited_vx = 0.0f;
-
-  // =========================================================
-
+  PowerControlInit(chassis_instance);
+  
   chassis_instance->param = chassis_init_config->param;
 
   chassis_instance->jump_state = JUMP_STATE_IDLE;

@@ -25,7 +25,7 @@
 #define CENTER_GIMBAL_OFFSET_X 0     // 云台旋转中心距底盘几何中心的距离,前后方向,云台位于正中心时默认设为0
 #define CENTER_GIMBAL_OFFSET_Y 0     // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
 #define WHEEL_RADIUS 0.077f          // 轮子半径
-#define WHEEL_REDUCTION_RATIO 19.0f  // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
+#define WHEEL_REDUCTION_RATIO 268.0f / 17.0f // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
 // #define PITCH_MAX_ANGLE 26.0f        // 云台竖直向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
 
 #define TRACK_WIDTH 0.495f
@@ -127,7 +127,7 @@
               .joint_motor_zero_offset[0] = 9.97 * DEGREE_2_RAD + PI,                                               \
               .joint_motor_zero_offset[1] = -9.97 * DEGREE_2_RAD,                                                   \
               .wheel_radius = WHEEL_RADIUS,                                                                         \
-              .wheel_reduction_ratio = 268.0f / 17.0f,                                                              \
+              .wheel_reduction_ratio = WHEEL_REDUCTION_RATIO,                                                              \
               .joint_limit[0] = {.angle_min = -70.56f * DEGREE_2_RAD,                                               \
                                  .angle_max = 0.0f,                                                                 \
                                  .buffer_zone = 0.15f,                                                              \

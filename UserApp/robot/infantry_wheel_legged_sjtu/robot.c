@@ -54,7 +54,7 @@ void VOFATask() {
 #elif defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   visualized_data[0] = robot->chassis->leg[0]->real_model.T;
   visualized_data[1] = robot->chassis->leg[1]->real_model.T;
-  visualized_data[2] = robot->chassis->state_var.v_b_h;
+  visualized_data[2] = robot->chassis->state_var.x_b_d;
   visualized_data[3] = robot->chassis->chassis_ctrl_cmd.vx;
   visualized_data[4] = robot->chassis->state_var.theta_b * RAD_2_DEGREE;
 
@@ -196,7 +196,7 @@ void RobotCMDTask() {
 #if !defined(CHASSIS_BOARD)
   // TODO: OSDCtrl(robot); // 图传链路控制9
   JoyStickCtrl(robot);
-  // MouseKeyCtrl(robot);
+  MouseKeyCtrl(robot);
 #if defined(GIMBAL_BOARD)
   CalcOffsetAngle();
   GimbalAlignToChassisForward();

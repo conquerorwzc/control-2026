@@ -11,6 +11,7 @@
 #include "arm_math.h"
 #include "bsp_dwt.h"
 #include "general_def.h"
+#include "power_ctrl"
 #include "user_lib.h"
 
 static ChassisInstance* chassis;

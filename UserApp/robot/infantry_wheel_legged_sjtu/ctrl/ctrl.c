@@ -181,7 +181,7 @@ void JoyStickCtrl(RobotInstance* robot) {
       if (align_attenuation < 0) align_attenuation = 0;
       input_mag *= align_attenuation * align_attenuation * align_attenuation;
       VAL_LIMIT(input_mag, -2.50, 2.50);
-      // chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, input_mag, robot->chassis->state_var.v_b_h, robot->dt);
+      // chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, input_mag, robot->chassis->state_var.x_b_d, robot->dt);
       // chassis_ctrl_cmd->vx = input_mag;
       // chassis_ctrl_cmd->theta_ff = chassis_ramp.expected_a / 9.81f;
       chassis_ctrl_cmd->theta_ff = 0.0f;
@@ -200,7 +200,7 @@ void JoyStickCtrl(RobotInstance* robot) {
       chassis_ctrl_cmd->wz = 0.0f;
 #endif
       chassis_ctrl_cmd->vx =
-          ramp_controller_update(&chassis_ramp, (0.004f) * (float)rc_data[TEMP].rc.rocker_r1, robot->chassis->state_var.v_b_h, robot->dt);
+          ramp_controller_update(&chassis_ramp, (0.004f) * (float)rc_data[TEMP].rc.rocker_r1, robot->chassis->state_var.x_b_d, robot->dt);
       // chassis_ctrl_cmd->vx = (0.0025f) * (float)rc_data[TEMP].rc.rocker_r1;
       // chassis_ctrl_cmd->theta_ff = chassis_ramp.expected_a / 9.81f;
       chassis_ctrl_cmd->theta_ff = 0.0f;
@@ -466,7 +466,7 @@ void MouseKeyCtrl(RobotInstance* robot) {
       if (align_attenuation < 0) align_attenuation = 0;
       input_mag *= align_attenuation * align_attenuation * align_attenuation;
       VAL_LIMIT(input_mag, -2.97, 2.97);
-      chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, input_mag, robot->chassis->state_var.v_b_h, robot->dt);
+      chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, input_mag, robot->chassis->state_var.x_b_d, robot->dt);
       // chassis_ctrl_cmd->vx = input_mag; 
       // chassis_ctrl_cmd->theta_ff = chassis_ramp.expected_a / 9.81f;
       chassis_ctrl_cmd->theta_ff = 0.0f;
@@ -480,11 +480,11 @@ void MouseKeyCtrl(RobotInstance* robot) {
       chassis_ctrl_cmd->wz = 0.0f;
 #endif
       if (rc_data[TEMP].key[KEY_PRESS].w)
-        chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, (0.99f) * speed_coff, robot->chassis->state_var.v_b_h, robot->dt);
+        chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, (0.99f) * speed_coff, robot->chassis->state_var.x_b_d, robot->dt);
       else if (rc_data[TEMP].key[KEY_PRESS].s)
-        chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, (-0.99f) * speed_coff, robot->chassis->state_var.v_b_h, robot->dt);
+        chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, (-0.99f) * speed_coff, robot->chassis->state_var.x_b_d, robot->dt);
       else
-        chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, 0.0f, robot->chassis->state_var.v_b_h, robot->dt);
+        chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, 0.0f, robot->chassis->state_var.x_b_d, robot->dt);
 
       chassis_ctrl_cmd->theta_ff = 0.0f;
       break;
