@@ -1,4 +1,5 @@
 #pragma once
+#include "chassis.h"
 
 // 中科大的功率模型
 // ===== M3508轮毂电机 6参数模型系数 =====
@@ -50,9 +51,6 @@ typedef struct {
   float T_motion_ref[2];
   float P_total_ref;
 } PowerCtrl_t;
-
-
-typedef struct ChassisInstance_t ChassisInstance;
 
 void PowerControl(ChassisInstance* chassis);
 void PowerControlInit(ChassisInstance* chassis);

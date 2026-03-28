@@ -24,7 +24,6 @@
 
 #include "ins_task.h"
 #include "parallel_leg.h"
-#include "power_control.h"
 #include "super_cap.h"
 
 typedef enum {
@@ -112,9 +111,6 @@ typedef struct {
 
   LegInstance* leg[2];
   PIDInstance roll_PID;
-
-  // ===== 功率控制 =====
-  PowerCtrl_t power_ctrl;
 
   float LQR_K[4][10];  // [4输出][10状态变量]
 

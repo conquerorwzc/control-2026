@@ -60,14 +60,6 @@ void VOFATask() {
   visualized_data[2] = robot->chassis->state_var.x_b_d;
   visualized_data[3] = robot->chassis->chassis_ctrl_cmd.vx;
   visualized_data[4] = robot->chassis->state_var.theta_b * RAD_2_DEGREE;
-
-  visualized_data[5] = robot->chassis->power_ctrl.P_real;
-  visualized_data[6] = robot->chassis->power_ctrl.P_limit;
-  visualized_data[7] = robot->chassis->power_ctrl.P_total_pre;
-  visualized_data[8] = robot->chassis->power_ctrl.P_wheel_R;
-  visualized_data[9] = robot->chassis->power_ctrl.P_wheel_L;
-  visualized_data[10] = robot->chassis->limited_vx;
-  visualized_data[11] = robot->chassis->chassis_ctrl_cmd.vx;
 #endif
   VOFAJustFloatSend(visualized_data, 20);
 }

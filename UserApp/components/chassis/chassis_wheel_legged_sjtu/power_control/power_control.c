@@ -1,11 +1,12 @@
 #include "power_control.h"
+#include "chassis.h"
 
 #include <math.h>
 
-#include "chassis.h"
 #include "general_def.h"
 #include "user_lib.h"
 
+static PowerCtrl_t* power_ctrl;
 /**
  * @brief  单电机 6 参数功率估算（中科大模型，正运算）
  *         P = k0 + k1·|I| + k2·|ω| + k3·|I|·|ω| + k4·I² + k5·ω²
@@ -77,7 +78,7 @@ static float MotorEstimateCurrent(const float k[6], float P_target, float w, flo
  */
 void PowerControl(ChassisInstance* chassis) {
   State_Var_t* sv = &chassis->state_var;
-  PowerCtrl_t* pc = &chassis->power_ctrl;
+  PowerCtrl_t* pc = power_ctrl;
 
   float state_err[10];
   state_err[0] = sv->x_b - 0.0f;
@@ -176,7 +177,9 @@ void PowerControl(ChassisInstance* chassis) {
 }
 
 void PowerControlInit(ChassisInstance* chassis) {
-  PowerCtrl_t* pc = &chassis->power_ctrl;
+  
+  power_ctrl = (PowerCtrl_t*)zmalloc(sizeof(PowerCtrl_t));
+  PowerCtrl_t* pc = power_ctrl;
   // 6参数模型系数
   pc->k[0] = WHEEL_K0;
   pc->k[1] = WHEEL_K1;

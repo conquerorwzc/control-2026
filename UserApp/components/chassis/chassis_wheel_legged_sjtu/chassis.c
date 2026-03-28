@@ -105,7 +105,6 @@ static void StateVarUpdate(void) {
   chassis->last_state_var = *sv;
 }
 
-
 static void LocomotionController(void) {
   State_Var_t* sv = &chassis->state_var;
   chassis->update_flag.is_controlled = chassis_ctrl_cmd->vx != 0;
