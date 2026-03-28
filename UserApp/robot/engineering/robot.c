@@ -17,8 +17,8 @@
 #define SWITCH_STABLE_TICKS 150
 /* ==================== 图传控制灵敏度 ==================== */
 // 鼠标移动折算成图传指令的比例系数 (越大转越快)
-#define VIDEO_MOUSE_YAW_SENS    0.155f
-#define VIDEO_MOUSE_PITCH_SENS  0.155f
+#define VIDEO_MOUSE_YAW_SENS 0.155f
+#define VIDEO_MOUSE_PITCH_SENS 0.155f
 /* Intermediate variables calculated by private functions */
 static RobotInstance *robot;
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
@@ -63,7 +63,7 @@ void RobotTask();
 void RobotInit()
 {
     robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
-    robot->referee_data = RefereeInit(&huart1);  // 裁判系统初始化
+    robot->referee_data = RefereeInit(&huart1); // 裁判系统初始化
 #ifdef STM32F4
     robot->rc_data = RemoteControlInit(&huart3); // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
 #elifdef STM32H7
@@ -156,9 +156,9 @@ static void MouseKeySet()
     case 1:
         robot->robot_mode = ROBOT_EXCHANGE_MODE;
         break;
-    // case 2:
-    //     robot->robot_mode = ROBOT_CLIMB_MODE;
-    //     break;
+        // case 2:
+        //     robot->robot_mode = ROBOT_CLIMB_MODE;
+        //     break;
     }
 
     if (robot->robot_mode != ROBOT_POWER_OFF && robot->robot_mode != ROBOT_EMERGENCY_STOP)
@@ -171,9 +171,15 @@ static void MouseKeySet()
         {
             switch (rc_data[TEMP].key_count[KEY_PRESS_NORMAL][KEY_F] % 3)
             {
-            case 0: grab_control_mode = GRAB_CONTROL_KEYBOARD; break;
-            case 1: grab_control_mode = GRAB_CONTROL_HALF_AUTO; break;
-            case 2: grab_control_mode = GRAB_CONTROL_CUSTOM; break;
+            case 0:
+                grab_control_mode = GRAB_CONTROL_KEYBOARD;
+                break;
+            case 1:
+                grab_control_mode = GRAB_CONTROL_HALF_AUTO;
+                break;
+            case 2:
+                grab_control_mode = GRAB_CONTROL_CUSTOM;
+                break;
             }
         }
         else
@@ -183,7 +189,6 @@ static void MouseKeySet()
         }
 
         // ================= 3. 底盘平移 (WASD 全局生效) =================
-        // ================= 3. 底盘平移 (WASD 全局生效) =================
         float speed_buff = 20000;
 
         // 提取 R 键的状态：0 为正向，1 为反向
@@ -192,14 +197,18 @@ static void MouseKeySet()
         if (r_state == 1)
         {
             // 反向平移
-            chassis_ctrl_cmd->vx = -(float)(rc_data[TEMP].key[KEY_PRESS_NORMAL].w - rc_data[TEMP].key[KEY_PRESS_NORMAL].s) * speed_buff;
-            chassis_ctrl_cmd->vy =  (float)(rc_data[TEMP].key[KEY_PRESS_NORMAL].d - rc_data[TEMP].key[KEY_PRESS_NORMAL].a) * speed_buff;
+            chassis_ctrl_cmd->vx =
+                -(float)(rc_data[TEMP].key[KEY_PRESS_NORMAL].w - rc_data[TEMP].key[KEY_PRESS_NORMAL].s) * speed_buff;
+            chassis_ctrl_cmd->vy =
+                (float)(rc_data[TEMP].key[KEY_PRESS_NORMAL].d - rc_data[TEMP].key[KEY_PRESS_NORMAL].a) * speed_buff;
         }
         else
         {
             // 正向平移
-            chassis_ctrl_cmd->vx =  (float)(rc_data[TEMP].key[KEY_PRESS_NORMAL].d - rc_data[TEMP].key[KEY_PRESS_NORMAL].a) * speed_buff;
-            chassis_ctrl_cmd->vy =  (float)(rc_data[TEMP].key[KEY_PRESS_NORMAL].w - rc_data[TEMP].key[KEY_PRESS_NORMAL].s) * speed_buff;
+            chassis_ctrl_cmd->vx =
+                (float)(rc_data[TEMP].key[KEY_PRESS_NORMAL].d - rc_data[TEMP].key[KEY_PRESS_NORMAL].a) * speed_buff;
+            chassis_ctrl_cmd->vy =
+                (float)(rc_data[TEMP].key[KEY_PRESS_NORMAL].w - rc_data[TEMP].key[KEY_PRESS_NORMAL].s) * speed_buff;
         }
 
         // ================= 新增：Shift+R 图传云台一键回正 =================
@@ -228,13 +237,18 @@ static void MouseKeySet()
         }
         last_shift_r = current_shift_r;
 
-        //旋转量
+        // 旋转量
         float angle_buff = 0.15f;
+        float angle_rapid_buff = 0.4f;
         if (robot->robot_mode == ROBOT_EXCHANGE_MODE)
         {
             if (chassis_ctrl_cmd->lift_ratio - 0.1f < 0.01f)
             {
-                set_angle += (float)(rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].q - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].e) * angle_buff;
+                set_angle +=
+                    (float)((rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].q - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].e) *
+                                angle_buff +
+                            (rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].a - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].d) *
+                                angle_rapid_buff);
             }
         }
         chassis_ctrl_cmd->robot_mode = robot->robot_mode;
@@ -243,39 +257,52 @@ static void MouseKeySet()
         if (robot->robot_mode == ROBOT_EXCHANGE_MODE)
         {
             // 【底盘高度】纯 QE 控制 (底盘逻辑，不用屏蔽)
-            float step_size = 1.0f / (15.0f * 200.0f);
-            chassis_ctrl_cmd->lift_ratio += (float)(rc_data[TEMP].key[KEY_PRESS_NORMAL].q - rc_data[TEMP].key[KEY_PRESS_NORMAL].e) * step_size;
+            float step_size = 1.0f / (10.0f * 200.0f);
+            chassis_ctrl_cmd->lift_ratio +=
+                (float)(rc_data[TEMP].key[KEY_PRESS_NORMAL].q - rc_data[TEMP].key[KEY_PRESS_NORMAL].e) * step_size;
 
-            if (chassis_ctrl_cmd->lift_ratio < 0.0f) chassis_ctrl_cmd->lift_ratio = 0.0f;
-            if (chassis_ctrl_cmd->lift_ratio > 1.0f) chassis_ctrl_cmd->lift_ratio = 1.0f;
+            if (chassis_ctrl_cmd->lift_ratio < 0.0f)
+                chassis_ctrl_cmd->lift_ratio = 0.0f;
+            if (chassis_ctrl_cmd->lift_ratio > 1.0f)
+                chassis_ctrl_cmd->lift_ratio = 1.0f;
 
             // 【机械臂升降】Shift + W/S (不影响底盘)
-            // 💥 修复：允许在 键鼠模式 或 自定义模式 下使用键盘控制升降！
             if (grab_control_mode == GRAB_CONTROL_KEYBOARD || grab_control_mode == GRAB_CONTROL_CUSTOM)
             {
-                grab_ctrl_cmd->arm_lift += (float)(rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].w - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].s) * grab_param.arm_lift_sens_keyboard;
+                grab_ctrl_cmd->arm_lift +=
+                    (float)(rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].w - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].s) *
+                    grab_param.arm_lift_sens_keyboard;
             }
 
-            // 💥 只有在纯键盘控制模式下，才允许键盘去干涉机械臂的 5 个旋转关节
             if (grab_control_mode == GRAB_CONTROL_KEYBOARD)
             {
                 // ================= 【机械臂 5 轴全控】 (Shift + Ctrl 组合键) =================
-                float arm_speed = 0.02f; // 机械臂键盘微调步长
+                float arm_speed = 0.08f; // 机械臂键盘微调步长
 
                 // 1. 大 Yaw (基座旋转 base_joint) -> Q/W
-                grab_ctrl_cmd->base_joint += (float)(rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].q - rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].w) * arm_speed;
+                grab_ctrl_cmd->base_joint += (float)(rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].q -
+                                                     rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].w) *
+                                             arm_speed;
 
                 // 2. 大 Roll (肘部旋转 elbow_roll) -> E/R
-                grab_ctrl_cmd->elbow_roll += (float)(rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].e - rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].r) * arm_speed;
+                grab_ctrl_cmd->elbow_roll += (float)(rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].e -
+                                                     rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].r) *
+                                             arm_speed;
 
                 // 3. 大 Pitch (肘部俯仰 elbow_pitch) -> A/S
-                grab_ctrl_cmd->elbow_pitch += (float)(rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].a - rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].s) * arm_speed;
+                grab_ctrl_cmd->elbow_pitch += (float)(rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].a -
+                                                      rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].s) *
+                                              arm_speed;
 
                 // 4. 小 Pitch (腕部俯仰 wrist_pitch) -> D/F
-                grab_ctrl_cmd->wrist_pitch += (float)(rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].d - rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].f) * arm_speed;
+                grab_ctrl_cmd->wrist_pitch += (float)(rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].d -
+                                                      rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].f) *
+                                              arm_speed;
 
                 // 5. 小 Roll (腕部旋转 wrist_roll) -> Z/X
-                grab_ctrl_cmd->wrist_roll += (float)(rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].z - rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].x) * arm_speed;
+                grab_ctrl_cmd->wrist_roll += (float)(rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].z -
+                                                     rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].x) *
+                                             arm_speed;
             }
         }
     }
@@ -302,8 +329,10 @@ static void MouseKeySet()
         current_selfcontrol_gripper = robot->self_control->unpacked_data.gripper_opened;
         if (current_selfcontrol_gripper != last_selfcontrol_gripper)
         {
-            if (fabsf(grab_ctrl_cmd->torque + 0.6) < 0.01f) grab_ctrl_cmd->torque = 2.0f;
-            else if (fabsf(grab_ctrl_cmd->torque - 2.0f) < 0.01f) grab_ctrl_cmd->torque = -0.6f;
+            if (fabsf(grab_ctrl_cmd->torque + 0.6) < 0.01f)
+                grab_ctrl_cmd->torque = 2.0f;
+            else if (fabsf(grab_ctrl_cmd->torque - 2.0f) < 0.01f)
+                grab_ctrl_cmd->torque = -0.6f;
         }
         else if (current_selfcontrol_gripper == last_selfcontrol_gripper)
         {
@@ -311,15 +340,19 @@ static void MouseKeySet()
         }
         last_selfcontrol_gripper = current_selfcontrol_gripper;
 
-        if (grab_ctrl_cmd->torque > 0.5f) rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C] = 1;
-        else rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C] = 0;
+        if (grab_ctrl_cmd->torque > 0.5f)
+            rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C] = 1;
+        else
+            rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C] = 0;
     }
     else if (grab_control_mode == GRAB_CONTROL_HALF_AUTO)
     {
         current_selfcontrol_gripper = robot->self_control->unpacked_data.gripper_opened;
         last_selfcontrol_gripper = current_selfcontrol_gripper;
-        if (grab_ctrl_cmd->torque > 0.5f) rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C] = 1;
-        else rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C] = 0;
+        if (grab_ctrl_cmd->torque > 0.5f)
+            rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C] = 1;
+        else
+            rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C] = 0;
     }
 
     // ================= 6. 图传 Yaw/Pitch 控制 =================
@@ -365,7 +398,8 @@ static void RemoteControlSet()
     *rc_data_last = *rc_data;
     if (!robot->chassis->cali_state.all_cali_done)
     {
-        if (RemoteControlIsOnline()) chassis_ctrl_cmd->chassis_mode = CHASSIS_CALIBRATING;
+        if (RemoteControlIsOnline())
+            chassis_ctrl_cmd->chassis_mode = CHASSIS_CALIBRATING;
 
         if (switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left))
             chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
@@ -380,7 +414,8 @@ static void RemoteControlSet()
             chassis_ctrl_cmd->wz = 0;
             set_angle += (rc_data[TEMP].rc.dial - 20) * 0.0001;
         }
-        else chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+        else
+            chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
     }
     else if (switch_is_down(rc_data[TEMP].rc.switch_right))
     {
@@ -405,9 +440,12 @@ static void RemoteControlSet()
             switch_stable_cnt++;
             if (switch_stable_cnt >= SWITCH_STABLE_TICKS)
             {
-                if (switch_is_up(current_switch)) chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_BOTH_EXTEND;
-                else if (switch_is_mid(current_switch)) chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_FRONT_RETRACT;
-                else if (switch_is_down(current_switch)) chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_ALL_RETRACT;
+                if (switch_is_up(current_switch))
+                    chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_BOTH_EXTEND;
+                else if (switch_is_mid(current_switch))
+                    chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_FRONT_RETRACT;
+                else if (switch_is_down(current_switch))
+                    chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_ALL_RETRACT;
                 switch_stable_cnt = SWITCH_STABLE_TICKS;
             }
         }
@@ -450,8 +488,10 @@ static void Gantry_Limit(Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd, const Gantry_Param_
             gantry_ctrl_cmd->z = 2100;
     }
 
-    if (gantry_ctrl_cmd->z <= 0) gantry_ctrl_cmd->z = 0;
-    else if (gantry_ctrl_cmd->z >= gantry_param->GANTRY_MAX_Z) gantry_ctrl_cmd->z = gantry_param->GANTRY_MAX_Z;
+    if (gantry_ctrl_cmd->z <= 0)
+        gantry_ctrl_cmd->z = 0;
+    else if (gantry_ctrl_cmd->z >= gantry_param->GANTRY_MAX_Z)
+        gantry_ctrl_cmd->z = gantry_param->GANTRY_MAX_Z;
 
     last_z = gantry_ctrl_cmd->z;
 }
@@ -481,7 +521,7 @@ GrabControlMode_e GetGrabControlMode(void)
     return grab_control_mode;
 }
 
-RobotInstance* RobotGet(void)
+RobotInstance *RobotGet(void)
 {
     return robot;
 }
