@@ -352,9 +352,9 @@ void MouseKeyCtrl(RobotInstance* robot) {
   }
   // [Q] 持续按住：左pike，[E] 持续按住：右pike
   if (rc_data[TEMP].key[KEY_PRESS].q) {
-    chassis_ctrl_cmd->roll = -0.2f;
+    chassis_ctrl_cmd->roll = -0.4f;
   } else if (rc_data[TEMP].key[KEY_PRESS].e) {
-    chassis_ctrl_cmd->roll = 0.2f;
+    chassis_ctrl_cmd->roll = 0.4f;
   } else {
     chassis_ctrl_cmd->roll = 0.0f;
   }
@@ -393,31 +393,31 @@ void MouseKeyCtrl(RobotInstance* robot) {
       rotate_omega = rotate_frequency * 2.0f * PI;
       chassis_ctrl_cmd->target_yaw += rotate_omega * robot->dt;
 
-      // 设置目标速度矢量 (vx, vy),单位为m/s
-      if (rc_data[TEMP].key[KEY_PRESS].w)
-        chassis_vy = 0.5f * speed_coff;
-      else if (rc_data[TEMP].key[KEY_PRESS].s)
-        chassis_vy = -0.5f * speed_coff;
-      else
-        chassis_vy = 0.0f;
+      // // 设置目标速度矢量 (vx, vy),单位为m/s
+      // if (rc_data[TEMP].key[KEY_PRESS].w)
+      //   chassis_vy = 0.5f * speed_coff;
+      // else if (rc_data[TEMP].key[KEY_PRESS].s)
+      //   chassis_vy = -0.5f * speed_coff;
+      // else
+      //   chassis_vy = 0.0f;
 
-      if (rc_data[TEMP].key[KEY_PRESS].d)
-        chassis_vx = 0.5f * speed_coff;
-      else if (rc_data[TEMP].key[KEY_PRESS].a)
-        chassis_vx = -0.5f * speed_coff;
-      else
-        chassis_vx = 0.0f;
+      // if (rc_data[TEMP].key[KEY_PRESS].d)
+      //   chassis_vx = 0.5f * speed_coff;
+      // else if (rc_data[TEMP].key[KEY_PRESS].a)
+      //   chassis_vx = -0.5f * speed_coff;
+      // else
+      //   chassis_vx = 0.0f;
 
-      input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);  // 速度的模
+      // input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);  // 速度的模
 
-      // 转换角度坐标系
-      float target_angle_to_gimbal = atan2f(chassis_vy, chassis_vx);  // 目标方向矢量与云台正方向方向夹角
-      float target_angle_to_chassis = target_angle_to_gimbal + robot->offset_angle * DEGREE_2_RAD;
+      // // 转换角度坐标系
+      // float target_angle_to_gimbal = atan2f(chassis_vy, chassis_vx);  // 目标方向矢量与云台正方向方向夹角
+      // float target_angle_to_chassis = target_angle_to_gimbal + robot->offset_angle * DEGREE_2_RAD;
 
-      // 相位补偿，单位是rad todo:参数，要测试
-      float phase_compensation = 0.03f;
-      // 正弦速度调制
-      chassis_ctrl_cmd->vx = input_mag * sinf(target_angle_to_chassis + phase_compensation);
+      // // 相位补偿，单位是rad todo:参数，要测试
+      // float phase_compensation = 0.03f;
+      // // 正弦速度调制
+      // chassis_ctrl_cmd->vx = input_mag * sinf(target_angle_to_chassis + phase_compensation);
       break;
 
     case ROBOT_CHASSIS_FOLLOW:
