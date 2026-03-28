@@ -80,7 +80,7 @@ void ShootBulletSpeedControl(void) {
     case ENABLE_BULLET_SPEED:
     // 计算弹速误差
     actual_bullet_speed = shoot_ctrl_cmd->initial_speed;
-    if (actual_bullet_speed == 0) {
+    if (actual_bullet_speed <= 12) {
       return;
     }
     float speed_error = target_speed - actual_bullet_speed;
@@ -90,7 +90,8 @@ void ShootBulletSpeedControl(void) {
 
     // 将误差乘以系数后加到基础摩擦轮速度上
     shoot->shoot_ctrl_cmd.friction_speed += speed_error * bullet_speed_adjustment;
-      break;
+    if (shoot->shoot_ctrl_cmd.friction_speed<33000.f||shoot->shoot_ctrl_cmd.friction_speed>41000.f){shoot->shoot_ctrl_cmd.friction_speed=37000.f;}
+    break;
   }
 }
 
@@ -122,7 +123,7 @@ void HeatControl() {
     default:
       break;
     }
-     if (remain_heat < 2*one_barrel_heat_value) shoot_ctrl_cmd->load_mode = LOAD_STOP;
+     if (remain_heat < one_barrel_heat_value) shoot_ctrl_cmd->load_mode = LOAD_STOP;
 }
 
 

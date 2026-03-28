@@ -189,7 +189,7 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
       }
       break;
   default:
-    switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 2)  // E键设置发射模式
+    switch (rc_data[TEMP].key_count[KEY_PRESS][Key_G] % 2)  // G键设置发射模式
     {
       case 0:                                              //单发+长按连发
         if (shoot_ctrl_cmd->friction_mode==FRICTION_ON&&(vision_recv_data->shoot_receive.fire_flag||rc_data[TEMP].mouse.press_r % 2==0))   //需预先开启摩擦轮
@@ -234,6 +234,20 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   //     chassis_ctrl_cmd-> chassis_mode = CHASSIS_ROTATE ;
   //     break;
   // }
+  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Q] % 3)  // Q按键设置热量控制类型
+  {
+    case 0:
+      shoot_ctrl_cmd->heat_mode=REFEREE_CONTROL;
+      break;
+    case 1:
+      shoot_ctrl_cmd->heat_mode=SIMULLATE_CONTROL;
+      break;
+    case 2:
+      shoot_ctrl_cmd->heat_mode=NO_CONTROL;
+    default:
+      break;
+  }
+
   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 3)  // E按键设置热量控制类型
   {
     case 0:
@@ -340,6 +354,7 @@ void RobotInit() {
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;
+  shoot_ctrl_cmd->bullet_speed_mode=ENABLE_BULLET_SPEED;
   vision_recv_data=VisionInit(&gimbal_init_config.imu_init_config);
 }
 
@@ -351,7 +366,9 @@ void RobotCMDTask() {
   // robot->gimbal->gimbal_ctrl_cmd.pitch=30;
   // robot->gimbal->gimbal_ctrl_cmd.yaw=0;
   //}
-  chassis_ctrl_cmd->max_power = 70; //robot->referee_data->GameRobotState.chassis_power_limit
+  chassis_ctrl_cmd->max_power = 70; //robot->referee_data->GameRobotState.chassis_power_limit4
+  shoot_ctrl_cmd->initial_speed=robot->referee_data->ShootData.initial_speed;
+  shoot_ctrl_cmd->shooter_barrel_heat=robot->referee_data->PowerHeatData.shooter_42mm_barrel_heat;
   CalcOffsetAngle();
   RemoteControlSet();
   MouseKeySet();
