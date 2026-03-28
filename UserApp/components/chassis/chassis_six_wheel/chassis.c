@@ -4,6 +4,8 @@
  * @date    2026/3/28
  * @copyright Copyright (c) SHU SRM 2026 all rights reserved
  * @brief   wheel_leg->prostrate
+ * @note    wheel_motor[0]————>右轮
+ *          wheel_motor[1]————>左轮
  */
 #include "chassis.h"
 
@@ -101,7 +103,7 @@ static void EnableJointMotor() {
 static void LimitChassisOutput(void) {
   for (int i = 0; i < 2; i++) {
     VAL_LIMIT(wheel_speed_ref[i], -53000.0f, 53000.0f);
-    DJIMotorSetPIDRef(&chassis->wheel_motor[i], wheel_speed_ref[i]);
+    DJIMotorSetPIDRef(chassis->wheel_motor[i], wheel_speed_ref[i]);
   }
   // 不使能关节电机
   for (int i = 0; i < 4; i++) DMMotorStop(chassis->joint_motor[i]);
