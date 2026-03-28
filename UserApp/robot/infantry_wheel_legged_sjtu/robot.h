@@ -28,6 +28,7 @@ typedef struct {
   // 裁判系统数据
   float bullet_speed;
   uint8_t robot_id;
+  uint16_t shooter_17mm_barrel_heat;
 } Chassis_Upload_Data_s;  // means the Chassis board, not the component
 
 typedef struct {

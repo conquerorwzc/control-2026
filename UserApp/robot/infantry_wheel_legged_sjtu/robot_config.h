@@ -368,13 +368,16 @@ static Shoot_Init_Config_s shoot_init_config = {
             .num_per_circle = NUM_PER_CIRCLE,                  // 拨盘一圈的装载量
             .loader_direction = 1,                             // 拨盘旋转方向,1为正向，-1为反向
             .friction_num = 2,                                 // 摩擦轮数量
-            .friction_speed = 39000.0f,                        // 摩擦轮速度
+            .friction_speed = 40000.0f,                        // 摩擦轮速度
             .friction_coefficients = {1.0f, -1.0f},            // 摩擦轮速度比例系数
-            .deadtime_burstfire = 67,
+            .deadtime_burstfire = 100,
             .deadtime_onebullet = 350,
-            .target_speed = 23.0f,
+            .target_speed = 22.5f,
             .bullet_speed_adjustment = 200.0f,
             .feedforward = 200.0f,
+            .one_barrel_heat_value = 10,         // 一发弹丸所需热量
+            .shooter_barrel_cooling_value = 40,  // 每秒冷却回复
+            .shooter_barrel_heat_limit = 230,    // 热量上限
         },
     .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan1, 4, MOTOR_DIRECTION_NORMAL, MOTOR_DIRECTION_NORMAL),
     .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan1, 5, MOTOR_DIRECTION_NORMAL, MOTOR_DIRECTION_NORMAL),
@@ -385,10 +388,10 @@ static Shoot_Init_Config_s shoot_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 40.0f,
+                            .Kp = 60.0f,
                             .Ki = 0.0f,
                             .Kd = 1.0f,
-                            .MaxOut = 30000.0f,
+                            .MaxOut = 45000.0f,
                         },
                     .speed_PID =
                         {
@@ -397,7 +400,7 @@ static Shoot_Init_Config_s shoot_init_config = {
                             .Kd = 0.0f,
                             .Improve = PID_Integral_Limit | PID_ErrorHandle,
                             .IntegralLimit = 5000.0f,
-                            .MaxOut = 8000.0f,
+                            .MaxOut = 10000.0f,
                         },
                 },
             .motor_type = M2006,  // 拨盘电机为M2006

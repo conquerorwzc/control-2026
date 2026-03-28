@@ -51,6 +51,9 @@ void VOFATask() {
   visualized_data[8] = robot->gimbal->pitch_motor->motor_controller.pid_ref;
   visualized_data[9] = robot->gimbal->yaw_motor->motor_controller.pid_ref;
   visualized_data[10] = robot->gimbal->pitch_motor->motor_controller.final_output;
+  visualized_data[11] = shoot_init_config.shoot_param.shooter_barrel_cooling_value;
+  visualized_data[12] = shoot_init_config.shoot_param.shooter_barrel_cooling_value;
+  visualized_data[13] = shoot_init_config.shoot_param.shooter_barrel_cooling_value;
 #elif defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   visualized_data[0] = robot->chassis->leg[0]->real_model.T;
   visualized_data[1] = robot->chassis->leg[1]->real_model.T;
@@ -80,6 +83,8 @@ static void DoubleBoardCommsInit() {
   robot->shoot = ShootInit(&shoot_init_config);
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
+  shoot_ctrl_cmd->heat_mode = REFEREE_CONTROL;
+
   // 视觉接收初始化
   vision_recv_data = VisionInit(&gimbal_init_config.imu_init_config);
   robot->vision_recv_data = vision_recv_data;  // Assign to robot instance for access in ctrl module
@@ -115,6 +120,7 @@ static void DoubleBoardComms() {
   robot->chassis->imu->YawTotalAngle = chassis_upload_data->YawTotalAngle;
   robot->chassis->imu->Gyro[2] = chassis_upload_data->YawSpeed;
   shoot_ctrl_cmd->initial_speed = chassis_upload_data->bullet_speed;
+  robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat = chassis_upload_data->shooter_17mm_barrel_heat;
   VisionSetRefereeData(chassis_upload_data->bullet_speed, chassis_upload_data->robot_id);
   // 发送底盘控制指令
   chassis_fetch_data->chassis_ctrl_cmd = *chassis_ctrl_cmd;
@@ -130,6 +136,7 @@ static void DoubleBoardComms() {
   chassis_upload_data->YawSpeed = robot->chassis->imu->Gyro[2];
   chassis_upload_data->bullet_speed = robot->referee_data->ShootData.initial_speed;
   chassis_upload_data->robot_id = robot->referee_data->GameRobotState.robot_id;
+  chassis_upload_data->shooter_17mm_barrel_heat = robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
 
   CANCommSend(robot->can_comm, (void*)chassis_upload_data);
 #endif
@@ -200,6 +207,7 @@ void RobotCMDTask() {
 #if defined(GIMBAL_BOARD)
   CalcOffsetAngle();
   GimbalAlignToChassisForward();
+  shoot_ctrl_cmd->shooter_barrel_heat = robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
 #endif
   EmergencyHandler(robot);  // 急停必须在 CAN 发送之前,确保 POWER_OFF 优先级最高
 #endif

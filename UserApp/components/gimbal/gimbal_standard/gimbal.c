@@ -44,6 +44,13 @@ static float GetPitchGravityFeedforward(void) {
   float pitch_rad = gimbal->gimbal_IMU_data->Pitch * DEGREE_2_RAD;
   return pitch_feedforward_scale * arm_cos_f32(pitch_rad);
 }
+float wrap180(float now, float last)
+{
+  float diff = now - last;
+  diff = fmodf(diff, 360.0f);
+  diff=diff-360.0f*floorf(diff/360.0f+0.5f);
+  return last + diff;
+}
 
 // static BMI088Instance *bmi088; // 云台IMU
 GimbalInstance* GimbalInit(Gimbal_Init_Config_s* gimbal_init_config) {
@@ -93,6 +100,8 @@ void GimbalTask() {
     // 停止
     DJIMotorStop(gimbal->yaw_motor);
     DJIMotorStop(gimbal->pitch_motor);
+    gimbal_ctrl_cmd->yaw = gimbal->gimbal_IMU_data->YawTotalAngle;
+    gimbal_ctrl_cmd->pitch = gimbal->gimbal_IMU_data->Pitch;
   } else {
     DJIMotorEnable(gimbal->yaw_motor);
     DJIMotorEnable(gimbal->pitch_motor);

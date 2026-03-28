@@ -179,7 +179,14 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
     IMU_Temperature_Ctrl();
     DWT_Delay(0.001);
   }
+  //是否在线标定
+  if (imu_init_config->offset_flag==1) {
+    for (uint8_t i=0;i<3;i++)
+      BMI088.GyroOffset[i]=imu_init_config->GyroOffset[i];
+  }
+  else {
     INS_CalibrateGyroForDebug(5000);
+  }
 
   // 手动计算加速度缩放因子，因为我们跳过了完整的校准过程
   BMI088.AccelScale = 9.81f / BMI088.gNorm;
