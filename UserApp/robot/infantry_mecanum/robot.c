@@ -258,6 +258,12 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
     gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
   }
+  if (rc_data[TEMP].key[KEY_PRESS].shift) {
+    chassis_ctrl_cmd->SuperCapBoost=1;
+  }
+  else {
+    chassis_ctrl_cmd->SuperCapBoost=0;
+  }
   *rc_data_last = *rc_data;
 }
 /**
@@ -325,6 +331,7 @@ void RobotInit() {
 #endif
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   robot->chassis = ChassisInit(&chassis_init_config);
+  robot->chassis->super_cap=robot->super_cap;
 #endif
 
   // 初始化控制命令指针

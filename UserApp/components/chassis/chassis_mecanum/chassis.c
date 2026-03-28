@@ -29,6 +29,7 @@ static float rb_radius;
 static PIDInstance follow_pid;
 static float power;
 static float k0, k1, k2, k3, k4, k5;  // 中科大的功率模型
+static uint8_t super_cap_error_flag = 0; //电容故障标志
 
 /**
  * @brief 计算每个轮毂电机的输出,正运动学解算
@@ -208,45 +209,50 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
 
 /* 机器人底盘控制核心任务 */
 void ChassisTask() {
+  if (chassis->super_cap->cap_msg.error_detect==0) {
+    super_cap_error_flag=0;
+  }
+  else {
+    super_cap_error_flag=1;
+  }
   switch (chassis->super_cap_mode)
   {
     case SAFETY_MODE:
-      if (chassis->super_cap->cap_msg.cap_v > 18.0f)
+      if (super_cap_error_flag==0 && chassis->super_cap->cap_msg.cap_v > 18.0f)
         chassis->super_cap_mode = PASSIVE_MODE;
       chassis->chassis_ctrl_cmd.max_power =
         100;  // referee_data->GameRobotState.chassis_power_limit;//TODO:用超电记得改;
       break;
     case FORCED_CHARGING_MODE:
-      if (chassis->super_cap->cap_msg.cap_v < 8.0f)
+      if (super_cap_error_flag==0 && chassis->super_cap->cap_msg.cap_v < 8.0f)
         chassis->super_cap_mode = SAFETY_MODE;
-      if (chassis->super_cap->cap_msg.cap_v > 18.0f)
+      if (super_cap_error_flag==0 && chassis->super_cap->cap_msg.cap_v > 18.0f)
         chassis->super_cap_mode = PASSIVE_MODE;
       chassis->chassis_ctrl_cmd.max_power = (uint16_t)(0.4 * referee_data->GameRobotState.chassis_power_limit);
       break;
     case CHARGING_MODE:
-      if (chassis->super_cap->cap_msg.cap_v < 10.0f)
+      if (super_cap_error_flag==0 && chassis->super_cap->cap_msg.cap_v < 10.0f)
         chassis->super_cap_mode = FORCED_CHARGING_MODE;
-      if (chassis->super_cap->cap_msg.cap_v > 18.0f)
+      if (super_cap_error_flag==0 && chassis->super_cap->cap_msg.cap_v > 18.0f)
         chassis->super_cap_mode = PASSIVE_MODE;
       chassis->chassis_ctrl_cmd.max_power =
           referee_data->GameRobotState.chassis_power_limit -
           (uint16_t)powf((float)referee_data->GameRobotState.chassis_power_limit * 0.05f, 2);
       break;
     case PASSIVE_MODE:
-      if (chassis_ctrl_cmd->SuperCapBoost == 1)
+      if (super_cap_error_flag==0 && chassis_ctrl_cmd->SuperCapBoost == 1)
         chassis->super_cap_mode = ACTIVE_MODE;
-      if (chassis->super_cap->cap_msg.cap_v < 12.0f)
+      if (super_cap_error_flag==0 && chassis->super_cap->cap_msg.cap_v < 12.0f)
         chassis->super_cap_mode = CHARGING_MODE;
       chassis->chassis_ctrl_cmd.max_power =
-          referee_data->GameRobotState.chassis_power_limit -
-          (uint16_t)powf((float)referee_data->GameRobotState.chassis_power_limit * 0.04f, 2);
+          referee_data->GameRobotState.chassis_power_limit;
       break;
     case ACTIVE_MODE:
-      if (chassis->super_cap->cap_msg.cap_v < 12.0f)
+      if (super_cap_error_flag==0 && chassis->super_cap->cap_msg.cap_v < 12.0f)
         chassis->super_cap_mode = CHARGING_MODE;
-      if (chassis_ctrl_cmd->SuperCapBoost != 1)
+      if (super_cap_error_flag==0 && chassis_ctrl_cmd->SuperCapBoost != 1)
         chassis->super_cap_mode = PASSIVE_MODE;
-      chassis->chassis_ctrl_cmd.max_power = 100;
+      chassis->chassis_ctrl_cmd.max_power = 180;
       break;
     default:
       chassis->super_cap_mode = SAFETY_MODE;
