@@ -202,32 +202,28 @@ static void MouseKeySet()
             chassis_ctrl_cmd->vy =  (float)(rc_data[TEMP].key[KEY_PRESS_NORMAL].w - rc_data[TEMP].key[KEY_PRESS_NORMAL].s) * speed_buff;
         }
 
-        // ================= 新增：Shift+R 纯电机一键回正 (0度/90度版) =================
+        // ================= 新增：Shift+R 图传云台一键回正 =================
         static uint8_t last_shift_r = 0;
         uint8_t current_shift_r = rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].r;
 
-        // 边沿检测，确保按下 Shift+R 时只触发一次回正运算
+        // 边沿检测，按下的瞬间触发
         if (current_shift_r && !last_shift_r)
         {
+            // 提取 R 键的状态：0 为正向，1 为侧向
+            uint8_t r_state = rc_data[TEMP].key_count[KEY_PRESS_NORMAL][KEY_R] % 2;
 
-            DJIMotorInstance* yaw_motor = robot->video_gimbal->yaw_motor;
+            // 获取图传云台当前的累积相对角度
+            float current_video_yaw = robot->video_gimbal->Video_yaw;
 
-            if (yaw_motor != NULL)
+            if (r_state == 1)
             {
-                // 获取电机当前累积的总角度（度）
-                float current_motor_angle = yaw_motor->measure.total_angle;
-
-                if (r_state == 1)
-                {
-                    // 侧向状态 (R键为奇数次)：寻找距离当前角度最近的 "90度" 位置
-                    // 公式原理：扣除90度后按360度取整，再把90度加回来
-                    set_angle = roundf((current_motor_angle - 90.0f) / 360.0f) * 360.0f + 90.0f;
-                }
-                else
-                {
-                    // 正向状态 (R键为偶数次)：寻找距离当前角度最近的 "0度" 位置 (即360的整数倍)
-                    set_angle = roundf(current_motor_angle / 360.0f) * 360.0f;
-                }
+                // R键侧向状态：图传云台就近转到 90 度
+                robot->video_gimbal->Video_yaw = roundf((current_video_yaw + 90.0f) / 360.0f) * 360.0f - 90.0f;
+            }
+            else
+            {
+                // R键正向状态：图传云台就近转回 0 度 (即正前方)
+                robot->video_gimbal->Video_yaw = roundf(current_video_yaw / 360.0f) * 360.0f;
             }
         }
         last_shift_r = current_shift_r;
