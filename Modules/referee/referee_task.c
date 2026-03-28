@@ -673,6 +673,14 @@ void UITask()
     {
         interactive_data.arm_lift = 0.0f;
     }
+    
+    // === 获取机器人模式和控制模式（关键补充） ===
+    
+    // 获取机器人整体工作模式 (G 键控制)
+    interactive_data.robot_mode = robotdata->robot_mode;
+    
+    // 获取机械臂控制模式 (F 键控制)
+    interactive_data.grab_control_mode = GetGrabControlMode();
 
     // 检查是否有变化
     UIChangeCheck(&interactive_data);
