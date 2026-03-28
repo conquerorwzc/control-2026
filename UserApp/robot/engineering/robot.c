@@ -183,18 +183,54 @@ static void MouseKeySet()
         }
 
         // ================= 3. 底盘平移 (WASD 全局生效) =================
+        // ================= 3. 底盘平移 (WASD 全局生效) =================
         float speed_buff = 20000;
 
-        if (rc_data[TEMP].key_count[KEY_PRESS_NORMAL][KEY_R] % 2 == 1)
+        // 提取 R 键的状态：0 为正向，1 为反向
+        uint8_t r_state = rc_data[TEMP].key_count[KEY_PRESS_NORMAL][KEY_R] % 2;
+
+        if (r_state == 1)
         {
+            // 反向平移
             chassis_ctrl_cmd->vx = -(float)(rc_data[TEMP].key[KEY_PRESS_NORMAL].w - rc_data[TEMP].key[KEY_PRESS_NORMAL].s) * speed_buff;
             chassis_ctrl_cmd->vy =  (float)(rc_data[TEMP].key[KEY_PRESS_NORMAL].d - rc_data[TEMP].key[KEY_PRESS_NORMAL].a) * speed_buff;
         }
         else
         {
+            // 正向平移
             chassis_ctrl_cmd->vx =  (float)(rc_data[TEMP].key[KEY_PRESS_NORMAL].d - rc_data[TEMP].key[KEY_PRESS_NORMAL].a) * speed_buff;
             chassis_ctrl_cmd->vy =  (float)(rc_data[TEMP].key[KEY_PRESS_NORMAL].w - rc_data[TEMP].key[KEY_PRESS_NORMAL].s) * speed_buff;
         }
+
+        // ================= 新增：Shift+R 纯电机一键回正 (0度/90度版) =================
+        static uint8_t last_shift_r = 0;
+        uint8_t current_shift_r = rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].r;
+
+        // 边沿检测，确保按下 Shift+R 时只触发一次回正运算
+        if (current_shift_r && !last_shift_r)
+        {
+
+            DJIMotorInstance* yaw_motor = robot->video_gimbal->yaw_motor;
+
+            if (yaw_motor != NULL)
+            {
+                // 获取电机当前累积的总角度（度）
+                float current_motor_angle = yaw_motor->measure.total_angle;
+
+                if (r_state == 1)
+                {
+                    // 侧向状态 (R键为奇数次)：寻找距离当前角度最近的 "90度" 位置
+                    // 公式原理：扣除90度后按360度取整，再把90度加回来
+                    set_angle = roundf((current_motor_angle - 90.0f) / 360.0f) * 360.0f + 90.0f;
+                }
+                else
+                {
+                    // 正向状态 (R键为偶数次)：寻找距离当前角度最近的 "0度" 位置 (即360的整数倍)
+                    set_angle = roundf(current_motor_angle / 360.0f) * 360.0f;
+                }
+            }
+        }
+        last_shift_r = current_shift_r;
 
         //旋转量
         float angle_buff = 0.15f;
