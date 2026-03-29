@@ -303,12 +303,12 @@ static void RemoteControlSet() {
 
   // 控制模式切换
   if (vt13_rc_data->button_status.fn_2_flag == 1) {  // 按功能右键切换模式
-    robot->control_mode = AUTO_MODE;
+    robot->control_mode = NAVIGATOR_MODE;
   } else {
     robot->control_mode = MANUAL_MODE;
   }
 
-  if (vt13_rc_data->button_status.fn_1_flag==1) {
+  if (vt13_rc_data->button_status.fn_1_flag==0) {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_VISION;
     if (has_non_zero_data(vision_recv_data)==1){
       gimbal_ctrl_cmd->yaw=vision_recv_data->gimbal_receive.yaw;

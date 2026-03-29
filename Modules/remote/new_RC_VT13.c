@@ -100,7 +100,7 @@ static uint8_t          vt13_init_flag = 0;// 初始化标志
 static void VT13LostCallback(void *id)
 {
     (void)id;
-    memset(&vt13_rc, 0, sizeof(vt13_rc));
+    // memset(&vt13_rc, 0, sizeof(vt13_rc));
     USARTServiceInit(vt13_usart);
     LOGWARNING("[VT13] remote control lost");
 }
@@ -236,7 +236,7 @@ VT13_RC_t *VT13RemoteInit(UART_HandleTypeDef *huart)
 
     /* 注册守护进程：遥控器约 14ms 发一帧，100ms 未收到视为离线 */
     Daemon_Init_Config_s daemon_conf = {
-        .reload_count = 30,           // 10 * 10ms = 100ms 超时
+        .reload_count = 70,           // 30 * 10ms = 300ms 超时
         .init_count   = 0,
         .callback     = VT13LostCallback,
         .owner_id     = NULL,

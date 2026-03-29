@@ -19,7 +19,7 @@ typedef enum {
 // 定义枚举体，包含自动模式和手动模式
 typedef enum {
   MANUAL_MODE=0,   // 手动控制
-  AUTO_MODE,    // 自动控制
+  NAVIGATOR_MODE,    // 自动控制
 } Control_Mode_e;
 
 #pragma pack(1)

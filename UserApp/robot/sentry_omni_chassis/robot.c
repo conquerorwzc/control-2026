@@ -132,7 +132,7 @@ static void RemoteControlSet() {
   }
   if (switch_is_up(rc_data[TEMP].rc.switch_right))  // 除了右拨杆在上机器人使用导航数据，其余都正常人为控制
   {
-    robot->control_mode = AUTO_MODE;
+    robot->control_mode = NAVIGATOR_MODE;
   } else {
     robot->control_mode = MANUAL_MODE;
   }
@@ -164,7 +164,7 @@ static void RemoteControlSet() {
               .rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
     }
 
-  } else if (robot->control_mode == AUTO_MODE)  // 自动控制，直接收上位机控制量
+  } else if (robot->control_mode == NAVIGATOR_MODE)  // 自动控制，直接收上位机控制量
   {
     vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vy * 10000;
     // vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vx*5000;
@@ -337,7 +337,7 @@ static void RemoteControlSet() {
 
   //比赛时这段禁用掉
   if (robot->referee_data->GameState.game_progress == 4) {
-    robot->control_mode = AUTO_MODE;
+    robot->control_mode = NAVIGATOR_MODE;
   }
 
   // 底盘控制部分,系数需要调整
@@ -351,7 +351,7 @@ static void RemoteControlSet() {
       chassis_ctrl_cmd->wz = (2.0f) * (float)vt13_rc_data->rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
     }
     auto_mode_time=time;
-  } else if (robot->control_mode == AUTO_MODE)  // 自动控制，直接收上位机控制量
+  } else if (robot->control_mode == NAVIGATOR_MODE)  // 自动控制，直接收上位机控制量
   {
     // if (robot->referee_data->GameState.game_progress == 4 || auto_mode_time-time>180.0f) {//比赛时这段取消引用
       chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
@@ -421,7 +421,7 @@ static void EmergencyHandler() {
 #endif
 }
 static void ModeControl() {
-  if (robot->control_mode==AUTO_MODE){
+  if (robot->control_mode==NAVIGATOR_MODE){
     // if (robot->referee_data->ProjectileAllowance.projectile_allowance_17mm==0) {
     //   robot->sentry_mode=DEFENSE_POSE;    //无可用弹丸进入防御姿态
     //   robot->chassis->chassis_ctrl_cmd.wz=-1500;
