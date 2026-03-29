@@ -136,7 +136,7 @@ static Chassis_Init_Config_s chassis_init_config = {
         },
     .yaw_prostrate_PID_config =
         {
-            .Kp = 1.0f,
+            .Kp = 2.0f,
             .Ki = 0.0f,
             .Kd = 0.0f,
             .MaxOut = 6.0f,

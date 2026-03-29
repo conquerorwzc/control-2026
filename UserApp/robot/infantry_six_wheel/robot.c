@@ -56,9 +56,10 @@ void VOFATask() {
   visualized_data[13] = shoot_init_config.shoot_param.shooter_barrel_cooling_value;
 #elif defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   visualized_data[0] = robot->chassis->wheel_motor[0]->motor_controller.pid_ref;
-  visualized_data[1] = robot->chassis->chassis_ctrl_cmd.vx;
-  visualized_data[2] = robot->chassis->wheel_motor[0]->measure.speed_aps;
-  visualized_data[3] = robot->chassis->imu->Yaw;
+  visualized_data[1] = robot->chassis->wheel_motor[0]->measure.speed_aps;
+  visualized_data[2] = robot->chassis->chassis_ctrl_cmd.wz * (20000.0f / 660.0f);
+  visualized_data[3] = robot->chassis->yaw_prostrate_PID.Output * 3000.0f;
+  // visualized_data[4] = robot->chassis->yaw_prostrate_PID.Output * 3000.0f;
 #endif
   VOFAJustFloatSend(visualized_data, 20);
 }

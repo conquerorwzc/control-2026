@@ -68,14 +68,13 @@ static void SuperCapModeControl() {
  * 差速：右轮 = vx + wz，左轮 = vx - wz
  */
 void ChassisProstrateMode(void) {
+#define VX_TO_MOTOR (30000.0f / 660.0f)
+#define WZ_PID_TO_MOTOR 3000.0f
+#define WZ_FF_TO_MOTOR (20000.0f / 660.0f)  // wz 前馈(摇杆量级) → 电机量
   float wz_pid = PIDCalculate(&chassis->yaw_prostrate_PID, chassis->imu->YawTotalAngle * DEGREE_2_RAD,
                               chassis_ctrl_cmd->target_yaw);
-
-#define VX_TO_MOTOR (30000.0f / 660.0f)
-#define WZ_TO_MOTOR (30000.0f / 660.0f)
-
   float vx_motor = chassis_ctrl_cmd->vx * VX_TO_MOTOR;
-  float wz_motor = (wz_pid + chassis_ctrl_cmd->wz) * WZ_TO_MOTOR;
+  float wz_motor = wz_pid * WZ_PID_TO_MOTOR + chassis_ctrl_cmd->wz * WZ_FF_TO_MOTOR;
 
   // 差速分配
   wheel_speed_ref[0] = -1.0f * (vx_motor - wz_motor);  // 右轮 leg[0]
