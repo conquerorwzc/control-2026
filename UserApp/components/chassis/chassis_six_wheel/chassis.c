@@ -69,7 +69,7 @@ static void SuperCapModeControl() {
  */
 void ChassisProstrateMode(void) {
 #define VX_TO_MOTOR (30000.0f / 660.0f)
-#define WZ_PID_TO_MOTOR 3000.0f
+#define WZ_PID_TO_MOTOR 10000.0f
 #define WZ_FF_TO_MOTOR (20000.0f / 660.0f)  // wz 前馈(摇杆量级) → 电机量
   float wz_pid = PIDCalculate(&chassis->yaw_prostrate_PID, chassis->imu->YawTotalAngle * DEGREE_2_RAD,
                               chassis_ctrl_cmd->target_yaw);

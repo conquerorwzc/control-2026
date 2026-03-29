@@ -52,8 +52,6 @@ void VOFATask() {
   visualized_data[9] = robot->gimbal->yaw_motor->motor_controller.pid_ref;
   visualized_data[10] = robot->gimbal->pitch_motor->motor_controller.final_output;
   visualized_data[11] = shoot_init_config.shoot_param.shooter_barrel_cooling_value;
-  visualized_data[12] = shoot_init_config.shoot_param.shooter_barrel_cooling_value;
-  visualized_data[13] = shoot_init_config.shoot_param.shooter_barrel_cooling_value;
 #elif defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   visualized_data[0] = robot->chassis->wheel_motor[0]->motor_controller.pid_ref;
   visualized_data[1] = robot->chassis->wheel_motor[0]->measure.speed_aps;

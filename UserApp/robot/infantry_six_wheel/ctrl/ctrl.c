@@ -135,7 +135,8 @@ void JoyStickCtrl(RobotInstance* robot) {
     case ROBOT_CHASSIS_PROSTRATE_ROTATE: {
       rotate_frequency = 0.5f;
       rotate_omega = rotate_frequency * 2.0f * PI;
-      chassis_ctrl_cmd->wz = rotate_omega;
+      // chassis_ctrl_cmd->wz = rotate_omega;
+       chassis_ctrl_cmd->wz = 10000.0f;
       // 正弦速度调制
       chassis_vx = (float)rc_data[TEMP].rc.rocker_l_;
       chassis_vy = (float)rc_data[TEMP].rc.rocker_l1;
@@ -216,7 +217,8 @@ void MouseKeyCtrl(RobotInstance* robot) {
   // 2.2 射击控制逻辑,[左键]射击
   if (rc_data[TEMP].mouse.press_l) {
     // 校验：摩擦轮开启
-    if (shoot_ctrl_cmd->friction_mode == FRICTION_ON) {
+    if (shoot_ctrl_cmd->friction_mode == FRICTION_ON &&
+        (vision_recv_data->shoot_receive.fire_flag || rc_data[TEMP].mouse.press_r % 2 == 0)) {
       // 默认先设为单发
       shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
       // 检查按下的持续时间 (当前时间 - 上次松开的时间/按下起始时间),超过1秒，覆盖为连发
@@ -286,22 +288,23 @@ void MouseKeyCtrl(RobotInstance* robot) {
 
       // 小陀螺原地旋转
       rotate_omega = rotate_frequency * 2.0f * PI;
-      chassis_ctrl_cmd->wz = rotate_omega;
+      // chassis_ctrl_cmd->wz = rotate_omega;
+      chassis_ctrl_cmd->wz = 10000.0f;
 
       // 设置目标速度矢量 (vx, vy),单位为m/s
       if (rc_data[TEMP].key[KEY_PRESS].w)
-        chassis_vy = 0.5f * speed_coff;
+        chassis_vy += 200.0f * speed_coff;
       else if (rc_data[TEMP].key[KEY_PRESS].s)
-        chassis_vy = -0.5f * speed_coff;
+        chassis_vy += -200.0f * speed_coff;
       else
-        chassis_vy = 0.0f;
+        chassis_vy += 0.0f;
 
       if (rc_data[TEMP].key[KEY_PRESS].d)
-        chassis_vx = 0.5f * speed_coff;
+        chassis_vx += 200.0f * speed_coff;
       else if (rc_data[TEMP].key[KEY_PRESS].a)
-        chassis_vx = -0.5f * speed_coff;
+        chassis_vx += -200.0f * speed_coff;
       else
-        chassis_vx = 0.0f;
+        chassis_vx += 0.0f;
 
       input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);  // 速度的模
 
@@ -319,18 +322,18 @@ void MouseKeyCtrl(RobotInstance* robot) {
 #if (!defined(ONE_BOARD))
       // 设置目标速度矢量 (vx, vy),单位为m/s
       if (rc_data[TEMP].key[KEY_PRESS].w)
-        chassis_vy = 0.5f * speed_coff;
+        chassis_vy += 200.0f * speed_coff;
       else if (rc_data[TEMP].key[KEY_PRESS].s)
-        chassis_vy = -0.5f * speed_coff;
+        chassis_vy += -200.0f * speed_coff;
       else
-        chassis_vy = 0.0f;
+        chassis_vy += 0.0f;
 
       if (rc_data[TEMP].key[KEY_PRESS].d)
-        chassis_vx = 0.5f * speed_coff;
+        chassis_vx += 200.0f * speed_coff;
       else if (rc_data[TEMP].key[KEY_PRESS].a)
-        chassis_vx = -0.5f * speed_coff;
+        chassis_vx += -200.0f * speed_coff;
       else
-        chassis_vx = 0.0f;
+        chassis_vx += 0.0f;
 
       input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
       if (input_mag > 5.0f) {
