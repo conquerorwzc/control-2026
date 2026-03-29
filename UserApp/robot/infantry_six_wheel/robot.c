@@ -183,7 +183,11 @@ void RobotCMDTask() {
 
 // 双板通信
 #if !defined(ONE_BOARD)
+  static uint8_t comm_divider = 0;
+  if (++comm_divider >= 3) {
+    comm_divider = 0;
     DoubleBoardComms();
+  }
 #endif
 }
 
