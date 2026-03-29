@@ -252,6 +252,8 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 },
             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
             .controller_setting_init_config.feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+            .controller_setting_init_config.feedforward_flag = SPEED_FEEDFORWARD,
+
         },
     .pitch_motor_config =
         {
@@ -293,7 +295,13 @@ static Gimbal_Init_Config_s gimbal_init_config = {
       .Yaw = 0.0f,
       .Pitch = 0.0f,
       .Roll = 0.0f
-    }
+    },
+  .external_imu=
+    {
+      .can_id=0x01,
+      .mst_id=0x11,
+      .can_handle = &hfdcan3,
+    },
 };
 
 #define FRICTION_MOTOR_CONFIG(handle, id, direction) \

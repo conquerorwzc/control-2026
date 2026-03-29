@@ -468,12 +468,12 @@ void RobotInit() {
 
   robot->super_cap = SuperCapInit(&super_cap_config);
 
+  robot->chassis = ChassisInit(&chassis_init_config);
  #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
    robot->gimbal = GimbalInit(&gimbal_init_config);
    robot->shoot = ShootInit(&shoot_init_config);
 #endif
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
-  robot->chassis = ChassisInit(&chassis_init_config);
   robot->chassis->super_cap=robot->super_cap;
 #endif
 
@@ -496,6 +496,7 @@ void RobotCMDTask() {
   shoot_ctrl_cmd->initial_speed=robot->referee_data->ShootData.initial_speed;
   shoot_ctrl_cmd->shooter_barrel_heat=robot->referee_data->PowerHeatData.shooter_42mm_barrel_heat;
   chassis_ctrl_cmd->max_power=robot->referee_data->GameRobotState.chassis_power_limit;
+  gimbal_ctrl_cmd->chassis_rotate_wz=-3.f*robot->chassis->chassis_external_imu->gyro[2];
   CalcOffsetAngle();
   RemoteControlSet();
   MouseKeySet();
@@ -507,7 +508,6 @@ void RobotTask() {
   RobotCMDTask();
   GimbalTask();
   ShootTask();
-
   ChassisTask();
   SuperCapSendMessage(robot->super_cap,
       (int16_t)robot->referee_data->GameRobotState.chassis_power_limit,
