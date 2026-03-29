@@ -42,3 +42,9 @@ void RobotInit();
  *
  */
 void RobotTask();
+
+/**
+ * @brief 获取机器人实例
+ * @return RobotInstance* 机器人实例指针
+ */
+RobotInstance* RobotGet(void);

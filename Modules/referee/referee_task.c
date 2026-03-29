@@ -13,8 +13,10 @@
 #include "referee_UI.h"
 #include "string.h"
 #include "cmsis_os.h"
+#include "robot.h"
 
 static referee_info_t *referee_recv_info;            // 接收到的裁判系统数据
+RobotInstance* robotdata;
 uint8_t UI_Seq;                                      // 包序号，供整个referee文件使用
 // @todo 不应该使用全局变量
 
@@ -42,7 +44,21 @@ static uint32_t shoot_line_location[10] = {540, 960, 490, 515, 565};
 
 void MyUIInit()
 {
-    if (!referee_recv_info->init_flag)
+  // 首次调用时初始化 robotdata
+  if (robotdata == NULL)
+  {
+    robotdata = RobotGet();
+    if (robotdata == NULL)
+    {
+      LOGERROR("[UI] Robot instance not initialized, deleting UI task");
+      vTaskDelete(NULL);
+      return;
+    }
+  }
+
+  // 获取裁判系统数据
+  referee_recv_info = robotdata->referee_data;
+  if (!referee_recv_info->init_flag)
         vTaskDelete(NULL); // 如果没有初始化裁判系统则直接删除ui任务
     while (referee_recv_info->GameRobotState.robot_id == 0)
         osDelay(100); // 若还未收到裁判系统数据,等待一段时间后再检查
@@ -95,4 +111,38 @@ void MyUIInit()
     // 能量条初始状态
     UILineDraw(&UI_Energy[2], "sd6", UI_Graph_ADD, 8, UI_Color_Pink, 30, 720, 160, 1020, 160);
     UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_Energy[1], UI_Energy[2]);
+}
+
+void UITask()
+{
+    // 首次运行时初始化指针
+    if (robotdata == NULL)
+    {
+        robotdata = RobotGet();
+        if (robotdata == NULL)
+        {
+            // Robot 实例还未初始化，等待一下
+            osDelay(100);
+            return;
+        }
+    }
+
+    // 安全检查：确保 chassis 不为 NULL
+    if (robotdata->chassis == NULL)
+    {
+        // chassis 还未初始化，等待一下
+        osDelay(100);
+        return;
+    }
+
+    // 获取裁判系统数据引用
+    referee_recv_info = robotdata->referee_data;
+
+    // 安全检查：确保裁判系统数据有效
+    if (referee_recv_info == NULL || !referee_recv_info->init_flag)
+    {
+        // 裁判系统未初始化，等待
+        osDelay(100);
+        return;
+    }
 }
