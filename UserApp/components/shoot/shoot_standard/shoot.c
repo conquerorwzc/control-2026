@@ -148,10 +148,9 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
     }
   }
 
-  HeatControl();
+  // HeatControl();
   // 如果上一次触发单发或3发指令的时间加上不应期仍然大于当前时间(尚未休眠完毕),直接返回即可
-  if (hibernate_time + dead_time > DWT_GetTimeline_ms()) return;
-  ;
+  // if (hibernate_time + dead_time > DWT_GetTimeline_ms()) return;
 
   if (shoot->loader_motor->motor_controller.speed_PID.ERRORHandler.ERRORType == PID_MOTOR_BLOCKED_ERROR) {
     shoot->loader_motor->motor_controller.speed_PID.ERRORHandler.ERRORType = PID_ERROR_NONE;  // 清空标志位

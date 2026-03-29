@@ -38,8 +38,17 @@ typedef struct {
   uint16_t max_power;
   Chassis_Mode_e chassis_mode;
   uint8_t SuperCapBoost;
+  int is_rotate;
 } Chassis_Ctrl_Cmd_s;
 
+typedef struct {
+  float k0;
+  float k1;
+  float k2;
+  float k3;
+  float k4;
+  float k5;
+}Power_Param_3508_s ;
 
 //超级电容策略结构体
 typedef enum {
@@ -52,6 +61,7 @@ typedef enum {
 
 typedef struct {
   float track_width;
+  Power_Param_3508_s power_param;       //3508功率模型参数，采用中科大的模型
 } Chassis_Param_s;
 
 typedef struct {

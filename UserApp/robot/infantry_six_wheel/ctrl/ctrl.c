@@ -98,6 +98,7 @@ void JoyStickCtrl(RobotInstance* robot) {
   switch (robot->robot_mode) {
      case ROBOT_CHASSIS_PROSTRATE_FOLLOW: {
 #if (!defined(ONE_BOARD))
+       chassis_ctrl_cmd->is_rotate = 0;
       // 获取输入（左摇杆 → 云台坐标系下的 vx, vy）
       chassis_vx = (float)rc_data[TEMP].rc.rocker_l_;
       chassis_vy = (float)rc_data[TEMP].rc.rocker_l1;
@@ -133,20 +134,23 @@ void JoyStickCtrl(RobotInstance* robot) {
       break;
     }
     case ROBOT_CHASSIS_PROSTRATE_ROTATE: {
-      rotate_frequency = 0.5f;
-      rotate_omega = rotate_frequency * 2.0f * PI;
-      // chassis_ctrl_cmd->wz = rotate_omega;
-       chassis_ctrl_cmd->wz = 10000.0f;
-      // 正弦速度调制
-      chassis_vx = (float)rc_data[TEMP].rc.rocker_l_;
-      chassis_vy = (float)rc_data[TEMP].rc.rocker_l1;
-      input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
-      float target_angle_to_gimbal_p = atan2f(chassis_vy, chassis_vx);
-      float target_angle_to_chassis_p = target_angle_to_gimbal_p + robot->offset_angle * DEGREE_2_RAD;
-      chassis_ctrl_cmd->vx = input_mag * sinf(target_angle_to_chassis_p + 0.03f);
+      // rotate_frequency = 0.5f;
+      // rotate_omega = rotate_frequency * 2.0f * PI;
+      // // chassis_ctrl_cmd->wz = rotate_omega;
+      //  chassis_ctrl_cmd->wz = 150.0f;
+      // // 正弦速度调制
+      // chassis_vx = (float)rc_data[TEMP].rc.rocker_l_;
+      // chassis_vy = (float)rc_data[TEMP].rc.rocker_l1;
+      // input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
+      // float target_angle_to_gimbal_p = atan2f(chassis_vy, chassis_vx);
+      // float target_angle_to_chassis_p = target_angle_to_gimbal_p + robot->offset_angle * DEGREE_2_RAD;
+      // chassis_ctrl_cmd->vx = input_mag * sinf(target_angle_to_chassis_p + 0.03f);
+       chassis_ctrl_cmd->is_rotate = 1;
+       chassis_ctrl_cmd->wz = 250.0f;
       break;
     }
     case ROBOT_CHASSIS_PROSTRATE_FREE: {
+       chassis_ctrl_cmd->is_rotate = 0;
        // 左竖直 → 前进后退
        chassis_ctrl_cmd->vx = (float)rc_data[TEMP].rc.rocker_l1;
        chassis_ctrl_cmd->wz = (float)rc_data[TEMP].rc.rocker_l_;
@@ -156,7 +160,7 @@ void JoyStickCtrl(RobotInstance* robot) {
       break;
   }
   //  记录上一次数据
-  rc_data_last = rc_data[TEMP];
+  // rc_data_last = rc_data[TEMP];
 }
 
 void MouseKeyCtrl(RobotInstance* robot) {
@@ -283,48 +287,45 @@ void MouseKeyCtrl(RobotInstance* robot) {
   // 处理对应模式
   switch (robot->robot_mode) {
     case ROBOT_CHASSIS_PROSTRATE_ROTATE:
-      // 小陀螺频率设置
-      rotate_frequency = 0.5f * rotate_coff;
-
-      // 小陀螺原地旋转
-      rotate_omega = rotate_frequency * 2.0f * PI;
-      // chassis_ctrl_cmd->wz = rotate_omega;
-      chassis_ctrl_cmd->wz = 10000.0f;
-
-      // 设置目标速度矢量 (vx, vy),单位为m/s
-      if (rc_data[TEMP].key[KEY_PRESS].w)
-        chassis_vy += 200.0f * speed_coff;
-      else if (rc_data[TEMP].key[KEY_PRESS].s)
-        chassis_vy += -200.0f * speed_coff;
-      else
-        chassis_vy += 0.0f;
-
-      if (rc_data[TEMP].key[KEY_PRESS].d)
-        chassis_vx += 200.0f * speed_coff;
-      else if (rc_data[TEMP].key[KEY_PRESS].a)
-        chassis_vx += -200.0f * speed_coff;
-      else
-        chassis_vx += 0.0f;
-
-      input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);  // 速度的模
-
-      // 转换角度坐标系
-      float target_angle_to_gimbal = atan2f(chassis_vy, chassis_vx);  // 目标方向矢量与云台正方向方向夹角
-      float target_angle_to_chassis = target_angle_to_gimbal + robot->offset_angle * DEGREE_2_RAD;
-
-      // 相位补偿，单位是rad todo:参数，要测试
-      float phase_compensation = 0.03f;
-      // 正弦速度调制
-      chassis_ctrl_cmd->vx = input_mag * sinf(target_angle_to_chassis + phase_compensation);
+      // // 小陀螺频率设置
+      // rotate_frequency = 0.5f * rotate_coff;
+      //
+      // // 小陀螺原地旋转
+      // rotate_omega = rotate_frequency * 2.0f * PI;
+      // // chassis_ctrl_cmd->wz = rotate_omega;
+      // chassis_ctrl_cmd->wz = 150.0f;
+      //
+      // // 设置目标速度矢量 (vx, vy),单位为m/s
+      // if (rc_data[TEMP].key[KEY_PRESS].w)
+      //   chassis_vy += 200.0f * speed_coff;
+      // else if (rc_data[TEMP].key[KEY_PRESS].s)
+      //   chassis_vy += -200.0f * speed_coff;
+      // else
+      //   chassis_vy += 0.0f;
+      //
+      // if (rc_data[TEMP].key[KEY_PRESS].d)
+      //   chassis_vx += 200.0f * speed_coff;
+      // else if (rc_data[TEMP].key[KEY_PRESS].a)
+      //   chassis_vx += -200.0f * speed_coff;
+      // else
+      //   chassis_vx += 0.0f;
+      //
+      // input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
+      // float target_angle_to_gimbal_p = atan2f(chassis_vy, chassis_vx);
+      // float target_angle_to_chassis_p = target_angle_to_gimbal_p + robot->offset_angle * DEGREE_2_RAD;
+      // chassis_ctrl_cmd->vx = input_mag * sinf(target_angle_to_chassis_p + 0.03f);
+      // break;
+      chassis_ctrl_cmd->is_rotate = 1;
+      chassis_ctrl_cmd->wz = 250.0f;
       break;
-
     case ROBOT_CHASSIS_PROSTRATE_FOLLOW:
 #if (!defined(ONE_BOARD))
+      chassis_ctrl_cmd->is_rotate = 0;
       // 设置目标速度矢量 (vx, vy),单位为m/s
       if (rc_data[TEMP].key[KEY_PRESS].w)
-        chassis_vy += 200.0f * speed_coff;
+        chassis_vy += 400.0f * speed_coff;
       else if (rc_data[TEMP].key[KEY_PRESS].s)
-        chassis_vy += -200.0f * speed_coff;
+        chassis_vy += -400.0f * speed_coff;
       else
         chassis_vy += 0.0f;
 
@@ -350,11 +351,11 @@ void MouseKeyCtrl(RobotInstance* robot) {
           input_mag = -input_mag;
         }
         chassis_ctrl_cmd->target_yaw =
-            robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + follow_err * DEGREE_2_RAD;
+            robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD - follow_err * DEGREE_2_RAD;
       } else {
         // 静止回正：底盘对齐云台
         chassis_ctrl_cmd->target_yaw =
-            robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD - robot->offset_angle * DEGREE_2_RAD;
+            robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + robot->offset_angle * DEGREE_2_RAD;
       }
       chassis_ctrl_cmd->wz = 0.0f;
       // 对齐衰减
@@ -365,6 +366,13 @@ void MouseKeyCtrl(RobotInstance* robot) {
       chassis_ctrl_cmd->vx = input_mag;
       break;
 #endif
+    case ROBOT_CHASSIS_PROSTRATE_FREE: {
+      chassis_ctrl_cmd->is_rotate = 0;
+      // 左竖直 → 前进后退
+      chassis_ctrl_cmd->vx = (float)rc_data[TEMP].rc.rocker_l1;
+      chassis_ctrl_cmd->wz = (float)rc_data[TEMP].rc.rocker_l_;
+      break;
+    }
     default:
       break;
   }
