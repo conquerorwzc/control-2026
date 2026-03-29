@@ -175,7 +175,7 @@ lqr_Q = diag([5000,    700,      1450,    1,      100,     10,       100,     10
 % R矩阵: 控制输入权重
 % 控制: [T_{r→b}, T_{l→b}, T_{wr→r}, T_{wl→l}]
 %        右髋扭矩   左髋扭矩   右轮扭矩   左轮扭矩
-lqr_R = diag([3,      3,        15,        15]);
+lqr_R = diag([1,      1,        15,        15]);
 
 fprintf('  Q矩阵 (状态权重):\n');
 fprintf('         X_b^h  V_b^h  phi   dphi  θ_l   dθ_l  θ_r   dθ_r  θ_b   dθ_b\n');

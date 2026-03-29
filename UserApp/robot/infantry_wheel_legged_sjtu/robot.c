@@ -107,10 +107,7 @@ static void DoubleBoardComms() {
 #if defined(GIMBAL_BOARD)
   // 接收底盘回传数据
   *chassis_upload_data = *(Chassis_Upload_Data_s*)CANCommGet(robot->can_comm);
-  robot->chassis->imu->Roll = chassis_upload_data->Roll;
   robot->chassis->imu->Pitch = chassis_upload_data->Pitch;
-  robot->chassis->imu->YawTotalAngle = chassis_upload_data->YawTotalAngle;
-  robot->chassis->imu->Gyro[2] = chassis_upload_data->YawSpeed;
   shoot_ctrl_cmd->initial_speed = chassis_upload_data->bullet_speed;
   robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat = chassis_upload_data->shooter_17mm_barrel_heat;
   VisionSetRefereeData(chassis_upload_data->bullet_speed, chassis_upload_data->robot_id);
@@ -123,9 +120,6 @@ static void DoubleBoardComms() {
   robot->chassis->chassis_ctrl_cmd = chassis_fetch_data->chassis_ctrl_cmd;
   // 发送底盘回传数据
   chassis_upload_data->Pitch = robot->chassis->imu->Pitch;
-  chassis_upload_data->Roll = robot->chassis->imu->Roll;
-  chassis_upload_data->YawTotalAngle = robot->chassis->imu->YawTotalAngle;
-  chassis_upload_data->YawSpeed = robot->chassis->imu->Gyro[2];
   chassis_upload_data->bullet_speed = robot->referee_data->ShootData.initial_speed;
   chassis_upload_data->robot_id = robot->referee_data->GameRobotState.robot_id;
   chassis_upload_data->shooter_17mm_barrel_heat = robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
@@ -219,7 +213,10 @@ void RobotInit() {
 #elif defined(STM32H7)
   robot->rc_data = RemoteControlInit(&huart5);
 #endif
+#endif
+#if !defined(GIMBAL_BOARD)
   PIDInit(&robot->chassis_rotate_PID, &chassis_rotate_PID_config);
+  PIDInit(&robot->chassis_vx_PID, &chassis_vx_PID_config);
 #endif
 #if !defined(GIMBAL_BOARD)
   robot->referee_data = RefereeInit(&huart7);  // 裁判系统初始化
@@ -249,6 +246,19 @@ void RobotTask() {
 #endif
 
 #if !defined(GIMBAL_BOARD)
+  float raw_vx = chassis_ctrl_cmd->vx;
+  float raw_yaw = chassis_ctrl_cmd->target_yaw;
+  
+  // 进 LQR 前叠加 PID 补偿，提升响应并消除稳态误差
+  if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ON || chassis_ctrl_cmd->chassis_mode == CHASSIS_JUMP_READY || chassis_ctrl_cmd->chassis_mode == CHASSIS_JUMP_START) {
+    chassis_ctrl_cmd->target_yaw += PIDCalculate(&robot->chassis_rotate_PID, robot->chassis->state_var.phi, chassis_ctrl_cmd->target_yaw);
+    chassis_ctrl_cmd->vx += PIDCalculate(&robot->chassis_vx_PID, robot->chassis->state_var.x_b_d, chassis_ctrl_cmd->vx);
+  }
+
   ChassisTask();
+
+  // 恢复原始指令，防止对后续积分逻辑造成干扰
+  chassis_ctrl_cmd->vx = raw_vx;
+  chassis_ctrl_cmd->target_yaw = raw_yaw;
 #endif
 }

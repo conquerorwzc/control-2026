@@ -236,7 +236,7 @@ void MouseKeyCtrl(RobotInstance* robot) {
   // 1. 基础初始化
   static float speed_coff = 1.0f;      // 速度系数
   static float rotate_coff = 1.0f;     // 小陀螺旋转频率系数
-  static uint8_t x_key_last = 0;       // 记录上一次Space键状态
+  static uint8_t x_key_last = 0;       // 记录上一次x键状态
   static uint8_t f_key_last = 0;       // 记录上一次F键状态
   static uint8_t ctrl_g_key_last = 0;  // 记录上一次Ctrl+R键状态
   static uint8_t c_key_last = 0;       // 记录上一次C键状态

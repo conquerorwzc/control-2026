@@ -4,7 +4,7 @@
 #include "robot.h"
 #include "user_lib.h"
 
-#define robot_lost_control (abs(robot->chassis->imu->Pitch) > 13.0f) 
+#define robot_lost_control (abs(robot->chassis->imu->Pitch) > 13.0f)  //todo: 12?
 
 #define has_non_zero_data(data) \
     (data != NULL) && \
