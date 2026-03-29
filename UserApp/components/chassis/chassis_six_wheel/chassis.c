@@ -139,7 +139,6 @@ static void PowerControl() {
   }
 }
 
-
 /**
  * @brief 卧倒模式
  *

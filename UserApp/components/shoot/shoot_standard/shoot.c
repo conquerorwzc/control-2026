@@ -8,8 +8,7 @@ static Shoot_Ctrl_Cmd_s* shoot_ctrl_cmd;
 
 static float one_bullet_delta_angle;
 static float reduction_ratio_loader;
-static float
-    loader_direction;  // 实际上应该修改loader_config就可以了，但是角度为最外环似乎有bug？？，先打个补丁，后续做修改
+static float loader_direction;  // 实际上应该修改loader_config就可以了，但是角度为最外环似乎有bug？？，先打个补丁，后续做修改
 static float friction_speed;
 static float friction_coefficients[FRICTION_NUM];
 /* 对于双发射机构的机器人,将下面的数据封装成结构体即可,生成两份shoot应用实例 */
@@ -29,7 +28,6 @@ static float feedforward;  // 前馈
 
 //  只在模拟时启用这些参数，正常控制直接从裁判系统读取就好
 static uint16_t shooter_barrel_cooling_value;  // 机器人射击热量每秒冷却值，此变量只在模拟模式下使用
-static uint16_t shooter_barrel_heat_limit;     // 机器人射击热量上限，此变量只在模拟模式下使用
 static uint16_t one_barrel_heat_value;         // 发射一个弹丸的热量
 static int16_t remain_heat;                    // 剩余热量
 static float shooter_barrel_heat;              // 计算的机器人当前射击热量，此变量只在模拟模式下使用
@@ -48,7 +46,6 @@ ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
   bullet_speed_adjustment = shoot_init_config->shoot_param.bullet_speed_adjustment;
   feedforward = shoot_init_config->shoot_param.feedforward;
   shooter_barrel_cooling_value = shoot_init_config->shoot_param.shooter_barrel_cooling_value;
-  shooter_barrel_heat_limit = shoot_init_config->shoot_param.shooter_barrel_heat_limit;
   one_barrel_heat_value = shoot_init_config->shoot_param.one_barrel_heat_value;
   shooter_barrel_heat = 0;  // 初始热量为0
   // 初始化弹速控制PID参数
@@ -109,7 +106,7 @@ void HeatControl() {
     case DISABLE:
       return;
     case REFEREE_CONTROL:
-      remain_heat = shooter_barrel_heat_limit - shoot_ctrl_cmd->shooter_barrel_heat;
+      remain_heat = shoot_ctrl_cmd->shooter_barrel_heat_limit - shoot_ctrl_cmd->shooter_barrel_heat;
       break;
     case SIMULLATE_CONTROL:
       // 冷却恢复，每1s回24点
@@ -121,12 +118,17 @@ void HeatControl() {
       if (shooter_barrel_heat <= 0) {
         shooter_barrel_heat = 0;
       }
-      remain_heat = shooter_barrel_heat_limit - shooter_barrel_heat;
+      remain_heat = shoot_ctrl_cmd->shooter_barrel_heat_limit - shooter_barrel_heat;
       break;
     default:
       break;
   }
-  if (remain_heat < 2 * one_barrel_heat_value) shoot_ctrl_cmd->load_mode = LOAD_STOP;
+  if (shoot_ctrl_cmd->shooter_barrel_heat_limit > 150) {
+    if (remain_heat < 5 * one_barrel_heat_value) shoot_ctrl_cmd->load_mode = LOAD_STOP;
+  }
+  else if (shoot_ctrl_cmd->shooter_barrel_heat_limit < 150) {
+    if (remain_heat < 3 * one_barrel_heat_value) shoot_ctrl_cmd->load_mode = LOAD_STOP;
+  }
 }
 
 /* 机器人发射机构控制核心任务 */

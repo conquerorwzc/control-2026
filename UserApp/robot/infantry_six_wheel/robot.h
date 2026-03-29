@@ -12,14 +12,11 @@
 #ifndef ONE_BOARD
 #pragma pack(1)
 typedef struct {
-  float Roll;           // 横滚角(绕X轴旋转) 单位: °
   float Pitch;          // 俯仰角(绕Y轴旋转) 单位: °
-  float YawTotalAngle;  // Yaw轴累计转过的总角度，可用于多圈控制 单位: °
-  float YawSpeed;       // yaw角速度，单位: rad/s
-  // 裁判系统数据
   float bullet_speed;
   uint8_t robot_id;
-  uint16_t shooter_17mm_barrel_heat;
+  int shooter_17mm_barrel_heat;
+  int shoot_heat_limit;
 } Chassis_Upload_Data_s;  // means the Chassis board, not the component
 
 typedef struct {

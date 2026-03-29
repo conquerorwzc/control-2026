@@ -284,7 +284,6 @@ static Shoot_Init_Config_s shoot_init_config = {
             .feedforward = 200.0f,
             .one_barrel_heat_value = 10,         // 一发弹丸所需热量
             .shooter_barrel_cooling_value = 40,  // 每秒冷却回复
-            .shooter_barrel_heat_limit = 230,    // 热量上限
         },
     .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan1, 4, MOTOR_DIRECTION_NORMAL, MOTOR_DIRECTION_NORMAL),
     .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan1, 5, MOTOR_DIRECTION_NORMAL, MOTOR_DIRECTION_NORMAL),
