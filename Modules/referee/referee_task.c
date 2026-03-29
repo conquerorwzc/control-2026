@@ -584,8 +584,15 @@ void UITask()
     // ================= 检查 UI 重置标志（由 robot.c 中的 H 键触发）=================
     if (robotdata->ui_reset_flag == 1)
     {
-        MyUIInit();  // 重新初始化 UI
-        robotdata->ui_reset_flag = 0;  // 清除标志位
+        if (referee_recv_info == NULL)
+            referee_recv_info = GetRefereeInfo();
+
+        if (referee_recv_info != NULL &&
+            referee_recv_info->GameRobotState.robot_id != 0)
+        {
+            MyUIInit();
+            robotdata->ui_reset_flag = 0;
+        }
     }
 
     // === 获取机械臂标定状态 ===

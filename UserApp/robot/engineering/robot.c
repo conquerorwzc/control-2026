@@ -383,24 +383,16 @@ static void MouseKeySet()
     }
     
     // ================= 8. UI 重置（Ctrl+B）=================
-    // Ctrl+B（Back to default/Reset UI）：按下时设置标志位
-    static uint8_t last_key_b = 0;
-    static uint32_t key_stable_cnt = 0;
+    // Ctrl+B（Back to default/Reset UI）：边沿触发，按下一次触发一次
+    static uint8_t last_ctrl_b = 0;
+    uint8_t curr_ctrl_b = rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].b;
     
-    if (rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].b == last_key_b)
+    if (curr_ctrl_b && !last_ctrl_b)  // 检测上升沿（按下瞬间）
     {
-        key_stable_cnt++;
-        if (key_stable_cnt >= 50)  // 50ms 防抖
-        {
-            robot->ui_reset_flag = 1;  // 触发 UI 重置标志
-            key_stable_cnt = 50;  // 保持状态
-        }
+        robot->ui_reset_flag = 1;  // 触发 UI 重置标志
     }
-    else
-    {
-        last_key_b = rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].b;
-        key_stable_cnt = 0;
-    }
+    
+    last_ctrl_b = curr_ctrl_b;  // 保存状态供下次比较
 }
 
 static void EmergencyHandler()
