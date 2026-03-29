@@ -70,7 +70,7 @@ void JoyStickCtrl(RobotInstance* robot) {
       if (switch_is_mid(rc_data_last.rc.switch_left)) {
         trigger_time = DWT_GetTimeline_s();
       }
-      if (DWT_GetTimeline_s() - trigger_time > 0.5f) {
+      if (DWT_GetTimeline_s() - trigger_time > 1.0f) {
         shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
       } else {
         shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
@@ -274,8 +274,6 @@ void MouseKeyCtrl(RobotInstance* robot) {
     }
     c_key_last = rc_data[TEMP].key[KEY_PRESS].c;
   }
-
-
 
   // 4. 核心运动算法
   //  确定 Robot Mode
