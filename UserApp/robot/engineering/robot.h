@@ -40,6 +40,9 @@ typedef struct
     GrabInstance *grab;
     VideoGimbalInstance *video_gimbal; // 图传云台独立组件
     SelfC *self_control; // 自定义控制器实例
+    
+    // UI 重置标志位（由 H 键触发）
+    uint8_t ui_reset_flag;  // 1:需要重置 UI, 0:正常
 } RobotInstance;
 
 /**

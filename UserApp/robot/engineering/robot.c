@@ -93,6 +93,9 @@ void RobotInit()
     rc_data = robot->rc_data;
     gpio_5V_EN = GPIORegister(&gpio_init_config_5v);
     GPIOSet(gpio_5V_EN);
+    
+    // 初始化 UI 重置标志位
+    robot->ui_reset_flag = 0;
 }
 
 void RobotTask()
@@ -377,6 +380,26 @@ static void MouseKeySet()
     else if (rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].v)
     {
         video_gimbal_ctrl_cmd->video_cali = 1;
+    }
+    
+    // ================= 8. UI 重置（Ctrl+B）=================
+    // Ctrl+B（Back to default/Reset UI）：按下时设置标志位
+    static uint8_t last_key_b = 0;
+    static uint32_t key_stable_cnt = 0;
+    
+    if (rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].b == last_key_b)
+    {
+        key_stable_cnt++;
+        if (key_stable_cnt >= 50)  // 50ms 防抖
+        {
+            robot->ui_reset_flag = 1;  // 触发 UI 重置标志
+            key_stable_cnt = 50;  // 保持状态
+        }
+    }
+    else
+    {
+        last_key_b = rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].b;
+        key_stable_cnt = 0;
     }
 }
 

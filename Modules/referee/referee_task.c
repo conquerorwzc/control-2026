@@ -339,9 +339,9 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
     int chs_top_y = 610 - chs_bar_height;
     if (chs_top_y < 470) chs_top_y = 470;
     
-    // 绘制底盘抬升进度条前景（竖直矩形填充）
+    // 绘制底盘抬升进度条前景（竖直矩形填充，从下往上）
     UIRectangleDraw(&UI_lift_bar_chassis_fg, "lbf", UI_Graph_Change, 7, UI_Color_Cyan,
-                   6, 1705, chs_top_y, 1730, 610);  // x1=1705, y1=chs_top_y, x2=1730, y2=610
+                   6, 1705, 610, 1730, chs_top_y);  // x1=1705, y1=610(底部), x2=1730, y2=chs_top_y(顶部)
     
     // 发送前景图形更新
     UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_lift_bar_chassis_fg);
@@ -350,10 +350,10 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
     float arm_ratio = 0.0f;
     
     // interactive_data.arm_lift 是实际抬升物理量，不是 0~1 比例
-    // 使用固定量程 420.0 进行归一化
+    // 使用固定量程 280.0 进行归一化（实机实测满程约 280）
     if (robotdata != NULL && robotdata->grab != NULL)
     {
-        arm_ratio = interactive_data->arm_lift / 420.0f;
+        arm_ratio = interactive_data->arm_lift / 280.0f;
     }
     
     // 限制比例范围 0~1
@@ -364,9 +364,9 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
     uint16_t arm_bar_height = (uint16_t)(arm_ratio * 140.0f);
     uint16_t arm_top_y = 610 - arm_bar_height;
     
-    // 修改机械臂前景条（和底盘条保持一致：从顶部到底部）
+    // 修改机械臂前景条（从下往上填充）
     UIRectangleDraw(&UI_lift_bar_arm_fg, "laf", UI_Graph_Change, 7, UI_Color_Yellow,
-                    6, 1645, arm_top_y, 1670, 610);
+                    6, 1645, 610, 1670, arm_top_y);  // x1=1645, y1=610(底部), x2=1670, y2=arm_top_y(顶部)
     
     // 发送前景图形更新
     UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_lift_bar_arm_fg);
@@ -421,8 +421,14 @@ void MyUIInit()
 {
     robotdata = RobotGet();
     referee_recv_info = GetRefereeInfo();  // 从裁判系统模块获取数据
-    while (referee_recv_info->GameRobotState.robot_id == 0)
-        osDelay(100); // 若还未收到裁判系统数据，等待一段时间后再检查
+    
+    // 等待裁判系统数据，确保 robot_id 不为 0
+    if (referee_recv_info == NULL || referee_recv_info->GameRobotState.robot_id == 0)
+    {
+        // 裁判系统数据未就绪，延迟初始化
+        return;
+    }
+    
     DeterminRobotID();                                            // 确定 ui 要发送到的目标客户端
     UIDelete(&referee_recv_info->referee_id, UI_Data_Del_ALL, 0); // 清空 UI
 
@@ -573,6 +579,13 @@ void UITask()
         // chassis 还未初始化，等待一下
         osDelay(100);
         return;
+    }
+
+    // ================= 检查 UI 重置标志（由 robot.c 中的 H 键触发）=================
+    if (robotdata->ui_reset_flag == 1)
+    {
+        MyUIInit();  // 重新初始化 UI
+        robotdata->ui_reset_flag = 0;  // 清除标志位
     }
 
     // === 获取机械臂标定状态 ===
