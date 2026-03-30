@@ -64,9 +64,10 @@ void VOFATask() {
   visualized_data[5] = YAW_ALIGN_ANGLE;
   visualized_data[6] = robot->gimbal->yaw_motor->measure.angle_single_round;
 #elif defined(ONE_BOARD) || defined(CHASSIS_BOARD)
-  visualized_data[0] = robot->chassis->chassis_ctrl_cmd.target_yaw;
-  visualized_data[0] = robot->chassis->yaw_prostrate_PID.Measure;
-  visualized_data[1] = robot->chassis->yaw_prostrate_PID.Ref;
+  visualized_data[0] = robot->chassis->joint_motor[0]->measure.position;
+  visualized_data[1] = robot->chassis->joint_motor[1]->measure.position;
+  visualized_data[2] = robot->chassis->joint_motor[2]->measure.position;
+  visualized_data[3] = robot->chassis->joint_motor[3]->measure.position;
 
 #endif
   VOFAJustFloatSend(visualized_data, 20);

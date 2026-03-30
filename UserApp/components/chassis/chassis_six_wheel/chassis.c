@@ -174,10 +174,11 @@ void ChassisProstrateMode(void) {
 
 static void EnableJointMotor() {
   for (int i = 0; i < 4; i++) DMMotorOuterLoop(chassis->joint_motor[i], ANGLE_LOOP);
-  DMMotorSetPIDRef(chassis->joint_motor[0], 0.1f);
-  DMMotorSetPIDRef(chassis->joint_motor[1], -0.1f);
-  DMMotorSetPIDRef(chassis->joint_motor[2], 0.1f);
-  DMMotorSetPIDRef(chassis->joint_motor[3], -0.1f);
+
+  DMMotorSetPIDRef(chassis->joint_motor[0], -0.1f);
+  DMMotorSetPIDRef(chassis->joint_motor[1], 0.1f);
+  DMMotorSetPIDRef(chassis->joint_motor[2], -0.1f);
+  DMMotorSetPIDRef(chassis->joint_motor[3],  0.1f);
 }
 
 /**
@@ -194,9 +195,10 @@ static void LimitChassisOutput(void) {
     DJIMotorSetPIDRef(chassis->wheel_motor[i], wheel_speed_ref[i]);
   }
   // 不使能关节电机
-  for (int i = 0; i < 4; i++) DMMotorStop(chassis->joint_motor[i]);
+  //
   // 使能关节电机，锁死
-  // EnableJointMotor();
+
+  EnableJointMotor();
   PowerControl();
 }
 
