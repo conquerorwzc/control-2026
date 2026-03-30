@@ -146,7 +146,7 @@ void JoyStickCtrl(RobotInstance* robot) {
       // float target_angle_to_chassis_p = target_angle_to_gimbal_p + robot->offset_angle * DEGREE_2_RAD;
       // chassis_ctrl_cmd->vx = input_mag * sinf(target_angle_to_chassis_p + 0.03f);
        chassis_ctrl_cmd->is_rotate = 1;
-       chassis_ctrl_cmd->wz = 500.0f;
+       chassis_ctrl_cmd->wz = 600.0f;
       break;
     }
     case ROBOT_CHASSIS_PROSTRATE_FREE: {
@@ -313,7 +313,7 @@ void MouseKeyCtrl(RobotInstance* robot) {
       // chassis_ctrl_cmd->vx = input_mag * sinf(target_angle_to_chassis_p + 0.03f);
       // break;
       chassis_ctrl_cmd->is_rotate = 1;
-      chassis_ctrl_cmd->wz = 500.0f;
+      chassis_ctrl_cmd->wz = 600.0f;
       break;
     case ROBOT_CHASSIS_PROSTRATE_FOLLOW:
 #if (!defined(ONE_BOARD))
