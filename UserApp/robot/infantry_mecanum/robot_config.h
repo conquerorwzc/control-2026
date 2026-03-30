@@ -227,14 +227,14 @@ static Shoot_Init_Config_s shoot_init_config = {
            .friction_num = 2,
            .friction_speed = 36000.0f,
            .friction_coefficients = {1.0f, -1.0f}, //摩擦轮速度比例系数
-           .deadtime_burstfire = 80,                 // 连发死时间
+           .deadtime_burstfire = 100,                 // 连发死时间
            .deadtime_onebullet = 120,               // 单发死时间
            .target_speed = 22.0f,//目标弹速
            .bullet_speed_deadband = 0.5f,//弹速死区，hero小些，步兵可以大些
-           .bullet_speed_adjustment = 0.0f,
+           .bullet_speed_adjustment = 400.0f,
            .one_barrel_heat_value = 10,//一发弹丸所需热量
-           .shooter_barrel_cooling_value = 24,//每秒冷却回复
-           .shooter_barrel_heat_limit = 88,//热量上限
+           .shooter_barrel_cooling_value = 40,//每秒冷却回复
+           .shooter_barrel_heat_limit = 210,//热量上限
         },
     .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan2, 1, MOTOR_DIRECTION_NORMAL),
     .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan2, 2, MOTOR_DIRECTION_NORMAL),
@@ -257,7 +257,7 @@ static Shoot_Init_Config_s shoot_init_config = {
                             .Kd = 0.0f,
                             .Improve = PID_Integral_Limit | PID_ErrorHandle,
                             .IntegralLimit = 3000.0f,
-                            .MaxOut = 4000.0f,
+                            .MaxOut = 10000.0f,
                         },
                 },
             .motor_type = M2006, //拨盘电机为M2006
@@ -285,7 +285,7 @@ static Shoot_Init_Config_s shoot_init_config = {
 
 static SuperCap_Init_Config_s super_cap_config = {
   .can_config = {
-    .can_handle = &hcan2,
+    .can_handle = &hcan1,
     .tx_id = 0x210,  // 超级电容默认接收id
     .rx_id = 0x211,  // 超级电容默认发送id,注意tx和rx在其他人看来是反的
 }};

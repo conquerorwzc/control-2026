@@ -17,9 +17,9 @@ static float friction_coefficients[FRICTION_NUM];
 
 static float loader_set = 0;       // 波胆盘速度
 static float friction_set = 0;     // 摩擦轮速度
-float actual_bullet_speed; // 调试用，后续从裁判系统中获取
+static float actual_bullet_speed; // 调试用，后续从裁判系统中获取
 // 波弹盘位置初始化标志
-//  static uint8_t loader_position_init=0;
+static uint8_t loader_position_init=0;
 
 static float hibernate_time = 0, dead_time = 0;// 休眠时间戳
 static float deadtime_burstfire;//连发间隔
@@ -35,6 +35,9 @@ static uint16_t one_barrel_heat_value;         // 发射一个弹丸的热量
 static int16_t  remain_heat;                   // 剩余热量
 static float shooter_barrel_heat;           // 计算的机器人当前射击热量，此变量只在模拟模式下使用
 static float  heat_cooling_time;               // 用于计算冷却时间，此变量只在模拟模式下使用
+static uint16_t bullet_num;                    //用于计算弹丸发射数量
+static uint16_t laster_bullet_num;             //上一次弹丸发射数量
+static float loader_init_angle;                //拨弹盘初始角度
 
 ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
   ShootInstance* shoot_instance = (ShootInstance*)zmalloc(sizeof(ShootInstance));
@@ -107,6 +110,10 @@ void HeatControl() {
         remain_heat = shooter_barrel_heat_limit-shoot_ctrl_cmd->shooter_barrel_heat;
       break;
     case SIMULLATE_CONTROL:
+        bullet_num=(abs(shoot->loader_motor->measure.total_angle)-abs(loader_position_init))/(one_bullet_delta_angle * reduction_ratio_loader * loader_direction);
+        if (bullet_num!=laster_bullet_num) {
+          shooter_barrel_heat+=one_barrel_heat_value;
+        }
       //冷却恢复，每1s回24点
       if (DWT_GetTimeline_ms() - heat_cooling_time >= 100)
       {
@@ -129,7 +136,15 @@ void HeatControl() {
 
 
 /* 机器人发射机构控制核心任务 */
-void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，因为之前哨兵是双枪管的，时代的眼泪
+void ShootTask() {
+  if (shoot->loader_motor->measure.total_angle!=0&&loader_init_angle==0) {
+    loader_position_init=1;
+  }
+  if (loader_position_init==1) {
+    loader_init_angle=shoot->loader_motor->measure.total_angle;
+    loader_position_init=0;
+  }
+  // 遍历实例去控制，目前只有shoot这个写法，因为之前哨兵是双枪管的，时代的眼泪
   if (shoot_ctrl_cmd->shoot_mode == SHOOT_OFF) {
     for (int j = 0; j < FRICTION_NUM; j++) DJIMotorSetPIDRef(shoot->friction_motor[j], 0);
     DJIMotorStop(shoot->loader_motor);
@@ -145,17 +160,17 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
     }
   }
 
-  HeatControl();
   // 如果上一次触发单发或3发指令的时间加上不应期仍然大于当前时间(尚未休眠完毕),直接返回即可
   if (hibernate_time + dead_time > DWT_GetTimeline_ms()) return;
   ;
 
-  if (shoot->loader_motor->motor_controller.speed_PID.ERRORHandler.ERRORType == PID_MOTOR_BLOCKED_ERROR) {
-    shoot->loader_motor->motor_controller.speed_PID.ERRORHandler.ERRORType = PID_ERROR_NONE;  // 清空标志位
-    shoot_ctrl_cmd->load_mode = LOAD_REVERSE;
-  }
+  // if (shoot->loader_motor->motor_controller.speed_PID.ERRORHandler.ERRORType == PID_MOTOR_BLOCKED_ERROR) {
+  //   shoot->loader_motor->motor_controller.speed_PID.ERRORHandler.ERRORType = PID_ERROR_NONE;  // 清空标志位
+  //   shoot_ctrl_cmd->load_mode = LOAD_REVERSE;
+  // }
 
   // 若不在休眠状态,根据robotCMD传来的控制模式进行拨盘电机参考值设定和模式切换
+  HeatControl();
   switch (shoot_ctrl_cmd->load_mode) {
     // 停止拨盘
     case LOAD_STOP:
@@ -168,9 +183,6 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
       DJIMotorOuterLoop(shoot->loader_motor, ANGLE_LOOP);  // 切换到角度环
       loader_set = shoot->loader_motor->measure.total_angle +
                    one_bullet_delta_angle * reduction_ratio_loader * loader_direction;  // 控制量增加一发弹丸的角度
-      if(shoot_ctrl_cmd->heat_mode==SIMULLATE_CONTROL) {
-        shooter_barrel_heat += one_barrel_heat_value;  // 增加一发弹丸消耗热量，只在模拟控制中有效
-      }
       hibernate_time = DWT_GetTimeline_ms();                                            // 记录触发指令的时间
       dead_time = deadtime_onebullet;                                                   // 完成1发弹丸发射的时间
       break;
@@ -180,9 +192,6 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
       DJIMotorOuterLoop(shoot->loader_motor, ANGLE_LOOP);  // 切换到角度环
       loader_set = shoot->loader_motor->measure.total_angle +
                    one_bullet_delta_angle * reduction_ratio_loader * loader_direction;  // 控制量增加一发弹丸的角度
-      if (shoot_ctrl_cmd->heat_mode == SIMULLATE_CONTROL) {
-        shooter_barrel_heat += one_barrel_heat_value;//增加一发弹丸消耗热量，只在模拟控制中有效
-      }
       hibernate_time = DWT_GetTimeline_ms();                                            // 记录触发指令的时间
 
       dead_time = deadtime_burstfire;                                                   // 弹频
@@ -209,6 +218,6 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
   {
     friction_set = 0;
   }
-
+  laster_bullet_num=bullet_num;
   // Todo: 反馈数据,目前暂时没有要设定的反馈数据,后续可能增加应用离线监测以及卡弹反馈
 }

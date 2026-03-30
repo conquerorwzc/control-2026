@@ -24,6 +24,10 @@ static float vx_initial;   //x轴输入控制量
 static float vy_initial;   //y轴输入控制量
 static float angle;
 static float last_yaw;
+static int16_t referee_power_limit;
+static uint16_t buffer_energy;
+static uint16_t chassis_output;
+
 // static  DJIMotorInstance* debug_motor;
 
 /**
@@ -159,7 +163,7 @@ static void MouseKeySet() {
 if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   {
   gimbal_ctrl_cmd->yaw -= (float)rc_data[TEMP].mouse.x * 0.007f;  // 横向灵敏度调节
-  gimbal_ctrl_cmd->pitch += (float)rc_data[TEMP].mouse.y * 0.003f; // 纵向灵敏度调节 (负号反转Y轴)
+  gimbal_ctrl_cmd->pitch -= (float)rc_data[TEMP].mouse.y * 0.003f; // 纵向灵敏度调节 (负号反转Y轴)
   }
 
   switch (rc_data[TEMP].mouse.press_r % 2) {  //右键进入自瞄预备模式
@@ -223,49 +227,38 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
       chassis_ctrl_cmd->chassis_speed_buff = 40000;
       break;
   }
-  // switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Q]%2) //新增Q自旋开启
+  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Q]%2) //新增Q自旋开启
+  {
+    case 0:
+      chassis_ctrl_cmd-> chassis_mode = CHASSIS_FOLLOW ;
+      chassis_ctrl_cmd->wz+=(float)rc_data[TEMP].mouse.x * 30.0f; //主动跟随量
+      break;
+    default:
+      chassis_ctrl_cmd-> chassis_mode = CHASSIS_ROTATE ;
+      chassis_ctrl_cmd->wz=5000;
+      break;
+  }
+  // switch (rc_data[TEMP].key_count[KEY_PRESS][Key_V] % 3)  // Q按键设置热量控制类型
   // {
   //   case 0:
-  //     chassis_ctrl_cmd-> chassis_mode = CHASSIS_FOLLOW ;
-  //     chassis_ctrl_cmd->wz+=(float)rc_data[TEMP].mouse.x * 30.0f; //主动跟随量
+  //     shoot_ctrl_cmd->heat_mode=REFEREE_CONTROL;
   //     break;
+  //   case 1:
+  //     shoot_ctrl_cmd->heat_mode=SIMULLATE_CONTROL;
+  //     break;
+  //   case 2:
+  //     shoot_ctrl_cmd->heat_mode=NO_CONTROL;
   //   default:
-  //     chassis_ctrl_cmd-> chassis_mode = CHASSIS_ROTATE ;
   //     break;
   // }
-  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Q] % 3)  // Q按键设置热量控制类型
-  {
-    case 0:
-      shoot_ctrl_cmd->heat_mode=REFEREE_CONTROL;
-      break;
-    case 1:
-      shoot_ctrl_cmd->heat_mode=SIMULLATE_CONTROL;
-      break;
-    case 2:
-      shoot_ctrl_cmd->heat_mode=NO_CONTROL;
-    default:
-      break;
-  }
-
-  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 3)  // E按键设置热量控制类型
-  {
-    case 0:
-      shoot_ctrl_cmd->bullet_speed_mode=ENABLE_BULLET_SPEED;
-      break;
-    case 1:
-      shoot_ctrl_cmd->bullet_speed_mode=MANUAL_BULLET_SPEED;
-      if (rc_data[TEMP].key[KEY_PRESS].z==1&&rc_data_last[TEMP].key[KEY_PRESS].z==0) {
-        shoot_ctrl_cmd->friction_speed+=shoot_init_config.shoot_param.bullet_speed_adjustment;
+      if (shoot_ctrl_cmd->bullet_speed_mode==MANUAL_BULLET_SPEED) {
+        if (rc_data[TEMP].key[KEY_PRESS].z==1&&rc_data_last[TEMP].key[KEY_PRESS].z==0) {
+          shoot_ctrl_cmd->friction_speed+=shoot_init_config.shoot_param.bullet_speed_adjustment;
+        }
+        else if (rc_data[TEMP].key[KEY_PRESS].x==1&&rc_data_last[TEMP].key[KEY_PRESS].x==0) {
+          shoot_ctrl_cmd->friction_speed-=shoot_init_config.shoot_param.bullet_speed_adjustment;
+        }
       }
-      else if (rc_data[TEMP].key[KEY_PRESS].x==1&&rc_data_last[TEMP].key[KEY_PRESS].x==0) {
-        shoot_ctrl_cmd->friction_speed-=shoot_init_config.shoot_param.bullet_speed_adjustment;
-      }
-      break;
-    case 2:
-      shoot_ctrl_cmd->bullet_speed_mode=DISABLE_BULLET_SPEED;
-    default:
-      break;
-  }
   if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
     gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
   } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
@@ -353,8 +346,12 @@ void RobotInit() {
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;
-  shoot_ctrl_cmd->bullet_speed_mode=ENABLE_BULLET_SPEED;
+  shoot_ctrl_cmd->bullet_speed_mode=MANUAL_BULLET_SPEED;
+  shoot_ctrl_cmd->heat_mode=SIMULLATE_CONTROL;
   vision_recv_data=VisionInit(&gimbal_init_config.imu_init_config);
+  referee_power_limit = 75;
+  buffer_energy = 60;
+  chassis_output = 1;
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
@@ -365,7 +362,7 @@ void RobotCMDTask() {
   // robot->gimbal->gimbal_ctrl_cmd.pitch=30;
   // robot->gimbal->gimbal_ctrl_cmd.yaw=0;
   //}
-  chassis_ctrl_cmd->max_power = 70; //robot->referee_data->GameRobotState.chassis_power_limit4
+  chassis_ctrl_cmd->max_power = 115; //robot->referee_data->GameRobotState.chassis_power_limit4
   shoot_ctrl_cmd->initial_speed=robot->referee_data->ShootData.initial_speed;
   shoot_ctrl_cmd->shooter_barrel_heat=robot->referee_data->PowerHeatData.shooter_42mm_barrel_heat;
   CalcOffsetAngle();
@@ -384,13 +381,12 @@ void RobotTask() {
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   ChassisTask();
+  SuperCapSendMessage(robot->super_cap,
+    referee_power_limit,
+    buffer_energy,
+    chassis_output);
 #endif
 
-//   SuperCapSendMessage(robot->super_cap,
-//       (int16_t)robot->referee_data->GameRobotState.chassis_power_limit,
-//       robot->referee_data->PowerHeatData.buffer_energy,
-//       robot->referee_data->GameRobotState.power_management_chassis_output);
-// }
 
   SuperCapSendMessage(robot->super_cap,60,0,1);
 }
