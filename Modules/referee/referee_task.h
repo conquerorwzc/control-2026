@@ -2,7 +2,7 @@
 #define REFEREE_H
 
 #include "rm_referee.h"
-
+#include "robot.h"
 //车辆示宽线
 #define WIDTHLINE_UP                330  //上方间距
 #define WIDTHLINE_DOWN              610  //下方间距
@@ -57,12 +57,11 @@ typedef struct
     float pitch_angle; // 云台俯仰角
     uint8_t Shoot_heat;
     float Shoot_rate;
-    uint8_t autoaim_mode;           // 当前自瞄模式 (0/1/2)
+    uint8_t autoaim_mode;            // 当前自瞄模式 (0/1/2)
     float cap_voltage;               // 电容电压 (V)
-    uint8_t cap_mode;                // 电容模式 (0关/1开/2超级)
     uint16_t bullet_left_real;       // 实体弹丸剩余量
-    uint16_t fric_speed_left;         // 左摩擦轮转速
-    uint16_t fric_speed_right;        // 右摩擦轮转速
+    uint16_t fric_speed_left;        // 左摩擦轮转速
+    uint16_t fric_speed_right;       // 右摩擦轮转速
     float chassis_relative_angle;    // 底盘相对角度 (弧度)
 
     // 上一次的模式，用于flag判断
@@ -70,6 +69,7 @@ typedef struct
     Gimbal_Mode_e gimbal_last_mode;
     Shoot_Mode_e shoot_last_mode;
     Friction_Mode_e friction_last_mode;
+  uint8_t force_refresh_ui;
     lid_mode_e lid_last_mode;
     Chassis_Power_Data_s Chassis_last_Power_Data;
     float last_pitch_angle; // 上一次的俯仰角
