@@ -149,14 +149,20 @@ static Chassis_Init_Config_s chassis_init_config = {
     .joint_motor_config[1] = JOINT_MOTOR_CONFIG(MOTOR_DIRECTION_NORMAL, MOTOR_DIRECTION_NORMAL, &hcan2, 0x06, 0x03),
     .joint_motor_config[2] = JOINT_MOTOR_CONFIG(MOTOR_DIRECTION_REVERSE, MOTOR_DIRECTION_REVERSE, &hcan2, 0x08, 0x04),
     .joint_motor_config[3] = JOINT_MOTOR_CONFIG(MOTOR_DIRECTION_REVERSE, MOTOR_DIRECTION_REVERSE, &hcan2, 0x0A, 0x05),
-    .imu_init_config = {.flag = 1,
-                        .scale = {1.0f, 1.0f, 1.0f},
+    .imu_init_config = {
+        .flag = 0,
+        .scale = {1.0f, 1.0f, 1.0f},
                         .Yaw = 0.0f,
                         .Pitch = 180.0f,
                         .Roll = 0.0f,
                         .CenterOffset[0] = 0.15413f,
-                        .CenterOffset[1] = 0.04612f,
-                        .CenterOffset[2] = 0.09348f}};
+        .CenterOffset[1] = 0.04612f,
+        .CenterOffset[2] = 0.09348f,
+        .GyroOffset[0] = 0.00708952406,
+        .GyroOffset[1] = 0.00323308632,
+        .GyroOffset[2] = 0.00078589347,
+        .offset_flag = 1,
+    }};
 
 static Gimbal_Init_Config_s gimbal_init_config = {
     .yaw_motor_config =
@@ -233,7 +239,18 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 },
             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
         },
-    .imu_init_config = {.flag = 1, .scale = {1.0f, 1.0f, 1.0f}, .Yaw = -90.0f, .Pitch = 0.0f, .Roll = 0.0f},
+    .imu_init_config =
+        {
+            .flag = 1,
+            .scale = {1.0f, 1.0f, 1.0f},
+            .Yaw = -90.0f,
+            .Pitch = 0.0f,
+            .Roll = 0.0f,
+            .GyroOffset[0] = -0.00141212414,
+            .GyroOffset[1] = -0.00228273682,
+            .GyroOffset[2] = 0.00107576093,
+            .offset_flag = 1,
+        },
     .pitch_feedforward_scale = 7000.0f};
 
 #define FRICTION_MOTOR_CONFIG(handle, id, motor_direction, feedback_direction) \
