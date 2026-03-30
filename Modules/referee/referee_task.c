@@ -120,11 +120,11 @@ static void UIChangeCheck(Referee_Interactive_info_t *_Interactive_data) {
     _Interactive_data->last_autoaim_mode = _Interactive_data->autoaim_mode;
   }
 
-  if (fabsf(_Interactive_data->cap_voltage - _Interactive_data->last_cap_voltage) > 0.1f ||
-      _Interactive_data->cap_mode != _Interactive_data->last_cap_mode) {
+  if (fabsf(_Interactive_data->cap_voltage - _Interactive_data->last_cap_voltage) > 0.1f
+      ) {
     _Interactive_data->Referee_Interactive_Flag.cap_flag = 1;
     _Interactive_data->last_cap_voltage = _Interactive_data->cap_voltage;
-    _Interactive_data->last_cap_mode = _Interactive_data->cap_mode;
+
   }
   if (_Interactive_data->bullet_left_real != _Interactive_data->last_bullet_left_real) {
     _Interactive_data->Referee_Interactive_Flag.ammo_flag = 1;
@@ -217,26 +217,11 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data) {
   // 电容能量圆弧
   if (interactive_data->Referee_Interactive_Flag.cap_flag == 1) {
     float volt = interactive_data->cap_voltage;
-    uint8_t mode = interactive_data->cap_mode;
     float bar = (volt - 16.0f) / (23.0f - 16.0f) * 40.0f;
     if (bar < 1) bar = 1;
     if (bar > 40) bar = 40;
     uint32_t end_angle = 270 + (uint32_t)bar;
     uint32_t color;
-    switch (mode) {
-      case 0:
-        color = UI_Color_Pink;
-        break;
-      case 1:
-        color = UI_Color_Green;
-        break;
-      case 2:
-        color = UI_Color_Cyan;
-        break;
-      default:
-        color = UI_Color_Orange;
-        break;
-    }
     UIArcDraw(&UI_cap_arc, "ap0", UI_Graph_Change, 6, color, 270, end_angle, 22, 960, 540, 370, 370);
     UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_cap_arc);
     interactive_data->Referee_Interactive_Flag.cap_flag = 0;
@@ -570,7 +555,6 @@ void UITask() {
   interactive_data.shoot_mode = robot->shoot->shoot_ctrl_cmd.shoot_mode;
   interactive_data.friction_mode = robot->shoot->shoot_ctrl_cmd.friction_mode;
   interactive_data.cap_voltage = robot->super_cap->cap_msg.cap_v;
-  interactive_data.cap_mode = robot->chassis->super_cap_mode;
 
   // 动态数值（如果这里的变量名和你的底层解算名字不一致，请手动微调一下）
   interactive_data.pitch_angle = robot->gimbal->gimbal_ctrl_cmd.pitch;                      // 俯仰角
