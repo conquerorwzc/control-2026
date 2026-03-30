@@ -29,6 +29,9 @@
 // bsp
 #include "bsp_init.h"
 
+#include "referee_task.h"
+
+// #include "referee_task.h"
 
 osThreadId motorTaskHandle;
 osThreadId daemonTaskHandle;
@@ -58,8 +61,8 @@ void OSTaskInit() {
   osThreadDef(robottask, StartROBOTTASK, osPriorityNormal, 0, 1024);
   robotTaskHandle = osThreadCreate(osThread(robottask), NULL);
 
-  // osThreadDef(uitask, StartUITASK, osPriorityNormal, 0, 512);
-  // uiTaskHandle = osThreadCreate(osThread(uitask), NULL);
+   osThreadDef(uitask, StartUITASK, osPriorityBelowNormal, 0, 512);
+   uiTaskHandle = osThreadCreate(osThread(uitask), NULL);
 
   // 初始化完成,开启中断
   __enable_irq();
@@ -112,15 +115,15 @@ __attribute__((noreturn)) void StartROBOTTASK(void const *argument) {
   }
 }
 
-#if 0
+
 __attribute__((noreturn)) void StartUITASK(void const *argument) {
   LOGINFO("[freeRTOS] UI Task Start");
+  osDelay(100);
   MyUIInit();
   LOGINFO("[freeRTOS] UI Init Done, communication with ref has established");
   for (;;) {
     // 每给裁判系统发送一包数据会挂起一次,详见UITask函数的refereeSend()
     UITask();
-    osDelay(1);  // 即使没有任何UI需要刷新,也挂起一次,防止卡在UITask中无法切换
+    osDelay(30);  // 即使没有任何UI需要刷新,也挂起一次,防止卡在UITask中无法切换
   }
 }
-#endif

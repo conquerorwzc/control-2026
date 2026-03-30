@@ -515,3 +515,6 @@ void RobotTask() {
       robot->referee_data->GameRobotState.power_management_chassis_output);
 
 }
+RobotInstance* getRobot() {
+  return robot;
+}
