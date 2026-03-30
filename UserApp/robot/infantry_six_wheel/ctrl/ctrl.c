@@ -146,7 +146,7 @@ void JoyStickCtrl(RobotInstance* robot) {
       // float target_angle_to_chassis_p = target_angle_to_gimbal_p + robot->offset_angle * DEGREE_2_RAD;
       // chassis_ctrl_cmd->vx = input_mag * sinf(target_angle_to_chassis_p + 0.03f);
        chassis_ctrl_cmd->is_rotate = 1;
-       chassis_ctrl_cmd->wz = 250.0f;
+       chassis_ctrl_cmd->wz = 500.0f;
       break;
     }
     case ROBOT_CHASSIS_PROSTRATE_FREE: {
@@ -160,7 +160,7 @@ void JoyStickCtrl(RobotInstance* robot) {
       break;
   }
   //  记录上一次数据
-  // rc_data_last = rc_data[TEMP];
+  rc_data_last = rc_data[TEMP];
 }
 
 void MouseKeyCtrl(RobotInstance* robot) {
@@ -221,8 +221,7 @@ void MouseKeyCtrl(RobotInstance* robot) {
   // 2.2 射击控制逻辑,[左键]射击
   if (rc_data[TEMP].mouse.press_l) {
     // 校验：摩擦轮开启
-    if (shoot_ctrl_cmd->friction_mode == FRICTION_ON &&
-        (vision_recv_data->shoot_receive.fire_flag || rc_data[TEMP].mouse.press_r % 2 == 0)) {
+    if (shoot_ctrl_cmd->friction_mode == FRICTION_ON) {
       // 默认先设为单发
       shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
       // 检查按下的持续时间 (当前时间 - 上次松开的时间/按下起始时间),超过1秒，覆盖为连发
@@ -314,7 +313,7 @@ void MouseKeyCtrl(RobotInstance* robot) {
       // chassis_ctrl_cmd->vx = input_mag * sinf(target_angle_to_chassis_p + 0.03f);
       // break;
       chassis_ctrl_cmd->is_rotate = 1;
-      chassis_ctrl_cmd->wz = 250.0f;
+      chassis_ctrl_cmd->wz = 500.0f;
       break;
     case ROBOT_CHASSIS_PROSTRATE_FOLLOW:
 #if (!defined(ONE_BOARD))

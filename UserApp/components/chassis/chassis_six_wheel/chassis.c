@@ -21,7 +21,8 @@ static Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd;
 static referee_info_t* referee_data;
 
 static float wheel_speed_ref[2];
-static float k0 = 0.7441993412640775f, k1 = 0.0090164284468539646f, k2 = 0.0001988857226262331f,
+static float power_control_k_coff = 1.0f;
+static float k0 = 0.7441993412640775f , k1 = 0.0090164284468539646f, k2 = 0.0001988857226262331f,
              k3 = 0.024694430204543864f, k4 = 0.20160143850678086f, k5 = 3.715221772539512e-05f;  // 中科大的功率模型
 /**
  * @brief   超电取电策略
@@ -69,6 +70,12 @@ static void SuperCapModeControl() {
  */
 static void PowerControl() {
   // 获取电机速度反馈,化成单位rad/s
+  k0 *= power_control_k_coff;
+  k1 *= power_control_k_coff;
+  k2 *= power_control_k_coff;
+  k3 *= power_control_k_coff;
+  k4 *= power_control_k_coff;
+  k5 *= power_control_k_coff;
   float motor_speed_fdb[2];
   for (int i = 0; i < 2; i++) {
     motor_speed_fdb[i] = (float)chassis->wheel_motor[i]->measure.speed_aps / 6.f;
@@ -147,7 +154,7 @@ static void PowerControl() {
  */
 void ChassisProstrateMode(void) {
 #define VX_TO_MOTOR (30000.0f / 660.0f)
-#define WZ_PID_TO_MOTOR 50000.0f
+#define WZ_PID_TO_MOTOR 10000.0f
 #define WZ_FF_TO_MOTOR (28000.0f / 660.0f)  // wz 前馈(摇杆量级) → 电机量
   float vx_motor = 0.0f;
   float wz_motor = 0.0f;

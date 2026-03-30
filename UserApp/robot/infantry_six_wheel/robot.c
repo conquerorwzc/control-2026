@@ -53,9 +53,16 @@ void VOFATask() {
   // visualized_data[9] = robot->gimbal->yaw_motor->motor_controller.pid_ref;
   // visualized_data[10] = robot->gimbal->pitch_motor->motor_controller.final_output;
   // visualized_data[11] = shoot_init_config.shoot_param.shooter_barrel_cooling_value;
+  // visualized_data[0] = shoot_ctrl_cmd->shooter_barrel_heat;
+  // visualized_data[1] = robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
 
-  visualized_data[0] = shoot_ctrl_cmd->shooter_barrel_heat;
-  visualized_data[1] = robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
+  visualized_data[0] = robot->chassis->chassis_ctrl_cmd.target_yaw;
+  visualized_data[1] = robot->chassis->yaw_prostrate_PID.Measure;
+  visualized_data[2] = robot->chassis->yaw_prostrate_PID.Ref;
+  visualized_data[3] = robot->gimbal->gimbal_IMU_data->YawTotalAngle;
+  visualized_data[4] = robot->offset_angle;
+  visualized_data[5] = YAW_ALIGN_ANGLE;
+  visualized_data[6] = robot->gimbal->yaw_motor->measure.angle_single_round;
 #elif defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   visualized_data[0] = robot->chassis->chassis_ctrl_cmd.target_yaw;
   visualized_data[0] = robot->chassis->yaw_prostrate_PID.Measure;
@@ -109,6 +116,7 @@ static void DoubleBoardComms() {
   // 接收底盘回传数据
   *chassis_upload_data = *(Chassis_Upload_Data_s*)CANCommGet(robot->can_comm);
   robot->chassis->imu->Pitch = chassis_upload_data->Pitch;
+  robot->chassis->imu->YawTotalAngle = chassis_upload_data->YawTotalAngle;
   shoot_ctrl_cmd->initial_speed = chassis_upload_data->bullet_speed;
   shoot_ctrl_cmd->shooter_barrel_heat = chassis_upload_data->shooter_17mm_barrel_heat;
   shoot_ctrl_cmd->shooter_barrel_heat_limit = chassis_upload_data->shoot_heat_limit;
@@ -122,6 +130,7 @@ static void DoubleBoardComms() {
   robot->chassis->chassis_ctrl_cmd = chassis_fetch_data->chassis_ctrl_cmd;
   // 发送底盘回传数据
   chassis_upload_data->Pitch = robot->chassis->imu->Pitch;
+  chassis_upload_data->YawTotalAngle = robot->chassis->imu->YawTotalAngle;
   chassis_upload_data->bullet_speed = robot->referee_data->ShootData.initial_speed;
   chassis_upload_data->robot_id = robot->referee_data->GameRobotState.robot_id;
   chassis_upload_data->shooter_17mm_barrel_heat = robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
@@ -172,7 +181,7 @@ void RobotCMDTask() {
 // 控制板指令处理与控制逻辑 (只有底盘板不用处理)
 #if !defined(CHASSIS_BOARD)
   JoyStickCtrl(robot);
-  MouseKeyCtrl(robot);
+  // MouseKeyCtrl(robot);
 #if defined(GIMBAL_BOARD)
   CalcOffsetAngle();
   // GimbalAlignToChassisForward();

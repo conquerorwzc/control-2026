@@ -13,6 +13,7 @@
 #pragma pack(1)
 typedef struct {
   float Pitch;          // 俯仰角(绕Y轴旋转) 单位: °
+  float YawTotalAngle;
   float bullet_speed;
   uint8_t robot_id;
   int shooter_17mm_barrel_heat;

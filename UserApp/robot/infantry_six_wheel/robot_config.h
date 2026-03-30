@@ -138,7 +138,7 @@ static Chassis_Init_Config_s chassis_init_config = {
         {
             .Kp = 2.0f,
             .Ki = 0.0f,
-            .Kd = 0.0f,
+            .Kd = 0.02f,
             .MaxOut = 6.0f,
             .DeadBand = 0.01f,
             .IntegralLimit = 3.0f,
