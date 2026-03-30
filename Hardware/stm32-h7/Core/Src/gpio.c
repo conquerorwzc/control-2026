@@ -53,8 +53,10 @@ void MX_GPIO_Init(void)
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, POWER_24V_L_Pin|POWER_24V_R_Pin|POWER_5V_Pin|ACC_CS_Pin
-                          |GYRO_CS_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, POWER_24V_L_Pin|POWER_24V_R_Pin|ACC_CS_Pin|GYRO_CS_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(POWER_5V_GPIO_Port, POWER_5V_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pins : POWER_24V_L_Pin POWER_24V_R_Pin POWER_5V_Pin ACC_CS_Pin
                            GYRO_CS_Pin */

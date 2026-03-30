@@ -35,6 +35,7 @@ static Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd;
 static Gimbal_Ctrl_Cmd_s* gimbal_ctrl_cmd;
 static Shoot_Ctrl_Cmd_s* shoot_ctrl_cmd;
 static Vision_Receive_s* vision_recv_data;
+
 // vofa数据
 float visualized_data[20];
 
@@ -162,8 +163,7 @@ static void CalcOffsetAngle() {
  * 对齐完成前持续强制 CHASSIS_RECOVERY；对齐后放行，恢复正常控制。
  * 必须在 CalcOffsetAngle() 之后调用。
  */
-static void GimbalAlignToChassisForward(void) {
-}
+static void GimbalAlignToChassisForward(void) {}
 
 /**
  * @brief 机器人核心控制任务，200 Hz 频率运行（必须高于视觉发送频率）
@@ -184,7 +184,7 @@ void RobotCMDTask() {
 // 双板通信
 #if !defined(ONE_BOARD)
   static uint8_t comm_divider = 0;
-  if (++comm_divider >= 3) {
+  if (++comm_divider >= 10) {
     comm_divider = 0;
     DoubleBoardComms();
   }
@@ -194,6 +194,7 @@ void RobotCMDTask() {
 void RobotInit() {
   robot = (RobotInstance*)zmalloc(sizeof(RobotInstance));
 #if !defined(CHASSIS_BOARD)
+
   // 遥控器初始化
 #if defined(STM32F4)
   robot->rc_data = RemoteControlInit(&huart3);
@@ -201,7 +202,7 @@ void RobotInit() {
   robot->rc_data = RemoteControlInit(&huart5);
 #endif
 #endif
-#if !defined(GIMBAL_BOARD)
+#if !defined(GIMBAL_BOARD)  // PC15 引脚初始化并注册为 GPIO 输出
   robot->referee_data = RefereeInit(&huart7);  // 裁判系统初始化
   // robot->super_cap = SuperCapInit(&super_cap_config);
   robot->chassis = ChassisInit(&chassis_init_config);
