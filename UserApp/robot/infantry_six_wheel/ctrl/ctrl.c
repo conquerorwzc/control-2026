@@ -146,7 +146,7 @@ void JoyStickCtrl(RobotInstance* robot) {
       // float target_angle_to_chassis_p = target_angle_to_gimbal_p + robot->offset_angle * DEGREE_2_RAD;
       // chassis_ctrl_cmd->vx = input_mag * sinf(target_angle_to_chassis_p + 0.03f);
        chassis_ctrl_cmd->is_rotate = 1;
-       chassis_ctrl_cmd->wz = 600.0f;
+       chassis_ctrl_cmd->wz = 700.0f;
       break;
     }
     case ROBOT_CHASSIS_PROSTRATE_FREE: {
@@ -269,7 +269,6 @@ void MouseKeyCtrl(RobotInstance* robot) {
   if (rc_data[TEMP].key[KEY_PRESS].c != c_key_last) {
     if (rc_data[TEMP].key[KEY_PRESS].c) {
       // 超级电容开关
-      // 待添加...
     }
     c_key_last = rc_data[TEMP].key[KEY_PRESS].c;
   }
@@ -313,7 +312,7 @@ void MouseKeyCtrl(RobotInstance* robot) {
       // chassis_ctrl_cmd->vx = input_mag * sinf(target_angle_to_chassis_p + 0.03f);
       // break;
       chassis_ctrl_cmd->is_rotate = 1;
-      chassis_ctrl_cmd->wz = 600.0f;
+      chassis_ctrl_cmd->wz = 700.0f;
       break;
     case ROBOT_CHASSIS_PROSTRATE_FOLLOW:
 #if (!defined(ONE_BOARD))
@@ -327,9 +326,9 @@ void MouseKeyCtrl(RobotInstance* robot) {
         chassis_vy += 0.0f;
 
       if (rc_data[TEMP].key[KEY_PRESS].d)
-        chassis_vx += 200.0f * speed_coff;
+        chassis_vx += 400.0f * speed_coff;
       else if (rc_data[TEMP].key[KEY_PRESS].a)
-        chassis_vx += -200.0f * speed_coff;
+        chassis_vx += -400.0f * speed_coff;
       else
         chassis_vx += 0.0f;
 
