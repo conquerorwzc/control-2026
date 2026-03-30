@@ -62,8 +62,10 @@ typedef struct
     uint16_t bullet_left_real;       // 实体弹丸剩余量
     uint16_t fric_speed_left;        // 左摩擦轮转速
     uint16_t fric_speed_right;       // 右摩擦轮转速
+    uint16_t fric_speed_mid;
     float chassis_relative_angle;    // 底盘相对角度 (弧度)
-
+    BULLET_Speed_Mode_e bullet_speed_mode_e;
+    HEAT_Mode_e heat_mode_e;
     // 上一次的模式，用于flag判断
     Chassis_Mode_e chassis_last_mode;
     Gimbal_Mode_e gimbal_last_mode;

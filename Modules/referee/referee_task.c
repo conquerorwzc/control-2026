@@ -35,10 +35,16 @@ static void DeterminRobotID() {
   referee_recv_info->referee_id.Receiver_Robot_ID = 0;
 }
 
-static Graph_Data_t UI_shoot_line[10];  // 射击准线
-static Graph_Data_t UI_Energy[3];       // 电容能量条
-static String_Data_t UI_State_sta[6];   // 机器人状态,静态只需画一次
-static String_Data_t UI_State_dyn[6];   // 机器人状态,动态先add才能change
+
+static Graph_Data_t UI_shoot_line[10]; // 射击准线
+static Graph_Data_t UI_drone_width_line[2]; //车辆示宽线
+static Graph_Data_t UI_shoot_dir_circle[3]; //射击中心圆
+static Graph_Data_t UI_Energy[3];      // 电容能量条
+static String_Data_t UI_State_sta[6];  // 机器人状态,静态只需画一次
+static String_Data_t UI_Shoot_sta[3];  //射频和枪口热度,静态只需画一次
+static String_Data_t UI_State_dyn[6];  // 机器人状态,动态先add才能change
+// static String_Data_t UI_Shoot_dyn[3];  //射频和枪口热度,动态先add才能change
+static Graph_Data_t UI_Shoot_dyn[3];  //射频和枪口热度,动态先add才能change
 static uint32_t shoot_line_location[10] = {540, 960, 490, 515, 565};
 
 // 定义用于UI更新的数据结构
@@ -471,54 +477,141 @@ void MyUIInit() {
   referee_recv_info = robot->referee_data;
 
   while (referee_recv_info->GameRobotState.robot_id == 0) osDelay(100);
-
   DeterminRobotID();
   UIDelete(&referee_recv_info->referee_id, UI_Data_Del_ALL, 0);
+   // 绘制发射基准线
+    UILineDraw(&UI_shoot_line[0], "sl0", UI_Graph_ADD, 7, UI_Color_White, 2, CENTER_X - 300, CENTER_Y, CENTER_X + 300, CENTER_Y);
+    UILineDraw(&UI_shoot_line[1], "sl1", UI_Graph_ADD, 7, UI_Color_White, 1, CENTER_X - 50, CENTER_Y + Aim_Line_1, CENTER_X + 50, CENTER_Y + Aim_Line_1);
+    UILineDraw(&UI_shoot_line[2], "sl2", UI_Graph_ADD, 7, UI_Color_White, 1, CENTER_X - 80, CENTER_Y + Aim_Line_2, CENTER_X + 80, CENTER_Y + Aim_Line_2);
+    UILineDraw(&UI_shoot_line[3], "sl3", UI_Graph_ADD, 7, UI_Color_White, 1, CENTER_X - 120, CENTER_Y + Aim_Line_3, CENTER_X + 120, CENTER_Y + Aim_Line_3);
+    UILineDraw(&UI_shoot_line[4], "sl4", UI_Graph_ADD, 7, UI_Color_White, 1, CENTER_X - 200, CENTER_Y + Aim_Line_4, CENTER_X + 200, CENTER_Y + Aim_Line_4);
+    UILineDraw(&UI_shoot_line[5], "sl5", UI_Graph_ADD, 7, UI_Color_White, 1, CENTER_X, 300, CENTER_X, 650);
+    UIGraphRefresh(&referee_recv_info->referee_id, 5, UI_shoot_line[0], UI_shoot_line[1], UI_shoot_line[2], UI_shoot_line[3], UI_shoot_line[4]);
+    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_shoot_line[5]);
 
-  UILineDraw(&UI_shoot_line[0], "sl0", UI_Graph_ADD, 7, UI_Color_White, 2, CENTER_X - 300, CENTER_Y, CENTER_X + 300,
-             CENTER_Y);
-  UILineDraw(&UI_shoot_line[1], "sl1", UI_Graph_ADD, 7, UI_Color_White, 1, CENTER_X - 50, CENTER_Y + Aim_Line_1,
-             CENTER_X + 50, CENTER_Y + Aim_Line_1);
-  UILineDraw(&UI_shoot_line[2], "sl2", UI_Graph_ADD, 7, UI_Color_White, 1, CENTER_X - 80, CENTER_Y + Aim_Line_2,
-             CENTER_X + 80, CENTER_Y + Aim_Line_2);
-  UILineDraw(&UI_shoot_line[3], "sl3", UI_Graph_ADD, 7, UI_Color_White, 1, CENTER_X - 120, CENTER_Y + Aim_Line_3,
-             CENTER_X + 120, CENTER_Y + Aim_Line_3);
-  UILineDraw(&UI_shoot_line[4], "sl4", UI_Graph_ADD, 7, UI_Color_White, 1, CENTER_X - 200, CENTER_Y + Aim_Line_4,
-             CENTER_X + 200, CENTER_Y + Aim_Line_4);
-  UILineDraw(&UI_shoot_line[5], "sl5", UI_Graph_ADD, 7, UI_Color_White, 1, CENTER_X, 300, CENTER_X, 650);
-  UIGraphRefresh(&referee_recv_info->referee_id, 5, UI_shoot_line[0], UI_shoot_line[1], UI_shoot_line[2],
-                 UI_shoot_line[3], UI_shoot_line[4]);
+    // 绘制车辆示宽线
+    UILineDraw(&UI_drone_width_line[0], "sl6", UI_Graph_ADD, 7, UI_Color_Green, 2, 960 - WIDTHLINE_UP, 320, 960 - WIDTHLINE_DOWN, 0);
+    UILineDraw(&UI_drone_width_line[1], "sl7", UI_Graph_ADD, 7, UI_Color_Green, 2, 960 + WIDTHLINE_DOWN, 0, 960 + WIDTHLINE_UP, 320);
+    UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_drone_width_line[0], UI_drone_width_line[1]);
 
-  UICharDraw(&UI_State_sta[0], "ss0", UI_Graph_ADD, 8, UI_Color_Main, 15, 2, 150, 750, "chassis:");
-  UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[0]);
-  UICharDraw(&UI_State_sta[1], "ss1", UI_Graph_ADD, 8, UI_Color_Yellow, 15, 2, 150, 700, "gimbal:");
-  UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[1]);
-  UICharDraw(&UI_State_sta[2], "ss2", UI_Graph_ADD, 8, UI_Color_Orange, 15, 2, 150, 650, "shoot:");
-  UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[2]);
-  UICharDraw(&UI_State_sta[3], "ss3", UI_Graph_ADD, 8, UI_Color_Pink, 15, 2, 150, 600, "frict:");
-  UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[3]);
-  UICharDraw(&UI_State_sta[4], "ss4", UI_Graph_ADD, 8, UI_Color_Pink, 15, 2, 150, 550, "lid:");
-  UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[4]);
+    // 绘制发射中心圆
+    UICircleDraw(&UI_shoot_dir_circle[0], "sc0", UI_Graph_ADD, 7, UI_Color_White, 3, 960, 540, 15);
+    //绘制车头方向指示的中心圆
+    UICircleDraw(&UI_shoot_dir_circle[1], "sc1", UI_Graph_ADD, 7, UI_Color_White, 3, 1556, 721, 76);
+    UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_shoot_dir_circle[0],  UI_shoot_dir_circle[1]);
 
-  UICharDraw(&UI_State_dyn[0], "sd0", UI_Graph_ADD, 8, UI_Color_Main, 15, 2, 270, 750, "zeroforce");
-  UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[0]);
-  UICharDraw(&UI_State_dyn[1], "sd1", UI_Graph_ADD, 8, UI_Color_Yellow, 15, 2, 270, 700, "zeroforce");
-  UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[1]);
-  UICharDraw(&UI_State_dyn[2], "sd2", UI_Graph_ADD, 8, UI_Color_Orange, 15, 2, 270, 650, "off");
-  UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[2]);
-  UICharDraw(&UI_State_dyn[3], "sd3", UI_Graph_ADD, 8, UI_Color_Pink, 15, 2, 270, 600, "off");
-  UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[3]);
-  UICharDraw(&UI_State_dyn[4], "sd4", UI_Graph_ADD, 8, UI_Color_Pink, 15, 2, 270, 550, "open ");
-  UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[4]);
+    // 绘制车辆状态标志指示
+    // UICharDraw(&UI_State_sta[0], "ss0", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 750, "chassis:");
+    // UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[0]);
+    UICharDraw(&UI_State_sta[1], "ss1", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 700, "gimbal:");
+    UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[1]);
+    UICharDraw(&UI_State_sta[2], "ss2", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 650, "shootctrl:");
+    UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[2]);
+    UICharDraw(&UI_State_sta[3], "ss3", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 600, "frict:");
+    UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[3]);
+    UICharDraw(&UI_State_sta[4], "ss4", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 550, "supercap:");
+    UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[4]);
+    UICharDraw(&UI_State_sta[5], "ss5", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 500, "heatctrl:");
+    UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[5]);
 
-  UICharDraw(&UI_State_sta[5], "ss5", UI_Graph_ADD, 7, UI_Color_Green, 18, 2, 620, 230, "Power:");
-  UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[5]);
-  UIRectangleDraw(&UI_Energy[0], "ss6", UI_Graph_ADD, 7, UI_Color_Green, 2, 720, 140, 1220, 180);
-  UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_Energy[0]);
 
-  UIFloatDraw(&UI_Energy[1], "sd5", UI_Graph_ADD, 8, UI_Color_Green, 18, 2, 2, 750, 230, 24000);
-  UILineDraw(&UI_Energy[2], "sd6", UI_Graph_ADD, 8, UI_Color_Pink, 30, 720, 160, 1020, 160);
-  UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_Energy[1], UI_Energy[2]);
+    // 绘制车辆状态标志，动态
+    // 由于初始化时xxx_last_mode默认为0，所以此处对应UI也应该设为0时对应的UI，防止模式不变的情况下无法置位flag，导致UI无法刷新
+    // UICharDraw(&UI_State_dyn[0], "sd0", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 270, 750, "PowerOff");
+    // UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[0]);
+    UICharDraw(&UI_State_dyn[1], "sd1", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 270, 700, "PowerOff");
+    UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[1]);
+    UICharDraw(&UI_State_dyn[2], "sd2", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 270, 650, "off");
+    UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[2]);
+    UICharDraw(&UI_State_dyn[3], "sd3", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 270, 600, "off");
+    UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[3]);
+    UICharDraw(&UI_State_dyn[4], "sd4", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 270, 550, "close ");
+    UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[4]);
+
+    //绘制枪口热度，射频指示
+    // UICharDraw(&UI_Shoot_sta[0], "ss5", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 1500, 750, "SHOOT_HEAT:");
+    // UICharRefresh(&referee_recv_info->referee_id, UI_Shoot_sta[0]);
+    // UICharDraw(&UI_Shoot_sta[1], "ss6", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 1500, 700, "SHOOT_RATE:");
+    // UICharRefresh(&referee_recv_info->referee_id, UI_Shoot_sta[1]);
+
+    //绘制枪口热度，射频指示，动态
+    // UICharDraw(&UI_Shoot_dyn[0], "sd7", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 1700, 750, "0");
+    // UIFloatDraw(&UI_Shoot_dyn[0], "sd7", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 2, 1700, 750, 0);
+    // UICharRefresh(&referee_recv_info->referee_id, UI_Shoot_dyn[0]);
+    // UICharDraw(&UI_Shoot_dyn[1], "sd8", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 1700, 700, "0");
+    // UIFloatDraw(&UI_Shoot_dyn[1], "sd8", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 2, 1700, 700, 0);
+    // UICharRefresh(&referee_recv_info->referee_id, UI_Shoot_dyn[1]);
+
+    // 底盘功率显示，静态
+    // UICharDraw(&UI_State_sta[5], "ss5", UI_Graph_ADD, 7, UI_Color_Green, 18, 2, 620, 230, "Power:");
+    // UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[5]);
+    // 能量条框
+    // UIRectangleDraw(&UI_Energy[0], "ss6", UI_Graph_ADD, 7, UI_Color_Green, 2, 720, 140, 1220, 180);
+    // UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_Energy[0]);
+
+    // 底盘功率显示,动态
+    // UIFloatDraw(&UI_Energy[1], "sd5", UI_Graph_ADD, 8, UI_Color_Green, 18, 2, 2, 750, 230, 24000);
+    // 能量条初始状态
+    // UILineDraw(&UI_Energy[2], "sd6", UI_Graph_ADD, 8, UI_Color_Pink, 30, 720, 160, 1020, 160);
+    // UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_Energy[1], UI_Energy[2]);
+
+    UIPitchGaugeInit(960, 540, 390);
+
+    // 自瞄模式选择器 (假设有3个模式，显示 "A  B  C")
+    UIArcDraw(&UI_autoaim_bg, "ab0", UI_Graph_ADD, 5, UI_Color_White, 168, 192, 14, 960, 540, 310, 240);
+    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_autoaim_bg);
+    UIArcDraw(&UI_autoaim_indicator, "ac0", UI_Graph_ADD, 6, UI_Color_Pink, 168, 180, 14, 960, 540, 310, 240);
+    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_autoaim_indicator);
+    UICharDraw(&UI_autoaim_text, "at0", UI_Graph_ADD, 5, UI_Color_White, 18, 3, 900, 280, "A  B  C");
+    UICharRefresh(&referee_recv_info->referee_id, UI_autoaim_text);
+
+    // 左侧功率/弹量圆弧
+    UIArcDraw(&UI_cap_arc, "ap0", UI_Graph_ADD, 6, UI_Color_Pink, 270, 310, 22, 960, 540, 370, 370);
+    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_cap_arc);
+    // UIArcDraw(&UI_ammo_arc, "aa0", UI_Graph_ADD, 6, UI_Color_Main, 230, 270, 22, 960, 535, 370, 370);
+    // UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_ammo_arc);
+    UICharDraw(&UI_cap_text_E, "ce0", UI_Graph_ADD, 6, UI_Color_White, 17, 2, 610, 545, "E");
+    UICharRefresh(&referee_recv_info->referee_id, UI_cap_text_E);
+    UICharDraw(&UI_cap_text_F, "cf0", UI_Graph_ADD, 6, UI_Color_White, 17, 2, 702, 775, "F");
+    UICharRefresh(&referee_recv_info->referee_id, UI_cap_text_F);
+    UICharDraw(&UI_ammo_text_full, "af0", UI_Graph_ADD, 6, UI_Color_White, 12, 2, 697, 300, "500");
+    UICharRefresh(&referee_recv_info->referee_id, UI_ammo_text_full);
+    UICharDraw(&UI_ammo_text_mid, "am0", UI_Graph_ADD, 6, UI_Color_White, 12, 2, 630, 420, "250");
+    UICharRefresh(&referee_recv_info->referee_id, UI_ammo_text_mid);
+
+    // 摩擦轮转速指示器
+    UIRectangleDraw(&UI_fric_bg_left, "fl0", UI_Graph_ADD, 7, UI_Color_White, 2, 1513, 663, 1541, 783);
+    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_fric_bg_left);
+    UIRectangleDraw(&UI_fric_bg_right, "fm0", UI_Graph_ADD, 7, UI_Color_White, 2, 1576, 663, 1604, 783);
+    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_fric_bg_right);
+    UIRectangleDraw(&UI_fric_bg_right, "fr0", UI_Graph_ADD, 7, UI_Color_White, 2, 1636, 663, 1664, 783);
+    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_fric_bg_right);
+    // 指针初始位置（中间）
+    UILineDraw(&UI_fric_pointer_left, "fl1", UI_Graph_ADD, 7, UI_Color_Main, 22, 1526, 720, 1526, 726);
+    UILineDraw(&UI_fric_pointer_right, "fr1", UI_Graph_ADD, 7, UI_Color_Main, 22, 1590, 720, 1590, 726);
+    UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_fric_pointer_left, UI_fric_pointer_right);
+    UICharDraw(&UI_fric_text_down, "fd0", UI_Graph_ADD, 6, UI_Color_White, 20, 1, 1552, 685, "3");
+    UICharRefresh(&referee_recv_info->referee_id, UI_fric_text_down);
+    UICharDraw(&UI_fric_text_mid, "fm0", UI_Graph_ADD, 6, UI_Color_White, 20, 1, 1552, 735, "4");
+    UICharRefresh(&referee_recv_info->referee_id, UI_fric_text_mid);
+    UICharDraw(&UI_fric_text_up, "fu0", UI_Graph_ADD, 6, UI_Color_White, 20, 1, 1552, 782, "5");
+    UICharRefresh(&referee_recv_info->referee_id, UI_fric_text_up);
+
+    // 车头方向动态圆弧
+    UIArcDraw(&UI_yaw_arc, "yd0", UI_Graph_ADD, 6, UI_Color_Main, 15, 345, 23, 1556, 721, 88, 88);
+    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_yaw_arc);
+
+    // 俯仰角仪表盘指针
+    // 绘制指针初始位置（指向90°）
+    UIArcDraw(&UI_pitch_needle, "pn0", UI_Graph_ADD, 6, UI_Color_Pink, 90 - 1, 90 + 1, 45, 960, 540, 365, 365);
+    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_pitch_needle);
+
+    UILineDraw(&Line_DecoMid, "ll0", UI_Graph_ADD, 6, UI_Color_White, 7, 577, 538, 606, 538);
+    UIGraphRefresh(&referee_recv_info->referee_id, 1, Line_DecoMid);
+    UIArcDraw(&Arc_DecoUp, "ll1", UI_Graph_ADD, 6, UI_Color_White, 310, 311, 22, 960, 540, 370, 370);
+    UIGraphRefresh(&referee_recv_info->referee_id, 1, Arc_DecoUp);
+    UIArcDraw(&Arc_DecoDown, "ll2", UI_Graph_ADD, 6, UI_Color_White, 229, 230, 22, 960, 535, 370, 370);
+    UIGraphRefresh(&referee_recv_info->referee_id, 1, Arc_DecoDown);
 }
 
 void UITask() {
@@ -554,6 +647,8 @@ void UITask() {
   interactive_data.gimbal_mode = robot->gimbal->gimbal_ctrl_cmd.gimbal_mode;
   interactive_data.shoot_mode = robot->shoot->shoot_ctrl_cmd.shoot_mode;
   interactive_data.friction_mode = robot->shoot->shoot_ctrl_cmd.friction_mode;
+  interactive_data.bullet_speed_mode_e=robot->shoot->shoot_ctrl_cmd.bullet_speed_mode;
+  interactive_data.heat_mode_e=robot->shoot->shoot_ctrl_cmd.heat_mode;
   interactive_data.cap_voltage = robot->super_cap->cap_msg.cap_v;
 
   // 动态数值（如果这里的变量名和你的底层解算名字不一致，请手动微调一下）
@@ -566,8 +661,10 @@ void UITask() {
   interactive_data.autoaim_mode = (interactive_data.gimbal_mode == GIMBAL_VISION) ? 1 : 0;
 
   // TODO: 摩擦轮真实转速需要你从电机 measure 里拿，这里暂时用给定的指令值代替演示，你可以自己换成真实反馈值
-  interactive_data.fric_speed_left = robot->shoot->shoot_ctrl_cmd.friction_speed;
-  interactive_data.fric_speed_right = robot->shoot->shoot_ctrl_cmd.friction_speed;
+  interactive_data.fric_speed_left = robot->shoot->friction_motor[0]->measure.speed_aps;
+  interactive_data.fric_speed_mid = robot->shoot->friction_motor[1]->measure.speed_aps;
+  interactive_data.fric_speed_right = robot->shoot->friction_motor[2]->measure.speed_aps;
+
 
   // 检查是否有变化
   UIChangeCheck(&interactive_data);
