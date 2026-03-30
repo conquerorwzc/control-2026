@@ -581,7 +581,7 @@ void UITask()
         return;
     }
 
-    // ================= 检查 UI 重置标志（由 robot.c 中的 H 键触发）=================
+    // ================= 检查 UI 重置标志（由 robot.c 中的 Ctrl+B 触发）=================
     if (robotdata->ui_reset_flag == 1)
     {
         if (referee_recv_info == NULL)
@@ -591,6 +591,14 @@ void UITask()
             referee_recv_info->GameRobotState.robot_id != 0)
         {
             MyUIInit();
+            
+            // 重置后立即设置所有刷新标志，确保第一次数据更新能被检测到
+            interactive_data.Referee_Interactive_Flag.arm_cali_flag = 1;
+            interactive_data.Referee_Interactive_Flag.lift_cali_flag = 1;
+            interactive_data.Referee_Interactive_Flag.robot_mode_flag = 1;
+            interactive_data.Referee_Interactive_Flag.grab_control_flag = 1;
+            interactive_data.Referee_Interactive_Flag.gripper_flag = 1;
+            
             robotdata->ui_reset_flag = 0;
         }
     }
