@@ -160,7 +160,7 @@ void JoyStickCtrl(RobotInstance* robot) {
       break;
   }
   //  记录上一次数据
-  rc_data_last = rc_data[TEMP];
+  // rc_data_last = rc_data[TEMP];
 }
 
 void MouseKeyCtrl(RobotInstance* robot) {
