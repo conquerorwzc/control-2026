@@ -57,11 +57,10 @@ void VOFATask() {
   visualized_data[0] = shoot_ctrl_cmd->shooter_barrel_heat;
   visualized_data[1] = robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
 #elif defined(ONE_BOARD) || defined(CHASSIS_BOARD)
-  visualized_data[0] = robot->chassis->wheel_motor[0]->motor_controller.pid_ref;
-  visualized_data[1] = robot->chassis->wheel_motor[0]->measure.speed_aps;
-  visualized_data[2] = robot->chassis->chassis_ctrl_cmd.wz * (20000.0f / 660.0f);
-  visualized_data[3] = robot->chassis->yaw_prostrate_PID.Output * 3000.0f;
-  // visualized_data[4] = robot->chassis->yaw_prostrate_PID.Output * 3000.0f;
+  visualized_data[0] = robot->chassis->chassis_ctrl_cmd.target_yaw;
+  visualized_data[0] = robot->chassis->yaw_prostrate_PID.Measure;
+  visualized_data[1] = robot->chassis->yaw_prostrate_PID.Ref;
+
 #endif
   VOFAJustFloatSend(visualized_data, 20);
 }
@@ -176,16 +175,16 @@ void RobotCMDTask() {
   MouseKeyCtrl(robot);
 #if defined(GIMBAL_BOARD)
   CalcOffsetAngle();
-  GimbalAlignToChassisForward();
+  // GimbalAlignToChassisForward();
 #endif
   EmergencyHandler(robot);  // 急停必须在 CAN 发送之前,确保 POWER_OFF 优先级最高
 #endif
 
 // 双板通信
 #if !defined(ONE_BOARD)
-  static uint8_t comm_divider = 0;
-  if (++comm_divider >= 10) {
-    comm_divider = 0;
+  static float last_comm_time = 0.0f;
+  if (DWT_GetTimeline_ms() - last_comm_time >= 10.f) {
+    last_comm_time = DWT_GetTimeline_ms();
     DoubleBoardComms();
   }
 #endif
@@ -202,7 +201,7 @@ void RobotInit() {
   robot->rc_data = RemoteControlInit(&huart5);
 #endif
 #endif
-#if !defined(GIMBAL_BOARD)  // PC15 引脚初始化并注册为 GPIO 输出
+#if !defined(GIMBAL_BOARD)                     // PC15 引脚初始化并注册为 GPIO 输出
   robot->referee_data = RefereeInit(&huart7);  // 裁判系统初始化
   // robot->super_cap = SuperCapInit(&super_cap_config);
   robot->chassis = ChassisInit(&chassis_init_config);

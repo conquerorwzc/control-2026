@@ -21,7 +21,8 @@ static Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd;
 static referee_info_t* referee_data;
 
 static float wheel_speed_ref[2];
-static float k0 = 0.7441993412640775f, k1 = 0.0090164284468539646f, k2 = 0.0001988857226262331f, k3 = 0.024694430204543864f, k4 = 0.20160143850678086f, k5 = 3.715221772539512e-05f;  // 中科大的功率模型
+static float k0 = 0.7441993412640775f, k1 = 0.0090164284468539646f, k2 = 0.0001988857226262331f,
+             k3 = 0.024694430204543864f, k4 = 0.20160143850678086f, k5 = 3.715221772539512e-05f;  // 中科大的功率模型
 /**
  * @brief   超电取电策略
  */
@@ -146,36 +147,31 @@ static void PowerControl() {
  */
 void ChassisProstrateMode(void) {
 #define VX_TO_MOTOR (30000.0f / 660.0f)
-#define WZ_PID_TO_MOTOR 10000.0f
+#define WZ_PID_TO_MOTOR 50000.0f
 #define WZ_FF_TO_MOTOR (28000.0f / 660.0f)  // wz 前馈(摇杆量级) → 电机量
-
+  float vx_motor = 0.0f;
+  float wz_motor = 0.0f;
   if (chassis_ctrl_cmd->is_rotate == 0) {
-    float wz_pid = PIDCalculate(&chassis->yaw_prostrate_PID, chassis->imu->YawTotalAngle * DEGREE_2_RAD,
-                             chassis_ctrl_cmd->target_yaw);
-    float vx_motor = chassis_ctrl_cmd->vx * VX_TO_MOTOR;
-    float wz_motor = wz_pid * WZ_PID_TO_MOTOR + chassis_ctrl_cmd->wz * WZ_FF_TO_MOTOR;
-    // 差速分配
-    wheel_speed_ref[0] = -1.0f * (vx_motor - wz_motor);  // 右轮 leg[0]
-    wheel_speed_ref[1] = vx_motor + wz_motor;  // 左轮 leg[1]
+    float wz_pid = -PIDCalculate(&chassis->yaw_prostrate_PID, chassis->imu->YawTotalAngle * DEGREE_2_RAD,
+                                 chassis_ctrl_cmd->target_yaw);
+    vx_motor = chassis_ctrl_cmd->vx * VX_TO_MOTOR;
+    wz_motor = wz_pid * WZ_PID_TO_MOTOR + chassis_ctrl_cmd->wz * WZ_FF_TO_MOTOR;
+  } else if (chassis_ctrl_cmd->is_rotate == 1) {
+    vx_motor = chassis_ctrl_cmd->vx * VX_TO_MOTOR;
+    wz_motor = chassis_ctrl_cmd->wz * WZ_FF_TO_MOTOR;
   }
-  else if (chassis_ctrl_cmd->is_rotate == 1) {
-    float vx_motor = chassis_ctrl_cmd->vx * VX_TO_MOTOR;
-    float wz_motor = chassis_ctrl_cmd->wz * WZ_FF_TO_MOTOR;
-    // 差速分配
-    wheel_speed_ref[0] = -1.0f * (vx_motor - wz_motor);  // 右轮 leg[0]
-    wheel_speed_ref[1] = vx_motor + wz_motor;  // 左轮 leg[1]
-  }
+  // 差速分配
+  wheel_speed_ref[0] = -1.0f * (vx_motor - wz_motor);  // 右轮 leg[0]
+  wheel_speed_ref[1] = vx_motor + wz_motor;            // 左轮 leg[1]
 }
 
 static void EnableJointMotor() {
-  for (int i=0;i<4;i++)
-    DMMotorOuterLoop(chassis->joint_motor[i], ANGLE_LOOP);
+  for (int i = 0; i < 4; i++) DMMotorOuterLoop(chassis->joint_motor[i], ANGLE_LOOP);
   DMMotorSetPIDRef(chassis->joint_motor[0], 0.1f);
   DMMotorSetPIDRef(chassis->joint_motor[1], -0.1f);
   DMMotorSetPIDRef(chassis->joint_motor[2], 0.1f);
   DMMotorSetPIDRef(chassis->joint_motor[3], -0.1f);
 }
-
 
 /**
  * @brief  最终输出

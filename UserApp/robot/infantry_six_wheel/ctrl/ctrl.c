@@ -117,11 +117,11 @@ void JoyStickCtrl(RobotInstance* robot) {
           input_mag = -input_mag;
         }
         chassis_ctrl_cmd->target_yaw =
-            robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD - follow_err * DEGREE_2_RAD;
+            robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + follow_err * DEGREE_2_RAD;
       } else {
         // 静止回正：底盘对齐云台
         chassis_ctrl_cmd->target_yaw =
-            robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + robot->offset_angle * DEGREE_2_RAD;
+            robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD - robot->offset_angle * DEGREE_2_RAD;
       }
       chassis_ctrl_cmd->wz = 0.0f;
       // 对齐衰减
@@ -349,11 +349,11 @@ void MouseKeyCtrl(RobotInstance* robot) {
           input_mag = -input_mag;
         }
         chassis_ctrl_cmd->target_yaw =
-            robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD - follow_err * DEGREE_2_RAD;
+            robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + follow_err * DEGREE_2_RAD;
       } else {
         // 静止回正：底盘对齐云台
         chassis_ctrl_cmd->target_yaw =
-            robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + robot->offset_angle * DEGREE_2_RAD;
+            robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD - robot->offset_angle * DEGREE_2_RAD;
       }
       chassis_ctrl_cmd->wz = 0.0f;
       // 对齐衰减
@@ -362,6 +362,7 @@ void MouseKeyCtrl(RobotInstance* robot) {
       input_mag *= align_attenuation * align_attenuation * align_attenuation;
       // 直接传摇杆原始值，ChassisProstrateMode 里做映射
       chassis_ctrl_cmd->vx = input_mag;
+
       break;
 #endif
     case ROBOT_CHASSIS_PROSTRATE_FREE: {
