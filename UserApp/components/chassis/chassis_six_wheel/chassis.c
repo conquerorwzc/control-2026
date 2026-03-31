@@ -199,7 +199,7 @@ void ChassisTask(void) {
       break;
   }
 
-  chassis_ctrl_cmd->max_power = SuperCapModeControl(chassis->super_cap, chassis_ctrl_cmd->super_cap_mode, referee_data->GameRobotState.chassis_power_limit);
+  chassis_ctrl_cmd->max_power = SuperCapModeControl(chassis->super_cap, chassis_ctrl_cmd->super_cap_ctrl_cmd, referee_data->GameRobotState.chassis_power_limit);
   SuperCapSendMessage(chassis->super_cap, (int16_t)chassis_ctrl_cmd->max_power,
                       referee_data->PowerHeatData.buffer_energy,
                       referee_data->GameRobotState.power_management_chassis_output);

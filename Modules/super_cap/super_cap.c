@@ -48,7 +48,7 @@ SuperCapInstance *SuperCapInit(SuperCap_Init_Config_s *supercap_config)
 // 主动使用模式：power直接给200。
 // 超电最大给200W，但正常来说用不到那么大。
 
-uint16_t SuperCapModeControl(SuperCapInstance* super_cap, SuperCap_Mode_e cmd_mode, uint16_t power_limit) {
+uint16_t SuperCapModeControl(SuperCapInstance* super_cap, SuperCap_Ctrl_Cmd_e cmd_mode, uint16_t power_limit) {
     if (super_cap == NULL) {
         return power_limit;
     }
@@ -61,7 +61,7 @@ uint16_t SuperCapModeControl(SuperCapInstance* super_cap, SuperCap_Mode_e cmd_mo
     // 状态机，根据命令和电压更新状态
     switch (super_cap->super_cap_mode) {
         case SAFETY_MODE:
-            if (cmd_mode == ACTIVE_MODE) super_cap->super_cap_mode = ACTIVE_MODE;
+            if (cmd_mode == BOOST) super_cap->super_cap_mode = ACTIVE_MODE;
             else if (super_cap->cap_msg.cap_v > 18.0f) super_cap->super_cap_mode = PASSIVE_MODE;
             break;
 
@@ -76,7 +76,7 @@ uint16_t SuperCapModeControl(SuperCapInstance* super_cap, SuperCap_Mode_e cmd_mo
             break;
 
         case PASSIVE_MODE:
-            if (cmd_mode == ACTIVE_MODE) {
+            if (cmd_mode == BOOST) {
                 super_cap->super_cap_mode = ACTIVE_MODE;
             } else if (super_cap->cap_msg.cap_v < 12.0f) {
                 super_cap->super_cap_mode = CHARGING_MODE;

@@ -37,7 +37,7 @@ typedef struct {
   float target_yaw;
   uint16_t max_power;
   Chassis_Mode_e chassis_mode;
-  SuperCap_Mode_e super_cap_mode;
+  SuperCap_Ctrl_Cmd_e super_cap_ctrl_cmd;
   int is_rotate;
 } Chassis_Ctrl_Cmd_s;
 
