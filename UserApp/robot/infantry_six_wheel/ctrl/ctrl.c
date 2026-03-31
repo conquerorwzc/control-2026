@@ -18,7 +18,10 @@ static float follow_err;
 static float align_attenuation;
 
 // 小陀螺相关参数
-static float rotate_omega;      // 小陀螺旋转角速度
+static float rotate_omega;  // 小陀螺旋转角速度
+
+#define TURN_BOOST_DEADZONE 10
+#define TURN_BOOST_GAIN 3.0f
 
 void JoyStickCtrl(RobotInstance* robot) {
   rc_data = robot->rc_data;
@@ -95,9 +98,9 @@ void JoyStickCtrl(RobotInstance* robot) {
   }
 
   switch (robot->robot_mode) {
-     case ROBOT_CHASSIS_PROSTRATE_FOLLOW: {
+    case ROBOT_CHASSIS_PROSTRATE_FOLLOW: {
 #if (!defined(ONE_BOARD))
-       chassis_ctrl_cmd->is_rotate = 0;
+      chassis_ctrl_cmd->is_rotate = 0;
       // 获取输入（左摇杆 → 云台坐标系下的 vx, vy）
       chassis_vx = (float)rc_data[TEMP].rc.rocker_l_;
       chassis_vy = (float)rc_data[TEMP].rc.rocker_l1;
@@ -115,8 +118,7 @@ void JoyStickCtrl(RobotInstance* robot) {
             follow_err += 180.0f;
           input_mag = -input_mag;
         }
-        chassis_ctrl_cmd->target_yaw =
-            robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + follow_err * DEGREE_2_RAD;
+        chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + follow_err * DEGREE_2_RAD;
       } else {
         // 静止回正：底盘对齐云台
         chassis_ctrl_cmd->target_yaw =
@@ -133,7 +135,7 @@ void JoyStickCtrl(RobotInstance* robot) {
       break;
     }
     case ROBOT_CHASSIS_PROSTRATE_ROTATE: {
-       chassis_ctrl_cmd->is_rotate = 1;
+      chassis_ctrl_cmd->is_rotate = 1;
       chassis_ctrl_cmd->vx = 0.0f;
       chassis_ctrl_cmd->wz = 800.0f;
 
@@ -151,11 +153,11 @@ void JoyStickCtrl(RobotInstance* robot) {
       break;
     }
     case ROBOT_CHASSIS_PROSTRATE_FREE: {
-       chassis_ctrl_cmd->is_rotate = 0;
-       // 左竖直 → 前进后退
-       chassis_ctrl_cmd->vx = (float)rc_data[TEMP].rc.rocker_l1;
-       chassis_ctrl_cmd->wz = (float)rc_data[TEMP].rc.rocker_l_;
-       break;
+      chassis_ctrl_cmd->is_rotate = 0;
+      // 左竖直 → 前进后退
+      chassis_ctrl_cmd->vx = (float)rc_data[TEMP].rc.rocker_l1;
+      chassis_ctrl_cmd->wz = (float)rc_data[TEMP].rc.rocker_l_;
+      break;
     }
     default:
       break;
@@ -276,7 +278,7 @@ void MouseKeyCtrl(RobotInstance* robot) {
 
   // 4. 核心运动算法
   //  确定 Robot Mode
-  if (is_rotate_mode) {               // 小陀螺
+  if (is_rotate_mode) {  // 小陀螺
     robot->robot_mode = ROBOT_CHASSIS_PROSTRATE_ROTATE;
   } else {
     robot->robot_mode = ROBOT_CHASSIS_PROSTRATE_FOLLOW;  // 默认是FOLLOW模式
@@ -329,14 +331,14 @@ void MouseKeyCtrl(RobotInstance* robot) {
       else
         chassis_vx += 0.0f;
       input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
-
       float max_speed = 400.0f * speed_coff;
       if (input_mag > max_speed) {
         chassis_vx = chassis_vx / input_mag * max_speed;
         chassis_vy = chassis_vy / input_mag * max_speed;
         input_mag = max_speed;
       }
-
+      // ===== 默认无前馈 =====
+      chassis_ctrl_cmd->wz = 0.0f;
       if (input_mag > 5.0f) {
         // 运动方向解算
         follow_err = (atan2f(chassis_vy, chassis_vx) - PI / 2.0f) * RAD_2_DEGREE - robot->offset_angle;
@@ -350,21 +352,23 @@ void MouseKeyCtrl(RobotInstance* robot) {
             follow_err += 180.0f;
           input_mag = -input_mag;
         }
-        chassis_ctrl_cmd->target_yaw =
-            robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + follow_err * DEGREE_2_RAD;
+        chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + follow_err * DEGREE_2_RAD;
+        // ===== 前馈：误差大时额外给 wz 加速转向 =====
+        float abs_err = fabsf(follow_err);
+        if (abs_err > TURN_BOOST_DEADZONE) {
+          chassis_ctrl_cmd->wz = follow_err * TURN_BOOST_GAIN;
+        }
       } else {
         // 静止回正：底盘对齐云台
+        follow_err = 0.0f;  // 静止时清零，防止衰减计算用到脏值
         chassis_ctrl_cmd->target_yaw =
             robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD - robot->offset_angle * DEGREE_2_RAD;
       }
-      chassis_ctrl_cmd->wz = 0.0f;
       // 对齐衰减
       align_attenuation = cosf(follow_err * DEGREE_2_RAD);
       if (align_attenuation < 0) align_attenuation = 0;
       input_mag *= align_attenuation * align_attenuation * align_attenuation;
-      // 直接传摇杆原始值，ChassisProstrateMode 里做映射
       chassis_ctrl_cmd->vx = input_mag;
-
       break;
 #endif
     case ROBOT_CHASSIS_PROSTRATE_FREE: {
