@@ -9,6 +9,7 @@
 #include "robot_config.h"
 #include "user_lib.h"
 #include "master_process.h"
+#include "referee_task.h"
 static RobotInstance *robot;
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
@@ -232,6 +233,12 @@ static void MouseKeySet() {
   //   chassis_ctrl_cmd->leg_mode = LEG_IN_AIR;
   // }
 
+  if (!rc_data_last[TEMP].key[KEY_PRESS].ctrl && rc_data[TEMP].key[KEY_PRESS].ctrl) {
+    Referee_Interactive_info_t* ui_data = getUI();
+    if (ui_data != NULL) {
+      ui_data->force_refresh_ui = 1; // 置位刷新标志
+    }
+  }
 
   switch (rc_data[TEMP].mouse.press_r % 2) {  //右键进入自瞄预备模式
     case 1:
@@ -407,6 +414,12 @@ static void MouseKeySet() {
      default:
        break;
    }
+  if (rc_data[TEMP].key[KEY_PRESS].shift) {
+    chassis_ctrl_cmd->SuperCapBoost=1;
+  }
+  else {
+    chassis_ctrl_cmd->SuperCapBoost=0;
+  }
   *rc_data_last = *rc_data;
 }
 
@@ -458,16 +471,17 @@ void RobotInit() {
   rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
   *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
 
-  robot->referee_data = RefereeInit(&huart7);  // 裁判系统初始化
+  robot->referee_data = RefereeInit(&huart1);  // 裁判系统初始化
 
   robot->super_cap = SuperCapInit(&super_cap_config);
 
+  robot->chassis = ChassisInit(&chassis_init_config);
  #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
    robot->gimbal = GimbalInit(&gimbal_init_config);
    robot->shoot = ShootInit(&shoot_init_config);
 #endif
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
-  robot->chassis = ChassisInit(&chassis_init_config);
+  robot->chassis->super_cap=robot->super_cap;
 #endif
 
   // 初始化控制命令指针
@@ -488,6 +502,8 @@ void RobotCMDTask() {
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
   shoot_ctrl_cmd->initial_speed=robot->referee_data->ShootData.initial_speed;
   shoot_ctrl_cmd->shooter_barrel_heat=robot->referee_data->PowerHeatData.shooter_42mm_barrel_heat;
+  chassis_ctrl_cmd->max_power=robot->referee_data->GameRobotState.chassis_power_limit;
+  gimbal_ctrl_cmd->chassis_rotate_wz=-3.f*robot->chassis->chassis_external_imu->gyro[2];
   CalcOffsetAngle();
   RemoteControlSet();
   MouseKeySet();
@@ -499,11 +515,13 @@ void RobotTask() {
   RobotCMDTask();
   GimbalTask();
   ShootTask();
-
   ChassisTask();
   SuperCapSendMessage(robot->super_cap,
       (int16_t)robot->referee_data->GameRobotState.chassis_power_limit,
       robot->referee_data->PowerHeatData.buffer_energy,
       robot->referee_data->GameRobotState.power_management_chassis_output);
 
+}
+RobotInstance* getRobot() {
+  return robot;
 }

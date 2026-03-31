@@ -138,7 +138,7 @@ static void MouseKeySet() {
   vx_initial += (float)(rc_data[TEMP].key[KEY_PRESS].a - rc_data[TEMP].key[KEY_PRESS].d) *
                          (float) -chassis_ctrl_cmd->chassis_speed_buff;
 
-    //缓加速
+  //缓加速
   if (abs(vx_initial)<=10000) {
     x_speed_time=DWT_GetTimeline_s();
     chassis_ctrl_cmd->vx=vx_initial;
@@ -160,44 +160,52 @@ static void MouseKeySet() {
     chassis_ctrl_cmd->vy=-10000-(DWT_GetTimeline_s()-y_speed_time)*10000;
   }//速度绝对值在10000以上输出控制量=10000+10000t(s)
 
-  // F 键切换红蓝方 (机器人 ID: 红方=3, 蓝方=103)
-  if (rc_data[TEMP].key[KEY_PRESS].f && !rc_data_last[TEMP].key[KEY_PRESS].f)
-  {
-    // 获取当前裁判系统数据
-    referee_info_t *referee_info = robot->referee_data;
+  // // F 键切换红蓝方 (机器人 ID: 红方=3, 蓝方=103)
+  // if (rc_data[TEMP].key[KEY_PRESS].f && !rc_data_last[TEMP].key[KEY_PRESS].f)
+  // {
+  //   // 获取当前裁判系统数据
+  //   referee_info_t *referee_info = robot->referee_data;
+  //
+  //   if (referee_info != NULL)
+  //   {
+  //     // 切换机器人 ID
+  //     if (referee_info->GameRobotState.robot_id == 3)
+  //     {
+  //       // 从红方切换到蓝方
+  //       referee_info->GameRobotState.robot_id = 103;
+  //       LOGINFO("[ROBOT] Switch to BLUE team (ID=103)");
+  //     }
+  //     else if (referee_info->GameRobotState.robot_id == 103)
+  //     {
+  //       // 从蓝方切换到红方
+  //       referee_info->GameRobotState.robot_id = 3;
+  //       LOGINFO("[ROBOT] Switch to RED team (ID=3)");
+  //     }
+  //     else
+  //     {
+  //       // 如果是其他 ID，默认切换到红方
+  //       referee_info->GameRobotState.robot_id = 3;
+  //       LOGINFO("[ROBOT] Set to RED team (ID=3)");
+  //     }
+  //
+  //     // 重新计算客户端 ID(参考 referee_task.c 中的 DeterminRobotID 函数)
+  //     referee_info->referee_id.Robot_Color = referee_info->GameRobotState.robot_id > 7 ? Robot_Blue : Robot_Red;
+  //     referee_info->referee_id.Robot_ID = referee_info->GameRobotState.robot_id;
+  //     referee_info->referee_id.Cilent_ID = 0x0100 + referee_info->referee_id.Robot_ID;
+  //     referee_info->referee_id.Receiver_Robot_ID = 0;
+  //
+  //     LOGINFO("[ROBOT] New Client ID: 0x%04X", referee_info->referee_id.Cilent_ID);
+  //   }
+  // }
 
-    if (referee_info != NULL)
-    {
-      // 切换机器人 ID
-      if (referee_info->GameRobotState.robot_id == 3)
-      {
-        // 从红方切换到蓝方
-        referee_info->GameRobotState.robot_id = 103;
-        LOGINFO("[ROBOT] Switch to BLUE team (ID=103)");
-      }
-      else if (referee_info->GameRobotState.robot_id == 103)
-      {
-        // 从蓝方切换到红方
-        referee_info->GameRobotState.robot_id = 3;
-        LOGINFO("[ROBOT] Switch to RED team (ID=3)");
-      }
-      else
-      {
-        // 如果是其他 ID，默认切换到红方
-        referee_info->GameRobotState.robot_id = 3;
-        LOGINFO("[ROBOT] Set to RED team (ID=3)");
-      }
-
-      // 重新计算客户端 ID(参考 referee_task.c 中的 DeterminRobotID 函数)
-      referee_info->referee_id.Robot_Color = referee_info->GameRobotState.robot_id > 7 ? Robot_Blue : Robot_Red;
-      referee_info->referee_id.Robot_ID = referee_info->GameRobotState.robot_id;
-      referee_info->referee_id.Cilent_ID = 0x0100 + referee_info->referee_id.Robot_ID;
-      referee_info->referee_id.Receiver_Robot_ID = 0;
-
-      LOGINFO("[ROBOT] New Client ID: 0x%04X", referee_info->referee_id.Cilent_ID);
-    }
+  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_V] % 2) {
+    case 0:
+      robot->referee_data->GameRobotState.robot_id=103;
+      break;
+      default:
+      robot->referee_data->GameRobotState.robot_id=3;
+      break;
   }
-
 if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   {
   gimbal_ctrl_cmd->yaw -= (float)rc_data[TEMP].mouse.x * 0.007f;  // 横向灵敏度调节
@@ -253,7 +261,7 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_C] % 4)  // C键设置底盘速度
   {
     case 0:
-      chassis_ctrl_cmd->chassis_speed_buff = 10000;
+      chassis_ctrl_cmd->chassis_speed_buff = 15000;
       break;
     case 1:
       chassis_ctrl_cmd->chassis_speed_buff = 20000;
@@ -276,19 +284,7 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
       chassis_ctrl_cmd->wz=5000;
       break;
   }
-  // switch (rc_data[TEMP].key_count[KEY_PRESS][Key_V] % 3)  // Q按键设置热量控制类型
-  // {
-  //   case 0:
-  //     shoot_ctrl_cmd->heat_mode=REFEREE_CONTROL;
-  //     break;
-  //   case 1:
-  //     shoot_ctrl_cmd->heat_mode=SIMULLATE_CONTROL;
-  //     break;
-  //   case 2:
-  //     shoot_ctrl_cmd->heat_mode=NO_CONTROL;
-  //   default:
-  //     break;
-  // }
+
       if (shoot_ctrl_cmd->bullet_speed_mode==MANUAL_BULLET_SPEED) {
         if (rc_data[TEMP].key[KEY_PRESS].z==1&&rc_data_last[TEMP].key[KEY_PRESS].z==0) {
           shoot_ctrl_cmd->friction_speed+=shoot_init_config.shoot_param.bullet_speed_adjustment;
@@ -380,7 +376,7 @@ void RobotInit() {
 
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
-  chassis_ctrl_cmd->max_power = 75;  // 随便给一个初始功率，后面应该要从裁判系统获取
+  chassis_ctrl_cmd->max_power = 100;  // 随便给一个初始功率，后面应该要从裁判系统获取
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;
@@ -400,7 +396,6 @@ void RobotCMDTask() {
   // robot->gimbal->gimbal_ctrl_cmd.pitch=30;
   // robot->gimbal->gimbal_ctrl_cmd.yaw=0;
   //}
-  chassis_ctrl_cmd->max_power = 115; //robot->referee_data->GameRobotState.chassis_power_limit4
   shoot_ctrl_cmd->initial_speed=robot->referee_data->ShootData.initial_speed;
   shoot_ctrl_cmd->shooter_barrel_heat=robot->referee_data->PowerHeatData.shooter_42mm_barrel_heat;
   CalcOffsetAngle();
@@ -426,7 +421,6 @@ void RobotTask() {
 #endif
 
 
-  SuperCapSendMessage(robot->super_cap,60,0,1);
 }
 
 RobotInstance* RobotGet() {
