@@ -178,7 +178,7 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   chassis = chassis_instance;
   chassis_ctrl_cmd = &chassis->chassis_ctrl_cmd;
 
-  // chassis->super_cap_mode = SAFETY_MODE;
+  chassis->super_cap = SuperCapInit(&chassis_init_config->super_cap_config);
 
   return chassis_instance;
 }
