@@ -136,7 +136,7 @@ static Chassis_Init_Config_s chassis_init_config = {
         },
     .yaw_prostrate_PID_config =
         {
-            .Kp = 2.0f,
+            .Kp = 3.0f,
             .Ki = 0.0f,
             .Kd = 0.02f,
             .MaxOut = 6.0f,
@@ -186,9 +186,9 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                     //     },
                     .angle_PID =
                         {
-                            .Kp = 1.0f,
+                            .Kp = 2.0f,
                             .Ki = 0.0f,
-                            .Kd = 0.01f,
+                            .Kd = 0.03f,
                             .DeadBand = 0.01f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                             .IntegralLimit = 5.0f,
@@ -316,10 +316,10 @@ static Shoot_Init_Config_s shoot_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 50.0f,
+                            .Kp = 60.0f,
                             .Ki = 0.0f,
                             .Kd = 1.0f,
-                            .MaxOut = 45000.0f,
+                            .MaxOut = 30000.0f,
                         },
                     .speed_PID =
                         {
