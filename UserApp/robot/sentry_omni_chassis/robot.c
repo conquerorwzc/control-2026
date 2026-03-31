@@ -331,7 +331,7 @@ static void MouseKeySet() {
 static void RemoteControlSet() {
   static float auto_mode_time = 0;
   if (switch_middle(vt13_rc_data->rc.mode_switch) || switch_right(vt13_rc_data->rc.mode_switch)) {
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
     if (abs(vt13_rc_data->rc.dial) > 20) chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
   }
 
@@ -425,21 +425,15 @@ static void EmergencyHandler() {
 }
 
 static void ModeControl() {
-  if (robot->control_mode==NAVIGATOR_MODE){
-    // if (robot->referee_data->ProjectileAllowance.projectile_allowance_17mm==0) {
-    //   robot->sentry_mode=DEFENSE_POSE;    //无可用弹丸进入防御姿态
-    //   robot->chassis->chassis_ctrl_cmd.wz=-1500;
-    // }
-    // else
+
     if (robot->chassis->chassis_ctrl_cmd.vx==0&&robot->chassis->chassis_ctrl_cmd.vy==0) {
       robot->sentry_mode=OFFENSE_POSE;    //高于50%血或占据堡垒进入进攻姿态
-      robot->chassis->chassis_ctrl_cmd.wz=-3500;
+      robot->chassis->chassis_ctrl_cmd.wz+=2000;
     }
     else {
       robot->sentry_mode=MOBILITY_POSE;
-      robot->chassis->chassis_ctrl_cmd.wz=-1000;
+      robot->chassis->chassis_ctrl_cmd.wz-=2000;
     }
-  }
 }
 static void SuperCapControl() {
   switch (supercap_mode) {

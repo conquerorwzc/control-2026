@@ -352,19 +352,6 @@ static void MouseKeySet() {
     gimbal_ctrl_cmd->pitch -= (float)vt13_rc_data->mouse_key.mouse.y * 0.0005f;
   }
 
-  // 弹速设置 (Z键)
-  // switch (__builtin_popcount(vt13_rc_data->mouse_key.keyboard.z) % 3) {
-  //   case 0:
-  //     shoot_ctrl_cmd->bullet_speed = 15;
-  //     break;
-  //   case 1:
-  //     shoot_ctrl_cmd->bullet_speed = 18;
-  //     break;
-  //   default:
-  //     shoot_ctrl_cmd->bullet_speed = 30;
-  //     break;
-  // }
-
   // 右键自瞄
   switch (vt13_rc_data->mouse_key.mouse.press_r % 2) {
     case 1:
@@ -372,11 +359,14 @@ static void MouseKeySet() {
         gimbal_ctrl_cmd->gimbal_mode = GIMBAL_VISION;
         gimbal_ctrl_cmd->yaw = vision_recv_data->gimbal_receive.yaw;
         gimbal_ctrl_cmd->pitch = vision_recv_data->gimbal_receive.pitch;
+        shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;  // 连发
       } else {
         gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+        shoot_ctrl_cmd->load_mode = LOAD_STOP;
       }
       break;
     default:
+      shoot_ctrl_cmd->load_mode = LOAD_STOP;
       break;
   }
 
@@ -385,7 +375,6 @@ static void MouseKeySet() {
     case 0:
       if (vt13_rc_data->rc.trigger == 0) {
         // 停止发射逻辑
-        shoot_ctrl_cmd->load_mode = LOAD_STOP;
         trigger_time = time;
       }
       break;
@@ -401,7 +390,6 @@ static void MouseKeySet() {
       break;
   }
 
-  // shoot_ctrl_cmd->shoot_rate = 8;
 }
 #else
 // 如果没有定义任何遥控器宏，提供空实现
@@ -577,7 +565,7 @@ void RobotCMDTask() {
   shoot_ctrl_cmd->initial_speed = DecodeBulletSpeedFromU16(RefereeData->initial_speed);
   shoot_ctrl_cmd->shooter_barrel_heat=RefereeData->shooter_17mm_barrel_heat;
   RemoteControlSet();
-  // MouseKeySet();
+  MouseKeySet();
   PitchAngleLimit();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
