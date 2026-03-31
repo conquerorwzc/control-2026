@@ -55,14 +55,15 @@ void VOFATask() {
   // visualized_data[11] = shoot_init_config.shoot_param.shooter_barrel_cooling_value;
   // visualized_data[0] = shoot_ctrl_cmd->shooter_barrel_heat;
   // visualized_data[1] = robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
-
-  visualized_data[0] = robot->chassis->chassis_ctrl_cmd.target_yaw;
-  visualized_data[1] = robot->chassis->yaw_prostrate_PID.Measure;
-  visualized_data[2] = robot->chassis->yaw_prostrate_PID.Ref;
-  visualized_data[3] = robot->gimbal->gimbal_IMU_data->YawTotalAngle;
-  visualized_data[4] = robot->offset_angle;
-  visualized_data[5] = YAW_ALIGN_ANGLE;
-  visualized_data[6] = robot->gimbal->yaw_motor->measure.angle_single_round;
+  // visualized_data[0] = robot->chassis->chassis_ctrl_cmd.target_yaw;
+  // visualized_data[1] = robot->chassis->yaw_prostrate_PID.Measure;
+  // visualized_data[2] = robot->chassis->yaw_prostrate_PID.Ref;
+  // visualized_data[3] = robot->gimbal->gimbal_IMU_data->YawTotalAngle;
+  // visualized_data[4] = robot->offset_angle;
+  // visualized_data[5] = YAW_ALIGN_ANGLE;
+  // visualized_data[6] = robot->gimbal->yaw_motor->measure.angle_single_round;
+  visualized_data[0] = robot->chassis->imu->Gyro[2];
+  visualized_data[1] = chassis_ctrl_cmd->vx;
 #elif defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   visualized_data[0] = robot->chassis->joint_motor[0]->measure.position;
   visualized_data[1] = robot->chassis->joint_motor[1]->measure.position;
