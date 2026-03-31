@@ -118,6 +118,7 @@ static void DoubleBoardComms() {
   *chassis_upload_data = *(Chassis_Upload_Data_s*)CANCommGet(robot->can_comm);
   robot->chassis->imu->Pitch = chassis_upload_data->Pitch;
   robot->chassis->imu->YawTotalAngle = chassis_upload_data->YawTotalAngle;
+  robot->chassis->imu->Gyro[2] = chassis_upload_data->yaw_speed;
   shoot_ctrl_cmd->initial_speed = chassis_upload_data->bullet_speed;
   shoot_ctrl_cmd->shooter_barrel_heat = chassis_upload_data->shooter_17mm_barrel_heat;
   shoot_ctrl_cmd->shooter_barrel_heat_limit = chassis_upload_data->shoot_heat_limit;
@@ -132,6 +133,7 @@ static void DoubleBoardComms() {
   // 发送底盘回传数据
   chassis_upload_data->Pitch = robot->chassis->imu->Pitch;
   chassis_upload_data->YawTotalAngle = robot->chassis->imu->YawTotalAngle;
+  chassis_upload_data->yaw_speed = robot->chassis->imu->Gyro[2];
   chassis_upload_data->bullet_speed = robot->referee_data->ShootData.initial_speed;
   chassis_upload_data->robot_id = robot->referee_data->GameRobotState.robot_id;
   chassis_upload_data->shooter_17mm_barrel_heat = robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
