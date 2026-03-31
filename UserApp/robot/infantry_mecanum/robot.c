@@ -160,6 +160,44 @@ static void MouseKeySet() {
     chassis_ctrl_cmd->vy=-10000-(DWT_GetTimeline_s()-y_speed_time)*10000;
   }//速度绝对值在10000以上输出控制量=10000+10000t(s)
 
+  // F 键切换红蓝方 (机器人 ID: 红方=3, 蓝方=103)
+  if (rc_data[TEMP].key[KEY_PRESS].f && !rc_data_last[TEMP].key[KEY_PRESS].f)
+  {
+    // 获取当前裁判系统数据
+    referee_info_t *referee_info = robot->referee_data;
+
+    if (referee_info != NULL)
+    {
+      // 切换机器人 ID
+      if (referee_info->GameRobotState.robot_id == 3)
+      {
+        // 从红方切换到蓝方
+        referee_info->GameRobotState.robot_id = 103;
+        LOGINFO("[ROBOT] Switch to BLUE team (ID=103)");
+      }
+      else if (referee_info->GameRobotState.robot_id == 103)
+      {
+        // 从蓝方切换到红方
+        referee_info->GameRobotState.robot_id = 3;
+        LOGINFO("[ROBOT] Switch to RED team (ID=3)");
+      }
+      else
+      {
+        // 如果是其他 ID，默认切换到红方
+        referee_info->GameRobotState.robot_id = 3;
+        LOGINFO("[ROBOT] Set to RED team (ID=3)");
+      }
+
+      // 重新计算客户端 ID(参考 referee_task.c 中的 DeterminRobotID 函数)
+      referee_info->referee_id.Robot_Color = referee_info->GameRobotState.robot_id > 7 ? Robot_Blue : Robot_Red;
+      referee_info->referee_id.Robot_ID = referee_info->GameRobotState.robot_id;
+      referee_info->referee_id.Cilent_ID = 0x0100 + referee_info->referee_id.Robot_ID;
+      referee_info->referee_id.Receiver_Robot_ID = 0;
+
+      LOGINFO("[ROBOT] New Client ID: 0x%04X", referee_info->referee_id.Cilent_ID);
+    }
+  }
+
 if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   {
   gimbal_ctrl_cmd->yaw -= (float)rc_data[TEMP].mouse.x * 0.007f;  // 横向灵敏度调节
