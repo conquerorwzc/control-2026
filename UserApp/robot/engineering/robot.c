@@ -145,9 +145,10 @@ static void MouseKeySet()
         return;
 
     // 屏蔽遥控器摇杆输入干扰
-    if (abs(rc_data[TEMP].rc.dial) > 5 || abs(rc_data[TEMP].rc.rocker_l1) > 5 || abs(rc_data[TEMP].rc.rocker_l_) > 5)
+    if (rc_data[TEMP].rc.dial != 0 || rc_data[TEMP].rc.rocker_l1 != 0 || rc_data[TEMP].rc.rocker_l_ != 0 ||
+        rc_data[TEMP].rc.rocker_r1 != 0 || rc_data[TEMP].rc.rocker_r_ != 0)
     {
-        return;
+        return; // 有摇杆输入时不进行键鼠控制
     }
 
     // ================= 1. 大模式切换 (按 G 键循环切换) =================
@@ -468,6 +469,26 @@ static void RemoteControlSet()
         {
             last_switch = current_switch;
             switch_stable_cnt = 0;
+        }
+    }
+
+    // rocker_r1：向上推大于 300 夹紧，向下推小于 -300 松开
+    if (rc_data[TEMP].rc.rocker_r1 > 300)
+    {
+        grab_ctrl_cmd->torque = 2.0f; // 夹紧
+        // 强制同步键鼠状态，防止后面 MouseKeySet() 运行将其覆盖导致冲突抽搐
+        if (rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C] % 2 == 0)
+        {
+            rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C]++;
+        }
+    }
+    else if (rc_data[TEMP].rc.rocker_r1 < -300)
+    {
+        grab_ctrl_cmd->torque = -0.6f; // 松开
+        // 强制同步键鼠状态
+        if (rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C] % 2 == 1)
+        {
+            rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C]++;
         }
     }
     chassis_ctrl_cmd->vx = 60.0f * (float)rc_data[TEMP].rc.rocker_l_;
