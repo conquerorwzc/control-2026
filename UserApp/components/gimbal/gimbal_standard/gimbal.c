@@ -72,11 +72,11 @@ GimbalInstance* GimbalInit(Gimbal_Init_Config_s* gimbal_init_config) {
   gimbal_init_config->pitch_motor_config.controller_setting_init_config.outer_loop_type = ANGLE_LOOP;
   gimbal_init_config->pitch_motor_config.controller_setting_init_config.close_loop_type = SPEED_LOOP | ANGLE_LOOP;
 
-  gimbal_instance->yaw_motor = DJIMotorInit(&gimbal_init_config->yaw_motor_config);
-  gimbal_instance->pitch_motor = DJIMotorInit(&gimbal_init_config->pitch_motor_config);
-
   gimbal = gimbal_instance;
   gimbal_ctrl_cmd = &gimbal->gimbal_ctrl_cmd;  // 在运行时初始化指针
+  gimbal_init_config->yaw_motor_config.controller_param_init_config.speed_feedforward_ptr=&gimbal_ctrl_cmd->chassis_rotate_wz;
+  gimbal_instance->yaw_motor = DJIMotorInit(&gimbal_init_config->yaw_motor_config);
+  gimbal_instance->pitch_motor = DJIMotorInit(&gimbal_init_config->pitch_motor_config);
   return gimbal_instance;
 }
 

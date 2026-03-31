@@ -188,6 +188,7 @@ void RobotCMDTask() {
 #if defined(GIMBAL_BOARD)
   CalcOffsetAngle();
   // GimbalAlignToChassisForward();
+  gimbal_ctrl_cmd->chassis_rotate_wz = -1.0f * robot->chassis->imu->Gyro[2];
 #endif
   EmergencyHandler(robot);  // 急停必须在 CAN 发送之前,确保 POWER_OFF 优先级最高
 #endif

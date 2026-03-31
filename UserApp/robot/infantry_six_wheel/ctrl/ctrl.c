@@ -136,15 +136,15 @@ void JoyStickCtrl(RobotInstance* robot) {
        chassis_ctrl_cmd->is_rotate = 1;
        chassis_ctrl_cmd->wz = 800.0f;
 
-       rotate_omega = robot->chassis->imu->Gyro[2];
-
-       chassis_vx = (float)rc_data[TEMP].rc.rocker_l_;
-       chassis_vy = (float)rc_data[TEMP].rc.rocker_l1;
-
-       input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
-       float target_angle_to_gimbal_p = atan2f(chassis_vy, chassis_vx);
-       float target_angle_to_chassis_p = target_angle_to_gimbal_p + robot->offset_angle * DEGREE_2_RAD;
-       chassis_ctrl_cmd->vx = input_mag * sinf(target_angle_to_chassis_p + 0.0f);
+       // rotate_omega = robot->chassis->imu->Gyro[2];
+       //
+       // chassis_vx = (float)rc_data[TEMP].rc.rocker_l_;
+       // chassis_vy = (float)rc_data[TEMP].rc.rocker_l1;
+       //
+       // input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
+       // float target_angle_to_gimbal_p = atan2f(chassis_vy, chassis_vx);
+       // float target_angle_to_chassis_p = target_angle_to_gimbal_p + robot->offset_angle * DEGREE_2_RAD;
+       // chassis_ctrl_cmd->vx = input_mag * sinf(target_angle_to_chassis_p + 0.0f);
       break;
     }
     case ROBOT_CHASSIS_PROSTRATE_FREE: {
@@ -284,27 +284,27 @@ void MouseKeyCtrl(RobotInstance* robot) {
       chassis_ctrl_cmd->is_rotate = 1;
       chassis_ctrl_cmd->wz = 800.0f;
 
-      rotate_omega = robot->chassis->imu->Gyro[2];
-
-      // 设置目标速度矢量 (vx, vy)
-      if (rc_data[TEMP].key[KEY_PRESS].w)
-        chassis_vy += 100.0f * speed_coff;
-      else if (rc_data[TEMP].key[KEY_PRESS].s)
-        chassis_vy += -100.0f * speed_coff;
-      else
-        chassis_vy += 0.0f;
-
-      if (rc_data[TEMP].key[KEY_PRESS].d)
-        chassis_vx += 100.0f * speed_coff;
-      else if (rc_data[TEMP].key[KEY_PRESS].a)
-        chassis_vx += -100.0f * speed_coff;
-      else
-        chassis_vx += 0.0f;
-
-      input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
-      float target_angle_to_gimbal_p = atan2f(chassis_vy, chassis_vx);
-      float target_angle_to_chassis_p = target_angle_to_gimbal_p + robot->offset_angle * DEGREE_2_RAD;
-      chassis_ctrl_cmd->vx = input_mag * sinf(target_angle_to_chassis_p + 0.0f);
+      // rotate_omega = robot->chassis->imu->Gyro[2];
+      //
+      // // 设置目标速度矢量 (vx, vy)
+      // if (rc_data[TEMP].key[KEY_PRESS].w)
+      //   chassis_vy += 100.0f * speed_coff;
+      // else if (rc_data[TEMP].key[KEY_PRESS].s)
+      //   chassis_vy += -100.0f * speed_coff;
+      // else
+      //   chassis_vy += 0.0f;
+      //
+      // if (rc_data[TEMP].key[KEY_PRESS].d)
+      //   chassis_vx += 100.0f * speed_coff;
+      // else if (rc_data[TEMP].key[KEY_PRESS].a)
+      //   chassis_vx += -100.0f * speed_coff;
+      // else
+      //   chassis_vx += 0.0f;
+      //
+      // input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
+      // float target_angle_to_gimbal_p = atan2f(chassis_vy, chassis_vx);
+      // float target_angle_to_chassis_p = target_angle_to_gimbal_p + robot->offset_angle * DEGREE_2_RAD;
+      // chassis_ctrl_cmd->vx = input_mag * sinf(target_angle_to_chassis_p + 0.0f);
       break;
     case ROBOT_CHASSIS_PROSTRATE_FOLLOW:
 #if (!defined(ONE_BOARD))
