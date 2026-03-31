@@ -322,15 +322,21 @@ void MouseKeyCtrl(RobotInstance* robot) {
         chassis_vy += -400.0f * speed_coff;
       else
         chassis_vy += 0.0f;
-
       if (rc_data[TEMP].key[KEY_PRESS].d)
         chassis_vx += 400.0f * speed_coff;
       else if (rc_data[TEMP].key[KEY_PRESS].a)
         chassis_vx += -400.0f * speed_coff;
       else
         chassis_vx += 0.0f;
-
       input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
+
+      float max_speed = 400.0f * speed_coff;
+      if (input_mag > max_speed) {
+        chassis_vx = chassis_vx / input_mag * max_speed;
+        chassis_vy = chassis_vy / input_mag * max_speed;
+        input_mag = max_speed;
+      }
+
       if (input_mag > 5.0f) {
         // 运动方向解算
         follow_err = (atan2f(chassis_vy, chassis_vx) - PI / 2.0f) * RAD_2_DEGREE - robot->offset_angle;
