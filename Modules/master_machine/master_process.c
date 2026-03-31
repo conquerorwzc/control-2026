@@ -66,7 +66,7 @@ void UpdateGimbalAttitude(Vision_Send_s *vision_send) {
   // vision_send->gimbal_send.pitch=current_attitude->pitch;
   // vision_send->gimbal_send.roll=current_attitude->roll;
   vision_send->gimbal_send.mode=0;
-  vision_send->gimbal_send.color=0;
+  vision_send->gimbal_send.color=referee_info->GameRobotState.robot_id;
   vision_send->shoot_send.bullet_speed=referee_info->ShootData.initial_speed;
   //vision_send->referee_send.HP=upload->HP;
   //vision_send->referee_send.Heat=upload->Heat;

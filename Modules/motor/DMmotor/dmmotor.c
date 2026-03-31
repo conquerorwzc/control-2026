@@ -116,12 +116,12 @@ static void DMMotorDecode(CANInstance* motor_can) {
 // todo: 会跟控制抢，有概率控不了电机
 static void DMMotorLostCallback(void* motor_ptr) {
   DMMotorSetMode(DM_CMD_MOTOR_MODE, motor_ptr);
-  DWT_Delay(0.1);
+  osDelay(100);
 }
 
 void DMMotorCaliEncoder(DMMotorInstance* motor) {
   DMMotorSetMode(DM_CMD_ZERO_POSITION, motor);
-  DWT_Delay(0.3);
+  osDelay(300);
 }
 
 DMMotorInstance* DMMotorInit(Motor_Init_Config_s* config) {
@@ -150,7 +150,7 @@ DMMotorInstance* DMMotorInit(Motor_Init_Config_s* config) {
 
   DMMotorEnable(motor);
   DMMotorSetMode(DM_CMD_MOTOR_MODE, motor);
-  DWT_Delay(0.1);
+  osDelay(100);
   dm_motor_instance[idx++] = motor;
   return motor;
 }

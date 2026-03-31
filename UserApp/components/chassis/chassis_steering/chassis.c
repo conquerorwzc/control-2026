@@ -459,14 +459,14 @@ void ChassisTask()
         if (chassis->super_cap->cap_msg.cap_v > 18.0f)
             chassis->super_cap_mode = PASSIVE_MODE;
         chassis->chassis_ctrl_cmd.max_power =
-           referee_data->GameRobotState.chassis_power_limit;//TODO:用超电记得改;
+           25;//TODO:用超电记得改;
         break;
     case FORCED_CHARGING_MODE:
         if (chassis->super_cap->cap_msg.cap_v < 8.0f)
             chassis->super_cap_mode = SAFETY_MODE;
         if (chassis->super_cap->cap_msg.cap_v > 18.0f)
             chassis->super_cap_mode = PASSIVE_MODE;
-        chassis->chassis_ctrl_cmd.max_power = (uint16_t)(0.4 * referee_data->GameRobotState.chassis_power_limit);
+        chassis->chassis_ctrl_cmd.max_power = (uint16_t) (referee_data->GameRobotState.chassis_power_limit-30);
         break;
     case CHARGING_MODE:
         if (chassis->super_cap->cap_msg.cap_v < 10.0f)
@@ -475,7 +475,7 @@ void ChassisTask()
             chassis->super_cap_mode = PASSIVE_MODE;
         chassis->chassis_ctrl_cmd.max_power =
             referee_data->GameRobotState.chassis_power_limit -
-            (uint16_t)powf((float)referee_data->GameRobotState.chassis_power_limit * 0.05f, 2);
+            30;
         break;
     case PASSIVE_MODE:
         if (chassis_ctrl_cmd->SuperCapBoost == 1)
@@ -483,8 +483,7 @@ void ChassisTask()
         if (chassis->super_cap->cap_msg.cap_v < 12.0f)
             chassis->super_cap_mode = CHARGING_MODE;
         chassis->chassis_ctrl_cmd.max_power =
-            referee_data->GameRobotState.chassis_power_limit -
-            (uint16_t)powf((float)referee_data->GameRobotState.chassis_power_limit * 0.04f, 2);
+            referee_data->GameRobotState.chassis_power_limit+10;
         break;
     case ACTIVE_MODE:
         if (chassis->super_cap->cap_msg.cap_v < 12.0f)
@@ -543,13 +542,13 @@ void ChassisTask()
 
     if (chassis_ctrl_cmd->chassis_mode != CHASSIS_POWER_OFF)
         SteeringCalculate();
-    // SuperCapSendMessage(chassis->super_cap,
-    //    (int16_t)(referee_data->GameRobotState.chassis_power_limit-3),
-    //    referee_data->PowerHeatData.buffer_energy,
-    //    referee_data->GameRobotState.power_management_chassis_output);
+    SuperCapSendMessage(chassis->super_cap,
+       (int16_t)((uint8_t)(referee_data->GameRobotState.chassis_power_limit)),//这里uint8转换确保发送给超电的功率不会超过255
+       referee_data->PowerHeatData.buffer_energy,
+       referee_data->GameRobotState.power_management_chassis_output);
 
-    SuperCapSendMessage(chassis->super_cap, (int16_t)300, referee_data->PowerHeatData.buffer_energy,
-                        referee_data->GameRobotState.power_management_chassis_output);
+    // SuperCapSendMessage(chassis->super_cap, (int16_t), referee_data->PowerHeatData.buffer_energy,
+    //                     referee_data->GameRobotState.power_management_chassis_output);
     RudderFirst();
     // 功率控制与输出限幅
     LimitChassisOutput();

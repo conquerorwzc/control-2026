@@ -5,12 +5,17 @@
 #include "robot_config.h"
 //#include "super_cap.h"
 #include "user_lib.h"
+#include "stdlib.h"
 #define USECANREMOTE 1 //是否使用云台板的遥控数据
 #pragma pack(1)
 typedef struct {
   float bullet_speed;
   uint16_t HP;
   uint16_t Heat;
+    float power;
+    float cap_v;
+    uint8_t error_code;
+    uint8_t color;
 } upload_data;
 #pragma pack()
 
@@ -30,6 +35,33 @@ static float trigger_time = 0;  // 触发时间
 static float angle=0;
 uint8_t* received_data = NULL;
 CANCommInstance* can_comm_instance = NULL;
+float noise_05(void)
+{
+    // rand() ∈ [0, RAND_MAX] → 映射到 [-0.5, 0.5]
+    return ((float)rand() / (float)RAND_MAX) - 0.5f;
+}
+
+//连续混乱曲线 + ±0.5 噪声
+float chaos_func(float x)
+{
+    float t = 3.1415926f * x;
+
+    float y =
+        arm_cos_f32(t)
+        + 0.5f   * arm_cos_f32(3.0f*t)
+        + 0.25f  * arm_cos_f32(9.0f*t)
+        + 0.125f * arm_cos_f32(27.0f*t)
+        + 0.0625f* arm_cos_f32(81.0f*t)
+        + 0.03125f*arm_cos_f32(243.0f*t);
+
+    // 映射到 [1,24]
+    float out = 5.75f * y + 12.5f;
+
+    // 叠加 ±0.5 噪声
+    out += noise_05();
+
+    return out;
+}
 /**
  * @brief 根据gimbal app传回的当前电机角度计算和零位的误差
  *        单圈绝对角度的范围是0~360,说明文档中有图示
@@ -264,6 +296,7 @@ RobotInstance * RobotInit() {
   chassis_ctrl_cmd->max_power = 80;  // 随便给一个初始功率，后面应该要从裁判系统获取
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
+    //srand(1);
   //rc_data = robot->rc_data;
  // MyUIInit();
   return robot;
@@ -280,6 +313,10 @@ void RobotCMDTask() {
   upload.bullet_speed=robot->referee_data->ShootData.initial_speed;
   upload.HP=robot->referee_data->GameRobotState.current_HP;
   upload.Heat=robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
+    upload.power=robot->chassis->super_cap->cap_msg.out_p;
+    upload.cap_v=robot->chassis->super_cap->cap_msg.cap_v;
+    upload.error_code=robot->chassis->super_cap->cap_msg.error_detect;
+    upload.color=robot->referee_data->GameRobotState.robot_id;
   CANCommSend(can_comm_instance,(uint8_t *)&upload);
 }
 
@@ -344,7 +381,7 @@ void RobotTask() {
     // }
 
 
-
+     // robot->chassis->super_cap->cap_msg.cap_v=chaos_func(DWT_GetTimeline_s()/10.0f);
     //GimbalTask();
     //ShootTask();
     ChassisTask();

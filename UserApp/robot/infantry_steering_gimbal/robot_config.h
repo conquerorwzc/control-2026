@@ -12,7 +12,7 @@
 #define YAW_CHASSIS_ALIGN_ECD 6353
 #define PITCH_HORIZON_ECD 5748  // 云台处于水平位置时编码器值,若对云台有机械改动需要修改
 #define PITCH_MAX_ANGLE 13.0f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
-#define PITCH_MIN_ANGLE -24.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define PITCH_MIN_ANGLE -15.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
 
 // 私有宏,自动将编码器转换成角度值
 #define YAW_ALIGN_ANGLE (YAW_CHASSIS_ALIGN_ECD * ECD_ANGLE_COEF_DJI)
@@ -30,7 +30,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                     {
                       .Kp = 2.0f,  //0.8
                       .Ki = 0.0f,
-                      .Kd = 0.01f,
+                      .Kd = 0.0f,
                       .DeadBand = 0.0f,
                          .Derivative_LPF_RC=0.00085f,
                         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement|PID_DerivativeFilter,
@@ -62,9 +62,9 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 0.4f,  // 1
+                            .Kp = 0.6f,  // 1
                             .Ki = 0.00f,
-                            .Kd = 0.00f,
+                            .Kd = 0.0001f,
                             .MaxOut = 20.0f,  //25
                             .DeadBand = 0.00f,
                          // .Derivative_LPF_RC=0.0085f,
@@ -73,8 +73,8 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                         },
                     .speed_PID =
                         {
-                            .Kp = 0.5f,  // 0.5
-                            .Ki = 10.f,  // 0.1
+                            .Kp = 2.0f,  // 0.5
+                            .Ki = 30.f,  // 0.1
                             .Kd = 0.00f,
                             .MaxOut =8.5f,  //8
                             .DeadBand = 0.0f,
@@ -149,12 +149,28 @@ static Shoot_Init_Config_s shoot_init_config = {
             .num_per_circle = 10,                      // 拨盘一圈的装载量6
             .loader_direction = 1,                    // 拨盘旋转方向,1为正向，-1为反向
             .friction_num = 2,                        //摩擦轮数量
-            .friction_speed = 42000.0f,               //摩擦轮速度
-            .friction_coefficients = {1.0f, -1.0f}, //摩擦轮速度比例系数
-            .deadtime_burstfire = 100,
+            .friction_speed = 40000.0f,               //摩擦轮速度
+            .friction_coefficients = {1.f, -1.0f}, //摩擦轮速度比例系数
+            .deadtime_burstfire = 75,
             .deadtime_onebullet = 400,               //弹丸发射间隔
-            .target_speed = 24.0f,
-            .bullet_speed_adjustment = 10.0f,
+            .target_speed = 22.0f,
+            .bullet_speed_adjustment = 50.0f,
+
+            //.one_bullet_delta_angle = 36.0f,              // 发射一发弹丸拨盘转动的距离,由机械设计图纸给出
+           // .reduction_ratio_loader = 66.0f,              // M2006拨盘电机的减速比
+           // .num_per_circle = 10,                          // 拨盘一圈的装载量
+            // .loader_direction = 1,                        // 拨盘旋转方向,1为正向，-1为反向
+            // .friction_num = 2,                            // 摩擦轮数量
+            // .friction_speed = 37500.0f,                   // 摩擦轮速度
+            // .friction_coefficients = {1.0f, -1.0f},  // 摩擦轮速度比例系数。
+            // .deadtime_burstfire = 67,
+            // .deadtime_onebullet = 500,
+            // .target_speed = 22.0f,
+           // .bullet_speed_adjustment = 50.0f,
+            .bullet_speed_deadband = 0.2f,//弹速死区，正负deadband。
+            .one_barrel_heat_value = 10,//一发弹丸所需热量
+            .shooter_barrel_cooling_value = 30,//每秒冷却回复
+            .shooter_barrel_heat_limit = 220,//热量上限
         },
     .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan2, 8, MOTOR_DIRECTION_NORMAL),
     .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan2, 4, MOTOR_DIRECTION_NORMAL),
@@ -224,6 +240,10 @@ typedef struct {
   float bullet_speed;
   uint16_t HP;
   uint16_t Heat;
+    float power;
+    float cap_v;
+    uint8_t error_detect;
+    uint8_t color;
 } upload_data;
 #pragma pack()
 extern upload_data* upload;

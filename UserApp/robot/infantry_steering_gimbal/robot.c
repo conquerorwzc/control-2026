@@ -7,6 +7,7 @@
 #include "robot_config.h"
 #include "user_lib.h"
 #include "rm_referee.h"
+#include "arm_math.h"
 upload_data* upload;
 static RobotInstance *robot;
 Int16ToBytes transmit_data;
@@ -30,7 +31,34 @@ static float vx_initial;   //x轴输入控制量
 static float vy_initial;   //y轴输入控制量
 static float angle;
 // static  DJIMotorInstance* debug_motor;
+// float noise_05(void)
+// {
+//     // rand() ∈ [0, RAND_MAX] → 映射到 [-0.5, 0.5]
+//     return ((float)rand() / (float)RAND_MAX) - 0.5f;
+// }
 
+// 连续混乱曲线 + ±0.5 噪声
+float chaos_func(float x)
+{
+    float t = 3.1415926f * x;
+
+    float y =
+        arm_cos_f32(t)
+        + 0.5f   * arm_cos_f32(3.0f*t)
+        + 0.25f  * arm_cos_f32(9.0f*t)
+        + 0.125f * arm_cos_f32(27.0f*t)
+        + 0.0625f* arm_cos_f32(81.0f*t)
+        + 0.03125f*arm_cos_f32(243.0f*t);
+
+    // 映射到 [1,24]
+    float out = 5.75f * y + 12.5f;
+   // float out = 5.75f * y + 12.5f;
+
+    // 叠加 ±0.5 噪声
+   // out += noise_05();
+
+    return y;
+}
 /**
  * @brief 根据gimbal app传回的当前电机角度计算和零位的误差
  *        单圈绝对角度的范围是0~360,说明文档中有图示
@@ -136,15 +164,15 @@ static void RemoteControlSet() {
   vx_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l_;  // l_水平方向
   vy_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // l1竖直方向
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
-    chassis_ctrl_cmd->wz =
-        60.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
+    chassis_ctrl_cmd->wz =5000;
+        //60.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
   }
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
     chassis_ctrl_cmd->wz =(25.0f) *(float)rc_data[TEMP].rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
   }
 
   // 射频控制,固定每秒1发,后续可以根据左侧拨轮的值大小切换射频,
-  shoot_ctrl_cmd->shoot_rate = 8;
+  //shoot_ctrl_cmd->shoot_rate = 8;
 
   *rc_data_last = *rc_data;
 }
@@ -157,8 +185,12 @@ static void MouseKeySet() {
     if (rc_data[TEMP].key[KEY_PRESS].shift!=0||abs(rc_data[TEMP].rc.dial) > 20)
     {
         chassis_ctrl_cmd->chassis_mode=CHASSIS_ROTATE;
-        chassis_ctrl_cmd->wz =
-        (float)chassis_ctrl_cmd->chassis_speed_buff+60.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
+        chassis_ctrl_cmd->wz =  25000;
+        //chassis_ctrl_cmd->wz =  7000*sinf(DWT_GetTimeline_s()*8.f)+20000;
+        //chassis_ctrl_cmd->wz =  3500*chaos_func(DWT_GetTimeline_s()*4.f)+20000;
+        //chassis_ctrl_cmd->wz =  40000*powf(sinf(DWT_GetTimeline_s()*8.0f),3.f);
+       // chassis_ctrl_cmd->SuperCapBoost=1;
+       // (float)chassis_ctrl_cmd->chassis_speed_buff+60.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
     }
     else
     {
@@ -171,20 +203,20 @@ static void MouseKeySet() {
     chassis_ctrl_cmd->vx=vx_initial;
   }//速度绝对值在10000以下输出控制量=输入控制量
   if (vx_initial > 10000 ) {
-    chassis_ctrl_cmd->vx=10000+(DWT_GetTimeline_s()-x_speed_time)*25000;
+    chassis_ctrl_cmd->vx=10000+(DWT_GetTimeline_s()-x_speed_time)*10000;
   }
   if (vx_initial < -10000) {
-    chassis_ctrl_cmd->vx=-10000-(DWT_GetTimeline_s()-x_speed_time)*25000;
+    chassis_ctrl_cmd->vx=-10000-(DWT_GetTimeline_s()-x_speed_time)*10000;
   }//速度绝对值在10000以上输出控制量=10000+10000t(s)
   if (abs(vy_initial)<=10000) {
     y_speed_time=DWT_GetTimeline_s();
     chassis_ctrl_cmd->vy=vy_initial;
   }//速度绝对值在10000以下输出控制量=输入控制量
   if (vy_initial > 10000 ) {
-    chassis_ctrl_cmd->vy=10000+(DWT_GetTimeline_s()-y_speed_time)*25000;
+    chassis_ctrl_cmd->vy=10000+(DWT_GetTimeline_s()-y_speed_time)*10000;
   }
   if (vy_initial < -10000) {
-    chassis_ctrl_cmd->vy=-10000-(DWT_GetTimeline_s()-y_speed_time)*25000;
+    chassis_ctrl_cmd->vy=-10000-(DWT_GetTimeline_s()-y_speed_time)*10000;
   }//速度绝对值在10000以上输出控制量=10000+10000t(s)
 
 if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
@@ -192,18 +224,18 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
     gimbal_ctrl_cmd->yaw -= (float)rc_data[TEMP].mouse.x * 0.003f;  // 横向灵敏度调节
     gimbal_ctrl_cmd->pitch -= (float)rc_data[TEMP].mouse.y * 0.003f; // 纵向灵敏度调节 (负号反转Y轴)
   }
-  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Z] % 3)  // Z键设置弹速
-  {
-    case 0:
-      shoot_ctrl_cmd->bullet_speed = 15;
-      break;
-    case 1:
-      shoot_ctrl_cmd->bullet_speed = 18;
-      break;
-    default:
-      shoot_ctrl_cmd->bullet_speed = 30;
-      break;
-  }
+  // switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Z] % 3)  // Z键设置弹速
+  // {
+  //   case 0:
+  //     shoot_ctrl_cmd->bullet_speed = 15;
+  //     break;
+  //   case 1:
+  //     shoot_ctrl_cmd->bullet_speed = 18;
+  //     break;
+  //   default:
+  //     shoot_ctrl_cmd->bullet_speed = 30;
+  //     break;
+  // }
   switch (rc_data[TEMP].mouse.press_r % 2) {  //右键进入自瞄预备模式
   case 1:
       if (has_non_zero_data(vision_recv_data)==1){
@@ -271,6 +303,7 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   //     break;
   //   default:
   //     chassis_ctrl_cmd-> chassis_mode = CHASSIS_ROTATE ;
+  //     chassis_ctrl_cmd->wz+=5000;
   //     break;
   // }
 
@@ -284,7 +317,7 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
 
       break;
   }
-  shoot_ctrl_cmd->shoot_rate = 8;// 射频控制,固定每秒1发,后续可以根据左侧拨轮的值大小切换射频,
+ // shoot_ctrl_cmd->shoot_rate = 8;// 射频控制,固定每秒1发,后续可以根据左侧拨轮的值大小切换射频,
   if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
     gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
   } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
@@ -405,6 +438,8 @@ void RobotInit() {
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;
   vision_recv_data=VisionInit(&gimbal_init_config.imu_init_config);
+    shoot_ctrl_cmd->heat_mode=REFEREE_CONTROL;
+    shoot_ctrl_cmd->bullet_speed_mode=ENABLE_BULLET_SPEED;
   can_comm_instance = CANCommInit(&comm_config);
 }
 
@@ -415,6 +450,8 @@ void RobotCMDTask() {
   RemoteControlSet();
   ///if (rc_data->rc.rocker_l1==0&&rc_data->rc.rocker_r1==0&&rc_data->rc.rocker_l_==0&&rc_data->rc.rocker_r_==0)
     MouseKeySet();
+    shoot_ctrl_cmd->initial_speed = upload->bullet_speed;
+    shoot_ctrl_cmd->shooter_barrel_heat=upload->Heat;
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
 
@@ -422,6 +459,8 @@ void RobotTask() {
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
   upload=(upload_data*)CANCommGet(can_comm_instance);
   robot->referee_data->ShootData.initial_speed=upload->bullet_speed;
+    robot->referee_data->GameRobotState.robot_id=upload->color;
+
   VisionSend();
   RobotCMDTask();
   GimbalTask();
@@ -461,8 +500,8 @@ void RobotTask() {
   cancomm_pack->load_mode=robot->shoot->shoot_ctrl_cmd.load_mode;
   cancomm_pack->shoot_mode=robot->shoot->shoot_ctrl_cmd.shoot_mode;
   cancomm_pack->gimbal_mode=gimbal_ctrl_cmd->gimbal_mode;
-  cancomm_pack->rest_heat=robot->shoot->shoot_ctrl_cmd.rest_heat;
-  cancomm_pack->shoot_rate=(uint8_t)robot->shoot->shoot_ctrl_cmd.shoot_rate;
+  //cancomm_pack->rest_heat=robot->shoot->shoot_ctrl_cmd.rest_heat;
+  //cancomm_pack->shoot_rate=(uint8_t)robot->shoot->shoot_ctrl_cmd.shoot_rate;
   CANCommSend(can_comm_instance, (uint8_t*)cancomm_pack);
 
 #endif
