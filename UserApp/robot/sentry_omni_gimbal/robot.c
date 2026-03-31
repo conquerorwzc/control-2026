@@ -568,7 +568,7 @@ void RobotCMDTask() {
 
   time = DWT_GetTimeline_s();
   // 双板数据按100Hz更新，其他安全逻辑维持高频
-  if (rc_dualboard_first_run || (time - last_rc_dualboard_time) >= 0.01f) {
+  if (rc_dualboard_first_run || (time - last_rc_dualboard_time) >= 0.012f) {
     rc_dualboard_first_run = 0;
     last_rc_dualboard_time = time;
     Gimbal_CANCommSend();

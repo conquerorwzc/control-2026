@@ -106,10 +106,10 @@ static Chassis_Init_Config_s chassis_init_config = {
     .wheel_motor_config[3] = WHEEL_MOTOR_CONFIG(&hcan1,3),
     //跟随PID
     .follow_pid={
-        .Kp = -80.0f,
+        .Kp = -70.0f,
         .Ki = 0.0f,
         .Kd = 0.0f,
-        .DeadBand = 0.0f,
+        .DeadBand = 1.0f,
         .IntegralLimit = 1000.0f,
         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
         .MaxOut = 20000.0f,
@@ -133,8 +133,8 @@ static SuperCap_Init_Config_s super_cap_config = {
 #define BOARD_RX_ID 0x219
 #else
 // 接收板配置
-#define BOARD_TX_ID 0x11
-#define BOARD_RX_ID 0x10
+#define BOARD_TX_ID 0x211
+#define BOARD_RX_ID 0x210
 #endif
 
 static CANComm_Init_Config_s comm_config = {

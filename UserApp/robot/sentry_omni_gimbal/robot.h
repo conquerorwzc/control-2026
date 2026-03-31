@@ -48,9 +48,9 @@ typedef struct {
   float Rotate_speed;
   int16_t Spin_speed;
   float Yaw_motor_angle;
-  float Mode_switch;
-  float Control_mode;
-  float Pause_flag;
+  uint8_t Mode_switch;
+  uint8_t Control_mode;
+  uint8_t Pause_flag;
 } Send_Data_RC_NEW;
 #endif
 

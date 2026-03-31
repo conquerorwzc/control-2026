@@ -26,8 +26,8 @@
 #define VISION_USE_VCP  // 使用虚拟串口发送视觉数据
 // #define VISION_USE_UART // 使用串口发送视觉数据
 
-#define BOARD_TX_ID 0x10
-#define BOARD_RX_ID 0x11
+#define BOARD_TX_ID 0x210
+#define BOARD_RX_ID 0x211
 
 // 云台参数
 #define YAW_CHASSIS_ALIGN_ECD 3845  // 云台和底盘对齐指向相同方向时的电机编码器值,若对云台有机械改动需要修改

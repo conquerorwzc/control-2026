@@ -402,6 +402,10 @@ static void EmergencyHandler() {
   } else
     LOGINFO("[CMD]DualBoardComm is Online");
 
+  if (robot->navigator_data->robot_cmd.is_recovering==1 && robot->referee_data->GameRobotState.current_HP<robot->referee_data->GameRobotState.maximum_HP*0.8) {
+    chassis_ctrl_cmd->chassis_mode=CHASSIS_POWER_OFF;
+  }
+
 #ifdef USE_DUAL_RC
 
   if (switch_is_down(rc_data_old->Switch_right))  // 底盘失能
@@ -417,9 +421,9 @@ static void EmergencyHandler() {
     robot->robot_mode = ROBOT_POWER_ON;
     chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
   }
-
 #endif
 }
+
 static void ModeControl() {
   if (robot->control_mode==NAVIGATOR_MODE){
     // if (robot->referee_data->ProjectileAllowance.projectile_allowance_17mm==0) {
@@ -574,7 +578,7 @@ void RobotCMDTask() {
   static uint8_t rc_dualboard_first_run = 1;
   time = DWT_GetTimeline_s();
   // 双板数据按100Hz更新，其他安全逻辑维持高频
-  if (rc_dualboard_first_run || (time - last_rc_dualboard_time) >= 0.01f) {
+  if (rc_dualboard_first_run || (time - last_rc_dualboard_time) >= 0.012f) {
     rc_dualboard_first_run = 0;
     last_rc_dualboard_time = time;
     Chassis_CANCommSend();
