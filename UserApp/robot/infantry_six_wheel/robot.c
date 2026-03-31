@@ -215,7 +215,6 @@ void RobotInit() {
 #endif
 #if !defined(GIMBAL_BOARD)                     // PC15 引脚初始化并注册为 GPIO 输出
   robot->referee_data = RefereeInit(&huart7);  // 裁判系统初始化
-  // robot->super_cap = SuperCapInit(&super_cap_config);
   robot->chassis = ChassisInit(&chassis_init_config);
 #endif
 #if !defined(ONE_BOARD)

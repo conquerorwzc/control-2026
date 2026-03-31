@@ -43,7 +43,6 @@ typedef struct {
 
   float offset_angle;
 
-  SuperCapInstance* super_cap;
   ChassisInstance* chassis;
   GimbalInstance* gimbal;
   ShootInstance* shoot;
