@@ -357,7 +357,7 @@ static void RemoteControlSet() {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
       vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vy * 10000;
       vy_initial = robot->navigator_data->robot_cmd.speed_vector.vx * 10000;
-      chassis_ctrl_cmd->wz = robot->navigator_data->robot_cmd.speed_vector.wz * 0;//10000;
+      chassis_ctrl_cmd->wz = robot->navigator_data->robot_cmd.speed_vector.wz / WZ_CMD_TO_CAR_WZ_RAD_S;//10000;
     // }
   }
   // 缓加速
@@ -437,7 +437,7 @@ static void ModeControl() {
     }
     else {
       robot->sentry_mode=MOBILITY_POSE;
-      robot->chassis->chassis_ctrl_cmd.wz=-1000;
+      // robot->chassis->chassis_ctrl_cmd.wz=-1500;
     }
   }
 }

@@ -9,6 +9,13 @@
 #include "robot.h"
 #include "can_comm.h"
 
+/* 输出车体角速度 rad/s */
+#define Wheel_radius 76.475f
+#define Wheel_base 345.96f
+#define Reduction_ratio 19.0f
+#define WZ_CMD_TO_CAR_WZ_RAD_S (DEGREE_2_RAD * DEGREE_2_RAD * Wheel_radius / Reduction_ratio)
+
+
 // 编译warning,提醒开发者修改机器人参数
 #ifndef ROBOT_CONFIG_PARAM_WARNING
 #define ROBOT_CONFIG_PARAM_WARNING
@@ -86,12 +93,12 @@ static Chassis_Init_Config_s chassis_init_config = {
     .chassis_param =
         {
             // 机器人底盘修改的参数,单位为mm(毫米)
-            .wheel_base = 345.96f,              // 纵向轴距(前进后退方向)
+            .wheel_base = Wheel_base,              // 纵向轴距(前进后退方向)
             .track_width = 345.96f,             // 横向轮距(左右平移方向)
             .center_gimbal_offset_x = 0.0f,    // 云台旋转中心距底盘几何中心的距离,前后方向,云台位于正中心时默认设为0
             .center_gimbal_offset_y = 0.0f,    // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
-            .wheel_radius = 76.475f,             // 轮子半径
-            .wheel_reduction_ratio = 19.0f,  // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
+            .wheel_radius = Wheel_radius,             // 轮子半径
+            .wheel_reduction_ratio = Reduction_ratio,  // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
             //3508功率模型参数
       .power_param.k0=0.7441993412640775f,
       .power_param.k1=0.0090164284468539646f,
