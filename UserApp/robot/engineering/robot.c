@@ -260,7 +260,7 @@ static void MouseKeySet()
         if (robot->robot_mode == ROBOT_EXCHANGE_MODE)
         {
             // 【底盘高度】纯 QE 控制 (底盘逻辑，不用屏蔽)
-            float step_size = 1.0f / (10.0f * 200.0f);
+            float step_size = 1.0f / (12.0f * 200.0f);
             chassis_ctrl_cmd->lift_ratio +=
                 (float)(rc_data[TEMP].key[KEY_PRESS_NORMAL].q - rc_data[TEMP].key[KEY_PRESS_NORMAL].e) * step_size;
 
