@@ -9,6 +9,7 @@
 
 #include "memory.h"
 #include "stdlib.h"
+#include "referee.h"
 
 static SuperCapInstance* super_cap_instance = NULL;  // 可以由app保存此指针
 
@@ -41,98 +42,6 @@ SuperCapInstance* SuperCapInit(SuperCap_Init_Config_s* supercap_config) {
   return super_cap_instance;
 }
 
-// 去年的超电控制逻辑
-//  要开超电的时候底盘的功率就在这个power limit上加需要的功率多出来的50由超电提供。
-//  当超电电压低于12时，底盘功率限制不应该超过裁判系统读到的powerlimit值。
-//  被动使用模式：去年的逻辑是12V以下就必须等待超电充电，等到充电到18V以上再能打开超电。
-//  主动使用模式：power直接给200。
-//  超电最大给200W，但正常来说用不到那么大。
-
-uint16_t SuperCapModeControl(SuperCapInstance* super_cap, SuperCap_Ctrl_Cmd_e cmd_mode, uint16_t power_limit) {
-  if (super_cap == NULL) {
-    return power_limit;
-  }
-
-  if (super_cap->cap_msg.error_detect != 0) {
-    super_cap->super_cap_mode = SAFETY_MODE;
-    return power_limit;
-  }
-
-  // 状态机，根据命令和电压更新状态
-  switch (super_cap->super_cap_mode) {
-    case SAFETY_MODE:
-      if (cmd_mode == BOOST)
-        super_cap->super_cap_mode = ACTIVE_MODE;
-      else if (super_cap->cap_msg.cap_v > 18.0f)
-        super_cap->super_cap_mode = PASSIVE_MODE;
-      break;
-
-    case FORCED_CHARGING_MODE:
-      if (super_cap->cap_msg.cap_v < 8.0f)
-        super_cap->super_cap_mode = SAFETY_MODE;
-      else if (super_cap->cap_msg.cap_v > 18.0f)
-        super_cap->super_cap_mode = PASSIVE_MODE;
-      break;
-
-    case CHARGING_MODE:
-      if (super_cap->cap_msg.cap_v < 10.0f)
-        super_cap->super_cap_mode = FORCED_CHARGING_MODE;
-      else if (super_cap->cap_msg.cap_v > 18.0f)
-        super_cap->super_cap_mode = PASSIVE_MODE;
-      break;
-
-    case PASSIVE_MODE:
-      if (cmd_mode == BOOST) {
-        super_cap->super_cap_mode = ACTIVE_MODE;
-      } else if (super_cap->cap_msg.cap_v < 12.0f) {
-        super_cap->super_cap_mode = CHARGING_MODE;
-      } else if (super_cap->cap_msg.cap_v >= 12.0f && super_cap->cap_msg.cap_v <= 18.0f) {
-        super_cap->super_cap_mode = SAFETY_MODE;
-      }
-      break;
-
-    case ACTIVE_MODE:
-      if (super_cap->cap_msg.cap_v < 12.0f)
-        super_cap->super_cap_mode = CHARGING_MODE;
-      else if (cmd_mode != ACTIVE_MODE)
-        super_cap->super_cap_mode = PASSIVE_MODE;
-      break;
-
-    default:
-      super_cap->super_cap_mode = SAFETY_MODE;
-      break;
-  }
-
-  // 根据当前状态计算最大功率
-  uint16_t max_power = power_limit;
-  switch (super_cap->super_cap_mode) {
-    case SAFETY_MODE:
-      max_power = power_limit;
-      break;
-    case FORCED_CHARGING_MODE:
-      max_power = (uint16_t)(0.4f * power_limit);
-      break;
-    case CHARGING_MODE:
-      max_power = power_limit - (uint16_t)(power_limit * power_limit * 0.0025f);
-      break;
-    case PASSIVE_MODE:
-      if (super_cap->cap_msg.cap_v > 18.0f) {
-        max_power = power_limit + 20;
-      } else {
-        max_power = power_limit;
-      }
-      break;
-    case ACTIVE_MODE:
-      max_power = 200;  // 主动模式放宽到200W
-      break;
-    default:
-      max_power = power_limit;
-      break;
-  }
-
-  return max_power;
-}
-
 void SuperCapSendMessage(SuperCapInstance* instance, int16_t power, uint16_t buffer, uint8_t state) {
   uint8_t tx_data[8] = {0};  // 初始化发送数据
 
@@ -152,3 +61,85 @@ void SuperCapSendMessage(SuperCapInstance* instance, int16_t power, uint16_t buf
   memcpy(instance->can_ins->tx_buff, tx_data, 8);
   CANTransmit(instance->can_ins, 1);
 }
+// 去年的超电控制逻辑
+//  要开超电的时候底盘的功率就在这个power limit上加需要的功率多出来的50由超电提供。
+//  当超电电压低于12时，底盘功率限制不应该超过裁判系统读到的powerlimit值。
+//  被动使用模式：去年的逻辑是12V以下就必须等待超电充电，等到充电到18V以上再能打开超电。
+//  主动使用模式：power直接给200。
+//  超电最大给200W，但正常来说用不到那么大。
+
+uint16_t SuperCapModeControl(SuperCapInstance* super_cap, uint16_t power_limit) {
+  SuperCap_Ctrl_Cmd_e ctrl_cmd = super_cap->super_cap_ctrl_cmd;
+  if (super_cap == NULL) {
+    return power_limit;
+  }
+
+  if (super_cap->cap_msg.error_detect != 0) {
+    super_cap->super_cap_mode = SAFETY_MODE;
+    return power_limit;
+  }
+
+  // 状态机，根据命令和电压更新状态，并同时计算对应状态的最大功率
+  uint16_t max_power = power_limit;
+  switch (super_cap->super_cap_mode) {
+    case SAFETY_MODE:
+      if (ctrl_cmd == BOOST) {
+        super_cap->super_cap_mode = ACTIVE_MODE;
+        max_power = 180;
+      } else if (super_cap->cap_msg.cap_v > 18.0f) {
+        super_cap->super_cap_mode = PASSIVE_MODE;
+        max_power = power_limit + 20;
+      } else {
+        max_power = power_limit;
+      }
+      break;
+
+    case CHARGING_MODE:
+      super_cap->super_cap_ctrl_cmd = NORMAL;
+      if (super_cap->cap_msg.cap_v < 10.0f) {
+        max_power = (uint16_t)(power_limit * 0.8f);
+      } else if (super_cap->cap_msg.cap_v > 18.0f) {
+        super_cap->super_cap_mode = PASSIVE_MODE;
+        max_power = power_limit + 20;
+      } else {
+        max_power = power_limit * 0.9f;
+      }
+      break;
+
+    case PASSIVE_MODE:
+      if (ctrl_cmd == BOOST) {
+        super_cap->super_cap_mode = ACTIVE_MODE;
+        max_power = 180;
+      } else if (super_cap->cap_msg.cap_v < 15.0f) {
+        super_cap->super_cap_mode = CHARGING_MODE;
+        max_power = power_limit - (uint16_t)(power_limit * power_limit * 0.0025f);
+      } else if (super_cap->cap_msg.cap_v >= 15.0f && super_cap->cap_msg.cap_v <= 18.0f) {
+        super_cap->super_cap_mode = SAFETY_MODE;
+        max_power = power_limit;
+      } else {
+        // 由于上面涵盖了 <12.0f 和 12.0f~18.0f 的情况，此处必然 > 18.0f
+        max_power = power_limit + 20;
+      }
+      break;
+
+    case ACTIVE_MODE:
+      if (super_cap->cap_msg.cap_v < 15.0f) {
+        super_cap->super_cap_mode = CHARGING_MODE;
+        max_power = power_limit * 0.9f;
+      } else if (ctrl_cmd == NORMAL) {  // 修复了原代码中 cmd_mode != ACTIVE_MODE 的枚举类型不匹配 Bug
+        super_cap->super_cap_mode = PASSIVE_MODE;
+        max_power = (super_cap->cap_msg.cap_v > 18.0f) ? (power_limit + 20) : power_limit;
+      } else {
+        max_power = 180;  // 主动模式放宽到180W
+      }
+      break;
+
+    default:
+      super_cap->super_cap_mode = SAFETY_MODE;
+      max_power = power_limit;
+      break;
+  }
+  return max_power;
+}
+
+

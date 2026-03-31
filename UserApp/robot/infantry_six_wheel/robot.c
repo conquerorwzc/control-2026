@@ -65,10 +65,11 @@ void VOFATask() {
   // visualized_data[0] = robot->chassis->imu->Gyro[2];
   // visualized_data[1] = chassis_ctrl_cmd->vx;
 #elif defined(ONE_BOARD) || defined(CHASSIS_BOARD)
-  visualized_data[0] = robot->chassis->joint_motor[0]->measure.position;
-  visualized_data[1] = robot->chassis->joint_motor[1]->measure.position;
-  visualized_data[2] = robot->chassis->joint_motor[2]->measure.position;
-  visualized_data[3] = robot->chassis->joint_motor[3]->measure.position;
+  visualized_data[0] = robot->chassis->super_cap->cap_msg.cap_v;
+  visualized_data[1] = robot->chassis->super_cap->cap_msg.in_p;
+  visualized_data[2] = robot->chassis->super_cap->cap_msg.out_p;
+  visualized_data[3] = robot->chassis->chassis_ctrl_cmd.max_power;
+  visualized_data[4] = robot->chassis->super_cap->super_cap_ctrl_cmd;
 
 #endif
   VOFAJustFloatSend(visualized_data, 20);
@@ -115,8 +116,11 @@ static void DoubleBoardCommsInit() {
 
 static void DoubleBoardComms() {
 #if defined(GIMBAL_BOARD)
+  // 发送底盘控制指令
+  chassis_fetch_data->chassis_ctrl_cmd = *chassis_ctrl_cmd;
+  chassis_fetch_data->super_cap_ctrl_cmd = robot->chassis->super_cap->super_cap_ctrl_cmd;  *chassis_upload_data = *(Chassis_Upload_Data_s*)CANCommGet(robot->can_comm);
   // 接收底盘回传数据
-  *chassis_upload_data = *(Chassis_Upload_Data_s*)CANCommGet(robot->can_comm);
+   *chassis_upload_data = *(Chassis_Upload_Data_s*)CANCommGet(robot->can_comm); 
   robot->chassis->imu->Pitch = chassis_upload_data->Pitch;
   robot->chassis->imu->YawTotalAngle = chassis_upload_data->YawTotalAngle;
   robot->chassis->imu->Gyro[2] = chassis_upload_data->yaw_speed;
@@ -124,13 +128,9 @@ static void DoubleBoardComms() {
   shoot_ctrl_cmd->shooter_barrel_heat = chassis_upload_data->shooter_17mm_barrel_heat;
   shoot_ctrl_cmd->shooter_barrel_heat_limit = chassis_upload_data->shoot_heat_limit;
   VisionSetRefereeData(chassis_upload_data->bullet_speed, chassis_upload_data->robot_id);
-  // 发送底盘控制指令
-  chassis_fetch_data->chassis_ctrl_cmd = *chassis_ctrl_cmd;
+  robot->chassis->super_cap->super_cap_ctrl_cmd = chassis_upload_data->super_cap_ctrl_cmd;
   CANCommSend(robot->can_comm, (void*)chassis_fetch_data);
 #elif defined(CHASSIS_BOARD)
-  // 接收底盘控制指令
-  *chassis_fetch_data = *(Chassis_Fetch_Data_s*)CANCommGet(robot->can_comm);
-  robot->chassis->chassis_ctrl_cmd = chassis_fetch_data->chassis_ctrl_cmd;
   // 发送底盘回传数据
   chassis_upload_data->Pitch = robot->chassis->imu->Pitch;
   chassis_upload_data->YawTotalAngle = robot->chassis->imu->YawTotalAngle;
@@ -139,6 +139,11 @@ static void DoubleBoardComms() {
   chassis_upload_data->robot_id = robot->referee_data->GameRobotState.robot_id;
   chassis_upload_data->shooter_17mm_barrel_heat = robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
   chassis_upload_data->shoot_heat_limit = robot->referee_data->GameRobotState.shooter_barrel_heat_limit;
+  chassis_upload_data->super_cap_ctrl_cmd = robot->chassis->super_cap->super_cap_ctrl_cmd;
+  // 接收底盘控制指令
+  *chassis_fetch_data = *(Chassis_Fetch_Data_s*)CANCommGet(robot->can_comm);
+  robot->chassis->chassis_ctrl_cmd = chassis_fetch_data->chassis_ctrl_cmd;
+  robot->chassis->super_cap->super_cap_ctrl_cmd = chassis_fetch_data->super_cap_ctrl_cmd;
 
   CANCommSend(robot->can_comm, (void*)chassis_upload_data);
 #endif
@@ -226,7 +231,7 @@ void RobotInit() {
   DWT_GetDeltaT(&robot->DWT_CNT);
   // UI初始化
   // MyUIInit(robot);
-  chassis_ctrl_cmd->max_power = 90.0f;
+  chassis_ctrl_cmd->max_power = 80.0f;
 }
 
 void RobotTask() {

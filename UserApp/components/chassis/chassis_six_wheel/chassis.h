@@ -32,12 +32,11 @@ typedef enum {
 } Chassis_Mode_e;
 
 typedef struct {
+  Chassis_Mode_e chassis_mode;
   float vx;
   float wz;
   float target_yaw;
   uint16_t max_power;
-  Chassis_Mode_e chassis_mode;
-  SuperCap_Ctrl_Cmd_e super_cap_ctrl_cmd;
   int is_rotate;
 } Chassis_Ctrl_Cmd_s;
 

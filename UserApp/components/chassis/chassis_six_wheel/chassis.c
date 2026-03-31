@@ -26,7 +26,6 @@ static float power_control_k_coff = 1.0f;
 static float k0 = 0.7441993412640775f, k1 = 0.0090164284468539646f, k2 = 0.0001988857226262331f,
              k3 = 0.024694430204543864f, k4 = 0.20160143850678086f, k5 = 3.715221772539512e-05f;  // 中科大的功率模型
 
-
 /**
  * @brief 功率模型
  * @todo 有待模块化,djimotor也得改改
@@ -199,10 +198,10 @@ void ChassisTask(void) {
       break;
   }
 
-  chassis_ctrl_cmd->max_power = SuperCapModeControl(chassis->super_cap, chassis_ctrl_cmd->super_cap_ctrl_cmd, referee_data->GameRobotState.chassis_power_limit);
-  SuperCapSendMessage(chassis->super_cap, (int16_t)chassis_ctrl_cmd->max_power,
+  chassis_ctrl_cmd->max_power =
+      SuperCapModeControl(chassis->super_cap, referee_data->GameRobotState.chassis_power_limit);
+  SuperCapSendMessage(chassis->super_cap, (int16_t)referee_data->GameRobotState.chassis_power_limit * (13.0f/14.0f),
                       referee_data->PowerHeatData.buffer_energy,
                       referee_data->GameRobotState.power_management_chassis_output);
-
   LimitChassisOutput();
 }

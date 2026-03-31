@@ -271,6 +271,11 @@ void MouseKeyCtrl(RobotInstance* robot) {
   // [C] 单次切换：超级电容开关
   if (rc_data[TEMP].key[KEY_PRESS].c != c_key_last) {
     if (rc_data[TEMP].key[KEY_PRESS].c) {
+      if (robot->chassis->super_cap->super_cap_ctrl_cmd == BOOST) {
+        robot->chassis->super_cap->super_cap_ctrl_cmd = NORMAL;
+      } else {
+        robot->chassis->super_cap->super_cap_ctrl_cmd = BOOST;
+      }
       // 超级电容开关
     }
     c_key_last = rc_data[TEMP].key[KEY_PRESS].c;

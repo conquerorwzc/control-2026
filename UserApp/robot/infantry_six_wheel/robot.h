@@ -19,10 +19,12 @@ typedef struct {
   uint8_t robot_id;
   int shooter_17mm_barrel_heat;
   int shoot_heat_limit;
+  SuperCap_Ctrl_Cmd_e super_cap_ctrl_cmd;
 } Chassis_Upload_Data_s;  // means the Chassis board, not the component
 
 typedef struct {
   Chassis_Ctrl_Cmd_s chassis_ctrl_cmd;
+  SuperCap_Ctrl_Cmd_e super_cap_ctrl_cmd;
 } Chassis_Fetch_Data_s;  // means the Chassis board, not the component
 #pragma pack()
 
