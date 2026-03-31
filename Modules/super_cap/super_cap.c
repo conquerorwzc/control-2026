@@ -48,6 +48,83 @@ SuperCapInstance *SuperCapInit(SuperCap_Init_Config_s *supercap_config)
 // 主动使用模式：power直接给200。
 // 超电最大给200W，但正常来说用不到那么大。
 
+uint16_t SuperCapModeControl(SuperCapInstance* super_cap, SuperCap_Mode_e cmd_mode, uint16_t power_limit) {
+    if (super_cap == NULL) {
+        return power_limit;
+    }
+
+    if (super_cap->cap_msg.error_detect != 0) {
+        super_cap->super_cap_mode = SAFETY_MODE;
+        return power_limit;
+    }
+
+    // 状态机，根据命令和电压更新状态
+    switch (super_cap->super_cap_mode) {
+        case SAFETY_MODE:
+            if (cmd_mode == ACTIVE_MODE) super_cap->super_cap_mode = ACTIVE_MODE;
+            else if (super_cap->cap_msg.cap_v > 18.0f) super_cap->super_cap_mode = PASSIVE_MODE;
+            break;
+
+        case FORCED_CHARGING_MODE:
+            if (super_cap->cap_msg.cap_v < 8.0f) super_cap->super_cap_mode = SAFETY_MODE;
+            else if (super_cap->cap_msg.cap_v > 18.0f) super_cap->super_cap_mode = PASSIVE_MODE;
+            break;
+
+        case CHARGING_MODE:
+            if (super_cap->cap_msg.cap_v < 10.0f) super_cap->super_cap_mode = FORCED_CHARGING_MODE;
+            else if (super_cap->cap_msg.cap_v > 18.0f) super_cap->super_cap_mode = PASSIVE_MODE;
+            break;
+
+        case PASSIVE_MODE:
+            if (cmd_mode == ACTIVE_MODE) {
+                super_cap->super_cap_mode = ACTIVE_MODE;
+            } else if (super_cap->cap_msg.cap_v < 12.0f) {
+                super_cap->super_cap_mode = CHARGING_MODE;
+            } else if (super_cap->cap_msg.cap_v >= 12.0f && super_cap->cap_msg.cap_v <= 18.0f) {
+                super_cap->super_cap_mode = SAFETY_MODE;
+            }
+            break;
+
+        case ACTIVE_MODE:
+            if (super_cap->cap_msg.cap_v < 12.0f) super_cap->super_cap_mode = CHARGING_MODE;
+            else if (cmd_mode != ACTIVE_MODE) super_cap->super_cap_mode = PASSIVE_MODE;
+            break;
+
+        default:
+            super_cap->super_cap_mode = SAFETY_MODE;
+            break;
+    }
+
+    // 根据当前状态计算最大功率
+    uint16_t max_power = power_limit;
+    switch (super_cap->super_cap_mode) {
+        case SAFETY_MODE:
+            max_power = power_limit;
+            break;
+        case FORCED_CHARGING_MODE:
+            max_power = (uint16_t)(0.4f * power_limit);
+            break;
+        case CHARGING_MODE:
+            max_power = power_limit - (uint16_t)(power_limit * power_limit * 0.0025f);
+            break;
+        case PASSIVE_MODE:
+            if (super_cap->cap_msg.cap_v > 18.0f) {
+                max_power = power_limit + 20;
+            } else {
+                max_power = power_limit;
+            }
+            break;
+        case ACTIVE_MODE:
+            max_power = 200; // 主动模式放宽到200W
+            break;
+        default:
+            max_power = power_limit;
+            break;
+    }
+
+    return max_power;
+}
+
 void SuperCapSendMessage(SuperCapInstance *instance, int16_t power, uint16_t buffer, uint8_t state)
 {
     uint8_t tx_data[8] = {0}; // 初始化发送数据

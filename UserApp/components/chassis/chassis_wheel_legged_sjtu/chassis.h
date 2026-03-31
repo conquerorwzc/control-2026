@@ -68,7 +68,7 @@ typedef struct {
   int chassis_speed_buff;
   uint16_t max_power;
   Chassis_Mode_e chassis_mode;
-  uint8_t SuperCapBoost;
+  SuperCap_Mode_e super_cap_mode;
 } Chassis_Ctrl_Cmd_s;
 /* SJTU model: 10-dim state vector */
 typedef struct {
@@ -85,15 +85,6 @@ typedef struct {
 } State_Var_t;
 
 /* K matrix 4x10, 2D poly fitting coeffs [p00,p10,p01,p20,p11,p02] per element */
-
-//超级电容策略结构体
-typedef enum {
-  SAFETY_MODE=0,//安全模式，超电电压低于8伏时进入，大于18伏退出，底盘限制30W
-  PASSIVE_MODE,//被动模式，超电电压正常时的工作模式
-  ACTIVE_MODE,//，主动模式，主动使用超电能量
-  CHARGING_MODE,//充电模式，衰减底盘功率，保障电容电压健康
-  FORCED_CHARGING_MODE,//强制充电模式，更极端的功率衰减，强制超电快速充电
-} SuperCapMode;
 
 typedef struct {
   float track_width;
@@ -172,7 +163,7 @@ typedef struct {
   } update_flag;
 
   SuperCapInstance* super_cap;
-  SuperCapMode super_cap_mode;
+  SuperCap_Mode_e super_cap_mode;
 } ChassisInstance;
 
 ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config);
