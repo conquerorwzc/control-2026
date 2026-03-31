@@ -70,13 +70,14 @@ static String_Data_t UI_ammo_text_mid;   // 文字 "250"
 
 // 摩擦轮转速指示器
 static Graph_Data_t UI_fric_bg_left;        // 左竖条背景矩形
+static Graph_Data_t UI_fric_bg_mid;         // 中竖条背景矩形
 static Graph_Data_t UI_fric_bg_right;       // 右竖条背景矩形
 static Graph_Data_t UI_fric_pointer_left;   // 左指针线
+static Graph_Data_t UI_fric_pointer_mid;    // 中指针线
 static Graph_Data_t UI_fric_pointer_right;  // 右指针线
-static String_Data_t UI_fric_text_down;     // 文字 "5"
-static String_Data_t UI_fric_text_mid;      // 文字 "6"
-static String_Data_t UI_fric_text_up;       // 文字 "7"
-
+static String_Data_t UI_fric_text_down;     // 文字 "3"
+static String_Data_t UI_fric_text_mid;      // 文字 "4"
+static String_Data_t UI_fric_text_up;       // 文字 "5"
 // 车头方向动态圆弧
 static Graph_Data_t UI_yaw_arc;  // 方向指示弧
 
@@ -138,11 +139,14 @@ static void UIChangeCheck(Referee_Interactive_info_t *_Interactive_data) {
   }
 
   if (_Interactive_data->fric_speed_left != _Interactive_data->last_fric_speed_left ||
-      _Interactive_data->fric_speed_right != _Interactive_data->last_fric_speed_right) {
+    _Interactive_data->fric_speed_mid != _Interactive_data->last_fric_speed_mid ||
+    _Interactive_data->fric_speed_right != _Interactive_data->last_fric_speed_right) {
     _Interactive_data->Referee_Interactive_Flag.fric_flag = 1;
     _Interactive_data->last_fric_speed_left = _Interactive_data->fric_speed_left;
+    _Interactive_data->last_fric_speed_mid = _Interactive_data->fric_speed_mid;
     _Interactive_data->last_fric_speed_right = _Interactive_data->fric_speed_right;
-  }
+    }
+
   if (fabsf(_Interactive_data->chassis_relative_angle - _Interactive_data->last_chassis_relative_angle) > 0.01f) {
     _Interactive_data->Referee_Interactive_Flag.yaw_flag = 1;
     _Interactive_data->last_chassis_relative_angle = _Interactive_data->chassis_relative_angle;
@@ -152,34 +156,48 @@ static void UIChangeCheck(Referee_Interactive_info_t *_Interactive_data) {
 // UI更新函数
 static void MyUIRefresh(Referee_Interactive_info_t *interactive_data) {
   // 更新云台状态
-  if (interactive_data->Referee_Interactive_Flag.gimbal_flag == 1) {
+
     char *gimbal_str;
-    switch (interactive_data->gimbal_mode) {
-      case GIMBAL_POWER_OFF:
-        gimbal_str = "PowerOff";
+    switch (interactive_data->heat_mode_e) {
+      case NO_CONTROL:
+        gimbal_str = "no";
         break;
-      case GIMBAL_ON:
-        gimbal_str = "On      ";
+      case REFEREE_CONTROL:
+        gimbal_str = "referee      ";
         break;
-      case GIMBAL_VISION:
-        gimbal_str = "Vision  ";
+      case SIMULLATE_CONTROL:
+        gimbal_str = "simulate  ";
         break;
       default:
-        gimbal_str = "unknown ";
+
         break;
     }
     UICharDraw(&UI_State_dyn[1], "sd1", UI_Graph_Change, 8, UI_Color_Yellow, 15, 2, 270, 700, gimbal_str);
     UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[1]);
     interactive_data->Referee_Interactive_Flag.gimbal_flag = 0;
-  }
+
 
   // 更新射击状态
-  if (interactive_data->Referee_Interactive_Flag.shoot_flag == 1) {
-    char *shoot_str = interactive_data->shoot_mode == SHOOT_ON ? "on " : "off";
-    UICharDraw(&UI_State_dyn[2], "sd2", UI_Graph_Change, 8, UI_Color_Orange, 15, 2, 270, 650, shoot_str);
+
+    char *bullet_str;
+    switch (interactive_data->bullet_speed_mode_e) {
+      case NO_CONTROL:
+        bullet_str = "no";
+        break;
+      case MANUAL_BULLET_SPEED:
+        bullet_str = "man      ";
+        break;
+      case ENABLE_BULLET_SPEED:
+        bullet_str = "en  ";
+        break;
+      default:
+
+        break;
+    }
+    UICharDraw(&UI_State_dyn[2], "sd2", UI_Graph_Change, 8, UI_Color_Orange, 15, 2, 270, 650, bullet_str);
     UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[2]);
     interactive_data->Referee_Interactive_Flag.shoot_flag = 0;
-  }
+
 
   // 更新摩擦轮状态
   if (interactive_data->Referee_Interactive_Flag.friction_flag == 1) {
@@ -189,13 +207,12 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data) {
     interactive_data->Referee_Interactive_Flag.friction_flag = 0;
   }
 
-  // 更新弹舱盖状态
-  if (interactive_data->Referee_Interactive_Flag.lid_flag == 1) {
-    char *lid_str = interactive_data->lid_mode == LID_OPEN ? "open " : "close";
-    UICharDraw(&UI_State_dyn[4], "sd4", UI_Graph_Change, 8, UI_Color_Pink, 15, 2, 270, 550, lid_str);
+
+    char *cap_str = interactive_data->cap_msg.error_detect == 0? "good " : "bad";
+    UICharDraw(&UI_State_dyn[4], "sd4", UI_Graph_Change, 8, UI_Color_Pink, 15, 2, 270, 550, cap_str);
     UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[4]);
     interactive_data->Referee_Interactive_Flag.lid_flag = 0;
-  }
+
 
   // 自瞄模式指示器
   if (interactive_data->Referee_Interactive_Flag.autoaim_flag == 1) {
@@ -223,7 +240,7 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data) {
   // 电容能量圆弧
   if (interactive_data->Referee_Interactive_Flag.cap_flag == 1) {
     float volt = interactive_data->cap_voltage;
-    float bar = (volt - 16.0f) / (23.0f - 16.0f) * 40.0f;
+    float bar = (volt - 12.0f) / (23.0f - 12.0f) * 40.0f;
     if (bar < 1) bar = 1;
     if (bar > 40) bar = 40;
     uint32_t end_angle = 270 + (uint32_t)bar;
@@ -253,51 +270,14 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data) {
     interactive_data->Referee_Interactive_Flag.ammo_flag = 0;
   }
 
-  // 摩擦轮指针
+  // 显示左侧摩擦轮转速（精确到 100）
   if (interactive_data->Referee_Interactive_Flag.fric_flag == 1) {
     uint16_t left_speed = interactive_data->fric_speed_left;
-    uint16_t right_speed = interactive_data->fric_speed_right;
-
-    uint32_t left_y1, left_y2;
-    uint32_t left_color = UI_Color_Green;
-
-    if (left_speed < FRIC_LOWER) {
-      left_y1 = 665;
-      left_y2 = 695;
-      left_color = UI_Color_Yellow;
-    } else if (left_speed > FRIC_UPPER) {
-      left_y1 = 755;
-      left_y2 = 785;
-      left_color = UI_Color_Yellow;
-    } else {
-      float ratio = (float)(left_speed - FRIC_LOWER) / (float)(FRIC_UPPER - FRIC_LOWER);
-      uint32_t base = 665 + (uint32_t)(ratio * 120.0f);
-      left_y1 = base - 3;
-      left_y2 = base + 3;
-    }
-    UILineDraw(&UI_fric_pointer_left, "fl1", UI_Graph_Change, 7, left_color, 22, 1526, left_y1, 1526, left_y2);
-
-    uint32_t right_y1, right_y2;
-    uint32_t right_color = UI_Color_Green;
-
-    if (right_speed < FRIC_LOWER) {
-      right_y1 = 665;
-      right_y2 = 695;
-      right_color = UI_Color_Yellow;
-    } else if (right_speed > FRIC_UPPER) {
-      right_y1 = 755;
-      right_y2 = 785;
-      right_color = UI_Color_Yellow;
-    } else {
-      float ratio = (float)(right_speed - FRIC_LOWER) / (float)(FRIC_UPPER - FRIC_LOWER);
-      uint32_t base = 665 + (uint32_t)(ratio * 120.0f);
-      right_y1 = base - 3;
-      right_y2 = base + 3;
-    }
-    UILineDraw(&UI_fric_pointer_right, "fr1", UI_Graph_Change, 7, right_color, 22, 1590, right_y1, 1590, right_y2);
-
-    UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_fric_pointer_left, UI_fric_pointer_right);
-
+    uint16_t display_speed = left_speed / 100;  // 26000 -> 260
+    char fric_speed_str[16];
+    sprintf(fric_speed_str, "frispeed:%d", display_speed);
+    UICharDraw(&UI_fric_text_down, "fs0", UI_Graph_Change, 6, UI_Color_White, 18, 2, 1556, 850, fric_speed_str);
+    UICharRefresh(&referee_recv_info->referee_id, UI_fric_text_down);
     interactive_data->Referee_Interactive_Flag.fric_flag = 0;
   }
 
@@ -336,7 +316,7 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data) {
   // 俯仰角仪表盘指针和数值
   if (interactive_data->Referee_Interactive_Flag.pitch_flag == 1) {
     float pitch_deg = interactive_data->pitch_angle;
-    float ui_angle = 90.0f - pitch_deg;  // 转换为UI坐标系角度
+    float ui_angle = 90.0f + pitch_deg;  // 转换为UI坐标系角度
 
     while (ui_angle < 0) ui_angle += 360.0f;
     while (ui_angle >= 360) ui_angle -= 360.0f;
@@ -503,16 +483,14 @@ void MyUIInit() {
     // 绘制车辆状态标志指示
     // UICharDraw(&UI_State_sta[0], "ss0", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 750, "chassis:");
     // UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[0]);
-    UICharDraw(&UI_State_sta[1], "ss1", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 700, "gimbal:");
+    UICharDraw(&UI_State_sta[1], "ss1", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 700, "heat:");
     UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[1]);
-    UICharDraw(&UI_State_sta[2], "ss2", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 650, "shootctrl:");
+    UICharDraw(&UI_State_sta[2], "ss2", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 650, "bullet:");
     UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[2]);
     UICharDraw(&UI_State_sta[3], "ss3", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 600, "frict:");
     UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[3]);
     UICharDraw(&UI_State_sta[4], "ss4", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 550, "supercap:");
     UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[4]);
-    UICharDraw(&UI_State_sta[5], "ss5", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 500, "heatctrl:");
-    UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[5]);
 
 
     // 绘制车辆状态标志，动态
@@ -580,22 +558,9 @@ void MyUIInit() {
     UICharRefresh(&referee_recv_info->referee_id, UI_ammo_text_mid);
 
     // 摩擦轮转速指示器
-    UIRectangleDraw(&UI_fric_bg_left, "fl0", UI_Graph_ADD, 7, UI_Color_White, 2, 1513, 663, 1541, 783);
-    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_fric_bg_left);
-    UIRectangleDraw(&UI_fric_bg_right, "fm0", UI_Graph_ADD, 7, UI_Color_White, 2, 1576, 663, 1604, 783);
-    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_fric_bg_right);
-    UIRectangleDraw(&UI_fric_bg_right, "fr0", UI_Graph_ADD, 7, UI_Color_White, 2, 1636, 663, 1664, 783);
-    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_fric_bg_right);
-    // 指针初始位置（中间）
-    UILineDraw(&UI_fric_pointer_left, "fl1", UI_Graph_ADD, 7, UI_Color_Main, 22, 1526, 720, 1526, 726);
-    UILineDraw(&UI_fric_pointer_right, "fr1", UI_Graph_ADD, 7, UI_Color_Main, 22, 1590, 720, 1590, 726);
-    UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_fric_pointer_left, UI_fric_pointer_right);
-    UICharDraw(&UI_fric_text_down, "fd0", UI_Graph_ADD, 6, UI_Color_White, 20, 1, 1552, 685, "3");
-    UICharRefresh(&referee_recv_info->referee_id, UI_fric_text_down);
-    UICharDraw(&UI_fric_text_mid, "fm0", UI_Graph_ADD, 6, UI_Color_White, 20, 1, 1552, 735, "4");
-    UICharRefresh(&referee_recv_info->referee_id, UI_fric_text_mid);
-    UICharDraw(&UI_fric_text_up, "fu0", UI_Graph_ADD, 6, UI_Color_White, 20, 1, 1552, 782, "5");
-    UICharRefresh(&referee_recv_info->referee_id, UI_fric_text_up);
+  // 初始化显示左侧摩擦轮转速
+  UICharDraw(&UI_fric_text_down, "fs0", UI_Graph_ADD, 6, UI_Color_White, 18, 2, 1556, 850, "frispeed:0");
+  UICharRefresh(&referee_recv_info->referee_id, UI_fric_text_down);
 
     // 车头方向动态圆弧
     UIArcDraw(&UI_yaw_arc, "yd0", UI_Graph_ADD, 6, UI_Color_Main, 15, 345, 23, 1556, 721, 88, 88);

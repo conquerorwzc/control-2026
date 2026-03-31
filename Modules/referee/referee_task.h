@@ -53,6 +53,8 @@ typedef struct
     Shoot_Mode_e shoot_mode;        // 发射模式设置
     Friction_Mode_e friction_mode;  // 摩擦轮关闭
     lid_mode_e lid_mode;            // 弹舱盖打开
+    SuperCap_Measure_s cap_msg; // 超级电容信息
+
     Chassis_Power_Data_s Chassis_Power_Data; // 功率控制
     float pitch_angle; // 云台俯仰角
     uint8_t Shoot_heat;
@@ -71,7 +73,7 @@ typedef struct
     Gimbal_Mode_e gimbal_last_mode;
     Shoot_Mode_e shoot_last_mode;
     Friction_Mode_e friction_last_mode;
-  uint8_t force_refresh_ui;
+    uint8_t force_refresh_ui;
     lid_mode_e lid_last_mode;
     Chassis_Power_Data_s Chassis_last_Power_Data;
     float last_pitch_angle; // 上一次的俯仰角
@@ -82,6 +84,7 @@ typedef struct
     uint8_t last_cap_mode;
     uint16_t last_bullet_left_real;
     uint16_t last_fric_speed_left;
+    uint16_t last_fric_speed_mid;
     uint16_t last_fric_speed_right;
     float last_chassis_relative_angle;
 } Referee_Interactive_info_t;

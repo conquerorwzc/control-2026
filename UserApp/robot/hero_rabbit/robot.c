@@ -503,7 +503,7 @@ void RobotCMDTask() {
   shoot_ctrl_cmd->initial_speed=robot->referee_data->ShootData.initial_speed;
   shoot_ctrl_cmd->shooter_barrel_heat=robot->referee_data->PowerHeatData.shooter_42mm_barrel_heat;
   chassis_ctrl_cmd->max_power=robot->referee_data->GameRobotState.chassis_power_limit;
-  gimbal_ctrl_cmd->chassis_rotate_wz=-3.f*robot->chassis->chassis_external_imu->gyro[2];
+  //gimbal_ctrl_cmd->chassis_rotate_wz=-1.f*robot->chassis->chassis_external_imu->gyro[2];
   CalcOffsetAngle();
   RemoteControlSet();
   MouseKeySet();
