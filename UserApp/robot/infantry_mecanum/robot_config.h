@@ -245,10 +245,10 @@ static Shoot_Init_Config_s shoot_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 80.0f,
+                            .Kp = 70.0f,
                             .Ki = 0.0f,
                             .Kd = 0.6f,
-                            .MaxOut = 20000.0f,
+                            .MaxOut = 15000.0f,
                         },
                     .speed_PID =
                         {
