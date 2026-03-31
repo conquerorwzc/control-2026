@@ -273,10 +273,10 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
 # elifdef USE_DUAL_RC_NEW
 static void RemoteControlSet() {
   static float trigger_time = 0;  // 扳机触发时间
-  static float NotFoundTime = 0.0f;      // 最后一次识别到目标的时间
-  static float search_start_time = 0.0f;
-  static float search_phase = 0.0f;
-  static uint8_t search_start_flag = 0;
+  // static float NotFoundTime = 0.0f;      // 最后一次识别到目标的时间
+  // static float search_start_time = 0.0f;
+  // static float search_phase = 0.0f;
+  // static uint8_t search_start_flag = 0;
   // 使用VT13遥控器的新控制逻辑
   // 控制云台&打弹
   if (switch_middle(vt13_rc_data->rc.mode_switch)) {  // 中档
@@ -302,47 +302,47 @@ static void RemoteControlSet() {
   }
 
   // 控制模式切换
-  if (vt13_rc_data->button_status.fn_2_flag == 1) {  // 按功能右键切换模式
-    robot->control_mode = NAVIGATOR_MODE;
-  } else {
-    robot->control_mode = MANUAL_MODE;
-  }
+  // if (vt13_rc_data->button_status.fn_2_flag == 1) {  // 按功能右键切换模式
+  //   robot->control_mode = NAVIGATOR_MODE;
+  // } else {
+  robot->control_mode = MANUAL_MODE;
+  // }
 
-  if (vt13_rc_data->button_status.fn_1_flag==0) {
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_VISION;
-    if (has_non_zero_data(vision_recv_data)==1){
-      gimbal_ctrl_cmd->yaw=vision_recv_data->gimbal_receive.yaw;
-      gimbal_ctrl_cmd->pitch=vision_recv_data->gimbal_receive.pitch;
-      switch (vision_recv_data->shoot_receive.fire_flag) {
-        case 0:
-          shoot_ctrl_cmd->load_mode=LOAD_STOP;
-          break;
-        case 1:
-          shoot_ctrl_cmd->load_mode=LOAD_BURSTFIRE;
-          break;
-        default:
-          shoot_ctrl_cmd->load_mode=LOAD_STOP;
-          break;
-      }
-      NotFoundTime=time;                   //识别到装甲板
-      search_start_flag = 0;
-    }
-    else if (time-NotFoundTime>1.25f){      //丢失目标超0.5秒，进入寻敌模式
-      const float search_center = 10.0f;
-      const float search_amp = 10.0f;
-      const float search_omega = PI * 4.0f;  // 对应2Hz
-      if (robot->gimbal->yaw_motor->daemon->temp_count==2) gimbal_ctrl_cmd->yaw += 0.15f;
-      if (!search_start_flag) {
-        const float normalized = ClampFloat((gimbal_ctrl_cmd->pitch - search_center) / search_amp, -1.0f, 1.0f);
-        search_phase = asinf(normalized);  // 把当前pitch角度转化到相位
-        search_start_time = time;
-        search_start_flag = 1;
-      }
-      gimbal_ctrl_cmd->pitch = search_center + search_amp * sinf(search_omega * (time - search_start_time) + search_phase);
-    }
-  } else {
-    search_start_flag = 0;
-  }
+  // if (vt13_rc_data->button_status.fn_1_flag==0) {
+  //   gimbal_ctrl_cmd->gimbal_mode = GIMBAL_VISION;
+  //   if (has_non_zero_data(vision_recv_data)==1){
+  //     gimbal_ctrl_cmd->yaw=vision_recv_data->gimbal_receive.yaw;
+  //     gimbal_ctrl_cmd->pitch=vision_recv_data->gimbal_receive.pitch;
+  //     switch (vision_recv_data->shoot_receive.fire_flag) {
+  //       case 0:
+  //         shoot_ctrl_cmd->load_mode=LOAD_STOP;
+  //         break;
+  //       case 1:
+  //         shoot_ctrl_cmd->load_mode=LOAD_BURSTFIRE;
+  //         break;
+  //       default:
+  //         shoot_ctrl_cmd->load_mode=LOAD_STOP;
+  //         break;
+  //     }
+  //     NotFoundTime=time;                   //识别到装甲板
+  //     search_start_flag = 0;
+  //   }
+  //   else if (time-NotFoundTime>1.25f){      //丢失目标超0.5秒，进入寻敌模式
+  //     const float search_center = 10.0f;
+  //     const float search_amp = 10.0f;
+  //     const float search_omega = PI * 4.0f;  // 对应2Hz
+  //     if (robot->gimbal->yaw_motor->daemon->temp_count==2) gimbal_ctrl_cmd->yaw += 0.15f;
+  //     if (!search_start_flag) {
+  //       const float normalized = ClampFloat((gimbal_ctrl_cmd->pitch - search_center) / search_amp, -1.0f, 1.0f);
+  //       search_phase = asinf(normalized);  // 把当前pitch角度转化到相位
+  //       search_start_time = time;
+  //       search_start_flag = 1;
+  //     }
+  //     gimbal_ctrl_cmd->pitch = search_center + search_amp * sinf(search_omega * (time - search_start_time) + search_phase);
+  //   }
+  // } else {
+  //   search_start_flag = 0;
+  // }
 }
 
 static void MouseKeySet() {
