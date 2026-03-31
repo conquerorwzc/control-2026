@@ -166,6 +166,36 @@ void JoyStickCtrl(RobotInstance* robot) {
   // rc_data_last = rc_data[TEMP];
 }
 
+/*
+ * ==================== 键鼠控制键位说明 ====================
+ *
+ * 【移动控制】
+ *   W        - 前进
+ *   S        - 后退
+ *   A        - 左平移（底盘先转向再平移）
+ *   D        - 右平移（底盘先转向再平移）
+ *
+ * 【云台控制】
+ *   鼠标 X轴  - 云台 Yaw 轴旋转（左右）
+ *   鼠标 Y轴  - 云台 Pitch 轴旋转（上下）
+ *
+ * 【射击控制】
+ *   鼠标左键   - 短按单发，长按(>0.3s)连发
+ *   鼠标右键   - 按住开启自瞄（视觉识别到目标时生效）
+ *
+ * 【模式切换】
+ *   Shift     - 按住进入小陀螺模式（ROTATE），松开回到底盘跟随模式（FOLLOW）
+ *
+ * 【功能键】
+ *   X         - 单次触发，云台 Yaw 转 180°（快速掉头/逃跑）
+ *   C         - 单次触发，超级电容开关（预留）
+ *   Ctrl + Z  - 循环切换速度档位：
+ *                 档位0: ×1.0（默认）
+ *                 档位1: ×1.5
+ *                 档位2: ×2.5
+ *
+ * ===========================================================
+ */
 void MouseKeyCtrl(RobotInstance* robot) {
   // Helper pointers
   rc_data = robot->rc_data;
@@ -196,12 +226,12 @@ void MouseKeyCtrl(RobotInstance* robot) {
       rotate_coff = 1.0f;
       break;
     case 1:
-      speed_coff = 1.5f;
-      rotate_coff = 1.5f;
+      speed_coff = 1.2f;
+      rotate_coff = 1.2f;
       break;
     case 2:
-      speed_coff = 2.5f;
-      rotate_coff = 2.5f;
+      speed_coff = 2.0f;
+      rotate_coff = 2.0f;
       break;
     default:
       break;
