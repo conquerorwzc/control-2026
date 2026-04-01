@@ -438,17 +438,25 @@ static void LiftLeg_Execute(LiftLeg_t *leg)
     }
     else if (leg->use_curve == 2) // 🌟 模式2：兑换专属 (柔性无级追踪)
     {
+        // 1. 计算目标差值 (用于判断操作手是否正在按键)
+        float target_diff = leg->target_pos - leg->planner.current_ref;
+
         // 🛡️ 核心防御 1：一阶低通滤波 (LPF)！吸收跳变，消灭抽搐！
-        leg->planner.current_ref += (leg->target_pos - leg->planner.current_ref) * 0.15f;
+        leg->planner.current_ref += target_diff * 0.15f;
 
-        // 🛡️ 核心防御 2：动态安全限流！力量削弱到90%，温柔发力不伤车！
-        float safe_moving_out = leg->moving_max_out * 0.9f;
-
-        // 🌟 修复：兑换模式(Mode 2)下的目标会极慢地随动，导致误差经常小于 10.0f。
-        // 如果进入 else 分支把最大输出电流掐成 0 (针对后腿 stop_max_out=0)，电机的支撑力瞬间归零，
-        // 就会直接被车体自重压垮，导致 "突然失去力气支撑不住" 断断续续地下砸！
-        // 因此在兑换模式下，必须取消这个低误差断电机制，交由 PID 根据重力自行输出稳态支撑流！
-        leg->motor->motor_controller.speed_PID.MaxOut = safe_moving_out;
+        // 🛡️ 核心防御 2：动态驻车防烫与限流保护
+        // 如果 target_diff 极小 (< 2.0)，说明操作手松开了 Q/E 键
+        if (fabsf(target_diff) < 2.0f)
+        {
+            // 🌟 驻车态：直接呼叫宏定义里的驻车电流！
+            // 前腿会自动调用 FRONT_xxx_STOP_MAX_OUT，后腿会自动调用 REAR_STOP_MAX_OUT
+            leg->motor->motor_controller.speed_PID.MaxOut = leg->stop_max_out;
+        }
+        else
+        {
+            // 🚀 运动态：操作手正在长按升降，恢复 90% 的充沛动力克服最大静摩擦
+            leg->motor->motor_controller.speed_PID.MaxOut = leg->moving_max_out * 0.9f;
+        }
 
         // 兑换模式下关闭前馈速度扰动，纯靠过滤后的位置环牵引
         if (leg->ff_channel)
