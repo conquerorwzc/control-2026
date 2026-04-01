@@ -85,11 +85,11 @@ static void RemoteControlSet() {
 
     chassis_ctrl_cmd->leg_mode = LEG_NORMAL;
   } else if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
-    chassis_ctrl_cmd->leg_mode = LEG_CRUISE;
+    chassis_ctrl_cmd->leg_mode = LEG_NORMAL;
 
   } else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
 
-    chassis_ctrl_cmd->leg_mode = LEG_IN_AIR;
+    chassis_ctrl_cmd->leg_mode = LEG_NORMAL;
 
   }
 
@@ -215,13 +215,13 @@ static void MouseKeySet() {
     }
   }
   // 添加R键和F键控制腿部升降,腿在leg in air模式时这两个按键不起作用
-  if (rc_data[TEMP].key[KEY_PRESS].r) {
-    // R键按下，腿部渐渐升起
-    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_UP;
-  } else if (rc_data[TEMP].key[KEY_PRESS].f) {
-    // F键按下，腿部渐渐降下
-    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_DOWN;
-  }
+  // if (rc_data[TEMP].key[KEY_PRESS].r) {
+  //   // R键按下，腿部渐渐升起
+  //   chassis_ctrl_cmd->leg_mode = LEG_MANUAL_UP;
+  // } else if (rc_data[TEMP].key[KEY_PRESS].f) {
+  //   // F键按下，腿部渐渐降下
+  //   chassis_ctrl_cmd->leg_mode = LEG_MANUAL_DOWN;
+  // }
 
   // 检测X键按下事件（从释放到按下），设置腿部为正常模式
   if (!rc_data_last[TEMP].key[KEY_PRESS].x && rc_data[TEMP].key[KEY_PRESS].x) {
