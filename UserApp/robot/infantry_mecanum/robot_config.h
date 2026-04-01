@@ -103,7 +103,7 @@ static Chassis_Init_Config_s chassis_init_config = {
     .wheel_motor_config[3] = WHEEL_MOTOR_CONFIG(&hcan1,3),
     //跟随PID
     .follow_pid={
-        .Kp = -175.0f,
+        .Kp = -100.0f,
         .Ki = 0.0f,
         .Kd = 0.0f,
         .IntegralLimit = 1000.0f,
@@ -121,9 +121,9 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                     {
-                      .Kp = 2.8f,
+                      .Kp = 4.4f,
                       .Ki = 0.0f,
-                      .Kd = 0.2f,
+                      .Kd = 0.15f,
                       .DeadBand = 0.01f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                       .IntegralLimit = 5.0f,
@@ -131,7 +131,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                   },
                     .speed_PID =
                     {
-                      .Kp = 6000.0f,
+                      .Kp = 6500.0f,
                       .Ki = 100.0f,
                       .Kd = 0.0f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
@@ -154,7 +154,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                     {
-                      .Kp = 3.0f,
+                      .Kp = 2.7f,
                       .Ki = 0.0f,
                       .Kd = 0.08f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
@@ -182,7 +182,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
       .flag = 1,
       .scale = {1.0f, 1.0f, 1.0f},
       .offset_flag=1,
-      .GyroOffset ={-0.000508660218,-6.57982382e-05,0.00486412039},
+      .GyroOffset ={-0.00031691615,0.000192599458,0.00500533124},
       .Yaw = 0.0f,
       .Pitch = 0.0f,
       .Roll = 0.0f
