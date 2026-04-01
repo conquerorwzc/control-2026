@@ -210,6 +210,7 @@ void MouseKeyCtrl(RobotInstance* robot) {
   }
 
   // 1. 基础初始化
+  static float target_speed = 800.f;
   static float speed_coff = 1.0f;      // 速度系数
   static float rotate_coff = 1.0f;     // 小陀螺旋转频率系数
   static uint8_t x_key_last = 0;       // 记录上一次Space键状态
@@ -363,19 +364,19 @@ void MouseKeyCtrl(RobotInstance* robot) {
       chassis_ctrl_cmd->is_rotate = 0;
       // 设置目标速度矢量 (vx, vy),单位为m/s
       if (rc_data[TEMP].key[KEY_PRESS].w)
-        chassis_vy += 400.0f * speed_coff;
+        chassis_vy += target_speed * speed_coff;
       else if (rc_data[TEMP].key[KEY_PRESS].s)
-        chassis_vy += -400.0f * speed_coff;
+        chassis_vy += -target_speed * speed_coff;
       else
         chassis_vy += 0.0f;
       if (rc_data[TEMP].key[KEY_PRESS].d)
-        chassis_vx += 400.0f * speed_coff;
+        chassis_vx += target_speed * speed_coff;
       else if (rc_data[TEMP].key[KEY_PRESS].a)
-        chassis_vx += -400.0f * speed_coff;
+        chassis_vx += -target_speed * speed_coff;
       else
         chassis_vx += 0.0f;
       input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
-      float max_speed = 400.0f * speed_coff;
+      float max_speed = target_speed * speed_coff;
       if (input_mag > max_speed) {
         chassis_vx = chassis_vx / input_mag * max_speed;
         chassis_vy = chassis_vy / input_mag * max_speed;
