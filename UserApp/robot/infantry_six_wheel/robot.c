@@ -99,6 +99,7 @@ static void DoubleBoardCommsInit() {
 
   robot->chassis = (ChassisInstance*)zmalloc(sizeof(ChassisInstance));
   robot->chassis->imu = (INS_t*)zmalloc(sizeof(INS_t));
+  robot->chassis->super_cap = (SuperCapInstance*)zmalloc(sizeof(SuperCapInstance));
   robot->can_comm = CANCommInit(&gimbal_comm_conf);
   VOFAInit(&huart1);
 #endif
@@ -116,11 +117,21 @@ static void DoubleBoardCommsInit() {
 
 static void DoubleBoardComms() {
 #if defined(GIMBAL_BOARD)
+  static SuperCap_Ctrl_Cmd_e last_local_cmd = NORMAL;
+  static float last_change_time = 0;
+
+  // 检测云台板本地（如按键）是否修改了超电状态
+  if (robot->chassis->super_cap->super_cap_ctrl_cmd != last_local_cmd) {
+    last_change_time = DWT_GetTimeline_ms();
+    last_local_cmd = robot->chassis->super_cap->super_cap_ctrl_cmd;
+  }
+
   // 发送底盘控制指令
   chassis_fetch_data->chassis_ctrl_cmd = *chassis_ctrl_cmd;
-  chassis_fetch_data->super_cap_ctrl_cmd = robot->chassis->super_cap->super_cap_ctrl_cmd;  *chassis_upload_data = *(Chassis_Upload_Data_s*)CANCommGet(robot->can_comm);
+  chassis_fetch_data->super_cap_ctrl_cmd = robot->chassis->super_cap->super_cap_ctrl_cmd;
+  
   // 接收底盘回传数据
-   *chassis_upload_data = *(Chassis_Upload_Data_s*)CANCommGet(robot->can_comm); 
+  *chassis_upload_data = *(Chassis_Upload_Data_s*)CANCommGet(robot->can_comm);
   robot->chassis->imu->Pitch = chassis_upload_data->Pitch;
   robot->chassis->imu->YawTotalAngle = chassis_upload_data->YawTotalAngle;
   robot->chassis->imu->Gyro[2] = chassis_upload_data->yaw_speed;
@@ -128,7 +139,13 @@ static void DoubleBoardComms() {
   shoot_ctrl_cmd->shooter_barrel_heat = chassis_upload_data->shooter_17mm_barrel_heat;
   shoot_ctrl_cmd->shooter_barrel_heat_limit = chassis_upload_data->shoot_heat_limit;
   VisionSetRefereeData(chassis_upload_data->bullet_speed, chassis_upload_data->robot_id);
-  robot->chassis->super_cap->super_cap_ctrl_cmd = chassis_upload_data->super_cap_ctrl_cmd;
+  
+  // 延迟 500ms 接收底盘的覆盖（防止云台板刚按下的指令被底盘延迟发来的旧状态吃掉）
+  if (DWT_GetTimeline_ms() - last_change_time > 500.0f) {
+    robot->chassis->super_cap->super_cap_ctrl_cmd = chassis_upload_data->super_cap_ctrl_cmd;
+    last_local_cmd = chassis_upload_data->super_cap_ctrl_cmd;
+  }
+
   CANCommSend(robot->can_comm, (void*)chassis_fetch_data);
 #elif defined(CHASSIS_BOARD)
   // 发送底盘回传数据
