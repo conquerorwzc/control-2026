@@ -17,9 +17,6 @@ static float input_mag;
 static float follow_err;
 static float align_attenuation;
 
-// 小陀螺相关参数
-static float rotate_omega;  // 小陀螺旋转角速度
-
 #define TURN_BOOST_DEADZONE 10
 #define TURN_BOOST_GAIN 3.0f
 
@@ -139,17 +136,16 @@ void JoyStickCtrl(RobotInstance* robot) {
       chassis_ctrl_cmd->vx = 0.0f;
       chassis_ctrl_cmd->wz = 800.0f;
 
-      rotate_omega = -1.0f * robot->chassis->imu->Gyro[2];
-
-      chassis_vx = 0.5f * (float)rc_data[TEMP].rc.rocker_l_;
-      chassis_vy = 0.5f * (float)rc_data[TEMP].rc.rocker_l1;
+      chassis_vx = 0.0f;
+      chassis_vy = 0.0f;
 
       input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
       if (input_mag > 5.0f) {  // 加死区，摇杆归中时不算
         float target_angle_to_gimbal_p = atan2f(chassis_vy, chassis_vx);
         float target_angle_to_chassis_p = target_angle_to_gimbal_p + robot->offset_angle * DEGREE_2_RAD;
-        chassis_ctrl_cmd->vx = input_mag * sinf(target_angle_to_chassis_p + 0.04);
-      }
+        chassis_ctrl_cmd->vx = input_mag * sinf(target_angle_to_chassis_p - 1.57);
+      } else
+        chassis_ctrl_cmd->vx = 0.0f;
       break;
     }
     case ROBOT_CHASSIS_PROSTRATE_FREE: {
@@ -255,8 +251,7 @@ void MouseKeyCtrl(RobotInstance* robot) {
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_VISION) {
     robot->gimbal->yaw_motor->motor_controller.angle_PID.Kp = 2.0f;
     robot->gimbal->yaw_motor->motor_controller.angle_PID.Kd = 0.03f;
-  }
-  else   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
+  } else if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
     robot->gimbal->yaw_motor->motor_controller.angle_PID.Kp = 0.8f;
     robot->gimbal->yaw_motor->motor_controller.angle_PID.Kd = 0.02f;
   }
@@ -335,29 +330,38 @@ void MouseKeyCtrl(RobotInstance* robot) {
       chassis_ctrl_cmd->vx = 0.0f;
       chassis_ctrl_cmd->wz = 800.0f;
 
-      rotate_omega = -1.0f * robot->chassis->imu->Gyro[2];
-
       // 设置目标速度矢量 (vx, vy)
       if (rc_data[TEMP].key[KEY_PRESS].w)
-        chassis_vy += 100.0f * speed_coff;
+        chassis_vy += 800.0f * speed_coff;
       else if (rc_data[TEMP].key[KEY_PRESS].s)
-        chassis_vy += -100.0f * speed_coff;
+        chassis_vy += -800.0f * speed_coff;
       else
         chassis_vy += 0.0f;
 
       if (rc_data[TEMP].key[KEY_PRESS].d)
-        chassis_vx += 100.0f * speed_coff;
+        chassis_vx += 800.0f * speed_coff;
       else if (rc_data[TEMP].key[KEY_PRESS].a)
-        chassis_vx += -100.0f * speed_coff;
+        chassis_vx += -800.0f * speed_coff;
       else
         chassis_vx += 0.0f;
 
       input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
       if (input_mag > 5.0f) {  // 加死区，摇杆归中时不算
+        float phase_compensation;
+        if (rc_data[TEMP].key[KEY_PRESS].w) {
+          phase_compensation = -52.0f * DEGREE_2_RAD;
+        } else if (rc_data[TEMP].key[KEY_PRESS].s) {
+          phase_compensation = -52.0f * DEGREE_2_RAD;
+        } else if (rc_data[TEMP].key[KEY_PRESS].a) {
+          phase_compensation = 128.0f * DEGREE_2_RAD;
+        } else if (rc_data[TEMP].key[KEY_PRESS].d) {
+          phase_compensation = 128.0f * DEGREE_2_RAD;
+        }
         float target_angle_to_gimbal_p = atan2f(chassis_vy, chassis_vx);
         float target_angle_to_chassis_p = target_angle_to_gimbal_p + robot->offset_angle * DEGREE_2_RAD;
-        chassis_ctrl_cmd->vx += input_mag * sinf(target_angle_to_chassis_p + 0.04);
-      }
+        chassis_ctrl_cmd->vx += input_mag * sinf(target_angle_to_chassis_p + phase_compensation);
+      } else
+        chassis_ctrl_cmd->vx += 0.0f;
       break;
     case ROBOT_CHASSIS_PROSTRATE_FOLLOW:
 #if (!defined(ONE_BOARD))
