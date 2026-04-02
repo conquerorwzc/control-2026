@@ -205,10 +205,21 @@ static Shoot_Init_Config_s shoot_init_config = {
 .controller_setting_init_config.close_loop_type = SPEED_LOOP | ANGLE_LOOP,
 },
 };
+
+#ifndef CONTROL_2026_ROBOT_CONFIG_H
+#define CONTROL_2026_ROBOT_CONFIG_H
+
+#ifdef USE_DUAL_RC_NEW
+#define DUALBOARD_CMD_LEN ((uint8_t)sizeof(Send_Data_RC_NEW))
+#else
+#define DUALBOARD_CMD_LEN ((uint8_t)sizeof(Send_Data_RC))
+#endif
+#define DUALBOARD_REF_LEN ((uint8_t)sizeof(Referee_Data))
+
 static CANComm_Init_Config_s comm_config = {
-  .recv_data_len = 30,        // 接收数据长度，根据实际需求调整
-  .send_data_len = 30,        // 发送数据长度，根据实际需求调整
-  .daemon_count = 1000,      // 看门狗重载计数，根据实际需求调整
+  .recv_data_len = DUALBOARD_REF_LEN,
+  .send_data_len = DUALBOARD_CMD_LEN,
+  .daemon_count = 1000,
   .can_config = {
     .can_handle = &hcan2,  // 假设使用CAN2，根据实际使用的CAN句柄调整
     .tx_id = BOARD_TX_ID,        // 发送ID，根据实际需求调整
@@ -236,3 +247,4 @@ static CANInstance board_can_comm_data = {
 //         .tx_id = 0x302,  // 超级电容默认接收id
 //         .rx_id = 0x301,  // 超级电容默认发送id,注意tx和rx在其他人看来是反的
 //     }};
+

@@ -144,10 +144,17 @@ static SuperCap_Init_Config_s super_cap_config = {
 #define BOARD_RX_ID 0x210
 #endif
 
+#ifdef USE_DUAL_RC_NEW
+#define DUALBOARD_CMD_LEN ((uint8_t)sizeof(Send_Data_RC_NEW))
+#else
+#define DUALBOARD_CMD_LEN ((uint8_t)sizeof(Send_Data_RC))
+#endif
+#define DUALBOARD_REF_LEN ((uint8_t)sizeof(Referee_Data))
+
 static CANComm_Init_Config_s comm_config = {
-  .recv_data_len = 30,        // 接收数据长度，根据实际需求调整
-  .send_data_len = 30,        // 发送数据长度，根据实际需求调整
-  .daemon_count = 10,      // 看门狗重载计数，根据实际需求调整
+  .recv_data_len = DUALBOARD_CMD_LEN,
+  .send_data_len = DUALBOARD_REF_LEN,
+  .daemon_count = 10,
   .can_config = {
     .can_handle = &hcan2,  // 假设使用CAN1，根据实际使用的CAN句柄调整
     .tx_id = BOARD_TX_ID,        // 发送ID，根据实际需求调整

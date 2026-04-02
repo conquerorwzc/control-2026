@@ -85,11 +85,12 @@ static CANInstance sender_assignment[9] = {
 
 #endif
 
+#define DJI_SENDER_GROUP_COUNT (sizeof(sender_assignment) / sizeof(sender_assignment[0]))
+
 /**
- * @brief 9个用于确认是否有电机注册到sender_assignment中的标志位,防止发送空帧,此变量将在DJIMotorControl()使用
- *        flag的初始化在 MotorSenderGrouping()中进行
+ * @brief 发送分组使能位，按平台 sender_assignment 数量自动适配
  */
-static uint8_t sender_enable_flag[9] = {0};
+static uint8_t sender_enable_flag[DJI_SENDER_GROUP_COUNT] = {0};
 
 /**
  * @brief 根据电调/拨码开关上的ID,根据说明书的默认id分配方式计算发送ID和接收ID,
@@ -175,7 +176,6 @@ static void MotorSenderGrouping(DJIMotorInstance* motor, CAN_Init_Config_s* conf
 }
 #elifdef STM32H723xx
 static void MotorSenderGrouping(DJIMotorInstance* motor, CAN_Init_Config_s* config) {
-  // 修改：参数类型
   uint8_t motor_id = config->tx_id - 1;  // 下标从零开始,先减一方便赋值
   uint8_t motor_send_num;
   uint8_t motor_grouping;
@@ -183,33 +183,26 @@ static void MotorSenderGrouping(DJIMotorInstance* motor, CAN_Init_Config_s* conf
   switch (motor->motor_type) {
     case M2006:
     case M3508:
-      if (motor_id < 4)  // 根据ID分组
-      {
+      if (motor_id < 4) {
         motor_send_num = motor_id;
-        motor_send_num = motor_id;
-        motor_grouping = config->can_handle == &hcan1
-                             ? 1
-                             : (config->can_handle == &hcan2 ? 4 : 7);  // 修改：can_handle → fdcan_handle
+        motor_grouping = config->can_handle == &hcan1 ? 1 : (config->can_handle == &hcan2 ? 4 : 7);
       } else {
         motor_send_num = motor_id - 4;
         motor_grouping = config->can_handle == &hcan1 ? 0 : (config->can_handle == &hcan2 ? 3 : 6);
       }
 
       // 计算接收id并设置分组发送id
-      config->rx_id = 0x200 + motor_id + 1;    // 把ID+1,进行分组设置
-      sender_enable_flag[motor_grouping] = 1;  // 设置发送标志位,防止发送空帧
+      config->rx_id = 0x200 + motor_id + 1;
+      sender_enable_flag[motor_grouping] = 1;
       motor->message_num = motor_send_num;
       motor->sender_group = motor_grouping;
 
-      // 检查是否发生id冲突
       for (size_t i = 0; i < idx; ++i) {
-        if (dji_motor_instance[i]->motor_can_instance->can_handle == config->can_handle &&  // 修改：变量名
+        if (dji_motor_instance[i]->motor_can_instance->can_handle == config->can_handle &&
             dji_motor_instance[i]->motor_can_instance->rx_id == config->rx_id) {
-          LOGERROR(
-              "[dji_motor] ID crash. Check in debug mode, add dji_motor_instance to watch to get more information.");
-          uint16_t fdcan_bus =
-              config->can_handle == &hfdcan1 ? 1 : (config->can_handle == &hfdcan2 ? 2 : 3);  // 修改：变量名
-          while (1)  // 6020的id 1-4和2006/3508的id 5-8会发生冲突(若有注册,即1!5,2!6,3!7,4!8) (1!5!,LTC! (((不是)
+          LOGERROR("[dji_motor] ID crash. Check in debug mode, add dji_motor_instance to watch to get more information.");
+          uint16_t fdcan_bus = config->can_handle == &hfdcan1 ? 1 : (config->can_handle == &hfdcan2 ? 2 : 3);
+          while (1)
             LOGERROR("[dji_motor] id [%d], fdcan_bus [%d]", config->rx_id, fdcan_bus);
         }
       }
@@ -224,19 +217,17 @@ static void MotorSenderGrouping(DJIMotorInstance* motor, CAN_Init_Config_s* conf
         motor_grouping = config->can_handle == &hcan1 ? 2 : (config->can_handle == &hcan2 ? 5 : 8);
       }
 
-      config->rx_id = 0x204 + motor_id + 1;  // 把ID+1,进行分组设置
-      sender_enable_flag[motor_grouping] =
-          1;  // 只要有电机注册到这个分组,置为1;在发送函数中会通过此标志判断是否有电机注册
+      config->rx_id = 0x204 + motor_id + 1;
+      sender_enable_flag[motor_grouping] = 1;
       motor->message_num = motor_send_num;
       motor->sender_group = motor_grouping;
 
       for (size_t i = 0; i < idx; ++i) {
         if (dji_motor_instance[i]->motor_can_instance->can_handle == config->can_handle &&
             dji_motor_instance[i]->motor_can_instance->rx_id == config->rx_id) {
-          LOGERROR(
-              "[dji_motor] ID crash. Check in debug mode, add dji_motor_instance to watch to get more information.");
+          LOGERROR("[dji_motor] ID crash. Check in debug mode, add dji_motor_instance to watch to get more information.");
           uint16_t fdcan_bus = config->can_handle == &hfdcan1 ? 1 : (config->can_handle == &hcan2 ? 2 : 3);
-          while (1)  // 6020的id 1-4和2006/3508的id 5-8会发生冲突(若有注册,即1!5,2!6,3!7,4!8) (1!5!,LTC! (((不是)
+          while (1)
             LOGERROR("[dji_motor] id [%d], fdcan_bus [%d]", config->rx_id, fdcan_bus);
         }
       }
@@ -295,12 +286,12 @@ static void DecodeDJIMotor(CANInstance* _instance) {
  *
  * @param motor_ptr 电机实例指针
  */
-#ifdef STM32H7
+#if defined(STM32H723xx) || defined(STM32H7)
 static void DJIMotorLostCallback(void* motor_ptr) {
   DJIMotorInstance* motor = (DJIMotorInstance*)motor_ptr;
   uint16_t can_bus = motor->motor_can_instance->can_handle == &hfdcan1
                          ? 1
-                         : (motor->motor_can_instance->can_handle == &hfdcan2 ? 2 : 3);  // 修改：变量名
+                         : (motor->motor_can_instance->can_handle == &hfdcan2 ? 2 : 3);
   LOGWARNING("[dji_motor] Motor lost, can bus [%d] , id [%d]", can_bus, motor->motor_can_instance->tx_id);
 }
 #elifdef STM32F407xx
@@ -318,6 +309,11 @@ static void DJIMotorLostCallback(void* motor_ptr) {
  * @return DJIMotorInstance* 电机实例指针
  */
 DJIMotorInstance* DJIMotorInit(Motor_Init_Config_s* config) {
+  if (idx >= DJI_MOTOR_CNT) {
+    LOGERROR("[dji_motor] motor instance overflow, max count = %d", DJI_MOTOR_CNT);
+    return NULL;
+  }
+
   DJIMotorInstance* instance = (DJIMotorInstance*)malloc(sizeof(DJIMotorInstance));
   memset(instance, 0, sizeof(DJIMotorInstance));
 
@@ -470,6 +466,11 @@ void DJIMotorTask() {
     // 将最终输出分组填入发送数据
     group = motor->sender_group;
     num = motor->message_num;
+    if (group >= DJI_SENDER_GROUP_COUNT || num >= 4) {
+      LOGERROR("[dji_motor] invalid sender mapping: group=%d num=%d tx_id=%d", group, num,
+               motor->motor_can_instance->tx_id);
+      continue;
+    }
     set = (int16_t)motor->motor_controller.final_output;
     if (motor->motor_settings.motor_reverse_flag == MOTOR_DIRECTION_REVERSE) set *= -1.0f;  // 设置反转
 
@@ -480,7 +481,7 @@ void DJIMotorTask() {
     if (motor->stop_flag == MOTOR_STOP)
       memset(sender_assignment[group].tx_buff + 2 * num, 0, sizeof(uint16_t));
   }
-  for (size_t i = 0; i < 9; ++i) {
+  for (size_t i = 0; i < DJI_SENDER_GROUP_COUNT; ++i) {
     if (sender_enable_flag[i]) {
       CANTransmit(&sender_assignment[i], 1);
     }

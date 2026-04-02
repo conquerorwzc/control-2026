@@ -17,11 +17,22 @@ uint16_t get_srm_protocol_info(uint8_t *rx_buf, Message *receive)
   short buf_pos = 0, id = 0;
   char *ptr;
 
+  if (receive == NULL || rx_buf == NULL) {
+    return USBD_OK;
+  }
+
   if (receive_size == 0) {
     memcpy(&receive_size, rx_buf + buf_pos, sizeof(short));
     buf_pos += sizeof(short);
     buffer_size = 0;
   }
+
+  if (receive_size < 0 || receive_size > (short)sizeof(buffer)) {
+    receive_size = 0;
+    buffer_size = 0;
+    return USBD_OK;
+  }
+
   short remain_size = receive_size - buffer_size;
   if (remain_size > 0) {
     if (remain_size > 64 - buf_pos) {
@@ -35,22 +46,41 @@ uint16_t get_srm_protocol_info(uint8_t *rx_buf, Message *receive)
   if (receive_size != buffer_size) {
     return (USBD_OK);
   }
+
   ptr = buffer;
   while (ptr < buffer + buffer_size) {
+    if (ptr + sizeof(short) > buffer + buffer_size) {
+      break;
+    }
+
     memcpy(&id, ptr, sizeof(short));
     ptr += sizeof(short);
+
     if (id == -1) {
       receive_size = 0;
+      buffer_size = 0;
       return (USBD_OK);
-    } else if (id >= 0 && id < 32) {
-      if(receive->ptr_list[id] != NULL) {
-        memcpy(receive->ptr_list[id], ptr, receive->size_list[id]);
-        ptr += receive->size_list[id];
-      }
     }
+
+    if (id < 0 || id >= 32) {
+      // 非法id会导致后续长度无法解析，直接丢弃本包避免卡死
+      break;
+    }
+
+    short payload_size = receive->size_list[id];
+    if (payload_size < 0 || ptr + payload_size > buffer + buffer_size) {
+      break;
+    }
+
+    if (receive->ptr_list[id] != NULL) {
+      memcpy(receive->ptr_list[id], ptr, payload_size);
+    }
+    // 无论是否订阅该id，都必须跳过对应负载，避免死循环
+    ptr += payload_size;
   }
 
   receive_size = 0;
+  buffer_size = 0;
   return (USBD_OK);
 }
 
