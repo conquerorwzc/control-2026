@@ -306,7 +306,7 @@ void UIIntDraw(Graph_Data_t* graph, char graphname[3], uint32_t Graph_Operate, u
 **********************************************************************************************************/
 void UICharDraw(String_Data_t* graph, char graphname[3], uint32_t Graph_Operate, uint32_t Graph_Layer,
                 uint32_t Graph_Color, uint32_t Graph_Size, uint32_t Graph_Width, uint32_t Start_x, uint32_t Start_y,
-                char* fmt, ...) {
+                const char* fmt, ...) {
   int i;
   for (i = 0; i < 3 && graphname[i] != '\0'; i++) {
     graph->Graph_Control.graphic_name[2 - i] = graphname[i];
@@ -412,7 +412,7 @@ void UICharRefresh(referee_id_t* _id, String_Data_t string_Data) {
   UI_CharReFresh_data.String_Data = string_Data;
 
   UI_CharReFresh_data.frametail =
-      get_CRC8_check_sum((uint8_t*)&UI_CharReFresh_data, LEN_HEADER + LEN_CMDID + temp_datalength, 0xFFFF);
+      get_CRC16_check_sum((uint8_t*)&UI_CharReFresh_data, LEN_HEADER + LEN_CMDID + temp_datalength, 0xFFFF);
 
   RefereeSend((uint8_t*)&UI_CharReFresh_data, LEN_HEADER + LEN_CMDID + temp_datalength + LEN_TAIL);  // 发送
 

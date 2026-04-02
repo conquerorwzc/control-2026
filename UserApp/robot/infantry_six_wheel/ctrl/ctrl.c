@@ -4,6 +4,7 @@
 
 #include "general_def.h"
 #include "robot_config.h"
+#include "ui.h"
 
 // Static variables for control state
 static RC_ctrl_t* rc_data;
@@ -300,6 +301,13 @@ void MouseKeyCtrl(RobotInstance* robot) {
       gimbal_ctrl_cmd->yaw += 180.0f;
     }
     x_key_last = rc_data[TEMP].key[KEY_PRESS].x;
+  }
+
+    if (!rc_data_last.key[KEY_PRESS].ctrl && rc_data[TEMP].key[KEY_PRESS].ctrl) {
+    Referee_Interactive_info_t* ui_data = getUI();
+    if (ui_data != NULL) {
+      ui_data->force_refresh_ui = 1; // 置位刷新标志
+    }
   }
 
   // [C] 单次切换：超级电容开关

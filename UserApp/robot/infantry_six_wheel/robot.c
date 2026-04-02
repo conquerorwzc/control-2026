@@ -246,8 +246,10 @@ void RobotInit() {
 #endif
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   DWT_GetDeltaT(&robot->DWT_CNT);
+#if !defined(GIMBAL_BOARD)
   // UI初始化
-  // MyUIInit(robot);
+  MyUIInit(robot);
+#endif
   chassis_ctrl_cmd->max_power = 80.0f;
 }
 
@@ -263,5 +265,6 @@ void RobotTask() {
 
 #if !defined(GIMBAL_BOARD)
   ChassisTask();
+  UITask(robot);
 #endif
 }
