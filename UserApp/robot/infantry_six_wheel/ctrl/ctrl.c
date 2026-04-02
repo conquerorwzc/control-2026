@@ -303,10 +303,9 @@ void MouseKeyCtrl(RobotInstance* robot) {
     x_key_last = rc_data[TEMP].key[KEY_PRESS].x;
   }
 
-    if (!rc_data_last.key[KEY_PRESS].ctrl && rc_data[TEMP].key[KEY_PRESS].ctrl) {
-    Referee_Interactive_info_t* ui_data = getUI();
-    if (ui_data != NULL) {
-      ui_data->force_refresh_ui = 1; // 置位刷新标志
+  if (!rc_data_last.key[KEY_PRESS].ctrl && rc_data[TEMP].key[KEY_PRESS].ctrl) {
+    if (robot->chassis_fetch_data) {
+      robot->chassis_fetch_data->force_refresh_ui = 1;  // 告诉底盘板去刷新UI
     }
   }
 

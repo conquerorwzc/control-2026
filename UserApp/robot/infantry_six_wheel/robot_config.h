@@ -149,19 +149,20 @@ static Chassis_Init_Config_s chassis_init_config = {
     .joint_motor_config[1] = JOINT_MOTOR_CONFIG(MOTOR_DIRECTION_NORMAL, MOTOR_DIRECTION_NORMAL, &hcan2, 0x06, 0x03),
     .joint_motor_config[2] = JOINT_MOTOR_CONFIG(MOTOR_DIRECTION_REVERSE, MOTOR_DIRECTION_REVERSE, &hcan2, 0x08, 0x04),
     .joint_motor_config[3] = JOINT_MOTOR_CONFIG(MOTOR_DIRECTION_REVERSE, MOTOR_DIRECTION_REVERSE, &hcan2, 0x0A, 0x05),
-    .imu_init_config = {
-        .flag = 0,
-        .scale = {1.0f, 1.0f, 1.0f},
-                        .Yaw = 0.0f,
-                        .Pitch = 180.0f,
-                        .Roll = 0.0f,
-                        .CenterOffset[0] = 0.15413f,
-        .CenterOffset[1] = 0.04612f,
-        .CenterOffset[2] = 0.09348f,
-        .GyroOffset[0] = 0.00708952406,
-        .GyroOffset[1] = 0.00323308632,
-        .GyroOffset[2] = 0.00078589347,
-        .offset_flag = 1,
+    .imu_init_config =
+        {
+            .flag = 0,
+            .scale = {1.0f, 1.0f, 1.0f},
+            .Yaw = 0.0f,
+            .Pitch = 180.0f,
+            .Roll = 0.0f,
+            .CenterOffset[0] = 0.15413f,
+            .CenterOffset[1] = 0.04612f,
+            .CenterOffset[2] = 0.09348f,
+            .GyroOffset[0] = 0.00708952406,
+            .GyroOffset[1] = 0.00323308632,
+            .GyroOffset[2] = 0.00078589347,
+            .offset_flag = 1,
         },
     .super_cap_config = {.can_config = {
                              .can_handle = &hcan1,
@@ -171,48 +172,50 @@ static Chassis_Init_Config_s chassis_init_config = {
 
 static Gimbal_Init_Config_s gimbal_init_config = {
     .yaw_motor_config =
-        {
-            .controller_param_init_config =
-                {
-                    // .angle_PID =
-                    //     {
-                    //         .Kp = 2.0f,
-                    //         .Ki = 0.0f,
-                    //         .Kd = 0.03f,
-                    //         .DeadBand = 0.01f,
-                    //         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                    //         .IntegralLimit = 5.0f,
-                    //         .MaxOut = 22.0f,
-                    //     },
-                    .angle_PID =
-                        {
-                            .Kp = 0.8f,
-                            .Ki = 0.0f,
-                            .Kd = 0.02f,
-                            .DeadBand = 0.01f,
-                            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                            .IntegralLimit = 5.0f,
-                            .MaxOut = 22.0f,
-                        },
-                    .speed_PID =
-                        {
-                            .Kp = -5000.0f,
-                            .Ki = -100.0f,
-                            .Kd = 0.0f,
-                            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                            .IntegralLimit = 12000.0f,
-                            .MaxOut = 25000.0f,
-                        },
+        {.controller_param_init_config =
+             {
+                 // .angle_PID =
+                 //     {
+                 //         .Kp = 2.0f,
+                 //         .Ki = 0.0f,
+                 //         .Kd = 0.03f,
+                 //         .DeadBand = 0.01f,
+                 //         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+                 //         .IntegralLimit = 5.0f,
+                 //         .MaxOut = 22.0f,
+                 //     },
+                 .angle_PID =
+                     {
+                         .Kp = 0.8f,
+                         .Ki = 0.0f,
+                         .Kd = 0.02f,
+                         .DeadBand = 0.01f,
+                         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+                         .IntegralLimit = 5.0f,
+                         .MaxOut = 22.0f,
+                     },
+                 .speed_PID =
+                     {
+                         .Kp = -5000.0f,
+                         .Ki = -100.0f,
+                         .Kd = 0.0f,
+                         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+                         .IntegralLimit = 12000.0f,
+                         .MaxOut = 25000.0f,
+                     },
 
-                },
-            .motor_type = GM6020,
-            .can_init_config =
-                {
-                    .can_handle = &hcan2,
-                    .tx_id = 6,
-                },
-            .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
-        },
+             },
+         .motor_type = GM6020,
+         .can_init_config =
+             {
+                 .can_handle = &hcan2,
+                 .tx_id = 6,
+             },
+         .controller_setting_init_config =
+             {
+                 .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+                 .feedforward_flag = SPEED_FEEDFORWARD,
+             }},
     .pitch_motor_config =
         {
             .controller_param_init_config =
@@ -344,7 +347,6 @@ static Shoot_Init_Config_s shoot_init_config = {
             .controller_setting_init_config.close_loop_type = SPEED_LOOP | ANGLE_LOOP,
         },
 };
-
 
 #if defined(GIMBAL_BOARD)
 static CANComm_Init_Config_s gimbal_comm_conf = {

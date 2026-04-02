@@ -25,6 +25,7 @@ typedef struct {
 typedef struct {
   Chassis_Ctrl_Cmd_s chassis_ctrl_cmd;
   SuperCap_Ctrl_Cmd_e super_cap_ctrl_cmd;
+  uint8_t force_refresh_ui;
 } Chassis_Fetch_Data_s;  // means the Chassis board, not the component
 #pragma pack()
 

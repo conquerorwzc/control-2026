@@ -147,6 +147,8 @@ static void DoubleBoardComms() {
   }
 
   CANCommSend(robot->can_comm, (void*)chassis_fetch_data);
+  // 重置标志位，避免重复发送
+  chassis_fetch_data->force_refresh_ui = 0;
 #elif defined(CHASSIS_BOARD)
   // 发送底盘回传数据
   chassis_upload_data->Pitch = robot->chassis->imu->Pitch;
@@ -161,6 +163,14 @@ static void DoubleBoardComms() {
   *chassis_fetch_data = *(Chassis_Fetch_Data_s*)CANCommGet(robot->can_comm);
   robot->chassis->chassis_ctrl_cmd = chassis_fetch_data->chassis_ctrl_cmd;
   robot->chassis->super_cap->super_cap_ctrl_cmd = chassis_fetch_data->super_cap_ctrl_cmd;
+  
+  // 处理云台板传来的UI刷新标志
+  if (chassis_fetch_data->force_refresh_ui) {
+    Referee_Interactive_info_t* ui_data = getUI();
+    if (ui_data != NULL) {
+      ui_data->force_refresh_ui = 1;
+    }
+  }
 
   CANCommSend(robot->can_comm, (void*)chassis_upload_data);
 #endif
@@ -211,7 +221,7 @@ void RobotCMDTask() {
 #if defined(GIMBAL_BOARD)
   CalcOffsetAngle();
   // GimbalAlignToChassisForward();
-  gimbal_ctrl_cmd->chassis_rotate_wz = -1.0f * robot->chassis->imu->Gyro[2];
+  gimbal_ctrl_cmd->chassis_rotate_wz = -0.11f * robot->chassis->imu->Gyro[2];
 #endif
   EmergencyHandler(robot);  // 急停必须在 CAN 发送之前,确保 POWER_OFF 优先级最高
 #endif
@@ -248,7 +258,7 @@ void RobotInit() {
   DWT_GetDeltaT(&robot->DWT_CNT);
 #if !defined(GIMBAL_BOARD)
   // UI初始化
-  MyUIInit(robot);
+  // MyUIInit(robot);
 #endif
   chassis_ctrl_cmd->max_power = 80.0f;
 }
@@ -265,6 +275,6 @@ void RobotTask() {
 
 #if !defined(GIMBAL_BOARD)
   ChassisTask();
-  UITask(robot);
+  // UITask(robot);
 #endif
 }
