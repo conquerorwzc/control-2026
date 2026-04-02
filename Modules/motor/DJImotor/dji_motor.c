@@ -318,6 +318,11 @@ static void DJIMotorLostCallback(void* motor_ptr) {
  * @return DJIMotorInstance* 电机实例指针
  */
 DJIMotorInstance* DJIMotorInit(Motor_Init_Config_s* config) {
+  if (idx >= DJI_MOTOR_CNT) {
+    LOGERROR("[dji_motor] DJI motor count exceeded DJI_MOTOR_CNT, please increase DJI_MOTOR_CNT!");
+    while (1);
+  }
+
   DJIMotorInstance* instance = (DJIMotorInstance*)malloc(sizeof(DJIMotorInstance));
   memset(instance, 0, sizeof(DJIMotorInstance));
 
