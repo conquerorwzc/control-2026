@@ -121,7 +121,6 @@ void JoyStickCtrl(RobotInstance* robot) {
         chassis_ctrl_cmd->target_yaw =
             robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD - robot->offset_angle * DEGREE_2_RAD;
       }
-      chassis_ctrl_cmd->wz = 0.0f;
       // 对齐衰减
       align_attenuation = cosf(follow_err * DEGREE_2_RAD);
       if (align_attenuation < 0) align_attenuation = 0;
@@ -332,16 +331,16 @@ void MouseKeyCtrl(RobotInstance* robot) {
 
       // 设置目标速度矢量 (vx, vy)
       if (rc_data[TEMP].key[KEY_PRESS].w)
-        chassis_vy += 800.0f * speed_coff;
+        chassis_vy += target_speed * speed_coff;
       else if (rc_data[TEMP].key[KEY_PRESS].s)
-        chassis_vy += -800.0f * speed_coff;
+        chassis_vy += -target_speed * speed_coff;
       else
         chassis_vy += 0.0f;
 
       if (rc_data[TEMP].key[KEY_PRESS].d)
-        chassis_vx += 800.0f * speed_coff;
+        chassis_vx += target_speed * speed_coff;
       else if (rc_data[TEMP].key[KEY_PRESS].a)
-        chassis_vx += -800.0f * speed_coff;
+        chassis_vx += -target_speed * speed_coff;
       else
         chassis_vx += 0.0f;
 
@@ -403,13 +402,13 @@ void MouseKeyCtrl(RobotInstance* robot) {
         }
         chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + follow_err * DEGREE_2_RAD;
         // ===== 前馈：误差大时额外给 wz 加速转向 =====
-        float abs_err = fabsf(follow_err);
-        if (abs_err > TURN_BOOST_DEADZONE) {
-          chassis_ctrl_cmd->wz = follow_err * TURN_BOOST_GAIN;
-        }
+        // float abs_err = fabsf(follow_err);
+        // if (abs_err > TURN_BOOST_DEADZONE) {
+        //   chassis_ctrl_cmd->wz = follow_err * TURN_BOOST_GAIN;
+        // }
       } else {
         // 静止回正：底盘对齐云台
-        follow_err = 0.0f;  // 静止时清零，防止衰减计算用到脏值
+        // follow_err = 0.0f;  // 静止时清零，防止衰减计算用到脏值
         chassis_ctrl_cmd->target_yaw =
             robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD - robot->offset_angle * DEGREE_2_RAD;
       }
@@ -417,7 +416,7 @@ void MouseKeyCtrl(RobotInstance* robot) {
       align_attenuation = cosf(follow_err * DEGREE_2_RAD);
       if (align_attenuation < 0) align_attenuation = 0;
       input_mag *= align_attenuation * align_attenuation * align_attenuation;
-      chassis_ctrl_cmd->vx = input_mag;
+      chassis_ctrl_cmd->vx += input_mag;
       break;
 #endif
     case ROBOT_CHASSIS_PROSTRATE_FREE: {
