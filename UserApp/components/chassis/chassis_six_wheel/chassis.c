@@ -137,10 +137,10 @@ void ChassisProstrateMode(void) {
 static void EnableJointMotor() {
   for (int i = 0; i < 4; i++) DMMotorOuterLoop(chassis->joint_motor[i], ANGLE_LOOP);
 
-  DMMotorSetPIDRef(chassis->joint_motor[0], -0.1f);
-  DMMotorSetPIDRef(chassis->joint_motor[1], 0.1f);
-  DMMotorSetPIDRef(chassis->joint_motor[2], -0.1f);
-  DMMotorSetPIDRef(chassis->joint_motor[3], 0.1f);
+  DMMotorSetPIDRef(chassis->joint_motor[0], -0.125f);
+  DMMotorSetPIDRef(chassis->joint_motor[1], 0.125f);
+  DMMotorSetPIDRef(chassis->joint_motor[2], -0.125f);
+  DMMotorSetPIDRef(chassis->joint_motor[3], 0.125f);
 }
 
 /**
