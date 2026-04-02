@@ -8,7 +8,7 @@
 #include "bsp_log.h"
 #include "bsp_usart.h"
 #include "daemon.h"
-#include "new_RC_VT13.h"
+#include "VT13.h"
 
 /* ================================================================
  *  CRC-16/CCITT-FALSE
