@@ -112,7 +112,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
         .Yaw = -90.0f,
         .Pitch = 0.0f,
         .Roll = 0.0f,
-        .GyroOffset ={0.00356437545,-0.0010182939,0.0019077817},
+        .GyroOffset ={0.0038355093,-0.00053135067,0.00193249178},
       },
 };
 //原来参数是2.0f, 0.2f, 0.0f
