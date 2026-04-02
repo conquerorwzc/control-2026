@@ -16,7 +16,7 @@ typedef struct
 } Message;
 
 /*接收数据处理*/
-uint16_t get_srm_protocol_info(uint8_t *rx_buf, Message *receive);
+uint16_t get_srm_protocol_info(uint8_t *rx_buf, Message *receive, uint16_t rx_len);
 
 
 // 发送打包函数声明
