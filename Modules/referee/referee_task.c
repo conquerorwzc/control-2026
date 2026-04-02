@@ -240,7 +240,7 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data) {
   // 电容能量圆弧
   if (interactive_data->Referee_Interactive_Flag.cap_flag == 1) {
     float volt = interactive_data->cap_voltage;
-    float bar = (volt - 12.0f) / (23.0f - 12.0f) * 40.0f;
+    float bar = (volt - 14.0f) / (23.0f - 14.0f) * 40.0f;
     if (bar < 1) bar = 1;
     if (bar > 40) bar = 40;
     uint32_t end_angle = 270 + (uint32_t)bar;

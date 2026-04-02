@@ -173,28 +173,29 @@ static void MouseKeySet() {
                         (float) chassis_ctrl_cmd->chassis_speed_buff;
   vx_initial += (float)(rc_data[TEMP].key[KEY_PRESS].a - rc_data[TEMP].key[KEY_PRESS].d) *
                          (float) -chassis_ctrl_cmd->chassis_speed_buff;
-
-  //缓加速
-  if (abs(vx_initial)<=10000) {
-    x_speed_time=DWT_GetTimeline_s();
-    chassis_ctrl_cmd->vx=vx_initial;
-  }//速度绝对值在10000以下输出控制量=输入控制量
-  if (vx_initial > 10000&&chassis_ctrl_cmd->vx<= 60.0f * (float)rc_data[TEMP].rc.rocker_l_ ) {
-    chassis_ctrl_cmd->vx=10000+(DWT_GetTimeline_s()-x_speed_time)*10000;
-  }
-  if (vx_initial < -10000&&chassis_ctrl_cmd->vx>= 60.0f * (float)rc_data[TEMP].rc.rocker_l_) {
-    chassis_ctrl_cmd->vx=-10000-(DWT_GetTimeline_s()-x_speed_time)*10000;
-  }//速度绝对值在10000以上输出控制量=10000+10000t(s)
-  if (abs(vy_initial)<=10000) {
-    y_speed_time=DWT_GetTimeline_s();
-    chassis_ctrl_cmd->vy=vy_initial;
-  }//速度绝对值在10000以下输出控制量=输入控制量
-  if (vy_initial > 10000&&chassis_ctrl_cmd->vy<= 60.0f * (float)rc_data[TEMP].rc.rocker_l1 ) {
-    chassis_ctrl_cmd->vy=10000+(DWT_GetTimeline_s()-y_speed_time)*10000;
-  }
-  if (vy_initial < -10000&&chassis_ctrl_cmd->vy>= 60.0f * (float)rc_data[TEMP].rc.rocker_l1) {
-    chassis_ctrl_cmd->vy=-10000-(DWT_GetTimeline_s()-y_speed_time)*10000;
-  }//速度绝对值在10000以上输出控制量=10000+10000t(s)
+chassis_ctrl_cmd->vx=vx_initial;
+  chassis_ctrl_cmd->vy=vy_initial;
+  // //缓加速
+  // if (abs(vx_initial)<=30000) {
+  //   x_speed_time=DWT_GetTimeline_s();
+  //   chassis_ctrl_cmd->vx=vx_initial;
+  // }//速度绝对值在10000以下输出控制量=输入控制量
+  // if (vx_initial > 30000&&chassis_ctrl_cmd->vx<= 80.0f * (float)rc_data[TEMP].rc.rocker_l_ ) {
+  //   chassis_ctrl_cmd->vx=30000+(DWT_GetTimeline_s()-x_speed_time)*10000;
+  // }
+  // if (vx_initial < -30000&&chassis_ctrl_cmd->vx>= 80.0f * (float)rc_data[TEMP].rc.rocker_l_) {
+  //   chassis_ctrl_cmd->vx=-30000-(DWT_GetTimeline_s()-x_speed_time)*10000;
+  // }//速度绝对值在10000以上输出控制量=10000+10000t(s)
+  // if (abs(vy_initial)<=30000) {
+  //   y_speed_time=DWT_GetTimeline_s();
+  //   chassis_ctrl_cmd->vy=vy_initial;
+  // }//速度绝对值在10000以下输出控制量=输入控制量
+  // if (vy_initial > 30000&&chassis_ctrl_cmd->vy<= 80.0f * (float)rc_data[TEMP].rc.rocker_l1 ) {
+  //   chassis_ctrl_cmd->vy=30000+(DWT_GetTimeline_s()-y_speed_time)*10000;
+  // }
+  // if (vy_initial < -30000&&chassis_ctrl_cmd->vy>= 80.0f * (float)rc_data[TEMP].rc.rocker_l1) {
+  //   chassis_ctrl_cmd->vy=-30000-(DWT_GetTimeline_s()-y_speed_time)*10000;
+  // }//速度绝对值在10000以上输出控制量=10000+10000t(s)
 
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   {
@@ -282,21 +283,6 @@ static void MouseKeySet() {
             break;
           }
       }
-      break;
-  }
-  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_C] % 4)  // C键设置底盘速度
-  {
-    case 0:
-      chassis_ctrl_cmd->chassis_speed_buff = 15000;
-      break;
-    case 1:
-      chassis_ctrl_cmd->chassis_speed_buff = 20000;
-      break;
-    case 2:
-      chassis_ctrl_cmd->chassis_speed_buff = 40000;
-      break;
-    default:
-      chassis_ctrl_cmd->chassis_speed_buff = 80000;
       break;
   }
   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_V]%2)  // 小陀螺
@@ -495,6 +481,7 @@ void RobotInit() {
   vision_recv_data=VisionInit(&gimbal_init_config.imu_init_config);
   gpio_5V_EN = GPIORegister(&gpio_init_config_5v);
   GPIOSet(gpio_5V_EN);
+  chassis_ctrl_cmd->chassis_speed_buff=25000;
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
