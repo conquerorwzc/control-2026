@@ -12,12 +12,16 @@ char buffer[256];
 short buffer_size;
 
 
-uint16_t get_srm_protocol_info(uint8_t *rx_buf, Message *receive)
+uint16_t get_srm_protocol_info(uint8_t *rx_buf, Message *receive, uint16_t rx_len)
 {
   short buf_pos = 0, id = 0;
   char *ptr;
 
+  if (rx_len == 0) return USBD_OK;
+
   if (receive_size == 0) {
+    if (rx_len < sizeof(short)) return USBD_OK; // 连长度字段都不够，直接丢弃
+    
     memcpy(&receive_size, rx_buf + buf_pos, sizeof(short));
     buf_pos += sizeof(short);
     buffer_size = 0;
@@ -30,12 +34,12 @@ uint16_t get_srm_protocol_info(uint8_t *rx_buf, Message *receive)
   }
   short remain_size = receive_size - buffer_size;
   if (remain_size > 0) {
-    if (remain_size > 64 - buf_pos) {
-      memcpy(buffer + buffer_size, rx_buf + buf_pos, 64 - buf_pos);
-      buffer_size += 64 - buf_pos;
-    } else {
-      memcpy(buffer + buffer_size, rx_buf + buf_pos, remain_size);
-      buffer_size += remain_size;
+    short copy_len = rx_len - buf_pos;
+    if (copy_len > remain_size) copy_len = remain_size; // 最多只拷贝 remain_size 大小
+    
+    if (copy_len > 0) {
+      memcpy(buffer + buffer_size, rx_buf + buf_pos, copy_len);
+      buffer_size += copy_len;
     }
   }
   if (receive_size != buffer_size) {
