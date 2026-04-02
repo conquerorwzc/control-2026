@@ -180,7 +180,7 @@ static Chassis_Init_Config_s chassis_init_config = {
             .wheel_base = 408.0f,            // 纵向轴距(前进后退方向)
             .track_width = 476.0f,           // 横向轮距(左右平移方向)
             .center_gimbal_offset_x = 0.0f,  // 云台旋转中心距底盘几何中心的距离,前后方向,云台位于正中心时默认设为0
-            .center_gimbal_offset_y = -18.0f,  // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
+            .center_gimbal_offset_y = -10.0f,  // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
             .wheel_radius = 60.0f,           // 轮子半径
             .wheel_reduction_ratio = 19.0f,  // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
                                              // 3508功率模型参数

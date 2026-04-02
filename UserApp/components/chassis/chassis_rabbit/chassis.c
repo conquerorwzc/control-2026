@@ -583,7 +583,7 @@ void ChassisTask() {
         chassis->super_cap_mode = CHARGING_MODE;
       }
       else if (chassis->super_cap->cap_msg.cap_v > 18.0f) {
-        chassis->chassis_ctrl_cmd.max_power =referee_data->GameRobotState.chassis_power_limit+20;
+        chassis->chassis_ctrl_cmd.max_power =referee_data->GameRobotState.chassis_power_limit;
       }
       else if (chassis->super_cap->cap_msg.cap_v >= 14.0f&&chassis->super_cap->cap_msg.cap_v <= 18.0f) {
         chassis->super_cap_mode = SAFETY_MODE;
