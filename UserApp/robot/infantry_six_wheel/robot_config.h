@@ -192,7 +192,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                          .DeadBand = 0.01f,
                          .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                          .IntegralLimit = 5.0f,
-                         .MaxOut = 25.0f,
+                         .MaxOut = 28.0f,
                      },
                  .speed_PID =
                      {
