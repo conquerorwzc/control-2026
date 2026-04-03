@@ -186,17 +186,17 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                  //     },
                  .angle_PID =
                      {
-                         .Kp = 0.8f,
+                         .Kp = 2.5f,
                          .Ki = 0.0f,
-                         .Kd = 0.02f,
+                         .Kd = 0.05f,
                          .DeadBand = 0.01f,
                          .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                          .IntegralLimit = 5.0f,
-                         .MaxOut = 22.0f,
+                         .MaxOut = 25.0f,
                      },
                  .speed_PID =
                      {
-                         .Kp = -5000.0f,
+                         .Kp = -6000.0f,
                          .Ki = -100.0f,
                          .Kd = 0.0f,
                          .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
@@ -222,9 +222,9 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 1.5f,
+                            .Kp = 1.8f,
                             .Ki = 0.0f,
-                            .Kd = 0.02f,
+                            .Kd = 0.03f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                             .IntegralLimit = 5.0f,
                             .MaxOut = 25.0f,
@@ -302,7 +302,7 @@ static Shoot_Init_Config_s shoot_init_config = {
             .friction_num = 2,                                 // 摩擦轮数量
             .friction_speed = 37500.0f,                        // 摩擦轮速度
             .friction_coefficients = {1.0f, -1.0f},            // 摩擦轮速度比例系数
-            .deadtime_burstfire = 100,
+            .deadtime_burstfire = 55,
             .deadtime_onebullet = 350,
             .target_speed = 22.0f,
             .bullet_speed_adjustment = 50.0f,
@@ -322,7 +322,7 @@ static Shoot_Init_Config_s shoot_init_config = {
                             .Kp = 60.0f,
                             .Ki = 0.0f,
                             .Kd = 1.0f,
-                            .MaxOut = 30000.0f,
+                            .MaxOut = 45000.0f,
                         },
                     .speed_PID =
                         {

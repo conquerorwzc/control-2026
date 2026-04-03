@@ -42,18 +42,18 @@ float visualized_data[20];
 
 void VOFATask() {
 #if defined(GIMBAL_BOARD)
-  visualized_data[0] = robot->gimbal->gimbal_IMU_data->Yaw;
-  visualized_data[1] = robot->gimbal->gimbal_IMU_data->Pitch;
-  visualized_data[2] = robot->shoot->friction_motor[0]->motor_controller.pid_ref;
-  visualized_data[3] = robot->shoot->friction_motor[0]->measure.speed_aps;
-  visualized_data[4] = robot->shoot->friction_motor[1]->motor_controller.pid_ref;
-  visualized_data[5] = robot->shoot->friction_motor[1]->measure.speed_aps;
-  visualized_data[6] = robot->shoot->shoot_ctrl_cmd.initial_speed;
-  visualized_data[7] = robot->shoot->loader_motor->measure.total_angle;
-  visualized_data[8] = robot->gimbal->pitch_motor->motor_controller.pid_ref;
-  visualized_data[9] = robot->gimbal->yaw_motor->motor_controller.pid_ref;
-  visualized_data[10] = robot->gimbal->pitch_motor->motor_controller.final_output;
-  visualized_data[11] = shoot_init_config.shoot_param.shooter_barrel_cooling_value;
+  // visualized_data[0] = robot->gimbal->gimbal_IMU_data->Yaw;
+  // visualized_data[1] = robot->gimbal->gimbal_IMU_data->Pitch;
+  // visualized_data[2] = robot->shoot->friction_motor[0]->motor_controller.pid_ref;
+  // visualized_data[3] = robot->shoot->friction_motor[0]->measure.speed_aps;
+  // visualized_data[4] = robot->shoot->friction_motor[1]->motor_controller.pid_ref;
+  // visualized_data[5] = robot->shoot->friction_motor[1]->measure.speed_aps;
+  // visualized_data[6] = robot->shoot->shoot_ctrl_cmd.initial_speed;
+  // visualized_data[7] = robot->shoot->loader_motor->measure.total_angle;
+  // visualized_data[8] = robot->gimbal->pitch_motor->motor_controller.pid_ref;
+  // visualized_data[9] = robot->gimbal->yaw_motor->motor_controller.pid_ref;
+  // visualized_data[10] = robot->gimbal->pitch_motor->motor_controller.final_output;
+  // visualized_data[11] = shoot_init_config.shoot_param.shooter_barrel_cooling_value;
   // visualized_data[0] = shoot_ctrl_cmd->shooter_barrel_heat;
   // visualized_data[1] = robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
   // visualized_data[0] = robot->chassis->chassis_ctrl_cmd.target_yaw;
@@ -63,8 +63,12 @@ void VOFATask() {
   // visualized_data[4] = robot->offset_angle;
   // visualized_data[5] = YAW_ALIGN_ANGLE;
   // visualized_data[6] = robot->gimbal->yaw_motor->measure.angle_single_round;
-  // visualized_data[0] = robot->chassis->imu->Gyro[2];
-  // visualized_data[1] = chassis_ctrl_cmd->vx;
+  visualized_data[0] = robot->shoot->loader_motor->motor_controller.pid_ref;
+  visualized_data[1] = robot->shoot->loader_motor->measure.total_angle;
+  visualized_data[2] = robot->shoot->loader_motor->motor_controller.angle_PID.Output;
+  visualized_data[3] = robot->shoot->loader_motor->motor_controller.angle_PID.MaxOut;
+  visualized_data[4] = robot->shoot->loader_motor->motor_controller.speed_PID.Output;
+  visualized_data[5] = robot->shoot->loader_motor->motor_controller.speed_PID.MaxOut;
 #elif defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   visualized_data[0] = robot->chassis->super_cap->cap_msg.cap_v;
   visualized_data[1] = robot->chassis->super_cap->cap_msg.in_p;
@@ -102,7 +106,7 @@ static void DoubleBoardCommsInit() {
   robot->chassis->imu = (INS_t*)zmalloc(sizeof(INS_t));
   robot->chassis->super_cap = (SuperCapInstance*)zmalloc(sizeof(SuperCapInstance));
   robot->can_comm = CANCommInit(&gimbal_comm_conf);
-  // VOFAInit(&huart1);
+  VOFAInit(&huart1);
 #endif
 #if defined(CHASSIS_BOARD)
   chassis_ctrl_cmd->max_power = robot->referee_data->GameRobotState.chassis_power_limit;

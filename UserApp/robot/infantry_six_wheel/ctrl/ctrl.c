@@ -358,13 +358,13 @@ void MouseKeyCtrl(RobotInstance* robot) {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;  // 松开右键，手动模式
   }
 
-  if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_VISION) {
-    robot->gimbal->yaw_motor->motor_controller.angle_PID.Kp = 2.0f;
-    robot->gimbal->yaw_motor->motor_controller.angle_PID.Kd = 0.03f;
-  } else if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
-    robot->gimbal->yaw_motor->motor_controller.angle_PID.Kp = 0.8f;
-    robot->gimbal->yaw_motor->motor_controller.angle_PID.Kd = 0.02f;
-  }
+  // if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_VISION) {
+  //   robot->gimbal->yaw_motor->motor_controller.angle_PID.Kp = 2.0f;
+  //   robot->gimbal->yaw_motor->motor_controller.angle_PID.Kd = 0.03f;
+  // } else if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
+  //   robot->gimbal->yaw_motor->motor_controller.angle_PID.Kp = 0.8f;
+  //   robot->gimbal->yaw_motor->motor_controller.angle_PID.Kd = 0.02f;
+  // }
 
   // 2.2 射击控制逻辑,[左键]射击
   if (rc_data[TEMP].mouse.press_l) {
