@@ -25,7 +25,17 @@
 
 void *zmalloc(size_t size)
 {
-    void *ptr = malloc(size);
+    if (size == 0)
+    {
+        return NULL;
+    }
+
+    void *ptr = user_malloc(size);
+    if (ptr == NULL)
+    {
+        return NULL;
+    }
+
     if (ptr == NULL) {
         return NULL;
     }

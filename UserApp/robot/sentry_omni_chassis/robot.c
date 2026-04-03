@@ -7,7 +7,8 @@
 #include "robot_config.h"
 #include "user_lib.h"
 
-static RobotInstance *robot;
+static RobotInstance robot_static;
+static RobotInstance *robot = &robot_static;
 
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
@@ -16,19 +17,25 @@ static Shoot_Ctrl_Cmd_s *shoot_ctrl_cmd;
 static Vision_Receive_s *vision_recv_data;
 // static navigator_recv_t* navigator_data;
 #ifdef USE_DUAL_RC
-static Send_Data_RC *rc_data_old;
+static Send_Data_RC rc_data_old_static;
+static Send_Data_RC *rc_data_old = &rc_data_old_static;
 static RC_ctrl_t *rc_data;
-static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
+static RC_ctrl_t rc_data_last_static;
+static RC_ctrl_t *rc_data_last = &rc_data_last_static;  // 遥控器数据,初始化时返回
 #elifdef USE_DUAL_RC_NEW
-static Send_Data_RC_NEW *rc_data_new;
-static VT13_RC_t *vt13_rc_data;
+static Send_Data_RC_NEW rc_data_new_static;
+static Send_Data_RC_NEW *rc_data_new = &rc_data_new_static;
+static VT13_RC_t vt13_rc_data_static;
+static VT13_RC_t *vt13_rc_data = &vt13_rc_data_static;
 #endif
 static Sentry_Cmd_t sentry_cmd = {0};
 static SuperCapMode supercap_mode = SAFETY_MODE;
 float trigger_time = 0;  // 触发时间
 static float angle = 0;
 CANCommInstance *can_comm_instance = NULL;
-static Referee_Data *referee_data;
+static Referee_Data referee_data_static;
+static Referee_Data *referee_data = &referee_data_static;
+static uint8_t robot_init_ok = 0;
 static float time=0;  //判断按钮按下需要重复读取时间，这里简化成一次读取
 
 static float x_speed_time = 0;  // x方向加速触发时间
@@ -59,8 +66,14 @@ uint8_t has_non_zero_data(const Vision_Receive_s *data) {
 }
 static void CalcOffsetAngle() {
 #ifdef USE_DUAL_RC
+  if (rc_data_old == NULL || chassis_ctrl_cmd == NULL) {
+    return;
+  }
   angle = rc_data_old->Yaw_motor_angle;
 #elifdef USE_DUAL_RC_NEW
+  if (rc_data_new == NULL || chassis_ctrl_cmd == NULL) {
+    return;
+  }
   angle = rc_data_new->Yaw_motor_angle;
 #endif
 
@@ -478,8 +491,11 @@ static void SuperCapControl() {
                       robot->referee_data->GameRobotState.power_management_chassis_output);
 }
 void Chassis_CANCommSend() {
+  if (!robot_init_ok || robot->referee_data == NULL || can_comm_instance == NULL) {
+    return;
+  }
 #ifdef USE_DUAL_RC
-  if (can_comm_instance == NULL || rc_data == NULL) {
+  if (rc_data == NULL) {
     return;
   }
   referee_data->projectile_allowance_17mm = robot->referee_data->ProjectileAllowance.projectile_allowance_17mm;
@@ -487,8 +503,8 @@ void Chassis_CANCommSend() {
   referee_data->buffer_energy = robot->referee_data->PowerHeatData.buffer_energy;
   referee_data->shooter_17mm_barrel_heat = robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
   CANCommSend(can_comm_instance, (void *)referee_data);
-  #elifdef USE_DUAL_RC_NEW
-  if (can_comm_instance == NULL || vt13_rc_data == NULL) {
+#elifdef USE_DUAL_RC_NEW
+  if (vt13_rc_data == NULL) {
     return;
   }
   // referee_data->projectile_allowance_17mm = robot->referee_data->ProjectileAllowance.projectile_allowance_17mm;
@@ -496,84 +512,118 @@ void Chassis_CANCommSend() {
   referee_data->shooter_17mm_barrel_heat = robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
   referee_data->robot_id = robot->referee_data->GameRobotState.robot_id;
   CANCommSend(can_comm_instance, (void *)referee_data);
-  #endif
+#endif
 }
 // 解析底盘板收到的遥控数据
 static void DualBoardCtrlSet() {
-  if (CANCommIsOnline(can_comm_instance)) {
-#ifdef USE_DUAL_RC
-    *rc_data_old = *(Send_Data_RC *)CANCommGet(can_comm_instance);
-#elifdef USE_DUAL_RC_NEW
-    *rc_data_new = *(Send_Data_RC_NEW *)CANCommGet(can_comm_instance);
-#endif
-
-#ifdef USE_DUAL_RC
-    rc_data[TEMP].rc.rocker_l_ = rc_data_old->Rc_vx;  // todo:后面chassis改改把负号去掉
-    rc_data[TEMP].rc.rocker_l1 = rc_data_old->Rc_vy;
-    rc_data[TEMP].rc.rocker_r_ = rc_data_old->Rotate_speed;
-    // if (rc_data_new->Rotate_speed>=0)
-    //  chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)-rc_data_new->Rotate_speed/50.0f))*rc_data_new->Rotate_speed;
-    //  else
-    //  chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)rc_data_new->Rotate_speed/50.0f))*rc_data_new->Rotate_speed;
-    rc_data[TEMP].rc.dial = rc_data_old->Spin_speed;
-    rc_data[TEMP].rc.switch_right = rc_data_old->Switch_right;
-
-    if (switch_is_mid(rc_data_old->Switch_right)) {
-      // gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-      if (abs(rc_data_old->Spin_speed) > 20) {
-        chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
-      } else
-        chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
-    }
-
-#elifdef USE_DUAL_RC_NEW
-    vt13_rc_data->rc.rocker_l_ = rc_data_new->Rc_vx;
-    vt13_rc_data->rc.rocker_l1 = rc_data_new->Rc_vy;
-    vt13_rc_data->rc.rocker_r_ = rc_data_new->Rotate_speed;
-    vt13_rc_data->rc.dial = rc_data_new->Spin_speed;
-    vt13_rc_data->rc.mode_switch = rc_data_new->Mode_switch;
-    robot->control_mode = rc_data_new->Control_mode;
-    vt13_rc_data->button_status.pause_flag = rc_data_new->Pause_flag;
-#endif
+  if (!robot_init_ok || can_comm_instance == NULL || !CANCommIsOnline(can_comm_instance)) {
+    return;
   }
+
+  void *can_rx = CANCommGet(can_comm_instance);
+  if (can_rx == NULL) {
+    return;
+  }
+
+#ifdef USE_DUAL_RC
+  if (rc_data_old == NULL || rc_data == NULL) {
+    return;
+  }
+  *rc_data_old = *(Send_Data_RC *)can_rx;
+#elifdef USE_DUAL_RC_NEW
+  if (rc_data_new == NULL || vt13_rc_data == NULL) {
+    return;
+  }
+  *rc_data_new = *(Send_Data_RC_NEW *)can_rx;
+#endif
+
+#ifdef USE_DUAL_RC
+  rc_data[TEMP].rc.rocker_l_ = rc_data_old->Rc_vx;  // todo:后面chassis改改把负号去掉
+  rc_data[TEMP].rc.rocker_l1 = rc_data_old->Rc_vy;
+  rc_data[TEMP].rc.rocker_r_ = rc_data_old->Rotate_speed;
+  // if (rc_data_new->Rotate_speed>=0)
+  //  chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)-rc_data_new->Rotate_speed/50.0f))*rc_data_new->Rotate_speed;
+  //  else
+  //  chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)rc_data_new->Rotate_speed/50.0f))*rc_data_new->Rotate_speed;
+  rc_data[TEMP].rc.dial = rc_data_old->Spin_speed;
+  rc_data[TEMP].rc.switch_right = rc_data_old->Switch_right;
+
+  if (switch_is_mid(rc_data_old->Switch_right)) {
+    // gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+    if (abs(rc_data_old->Spin_speed) > 20) {
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+    } else
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+  }
+
+#elifdef USE_DUAL_RC_NEW
+  vt13_rc_data->rc.rocker_l_ = rc_data_new->Rc_vx;
+  vt13_rc_data->rc.rocker_l1 = rc_data_new->Rc_vy;
+  vt13_rc_data->rc.rocker_r_ = rc_data_new->Rotate_speed;
+  vt13_rc_data->rc.dial = rc_data_new->Spin_speed;
+  vt13_rc_data->rc.mode_switch = rc_data_new->Mode_switch;
+  robot->control_mode = rc_data_new->Control_mode;
+  vt13_rc_data->button_status.pause_flag = rc_data_new->Pause_flag;
+#endif
 }
 
 void RobotInit() {
+  robot_init_ok = 0;
+  robot_static = (RobotInstance){0};
+  referee_data_static = (Referee_Data){0};
+
   // 要在云台和底盘任务开始之前完成该任务的初始化
   vTaskDelay(CAN_COMM_TASK_INIT_TIME);
   // 初始化CAN接收
   can_comm_instance = CANCommInit(&comm_config);
-  robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
-  referee_data = (Referee_Data *)zmalloc(sizeof(Referee_Data));
+  if (can_comm_instance == NULL) {
+    return;
+  }
+
 #ifdef USE_DUAL_RC
   // 使用旧遥控器
-  rc_data_old = (Send_Data_RC *)zmalloc(sizeof(Send_Data_RC));
-  rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
-  *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
+  rc_data_old_static = (Send_Data_RC){0};
+  rc_data_last_static = (RC_ctrl_t){0};
   rc_data = robot->rc_data;
+  if (rc_data != NULL) {
+    *rc_data_last = *rc_data;  // 记录上一次遥控器的状态
+  }
 #elif defined(USE_DUAL_RC_NEW)
   // 使用新VT13遥控器
-  robot->vt13_rc_data = (VT13_RC_t *)zmalloc(sizeof(VT13_RC_t));
-  vt13_rc_data = robot->vt13_rc_data;
-  rc_data_new = (Send_Data_RC_NEW *)zmalloc(sizeof(Send_Data_RC_NEW));
+  vt13_rc_data_static = (VT13_RC_t){0};
+  robot->vt13_rc_data = vt13_rc_data;
+  rc_data_new_static = (Send_Data_RC_NEW){0};
 #endif
 
   // robot->vision_recv_data = VisionInit(&gimbal_init_config.imu_init_config);
   robot->navigator_data = navigator_init(&huart1);
+  if (robot->navigator_data == NULL) {
+    return;
+  }
 
   robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
+  if (robot->referee_data == NULL) {
+    return;
+  }
   robot->sentry_mode = 1;
 
   // robot->super_cap = SuperCapInit(&super_cap_config);
-
   robot->chassis = ChassisInit(&chassis_init_config);
+  if (robot->chassis == NULL) {
+    return;
+  }
+
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
-  // navigator_data  = robot->navigator_data;
+  robot_init_ok = 1;
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发频率) */
 void RobotCMDTask() {
+  if (!robot_init_ok || chassis_ctrl_cmd == NULL) {
+    return;
+  }
+
   static float last_rc_dualboard_time = 0.0f;
   static uint8_t rc_dualboard_first_run = 1;
   time = DWT_GetTimeline_s();
@@ -596,6 +646,9 @@ void RobotTask() {
   GimbalTask();
 #endif
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
+  if (!robot_init_ok || robot->referee_data == NULL || chassis_ctrl_cmd == NULL) {
+    return;
+  }
   navigator_send(&huart1, robot->referee_data);
   RobotCMDTask();
   // SuperCapControl();
