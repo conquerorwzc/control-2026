@@ -198,11 +198,11 @@ static void MouseKeySet() {
   //   }
   // }
 
-  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_V] % 2) {
+  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_V]%2) {
     case 0:
       robot->referee_data->GameRobotState.robot_id=103;
       break;
-      default:
+      case 1:
       robot->referee_data->GameRobotState.robot_id=3;
       break;
   }
@@ -323,8 +323,8 @@ static void EmergencyHandler() {
       shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
       shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
       shoot_ctrl_cmd->load_mode = LOAD_STOP;
-      for (int i=0;i<16;i++)
-        rc_data[TEMP].key_count[KEY_PRESS][i]=0;  //复位    注意：更改键位的时候要对这里以及下面的复位进行大改。
+      // for (int i=0;i<16;i++)
+      //   rc_data[TEMP].key_count[KEY_PRESS][i]=0;  //复位    注意：更改键位的时候要对这里以及下面的复位进行大改。
       LOGERROR("[CMD] emergency stop!");
     } else {
       LOGINFO("[CMD] reinstate, robot ready");
