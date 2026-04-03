@@ -314,9 +314,14 @@ void MouseKeyCtrl(RobotInstance* robot) {
     rc_data_last = rc_data[TEMP];
     is_first_update = 0;
   }
-
+  static float target_speed = 535.f;
   // 1. 基础初始化
-  static float target_speed = 800.f;
+  if (robot->chassis->super_cap->super_cap_ctrl_cmd == NORMAL) {
+    target_speed = 535.f;  // 80+40W
+  } else {
+    target_speed = 630.f;  // 120w+40w
+  }
+
   static float speed_coff = 1.0f;      // 速度系数
   static float rotate_coff = 1.0f;     // 小陀螺旋转频率系数
   static uint8_t x_key_last = 0;       // 记录上一次Space键状态
@@ -325,6 +330,30 @@ void MouseKeyCtrl(RobotInstance* robot) {
   static uint8_t c_key_last = 0;       // 记录上一次C键状态
   static uint8_t is_rotate_mode = 0;   // 小陀螺模式标志位
   static float trigger_time = 0;       // 开火时间
+
+  // float max_power = robot->referee_data->GameRobotState.chassis_power_limit;
+  // // 注意：在你们的 referee_protocol.h 中，0x0202 的底盘功率对应的是 reserved_3 字段
+  // float current_power = robot->referee_data->PowerHeatData.reserved_3;
+
+  // // 设定目标功率，预留一点安全裕量 (比如留 5W，防止超限被底层强行砍电流导致跑偏)
+  // float target_power = max_power - 5.0f;
+  // float power_err = target_power - current_power;
+
+  // // 非对称积分控制器（I控制）
+  // if (power_err < 0) {
+  //     // 超功率了！紧急降速，系数给大一点 (比如 2.0f，需根据实车微调)
+  //     // 如果超了 10W，每跑一次这段代码 target_speed 就下降 20
+  //     target_speed += 2.0f * power_err;
+  // } else {
+  //     // 功率有富裕，缓慢提速去试探最大速度，系数给小一点 (比如 0.1f)
+  //     // 这样静止时 target_speed 会自动回升到最大允许速度，保证起步时的爆发力
+  //     target_speed += 0.1f * power_err;
+  // }
+
+  // // 对 target_speed 进行安全限幅
+  // if (target_speed > 1000.0f) target_speed = 1000.0f; // 起步或功率充裕时的最大期望速度上限
+  // if (target_speed < 200.0f)  target_speed = 200.0f;  // 即使严重超功率，也保留一个最低速度保证底盘还能动
+  // // ==============================================================
 
   // [Ctrl+Z]键设置速度，测试用
   switch (rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL][Key_Z] % 3) {
