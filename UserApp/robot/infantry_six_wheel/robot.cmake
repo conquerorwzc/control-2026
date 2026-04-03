@@ -12,8 +12,8 @@ add_compile_definitions(GIMBAL_BOARD)
 add_compile_definitions(FRICTION_NUM=2)
 
 # 遥控器选择
-# add_compile_definitions(USE_DUAL_RC)
-add_compile_definitions(USE_DUAL_RC_NEW)
+ add_compile_definitions(USE_DUAL_RC)
+#add_compile_definitions(USE_DUAL_RC_NEW)
 
 
 # Include directories for header file searching

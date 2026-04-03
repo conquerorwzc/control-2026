@@ -254,9 +254,9 @@ static Gimbal_Init_Config_s gimbal_init_config = {
             .Yaw = -90.0f,
             .Pitch = 0.0f,
             .Roll = 0.0f,
-            .GyroOffset[0] = -0.00141212414,
-            .GyroOffset[1] = -0.00228273682,
-            .GyroOffset[2] = 0.00107576093,
+            .GyroOffset[0] = -0.0014910656f,
+            .GyroOffset[1] = -0.00283604953f,
+            .GyroOffset[2] = 0.00104337547f,
             .offset_flag = 1,
         },
     .pitch_feedforward_scale = 7000.0f};
