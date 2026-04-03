@@ -88,7 +88,7 @@ uint16_t SuperCapModeControl(SuperCapInstance* super_cap, uint16_t power_limit) 
         max_power = 180;
       } else if (super_cap->cap_msg.cap_v > 18.0f) {
         super_cap->super_cap_mode = PASSIVE_MODE;
-        max_power = power_limit + 20;
+        max_power = power_limit + 40;
       } else {
         max_power = power_limit;
       }
@@ -100,7 +100,7 @@ uint16_t SuperCapModeControl(SuperCapInstance* super_cap, uint16_t power_limit) 
         max_power = (uint16_t)(power_limit * 0.8f);
       } else if (super_cap->cap_msg.cap_v > 18.0f) {
         super_cap->super_cap_mode = PASSIVE_MODE;
-        max_power = power_limit + 20;
+        max_power = power_limit + 40;
       } else {
         max_power = power_limit * 0.9f;
       }
@@ -118,7 +118,7 @@ uint16_t SuperCapModeControl(SuperCapInstance* super_cap, uint16_t power_limit) 
         max_power = power_limit;
       } else {
         // 由于上面涵盖了 <12.0f 和 12.0f~18.0f 的情况，此处必然 > 18.0f
-        max_power = power_limit + 20;
+        max_power = power_limit + 40;
       }
       break;
 
@@ -128,7 +128,7 @@ uint16_t SuperCapModeControl(SuperCapInstance* super_cap, uint16_t power_limit) 
         max_power = power_limit * 0.9f;
       } else if (ctrl_cmd == NORMAL) {  // 修复了原代码中 cmd_mode != ACTIVE_MODE 的枚举类型不匹配 Bug
         super_cap->super_cap_mode = PASSIVE_MODE;
-        max_power = (super_cap->cap_msg.cap_v > 18.0f) ? (power_limit + 20) : power_limit;
+        max_power = (super_cap->cap_msg.cap_v > 18.0f) ? (power_limit + 40) : power_limit;
       } else {
         max_power = 180;  // 主动模式放宽到180W
       }
