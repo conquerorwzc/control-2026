@@ -169,7 +169,7 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
       BMI088.GyroOffset[i]=imu_init_config->GyroOffset[i];
   }
   else {
-    INS_CalibrateGyroForDebug(30000);
+    INS_CalibrateGyroForDebug(10000);
   }
 
   // 手动计算加速度缩放因子，因为我们跳过了完整的校准过程

@@ -83,6 +83,8 @@ void GimbalTask() {
     // 停止
     DJIMotorStop(gimbal->yaw_motor);
     DJIMotorStop(gimbal->pitch_motor);
+    gimbal_ctrl_cmd->yaw = gimbal->gimbal_IMU_data->YawTotalAngle;
+    gimbal_ctrl_cmd->pitch = gimbal->gimbal_IMU_data->Pitch;
   } else {
     DJIMotorEnable(gimbal->yaw_motor);
     DJIMotorEnable(gimbal->pitch_motor);

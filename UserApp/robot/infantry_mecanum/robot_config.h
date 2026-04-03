@@ -103,7 +103,7 @@ static Chassis_Init_Config_s chassis_init_config = {
     .wheel_motor_config[3] = WHEEL_MOTOR_CONFIG(&hcan1,3),
     //跟随PID
     .follow_pid={
-        .Kp = -175.0f,
+        .Kp = -100.0f,
         .Ki = 0.0f,
         .Kd = 0.0f,
         .IntegralLimit = 1000.0f,
@@ -121,9 +121,9 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                     {
-                      .Kp = 2.8f,
+                      .Kp = 4.4f,
                       .Ki = 0.0f,
-                      .Kd = 0.2f,
+                      .Kd = 0.15f,
                       .DeadBand = 0.01f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                       .IntegralLimit = 5.0f,
@@ -131,7 +131,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                   },
                     .speed_PID =
                     {
-                      .Kp = 6000.0f,
+                      .Kp = 6500.0f,
                       .Ki = 100.0f,
                       .Kd = 0.0f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
@@ -154,7 +154,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                     {
-                      .Kp = 3.0f,
+                      .Kp = 2.7f,
                       .Ki = 0.0f,
                       .Kd = 0.08f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
@@ -182,7 +182,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
       .flag = 1,
       .scale = {1.0f, 1.0f, 1.0f},
       .offset_flag=1,
-      .GyroOffset ={-0.000508660218,-6.57982382e-05,0.00486412039},
+      .GyroOffset ={-0.00031691615,0.000192599458,0.00500533124},
       .Yaw = 0.0f,
       .Pitch = 0.0f,
       .Roll = 0.0f
@@ -228,13 +228,13 @@ static Shoot_Init_Config_s shoot_init_config = {
            .friction_speed = 36000.0f,
            .friction_coefficients = {1.0f, -1.0f}, //摩擦轮速度比例系数
            .deadtime_burstfire = 100,                 // 连发死时间
-           .deadtime_onebullet = 120,               // 单发死时间
+           .deadtime_onebullet =300,               // 单发死时间
            .target_speed = 22.0f,//目标弹速
            .bullet_speed_deadband = 0.5f,//弹速死区，hero小些，步兵可以大些
            .bullet_speed_adjustment = 400.0f,
            .one_barrel_heat_value = 10,//一发弹丸所需热量
-           .shooter_barrel_cooling_value = 40,//每秒冷却回复
-           .shooter_barrel_heat_limit = 210,//热量上限
+           .shooter_barrel_cooling_value = 14,//每秒冷却回复
+           .shooter_barrel_heat_limit = 220,//热量上限
         },
     .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan2, 1, MOTOR_DIRECTION_NORMAL),
     .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan2, 2, MOTOR_DIRECTION_NORMAL),
@@ -274,14 +274,6 @@ static Shoot_Init_Config_s shoot_init_config = {
         },
 };
 
-
-
-// static SuperCap_Init_Config_s super_cap_config = {
-//     .can_config = {
-//         .can_handle = &hcan2,
-//         .tx_id = 0x302,  // 超级电容默认接收id
-//         .rx_id = 0x301,  // 超级电容默认发送id,注意tx和rx在其他人看来是反的
-//     }};
 
 static SuperCap_Init_Config_s super_cap_config = {
   .can_config = {

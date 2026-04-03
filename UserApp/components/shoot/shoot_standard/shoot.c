@@ -115,7 +115,7 @@ void HeatControl() {
           shooter_barrel_heat+=one_barrel_heat_value;
         }
       //冷却恢复，每1s回24点
-      if (DWT_GetTimeline_ms() - heat_cooling_time >= 100)
+      if (DWT_GetTimeline_ms() - heat_cooling_time >= 97)
       {
         heat_cooling_time = DWT_GetTimeline_ms();
         shooter_barrel_heat-=(float)shooter_barrel_cooling_value/10;
