@@ -143,16 +143,16 @@ void JoyStickCtrl(RobotInstance* robot) {
       chassis_ctrl_cmd->vx = 0.0f;
       chassis_ctrl_cmd->wz = 800.0f;
 
-      chassis_vx = 0.0f;
-      chassis_vy = 0.0f;
-
-      input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
-      if (input_mag > 5.0f) {  // 加死区，摇杆归中时不算
-        float target_angle_to_gimbal_p = atan2f(chassis_vy, chassis_vx);
-        float target_angle_to_chassis_p = target_angle_to_gimbal_p + robot->offset_angle * DEGREE_2_RAD;
-        chassis_ctrl_cmd->vx = input_mag * sinf(target_angle_to_chassis_p - 1.57);
-      } else
-        chassis_ctrl_cmd->vx = 0.0f;
+      // chassis_vx = 0.0f;
+      // chassis_vy = 0.0f;
+      //
+      // input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
+      // if (input_mag > 5.0f) {  // 加死区，摇杆归中时不算
+      //   float target_angle_to_gimbal_p = atan2f(chassis_vy, chassis_vx);
+      //   float target_angle_to_chassis_p = target_angle_to_gimbal_p + robot->offset_angle * DEGREE_2_RAD;
+      //   chassis_ctrl_cmd->vx = input_mag * sinf(target_angle_to_chassis_p - 1.57);
+      // } else
+      //   chassis_ctrl_cmd->vx = 0.0f;
       break;
     }
     case ROBOT_CHASSIS_PROSTRATE_FREE: {
@@ -446,38 +446,38 @@ void MouseKeyCtrl(RobotInstance* robot) {
       chassis_ctrl_cmd->vx = 0.0f;
       chassis_ctrl_cmd->wz = 800.0f;
 
-      // 设置目标速度矢量 (vx, vy)
-      if (rc_data[TEMP].key[KEY_PRESS].w)
-        chassis_vy += target_speed * speed_coff;
-      else if (rc_data[TEMP].key[KEY_PRESS].s)
-        chassis_vy += -target_speed * speed_coff;
-      else
-        chassis_vy += 0.0f;
-
-      if (rc_data[TEMP].key[KEY_PRESS].d)
-        chassis_vx += target_speed * speed_coff;
-      else if (rc_data[TEMP].key[KEY_PRESS].a)
-        chassis_vx += -target_speed * speed_coff;
-      else
-        chassis_vx += 0.0f;
-
-      input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
-      if (input_mag > 5.0f) {  // 加死区，摇杆归中时不算
-        float phase_compensation;
-        if (rc_data[TEMP].key[KEY_PRESS].w) {
-          phase_compensation = -52.0f * DEGREE_2_RAD;
-        } else if (rc_data[TEMP].key[KEY_PRESS].s) {
-          phase_compensation = -52.0f * DEGREE_2_RAD;
-        } else if (rc_data[TEMP].key[KEY_PRESS].a) {
-          phase_compensation = 128.0f * DEGREE_2_RAD;
-        } else if (rc_data[TEMP].key[KEY_PRESS].d) {
-          phase_compensation = 128.0f * DEGREE_2_RAD;
-        }
-        float target_angle_to_gimbal_p = atan2f(chassis_vy, chassis_vx);
-        float target_angle_to_chassis_p = target_angle_to_gimbal_p + robot->offset_angle * DEGREE_2_RAD;
-        chassis_ctrl_cmd->vx += input_mag * sinf(target_angle_to_chassis_p + phase_compensation);
-      } else
-        chassis_ctrl_cmd->vx += 0.0f;
+      // // 设置目标速度矢量 (vx, vy)
+      // if (rc_data[TEMP].key[KEY_PRESS].w)
+      //   chassis_vy += target_speed * speed_coff;
+      // else if (rc_data[TEMP].key[KEY_PRESS].s)
+      //   chassis_vy += -target_speed * speed_coff;
+      // else
+      //   chassis_vy += 0.0f;
+      //
+      // if (rc_data[TEMP].key[KEY_PRESS].d)
+      //   chassis_vx += target_speed * speed_coff;
+      // else if (rc_data[TEMP].key[KEY_PRESS].a)
+      //   chassis_vx += -target_speed * speed_coff;
+      // else
+      //   chassis_vx += 0.0f;
+      //
+      // input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
+      // if (input_mag > 5.0f) {  // 加死区，摇杆归中时不算
+      //   float phase_compensation;
+      //   if (rc_data[TEMP].key[KEY_PRESS].w) {
+      //     phase_compensation = -52.0f * DEGREE_2_RAD;
+      //   } else if (rc_data[TEMP].key[KEY_PRESS].s) {
+      //     phase_compensation = -52.0f * DEGREE_2_RAD;
+      //   } else if (rc_data[TEMP].key[KEY_PRESS].a) {
+      //     phase_compensation = 128.0f * DEGREE_2_RAD;
+      //   } else if (rc_data[TEMP].key[KEY_PRESS].d) {
+      //     phase_compensation = 128.0f * DEGREE_2_RAD;
+      //   }
+      //   float target_angle_to_gimbal_p = atan2f(chassis_vy, chassis_vx);
+      //   float target_angle_to_chassis_p = target_angle_to_gimbal_p + robot->offset_angle * DEGREE_2_RAD;
+      //   chassis_ctrl_cmd->vx += input_mag * sinf(target_angle_to_chassis_p + phase_compensation);
+      // } else
+      //   chassis_ctrl_cmd->vx += 0.0f;
       break;
     case ROBOT_CHASSIS_PROSTRATE_FOLLOW:
 #if (!defined(ONE_BOARD))
