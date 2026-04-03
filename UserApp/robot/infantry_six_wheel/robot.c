@@ -25,6 +25,7 @@
 #include "user_lib.h"
 #include "vofa.h"
 // robot components
+#include "VT13.h"
 #include "ctrl.h"
 #include "ui.h"
 
@@ -101,7 +102,7 @@ static void DoubleBoardCommsInit() {
   robot->chassis->imu = (INS_t*)zmalloc(sizeof(INS_t));
   robot->chassis->super_cap = (SuperCapInstance*)zmalloc(sizeof(SuperCapInstance));
   robot->can_comm = CANCommInit(&gimbal_comm_conf);
-  VOFAInit(&huart1);
+  // VOFAInit(&huart1);
 #endif
 #if defined(CHASSIS_BOARD)
   chassis_ctrl_cmd->max_power = robot->referee_data->GameRobotState.chassis_power_limit;
@@ -242,7 +243,12 @@ void RobotInit() {
 
   // 遥控器初始化
 #if defined(STM32F4)
+#ifdef USE_DUAL_RC
   robot->rc_data = RemoteControlInit(&huart3);
+#elifdef USE_DUAL_RC_NEW
+  robot->rc_data = VT13RemoteInit(&huart1);
+#endif
+
 #elif defined(STM32H7)
   robot->rc_data = RemoteControlInit(&huart5);
 #endif
