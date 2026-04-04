@@ -65,6 +65,7 @@ typedef struct {
   int chassis_speed_buff;
   uint16_t max_power;  // 最大功率限制
   float power_distribute;  //前后轮功率分配系数
+  float chassis_direction; //底盘运动朝向
   // UI部分
   //  ...
   uint8_t SuperCapBoost;

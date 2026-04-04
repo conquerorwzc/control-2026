@@ -173,8 +173,8 @@ static void MouseKeySet() {
                         (float) chassis_ctrl_cmd->chassis_speed_buff;
   vx_initial += (float)(rc_data[TEMP].key[KEY_PRESS].a - rc_data[TEMP].key[KEY_PRESS].d) *
                          (float) -chassis_ctrl_cmd->chassis_speed_buff;
-chassis_ctrl_cmd->vx=vx_initial;
-  chassis_ctrl_cmd->vy=vy_initial;
+chassis_ctrl_cmd->vx=vx_initial*chassis_ctrl_cmd->chassis_direction;
+  chassis_ctrl_cmd->vy=vy_initial*chassis_ctrl_cmd->chassis_direction;
   // //缓加速
   // if (abs(vx_initial)<=30000) {
   //   x_speed_time=DWT_GetTimeline_s();
@@ -380,6 +380,17 @@ chassis_ctrl_cmd->vx=vx_initial;
     default:
       break;
   }
+  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_G] % 2)  // Q按键设置热量控制类型
+  {
+    case 0:
+      chassis_ctrl_cmd->chassis_direction=1.0f;
+      break;
+    case 1:
+      chassis_ctrl_cmd->chassis_direction=-1.0f;
+      break;
+    default:
+      break;
+  }
 
    switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 3)  // E按键设置热量控制类型
    {
@@ -462,9 +473,9 @@ void RobotInit() {
   robot->super_cap = SuperCapInit(&super_cap_config);
 
   robot->chassis = ChassisInit(&chassis_init_config);
- #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
-   robot->gimbal = GimbalInit(&gimbal_init_config);
-   robot->shoot = ShootInit(&shoot_init_config);
+#if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
+  robot->gimbal = GimbalInit(&gimbal_init_config);
+  robot->shoot = ShootInit(&shoot_init_config);
 #endif
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   robot->chassis->super_cap=robot->super_cap;
@@ -481,7 +492,8 @@ void RobotInit() {
   vision_recv_data=VisionInit(&gimbal_init_config.imu_init_config);
   gpio_5V_EN = GPIORegister(&gpio_init_config_5v);
   GPIOSet(gpio_5V_EN);
-  chassis_ctrl_cmd->chassis_speed_buff=25000;
+  chassis_ctrl_cmd->chassis_speed_buff=20000;
+  chassis_ctrl_cmd->chassis_direction=1.0f;
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */

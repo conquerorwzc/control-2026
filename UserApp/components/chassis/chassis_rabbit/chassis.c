@@ -502,10 +502,10 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   ChassisInstance* chassis_instance = (ChassisInstance*)zmalloc(sizeof(ChassisInstance));
   referee_data = GetReferee();
   // 初始化底盘外部IMU
-  chassis_instance->chassis_external_imu = ExternalIMUInit(
-      chassis_init_config->external_imu.can_id,
-      chassis_init_config->external_imu.mst_id,
-      chassis_init_config->external_imu.can_handle);
+  // chassis_instance->chassis_external_imu = ExternalIMUInit(
+  //     chassis_init_config->external_imu.can_id,
+  //     chassis_init_config->external_imu.mst_id,
+  //     chassis_init_config->external_imu.can_handle);
 
   chassis_param = chassis_init_config->chassis_param;  // 在运行时赋值
 
