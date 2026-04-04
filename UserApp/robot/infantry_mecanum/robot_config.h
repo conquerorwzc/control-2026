@@ -233,8 +233,8 @@ static Shoot_Init_Config_s shoot_init_config = {
            .bullet_speed_deadband = 0.5f,//弹速死区，hero小些，步兵可以大些
            .bullet_speed_adjustment = 400.0f,
            .one_barrel_heat_value = 10,//一发弹丸所需热量
-           .shooter_barrel_cooling_value = 14,//每秒冷却回复
-           .shooter_barrel_heat_limit = 220,//热量上限
+           .shooter_barrel_cooling_value = 12,//每秒冷却回复
+           .shooter_barrel_heat_limit =72,//热量上限
         },
     .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan2, 1, MOTOR_DIRECTION_NORMAL),
     .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan2, 2, MOTOR_DIRECTION_NORMAL),

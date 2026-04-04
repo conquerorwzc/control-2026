@@ -232,7 +232,7 @@ void ChassisTask() {
             chassis->super_cap_mode = CHARGING_MODE;
           }
           else if (chassis->super_cap->cap_msg.cap_v > 18.0f) {
-            chassis->chassis_ctrl_cmd.max_power =100;
+            chassis->chassis_ctrl_cmd.max_power =145;
           }
           else if (chassis->super_cap->cap_msg.cap_v >= 12.0f&&chassis->super_cap->cap_msg.cap_v <= 18.0f) {
             chassis->super_cap_mode = SAFETY_MODE;

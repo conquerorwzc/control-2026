@@ -273,7 +273,7 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
       chassis_ctrl_cmd->chassis_speed_buff = 40000;
       break;
   }
-  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Q]%2) //新增Q自旋开启
+  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Q]%2||abs(rc_data[TEMP].rc.dial) > 20) //新增Q自旋开启
   {
     case 0:
       chassis_ctrl_cmd-> chassis_mode = CHASSIS_FOLLOW ;
@@ -281,7 +281,7 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
       break;
     default:
       chassis_ctrl_cmd-> chassis_mode = CHASSIS_ROTATE ;
-      chassis_ctrl_cmd->wz=5000;
+      chassis_ctrl_cmd->wz=10000;
       break;
   }
 
@@ -383,7 +383,7 @@ void RobotInit() {
   shoot_ctrl_cmd->bullet_speed_mode=MANUAL_BULLET_SPEED;
   shoot_ctrl_cmd->heat_mode=SIMULLATE_CONTROL;
   vision_recv_data=VisionInit(&gimbal_init_config.imu_init_config);
-  referee_power_limit = 75;
+  referee_power_limit = 118;
   buffer_energy = 60;
   chassis_output = 1;
 }
