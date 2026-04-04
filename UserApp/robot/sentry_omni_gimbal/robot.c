@@ -88,7 +88,7 @@ uint8_t has_non_zero_data(const Vision_Receive_s* data) {
  */
 #ifdef USE_DUAL_RC
 static void RemoteControlSet() {
-  // static float trigger_time = 0;  // 扳机触发时间
+  static float trigger_time = 0;  // 扳机触发时间
   static float NotFoundTime = 0.0f;      // 最后一次识别到目标的时间
   static float search_start_time = 0.0f;
   static float search_phase = 0.0f;
@@ -97,9 +97,9 @@ static void RemoteControlSet() {
   if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
     shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-    shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
+    shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
-    // trigger_time = time;
+    trigger_time = time;
     // 待添加,视觉会发来和目标的误差,同样将其转化为total angle的增量进行控制
     // ...
   }
@@ -109,19 +109,12 @@ static void RemoteControlSet() {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
-    // if (time - trigger_time > 1.0f) {
-    //   shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
-    // } else {
-    //   shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
-    // }
+    if (time - trigger_time > 1.0f) {
+      shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+    } else {
+      shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
+    }
   }
-    if (switch_is_up(rc_data[TEMP].rc.switch_right))//除了右拨杆在上机器人使用导航数据，其余都正常人为控制
-    {
-      robot->control_mode=NAVIGATOR_MODE;
-    }
-    else {
-      robot->control_mode=MANUAL_MODE;
-    }
     // 云台使能,或视觉未识别到目标,纯遥控器拨杆控制
     if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
       gimbal_ctrl_cmd->yaw += -0.00015f * (float)rc_data[TEMP].rc.rocker_r_;
@@ -466,7 +459,8 @@ void Gimbal_CANCommSend()
   send_data->Spin_speed = rc_data->rc.dial + rc_data[TEMP].key[KEY_PRESS].q*300;
   send_data->Yaw_motor_angle = (int16_t)robot->gimbal->yaw_motor->measure.angle_single_round;
   send_data->rc_switch_left = rc_data->rc.switch_left;
-  send_data->Control_mode = robot->control_mode;
+  send_data->rc_switch_right = rc_data->rc.switch_right;
+  // send_data->Control_mode = robot->control_mode;
   CANCommSend(can_comm_instance,(void*)send_data);
   #elifdef USE_DUAL_RC_NEW
   if (can_comm_instance == NULL || vt13_rc_data == NULL)

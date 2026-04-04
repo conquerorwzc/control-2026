@@ -98,6 +98,14 @@ static void RemoteControlSet() {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
   }
 
+  if ((switch_is_up(rc_data[TEMP].rc.switch_right)||switch_is_off(rc_data[TEMP].rc.switch_right))&&robot->referee_data->GameState.game_progress == 4)//除了右拨杆在上机器人使用导航数据，其余都正常人为控制
+  {
+    robot->control_mode=NAVIGATOR_MODE;
+  }
+  else {
+    robot->control_mode=MANUAL_MODE;
+  }
+
   // 底盘控制部分,系数需要调整
   if (robot->control_mode == MANUAL_MODE)  // 手动控制，遥控器控制量
   {
@@ -313,7 +321,8 @@ static void DualBoardCtrlSet() {
     rc_data[TEMP].rc.rocker_r_ = rc_data_old->Rotate_speed;
     rc_data[TEMP].rc.dial = rc_data_old->Spin_speed;
     rc_data[TEMP].rc.switch_left = rc_data_old->rc_switch_left;
-    robot->control_mode=rc_data_old->Control_mode;
+    rc_data[TEMP].rc.switch_right = rc_data_old->rc_switch_right;
+    // robot->control_mode=rc_data_old->Control_mode;
 #elifdef USE_DUAL_RC_NEW
     vt13_rc_data->rc.rocker_l_ = rc_data_new->Rc_vx;
     vt13_rc_data->rc.rocker_l1 = rc_data_new->Rc_vy;
@@ -375,9 +384,6 @@ void RobotCMDTask() {
   }
   DualBoardCtrlSet();
   CalcOffsetAngle();
-  if (robot->referee_data->GameState.game_progress == 4) {
-    robot->control_mode = NAVIGATOR_MODE;
-  }
   RemoteControlSet();
   // MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
