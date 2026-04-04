@@ -360,27 +360,30 @@ static void RemoteControlSet() {
       chassis_ctrl_cmd->wz = robot->navigator_data->robot_cmd.speed_vector.wz * 0;//10000;
     // }
   }
+  //不要换启动
+  chassis_ctrl_cmd->vx = vx_initial;
+  chassis_ctrl_cmd->vy = vy_initial;
   // 缓加速
-  if (abs(vx_initial) <= 10000) {
-    x_speed_time = time;
-    chassis_ctrl_cmd->vx = vx_initial;
-  }  // 速度绝对值在10000以下输出控制量=输入控制量
-  if (vx_initial > 10000 && chassis_ctrl_cmd->vx <= 60.0f * (float)vt13_rc_data->rc.rocker_l_) {
-    chassis_ctrl_cmd->vx = 10000 + (time - x_speed_time) * 10000;
-  }
-  if (vx_initial < -10000 && chassis_ctrl_cmd->vx >= 60.0f * (float)vt13_rc_data->rc.rocker_l_) {
-    chassis_ctrl_cmd->vx = -10000 - (time - x_speed_time) * 10000;
-  }  // 速度绝对值在10000以上输出控制量=10000+10000t(s)
-  if (abs(vy_initial) <= 10000) {
-    y_speed_time = time;
-    chassis_ctrl_cmd->vy = vy_initial;
-  }  // 速度绝对值在10000以下输出控制量=输入控制量
-  if (vy_initial > 10000 && chassis_ctrl_cmd->vy <= 60.0f * (float)vt13_rc_data->rc.rocker_l1) {
-    chassis_ctrl_cmd->vy = 10000 + (time - y_speed_time) * 10000;
-  }
-  if (vy_initial < -10000 && chassis_ctrl_cmd->vy >= 60.0f * (float)vt13_rc_data->rc.rocker_l1) {
-    chassis_ctrl_cmd->vy = -10000 - (time - y_speed_time) * 10000;
-  }  // 速度绝对值在10000以上输出控制量=10000+10000t(s)
+  // if (abs(vx_initial) <= 10000) {
+  //   x_speed_time = time;
+  //   chassis_ctrl_cmd->vx = vx_initial;
+  // }  // 速度绝对值在10000以下输出控制量=输入控制量
+  // if (vx_initial > 10000 && chassis_ctrl_cmd->vx <= 60.0f * (float)vt13_rc_data->rc.rocker_l_) {
+  //   chassis_ctrl_cmd->vx = 10000 + (time - x_speed_time) * 10000;
+  // }
+  // if (vx_initial < -10000 && chassis_ctrl_cmd->vx >= 60.0f * (float)vt13_rc_data->rc.rocker_l_) {
+  //   chassis_ctrl_cmd->vx = -10000 - (time - x_speed_time) * 10000;
+  // }  // 速度绝对值在10000以上输出控制量=10000+10000t(s)
+  // if (abs(vy_initial) <= 10000) {
+  //   y_speed_time = time;
+  //   chassis_ctrl_cmd->vy = vy_initial;
+  // }  // 速度绝对值在10000以下输出控制量=输入控制量
+  // if (vy_initial > 10000 && chassis_ctrl_cmd->vy <= 60.0f * (float)vt13_rc_data->rc.rocker_l1) {
+  //   chassis_ctrl_cmd->vy = 10000 + (time - y_speed_time) * 10000;
+  // }
+  // if (vy_initial < -10000 && chassis_ctrl_cmd->vy >= 60.0f * (float)vt13_rc_data->rc.rocker_l1) {
+  //   chassis_ctrl_cmd->vy = -10000 - (time - y_speed_time) * 10000;
+  // }  // 速度绝对值在10000以上输出控制量=10000+10000t(s)
 }
 
 static void MouseKeySet() {}
@@ -560,9 +563,10 @@ void RobotInit() {
   robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
   robot->sentry_mode = 1;
 
-  // robot->super_cap = SuperCapInit(&super_cap_config);
+  robot->super_cap = SuperCapInit(&super_cap_config);
 
   robot->chassis = ChassisInit(&chassis_init_config);
+  robot->chassis->super_cap=robot->super_cap;
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   // navigator_data  = robot->navigator_data;
@@ -598,5 +602,9 @@ void RobotTask() {
   chassis_ctrl_cmd->max_power = robot->referee_data->GameRobotState.chassis_power_limit;
   ModeControl();
   ChassisTask();
+  SuperCapSendMessage(robot->super_cap,
+      (int16_t)robot->referee_data->GameRobotState.chassis_power_limit,
+      robot->referee_data->PowerHeatData.buffer_energy,
+      robot->referee_data->GameRobotState.power_management_chassis_output);
 #endif
 }

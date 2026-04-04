@@ -1,7 +1,7 @@
 
 
 #include "chassis.h"
-
+#include "external_imu/external_imu.h"
 #include "arm_math.h"
 #include "bsp_dwt.h"
 #include "general_def.h"
@@ -13,15 +13,219 @@ static Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd;  // 声明但不初始化
 static Chassis_Param_s chassis_param;          // 声明为静态局部变量
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
 static float chassis_vx, chassis_vy;     // 将云台系的速度投影到底盘
+static referee_info_t *referee_data;
 static float vt_lf, vt_rf, vt_lb, vt_rb;  // 底盘速度解算后的临时输出,待进行限幅
 static float lf_radius;
 static float rf_radius;
 static float lb_radius;
 static float rb_radius;
+static float follow_angle=0;//底盘跟随目标角度
+static float normal_follow_tick;//记录最后一次follow前方的时间戳
+static float reverse_follow_tick;//记录最后一次follow后方的时间戳
 static PIDInstance follow_pid;
 static float k0,k1,k2,k3,k4,k5;       //中科大的功率模型
-// 添加腿部电机目标位置和当前位置变量
+static float power;
+//左右腿与最低点的差值
+static float  left_delta=0.0f;
+static float  right_delta=0.0f;
+//左右腿扭矩前馈
+static float left_torque_feedforward = 0.0f;
+static float right_torque_feedforward = 0.0f;
+//扭矩前馈
+static float torque_feedforward=0.0f;
+// 左右腿目标位置
+static float target_position_left = 0.0f;
+static float target_position_right = 0.0f;
 
+// 左右腿当前位置（静态变量，保持状态）
+static float leg_current_position_left = 0.0f;
+static float leg_current_position_right = 0.0f;
+// 添加腿部电机目标位置和当前位置变量
+// 原始PID参数备份
+static PID_Init_Config_s original_left_pid_config;
+static PID_Init_Config_s original_right_pid_config;
+static uint8_t super_cap_error_flag = 0; //电容故障标志
+
+/**
+ * @brief 动态更新电机PID参数
+ */
+static void UpdateMotorPID(DMMotorInstance* motor, PID_Init_Config_s* config) {
+  // 重新初始化PID控制器
+  PIDInit(&motor->motor_controller.angle_PID, config);
+}
+/**
+ * @brief 动态调整腿部电机PID参数
+ * @param harden 1表示硬化（提高刚度），0表示恢复原始参数
+ */
+static void AdjustLegPID(uint8_t harden) {
+  if (harden) {
+    // 硬化PID：提高刚度
+    PID_Init_Config_s hardened_config = {
+      .Kp = 80.0f,  // 提高比例增益
+      .Ki = 0.0f,
+      .Kd = 3.0f,   // 提高微分增益
+      .IntegralLimit = 500.0f,
+      .MaxOut = 25.0f,  // 根据电机能力调整
+      .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+  };
+    UpdateMotorPID(chassis->leg_motor[0], &hardened_config);
+    UpdateMotorPID(chassis->leg_motor[1], &hardened_config);
+  } else {
+    // 恢复原始PID参数
+    UpdateMotorPID(chassis->leg_motor[0], &original_left_pid_config);
+    UpdateMotorPID(chassis->leg_motor[1], &original_right_pid_config);
+  }
+}
+
+
+/**
+ * @brief 离地检测函数，使用外部IMU数据和腿电机反馈值
+ * @param chassis 指向底盘实例的指针
+ * @retval 1: 离地, 0: 接地
+ */
+static int DetectOffGround(ChassisInstance* chassis) {
+  // 静态变量用于连续检测计数
+  static uint8_t off_ground_counter = 0;
+  static uint8_t grounded_counter = 0;
+  static uint8_t current_state = 0;  // 当前稳定状态
+  // 1. 通过腿部电机力矩判断
+  float left_leg_torque = fabsf(chassis->leg_motor[0]->measure.torque);
+  float right_leg_torque = fabsf(chassis->leg_motor[1]->measure.torque);
+  float avg_leg_torque = (left_leg_torque + right_leg_torque) / 2.0f;
+
+  // 2. 通过外部IMU的加速度数据判断
+  float acc_z = 0.0f;
+  if (chassis->chassis_external_imu != NULL) {
+    acc_z = chassis->chassis_external_imu->accel[2]; // Z轴加速度
+  }
+
+  // 3. 通过轮子电机电流辅助判断
+  float wheel_current_sum = 0.0f;
+  for (int i = 1; i < 3; i++) {
+    wheel_current_sum += fabsf(chassis->wheel_motor[i]->measure.real_current);
+  }
+  //只看腿下面的电机
+  float avg_wheel_current = wheel_current_sum / 2.0f;
+
+  // 4. 多参数综合判断
+  uint8_t current_based_detection = 0;
+  uint8_t acc_based_detection = 0;
+  uint8_t combined_detection = 0;
+
+  // 电流基础检测：腿部电机电流较低可能表示离地（负载减小）
+  float torque_threshold = 5.0f; // 可调节的电流阈值，根据实际测试调整
+  if (avg_leg_torque < torque_threshold) {
+    current_based_detection = 1;
+  }
+
+  // 加速度检测：Z轴加速度偏离重力加速度可能表示离地或着陆冲击
+  float acc_threshold_low = 6.0f;   // 下阈值
+  if (fabsf(acc_z) < acc_threshold_low ) {
+    acc_based_detection = 1;
+  }
+
+  // 轮子电流辅助判断：离地时轮子无阻力，电流可能较低
+  float wheel_current_threshold = 2000.0f;
+  uint8_t wheel_current_support = 0;
+  if (avg_wheel_current < wheel_current_threshold) {
+    wheel_current_support = 1;
+  }
+
+  // 综合判断：腿部力矩低 + (加速度异常 或 轮子电流低)
+  if (current_based_detection && (acc_based_detection || wheel_current_support)) {
+    combined_detection = 1;
+  }
+  // 或者：加速度异常 + 轮子电流低
+  else if (acc_based_detection && wheel_current_support) {
+    combined_detection = 1;
+  }
+  if (combined_detection) {
+    off_ground_counter++;
+    grounded_counter = 0;  // 重置接地计数器
+    if (off_ground_counter >= 5) {  // 连续5次检测到离地才切换状态
+      current_state = 1;
+      off_ground_counter = 0;  // 重置计数器
+    }
+  } else {
+    grounded_counter++;
+    off_ground_counter = 0;  // 重置离地计数器
+    if (grounded_counter >= 5) {  // 连续5次检测到接地才切换状态
+      current_state = 0;
+      grounded_counter = 0;  // 重置计数器
+    }
+  }
+
+  return current_state;
+}
+static void CalculateEulerCompensation(ChassisInstance* chassis, float* compensation_x, float* compensation_y) {
+  if (chassis->chassis_external_imu != NULL) {
+    // 使用外部IMU的欧拉角数据计算补偿
+    float roll = chassis->chassis_external_imu->pitch;
+    float pitch = chassis->chassis_external_imu->roll;
+
+    // 根据欧拉角计算腿部位置补偿
+    // 这里假设一定的补偿系数，可根据实际效果调整
+    float roll_compensation_factor = 0.005f;  // 横滚补偿系数
+    float pitch_compensation_factor = 0.01f; // 俯仰补偿系数
+
+    *compensation_x = pitch * pitch_compensation_factor;  // 俯仰影响前后腿
+    *compensation_y = roll * roll_compensation_factor;    // 横滚影响左右腿差异
+  } else {
+    // 如果没有IMU数据，补偿值为0
+    *compensation_x = 0.0f;
+    *compensation_y = 0.0f;
+  }
+}
+/**
+ * @brief 飞坡补偿模式控制
+ */
+static void SlopeCompensationControl() {
+  if (chassis->chassis_external_imu != NULL) {
+    // 计算基于欧拉角的补偿
+    float compensation_x, compensation_y;
+    CalculateEulerCompensation(chassis, &compensation_x, &compensation_y);
+    //限制最大补偿角度为0.2
+    if (fabsf(compensation_x)>0.2) {
+      compensation_x = (compensation_x > 0) ? 0.2f : -0.2f;
+    }
+    if (fabsf(compensation_y)>0.2) {
+      compensation_y = (compensation_y > 0) ? 0.2f : -0.2f;
+    }
+    // 应用补偿到腿部目标位置
+    float target_left = LEFT_LEG_MOTOR_CRUISE_POSITION - compensation_x+ compensation_y;
+    float target_right = RIGHT_LEG_MOTOR_CRUISE_POSITION  + compensation_x+ compensation_y;
+    if (target_left < LEFT_LEG_MOTOR_NORMAL_POSITION) {
+      target_left = LEFT_LEG_MOTOR_NORMAL_POSITION;
+    }
+    if (target_right > RIGHT_LEG_MOTOR_NORMAL_POSITION) {
+      target_right = RIGHT_LEG_MOTOR_NORMAL_POSITION;
+    }
+    // 限制最大位置为KIKE位置
+    if (target_left> LEFT_LEG_MOTOR_KIKE_POSITION) {
+      target_left = LEFT_LEG_MOTOR_KIKE_POSITION;
+    }
+    if (target_right < RIGHT_LEG_MOTOR_KIKE_POSITION) {
+      target_right = RIGHT_LEG_MOTOR_KIKE_POSITION;
+    }
+    // 设置腿部电机目标
+    DMMotorSetPIDRef(chassis->leg_motor[0], target_left);
+    DMMotorSetPIDRef(chassis->leg_motor[1], target_right);
+  }
+}
+float CalculateForwardTorque(float delta) {
+  float forward_torque=0.0f;
+  //后续换成更好的模型，先用一次试试
+  if (delta<0.1) {
+    forward_torque=0.0f;
+  }
+  else {
+    forward_torque=35.0f-delta*47.5f;
+  }
+  if (forward_torque<0.0f) {
+    forward_torque=0.0f;
+  }
+  return forward_torque;
+}
 
 
 /**
@@ -29,23 +233,25 @@ static float k0,k1,k2,k3,k4,k5;       //中科大的功率模型
  *
  */
 static void LegControl() {
-  // 左右腿目标位置
-  float target_position_left = 0.0f;
-  float target_position_right = 0.0f;
 
-  // 左右腿当前位置（静态变量，保持状态）
-  static float leg_current_position_left = 0.0f;
-  static float leg_current_position_right = 0.0f;
+  const float LEG_SPEED_RAMP_RATE = 0.001f; // 位置渐变速率
+  //uint8_t is_off_ground = DetectOffGround(chassis);
 
-  const float LEG_SPEED_RAMP_RATE = 0.002f; // 位置渐变速率
-  int leg_is_enabled = 0;
-  int immediate_move = 0; // 是否立即移动标志
-
+  if (chassis_ctrl_cmd->leg_mode == LEG_IN_AIR) {
+    SlopeCompensationControl();
+    return; // 直接返回，不执行下面的普通控制逻辑
+  }
   switch (chassis_ctrl_cmd->leg_mode) {
     case LEG_DISABLE:
       // 停止腿部电机
       DMMotorStop(chassis->leg_motor[0]);
       DMMotorStop(chassis->leg_motor[1]);
+      leg_current_position_left= 0.f;
+      leg_current_position_right= 0.f;
+      target_position_left = chassis->leg_motor[0]->measure.total_angle;
+      target_position_right = chassis->leg_motor[1]->measure.total_angle;
+      chassis->leg_motor[0]->motor_controller.final_output=0;
+      chassis->leg_motor[1]->motor_controller.final_output=0;
       break;
 
     case LEG_NORMAL:
@@ -54,14 +260,14 @@ static void LegControl() {
       DMMotorEnable(chassis->leg_motor[1]);
       target_position_left = LEFT_LEG_MOTOR_NORMAL_POSITION;
       target_position_right = RIGHT_LEG_MOTOR_NORMAL_POSITION;
-      leg_is_enabled = 1;
-      // 从KIKE位置回到NORMAL位置也应该一步到位
 
-       if (fabsf(leg_current_position_left - LEFT_LEG_MOTOR_KIKE_POSITION) < 0.05f &&
-                 fabsf(leg_current_position_right - RIGHT_LEG_MOTOR_KIKE_POSITION) < 0.05f) {
-        // 如果当前处于KIKE位置，则标记为立即移动
-        immediate_move = 1;
-                 }
+      break;
+
+    case LEG_CRUISE:
+      DMMotorEnable(chassis->leg_motor[0]);
+      DMMotorEnable(chassis->leg_motor[1]);
+      target_position_left = LEFT_LEG_MOTOR_CRUISE_POSITION;
+      target_position_right = RIGHT_LEG_MOTOR_CRUISE_POSITION;
       break;
 
     case LEG_RAISE:
@@ -70,7 +276,6 @@ static void LegControl() {
       DMMotorEnable(chassis->leg_motor[1]);
       target_position_left = LEFT_LEG_MOTOR_RAISE_POSITION;
       target_position_right = RIGHT_LEG_MOTOR_RAISE_POSITION;
-      leg_is_enabled = 1;
       break;
 
     case LEG_KIKE:
@@ -79,59 +284,89 @@ static void LegControl() {
       DMMotorEnable(chassis->leg_motor[1]);
       target_position_left = LEFT_LEG_MOTOR_KIKE_POSITION;
       target_position_right = RIGHT_LEG_MOTOR_KIKE_POSITION;
-      leg_is_enabled = 1;
-      immediate_move = 1; // 标记为立即移动
+      break;
+
+    case LEG_MANUAL_UP:
+      // 手动控制腿部缓慢上升
+      DMMotorEnable(chassis->leg_motor[0]);
+      DMMotorEnable(chassis->leg_motor[1]);
+      // 获取当前位置作为起点
+      if (leg_current_position_left == 0.0f) {
+        leg_current_position_left = chassis->leg_motor[0]->measure.total_angle;
+      }
+      if (leg_current_position_right == 0.0f) {
+        leg_current_position_right = chassis->leg_motor[1]->measure.total_angle;
+      }
+
+      // 缓慢增加腿部位置，限制最大值
+      leg_current_position_left += LEG_SPEED_RAMP_RATE;
+      leg_current_position_right -= LEG_SPEED_RAMP_RATE;
+
+      // 限制最大位置为KIKE位置
+      if (leg_current_position_left > LEFT_LEG_MOTOR_KIKE_POSITION) {
+        leg_current_position_left = LEFT_LEG_MOTOR_KIKE_POSITION;
+      }
+      if (leg_current_position_right < RIGHT_LEG_MOTOR_KIKE_POSITION) {
+        leg_current_position_right = RIGHT_LEG_MOTOR_KIKE_POSITION;
+      }
+
+      target_position_left = leg_current_position_left;
+      target_position_right = leg_current_position_right;
+      break;
+    case LEG_HOLD:
+      // 保持当前腿部位置
+      DMMotorEnable(chassis->leg_motor[0]);
+      DMMotorEnable(chassis->leg_motor[1]);
+      // 获取当前位置作为目标
+      if (leg_current_position_left == 0.0f) {
+        leg_current_position_left = chassis->leg_motor[0]->measure.total_angle;
+      }
+      if (leg_current_position_right == 0.0f) {
+        leg_current_position_right = chassis->leg_motor[1]->measure.total_angle;
+      }
+
+      // 目标位置就是当前位置
+      target_position_left = leg_current_position_left;
+      target_position_right = leg_current_position_right;
+      break;
+
+    case LEG_MANUAL_DOWN:
+      // 手动控制腿部缓慢下降
+      DMMotorEnable(chassis->leg_motor[0]);
+      DMMotorEnable(chassis->leg_motor[1]);
+      // 获取当前位置作为起点
+      if (leg_current_position_left == 0.0f) {
+        leg_current_position_left = chassis->leg_motor[0]->measure.total_angle;
+      }
+      if (leg_current_position_right == 0.0f) {
+        leg_current_position_right = chassis->leg_motor[1]->measure.total_angle;
+      }
+
+      // 缓慢减少腿部位置，限制最小值
+      leg_current_position_left -= LEG_SPEED_RAMP_RATE;
+      leg_current_position_right += LEG_SPEED_RAMP_RATE;
+
+      // 限制最小位置为NORMAL位置
+      if (leg_current_position_left < LEFT_LEG_MOTOR_NORMAL_POSITION) {
+        leg_current_position_left = LEFT_LEG_MOTOR_NORMAL_POSITION;
+      }
+      if (leg_current_position_right > RIGHT_LEG_MOTOR_NORMAL_POSITION) {
+        leg_current_position_right = RIGHT_LEG_MOTOR_NORMAL_POSITION;
+      }
+
+      target_position_left = leg_current_position_left;
+      target_position_right = leg_current_position_right;
       break;
   }
+    left_delta=fabs(target_position_left-LEFT_LEG_MOTOR_NORMAL_POSITION);
+    right_delta=fabs(target_position_right-RIGHT_LEG_MOTOR_NORMAL_POSITION);
+    left_torque_feedforward=CalculateForwardTorque(left_delta);
+    right_torque_feedforward=CalculateForwardTorque(right_delta);
+    // chassis->leg_motor[0]->motor_controller.final_output-=left_torque_feedforward;
+    // chassis->leg_motor[1]->motor_controller.final_output+=right_torque_feedforward;
+    DMMotorSetPIDRef(chassis->leg_motor[0], target_position_left);
+    DMMotorSetPIDRef(chassis->leg_motor[1], target_position_right);
 
-  // 如果腿部电机启用，进行位置控制
-  if (leg_is_enabled) {
-    // 获取初始位置（如果第一次运行则初始化）
-    if (leg_current_position_left == 0.0f ) {
-      leg_current_position_left = chassis->leg_motor[0]->measure.total_angle;
-    }
-
-    if (leg_current_position_right == 0.0f ) {
-      leg_current_position_right = chassis->leg_motor[1]->measure.total_angle;
-    }
-
-    // 如果是立即移动模式（从RAISE到KIKE），直接设置目标位置
-    if (immediate_move) {
-      leg_current_position_left = target_position_left;
-      leg_current_position_right = target_position_right;
-    } else {
-      // 否则使用原有的渐进控制（从NORMAL到RAISE）
-      // 左腿位置渐变控制
-      if (leg_current_position_left < target_position_left) {
-        leg_current_position_left += LEG_SPEED_RAMP_RATE;
-        if (leg_current_position_left > target_position_left) {
-          leg_current_position_left = target_position_left;
-        }
-      } else if (leg_current_position_left > target_position_left) {
-        leg_current_position_left -= LEG_SPEED_RAMP_RATE;
-        if (leg_current_position_left < target_position_left) {
-          leg_current_position_left = target_position_left;
-        }
-      }
-
-      // 右腿位置渐变控制
-      if (leg_current_position_right < target_position_right) {
-        leg_current_position_right += LEG_SPEED_RAMP_RATE;
-        if (leg_current_position_right > target_position_right) {
-          leg_current_position_right = target_position_right;
-        }
-      } else if (leg_current_position_right > target_position_right) {
-        leg_current_position_right -= LEG_SPEED_RAMP_RATE;
-        if (leg_current_position_right < target_position_right) {
-          leg_current_position_right = target_position_right;
-        }
-      }
-    }
-
-    // 应用位置控制
-    DMMotorPIDCal(chassis->leg_motor[0], leg_current_position_left);
-    DMMotorPIDCal(chassis->leg_motor[1], leg_current_position_right);
-  }
 }
 
 /**
@@ -158,12 +393,17 @@ static void PowerControl() {
 
   // 获取当前电机参考电流，统一位单位为A
   float motor_current_list[4];
+  float motor_real_current_list[4];
   for (int i = 0; i < 4; i++) {
     motor_current_list[i] = (float)chassis->wheel_motor[i]->motor_controller.final_output;
+    motor_real_current_list[i]=(float)chassis->wheel_motor[i]->measure.real_current;
   }
 
   float initial_give_power[4] = {0.0f};  // 每个电机的初始估计功率
+  float initial_give_real_power[4] = {0.0f};  // 每个电机的初始估计功率
   float initial_total_power = 0.0f;      // 估计初始总功率
+  power=0;
+
 
   // 计算每个电机的功率贡献
   for (int i = 0; i < 4; i++) {
@@ -178,6 +418,17 @@ static void PowerControl() {
       initial_total_power += initial_give_power[i];
     }
   }
+
+  // 计算每个电机的功率贡献
+  for (int i = 0; i < 4; i++) {
+    initial_give_real_power[i] =
+        k0 + k1 * motor_real_current_list[i] / (16384.0f / 20.0f) + k2 * motor_speed_fdb[i] * (2.0f * PI / 60.0f) +
+        k3 * motor_real_current_list[i] / (16384.0f / 20.0f) * motor_speed_fdb[i] * (2.0f * PI / 60.0f) +
+        k4 * motor_real_current_list[i] / (16384.0f / 20.0f) * motor_real_current_list[i] / (16384.0f / 20.0f) +
+        k5 * motor_speed_fdb[i] * (2.0f * PI / 60.0f) * motor_speed_fdb[i] * (2.0f * PI / 60.0f);
+
+    power += initial_give_real_power[i];
+  }
   // 功率超限时进行动态调整
   if (initial_total_power > (float)chassis_ctrl_cmd->max_power) {
     float power_scale = (float)chassis_ctrl_cmd->max_power / initial_total_power;  // 削减功率比例
@@ -185,6 +436,7 @@ static void PowerControl() {
     // 计算缩放后的功率目标
     for (int i = 0; i < 4; i++) {
       scaled_give_power[i] = initial_give_power[i] * power_scale;
+      chassis->wheel_motor[i]->scaled_give_power = scaled_give_power[i];
     }
 
     // 重新计算每个电机的电流参考值
@@ -222,6 +474,7 @@ static void PowerControl() {
   }
 }
 
+
 /**
  * @brief 预测电机功率并进行限制
  *
@@ -231,7 +484,7 @@ static void LimitChassisOutput() {
   DJIMotorSetPIDRef(chassis->wheel_motor[1], vt_rf);
   DJIMotorSetPIDRef(chassis->wheel_motor[2], vt_lb);
   DJIMotorSetPIDRef(chassis->wheel_motor[3], vt_rb);
-  PowerControl();
+   PowerControl();
 }
 
 /**
@@ -245,62 +498,16 @@ static void EstimateSpeed() {
   // DJIMotor得改otherfeed
 }
 
-// ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
-//   ChassisInstance* chassis_instance = (ChassisInstance*)zmalloc(sizeof(ChassisInstance));
-//
-//
-//   chassis_param = chassis_init_config->chassis_param;  // 在运行时赋值
-//
-//
-//   float half_wheel_base = chassis_param.wheel_base / 2.0f;
-//   float half_track_width = chassis_param.track_width / 2.0f;
-//   float center_gimbal_offset_x = chassis_param.center_gimbal_offset_x;
-//   float center_gimbal_offset_y = chassis_param.center_gimbal_offset_y;
-//   k0 = chassis_param.power_param.k0;
-//   k1 = chassis_param.power_param.k1;
-//   k2 = chassis_param.power_param.k2;
-//   k3 = chassis_param.power_param.k3;
-//   k4 = chassis_param.power_param.k4;
-//   k5 = chassis_param.power_param.k5;
-//
-//   lf_radius = sqrtf((half_track_width + center_gimbal_offset_x) * (half_track_width + center_gimbal_offset_x) +
-//                     (half_wheel_base - center_gimbal_offset_y) * (half_wheel_base - center_gimbal_offset_y)) *
-//               DEGREE_2_RAD;
-//
-//   rf_radius = sqrtf((half_track_width - center_gimbal_offset_x) * (half_track_width - center_gimbal_offset_x) +
-//                     (half_wheel_base - center_gimbal_offset_y) * (half_wheel_base - center_gimbal_offset_y)) *
-//               DEGREE_2_RAD;
-//
-//   lb_radius = sqrtf((half_track_width + center_gimbal_offset_x) * (half_track_width + center_gimbal_offset_x) +
-//                     (half_wheel_base + center_gimbal_offset_y) * (half_wheel_base + center_gimbal_offset_y)) *
-//               DEGREE_2_RAD;
-//
-//   rb_radius = sqrtf((half_track_width - center_gimbal_offset_x) * (half_track_width - center_gimbal_offset_x) +
-//                     (half_wheel_base + center_gimbal_offset_y) * (half_wheel_base + center_gimbal_offset_y)) *
-//               DEGREE_2_RAD;
-//   PIDInit(&follow_pid,&chassis_init_config->follow_pid);
-//   for (int i = 0; i < 4; i++) {
-//     chassis_init_config->wheel_motor_config[i].controller_setting_init_config.angle_feedback_source = MOTOR_FEED;
-//     chassis_init_config->wheel_motor_config[i].controller_setting_init_config.speed_feedback_source = MOTOR_FEED;
-//     chassis_init_config->wheel_motor_config[i].controller_setting_init_config.outer_loop_type = SPEED_LOOP;
-//     chassis_init_config->wheel_motor_config[i].controller_setting_init_config.close_loop_type = SPEED_LOOP;
-//     chassis_instance->wheel_motor[i] = DJIMotorInit(&chassis_init_config->wheel_motor_config[i]);
-//   }
-//   chassis_init_config->leg_motor_config[0].controller_setting_init_config.angle_feedback_source = MOTOR_FEED;
-//   chassis_init_config->leg_motor_config[0].controller_setting_init_config.speed_feedback_source = MOTOR_FEED;
-//   chassis_init_config->leg_motor_config[0].controller_setting_init_config.outer_loop_type = ANGLE_LOOP;
-//   chassis_init_config->leg_motor_config[0].controller_setting_init_config.close_loop_type = SPEED_LOOP | ANGLE_LOOP;
-//    chassis_instance->leg_motor[0] = DMMotorInit(&chassis_init_config->leg_motor_config[0]);
-//   chassis = chassis_instance;
-//   chassis_ctrl_cmd = &chassis->chassis_ctrl_cmd;  // 在运行时初始化指针
-//   return chassis_instance;
-// }
 ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   ChassisInstance* chassis_instance = (ChassisInstance*)zmalloc(sizeof(ChassisInstance));
-
+  referee_data = GetReferee();
+  // 初始化底盘外部IMU
+  chassis_instance->chassis_external_imu = ExternalIMUInit(
+      chassis_init_config->external_imu.can_id,
+      chassis_init_config->external_imu.mst_id,
+      chassis_init_config->external_imu.can_handle);
 
   chassis_param = chassis_init_config->chassis_param;  // 在运行时赋值
-
 
   float half_wheel_base = chassis_param.wheel_base / 2.0f;
   float half_track_width = chassis_param.track_width / 2.0f;
@@ -341,10 +548,68 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
 
   chassis = chassis_instance;
   chassis_ctrl_cmd = &chassis->chassis_ctrl_cmd;  // 在运行时初始化指针
+  chassis_ctrl_cmd->power_distribute=1.0f;
   return chassis_instance;
 }
 /* 机器人底盘控制核心任务 */
 void ChassisTask() {
+  switch (chassis->super_cap->cap_msg.error_detect){
+    case 0:
+  switch (chassis->super_cap_mode) {
+    case SAFETY_MODE:
+      if (chassis_ctrl_cmd->SuperCapBoost == 1) {
+        chassis->super_cap_mode = ACTIVE_MODE;
+      }
+      if (chassis->super_cap->cap_msg.cap_v > 18.0f) {
+        chassis->super_cap_mode = PASSIVE_MODE;
+      }
+      else if (chassis->super_cap->cap_msg.cap_v < 14.0f) {
+        chassis->super_cap_mode = CHARGING_MODE;
+      }
+      chassis->chassis_ctrl_cmd.max_power =referee_data->GameRobotState.chassis_power_limit;
+      break;
+      case CHARGING_MODE:
+      if (chassis->super_cap->cap_msg.cap_v > 18.0f) {
+        chassis->super_cap_mode = PASSIVE_MODE;
+      }
+      chassis->chassis_ctrl_cmd.max_power =
+          referee_data->GameRobotState.chassis_power_limit -5;
+      break;
+    case PASSIVE_MODE:
+      if (chassis_ctrl_cmd->SuperCapBoost == 1) {
+        chassis->super_cap_mode = ACTIVE_MODE;
+      }
+      if (chassis->super_cap->cap_msg.cap_v < 14.0f) {
+        chassis->super_cap_mode = CHARGING_MODE;
+      }
+      else if (chassis->super_cap->cap_msg.cap_v > 18.0f) {
+        chassis->chassis_ctrl_cmd.max_power =referee_data->GameRobotState.chassis_power_limit;
+      }
+      else if (chassis->super_cap->cap_msg.cap_v >= 14.0f&&chassis->super_cap->cap_msg.cap_v <= 18.0f) {
+        chassis->super_cap_mode = SAFETY_MODE;
+      }
+      break;
+    case ACTIVE_MODE:
+      if (chassis->super_cap->cap_msg.cap_v < 14.0f)
+        chassis->super_cap_mode = CHARGING_MODE;
+      if (chassis_ctrl_cmd->SuperCapBoost != 1)
+        chassis->super_cap_mode = PASSIVE_MODE;
+      chassis->chassis_ctrl_cmd.max_power = 180;
+      break;
+    default:
+      chassis->super_cap_mode = SAFETY_MODE;
+  }
+    break;
+      default:
+      chassis_ctrl_cmd->max_power = referee_data->GameRobotState.chassis_power_limit;
+      break;
+}
+  if (referee_data->GameRobotState.chassis_power_limit==0) {
+    chassis_ctrl_cmd->max_power=100;
+  }
+  if (chassis->super_cap->cap_msg.cap_v==0) {
+    chassis_ctrl_cmd->max_power=100;
+  }
 
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_POWER_OFF) {
     // 如果出现重要模块离线或遥控器设置为急停,让电机停止
@@ -361,7 +626,34 @@ void ChassisTask() {
   switch (chassis_ctrl_cmd->chassis_mode)
   {
     case CHASSIS_FOLLOW: // 跟随云台,不单独设置pid,以误差角度平方为速度输出
-      chassis_ctrl_cmd->wz+=PIDCalculate(&follow_pid,chassis_ctrl_cmd->offset_angle,0);
+      normal_follow_tick=DWT_GetTimeline_ms();
+      follow_angle=0.f ;//跟随正前方
+      //跳变处理
+      if (follow_angle-chassis_ctrl_cmd->offset_angle>=180.f) {
+        follow_angle-=360.0f;
+      }
+      else if(follow_angle-chassis_ctrl_cmd->offset_angle<=-180.f) {
+        follow_angle+=360.0f;
+      }
+       //如果状态是刚从follow_rear_ecd切换过来，那么等待500ms再算follow_pid，其他模式切过来直接算就行，todo可以将500写入config
+      if (DWT_GetTimeline_ms()-reverse_follow_tick>=800) {
+        chassis_ctrl_cmd->wz+=PIDCalculate(&follow_pid,chassis_ctrl_cmd->offset_angle,follow_angle);
+      }
+      break;
+    case CHASSIS_FOLLOW_REAR_END: // 跟随云台,不单独设置pid,以误差角度平方为速度输出
+      reverse_follow_tick=DWT_GetTimeline_ms();
+      follow_angle=180.f ;//跟随车辆后方
+      //跳变处理
+      if (follow_angle-chassis_ctrl_cmd->offset_angle>=180.f) {
+        follow_angle-=360.0f;
+      }
+      else if(follow_angle-chassis_ctrl_cmd->offset_angle<=-180.f) {
+        follow_angle+=360.0f;
+      }
+      //如果状态是刚从follow切换过来，那么等待500ms再算follow_pid，其他模式切过来直接算就行，todo可以将500写入config
+      if (DWT_GetTimeline_ms()-normal_follow_tick>=800) {
+        chassis_ctrl_cmd->wz+=PIDCalculate(&follow_pid,chassis_ctrl_cmd->offset_angle,follow_angle);
+      }
       break;
     case CHASSIS_ROTATE: // 自旋,同时保持全向机动;当前wz维持定值,后续增加不规则的变速策略
       // chassis_cmd_recv.wz = 4000;
@@ -384,6 +676,8 @@ void ChassisTask() {
 
   // 功率控制与输出限幅
   LimitChassisOutput();
+
+
   //兔腿控制
   LegControl();
 }

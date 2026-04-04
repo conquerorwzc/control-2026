@@ -9,6 +9,7 @@
 #include "robot_config.h"
 #include "user_lib.h"
 #include "master_process.h"
+#include "referee_task.h"
 static RobotInstance *robot;
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
@@ -84,11 +85,11 @@ static void RemoteControlSet() {
 
     chassis_ctrl_cmd->leg_mode = LEG_NORMAL;
   } else if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
-    chassis_ctrl_cmd->leg_mode = LEG_CRUISE;
+    chassis_ctrl_cmd->leg_mode = LEG_NORMAL;
 
   } else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
 
-    chassis_ctrl_cmd->leg_mode = LEG_IN_AIR;
+    chassis_ctrl_cmd->leg_mode = LEG_NORMAL;
 
   }
 
@@ -98,10 +99,6 @@ static void RemoteControlSet() {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
-    if (abs(rc_data[TEMP].rc.dial) > 20) {
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
-    } else
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
     // 待添加,视觉会发来和目标的误差,同样将其转化为total angle的增量进行控制
     // ...
     // 左上，开火，发射，根据时间判断单发或者连发
@@ -111,10 +108,6 @@ static void RemoteControlSet() {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
-    if (abs(rc_data[TEMP].rc.dial) > 20) {
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
-    } else
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
     if (switch_is_mid(rc_data_last[TEMP].rc.switch_left)) {
       trigger_time = DWT_GetTimeline_s();
     }
@@ -180,28 +173,29 @@ static void MouseKeySet() {
                         (float) chassis_ctrl_cmd->chassis_speed_buff;
   vx_initial += (float)(rc_data[TEMP].key[KEY_PRESS].a - rc_data[TEMP].key[KEY_PRESS].d) *
                          (float) -chassis_ctrl_cmd->chassis_speed_buff;
-
-  //缓加速
-  if (abs(vx_initial)<=10000) {
-    x_speed_time=DWT_GetTimeline_s();
-    chassis_ctrl_cmd->vx=vx_initial;
-  }//速度绝对值在10000以下输出控制量=输入控制量
-  if (vx_initial > 10000&&chassis_ctrl_cmd->vx<= 60.0f * (float)rc_data[TEMP].rc.rocker_l_ ) {
-    chassis_ctrl_cmd->vx=10000+(DWT_GetTimeline_s()-x_speed_time)*10000;
-  }
-  if (vx_initial < -10000&&chassis_ctrl_cmd->vx>= 60.0f * (float)rc_data[TEMP].rc.rocker_l_) {
-    chassis_ctrl_cmd->vx=-10000-(DWT_GetTimeline_s()-x_speed_time)*10000;
-  }//速度绝对值在10000以上输出控制量=10000+10000t(s)
-  if (abs(vy_initial)<=10000) {
-    y_speed_time=DWT_GetTimeline_s();
-    chassis_ctrl_cmd->vy=vy_initial;
-  }//速度绝对值在10000以下输出控制量=输入控制量
-  if (vy_initial > 10000&&chassis_ctrl_cmd->vy<= 60.0f * (float)rc_data[TEMP].rc.rocker_l1 ) {
-    chassis_ctrl_cmd->vy=10000+(DWT_GetTimeline_s()-y_speed_time)*10000;
-  }
-  if (vy_initial < -10000&&chassis_ctrl_cmd->vy>= 60.0f * (float)rc_data[TEMP].rc.rocker_l1) {
-    chassis_ctrl_cmd->vy=-10000-(DWT_GetTimeline_s()-y_speed_time)*10000;
-  }//速度绝对值在10000以上输出控制量=10000+10000t(s)
+chassis_ctrl_cmd->vx=vx_initial;
+  chassis_ctrl_cmd->vy=vy_initial;
+  // //缓加速
+  // if (abs(vx_initial)<=30000) {
+  //   x_speed_time=DWT_GetTimeline_s();
+  //   chassis_ctrl_cmd->vx=vx_initial;
+  // }//速度绝对值在10000以下输出控制量=输入控制量
+  // if (vx_initial > 30000&&chassis_ctrl_cmd->vx<= 80.0f * (float)rc_data[TEMP].rc.rocker_l_ ) {
+  //   chassis_ctrl_cmd->vx=30000+(DWT_GetTimeline_s()-x_speed_time)*10000;
+  // }
+  // if (vx_initial < -30000&&chassis_ctrl_cmd->vx>= 80.0f * (float)rc_data[TEMP].rc.rocker_l_) {
+  //   chassis_ctrl_cmd->vx=-30000-(DWT_GetTimeline_s()-x_speed_time)*10000;
+  // }//速度绝对值在10000以上输出控制量=10000+10000t(s)
+  // if (abs(vy_initial)<=30000) {
+  //   y_speed_time=DWT_GetTimeline_s();
+  //   chassis_ctrl_cmd->vy=vy_initial;
+  // }//速度绝对值在10000以下输出控制量=输入控制量
+  // if (vy_initial > 30000&&chassis_ctrl_cmd->vy<= 80.0f * (float)rc_data[TEMP].rc.rocker_l1 ) {
+  //   chassis_ctrl_cmd->vy=30000+(DWT_GetTimeline_s()-y_speed_time)*10000;
+  // }
+  // if (vy_initial < -30000&&chassis_ctrl_cmd->vy>= 80.0f * (float)rc_data[TEMP].rc.rocker_l1) {
+  //   chassis_ctrl_cmd->vy=-30000-(DWT_GetTimeline_s()-y_speed_time)*10000;
+  // }//速度绝对值在10000以上输出控制量=10000+10000t(s)
 
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   {
@@ -222,13 +216,13 @@ static void MouseKeySet() {
     }
   }
   // 添加R键和F键控制腿部升降,腿在leg in air模式时这两个按键不起作用
-  if (rc_data[TEMP].key[KEY_PRESS].r) {
-    // R键按下，腿部渐渐升起
-    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_UP;
-  } else if (rc_data[TEMP].key[KEY_PRESS].f) {
-    // F键按下，腿部渐渐降下
-    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_DOWN;
-  }
+  // if (rc_data[TEMP].key[KEY_PRESS].r) {
+  //   // R键按下，腿部渐渐升起
+  //   chassis_ctrl_cmd->leg_mode = LEG_MANUAL_UP;
+  // } else if (rc_data[TEMP].key[KEY_PRESS].f) {
+  //   // F键按下，腿部渐渐降下
+  //   chassis_ctrl_cmd->leg_mode = LEG_MANUAL_DOWN;
+  // }
 
   // 检测X键按下事件（从释放到按下），设置腿部为正常模式
   if (!rc_data_last[TEMP].key[KEY_PRESS].x && rc_data[TEMP].key[KEY_PRESS].x) {
@@ -240,6 +234,12 @@ static void MouseKeySet() {
   //   chassis_ctrl_cmd->leg_mode = LEG_IN_AIR;
   // }
 
+  if (!rc_data_last[TEMP].key[KEY_PRESS].ctrl && rc_data[TEMP].key[KEY_PRESS].ctrl) {
+    Referee_Interactive_info_t* ui_data = getUI();
+    if (ui_data != NULL) {
+      ui_data->force_refresh_ui = 1; // 置位刷新标志
+    }
+  }
 
   switch (rc_data[TEMP].mouse.press_r % 2) {  //右键进入自瞄预备模式
     case 1:
@@ -266,7 +266,7 @@ static void MouseKeySet() {
       }
       break;
     default:
-      switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 2)  // E键设置发射模式
+      switch (rc_data[TEMP].key_count[KEY_PRESS][Key_G] % 2)  // G键设置发射模式
       {
       case 0:                                              //单发+长按连发
           if (shoot_ctrl_cmd->friction_mode==FRICTION_ON)   //需预先开启摩擦轮，F键
@@ -285,21 +285,6 @@ static void MouseKeySet() {
       }
       break;
   }
-  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_C] % 4)  // C键设置底盘速度
-  {
-    case 0:
-      chassis_ctrl_cmd->chassis_speed_buff = 15000;
-      break;
-    case 1:
-      chassis_ctrl_cmd->chassis_speed_buff = 20000;
-      break;
-    case 2:
-      chassis_ctrl_cmd->chassis_speed_buff = 40000;
-      break;
-    default:
-      chassis_ctrl_cmd->chassis_speed_buff = 80000;
-      break;
-  }
   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_V]%2)  // 小陀螺
   {
     case 1:
@@ -309,13 +294,6 @@ static void MouseKeySet() {
       if (rc_data[TEMP].key[KEY_PRESS].b==1&&rc_data_last[TEMP].key[KEY_PRESS].b==0) {
           // 偶数次按压 - 跟随车头模式
             gimbal_ctrl_cmd->yaw += 180.0f;
-
-            //将角度规范化到-180到180度范围内
-            if (gimbal_ctrl_cmd->yaw > 180.0f) {
-              gimbal_ctrl_cmd->yaw -= 360.0f;
-            } else if (gimbal_ctrl_cmd->yaw < -180.0f) {
-              gimbal_ctrl_cmd->yaw += 360.0f;
-            }
         if (rc_data[TEMP].key_count[KEY_PRESS][Key_B]% 2==1) {
           rc_data[TEMP].key_count[KEY_PRESS][Key_B]++;
         }
@@ -333,13 +311,6 @@ static void MouseKeySet() {
           // 偶数次按压 - 跟随车头模式
           if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW_REAR_END) {
             gimbal_ctrl_cmd->yaw += 180.0f;
-
-            //将角度规范化到-180到180度范围内
-            if (gimbal_ctrl_cmd->yaw > 180.0f) {
-              gimbal_ctrl_cmd->yaw -= 360.0f;
-            } else if (gimbal_ctrl_cmd->yaw < -180.0f) {
-              gimbal_ctrl_cmd->yaw += 360.0f;
-            }
           }
           chassis_ctrl_cmd->wz = 0.0f;
           chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
@@ -349,13 +320,6 @@ static void MouseKeySet() {
           // 奇数次按压 - 跟随车尾模式
           if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
             gimbal_ctrl_cmd->yaw += 180.0f;
-
-            // 将角度规范化到-180到180度范围内
-            if (gimbal_ctrl_cmd->yaw > 180.0f) {
-              gimbal_ctrl_cmd->yaw -= 360.0f;
-            } else if (gimbal_ctrl_cmd->yaw < -180.0f) {
-              gimbal_ctrl_cmd->yaw += 360.0f;
-            }
           }
           chassis_ctrl_cmd->wz = 0.0f;
           chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW_REAR_END;
@@ -403,7 +367,7 @@ static void MouseKeySet() {
   //   default:
   //     break;
   // }
-  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Q] % 3)  // E按键设置热量控制类型
+  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Q] % 3)  // Q按键设置热量控制类型
   {
     case 0:
       shoot_ctrl_cmd->heat_mode=REFEREE_CONTROL;
@@ -417,25 +381,31 @@ static void MouseKeySet() {
       break;
   }
 
-//   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 3)  // E按键设置热量控制类型
-//   {
-//     case 0:
-//       shoot_ctrl_cmd->bullet_speed_mode=ENABLE_BULLET_SPEED;
-//       break;
-//     case 1:
-//       shoot_ctrl_cmd->bullet_speed_mode=MANUAL_BULLET_SPEED;
-//       if (rc_data[TEMP].key[KEY_PRESS].z==1&&rc_data_last[TEMP].key[KEY_PRESS].z==0) {
-//         shoot_ctrl_cmd->friction_speed+=shoot_init_config.shoot_param.bullet_speed_adjustment;
-//       }
-//       else if (rc_data[TEMP].key[KEY_PRESS].x==1&&rc_data_last[TEMP].key[KEY_PRESS].x==0) {
-//         shoot_ctrl_cmd->friction_speed-=shoot_init_config.shoot_param.bullet_speed_adjustment;
-//       }
-//       break;
-//     case 2:
-//       shoot_ctrl_cmd->bullet_speed_mode=DISABLE_BULLET_SPEED;
-//     default:
-//       break;
-//   }
+   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 3)  // E按键设置热量控制类型
+   {
+     case 0:
+       shoot_ctrl_cmd->bullet_speed_mode=ENABLE_BULLET_SPEED;
+       break;
+     case 1:
+       shoot_ctrl_cmd->bullet_speed_mode=MANUAL_BULLET_SPEED;
+       if (rc_data[TEMP].key[KEY_PRESS].z==1&&rc_data_last[TEMP].key[KEY_PRESS].z==0) {
+         shoot_ctrl_cmd->friction_speed+=shoot_init_config.shoot_param.bullet_speed_adjustment;
+       }
+       else if (rc_data[TEMP].key[KEY_PRESS].x==1&&rc_data_last[TEMP].key[KEY_PRESS].x==0) {
+         shoot_ctrl_cmd->friction_speed-=shoot_init_config.shoot_param.bullet_speed_adjustment;
+       }
+       break;
+     case 2:
+       shoot_ctrl_cmd->bullet_speed_mode=DISABLE_BULLET_SPEED;
+     default:
+       break;
+   }
+  if (rc_data[TEMP].key[KEY_PRESS].shift) {
+    chassis_ctrl_cmd->SuperCapBoost=1;
+  }
+  else {
+    chassis_ctrl_cmd->SuperCapBoost=0;
+  }
   *rc_data_last = *rc_data;
 }
 
@@ -449,7 +419,7 @@ static void MouseKeySet() {
  */
 static void EmergencyHandler() {
   // 两switch都在下断电
-  if ( switch_is_down(rc_data[TEMP].rc.switch_left))  // 全部失能
+  if ( switch_is_down(rc_data[TEMP].rc.switch_left)||!RemoteControlIsOnline())  // 全部失能
   {
     robot->robot_mode = ROBOT_POWER_ON;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
@@ -487,16 +457,17 @@ void RobotInit() {
   rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
   *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
 
-  robot->referee_data = RefereeInit(&huart7);  // 裁判系统初始化
+  robot->referee_data = RefereeInit(&huart1);  // 裁判系统初始化
 
   robot->super_cap = SuperCapInit(&super_cap_config);
 
+  robot->chassis = ChassisInit(&chassis_init_config);
  #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
    robot->gimbal = GimbalInit(&gimbal_init_config);
    robot->shoot = ShootInit(&shoot_init_config);
 #endif
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
-  robot->chassis = ChassisInit(&chassis_init_config);
+  robot->chassis->super_cap=robot->super_cap;
 #endif
 
   // 初始化控制命令指针
@@ -510,6 +481,7 @@ void RobotInit() {
   vision_recv_data=VisionInit(&gimbal_init_config.imu_init_config);
   gpio_5V_EN = GPIORegister(&gpio_init_config_5v);
   GPIOSet(gpio_5V_EN);
+  chassis_ctrl_cmd->chassis_speed_buff=25000;
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
@@ -517,6 +489,8 @@ void RobotCMDTask() {
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
   shoot_ctrl_cmd->initial_speed=robot->referee_data->ShootData.initial_speed;
   shoot_ctrl_cmd->shooter_barrel_heat=robot->referee_data->PowerHeatData.shooter_42mm_barrel_heat;
+  chassis_ctrl_cmd->max_power=robot->referee_data->GameRobotState.chassis_power_limit;
+  //gimbal_ctrl_cmd->chassis_rotate_wz=-1.f*robot->chassis->chassis_external_imu->gyro[2];
   CalcOffsetAngle();
   RemoteControlSet();
   MouseKeySet();
@@ -528,11 +502,13 @@ void RobotTask() {
   RobotCMDTask();
   GimbalTask();
   ShootTask();
-
   ChassisTask();
   SuperCapSendMessage(robot->super_cap,
       (int16_t)robot->referee_data->GameRobotState.chassis_power_limit,
       robot->referee_data->PowerHeatData.buffer_energy,
       robot->referee_data->GameRobotState.power_management_chassis_output);
 
+}
+RobotInstance* getRobot() {
+  return robot;
 }

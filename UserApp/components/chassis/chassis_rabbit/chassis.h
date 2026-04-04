@@ -28,22 +28,31 @@
 *          motor[1] - Right Front Wheel
 *          motor[2] - Left Rear Wheel
 *          motor[3] - Right Rear Wheel
+*          腿：0左 1右
 ******************************************************************************
 */
 #pragma once
 
 #include "dji_motor.h"
 #include "dmmotor.h"
+#include "external_imu/external_imu.h"
+#include "super_cap.h"
 typedef enum {
-  CHASSIS_POWER_OFF = 0,    // 电流零输入
+  CHASSIS_POWER_OFF = 0,     // 电流零输入
   CHASSIS_ROTATE,            // 小陀螺模式
   CHASSIS_FOLLOW,            // 跟随模式，底盘叠加角度环控制
+  CHASSIS_FOLLOW_REAR_END,   // 掉头模式,跟随车辆尾部
 } Chassis_Mode_e;
 typedef enum {
   LEG_DISABLE = 0,        // 腿部电机失能
   LEG_NORMAL,             // 常规位置
   LEG_RAISE,              // 抬起位置
   LEG_KIKE,
+  LEG_MANUAL_UP,          // 手动上升
+  LEG_MANUAL_DOWN,        // 手动下降
+  LEG_HOLD,
+  LEG_CRUISE,
+  LEG_IN_AIR,
 } Leg_Mode_e;
 typedef struct {
   // 控制部分
@@ -55,10 +64,22 @@ typedef struct {
   float offset_angle;  // 底盘和归中位置的夹角
   int chassis_speed_buff;
   uint16_t max_power;  // 最大功率限制
+  float power_distribute;  //前后轮功率分配系数
   // UI部分
   //  ...
-
+  uint8_t SuperCapBoost;
 } Chassis_Ctrl_Cmd_s;
+
+#pragma pack()
+//超级电容策略结构体
+
+typedef enum {
+  SAFETY_MODE=0,//安全模式，超电电压低于8伏时进入，大于18伏退出，底盘限制30W
+  PASSIVE_MODE,//被动模式，超电电压正常时的工作模式
+  ACTIVE_MODE,//，主动模式，主动使用超电能量
+  CHARGING_MODE,//充电模式，衰减底盘功率，保障电容电压健康
+  FORCED_CHARGING_MODE,//强制充电模式，更极端的功率衰减，强制超电快速充电
+} SuperCapMode;
 
 typedef struct {
   float k0;
@@ -85,12 +106,21 @@ typedef struct {
   Motor_Init_Config_s wheel_motor_config[4];
   Motor_Init_Config_s leg_motor_config[2];
   PID_Init_Config_s follow_pid;
+  struct {
+    uint8_t can_id;
+    uint8_t mst_id;
+    FDCAN_HandleTypeDef *can_handle;
+  } external_imu; // External IMU sensor configuration
+  SuperCap_Init_Config_s super_cap_config;
 } Chassis_Init_Config_s;
 
 typedef struct {
   Chassis_Ctrl_Cmd_s chassis_ctrl_cmd;
   DJIMotorInstance* wheel_motor[4];// left right forward back
   DMMotorInstance* leg_motor[2];
+  external_imu_t* chassis_external_imu;  // 底盘外部IMU数据
+  SuperCapInstance* super_cap;
+  SuperCapMode super_cap_mode;
 } ChassisInstance;
 
 /**

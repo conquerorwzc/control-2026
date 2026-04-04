@@ -119,11 +119,11 @@ static Chassis_Init_Config_s chassis_init_config = {
 };
 
 static SuperCap_Init_Config_s super_cap_config = {
-    .can_config = {
-        .can_handle = &hcan2,
-        .tx_id = 0x302,  // 超级电容默认接收id
-        .rx_id = 0x301,  // 超级电容默认发送id,注意tx和rx在其他人看来是反的
-    }};
+  .can_config = {
+    .can_handle = &hcan1,
+    .tx_id = 0x210,  // 超级电容默认接收id
+    .rx_id = 0x211,  // 超级电容默认发送id,注意tx和rx在其他人看来是反的
+}};
 
 #ifndef CONTROL_2026_ROBOT_CONFIG_H
 #define CONTROL_2026_ROBOT_CONFIG_H

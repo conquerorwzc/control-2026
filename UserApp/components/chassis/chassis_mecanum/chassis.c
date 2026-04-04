@@ -11,20 +11,26 @@
 #include "arm_math.h"
 #include "bsp_dwt.h"
 #include "general_def.h"
+#include "rm_referee.h"
+#include "super_cap.h"
 #include "user_lib.h"
 
 static ChassisInstance* chassis;
 static Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd;  // 声明但不初始化
 static Chassis_Param_s chassis_param;         // 声明为静态局部变量
+static referee_info_t *referee_data;
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
 static float chassis_vx, chassis_vy;      // 将云台系的速度投影到底盘
+static referee_info_t *referee_data;
 static float vt_lf, vt_rf, vt_lb, vt_rb;  // 底盘速度解算后的临时输出,待进行限幅
 static float lf_radius;
 static float rf_radius;
 static float lb_radius;
 static float rb_radius;
 static PIDInstance follow_pid;
+static float power;
 static float k0, k1, k2, k3, k4, k5;  // 中科大的功率模型
+static uint8_t super_cap_error_flag = 0; //电容故障标志
 
 /**
  * @brief 计算每个轮毂电机的输出,正运动学解算
@@ -50,12 +56,16 @@ static void PowerControl() {
 
   // 获取当前电机参考电流，统一位单位为A
   float motor_current_list[4];
+  float motor_real_current_list[4];
   for (int i = 0; i < 4; i++) {
     motor_current_list[i] = (float)chassis->wheel_motor[i]->motor_controller.final_output;
+    motor_real_current_list[i]=(float)chassis->wheel_motor[i]->measure.real_current;
   }
 
   float initial_give_power[4] = {0.0f};  // 每个电机的初始估计功率
+  float initial_give_real_power[4] = {0.0f};  // 每个电机的初始估计功率
   float initial_total_power = 0.0f;      // 估计初始总功率
+  power=0;
 
   // 计算每个电机的功率贡献
   for (int i = 0; i < 4; i++) {
@@ -69,6 +79,17 @@ static void PowerControl() {
     if (initial_give_power[i] > 0) {
       initial_total_power += initial_give_power[i];
     }
+  }
+
+  // 计算每个电机的功率贡献
+  for (int i = 0; i < 4; i++) {
+    initial_give_real_power[i] =
+        k0 + k1 * motor_real_current_list[i] / (16384.0f / 20.0f) + k2 * motor_speed_fdb[i] * (2.0f * PI / 60.0f) +
+        k3 * motor_real_current_list[i] / (16384.0f / 20.0f) * motor_speed_fdb[i] * (2.0f * PI / 60.0f) +
+        k4 * motor_real_current_list[i] / (16384.0f / 20.0f) * motor_real_current_list[i] / (16384.0f / 20.0f) +
+        k5 * motor_speed_fdb[i] * (2.0f * PI / 60.0f) * motor_speed_fdb[i] * (2.0f * PI / 60.0f);
+
+      power += initial_give_real_power[i];
   }
 
   // 功率超限时进行动态调整
@@ -154,7 +175,7 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   k3 = chassis_param.power_param.k3;
   k4 = chassis_param.power_param.k4;
   k5 = chassis_param.power_param.k5;
-
+  referee_data = GetReferee();
   lf_radius = sqrtf((half_track_width + center_gimbal_offset_x) * (half_track_width + center_gimbal_offset_x) +
                     (half_wheel_base - center_gimbal_offset_y) * (half_wheel_base - center_gimbal_offset_y)) *
               DEGREE_2_RAD;
@@ -183,11 +204,71 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
 
   chassis = chassis_instance;
   chassis_ctrl_cmd = &chassis->chassis_ctrl_cmd;  // 在运行时初始化指针
+  chassis_instance->super_cap_mode = SAFETY_MODE;
   return chassis_instance;
 }
 
 /* 机器人底盘控制核心任务 */
 void ChassisTask() {
+   switch (chassis->super_cap->cap_msg.error_detect){
+    case 0:
+  switch (chassis->super_cap_mode) {
+    case SAFETY_MODE:
+      if (chassis_ctrl_cmd->SuperCapBoost == 1) {
+        chassis->super_cap_mode = ACTIVE_MODE;
+      }
+      if (chassis->super_cap->cap_msg.cap_v > 18.0f) {
+        chassis->super_cap_mode = PASSIVE_MODE;
+      }
+      else if (chassis->super_cap->cap_msg.cap_v < 14.0f) {
+        chassis->super_cap_mode = CHARGING_MODE;
+      }
+      chassis->chassis_ctrl_cmd.max_power =referee_data->GameRobotState.chassis_power_limit;
+      break;
+      case CHARGING_MODE:
+      if (chassis->super_cap->cap_msg.cap_v > 18.0f) {
+        chassis->super_cap_mode = PASSIVE_MODE;
+      }
+      chassis->chassis_ctrl_cmd.max_power =
+          referee_data->GameRobotState.chassis_power_limit -5;
+      break;
+    case PASSIVE_MODE:
+      if (chassis_ctrl_cmd->SuperCapBoost == 1) {
+        chassis->super_cap_mode = ACTIVE_MODE;
+      }
+      if (chassis->super_cap->cap_msg.cap_v < 14.0f) {
+        chassis->super_cap_mode = CHARGING_MODE;
+      }
+      else if (chassis->super_cap->cap_msg.cap_v > 18.0f) {
+        chassis->chassis_ctrl_cmd.max_power =referee_data->GameRobotState.chassis_power_limit+20;
+      }
+      else if (chassis->super_cap->cap_msg.cap_v >= 14.0f&&chassis->super_cap->cap_msg.cap_v <= 18.0f) {
+        chassis->super_cap_mode = SAFETY_MODE;
+      }
+      break;
+    case ACTIVE_MODE:
+      if (chassis->super_cap->cap_msg.cap_v < 14.0f)
+        chassis->super_cap_mode = CHARGING_MODE;
+      if (chassis_ctrl_cmd->SuperCapBoost != 1)
+        chassis->super_cap_mode = PASSIVE_MODE;
+      chassis->chassis_ctrl_cmd.max_power = 180;
+      break;
+    default:
+      chassis->super_cap_mode = SAFETY_MODE;
+  }
+    break;
+      default:
+      chassis_ctrl_cmd->max_power = referee_data->GameRobotState.chassis_power_limit;
+      break;
+}
+  if (referee_data->GameRobotState.chassis_power_limit==0) {
+    chassis_ctrl_cmd->max_power=115;
+  }
+  if (chassis->super_cap->cap_msg.cap_v==0) {
+    chassis_ctrl_cmd->max_power=115;
+  }
+
+
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_POWER_OFF) {
     // 如果出现重要模块离线或遥控器设置为急停,让电机停止
     for (int i = 0; i < 4; i++) DJIMotorStop(chassis->wheel_motor[i]);
@@ -213,7 +294,6 @@ void ChassisTask() {
   sin_theta = arm_sin_f32(chassis_ctrl_cmd->offset_angle * DEGREE_2_RAD);
   chassis_vx = chassis_ctrl_cmd->vx * cos_theta +chassis_ctrl_cmd->vy * sin_theta;
   chassis_vy = -chassis_ctrl_cmd->vx * sin_theta + chassis_ctrl_cmd->vy * cos_theta;
-
   // chassis_vx = chassis_ctrl_cmd->vx;
   // chassis_vy = chassis_ctrl_cmd->vy;
 
