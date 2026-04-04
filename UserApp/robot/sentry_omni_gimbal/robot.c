@@ -490,7 +490,7 @@ void Gimbal_CANCommSend()
 
   send_data_new->Rotate_speed = vt13_rc_data->rc.rocker_r_ + vt13_rc_data->mouse_key.mouse.x * 2;
 
-  send_data_new->Spin_speed = vt13_rc_data->rc.dial + vt13_rc_data->mouse_key.keyboard.q*300;
+  send_data_new->Spin_speed = vt13_rc_data->rc.dial - vt13_rc_data->mouse_key.keyboard.q*700;
 
   send_data_new->Yaw_motor_angle = (int16_t)robot->gimbal->yaw_motor->measure.angle_single_round;
 
