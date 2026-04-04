@@ -227,6 +227,9 @@ static void EmergencyHandler() {
     robot->robot_mode = ROBOT_POWER_ON;
     chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
   }
+  if (switch_is_mid(rc_data[TEMP].rc.switch_left)&&switch_is_mid(rc_data[TEMP].rc.switch_right)) {
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
+  }
 
 #elifdef USE_DUAL_RC_NEW
   if (switch_right(vt13_rc_data->rc.mode_switch) || vt13_rc_data->button_status.pause_flag == 1)  // 底盘失能
