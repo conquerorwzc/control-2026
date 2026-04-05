@@ -210,65 +210,6 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
 
 /* 机器人底盘控制核心任务 */
 void ChassisTask() {
-   switch (chassis->super_cap->cap_msg.error_detect){
-    case 0:
-  switch (chassis->super_cap_mode) {
-    case SAFETY_MODE:
-      if (chassis_ctrl_cmd->SuperCapBoost == 1) {
-        chassis->super_cap_mode = ACTIVE_MODE;
-      }
-      if (chassis->super_cap->cap_msg.cap_v > 18.0f) {
-        chassis->super_cap_mode = PASSIVE_MODE;
-      }
-      else if (chassis->super_cap->cap_msg.cap_v < 14.0f) {
-        chassis->super_cap_mode = CHARGING_MODE;
-      }
-      chassis->chassis_ctrl_cmd.max_power =referee_data->GameRobotState.chassis_power_limit;
-      break;
-      case CHARGING_MODE:
-      if (chassis->super_cap->cap_msg.cap_v > 18.0f) {
-        chassis->super_cap_mode = PASSIVE_MODE;
-      }
-      chassis->chassis_ctrl_cmd.max_power =
-          referee_data->GameRobotState.chassis_power_limit -5;
-      break;
-    case PASSIVE_MODE:
-      if (chassis_ctrl_cmd->SuperCapBoost == 1) {
-        chassis->super_cap_mode = ACTIVE_MODE;
-      }
-      if (chassis->super_cap->cap_msg.cap_v < 14.0f) {
-        chassis->super_cap_mode = CHARGING_MODE;
-      }
-      else if (chassis->super_cap->cap_msg.cap_v > 18.0f) {
-        chassis->chassis_ctrl_cmd.max_power =referee_data->GameRobotState.chassis_power_limit+20;
-      }
-      else if (chassis->super_cap->cap_msg.cap_v >= 14.0f&&chassis->super_cap->cap_msg.cap_v <= 18.0f) {
-        chassis->super_cap_mode = SAFETY_MODE;
-      }
-      break;
-    case ACTIVE_MODE:
-      if (chassis->super_cap->cap_msg.cap_v < 14.0f)
-        chassis->super_cap_mode = CHARGING_MODE;
-      if (chassis_ctrl_cmd->SuperCapBoost != 1)
-        chassis->super_cap_mode = PASSIVE_MODE;
-      chassis->chassis_ctrl_cmd.max_power = 180;
-      break;
-    default:
-      chassis->super_cap_mode = SAFETY_MODE;
-  }
-    break;
-      default:
-      chassis_ctrl_cmd->max_power = referee_data->GameRobotState.chassis_power_limit;
-      break;
-}
-  if (referee_data->GameRobotState.chassis_power_limit==0) {
-    chassis_ctrl_cmd->max_power=115;
-  }
-  if (chassis->super_cap->cap_msg.cap_v==0) {
-    chassis_ctrl_cmd->max_power=115;
-  }
-
-
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_POWER_OFF) {
     // 如果出现重要模块离线或遥控器设置为急停,让电机停止
     for (int i = 0; i < 4; i++) DJIMotorStop(chassis->wheel_motor[i]);

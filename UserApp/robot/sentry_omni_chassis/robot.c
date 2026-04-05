@@ -172,6 +172,7 @@ static void RemoteControlSet() {
     chassis_ctrl_cmd->wz = robot->navigator_data->robot_cmd.speed_vector.wz * 0;
     // gimbal_ctrl_cmd->yaw-=robot->navigator_data->robot_cmd.speed_vector.wz*0.01;
   }
+
   // 缓加速
   if (abs(vx_initial) <= 10000) {
     x_speed_time = time;
@@ -335,30 +336,17 @@ static void RemoteControlSet() {
     if (abs(vt13_rc_data->rc.dial) > 20) chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
   }
 
-  //比赛时这段禁用掉
-  if (robot->referee_data->GameState.game_progress == 4) {
-    robot->control_mode = NAVIGATOR_MODE;
-  }
-
   // 底盘控制部分,系数需要调整
   if (robot->control_mode == MANUAL_MODE)  // 手动控制，遥控器控制量
   {
-    vx_initial = 60.0f * (float)vt13_rc_data->rc.rocker_l_;  // l_水平方向，最大660*60=39600
-    vy_initial = 60.0f * (float)vt13_rc_data->rc.rocker_l1;  // l1竖直方向，最大660*60
+    vx_initial = 80.0f * (float)vt13_rc_data->rc.rocker_l_;  // l_水平方向，最大660*60=39600
+    vy_initial = 80.0f * (float)vt13_rc_data->rc.rocker_l1;  // l1竖直方向，最大660*60
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE)
       chassis_ctrl_cmd->wz = 10.0f * (float)vt13_rc_data->rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
       chassis_ctrl_cmd->wz = (2.0f) * (float)vt13_rc_data->rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
     }
     auto_mode_time=time;
-  } else if (robot->control_mode == NAVIGATOR_MODE)  // 自动控制，直接收上位机控制量
-  {
-    // if (robot->referee_data->GameState.game_progress == 4 || auto_mode_time-time>180.0f) {//比赛时这段取消引用
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
-      vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vy * 10000;
-      vy_initial = robot->navigator_data->robot_cmd.speed_vector.vx * 10000;
-      chassis_ctrl_cmd->wz = robot->navigator_data->robot_cmd.speed_vector.wz * 0;//10000;
-    // }
   }
   //不要换启动
   chassis_ctrl_cmd->vx = vx_initial;
@@ -404,10 +392,6 @@ static void EmergencyHandler() {
     LOGERROR("[CMD] Emergency Stop! DualBoardComm Lost");
   } else
     LOGINFO("[CMD]DualBoardComm is Online");
-
-  if (robot->navigator_data->robot_cmd.is_recovering==1 && robot->referee_data->GameRobotState.current_HP<robot->referee_data->GameRobotState.maximum_HP*0.8) {
-    chassis_ctrl_cmd->chassis_mode=CHASSIS_POWER_OFF;
-  }
 
 #ifdef USE_DUAL_RC
 
@@ -602,9 +586,9 @@ void RobotTask() {
   chassis_ctrl_cmd->max_power = robot->referee_data->GameRobotState.chassis_power_limit;
   ModeControl();
   ChassisTask();
-  SuperCapSendMessage(robot->super_cap,
-      (int16_t)robot->referee_data->GameRobotState.chassis_power_limit,
-      robot->referee_data->PowerHeatData.buffer_energy,
-      robot->referee_data->GameRobotState.power_management_chassis_output);
+  // SuperCapSendMessage(robot->super_cap,
+  //     (int16_t)robot->referee_data->GameRobotState.chassis_power_limit,
+  //     robot->referee_data->PowerHeatData.buffer_energy,
+  //     robot->referee_data->GameRobotState.power_management_chassis_output);
 #endif
 }
