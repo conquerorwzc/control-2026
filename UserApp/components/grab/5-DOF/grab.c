@@ -623,7 +623,7 @@ static void Grab_Real_Angle_Calculate(GrabInstance *grab)
     {
         float curr_lift = grab->arm->arm_lift_motor->measure.total_angle;
         grab->grab_measure.arm_lift =
-            (curr_lift - total_angle_init_arm_lift) / MOTOR3508_REDUCTION_RATIO /* / LIFT_PULLEY_RATIO */;
+            (curr_lift - total_angle_init_arm_lift) / MOTOR3508_P51_REDUCTION_RATIO /* / LIFT_PULLEY_RATIO */;
     }
     
     // 前伸电机真实位置解算
@@ -631,7 +631,7 @@ static void Grab_Real_Angle_Calculate(GrabInstance *grab)
     {
         float curr_extend = grab->arm->arm_extend_motor->measure.total_angle;
         grab->grab_measure.arm_extend =
-            (curr_extend - total_angle_init_arm_extend) / MOTOR3508_REDUCTION_RATIO;
+            (curr_extend - total_angle_init_arm_extend) / MOTOR3508_P19_REDUCTION_RATIO;
     }
 }
 
