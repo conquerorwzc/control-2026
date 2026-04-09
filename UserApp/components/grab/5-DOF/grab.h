@@ -70,8 +70,7 @@ typedef struct {
 
 typedef struct
 {
-    // 👇 极其重要：从 [9] 改为 [10]！因为多了一个 3508 抬升电机
-    Motor_Init_Config_s Grab_motor_config[8];
+    Motor_Init_Config_s Grab_motor_config[9];
     Grab_Cali_Mode_e Grab_cali_mode;
     Grab_Param_s  Grab_param;
 } Grab_Init_Config_s;
@@ -85,9 +84,11 @@ typedef struct
     float elbow_pitch;   // 肘部关节俯仰角度
     float torque;        // 夹爪电机目标扭矩
 
-    // 👇 新增：3508 抬升电机的目标指令
     float arm_lift;      // 机械臂整体抬升的目标角度/高度
     float arm_lift_target;
+
+    float arm_extend;        // 机械臂前伸电机的目标伸长量
+    float arm_extend_target; // 前伸电机计算后的目标角度
     uint8_t wrist_roll_cali;
     uint8_t wrist_pitch_cali;
     Grab_Mode_e grab_mode;
@@ -102,8 +103,8 @@ typedef struct
     float elbow_pitch;   // 实际：肘部关节俯仰角度
     float torque;        // 实际：夹爪电机当前扭矩
 
-    // 👇 新增：3508 抬升电机的实际反馈
     float arm_lift;      // 实际：机械臂整体抬升的高度/角度
+    float arm_extend;    // 实际：机械臂前伸电机的伸长量
 } Grab_Real_Measure_s;
 
 typedef struct
@@ -125,8 +126,8 @@ typedef struct
 {
     DMMotorInstance *grab_dmmotor[3];
 
-    // 👇 新增：3508 大疆电机实例指针 (用于控制机械臂抬升)
     DJIMotorInstance *arm_lift_motor;
+    DJIMotorInstance *arm_extend_motor; // 前伸电机
 
     float base_joint;  // 基座旋转关节角度
     float elbow_roll;  // 肘部关节旋转角度

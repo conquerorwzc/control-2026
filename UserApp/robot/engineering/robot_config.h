@@ -748,50 +748,87 @@ static Grab_Init_Config_s
                 },
             .Grab_motor_config[7] =
                 {
-                    .controller_param_init_config =
-                        {
-                            .angle_PID =
-                                {
-                                    .Kp = 5.0f,
-                                    .Ki = 0.0f,
-                                    .Kd = 0.0f,
-                                    .Improve = PID_Integral_Limit,
-                                    .IntegralLimit = 0.0f,
-                                    .MaxOut = 15000.0f,
-                                },
-                            .speed_PID =
-                                {
-                                    .Kp = 4.0f,
-                                    .Ki = 0.0f,
-                                    .Kd = 0.0f,
-                                    .Improve = PID_Integral_Limit,
-                                    .IntegralLimit = 10000.0f,
-                                    .MaxOut = 8000.0f,
-                                },
+                .controller_param_init_config =
+                {
+                    .angle_PID =
+                    {
+                        .Kp = 5.0f,
+                        .Ki = 0.0f,
+                        .Kd = 0.0f,
+                        .Improve = PID_Integral_Limit,
+                        .IntegralLimit = 0.0f,
+                        .MaxOut = 15000.0f,
+                    },
+                .speed_PID =
+                    {
+                        .Kp = 4.0f,
+                        .Ki = 0.0f,
+                        .Kd = 0.0f,
+                        .Improve = PID_Integral_Limit,
+                        .IntegralLimit = 10000.0f,
+                        .MaxOut = 8000.0f,
+                    },
 
-                        },
-                    .controller_setting_init_config =
-                        {
-                            .outer_loop_type = ANGLE_LOOP,
-                            .close_loop_type = SPEED_LOOP | ANGLE_LOOP,
-                            .angle_feedback_source = MOTOR_FEED,
-                            .speed_feedback_source = MOTOR_FEED,
-                            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
-                            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
-                        },
-                    .motor_type = M3508,
-                    .can_init_config =
-                        {
-                            .can_handle = &hcan2,
-                            .tx_id = 5,
-                        },
-
+            },
+        .controller_setting_init_config =
+                {
+                    .outer_loop_type = ANGLE_LOOP,
+                    .close_loop_type = SPEED_LOOP | ANGLE_LOOP,
+                    .angle_feedback_source = MOTOR_FEED,
+                    .speed_feedback_source = MOTOR_FEED,
+                    .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+                    .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
                 },
-
+            .motor_type = M3508,
+            .can_init_config =
+                {
+                    .can_handle = &hcan2,
+                    .tx_id = 5,
+                },
+            },
+                .Grab_motor_config[8] =
+            {
+                .controller_param_init_config =
+                {
+                    .angle_PID =
+                    {
+                        .Kp = 10.0f, // 初始参数，需根据前伸机构惯量微调
+                        .Ki = 0.0f,
+                        .Kd = 0.0f,
+                        .Improve = PID_Integral_Limit,
+                        .IntegralLimit = 0.0f,
+                        .MaxOut = 15000.0f,
+                    },
+                .speed_PID =
+                    {
+                        .Kp = 5.0f,
+                        .Ki = 0.0f,
+                        .Kd = 0.0f,
+                        .Improve = PID_Integral_Limit,
+                        .IntegralLimit = 10000.0f,
+                        .MaxOut = 16000.0f,
+                    },
+            },
+        .controller_setting_init_config =
+                {
+                    .outer_loop_type = ANGLE_LOOP,
+                    .close_loop_type = SPEED_LOOP | ANGLE_LOOP,
+                    .angle_feedback_source = MOTOR_FEED,
+                    .speed_feedback_source = MOTOR_FEED,
+                    .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+                    .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+                },
+            .motor_type = M3508,
+            .can_init_config =
+                {
+                    .can_handle = &hcan3, // 建议挂在CAN3上，ID设为7以避开底盘和云台
+                    .tx_id = 5,
+                },
+        },
 };
 
 static VideoGimbal_Init_Config_s video_gimbal_init_config = {
-    // GM6020 Yaw (hcan3, id=5)
+    // GM6020 Yaw (hcan2, id=3)
     .yaw_motor_config =
         {
             .controller_param_init_config =
