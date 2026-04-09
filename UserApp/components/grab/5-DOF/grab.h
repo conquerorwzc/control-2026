@@ -1,9 +1,9 @@
 #pragma once
+#include "bsp_gpio.h"
 #include "dji_motor.h"
 #include "dmmotor.h"
 #include "general_def.h"
 #include "stm32h7xx_hal.h"
-#include "bsp_gpio.h"
 
 typedef enum
 {
@@ -20,14 +20,15 @@ typedef enum
 typedef enum
 {
     GRAB_NO_ERROR = 0,
-    GRAB_ERR_ROLL_OVERSPEED   = 1, // Roll轴疯转
-    GRAB_ERR_ROLL_OVERANGLE  = 2  // Roll轴角度超限
+    GRAB_ERR_ROLL_OVERSPEED = 1, // Roll轴疯转
+    GRAB_ERR_ROLL_OVERANGLE = 2  // Roll轴角度超限
 } Grab_Error_e;
 
 // =========================================================
 // 面向对象的标定基类定义
 // =========================================================
-typedef enum {
+typedef enum
+{
     CALI_RUNNING = 0, // 正在执行标定
     CALI_DONE = 1,    // 标定完成
     CALI_ERROR = 2    // 标定异常
@@ -35,19 +36,21 @@ typedef enum {
 
 typedef struct Calibration_t Calibration_t;
 
-struct Calibration_t {
-    GeneralCaliState_e state; // 对外暴露的状态
-    uint32_t timeout_cnt;     // 当前超时计数
-    uint32_t max_timeout;     // 最大允许超时时间
-    uint8_t internal_step;    // 内部子步骤 (用于记录特有状态机进度)
-    void *host_ptr;           // 宿主指针 (存放 GrabInstance 指针)
+struct Calibration_t
+{
+    GeneralCaliState_e state;                   // 对外暴露的状态
+    uint32_t timeout_cnt;                       // 当前超时计数
+    uint32_t max_timeout;                       // 最大允许超时时间
+    uint8_t internal_step;                      // 内部子步骤 (用于记录特有状态机进度)
+    void *host_ptr;                             // 宿主指针 (存放 GrabInstance 指针)
     void (*Execute_Logic)(Calibration_t *self); // 虚函数指针 (多态调用)
 };
 
 // =========================================================
 // 机械臂全局参数配置 (宏定义全部转移至此)
 // =========================================================
-typedef struct {
+typedef struct
+{
     // 1. 软件限位与键盘灵敏度 (原有)
     float wrist_roll_MAX;
     float wrist_roll_MIN;
@@ -86,30 +89,30 @@ typedef struct {
     float motor3508_p19_reduction_ratio; // 3508前伸减速比
 
     // 3. 标定超时与速度参数
-    float dm_homing_tolerance;           // DM归零容差
-    uint32_t dm_cali_max_ticks;          // DM标定超时时间
+    float dm_homing_tolerance;  // DM归零容差
+    uint32_t dm_cali_max_ticks; // DM标定超时时间
 
-    uint32_t wrist_cali_max_ticks;       // 腕部标定超时
-    float wrist_cali_speed;              // 腕部标定速度
-    uint32_t wrist_cali_check_ticks;     // 腕部堵转检测周期
-    float wrist_cali_tolerance;          // 腕部堵转容差
-    float wrist_cali_stall_current;      // 腕部堵转电流阈值
+    uint32_t wrist_cali_max_ticks;   // 腕部标定超时
+    float wrist_cali_speed;          // 腕部标定速度
+    uint32_t wrist_cali_check_ticks; // 腕部堵转检测周期
+    float wrist_cali_tolerance;      // 腕部堵转容差
+    float wrist_cali_stall_current;  // 腕部堵转电流阈值
 
-    uint32_t extend_cali_max_ticks;      // 前伸标定超时
-    float extend_cali_speed;             // 前伸标定速度
+    uint32_t extend_cali_max_ticks; // 前伸标定超时
+    float extend_cali_speed;        // 前伸标定速度
 
     // 4. 硬件挂载开关与安全配置
-    uint8_t use_wrist_stall_cali;        // 1: 开启自动堵转标定 0: 关闭
-    uint8_t use_wrist_left_motor;        // 1: 启用左侧电机 0: 卸力断电
-    uint8_t use_wrist_right_motor;       // 1: 启用右侧电机 0: 卸力断电
-    float wrist_soft_limit_margin;       // 腕部软限位安全系数
+    uint8_t use_wrist_stall_cali;  // 1: 开启自动堵转标定 0: 关闭
+    uint8_t use_wrist_left_motor;  // 1: 启用左侧电机 0: 卸力断电
+    uint8_t use_wrist_right_motor; // 1: 启用右侧电机 0: 卸力断电
+    float wrist_soft_limit_margin; // 腕部软限位安全系数
 } Grab_Param_s;
 
 typedef struct
 {
     Motor_Init_Config_s Grab_motor_config[9];
     Grab_Cali_Mode_e Grab_cali_mode;
-    Grab_Param_s  Grab_param;
+    Grab_Param_s Grab_param;
 } Grab_Init_Config_s;
 
 typedef struct
