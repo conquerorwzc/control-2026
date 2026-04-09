@@ -23,26 +23,18 @@
 static RobotInstance *robot;
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
 static Grab_Ctrl_Cmd_s *grab_ctrl_cmd;
-static Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd; // 【新增】龙门架控制命令指针
+
 static VideoGimbal_Ctrl_Cmd_s *video_gimbal_ctrl_cmd;
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last; // 遥控器数据,初始化时返回
 static float set_angle = 0;
 static int save_point_trigger = 0;
-static float angle = 0;
-static float target_angle = 0;
-static int mouse_l_count = 0;
-static uint32_t current_selfcontrol_gripper = 0;
-static uint32_t last_selfcontrol_gripper = 0;
-static Gantry_Param_s gantry_param;
 static Grab_Param_s grab_param;
 static GrabControlMode_e grab_control_mode = GRAB_CONTROL_KEYBOARD; // 默认为键鼠控制
 
 float custom_trajectory[50][7];
 uint16_t custom_traj_length = 0; // 记录当前步数
 /* Private function prototypes -----------------------------------------------*/
-static void Gantry_Limit(Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd, const Gantry_Param_s *gantry_param);
-static void Grab_Limit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, const Gantry_Param_s *gantry_param);
 static GPIOInstance *gpio_5V_EN;
 static GPIO_Init_Config_s gpio_init_config_5v = {
     .GPIO_Pin = POWER_5V_Pin,
@@ -479,7 +471,7 @@ static void RemoteControlSet()
     }
     else if (rc_data[TEMP].rc.rocker_r1 < -300)
     {
-        grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;  // 👇 修改为状态
+        grab_ctrl_cmd->gripper_state = GRIPPER_OPEN; // 👇 修改为状态
         if (rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C] % 2 == 1)
         {
             rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C]++;
@@ -500,30 +492,6 @@ static void RemoteControlSet()
 
     chassis_ctrl_cmd->wz = 0;
     *rc_data_last = *rc_data;
-}
-
-static void Gantry_Limit(Gantry_Ctrl_Cmd_s *gantry_ctrl_cmd, const Gantry_Param_s *gantry_param)
-{
-    static int32_t last_y, last_z;
-
-    if (gantry_ctrl_cmd->z < 2200)
-    {
-        if (gantry_ctrl_cmd->y > 2200 && gantry_ctrl_cmd->y < 4000 && last_y < gantry_ctrl_cmd->y)
-            gantry_ctrl_cmd->y = 2200;
-
-        else if (gantry_ctrl_cmd->y < 11500 && gantry_ctrl_cmd->y > 9000 && last_y > gantry_ctrl_cmd->y)
-            gantry_ctrl_cmd->y = 11500;
-
-        if (gantry_ctrl_cmd->y > 2200 && gantry_ctrl_cmd->y < 11500 && last_z > gantry_ctrl_cmd->z)
-            gantry_ctrl_cmd->z = 2100;
-    }
-
-    if (gantry_ctrl_cmd->z <= 0)
-        gantry_ctrl_cmd->z = 0;
-    else if (gantry_ctrl_cmd->z >= gantry_param->GANTRY_MAX_Z)
-        gantry_ctrl_cmd->z = gantry_param->GANTRY_MAX_Z;
-
-    last_z = gantry_ctrl_cmd->z;
 }
 
 static void ProcessCustomControllerData()
