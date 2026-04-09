@@ -78,6 +78,9 @@ GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config)
 
     grab_param = Grab_init_config->Grab_param;
 
+    grab_ctrl_cmd->base_joint = 10.0f;
+    grab->arm->base_joint = 10.0f;
+
     osDelay(10);
     total_angle_init_L = grab->actuator->grab_djimotor[1]->measure.total_angle;
     total_angle_init_R = grab->actuator->grab_djimotor[0]->measure.total_angle;
@@ -219,10 +222,10 @@ static void Wrist_Cali_Update(Calibration_t *self)
     switch (self->internal_step)
     {
     case 0: { // 阶段0：等待DM大臂物理归零
-        grab_ctrl_cmd->base_joint = 0.0f;
+        grab_ctrl_cmd->base_joint = 10.0f;
         grab_ctrl_cmd->elbow_pitch = 0.0f;
         grab_ctrl_cmd->elbow_roll = 0.0f;
-        g_inst->arm->base_joint = 0.0f;
+        g_inst->arm->base_joint = 10.0f;
         g_inst->arm->elbow_pitch = 0.0f;
         g_inst->arm->elbow_roll = 0.0f;
 
@@ -234,8 +237,9 @@ static void Wrist_Cali_Update(Calibration_t *self)
         float curr_elbow_r = g_inst->arm->grab_dmmotor[1]->measure.total_angle * RAD_2_DEGREE;
         float curr_elbow_p = g_inst->arm->grab_dmmotor[2]->measure.total_angle * RAD_2_DEGREE;
 
-        if (fabsf(curr_base) < grab_param.dm_homing_tolerance && fabsf(curr_elbow_r) < grab_param.dm_homing_tolerance &&
-            fabsf(curr_elbow_p) < grab_param.dm_homing_tolerance)
+        if (fabsf(curr_base - 10.0f) < grab_param.dm_homing_tolerance &&
+             fabsf(curr_elbow_r) < grab_param.dm_homing_tolerance &&
+             fabsf(curr_elbow_p) < grab_param.dm_homing_tolerance)
         {
             self->timeout_cnt = 0;
             self->internal_step = 1;

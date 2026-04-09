@@ -832,7 +832,7 @@ static Grab_Init_Config_s
                                 },
                             .speed_PID =
                                 {
-                                    .Kp = 5.0f,
+                                    .Kp = 4.0f,
                                     .Ki = 0.0f,
                                     .Kd = 0.0f,
                                     .Improve = PID_Integral_Limit,
