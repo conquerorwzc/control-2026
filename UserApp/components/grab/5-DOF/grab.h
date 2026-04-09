@@ -24,7 +24,8 @@ typedef enum
     GRAB_ERR_ROLL_OVERANGLE = 2  // Roll轴角度超限
 } Grab_Error_e;
 
-typedef enum {
+typedef enum
+{
     GRIPPER_OPEN = 0, // 夹爪松开
     GRIPPER_CLOSE = 1 // 夹爪夹紧
 } GripperState_e;

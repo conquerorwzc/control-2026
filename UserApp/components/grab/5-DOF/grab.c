@@ -33,14 +33,9 @@ static void Grab_Real_Angle_Calculate(GrabInstance *grab);
 static void GrabClearError(void);
 static void Error_Check();
 static void Wrist_Cali_Check();
-
-// OOP 专属实现
 static void Wrist_Cali_Update(Calibration_t *self);
 static void Extend_Cali_Update(Calibration_t *self);
 
-/* ========================================================================= */
-/* 统一的 OOP 标定调度器                                                       */
-/* ========================================================================= */
 void Execute_Calibration(Calibration_t *cali_obj)
 {
     if (cali_obj->state == CALI_DONE || cali_obj->state == CALI_ERROR)
@@ -81,7 +76,6 @@ GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config)
     grab = grab_instance;
     grab_ctrl_cmd = &grab->grab_ctrl_cmd;
 
-    // 👇 载入所有动态参数
     grab_param = Grab_init_config->Grab_param;
 
     osDelay(10);
@@ -100,7 +94,7 @@ GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config)
         total_angle_init_arm_extend = grab->arm->arm_extend_motor->measure.total_angle;
     }
 
-    // OOP：腕部标定对象初始化
+    // 腕部标定对象初始化
     grab->actuator->wrist_cali_obj.state = CALI_RUNNING;
     grab->actuator->wrist_cali_obj.internal_step = 0;
     grab->actuator->wrist_cali_obj.timeout_cnt = 0;
@@ -108,7 +102,7 @@ GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config)
     grab->actuator->wrist_cali_obj.host_ptr = grab;
     grab->actuator->wrist_cali_obj.Execute_Logic = Wrist_Cali_Update;
 
-    // OOP：前伸标定对象初始化
+    // 前伸标定对象初始化
     grab->arm->extend_cali_obj.state = CALI_RUNNING;
     grab->arm->extend_cali_obj.internal_step = 0;
     grab->arm->extend_cali_obj.timeout_cnt = 0;
@@ -166,7 +160,7 @@ void GrabTask()
 /* ========================================================================= */
 
 /**
- * @brief OOP化：腕部三段式标定逻辑
+ * @brief 腕部三段式标定逻辑
  */
 static void Wrist_Cali_Update(Calibration_t *self)
 {
@@ -565,9 +559,12 @@ static void Grab_Position_Calculate(GrabInstance *grab)
     grab->grab_ctrl_cmd.arm_extend_target =
         total_angle_init_arm_extend + grab_ctrl_cmd->arm_extend * grab_param.motor3508_p19_reduction_ratio;
 
-    if (grab->actuator->gripper_state == GRIPPER_CLOSE) {
+    if (grab->actuator->gripper_state == GRIPPER_CLOSE)
+    {
         grab->actuator->T_target = grab_param.gripper_close_torque;
-    } else {
+    }
+    else
+    {
         grab->actuator->T_target = grab_param.gripper_open_torque;
     }
 }
