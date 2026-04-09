@@ -24,6 +24,10 @@ typedef enum
     GRAB_ERR_ROLL_OVERANGLE = 2  // Roll轴角度超限
 } Grab_Error_e;
 
+typedef enum {
+    GRIPPER_OPEN = 0, // 夹爪松开
+    GRIPPER_CLOSE = 1 // 夹爪夹紧
+} GripperState_e;
 // =========================================================
 // 面向对象的标定基类定义
 // =========================================================
@@ -80,6 +84,9 @@ typedef struct
     float elbow_roll_min;
     float arm_lift_max;
 
+    float gripper_close_torque; // 夹紧时的扭矩 (如 2.0f)
+    float gripper_open_torque;  // 松开时的扭矩 (如 -0.6f)
+
     // 2. 物理减速与传动比参数
     float pulley_gear_ratio;             // 带轮传动比
     float bevel_gear_ratio;              // 锥齿轮传动比
@@ -122,7 +129,7 @@ typedef struct
     float base_joint;
     float elbow_roll;
     float elbow_pitch;
-    float torque;
+    GripperState_e gripper_state;
 
     float arm_lift;
     float arm_lift_target;
@@ -157,7 +164,7 @@ typedef struct
     float wrist_roll;
     float wrist_pitch;
     float gripper_joint;
-    float torque;
+    GripperState_e gripper_state;
     float L_target;
     float R_target;
     float M_target;

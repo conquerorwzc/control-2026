@@ -93,7 +93,7 @@ void RobotInit()
     rc_data = robot->rc_data;
     gpio_5V_EN = GPIORegister(&gpio_init_config_5v);
     GPIOSet(gpio_5V_EN);
-    
+
     // 初始化 UI 重置标志位
     robot->ui_reset_flag = 0;
 }
@@ -313,52 +313,48 @@ static void MouseKeySet()
 
     // ================= 5. 夹爪控制 (Shift + Ctrl + C 触发式) =================
     uint32_t current_c_count = rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C];
-    static uint32_t last_grab_state = 0;
 
     if (grab_control_mode == GRAB_CONTROL_KEYBOARD)
     {
+        // 键鼠模式：根据按键奇偶次切换开关
         if (current_c_count % 2 == 1)
         {
-            grab_ctrl_cmd->torque = 2.0f; // 夹紧
-            last_grab_state = 1;
+            grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         }
         else
         {
-            grab_ctrl_cmd->torque = -0.6f; // 松开
-            last_grab_state = 0;
+            grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
         }
     }
     else if (grab_control_mode == GRAB_CONTROL_CUSTOM)
     {
-        current_selfcontrol_gripper = robot->self_control->unpacked_data.gripper_opened;
-        if (current_selfcontrol_gripper != last_selfcontrol_gripper)
+        // 自定义控制器模式：直接根据自制控制器传来的开/关状态赋值
+        if (robot->self_control != NULL)
         {
-            if (fabsf(grab_ctrl_cmd->torque + 0.6) < 0.01f)
-                grab_ctrl_cmd->torque = 2.0f;
-            else if (fabsf(grab_ctrl_cmd->torque - 2.0f) < 0.01f)
-                grab_ctrl_cmd->torque = -0.6f;
+            if (robot->self_control->unpacked_data.gripper_opened)
+            {
+                grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
+            }
+            else
+            {
+                grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+            }
         }
-        else if (current_selfcontrol_gripper == last_selfcontrol_gripper)
-        {
-            grab_ctrl_cmd->torque = grab_ctrl_cmd->torque;
-        }
-        last_selfcontrol_gripper = current_selfcontrol_gripper;
 
-        if (grab_ctrl_cmd->torque > 0.5f)
+        // 强制同步键鼠的 C 键次数，防止切回键鼠模式时发生冲突
+        if (grab_ctrl_cmd->gripper_state == GRIPPER_CLOSE)
             rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C] = 1;
         else
             rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C] = 0;
     }
     else if (grab_control_mode == GRAB_CONTROL_HALF_AUTO)
     {
-        current_selfcontrol_gripper = robot->self_control->unpacked_data.gripper_opened;
-        last_selfcontrol_gripper = current_selfcontrol_gripper;
-        if (grab_ctrl_cmd->torque > 0.5f)
+        // 半自动模式下同步键鼠状态
+        if (grab_ctrl_cmd->gripper_state == GRIPPER_CLOSE)
             rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C] = 1;
         else
             rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C] = 0;
     }
-
     // ================= 6. 图传 Yaw/Pitch 控制 =================
     video_gimbal_ctrl_cmd->video_pitch =
         (float)(rc_data[TEMP].key[KEY_PRESS_NORMAL].x - rc_data[TEMP].key[KEY_PRESS_NORMAL].z) -
@@ -382,18 +378,18 @@ static void MouseKeySet()
     {
         video_gimbal_ctrl_cmd->video_cali = 1;
     }
-    
+
     // ================= 8. UI 重置（Ctrl+B）=================
     // Ctrl+B（Back to default/Reset UI）：边沿触发，按下一次触发一次
     static uint8_t last_ctrl_b = 0;
     uint8_t curr_ctrl_b = rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].b;
-    
-    if (curr_ctrl_b && !last_ctrl_b)  // 检测上升沿（按下瞬间）
+
+    if (curr_ctrl_b && !last_ctrl_b) // 检测上升沿（按下瞬间）
     {
-        robot->ui_reset_flag = 1;  // 触发 UI 重置标志
+        robot->ui_reset_flag = 1; // 触发 UI 重置标志
     }
-    
-    last_ctrl_b = curr_ctrl_b;  // 保存状态供下次比较
+
+    last_ctrl_b = curr_ctrl_b; // 保存状态供下次比较
 }
 
 static void EmergencyHandler()
@@ -475,8 +471,7 @@ static void RemoteControlSet()
     // rocker_r1：向上推大于 300 夹紧，向下推小于 -300 松开
     if (rc_data[TEMP].rc.rocker_r1 > 300)
     {
-        grab_ctrl_cmd->torque = 2.0f; // 夹紧
-        // 强制同步键鼠状态，防止后面 MouseKeySet() 运行将其覆盖导致冲突抽搐
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE; // 👇 修改为状态
         if (rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C] % 2 == 0)
         {
             rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C]++;
@@ -484,8 +479,7 @@ static void RemoteControlSet()
     }
     else if (rc_data[TEMP].rc.rocker_r1 < -300)
     {
-        grab_ctrl_cmd->torque = -0.6f; // 松开
-        // 强制同步键鼠状态
+        grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;  // 👇 修改为状态
         if (rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C] % 2 == 1)
         {
             rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C]++;
@@ -573,7 +567,7 @@ static void Record_Current_Waypoint(void)
             custom_trajectory[custom_traj_length][2] = grab_ctrl_cmd->elbow_pitch;
             custom_trajectory[custom_traj_length][3] = grab_ctrl_cmd->wrist_pitch;
             custom_trajectory[custom_traj_length][4] = grab_ctrl_cmd->wrist_roll;
-            custom_trajectory[custom_traj_length][5] = grab_ctrl_cmd->torque;
+            custom_trajectory[custom_traj_length][5] = (grab_ctrl_cmd->gripper_state == GRIPPER_CLOSE) ? 1.0f : 0.0f;
             custom_trajectory[custom_traj_length][6] = chassis_ctrl_cmd->lift_ratio;
 
             custom_traj_length++;

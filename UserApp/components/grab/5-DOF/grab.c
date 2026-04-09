@@ -465,7 +465,7 @@ static void GrabCmdTask()
     grab->arm->elbow_pitch = grab_ctrl_cmd->elbow_pitch;
     grab->actuator->wrist_pitch = grab_ctrl_cmd->wrist_pitch;
     grab->actuator->wrist_roll = grab_ctrl_cmd->wrist_roll;
-    grab->actuator->torque = grab_ctrl_cmd->torque;
+    grab->actuator->gripper_state = grab_ctrl_cmd->gripper_state;
     grab->arm->arm_lift = grab_ctrl_cmd->arm_lift;
     grab->grab_ctrl_cmd.arm_extend = grab_ctrl_cmd->arm_extend;
 }
@@ -565,7 +565,11 @@ static void Grab_Position_Calculate(GrabInstance *grab)
     grab->grab_ctrl_cmd.arm_extend_target =
         total_angle_init_arm_extend + grab_ctrl_cmd->arm_extend * grab_param.motor3508_p19_reduction_ratio;
 
-    grab->actuator->T_target = grab->actuator->torque;
+    if (grab->actuator->gripper_state == GRIPPER_CLOSE) {
+        grab->actuator->T_target = grab_param.gripper_close_torque;
+    } else {
+        grab->actuator->T_target = grab_param.gripper_open_torque;
+    }
 }
 
 static void Grab_Real_Angle_Calculate(GrabInstance *grab)
