@@ -438,28 +438,55 @@ static IMU_Init_Config_s imu_init_config = {.flag = 1,
                                             .GyroOffset[2] = 0.0022677423f,
                                             .offset_flag = 1};
 
-static Grab_Init_Config_s
-    grab_init_config =
-        {
-            .Grab_cali_mode = GRAB_PRE_CALI_MODE,
+static Grab_Init_Config_s grab_init_config = {
+    .Grab_cali_mode = GRAB_PRE_CALI_MODE,
 
-            .Grab_param =
-                {
-                    .base_joint_sens_keyboard = 0.05,
-                    .elbow_roll_sens_keyboard = 0.05,
-                    .elbow_pitch_sens_keyboard = 0.05,
-                    .wrist_roll_sens_keyboard = 0.05,
-                    .wrist_pitch_sens_keyboard = 0.05,
-                    .arm_lift_sens_keyboard = 1.0,
+    .Grab_param =
+    {
+        // 软件限位与灵敏度
+        .base_joint_sens_keyboard = 0.05,
+        .elbow_roll_sens_keyboard = 0.05,
+        .elbow_pitch_sens_keyboard = 0.05,
+        .wrist_roll_sens_keyboard = 0.05,
+        .wrist_pitch_sens_keyboard = 0.05,
+        .arm_lift_sens_keyboard = 1.0,
 
-                    .elbow_pitch_max = 97.143158f,
-                    .elbow_pitch_min = -106.869514f,
-                    .base_joint_max = 125.338615f,
-                    .base_joint_min = -20.0f,
-                    .elbow_roll_max = 464.973602f,
-                    .elbow_roll_min = -362.617554f,
-                    .arm_lift_max = 420.0f,
-                },
+        .elbow_pitch_max = 97.143158f,
+        .elbow_pitch_min = -106.869514f,
+        .base_joint_max = 125.338615f,
+        .base_joint_min = -20.0f,
+        .elbow_roll_max = 464.973602f,
+        .elbow_roll_min = -362.617554f,
+        .arm_lift_max = 420.0f,
+
+        // 物理传动比参数
+        .pulley_gear_ratio = 2.125f,
+        .bevel_gear_ratio = 1.6667f,
+        .planar_gear_ratio = 1.571428f,
+        .motor2006_reduction_ratio = 36.0f,
+        .motor3508_p51_reduction_ratio = 51.0f,
+        .motor3508_p19_reduction_ratio = 19.0f,
+
+        // 标定速度与容差参数
+        .dm_homing_tolerance = 5.0f,
+        .dm_cali_max_ticks = 5000,
+
+        .wrist_cali_max_ticks = 3000,
+        .wrist_cali_speed = 0.10f,
+        .wrist_cali_check_ticks = 500,
+        .wrist_cali_tolerance = 300.0f,
+        .wrist_cali_stall_current = 800.0f,
+
+        .extend_cali_max_ticks = 5000,
+        .extend_cali_speed = 0.2f,
+
+        // 硬件挂载与标定模式开关
+        .use_wrist_stall_cali = 1,
+        .use_wrist_left_motor = 1,
+        .use_wrist_right_motor = 1,
+        .wrist_soft_limit_margin = 0.90f,
+    },
+
 
             .Grab_motor_config[0] =
                 {

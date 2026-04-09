@@ -28,12 +28,10 @@ set(MCU_TYPE "stm32-h7")
 set(ROBOT_TYPE "engineering")
 #set(ROBOT_TYPE "custom_controller")
 #set(ROBOT_TYPE "infantry_wheel_legged")
-#set(ROBOT_TYPE "infantry_wheel_legged_demo")
-#set(ROBOT_TYPE "hero_mecanum")
-#set(ROBOT_TYPE "infantry_steering")
-#set(ROBOT_TYPE "infantry_mecanum")
-#set(ROBOT_TYPE "dart")
-#set(ROBOT_TYPE "debug")
+
+# 👇 新增：动态将当前的 ROBOT_TYPE 转为大写宏，注入到 C 代码中
+string(TOUPPER "${ROBOT_TYPE}" ROBOT_TYPE_UPPER)
+add_definitions(-DROBOT_${ROBOT_TYPE_UPPER})
 
 include(${CMAKE_SOURCE_DIR}/Hardware/${MCU_TYPE}/${MCU_TYPE}.cmake)
 
@@ -43,9 +41,10 @@ add_compile_options(-pipe ${MCU_FLAGS} -Wall -fmessage-length=0 # basic options
 )
 add_link_options(-pipe ${MCU_FLAGS} -T${LINKER_SCRIPT} -Wl,--no-warn-rwx-segments # close RWX warning
         -lm -lc # lib options
-        -Wl,--gc-sections -flto -specs=nano.specs # optimize options
+        -Wl,--gc-sections -flto
+        -specs=nano.specs # optimize options
         -Wl,-Map=${PROJECT_BINARY_DIR}/${PROJECT_NAME}.map -Wl,--cref -Wl,--print-memory-usage # map options
-) # if your executable is too large , try option '-s' to strip symbols
+)
 
 # 递归包含头文件的函数
 function(include_sub_directories_recursively root_dir)

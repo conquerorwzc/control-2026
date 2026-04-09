@@ -4,6 +4,7 @@
 #include "general_def.h"
 #include "stm32h7xx_hal.h"
 #include "bsp_gpio.h"
+
 typedef enum
 {
     GRAB_POWER_OFF = 0, // 电流零输入
@@ -23,57 +24,50 @@ typedef enum
     GRAB_ERR_ROLL_OVERANGLE  = 2  // Roll轴角度超限
 } Grab_Error_e;
 
+// =========================================================
+// 面向对象的标定基类定义
+// =========================================================
 typedef enum {
-    CALI_STAGE_DM_WAIT_ZERO   = 0, // 0: 阶段一 - DM大臂等待物理归零
-    CALI_STAGE_WRIST_FIND_MAX = 1, // 1: 阶段二 - Pitch 向上抬，寻找 90度 限位
-    CALI_STAGE_WRIST_FIND_MIN = 2, // 2: 阶段三 - Pitch 向下压，寻找最低限位
-    CALI_STAGE_DONE           = 3, // 3: 标定大功告成
-    CALI_STAGE_ERROR          = 4  // 4: 标定超时或异常
-} GrabCaliStage_e;
+    CALI_RUNNING = 0, // 正在执行标定
+    CALI_DONE = 1,    // 标定完成
+    CALI_ERROR = 2    // 标定异常
+} GeneralCaliState_e;
 
-// 仿照 GrabCaliStage_e 新增状态枚举
-typedef enum {
-    EXTEND_CALI_WAIT = 0,
-    EXTEND_CALI_LEAVE_SWITCH = 1, // 如果压在开关上，先往前伸离开开关
-    EXTEND_CALI_FIND_MIN = 2,     // 寻找最小点 (撞开关)
-    EXTEND_CALI_DONE = 3,
-    EXTEND_CALI_ERROR = 4
-} ExtendCaliStage_e;
+typedef struct Calibration_t Calibration_t;
 
+struct Calibration_t {
+    GeneralCaliState_e state; // 对外暴露的状态
+    uint32_t timeout_cnt;     // 当前超时计数
+    uint32_t max_timeout;     // 最大允许超时时间
+    uint8_t internal_step;    // 内部子步骤 (用于记录特有状态机进度)
+    void *host_ptr;           // 宿主指针 (存放 GrabInstance 指针)
+    void (*Execute_Logic)(Calibration_t *self); // 虚函数指针 (多态调用)
+};
+
+// =========================================================
+// 机械臂全局参数配置 (宏定义全部转移至此)
+// =========================================================
 typedef struct {
-    GrabCaliStage_e state;
-    float max_pitch; // 自动生成的最高软件限位 (如 90 * 0.98 = 88.2度)
-    float min_pitch; // 自动生成的最低软件限位
-} Motor_Cali_Data_s;
-
-typedef struct {
-    ExtendCaliStage_e state;
-    float max_extend; // 自动生成的最大软限位
-    float min_extend; // 自动生成的最小软限位
-} Extend_Cali_Data_s;
-
-typedef struct {
-    float wrist_roll_MAX;    // 腕部关节旋转角度
+    // 1. 软件限位与键盘灵敏度 (原有)
+    float wrist_roll_MAX;
     float wrist_roll_MIN;
-    float wrist_pitch_MAX;   // 腕部关节俯仰角度
+    float wrist_pitch_MAX;
     float wrist_pitch_MIN;
-    float base_joint_MAX;    // 基座旋转关节角度
+    float base_joint_MAX;
     float base_joint_MIN;
-    float elbow_roll_MAX;    // 肘部关节旋转角度
+    float elbow_roll_MAX;
     float elbow_roll_MIN;
-    float elbow_pitch_MAX;   // 肘部关节俯仰角度
+    float elbow_pitch_MAX;
     float elbow_pitch_MIN;
-    // 👇 新增：3508 抬升电机的软限位
-    float arm_lift_MAX;      // 机械臂整体抬升最大高度/角度
-    float arm_lift_MIN;      // 机械臂整体抬升最小高度/角度
+    float arm_lift_MAX;
+    float arm_lift_MIN;
 
-    float base_joint_sens_keyboard;    // 基座旋转关节灵敏度(键鼠)
-    float elbow_roll_sens_keyboard;    // 肘部旋转关节灵敏度(键鼠)
-    float elbow_pitch_sens_keyboard;   // 肘部俯仰关节灵敏度(键鼠)
-    float wrist_roll_sens_keyboard;    // 腕部旋转关节灵敏度(键鼠)
-    float wrist_pitch_sens_keyboard;   // 腕部俯仰关节灵敏度(键鼠)
-    // 👇 新增：3508 抬升电机的键盘控制灵敏度
-    float arm_lift_sens_keyboard;      // 抬升机构灵敏度(键鼠)
+    float base_joint_sens_keyboard;
+    float elbow_roll_sens_keyboard;
+    float elbow_pitch_sens_keyboard;
+    float wrist_roll_sens_keyboard;
+    float wrist_pitch_sens_keyboard;
+    float arm_lift_sens_keyboard;
 
     float elbow_pitch_max;
     float elbow_pitch_min;
@@ -82,6 +76,33 @@ typedef struct {
     float elbow_roll_max;
     float elbow_roll_min;
     float arm_lift_max;
+
+    // 2. 物理减速与传动比参数
+    float pulley_gear_ratio;             // 带轮传动比
+    float bevel_gear_ratio;              // 锥齿轮传动比
+    float planar_gear_ratio;             // 平面齿轮传动比
+    float motor2006_reduction_ratio;     // 2006减速比
+    float motor3508_p51_reduction_ratio; // 3508抬升减速比
+    float motor3508_p19_reduction_ratio; // 3508前伸减速比
+
+    // 3. 标定超时与速度参数
+    float dm_homing_tolerance;           // DM归零容差
+    uint32_t dm_cali_max_ticks;          // DM标定超时时间
+
+    uint32_t wrist_cali_max_ticks;       // 腕部标定超时
+    float wrist_cali_speed;              // 腕部标定速度
+    uint32_t wrist_cali_check_ticks;     // 腕部堵转检测周期
+    float wrist_cali_tolerance;          // 腕部堵转容差
+    float wrist_cali_stall_current;      // 腕部堵转电流阈值
+
+    uint32_t extend_cali_max_ticks;      // 前伸标定超时
+    float extend_cali_speed;             // 前伸标定速度
+
+    // 4. 硬件挂载开关与安全配置
+    uint8_t use_wrist_stall_cali;        // 1: 开启自动堵转标定 0: 关闭
+    uint8_t use_wrist_left_motor;        // 1: 启用左侧电机 0: 卸力断电
+    uint8_t use_wrist_right_motor;       // 1: 启用右侧电机 0: 卸力断电
+    float wrist_soft_limit_margin;       // 腕部软限位安全系数
 } Grab_Param_s;
 
 typedef struct
@@ -93,18 +114,18 @@ typedef struct
 
 typedef struct
 {
-    float wrist_roll;    // 腕部关节旋转角度
-    float wrist_pitch;   // 腕部关节俯仰角度
-    float base_joint;    // 基座旋转关节角度
-    float elbow_roll;    // 肘部关节旋转角度
-    float elbow_pitch;   // 肘部关节俯仰角度
-    float torque;        // 夹爪电机目标扭矩
+    float wrist_roll;
+    float wrist_pitch;
+    float base_joint;
+    float elbow_roll;
+    float elbow_pitch;
+    float torque;
 
-    float arm_lift;      // 机械臂整体抬升的目标角度/高度
+    float arm_lift;
     float arm_lift_target;
 
-    float arm_extend;        // 机械臂前伸电机的目标伸长量
-    float arm_extend_target; // 前伸电机计算后的目标角度
+    float arm_extend;
+    float arm_extend_target;
     uint8_t wrist_roll_cali;
     uint8_t wrist_pitch_cali;
     Grab_Mode_e grab_mode;
@@ -112,46 +133,55 @@ typedef struct
 
 typedef struct
 {
-    float wrist_roll;    // 实际：腕部关节旋转角度
-    float wrist_pitch;   // 实际：腕部关节俯仰角度
-    float base_joint;    // 实际：基座旋转关节角度
-    float elbow_roll;    // 实际：肘部关节旋转角度
-    float elbow_pitch;   // 实际：肘部关节俯仰角度
-    float torque;        // 实际：夹爪电机当前扭矩
+    float wrist_roll;
+    float wrist_pitch;
+    float base_joint;
+    float elbow_roll;
+    float elbow_pitch;
+    float torque;
 
-    float arm_lift;      // 实际：机械臂整体抬升的高度/角度
-    float arm_extend;    // 实际：机械臂前伸电机的伸长量
+    float arm_lift;
+    float arm_extend;
 
     uint8_t micro_switch_state;
 } Grab_Real_Measure_s;
 
+// 执行器：腕部+夹爪
 typedef struct
 {
     DJIMotorInstance *grab_djimotor[3];
     DMMotorInstance *grab_dmmotor[1];
-    float wrist_roll;    // 腕部关节旋转角度
-    float wrist_pitch;   // 腕部关节俯仰角度
-    float gripper_joint; // 末端夹爪关节角度
-    float torque;        // 夹爪电机目标扭矩
-    float L_target;      // 左侧电机旋转角度
-    float R_target;      // 右侧电机旋转角度
-    float M_target;      // 中间电机旋转角度
-    float T_target;      // 夹爪电机目标扭矩
-    Motor_Cali_Data_s wrist_cali;
+    float wrist_roll;
+    float wrist_pitch;
+    float gripper_joint;
+    float torque;
+    float L_target;
+    float R_target;
+    float M_target;
+    float T_target;
+
+    // OOP：腕部标定对象与软限位
+    Calibration_t wrist_cali_obj;
+    float max_pitch;
+    float min_pitch;
 } ActuatorInstance;
 
+// 大臂：底盘+肘部+抬升+前伸
 typedef struct
 {
     DMMotorInstance *grab_dmmotor[3];
-
     DJIMotorInstance *arm_lift_motor;
-    DJIMotorInstance *arm_extend_motor; // 前伸电机
+    DJIMotorInstance *arm_extend_motor;
     GPIOInstance *micro_switch_gpio;
 
-    Extend_Cali_Data_s extend_cali;
-    float base_joint;  // 基座旋转关节角度
-    float elbow_roll;  // 肘部关节旋转角度
-    float elbow_pitch; // 肘部关节俯仰角度
+    // OOP：前伸标定对象与软限位
+    Calibration_t extend_cali_obj;
+    float max_extend;
+    float min_extend;
+
+    float base_joint;
+    float elbow_roll;
+    float elbow_pitch;
     float arm_lift;
     float arm_lift_max;
     float arm_lift_min;
@@ -163,9 +193,10 @@ typedef struct
     Grab_Real_Measure_s grab_measure;
     ArmInstance *arm;
     ActuatorInstance *actuator;
-    Grab_Error_e error_code;      // 当前实时错误码
+    Grab_Error_e error_code;
 } GrabInstance;
 
+/* 外部函数声明 */
 GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config);
-
 void GrabTask();
+void Execute_Calibration(Calibration_t *cali_obj);
