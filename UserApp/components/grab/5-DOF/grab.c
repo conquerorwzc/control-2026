@@ -22,6 +22,12 @@
 #define WRIST_CALI_TOLERANCE 300.0f  // 堵转容差度数
 #define WRIST_CALI_STALL_CURRENT 800 // 堵转电流阈值
 
+#define EXTEND_CALI_MAX_TICKS 5000    // 前伸堵转最大允许时间 5 秒
+#define EXTEND_CALI_SPEED 0.2f       // 前伸回缩寻找最小值的速度 (需根据实际传动比微调)
+#define EXTEND_CALI_CHECK_TICKS 300   // 堵转检测时间周期
+#define EXTEND_CALI_TOLERANCE 50.0f  // 堵转容差度数 (编码器差值)
+#define EXTEND_CALI_STALL_CURRENT 1000 // 堵转电流阈值
+
 // 腕部堵转标定开关 (1: 开启自动撞墙标定 | 0: 关闭，把上电位置直接当做 0 度)
 #define USE_WRIST_STALL_CALI 1
 // 腕部 Pitch 电机物理挂载开关 (1: 启用发力并检测 | 0: 彻底断电卸力并不参与检测)
@@ -64,6 +70,7 @@ static void Grab_Real_Angle_Calculate(GrabInstance *grab);    // 计算机械臂
 static void GrabClearError(void);
 static void Error_Check();
 static void Wrist_Cali_Check();
+static void ArmExtendCalibrationTask(void);
 
 /* Private user code ---------------------------------------------------------*/
 /**
@@ -126,6 +133,9 @@ GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config)
 /**
  * @brief 机械臂任务函数
  */
+/**
+ * @brief 机械臂任务函数
+ */
 void GrabTask()
 {
     grab_ctrl_cmd = &grab->grab_ctrl_cmd;
@@ -139,11 +149,17 @@ void GrabTask()
     // ================= 模块 1: 机械臂逻辑 =================
     if (grab->actuator->wrist_cali.state != CALI_STAGE_DONE)
     {
-        GrabCalibrationTask(); // 标定中：由标定函数控制目标
+        GrabCalibrationTask(); // 标定中：由腕部标定函数控制目标
     }
     else
     {
-        Grab_Position_Calculate(grab); // 标定完：由遥控指令控制目标
+        Grab_Position_Calculate(grab); // 标定完：由遥控指令解算目标
+    }
+
+
+    if (grab->arm->extend_cali.state != EXTEND_CALI_DONE)
+    {
+        ArmExtendCalibrationTask(); // 未标定完前，接管并覆盖 arm_extend_target
     }
 
     Grab_Real_Angle_Calculate(grab); // 计算机械臂实际物理位置
@@ -173,6 +189,18 @@ static void GrabCmdTask()
     else if (grab_ctrl_cmd->arm_lift < grab->arm->arm_lift_min)
     {
         grab_ctrl_cmd->arm_lift = grab->arm->arm_lift_min;
+    }
+
+    if (grab->arm->extend_cali.state == EXTEND_CALI_DONE)
+    {
+        if (grab_ctrl_cmd->arm_extend > grab->arm->extend_cali.max_extend)
+        {
+            grab_ctrl_cmd->arm_extend = grab->arm->extend_cali.max_extend;
+        }
+        else if (grab_ctrl_cmd->arm_extend < grab->arm->extend_cali.min_extend)
+        {
+            grab_ctrl_cmd->arm_extend = grab->arm->extend_cali.min_extend;
+        }
     }
 
     // 👇 修改：使用 grab_param 配置项进行三大关节严格物理限位 👇
@@ -667,5 +695,113 @@ static void Wrist_Cali_Check()
         grab->actuator->wrist_cali.state = CALI_STAGE_DM_WAIT_ZERO;
         cali_first_run = 1;
         grab_ctrl_cmd->wrist_pitch_cali = 0;
+    }
+}
+
+/**
+ * @brief 前伸电机防呆版微动开关标定任务 (先退后进，寻找精确最小值)
+ */
+static void ArmExtendCalibrationTask(void)
+{
+    static float cali_extend = 0.0f;
+    static uint32_t timeout_cnt = 0;
+
+    // 1. 急停或断电状态下复位状态机
+    if (grab_ctrl_cmd->grab_mode == GRAB_POWER_OFF)
+    {
+        grab->arm->extend_cali.state = EXTEND_CALI_WAIT;
+        timeout_cnt = 0;
+        return;
+    }
+
+    // 没上线死等
+    if (!DaemonIsOnline(grab->arm->arm_extend_motor->daemon)) return;
+
+    // 2. 核心状态机
+    switch (grab->arm->extend_cali.state)
+    {
+        case EXTEND_CALI_WAIT: {
+            cali_extend = 0.0f;
+            timeout_cnt = 0;
+
+            // 👇 防呆判断：一上电时，看看有没有压在开关上
+            if (grab->arm->micro_switch_gpio != NULL &&
+                GPIORead(grab->arm->micro_switch_gpio) == GPIO_PIN_RESET)
+            {
+                // 如果压着开关，先进入“离开”状态
+                grab->arm->extend_cali.state = EXTEND_CALI_LEAVE_SWITCH;
+            }
+            else
+            {
+                // 如果没压着，直接进入“寻找”状态
+                grab->arm->extend_cali.state = EXTEND_CALI_FIND_MIN;
+            }
+            break;
+        }
+
+        // =========================================================
+        // 新增阶段：离开微动开关
+        // =========================================================
+        case EXTEND_CALI_LEAVE_SWITCH: {
+            timeout_cnt++;
+            cali_extend += EXTEND_CALI_SPEED; // 👈 往前伸，让机构离开微动开关
+
+            grab->grab_ctrl_cmd.arm_extend_target = total_angle_init_arm_extend + cali_extend * MOTOR3508_P19_REDUCTION_RATIO;
+
+            // 检查是否已经脱离开关 (读到高电平 SET)
+            if (grab->arm->micro_switch_gpio != NULL &&
+                GPIORead(grab->arm->micro_switch_gpio) == GPIO_PIN_SET)
+            {
+                timeout_cnt = 0; // 重置超时计数
+                // 成功脱离，开始往回缩去寻找精确零点
+                grab->arm->extend_cali.state = EXTEND_CALI_FIND_MIN;
+            }
+
+            if (timeout_cnt > EXTEND_CALI_MAX_TICKS) {
+                grab->arm->extend_cali.state = EXTEND_CALI_ERROR;
+            }
+            break;
+        }
+
+        // =========================================================
+        // 核心阶段：往回缩寻找精确物理零点
+        // =========================================================
+        case EXTEND_CALI_FIND_MIN: {
+            timeout_cnt++;
+            // 💡 这里你可以把 EXTEND_CALI_SPEED 乘以 0.5f，让寻找速度慢一半，精度更高
+            cali_extend -= EXTEND_CALI_SPEED; // 👈 往回缩
+
+            grab->grab_ctrl_cmd.arm_extend_target = total_angle_init_arm_extend + cali_extend * MOTOR3508_P19_REDUCTION_RATIO;
+
+            // 撞到开关 (读到低电平 RESET)
+            if (grab->arm->micro_switch_gpio != NULL &&
+                GPIORead(grab->arm->micro_switch_gpio) == GPIO_PIN_RESET)
+            {
+                float curr_angle = grab->arm->arm_extend_motor->measure.total_angle;
+
+                // 💥 撞到物理零点！
+                total_angle_init_arm_extend = curr_angle;
+
+                // 👉 设定软限位：最小为 0，最大为 0 + 800
+                grab->arm->extend_cali.min_extend = 0.0f;
+                grab->arm->extend_cali.max_extend = 800.0f;
+
+                // 同步将当前的操控指令切到 0 处
+                grab_ctrl_cmd->arm_extend = grab->arm->extend_cali.min_extend;
+
+                // 大功告成
+                grab->arm->extend_cali.state = EXTEND_CALI_DONE;
+            }
+
+            if (timeout_cnt > EXTEND_CALI_MAX_TICKS) {
+                grab->arm->extend_cali.state = EXTEND_CALI_ERROR;
+            }
+            break;
+        }
+
+        case EXTEND_CALI_DONE:
+        case EXTEND_CALI_ERROR:
+            // 结束后控制权交还给常规解算
+            break;
     }
 }

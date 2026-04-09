@@ -34,9 +34,10 @@ typedef enum {
 // 仿照 GrabCaliStage_e 新增状态枚举
 typedef enum {
     EXTEND_CALI_WAIT = 0,
-    EXTEND_CALI_FIND_MAX = 1, // 👇 改为：正在外伸寻找最大堵转点
-    EXTEND_CALI_DONE = 2,
-    EXTEND_CALI_ERROR = 3
+    EXTEND_CALI_LEAVE_SWITCH = 1, // 如果压在开关上，先往前伸离开开关
+    EXTEND_CALI_FIND_MIN = 2,     // 寻找最小点 (撞开关)
+    EXTEND_CALI_DONE = 3,
+    EXTEND_CALI_ERROR = 4
 } ExtendCaliStage_e;
 
 typedef struct {
