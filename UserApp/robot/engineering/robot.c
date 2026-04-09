@@ -271,9 +271,10 @@ static void MouseKeySet()
         chassis_ctrl_cmd->robot_mode = robot->robot_mode;
 
         // ================= 4. 姿态复用控制 (Q, E, R) 与 兑换模式调节 =================
+        // 1. 底盘抬升逻辑 (根据大模式区分)
         if (robot->robot_mode == ROBOT_EXCHANGE_MODE)
         {
-            // 【底盘高度】纯 QE 控制 (底盘逻辑，不用屏蔽)
+            // 【兑换模式】：使用平滑无级调节 (长按 QE)
             float step_size = 1.0f / (12.0f * 200.0f);
             chassis_ctrl_cmd->lift_ratio +=
                 (float)(rc_data[TEMP].key[KEY_PRESS_NORMAL].q - rc_data[TEMP].key[KEY_PRESS_NORMAL].e) * step_size;
@@ -282,7 +283,34 @@ static void MouseKeySet()
                 chassis_ctrl_cmd->lift_ratio = 0.0f;
             if (chassis_ctrl_cmd->lift_ratio > 1.0f)
                 chassis_ctrl_cmd->lift_ratio = 1.0f;
+        }
+        else if (robot->robot_mode == ROBOT_CLIMB_MODE)
+        {
+            // 【上台阶模式】：状态机离散触发 (防呆快速切换)
+            uint8_t key_q = rc_data[TEMP].key[KEY_PRESS_NORMAL].q;
+            uint8_t key_e = rc_data[TEMP].key[KEY_PRESS_NORMAL].e;
 
+            if (key_q && key_e)
+            {
+                // Q 和 E 一起按：全伸展 (准备跨上台阶)
+                chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_BOTH_EXTEND;
+            }
+            else if (key_q && !key_e)
+            {
+                // 只按 Q：只伸后腿 (即：前腿收回，后腿顶起。前轮搭上台阶时使用)
+                chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_FRONT_RETRACT;
+            }
+            else if (!key_q && key_e)
+            {
+                // 只按 E：全收回 (上完台阶恢复平姿态，或复位)
+                chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_ALL_RETRACT;
+            }
+            // 如果 Q 和 E 都不按，保持当前姿态不变
+        }
+
+        // 2. 机械臂全轴微调逻辑 (在兑换和上台阶下均可生效)
+        if (robot->robot_mode == ROBOT_EXCHANGE_MODE || robot->robot_mode == ROBOT_CLIMB_MODE)
+        {
             // 【机械臂升降】Shift + W/S (不影响底盘)
             if (grab_control_mode == GRAB_CONTROL_KEYBOARD || grab_control_mode == GRAB_CONTROL_CUSTOM)
             {
