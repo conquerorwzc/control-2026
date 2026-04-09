@@ -391,57 +391,35 @@ static void Extend_Cali_Update(Calibration_t *self)
         }
         break;
     }
-    case 2: { // 阶段2：重载回拉，寻找物理零点
-        // 速度一定要慢，防止PID误差瞬间拉大
+    case 2: { // 阶段2：【跳齿极限测试专用版】
+
+        // 💥 1. 锁死最大电流 (从 2000 开始，每次烧录加 500)
+        g_inst->arm->arm_extend_motor->motor_controller.speed_PID.MaxOut = 2000.0f;
+
+        // 给一个缓慢的回拉速度
         g_inst->grab_ctrl_cmd.arm_extend -= grab_param.extend_cali_speed;
 
-        uint8_t switch_triggered = (g_inst->arm->micro_switch_gpio != NULL &&
-                                    GPIORead(g_inst->arm->micro_switch_gpio) == GPIO_PIN_RESET);
+        // 💥 2. 强行屏蔽微动开关！不管有没有碰到，都当作没碰到 (永远为 0)
+        // uint8_t switch_triggered = (g_inst->arm->micro_switch_gpio != NULL && GPIORead(...) == GPIO_PIN_RESET);
+        uint8_t switch_triggered = 0; // 👈 测试精髓：让单片机变瞎！
 
-        // 💥 重载专用看门狗：实时监控电流和速度
         float curr_amp = fabsf((float)g_inst->arm->arm_extend_motor->measure.real_current);
         float curr_speed = fabsf((float)g_inst->arm->arm_extend_motor->measure.speed_aps);
         uint8_t stall_triggered = 0;
 
-        // 【调试参数】：5000.0f 是堵转阈值，10.0f 是速度阈值
-        if (curr_amp > 5000.0f && curr_speed < 10.0f) {
+        // 💥 3. 屏蔽看门狗的提前刹车 (把阈值改到 16000，让它一直堵着直到你听见跳齿)
+        if (curr_amp > 16000.0f && curr_speed < 10.0f) {
             extend_stall_cnt++;
-            // 【极速刹车】：持续 20 个 tick (0.04 秒)，立刻判定撞底/卡死！
             if (extend_stall_cnt > 20) {
                 stall_triggered = 1;
             }
         } else {
-            extend_stall_cnt = 0; // 一旦恢复正常，计数器清零
-        }
-
-        // =======================================================
-        // 🌟 核心分流：真归零 vs 假卡顿
-        // =======================================================
-        if (switch_triggered)
-        {
-            // 【情况 A：完美撞底】—— 摸到开关了！
-            // 更新物理坐标系
-            total_angle_init_arm_extend = g_inst->arm->arm_extend_motor->measure.total_angle;
-
-            // 设定安全限位
-            g_inst->arm->min_extend = 0.0f;
-            g_inst->arm->max_extend = 800.0f;
-            g_inst->grab_ctrl_cmd.arm_extend = 0.0f;
-
-            extend_switch_broken = 0; // 开关正常工作
-            self->state = CALI_DONE;  // 标定大功告成！
             extend_stall_cnt = 0;
         }
-        else if (stall_triggered)
-        {
-            // 【情况 B：半路卡死 或 开关撞碎】—— 电流爆了，但开关没按下去！
-            // 1. 立刻刹车：把目标位置改为当前的实际物理位置，PID误差瞬间清零，电流瞬间卸掉，绝对不跳齿！
-            float curr_actual_extend = (g_inst->arm->arm_extend_motor->measure.total_angle - total_angle_init_arm_extend) / grab_param.motor3508_p19_reduction_ratio;
-            g_inst->grab_ctrl_cmd.arm_extend = curr_actual_extend;
 
-            // 2. 报错拦截：绝对不更新0点！进入异常状态！
-            self->state = CALI_ERROR;
-            extend_stall_cnt = 0;
+        // 因为 switch_triggered 永远是 0，所以它只会死死地撞在底座上堵转！
+        if (switch_triggered || stall_triggered) {
+            // ... 里面随便写啥都行，反正测试时它不会进这里
         }
         break;
     }
