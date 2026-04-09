@@ -146,7 +146,7 @@ static void MouseKeySet()
     }
 
     // ================= 1. 大模式切换 (按 G 键循环切换) =================
-    switch (rc_data[TEMP].key_count[KEY_PRESS_NORMAL][KEY_G] % 2)
+    switch (rc_data[TEMP].key_count[KEY_PRESS_NORMAL][KEY_G] % 3)
     {
     case 0:
         robot->robot_mode = ROBOT_POWER_ON;
