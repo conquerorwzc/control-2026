@@ -145,6 +145,8 @@ typedef struct
 
     DJIMotorInstance *arm_lift_motor;
     DJIMotorInstance *arm_extend_motor; // 前伸电机
+    GPIOInstance *micro_switch_gpio;
+
     Extend_Cali_Data_s extend_cali;
     float base_joint;  // 基座旋转关节角度
     float elbow_roll;  // 肘部关节旋转角度

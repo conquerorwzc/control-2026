@@ -79,7 +79,7 @@ GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config)
     grab_instance->actuator->grab_djimotor[2] = DJIMotorInit(&Grab_init_config->Grab_motor_config[6]);
     grab_instance->arm->arm_lift_motor = DJIMotorInit(&Grab_init_config->Grab_motor_config[7]);
     grab_instance->arm->arm_extend_motor = DJIMotorInit(&Grab_init_config->Grab_motor_config[8]); // 新增前伸电机
-
+    grab_instance->arm->micro_switch_gpio = GPIORegister(&gpio_init_config_micro_switch);
     // 在没有上电的情况下先不发使能帧给dm电机，即不初始化
     grab_instance->actuator->grab_dmmotor[0] = DMMotorInit(&Grab_init_config->Grab_motor_config[5]); // v2
     grab_instance->arm->grab_dmmotor[0] = DMMotorInit(&Grab_init_config->Grab_motor_config[0]);      // v3
@@ -632,6 +632,10 @@ static void Grab_Real_Angle_Calculate(GrabInstance *grab)
         float curr_extend = grab->arm->arm_extend_motor->measure.total_angle;
         grab->grab_measure.arm_extend =
             (curr_extend - total_angle_init_arm_extend) / MOTOR3508_P19_REDUCTION_RATIO;
+    }
+    if (grab->arm->micro_switch_gpio != NULL)
+    {
+        grab->grab_measure.micro_switch_state = GPIORead(grab->arm->micro_switch_gpio);
     }
 }
 
