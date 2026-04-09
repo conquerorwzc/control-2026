@@ -400,7 +400,7 @@ static void Extend_Cali_Update(Calibration_t *self)
 
         // 💥 重载专用看门狗：实时监控电流和速度
         float curr_amp = fabsf((float)g_inst->arm->arm_extend_motor->measure.real_current);
-        float curr_speed = fabsf((float)g_inst->arm->arm_extend_motor->measure.speed_rpm);
+        float curr_speed = fabsf((float)g_inst->arm->arm_extend_motor->measure.speed_aps);
         uint8_t stall_triggered = 0;
 
         // 【调试参数】：5000.0f 是堵转阈值，10.0f 是速度阈值
