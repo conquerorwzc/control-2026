@@ -111,6 +111,8 @@ void RobotTask()
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
 void RobotCMDTask()
 {
+    grab_ctrl_cmd->is_climb_mode = (robot->robot_mode == ROBOT_CLIMB_MODE) ? 1 : 0;
+
     if (grab_control_mode == GRAB_CONTROL_CUSTOM)
     {
         ProcessCustomControllerData();
@@ -152,9 +154,10 @@ static void MouseKeySet()
     case 1:
         robot->robot_mode = ROBOT_EXCHANGE_MODE;
         break;
-        // case 2:
-        //     robot->robot_mode = ROBOT_CLIMB_MODE;
-        //     break;
+
+    case 2:
+        robot->robot_mode = ROBOT_CLIMB_MODE;
+        break;
     }
 
     if (robot->robot_mode != ROBOT_POWER_OFF && robot->robot_mode != ROBOT_EMERGENCY_STOP)
@@ -162,26 +165,44 @@ static void MouseKeySet()
         grab_ctrl_cmd->grab_mode = GRAB_POWER_ON;
         video_gimbal_ctrl_cmd->power = VIDEO_POWER_ON;
 
-        // ================= 2. 机械臂控制权切换 (按 F 键) =================
-        if (robot->robot_mode == ROBOT_EXCHANGE_MODE)
+
+        // ================= 2. 机械臂控制权切换 (专属快捷键分离) =================
+        if (robot->robot_mode == ROBOT_EXCHANGE_MODE || robot->robot_mode == ROBOT_CLIMB_MODE)
         {
-            switch (rc_data[TEMP].key_count[KEY_PRESS_NORMAL][KEY_F] % 3)
+            static uint8_t last_f_key = 0;
+            // 获取当前键盘按键的真实物理电平
+            uint8_t curr_f_key = rc_data[TEMP].key[KEY_PRESS_NORMAL].f;
+            uint8_t curr_ctrl_key = rc_data[TEMP].key[KEY_PRESS_NORMAL].ctrl;
+
+            // 边沿检测：只有在 F 键按下的那一瞬间才执行判断
+            if (curr_f_key && !last_f_key)
             {
-            case 0:
-                grab_control_mode = GRAB_CONTROL_KEYBOARD;
-                break;
-            case 1:
-                grab_control_mode = GRAB_CONTROL_HALF_AUTO;
-                break;
-            case 2:
-                grab_control_mode = GRAB_CONTROL_CUSTOM;
-                break;
+                if (curr_ctrl_key)
+                {
+                    // 场景 1：按下 Ctrl + F -> 无脑切入【半自动模式】
+                    grab_control_mode = GRAB_CONTROL_HALF_AUTO;
+                }
+                else
+                {
+                    // 场景 2：只按 F
+                    // 如果当前是【键鼠模式】，则切入【自定义控制器】
+                    if (grab_control_mode == GRAB_CONTROL_KEYBOARD)
+                    {
+                        grab_control_mode = GRAB_CONTROL_CUSTOM;
+                    }
+                    // 如果当前是【自定义控制器】或者【半自动模式】，统统优先切回最安全的【键鼠模式】
+                    else
+                    {
+                        grab_control_mode = GRAB_CONTROL_KEYBOARD;
+                    }
+                }
             }
+            last_f_key = curr_f_key; // 记录状态供下次边沿检测
         }
         else
         {
+            // 退出兑换或上台阶模式时，强制恢复为最安全的键鼠控制
             grab_control_mode = GRAB_CONTROL_KEYBOARD;
-            rc_data[TEMP].key_count[KEY_PRESS_NORMAL][KEY_F] = 0;
         }
 
         // ================= 3. 底盘平移 (WASD 全局生效) =================

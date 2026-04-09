@@ -139,6 +139,9 @@ typedef struct
     float arm_extend_target;
     uint8_t wrist_roll_cali;
     uint8_t wrist_pitch_cali;
+
+    uint8_t is_climb_mode;
+
     Grab_Mode_e grab_mode;
 } Grab_Ctrl_Cmd_s;
 

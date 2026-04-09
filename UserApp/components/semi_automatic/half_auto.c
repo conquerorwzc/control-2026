@@ -1,24 +1,25 @@
 #include "half_auto.h"
 
-// 💥 增加底盘指针，并将模式取余改为 % 3
 void Half_auto_update(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd, uint8_t press_l,
                       uint8_t press_l_last, uint8_t press_r, uint8_t press_r_last)
 {
     static int step = 0;
     static Half_Control_List half_control_list = Store_First_Energy_Unit;
 
-    if (press_r && !press_r_last)
-    {
-        // 💥 现在有 4 个模式了，对 4 取余
-        half_control_list = (half_control_list + 1) % 4;
+    // 👈 核心逻辑：如果是上台阶模式且开启了半自动，直接锁定在预备姿态
+    if (grab_ctrl_cmd->is_climb_mode) {
+        climb_step_prep(grab_ctrl_cmd, step);
+        return;
+    }
+
+    if (press_r && !press_r_last) {
+        half_control_list = (half_control_list + 1) % 4; // 兑换模式下依然只循环前 4 个
         step = 0;
     }
 
-    if (press_l && !press_l_last)
-    {
+    if (press_l && !press_l_last) {
         step++;
     }
-
     switch (half_control_list)
     {
     case Store_First_Energy_Unit:
@@ -37,6 +38,25 @@ void Half_auto_update(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_Cmd_s *chassi
         break;
     }
 }
+
+/**
+ * @brief 上台阶预备姿态 (一键收起机械臂，防止撞击台阶)
+ */
+void climb_step_prep(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, uint8_t step)
+{
+    // 这里设置一个方便上台阶的姿态 (例如：大臂抬起，小臂收回)
+    // grab_ctrl_cmd->base_joint = 0.0f;     // 回正
+    // grab_ctrl_cmd->elbow_roll = 0.0f;    // 不旋转
+    // grab_ctrl_cmd->elbow_pitch = 60.0f;   // 抬高大臂
+    // grab_ctrl_cmd->wrist_pitch = -40.0f; // 腕部向下压，缩小体积
+    // grab_ctrl_cmd->wrist_roll = 0.0f;
+    // grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE; // 关夹爪
+    //
+    // // 配合之前的逻辑：上台阶模式非控制状态前伸锁 0
+    // grab_ctrl_cmd->arm_extend = 0.0f;
+    // grab_ctrl_cmd->arm_lift = 0.0f;
+}
+
 // ========================================================
 // 模式 0：存第一个能量单元 (共 7 步)
 // ========================================================

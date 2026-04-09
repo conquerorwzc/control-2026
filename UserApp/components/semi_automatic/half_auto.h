@@ -11,19 +11,17 @@
 typedef enum
 {
     Grab_Six_Oclock_Energy_Unit = 0,
-    Store_First_Energy_Unit,  // 模式 0：存第一个
+    Store_First_Energy_Unit,
     Grab_Four_Oclock_Energy_Unit,
-    Store_Second_Energy_Unit,     // 模式 1：存第二个
+    Store_Second_Energy_Unit,
+    Climb_Step_Prep,           // 👈 新增：上台阶预备姿态
 } Half_Control_List;
 
 void Half_auto_update(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd,
                       uint8_t press_l, uint8_t press_l_last, uint8_t press_r, uint8_t press_r_last);
-
 void store_first_energy_unit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, uint8_t step);
 void store_second_energy_unit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, uint8_t step);
 void grab_six_oclock_energy_unit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd, uint8_t step);
-
-// 💥 新增：取四点钟函数声明
 void grab_four_oclock_energy_unit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd, uint8_t step);
-
+void climb_step_prep(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, uint8_t step);
 #endif

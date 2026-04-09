@@ -435,14 +435,35 @@ static void GrabCmdTask()
     else if (grab_ctrl_cmd->arm_lift < grab->arm->arm_lift_min)
         grab_ctrl_cmd->arm_lift = grab->arm->arm_lift_min;
 
+    static uint8_t last_climb_mode = 0;
+
     if (grab->arm->extend_cali_obj.state == CALI_DONE)
     {
-        if (grab_ctrl_cmd->arm_extend > grab->arm->max_extend)
-            grab_ctrl_cmd->arm_extend = grab->arm->max_extend;
-        else if (grab_ctrl_cmd->arm_extend < grab->arm->min_extend)
-            grab_ctrl_cmd->arm_extend = grab->arm->min_extend;
-    }
+        // 边缘检测：如果你【刚退出】上台阶模式
+        if (last_climb_mode == 1 && grab_ctrl_cmd->is_climb_mode == 0)
+        {
+            // 重新激活标定状态机！这会让电机平稳地往回收缩，直到碰触微动开关，彻底消除跳齿误差
+            grab->arm->extend_cali_obj.state = CALI_RUNNING;
+            grab->arm->extend_cali_obj.internal_step = 0;
+            grab->arm->extend_cali_obj.timeout_cnt = 0;
+        }
 
+        if (grab_ctrl_cmd->is_climb_mode)
+        {
+            // 只有在上台阶模式下，才允许在 0~max 之间正常伸缩
+            if (grab_ctrl_cmd->arm_extend > grab->arm->max_extend)
+                grab_ctrl_cmd->arm_extend = grab->arm->max_extend;
+            else if (grab_ctrl_cmd->arm_extend < grab->arm->min_extend)
+                grab_ctrl_cmd->arm_extend = grab->arm->min_extend;
+        }
+        else
+        {
+            // 非上台阶模式，强制锁死目标在绝对物理零点
+            grab_ctrl_cmd->arm_extend = 0.0f;
+        }
+    }
+    last_climb_mode = grab_ctrl_cmd->is_climb_mode; // 记录状态供下次比较
+    // =========================================================
     if (grab_ctrl_cmd->elbow_pitch > grab_param.elbow_pitch_max)
         grab_ctrl_cmd->elbow_pitch = grab_param.elbow_pitch_max;
     else if (grab_ctrl_cmd->elbow_pitch < grab_param.elbow_pitch_min)
