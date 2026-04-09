@@ -48,6 +48,11 @@ static uint8_t cali_first_run = 1;
 
 static Grab_Param_s grab_param; // 新增：用于存储从 config 传过来的限位与灵敏度配置
 
+static GPIO_Init_Config_s gpio_init_config_micro_switch = {
+    .GPIO_Pin = Micro_switch_Pin,
+    .GPIOx = Micro_switch_GPIO_Port,
+    .pin_state = GPIO_PIN_RESET,
+};
 /* Private function prototypes -----------------------------------------------*/
 GrabInstance *GrabInit(Grab_Init_Config_s *Grab_init_config); // 机械臂初始化，返回一个机械臂示例指针
 void GrabTask();                                              // 机械臂任务函数

@@ -3,7 +3,7 @@
 #include "dmmotor.h"
 #include "general_def.h"
 #include "stm32h7xx_hal.h"
-
+#include "bsp_gpio.h"
 typedef enum
 {
     GRAB_POWER_OFF = 0, // 电流零输入
@@ -30,11 +30,26 @@ typedef enum {
     CALI_STAGE_DONE           = 3, // 3: 标定大功告成
     CALI_STAGE_ERROR          = 4  // 4: 标定超时或异常
 } GrabCaliStage_e;
+
+// 仿照 GrabCaliStage_e 新增状态枚举
+typedef enum {
+    EXTEND_CALI_WAIT = 0,
+    EXTEND_CALI_FIND_MAX = 1, // 👇 改为：正在外伸寻找最大堵转点
+    EXTEND_CALI_DONE = 2,
+    EXTEND_CALI_ERROR = 3
+} ExtendCaliStage_e;
+
 typedef struct {
     GrabCaliStage_e state;
     float max_pitch; // 自动生成的最高软件限位 (如 90 * 0.98 = 88.2度)
     float min_pitch; // 自动生成的最低软件限位
 } Motor_Cali_Data_s;
+
+typedef struct {
+    ExtendCaliStage_e state;
+    float max_extend; // 自动生成的最大软限位
+    float min_extend; // 自动生成的最小软限位
+} Extend_Cali_Data_s;
 
 typedef struct {
     float wrist_roll_MAX;    // 腕部关节旋转角度
@@ -105,6 +120,8 @@ typedef struct
 
     float arm_lift;      // 实际：机械臂整体抬升的高度/角度
     float arm_extend;    // 实际：机械臂前伸电机的伸长量
+
+    uint8_t micro_switch_state;
 } Grab_Real_Measure_s;
 
 typedef struct
@@ -128,7 +145,7 @@ typedef struct
 
     DJIMotorInstance *arm_lift_motor;
     DJIMotorInstance *arm_extend_motor; // 前伸电机
-
+    Extend_Cali_Data_s extend_cali;
     float base_joint;  // 基座旋转关节角度
     float elbow_roll;  // 肘部关节旋转角度
     float elbow_pitch; // 肘部关节俯仰角度
