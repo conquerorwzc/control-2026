@@ -84,7 +84,7 @@
                      .Kd = 0,                                                                                          \
                      .IntegralLimit = 0,                                                                               \
                      .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,          \
-                     .MaxOut = 3000.0f,                                                                                \
+                     .MaxOut = 3700.0f,                                                                                \
                  },                                                                                                    \
              .speed_PID =                                                                                              \
                  {                                                                                                     \
@@ -123,11 +123,11 @@
                      .Kd = 0,                                                                                          \
                      .IntegralLimit = 0,                                                                               \
                      .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,          \
-                     .MaxOut = 4800.0f,                                                                                \
+                     .MaxOut = 5200.0f,                                                                                \
                  },                                                                                                    \
              .speed_PID =                                                                                              \
                  {                                                                                                     \
-                     .Kp = 5.0f,                                                                                       \
+                     .Kp = 4.0f,                                                                                       \
                      .Ki = 0.0f,                                                                                       \
                      .Kd = 0.0f,                                                                                       \
                      .IntegralLimit = 0,                                                                               \
@@ -340,12 +340,12 @@ static Chassis_Init_Config_s chassis_init_config = {
 
                 .angle_PID =
                     {
-                        .Kp = 13.0f,
+                        .Kp = 12.0f,
                         .Ki = 0,
                         .Kd = 0,
                         .IntegralLimit = 0,
                         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                        .MaxOut = 4000.0f,
+                        .MaxOut = 4400.0f,
                     },
                 .speed_PID =
                     {
@@ -385,14 +385,14 @@ static Chassis_Init_Config_s chassis_init_config = {
                         {
                             .Kp = 60.0f,
                             .Ki = 0,
-                            .Kd = 0,
+                            .Kd = 0.01,
                             .IntegralLimit = 0,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                            .MaxOut = 4600.0f,
+                            .MaxOut = 5200.0f,
                         },
                     .speed_PID =
                         {
-                            .Kp = 5.0f,
+                            .Kp = 3.0f,
                             .Ki = 0.0f,
                             .Kd = 0.0f,
                             .IntegralLimit = 0,

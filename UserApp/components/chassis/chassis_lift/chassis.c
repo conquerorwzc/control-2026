@@ -32,7 +32,7 @@
 #define REAR_TOTAL_TIME_SEC 3.0f     // 坚决贯彻 3.0 秒！
 #define REAR_ACCEL_TIME_SEC 1.0f     // 丝杠起步快，给 1.0 秒爆发加速
 #define REAR_MOVING_MAX_OUT 12000.0f // 突破静摩擦力的狂暴输出！
-#define REAR_STOP_MAX_OUT 6000.0f       // 驻车力，靠齿轮摩擦力锁死即可
+#define REAR_STOP_MAX_OUT 4000.0f       // 驻车力，靠齿轮摩擦力锁死即可
 
 // ==================== 【硬件基础信息】 ====================
 #define CALI_TASK_FREQ 500.0f  // 标定任务运行频率 (Hz) ，在ostask里得知
@@ -52,7 +52,7 @@
 #define FORCE_ZERO_REAR_DEG 1000.0f
 #define FORCE_MAX_REAR_DEG 1500.0f
 #define FORCE_ZERO_FRONT_DEG 135.0f
-#define FORCE_MAX_FRONT_DEG 600.0f
+#define FORCE_MAX_FRONT_DEG 2000.0f
 
 #define JITTER_TOLERANCE_REAR 15.0f
 #define JITTER_TOLERANCE_FRONT 15.0f
@@ -256,7 +256,7 @@ void ChassisTask()
                     DJIMotorEnable(chassis->front_legs[i].motor);
                     DJIMotorEnable(chassis->rear_legs[i].motor);
 
-                    chassis->front_legs[i].motor->motor_controller.speed_PID.MaxOut = 8000.0f;
+                    chassis->front_legs[i].motor->motor_controller.speed_PID.MaxOut = 12000.0f;
                     chassis->rear_legs[i].motor->motor_controller.speed_PID.MaxOut = 6000.0f;
 
                     // 强制目标归零
