@@ -12,6 +12,7 @@ include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/UserApp/components/gantr
 include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/UserApp/components/chassis/${CHASSIS_TYPE})
 include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/UserApp/components/semi_automatic)
 include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/UserApp/components/gimbal/gimbal_video)
+include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/UserApp/components/robot_to_custom_controller)
 
 # Define source files for the robot application
 file(GLOB_RECURSE ROBOT_SOURCES
@@ -21,6 +22,7 @@ file(GLOB_RECURSE ROBOT_SOURCES
         "${CMAKE_SOURCE_DIR}/UserApp/components/gantry/*.c"
         "${CMAKE_SOURCE_DIR}/UserApp/components/semi_automatic/*.c"
         "${CMAKE_SOURCE_DIR}/UserApp/components/gimbal/gimbal_video/*.c"
+        "${CMAKE_SOURCE_DIR}/UserApp/components/robot_to_custom_controller/*.c"
 )
 
 # Add the robot source files to the global SOURCES list

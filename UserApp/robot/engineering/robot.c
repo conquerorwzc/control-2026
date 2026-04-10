@@ -11,6 +11,7 @@
 #include "stdlib.h"
 #include "string.h"
 #include "user_lib.h"
+#include "robot_to_custom_controller.h"  // 机器人->自定义控制器通信
 
 /* Private define ------------------------------------------------------------*/
 // 0.3s消抖阈值 (基于2ms的任务周期: 300ms / 2ms = 150)
@@ -47,6 +48,7 @@ static void MouseKeySet();
 static void EmergencyHandler();
 static void ProcessCustomControllerData();
 static void CalcOffsetAngle();
+static void SendArmMotorDataTask(void);  // 发送机械臂电机数据任务
 void RobotInit();
 void RobotCMDTask();
 void RobotTask();
@@ -106,6 +108,9 @@ void RobotTask()
     GrabTask();
     VideoGimbalTask();
 #endif
+    
+    // 发送机械臂电机数据给自定义控制器 (10Hz)
+    SendArmMotorDataTask();
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
@@ -593,4 +598,39 @@ static void Record_Current_Waypoint(void)
             save_point_trigger = 0;
         }
     }
+}
+
+/**
+ * @brief 定时发送机械臂电机数据给自定义控制器 (10Hz)
+ * @note RobotTask运行在200Hz,此处通过时间戳控制为10Hz
+ *       复用裁判系统的USART1实例
+ */
+static void SendArmMotorDataTask(void)
+{
+    static uint32_t last_send_time = 0;
+    
+    // 10Hz频率控制: 距离上次发送不足100ms则跳过
+    uint32_t current_time = HAL_GetTick();
+    if ((current_time - last_send_time) < 100) {
+        return;
+    }
+    
+    // 获取机械臂5个关节角度
+    float motor_angles[5] = {0.0f};
+    if (robot->grab != NULL && robot->grab->arm != NULL && robot->grab->actuator != NULL) {
+        motor_angles[0] = robot->grab->arm->base_joint;       // 基座关节
+        motor_angles[1] = robot->grab->arm->elbow_roll;       // 肘部滚转
+        motor_angles[2] = robot->grab->arm->elbow_pitch;      // 肘部俯仰
+        motor_angles[3] = robot->grab->actuator->wrist_pitch; // 腕部俯仰
+        motor_angles[4] = robot->grab->actuator->wrist_roll;  // 腕部滚转
+    }
+    
+    // 复用裁判系统的USART1实例发送
+    USARTInstance* usart1_instance = GetRefereeUsartInstance();
+    if (usart1_instance != NULL) {
+        RobotToCustomController_SendMotorData(motor_angles, usart1_instance);
+    }
+    
+    // 更新发送时间戳
+    last_send_time = current_time;
 }
