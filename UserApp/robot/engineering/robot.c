@@ -154,7 +154,6 @@ static void MouseKeySet()
     case 1:
         robot->robot_mode = ROBOT_EXCHANGE_MODE;
         break;
-
     case 2:
         robot->robot_mode = ROBOT_CLIMB_MODE;
         break;
@@ -165,43 +164,38 @@ static void MouseKeySet()
         grab_ctrl_cmd->grab_mode = GRAB_POWER_ON;
         video_gimbal_ctrl_cmd->power = VIDEO_POWER_ON;
 
-
         // ================= 2. 机械臂控制权切换 (专属快捷键分离) =================
         if (robot->robot_mode == ROBOT_EXCHANGE_MODE || robot->robot_mode == ROBOT_CLIMB_MODE)
         {
-            static uint8_t last_f_key = 0;
-            // 获取当前键盘按键的真实物理电平
-            uint8_t curr_f_key = rc_data[TEMP].key[KEY_PRESS_NORMAL].f;
-            uint8_t curr_ctrl_key = rc_data[TEMP].key[KEY_PRESS_NORMAL].ctrl;
+            // 状态1：只按了 F 键 (此时 Ctrl 和 Shift 绝对没按)
+            uint8_t curr_f_only = rc_data[TEMP].key[KEY_PRESS_NORMAL].f;
+            static uint8_t last_f_only = 0;
 
-            // 边沿检测：只有在 F 键按下的那一瞬间才执行判断
-            if (curr_f_key && !last_f_key)
+            // 状态2：按了 Ctrl + F (此时 Shift 绝对没按)
+            uint8_t curr_ctrl_f = rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].f;
+            static uint8_t last_ctrl_f = 0;
+
+            // 场景 1：按下 Ctrl + F -> 无脑切入【半自动模式】
+            if (curr_ctrl_f && !last_ctrl_f)
             {
-                if (curr_ctrl_key)
-                {
-                    // 场景 1：按下 Ctrl + F -> 无脑切入【半自动模式】
-                    grab_control_mode = GRAB_CONTROL_HALF_AUTO;
-                }
-                else
-                {
-                    // 场景 2：只按 F
-                    // 如果当前是【键鼠模式】，则切入【自定义控制器】
-                    if (grab_control_mode == GRAB_CONTROL_KEYBOARD)
-                    {
-                        grab_control_mode = GRAB_CONTROL_CUSTOM;
-                    }
-                    // 如果当前是【自定义控制器】或者【半自动模式】，统统优先切回最安全的【键鼠模式】
-                    else
-                    {
-                        grab_control_mode = GRAB_CONTROL_KEYBOARD;
-                    }
-                }
+                grab_control_mode = GRAB_CONTROL_HALF_AUTO;
             }
-            last_f_key = curr_f_key; // 记录状态供下次边沿检测
+
+            // 场景 2：只按 F -> 在【键鼠】和【自定义遥控器】之间接管
+            if (curr_f_only && !last_f_only)
+            {
+                if (grab_control_mode == GRAB_CONTROL_KEYBOARD)
+                    grab_control_mode = GRAB_CONTROL_CUSTOM;
+                else
+                    grab_control_mode = GRAB_CONTROL_KEYBOARD; // 优先保底
+            }
+
+            last_f_only = curr_f_only;
+            last_ctrl_f = curr_ctrl_f;
         }
         else
         {
-            // 退出兑换或上台阶模式时，强制恢复为最安全的键鼠控制
+            // 退出这两种大模式时，强制恢复为最安全的键鼠控制
             grab_control_mode = GRAB_CONTROL_KEYBOARD;
         }
 
