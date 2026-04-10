@@ -166,16 +166,15 @@ void GrabTask()
     {
         Execute_Calibration(&grab->actuator->wrist_cali_obj);
     }
-    else
-    {
-        Grab_Position_Calculate(grab); // 腕部标定完才允许指令解算
-    }
 
-    // 2. 前伸标定调度
+    // 2. 前伸标定调度 (与腕部并行执行！)
     if (grab->arm->extend_cali_obj.state != CALI_DONE)
     {
         Execute_Calibration(&grab->arm->extend_cali_obj);
     }
+
+    // 3. 统一指令解算（永远实时执行，内部有状态拦截）
+    Grab_Position_Calculate(grab);
 
     Grab_Real_Angle_Calculate(grab);
     MotorTask();
@@ -381,12 +380,20 @@ static void Extend_Cali_Update(Calibration_t *self)
     GrabInstance *g_inst = (GrabInstance *)self->host_ptr;
     static uint16_t extend_stall_cnt = 0; // 堵转看门狗计数器
 
+    // 🌟 新增：获取当前真实的物理相对位置
+    float curr_actual_extend = (g_inst->arm->arm_extend_motor->measure.total_angle - total_angle_init_arm_extend) /
+                               grab_param.motor3508_p19_reduction_ratio;
+
     // 急停或掉电时，清空所有状态
     if (g_inst->grab_ctrl_cmd.grab_mode == GRAB_POWER_OFF)
     {
         self->timeout_cnt = 0;
         self->internal_step = 0;
         extend_stall_cnt = 0;
+
+        // 🚨 核心修复 1：掉电时目标位置死死咬住真实位置
+        // 防止操作手在掉电时瞎按键盘积累了上千的数值，导致重新上电瞬间猛烈前冲！
+        g_inst->grab_ctrl_cmd.arm_extend = curr_actual_extend;
         return;
     }
 
@@ -400,12 +407,17 @@ static void Extend_Cali_Update(Calibration_t *self)
     {
     case 0: { // 阶段0：侦测上电状态
         extend_stall_cnt = 0;
+
+        // 🚨 核心修复 2：刚开始标定前，再同步一次！确保起步平稳！
+        g_inst->grab_ctrl_cmd.arm_extend = curr_actual_extend;
+
         if (g_inst->arm->micro_switch_gpio != NULL && GPIORead(g_inst->arm->micro_switch_gpio) == GPIO_PIN_RESET)
             self->internal_step = 1; // 如果一开始就压着开关，先去阶段1往外退一点
         else
             self->internal_step = 2; // 如果没压着，直接去阶段2往回收
         break;
     }
+
     case 1: { // 阶段1：脱离微动开关 (稍微往外伸一点)
         g_inst->grab_ctrl_cmd.arm_extend += grab_param.extend_cali_speed;
 
@@ -416,26 +428,25 @@ static void Extend_Cali_Update(Calibration_t *self)
         }
         break;
     }
-    case 2: { // 阶段2：【跳齿极限测试专用版】
-              //@todo:参数待测试调整，先别急着改
-        // 💥 1. 锁死最大电流 (从 2000 开始，每次烧录加 500)
-        g_inst->arm->arm_extend_motor->motor_controller.speed_PID.MaxOut = 2000.0f;
-
+    case 2: { // 阶段2：重载回拉，寻找物理零点 (最终正式比赛版)
         // 给一个缓慢的回拉速度
         g_inst->grab_ctrl_cmd.arm_extend -= grab_param.extend_cali_speed;
 
-        // 💥 2. 强行屏蔽微动开关！不管有没有碰到，都当作没碰到 (永远为 0)
-        // uint8_t switch_triggered = (g_inst->arm->micro_switch_gpio != NULL && GPIORead(...) == GPIO_PIN_RESET);
-        uint8_t switch_triggered = 0; // 👈 测试精髓：让单片机变瞎！
+        // 🌟 1. 恢复微动开关的真实读取！摘下眼罩！
+        uint8_t switch_triggered =
+            (g_inst->arm->micro_switch_gpio != NULL && GPIORead(g_inst->arm->micro_switch_gpio) == GPIO_PIN_RESET);
 
+        // 🌟 2. 实时监控电流和速度
         float curr_amp = fabsf((float)g_inst->arm->arm_extend_motor->measure.real_current);
         float curr_speed = fabsf((float)g_inst->arm->arm_extend_motor->measure.speed_aps);
         uint8_t stall_triggered = 0;
 
-        // 💥 3. 屏蔽看门狗的提前刹车 (把阈值改到 16000，让它一直堵着直到你听见跳齿)
-        if (curr_amp > 16000.0f && curr_speed < 10.0f)
+        // 💥 3. 换上你实测算出来的安全保护阈值：4000.0f！
+        // 绝对不能删掉这个看门狗，它是防止半路卡死把坐标系弄乱的终极护盾
+        if (curr_amp > 4000.0f && curr_speed < 10.0f)
         {
             extend_stall_cnt++;
+            // 持续 20 个 tick (0.04 秒)，立刻判定撞底或卡死！
             if (extend_stall_cnt > 20)
             {
                 stall_triggered = 1;
@@ -443,13 +454,38 @@ static void Extend_Cali_Update(Calibration_t *self)
         }
         else
         {
-            extend_stall_cnt = 0;
+            extend_stall_cnt = 0; // 一旦恢复正常，计数器清零
         }
 
-        // 因为 switch_triggered 永远是 0，所以它只会死死地撞在底座上堵转！
-        if (switch_triggered || stall_triggered)
+        // =======================================================
+        // 🌟 核心分流：真归零 vs 假卡顿
+        // =======================================================
+        if (switch_triggered)
         {
-            // ... 里面随便写啥都行，反正测试时它不会进这里
+            // 【情况 A：完美撞底】—— 摸到开关了！
+            total_angle_init_arm_extend = g_inst->arm->arm_extend_motor->measure.total_angle;
+
+            // 设定安全限位 (最大伸出量请根据实车行程修改)
+            g_inst->arm->min_extend = 0.0f;
+            g_inst->arm->max_extend = 800.0f;
+            g_inst->grab_ctrl_cmd.arm_extend = 0.0f;
+
+            extend_switch_broken = 0; // 记录：微动开关没坏
+            self->state = CALI_DONE;  // 标定大功告成！
+            extend_stall_cnt = 0;
+        }
+        else if (stall_triggered)
+        {
+            // 【情况 B：半路卡死 或 开关撞碎】—— 电流超4000了，但没摸到开关！
+            // 1. 立刻刹车：把目标位置改为当前的实际物理位置，PID误差瞬间清零，电流瞬间卸掉，防跳齿！
+            float curr_actual_extend =
+                (g_inst->arm->arm_extend_motor->measure.total_angle - total_angle_init_arm_extend) /
+                grab_param.motor3508_p19_reduction_ratio;
+            g_inst->grab_ctrl_cmd.arm_extend = curr_actual_extend;
+
+            // 2. 报错拦截：绝对不更新0点！进入异常状态，保住老坐标系！
+            self->state = CALI_ERROR;
+            extend_stall_cnt = 0;
         }
         break;
     }
@@ -624,18 +660,27 @@ static void MotorTask()
 
 static void Grab_Position_Calculate(GrabInstance *grab)
 {
-    grab->actuator->R_target = total_angle_init_R + grab->actuator->wrist_pitch * grab_param.motor2006_reduction_ratio *
-                                                        grab_param.pulley_gear_ratio;
-    grab->actuator->L_target = total_angle_init_L - grab->actuator->wrist_pitch * grab_param.motor2006_reduction_ratio *
-                                                        grab_param.pulley_gear_ratio;
-    grab->actuator->M_target = total_angle_init_M + grab->actuator->wrist_roll * grab_param.motor2006_reduction_ratio *
-                                                        grab_param.planar_gear_ratio;
+    // 1. 腕部目标解算：必须等腕部标定完成，才能把逻辑角度换算给物理电机，否则会破坏标定过程！
+    if (grab->actuator->wrist_cali_obj.state == CALI_DONE)
+    {
+        grab->actuator->R_target = total_angle_init_R + grab->actuator->wrist_pitch *
+                                                            grab_param.motor2006_reduction_ratio *
+                                                            grab_param.pulley_gear_ratio;
+        grab->actuator->L_target = total_angle_init_L - grab->actuator->wrist_pitch *
+                                                            grab_param.motor2006_reduction_ratio *
+                                                            grab_param.pulley_gear_ratio;
+        grab->actuator->M_target = total_angle_init_M + grab->actuator->wrist_roll *
+                                                            grab_param.motor2006_reduction_ratio *
+                                                            grab_param.planar_gear_ratio;
+    }
 
+    // 2. 大臂目标解算：与腕部独立，任何时候（包括标定期间）都必须实时换算下发给电机！
     grab->grab_ctrl_cmd.arm_lift_target =
         total_angle_init_arm_lift + grab_ctrl_cmd->arm_lift * grab_param.motor3508_p51_reduction_ratio;
     grab->grab_ctrl_cmd.arm_extend_target =
         total_angle_init_arm_extend + grab_ctrl_cmd->arm_extend * grab_param.motor3508_p19_reduction_ratio;
 
+    // 3. 夹爪解算
     if (grab->actuator->gripper_state == GRIPPER_CLOSE)
     {
         grab->actuator->T_target = grab_param.gripper_close_torque;
