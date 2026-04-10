@@ -131,6 +131,26 @@ void GrabTask()
     GrabCmdTask();
     Wrist_Cali_Check();
 
+    // =========================================================
+    // 💥 智能软重启：双 Down (急停掉电) 时的状态机维护
+    // =========================================================
+    if (grab_ctrl_cmd->grab_mode == GRAB_POWER_OFF)
+    {
+        // 1. 腕部：如果之前是 ERROR 状态，则帮它复位到 RUNNING 等待上电重试
+        if (grab->actuator->wrist_cali_obj.state == CALI_ERROR) {
+            grab->actuator->wrist_cali_obj.state = CALI_RUNNING;
+            cali_first_run = 1; // 让腕部也重新进入初始化状态
+        }
+
+        // 2. 前伸：如果之前是 ERROR 状态，则帮它复位到 RUNNING 等待上电重试
+        if (grab->arm->extend_cali_obj.state == CALI_ERROR) {
+            grab->arm->extend_cali_obj.state = CALI_RUNNING;
+        }
+
+        // 💡 重点：如果它们是 CALI_DONE，上面这两条 if 都不会进！
+        // 等操作手重新推拨杆上电时，它们会瞬间恢复战斗力！
+    }
+
     if (error_clear_trigger == 1)
     {
         GrabClearError();
