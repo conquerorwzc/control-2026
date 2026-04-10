@@ -305,12 +305,19 @@ static void MouseKeySet()
         // 2. 机械臂全轴微调逻辑 (在兑换和上台阶下均可生效)
         if (robot->robot_mode == ROBOT_EXCHANGE_MODE || robot->robot_mode == ROBOT_CLIMB_MODE)
         {
-            // 【机械臂升降】Shift + W/S (不影响底盘)
+            //键鼠和自定义控制器情况下都能用
             if (grab_control_mode == GRAB_CONTROL_KEYBOARD || grab_control_mode == GRAB_CONTROL_CUSTOM)
             {
+                // 1. 抬升：Shift + W/S
                 grab_ctrl_cmd->arm_lift +=
                     (float)(rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].w - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].s) *
                     grab_param.arm_lift_sens_keyboard;
+
+                // 2. 前伸：Shift + Ctrl + V/B
+                float extend_speed = 4.0f; // 前伸速度
+                grab_ctrl_cmd->arm_extend += (float)(rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].v -
+                                                     rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].b) *
+                                             extend_speed;
             }
 
             if (grab_control_mode == GRAB_CONTROL_KEYBOARD)
@@ -343,10 +350,6 @@ static void MouseKeySet()
                                                      rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].x) *
                                              arm_speed;
 
-                float extend_speed = 4.0f; // 键盘微调前伸的速度 (可根据实车手感调整大小)
-                grab_ctrl_cmd->arm_extend += (float)(rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].v -
-                                                     rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].b) *
-                                             extend_speed;
             }
         }
     }
