@@ -29,6 +29,7 @@
 #pragma once
 
 #include "dji_motor.h"
+#include "trajectory_planner.h"
 
 typedef enum
 {
@@ -115,16 +116,6 @@ typedef struct
     Motor_Init_Config_s lift_backward_motor_config[2];
     PID_Init_Config_s follow_pid;
 } Chassis_Init_Config_s;
-
-typedef struct {
-    float current_ref;  // 当前虚拟参考位置 (喂给位置环的输出)
-    float target_pos;   // 最终目标位置
-    float current_vel;  // 当前虚拟速度
-    float max_vel;      // 最大限制速度
-    float accel;        // 加/减速度
-    float ff_speed;     // 换算好的前馈速度
-    uint8_t is_moving;  // 运动状态标志位
-} TrapezoidalPlanner_t;
 
 typedef struct {
     DJIMotorInstance *motor;      // 绑定的电机硬件躯干

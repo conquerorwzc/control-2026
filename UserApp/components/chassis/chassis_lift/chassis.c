@@ -111,7 +111,6 @@ static void EstimateSpeed();
 static void LimitChassisOutput();
 static void ChassisCalibrationTask(void);
 static void MaxExtensionCalibrationTask(uint8_t abort_flag);
-static void Planner_Update(TrapezoidalPlanner_t *planner);
 static void LiftLeg_UpdateSpeed(LiftLeg_t *leg, float total_time, float acc_time, float stroke);
 ChassisInstance *ChassisInit(Chassis_Init_Config_s *chassis_init_config);
 static void LiftLeg_Init(LiftLeg_t *leg, float *ff_ch, uint8_t use_curve, float total_time, float acc_time,
@@ -313,59 +312,6 @@ void ChassisTask()
     LimitChassisOutput();
 }
 
-/**
- * @brief 梯形曲线更新器
- */
-static void Planner_Update(TrapezoidalPlanner_t *planner)
-{
-    float remain_dist = fabsf(planner->target_pos - planner->current_ref);
-
-    // 防零除死机！
-    if (planner->accel <= 0.0001f)
-    {
-        planner->current_vel = 0.0f;
-        planner->current_ref = planner->target_pos;
-        planner->ff_speed = 0.0f;
-        planner->is_moving = 0;
-        return;
-    }
-
-    // 只有安全了，才允许执行除法
-    float decel_dist = (planner->current_vel * planner->current_vel) / (2.0f * planner->accel);
-    if (remain_dist <= 5.0f)
-    {
-        planner->current_vel = 0.0f;
-        planner->current_ref = planner->target_pos;
-        planner->ff_speed = 0.0f;
-        planner->is_moving = 0;
-        return;
-    }
-    else if (remain_dist <= decel_dist)
-    {
-        planner->current_vel -= planner->accel;
-        if (planner->current_vel < 1.0f)
-            planner->current_vel = 1.0f;
-    }
-    else
-    {
-        if (planner->current_vel < planner->max_vel)
-            planner->current_vel += planner->accel;
-        else
-            planner->current_vel = planner->max_vel;
-    }
-
-    if (planner->target_pos > planner->current_ref)
-    {
-        planner->current_ref += planner->current_vel;
-        planner->ff_speed = planner->current_vel * CALI_TASK_FREQ;
-    }
-    else
-    {
-        planner->current_ref -= planner->current_vel;
-        planner->ff_speed = -planner->current_vel * CALI_TASK_FREQ;
-    }
-    planner->is_moving = 1;
-}
 
 /**
  * @brief 动态重写腿部的梯形曲线速度与加速度
@@ -378,11 +324,11 @@ static void LiftLeg_UpdateSpeed(LiftLeg_t *leg, float total_time, float acc_time
             acc_time = total_time * 0.3f;
 
         float v_max = fabsf(stroke) / (total_time - acc_time);
-        if (v_max > 42000.0f)
-            v_max = 42000.0f; // 硬件安全限幅
+        if (v_max > 42000.0f) v_max = 42000.0f; // 硬件安全限幅
 
-        leg->planner.max_vel = v_max / CALI_TASK_FREQ;
-        leg->planner.accel = leg->planner.max_vel / (acc_time * CALI_TASK_FREQ);
+
+        leg->planner.max_vel = v_max;
+        leg->planner.accel = v_max / acc_time;
     }
 }
 
@@ -412,8 +358,8 @@ static void LiftLeg_Init(LiftLeg_t *leg, float *ff_ch, uint8_t use_curve, float 
         float v_max = fabsf(stroke) / (total_time - acc_time);
         if (v_max > 42000.0f)
             v_max = 42000.0f;
-        leg->planner.max_vel = v_max / CALI_TASK_FREQ;
-        leg->planner.accel = leg->planner.max_vel / (acc_time * CALI_TASK_FREQ);
+        leg->planner.max_vel = v_max;
+        leg->planner.accel = v_max / acc_time;
     }
 }
 
@@ -428,7 +374,7 @@ static void LiftLeg_Execute(LiftLeg_t *leg)
 {
     if (leg->use_curve == 1) // 模式1：原厂梯形曲线 (上台阶用，全速爆发)
     {
-        Planner_Update(&leg->planner);
+        Planner_Update(&leg->planner, CALI_TASK_FREQ);
         if (leg->ff_channel)
             *(leg->ff_channel) = leg->planner.ff_speed;
 

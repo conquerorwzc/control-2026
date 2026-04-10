@@ -137,13 +137,15 @@ void GrabTask()
     if (grab_ctrl_cmd->grab_mode == GRAB_POWER_OFF)
     {
         // 1. 腕部：如果之前是 ERROR 状态，则帮它复位到 RUNNING 等待上电重试
-        if (grab->actuator->wrist_cali_obj.state == CALI_ERROR) {
+        if (grab->actuator->wrist_cali_obj.state == CALI_ERROR)
+        {
             grab->actuator->wrist_cali_obj.state = CALI_RUNNING;
             cali_first_run = 1; // 让腕部也重新进入初始化状态
         }
 
         // 2. 前伸：如果之前是 ERROR 状态，则帮它复位到 RUNNING 等待上电重试
-        if (grab->arm->extend_cali_obj.state == CALI_ERROR) {
+        if (grab->arm->extend_cali_obj.state == CALI_ERROR)
+        {
             grab->arm->extend_cali_obj.state = CALI_RUNNING;
         }
 
@@ -259,8 +261,8 @@ static void Wrist_Cali_Update(Calibration_t *self)
         float curr_elbow_p = g_inst->arm->grab_dmmotor[2]->measure.total_angle * RAD_2_DEGREE;
 
         if (fabsf(curr_base - 10.0f) < grab_param.dm_homing_tolerance &&
-             fabsf(curr_elbow_r) < grab_param.dm_homing_tolerance &&
-             fabsf(curr_elbow_p) < grab_param.dm_homing_tolerance)
+            fabsf(curr_elbow_r) < grab_param.dm_homing_tolerance &&
+            fabsf(curr_elbow_p) < grab_param.dm_homing_tolerance)
         {
             self->timeout_cnt = 0;
             self->internal_step = 1;
@@ -380,7 +382,8 @@ static void Extend_Cali_Update(Calibration_t *self)
     static uint16_t extend_stall_cnt = 0; // 堵转看门狗计数器
 
     // 急停或掉电时，清空所有状态
-    if (g_inst->grab_ctrl_cmd.grab_mode == GRAB_POWER_OFF) {
+    if (g_inst->grab_ctrl_cmd.grab_mode == GRAB_POWER_OFF)
+    {
         self->timeout_cnt = 0;
         self->internal_step = 0;
         extend_stall_cnt = 0;
@@ -388,7 +391,8 @@ static void Extend_Cali_Update(Calibration_t *self)
     }
 
     // 电机未上线时保护，不执行逻辑
-    if (!DaemonIsOnline(g_inst->arm->arm_extend_motor->daemon)) return;
+    if (!DaemonIsOnline(g_inst->arm->arm_extend_motor->daemon))
+        return;
 
     self->timeout_cnt++;
 
@@ -405,14 +409,15 @@ static void Extend_Cali_Update(Calibration_t *self)
     case 1: { // 阶段1：脱离微动开关 (稍微往外伸一点)
         g_inst->grab_ctrl_cmd.arm_extend += grab_param.extend_cali_speed;
 
-        if (g_inst->arm->micro_switch_gpio != NULL && GPIORead(g_inst->arm->micro_switch_gpio) == GPIO_PIN_SET) {
+        if (g_inst->arm->micro_switch_gpio != NULL && GPIORead(g_inst->arm->micro_switch_gpio) == GPIO_PIN_SET)
+        {
             self->timeout_cnt = 0;
             self->internal_step = 2; // 开关弹起，进入阶段2正式标定
         }
         break;
     }
     case 2: { // 阶段2：【跳齿极限测试专用版】
-
+              //@todo:参数待测试调整，先别急着改
         // 💥 1. 锁死最大电流 (从 2000 开始，每次烧录加 500)
         g_inst->arm->arm_extend_motor->motor_controller.speed_PID.MaxOut = 2000.0f;
 
@@ -428,17 +433,22 @@ static void Extend_Cali_Update(Calibration_t *self)
         uint8_t stall_triggered = 0;
 
         // 💥 3. 屏蔽看门狗的提前刹车 (把阈值改到 16000，让它一直堵着直到你听见跳齿)
-        if (curr_amp > 16000.0f && curr_speed < 10.0f) {
+        if (curr_amp > 16000.0f && curr_speed < 10.0f)
+        {
             extend_stall_cnt++;
-            if (extend_stall_cnt > 20) {
+            if (extend_stall_cnt > 20)
+            {
                 stall_triggered = 1;
             }
-        } else {
+        }
+        else
+        {
             extend_stall_cnt = 0;
         }
 
         // 因为 switch_triggered 永远是 0，所以它只会死死地撞在底座上堵转！
-        if (switch_triggered || stall_triggered) {
+        if (switch_triggered || stall_triggered)
+        {
             // ... 里面随便写啥都行，反正测试时它不会进这里
         }
         break;
