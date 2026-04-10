@@ -32,7 +32,7 @@
 #define REAR_TOTAL_TIME_SEC 3.0f     // 坚决贯彻 3.0 秒！
 #define REAR_ACCEL_TIME_SEC 1.0f     // 丝杠起步快，给 1.0 秒爆发加速
 #define REAR_MOVING_MAX_OUT 12000.0f // 突破静摩擦力的狂暴输出！
-#define REAR_STOP_MAX_OUT 500.0f       // 驻车力，靠齿轮摩擦力锁死即可
+#define REAR_STOP_MAX_OUT 6000.0f       // 驻车力，靠齿轮摩擦力锁死即可
 
 // ==================== 【硬件基础信息】 ====================
 #define CALI_TASK_FREQ 500.0f  // 标定任务运行频率 (Hz) ，在ostask里得知
