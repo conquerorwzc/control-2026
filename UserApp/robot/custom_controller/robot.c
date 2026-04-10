@@ -10,13 +10,19 @@
 #include "motor_task.h"
 #include "bsp_usart.h"
 #include <stdbool.h>
-#include "bsp_gpio.h"
 
 // 自定义控制器实例
 static CustomController_t* angle_controller;
 static GPIOInstance *gpio_24V_R_EN;
 static GPIO_Init_Config_s gpio_init_config_24v = {
     .GPIO_Pin = POWER_24V_R_Pin,
+    .GPIOx = POWER_5V_GPIO_Port,
+    .pin_state = GPIO_PIN_SET,
+  };
+
+static GPIOInstance *gpio_5V_EN;
+static GPIO_Init_Config_s gpio_init_config_5v = {
+    .GPIO_Pin = POWER_5V_Pin,
     .GPIOx = POWER_24V_R_GPIO_Port,
     .pin_state = GPIO_PIN_SET,
   };
@@ -34,7 +40,9 @@ void RobotInit() {
     gpio_24V_R_EN = GPIORegister(&gpio_init_config_24v);
     GPIOSet(gpio_24V_R_EN);
 
-    // 初始化自定义控制器（包含电机初始化）
+    gpio_5V_EN = GPIORegister(&gpio_init_config_5v);
+    GPIOSet(gpio_5V_EN);
+    
     angle_controller = CustomControllerInit(&init_config);
     if (angle_controller == NULL) {
         // 错误处理可以根据需要添加
