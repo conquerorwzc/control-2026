@@ -106,7 +106,7 @@ static void DoubleBoardCommsInit() {
   robot->chassis->imu = (INS_t*)zmalloc(sizeof(INS_t));
   robot->chassis->super_cap = (SuperCapInstance*)zmalloc(sizeof(SuperCapInstance));
   robot->can_comm = CANCommInit(&gimbal_comm_conf);
-  VOFAInit(&huart1);
+  // VOFAInit(&huart1);
 #endif
 #if defined(CHASSIS_BOARD)
   chassis_ctrl_cmd->max_power = robot->referee_data->GameRobotState.chassis_power_limit;

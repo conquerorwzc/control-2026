@@ -23,6 +23,11 @@ static float input_mag;
 static float follow_err;
 static float align_attenuation;
 
+static uint8_t joystick_fire = 0;   // 遥控器要求开火
+static uint8_t joystick_burst = 0;  // 遥控器要求连发
+static uint8_t mouse_fire = 0;      // 鼠标要求开火
+static uint8_t mouse_burst = 0;     // 鼠标要求连发
+
 #define TURN_BOOST_DEADZONE 10
 #define TURN_BOOST_GAIN 3.0f
 
@@ -180,6 +185,9 @@ void JoyStickCtrl(RobotInstance* robot) {
   if (switch_middle(rc_data->rc.mode_switch)) {  // 中档
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     chassis_ctrl_cmd->chassis_mode = CHASSIS_PROSTRATE;
+    shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
+    shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
+    shoot_ctrl_cmd->load_mode = LOAD_STOP;
     if (abs(rc_data[TEMP].rc.dial) > 20 || rc_data->mouse_key.keyboard.shift) {
       robot->robot_mode = ROBOT_CHASSIS_PROSTRATE_ROTATE;
     } else {
@@ -187,18 +195,28 @@ void JoyStickCtrl(RobotInstance* robot) {
     }
   }
   if (switch_right(rc_data->rc.mode_switch)) {
-    // 上档
     shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
-    shoot_ctrl_cmd->load_mode = LOAD_STOP;
-    if (rc_data->rc.trigger == 0) trigger_time = DWT_GetTimeline_s();
-    if (rc_data->rc.trigger == 1) {
-      shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
-      if (DWT_GetTimeline_s() - trigger_time > 1.0f) shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+    static uint8_t trigger_last = 0;
+    if (trigger_last == 0 && rc_data->rc.trigger == 1) {
+      trigger_time = DWT_GetTimeline_s();
     }
+    trigger_last = rc_data->rc.trigger;
+    if (rc_data->rc.trigger == 1) {
+      if (DWT_GetTimeline_s() - trigger_time > 1.0f) {
+        joystick_fire = 1;
+        joystick_burst = 1;
+      } else {
+        joystick_fire = 1;
+        joystick_burst = 0;
+      }
+    } else {
+      joystick_fire = 0;
+      joystick_burst = 0;
+    }
+    // ← 删除这里对 load_mode 的直接写入
   }
-
   // 云台控制
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
     gimbal_ctrl_cmd->yaw += -0.00035f * (float)rc_data->rc.rocker_r_;
@@ -609,7 +627,6 @@ void MouseKeyCtrl(RobotInstance* robot) {
 
   // 2. 云台
   // 2.1 [右键]按住开启自瞄
-
   if (rc_data->mouse_key.mouse.press_r) {
     if (has_non_zero_data(vision_recv_data)) {
       gimbal_ctrl_cmd->gimbal_mode = GIMBAL_VISION;  // 右键自瞄开启
@@ -631,26 +648,32 @@ void MouseKeyCtrl(RobotInstance* robot) {
   }
 
   // 2.2 射击控制逻辑,[左键]射击
+  static float mouse_trigger_time = 0;
   if (rc_data->mouse_key.mouse.press_l) {
-    // 校验：摩擦轮开启
     if (shoot_ctrl_cmd->friction_mode == FRICTION_ON) {
-      // 默认先设为单发
-      shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
-      // 检查按下的持续时间 (当前时间 - 上次松开的时间/按下起始时间),超过1秒，覆盖为连发
-      if (DWT_GetTimeline_s() - trigger_time > 0.3f) {
-        shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+      mouse_fire = 1;
+      if (DWT_GetTimeline_s() - mouse_trigger_time > 0.3f) {
+        mouse_burst = 1;
+      } else {
+        mouse_burst = 0;
       }
     }
   } else {
-    if (!switch_is_up(rc_data->rc.mode_switch)) {
-      //  鼠标左键松开时
-      shoot_ctrl_cmd->load_mode = LOAD_STOP;
-      // 记录松开时间
-      trigger_time = DWT_GetTimeline_s();
-    }
+    mouse_fire = 0;
+    mouse_burst = 0;
+    mouse_trigger_time = DWT_GetTimeline_s();
   }
 
-  // 2.3鼠标云台控制
+  // 2.3合并开火决策
+  if (joystick_burst || mouse_burst) {
+    shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+  } else if (joystick_fire || mouse_fire) {
+    shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
+  } else {
+    shoot_ctrl_cmd->load_mode = LOAD_STOP;
+  }
+
+  // 2.4鼠标云台控制
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
     gimbal_ctrl_cmd->yaw -= (float)rc_data->mouse_key.mouse.x * 0.002f;    // X轴灵敏度
     gimbal_ctrl_cmd->pitch -= (float)rc_data->mouse_key.mouse.y * 0.002f;  // Y轴灵敏度
@@ -861,13 +884,6 @@ void EmergencyHandler(RobotInstance* robot) {
     LOGERROR("[CMD] emergency stop!");
   } else {
     LOGINFO("[CMD] reinstate, robot ready");
-  }
-
-  // shoot关闭
-  if (switch_middle(rc_data->rc.mode_switch)) {  // 扳机按下时发射失能
-    shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
-    shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
-    shoot_ctrl_cmd->load_mode = LOAD_STOP;
   }
 }
 #endif

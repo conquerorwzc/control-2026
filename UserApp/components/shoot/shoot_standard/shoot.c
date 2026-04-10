@@ -124,10 +124,10 @@ void HeatControl() {
       break;
   }
   if (shoot_ctrl_cmd->shooter_barrel_heat_limit > 150) {
-    if (remain_heat < 5 * one_barrel_heat_value) shoot_ctrl_cmd->load_mode = LOAD_STOP;
+    // if (remain_heat < 5 * one_barrel_heat_value) shoot_ctrl_cmd->load_mode = LOAD_STOP;
   }
   else if (shoot_ctrl_cmd->shooter_barrel_heat_limit < 150) {
-    if (remain_heat < 4 * one_barrel_heat_value) shoot_ctrl_cmd->load_mode = LOAD_STOP;
+    // if (remain_heat < 4 * one_barrel_heat_value) shoot_ctrl_cmd->load_mode = LOAD_STOP;
   }
 }
 
