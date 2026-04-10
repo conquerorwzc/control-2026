@@ -348,6 +348,11 @@ static void MouseKeySet()
                 grab_ctrl_cmd->wrist_roll += (float)(rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].z -
                                                      rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].x) *
                                              arm_speed;
+
+                float extend_speed = 4.0f; // 键盘微调前伸的速度 (可根据实车手感调整大小)
+                grab_ctrl_cmd->arm_extend += (float)(rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].v -
+                                                     rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].b) *
+                                             extend_speed;
             }
         }
     }
