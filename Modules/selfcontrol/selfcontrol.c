@@ -7,7 +7,7 @@
 #include <math.h>
 #include <stdbool.h>
 
-#define SELF_CONTROL_FRAME_SIZE 64u // 接收缓冲区大小（适配新数据包格式）
+#define SELF_CONTROL_FRAME_SIZE 39u // 接收缓冲区大小
 #define ROBOT_INTERACTIVE_DATA_CMD_ID 0x0302
 
 // 下位机协议参数（与下位机 protocol_packed 固定 data_length=30 一致）

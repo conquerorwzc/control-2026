@@ -48,14 +48,32 @@ typedef struct
 } referee_info_t;
 
 // 模式是否切换标志位，0为未切换，1为切换，static定义默认为0
+// 模式是否切换标志位，0为未切换，1为切换，static定义默认为0
 typedef struct
 {
-	uint32_t chassis_flag : 1;
-	uint32_t gimbal_flag : 1;
-	uint32_t shoot_flag : 1;
-	uint32_t lid_flag : 1;
-	uint32_t friction_flag : 1;
-	uint32_t Power_flag : 1;
+    uint32_t chassis_flag : 1;
+    uint32_t gimbal_flag : 1;
+    uint32_t shoot_flag : 1;
+    uint32_t lid_flag : 1;
+    uint32_t friction_flag : 1;
+    uint32_t Power_flag : 1;
+    uint32_t pitch_flag : 1;
+    uint32_t autoaim_flag : 1;
+    uint32_t cap_flag : 1;
+    uint32_t ammo_flag : 1;
+    uint32_t fric_flag : 1;
+    uint32_t yaw_flag : 1;
+
+#ifdef ROBOT_ENGINEERING
+    // === 工程机器人专用 flag ===
+    uint32_t robot_mode_flag : 1;    // 机器人模式变化 (G 键控制)
+    uint32_t grab_control_flag : 1;  // 机械臂控制模式变化 (F 键控制)
+    uint32_t gripper_flag : 1;       // 夹爪状态变化
+    uint32_t motor_angle_flag : 1;   // 自定义控制器电机角度变化
+    uint32_t arm_angle_flag : 1;     // 机械臂关节角度变化
+    uint32_t arm_cali_flag : 1;      // 机械臂标定状态变化
+    uint32_t lift_cali_flag : 1;     // 底盘抬升标定状态变化
+#endif
 } Referee_Interactive_Flag_t;
 
 
@@ -77,5 +95,17 @@ referee_info_t *RefereeInit(UART_HandleTypeDef *referee_usart_handle);
  * @param tx_len 发送长度
  */
 void RefereeSend(uint8_t *send, uint16_t tx_len);
+
+/**
+ * @brief 获取裁判系统数据
+ * @return referee_info_t* 裁判系统数据指针
+ */
+referee_info_t* GetRefereeInfo(void);
+
+/**
+ * @brief 获取裁判系统USART实例（供其他模块复用）
+ * @return USARTInstance* 裁判系统USART实例指针
+ */
+USARTInstance* GetRefereeUsartInstance(void);
 
 #endif // !REFEREE_H

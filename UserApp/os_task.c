@@ -22,7 +22,7 @@
 #include "ins_task.h"
 #include "master_process.h"
 #include "motor_task.h"
-// #include "referee_task.h"
+#include "referee_task.h"
 #include "robot.h"
 // module
 #include "dmmotor.h"
@@ -58,8 +58,8 @@ void OSTaskInit() {
   osThreadDef(robottask, StartROBOTTASK, osPriorityNormal, 0, 1024);
   robotTaskHandle = osThreadCreate(osThread(robottask), NULL);
 
-  // osThreadDef(uitask, StartUITASK, osPriorityNormal, 0, 512);
-  // uiTaskHandle = osThreadCreate(osThread(uitask), NULL);
+   osThreadDef(uitask, StartUITASK, osPriorityNormal, 0, 512);
+   uiTaskHandle = osThreadCreate(osThread(uitask), NULL);
 
   // 初始化完成,开启中断
   __enable_irq();
@@ -105,14 +105,13 @@ __attribute__((noreturn)) void StartROBOTTASK(void const *argument) {
   for (;;) {
     robot_start = DWT_GetTimeline_ms();
     RobotTask();
-    // MotorControlTask();
     robot_dt = DWT_GetTimeline_ms() - robot_start;
     if (robot_dt > 2) LOGERROR("[freeRTOS] ROBOT core Task is being DELAY! dt = [%f]", &robot_dt);
-    osDelay(33);
+    osDelay(2);
   }
 }
 
-#if 0
+//#if 0
 __attribute__((noreturn)) void StartUITASK(void const *argument) {
   LOGINFO("[freeRTOS] UI Task Start");
   MyUIInit();
@@ -120,7 +119,7 @@ __attribute__((noreturn)) void StartUITASK(void const *argument) {
   for (;;) {
     // 每给裁判系统发送一包数据会挂起一次,详见UITask函数的refereeSend()
     UITask();
-    osDelay(1);  // 即使没有任何UI需要刷新,也挂起一次,防止卡在UITask中无法切换
+    osDelay(30);  // 即使没有任何UI需要刷新,也挂起一次,防止卡在UITask中无法切换
   }
 }
-#endif
+//#endif

@@ -97,3 +97,6 @@ cmake-build-debug-stm32/
 
 /Debug/Ozone/control-2026-h7.jdebug
 /Debug/Ozone/control-2026-h7.jdebug.user
+/auto_tune.py
+/.vscode/settings.json
+/test_gdb.gdb
