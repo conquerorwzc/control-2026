@@ -511,7 +511,7 @@ static void RemoteControlSet()
     // rocker_r1：向上推大于 300 夹紧，向下推小于 -300 松开
     if (rc_data[TEMP].rc.rocker_r1 > 300)
     {
-        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE; // 👇 修改为状态
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         if (rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C] % 2 == 0)
         {
             rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C]++;
@@ -519,7 +519,7 @@ static void RemoteControlSet()
     }
     else if (rc_data[TEMP].rc.rocker_r1 < -300)
     {
-        grab_ctrl_cmd->gripper_state = GRIPPER_OPEN; // 👇 修改为状态
+        grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
         if (rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C] % 2 == 1)
         {
             rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C]++;
