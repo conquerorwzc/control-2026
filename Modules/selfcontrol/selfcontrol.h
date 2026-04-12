@@ -70,5 +70,13 @@ UnpackedControllerData_t* GetSelfControlDataPtr(void);
  */
 float SelfControlGetMotorAngle(const SelfC* controller, uint8_t motor_index);
 
+/**
+ * @brief 发送机械臂电机数据给自定义控制器
+ * @param motor_angles 5个电机的角度值数组(单位:度)
+ * @param usart_instance USART实例指针
+ * @note 使用CMD_ID 0x0309, 数据格式: packet_type(1字节) + 5个float(20字节) = 21字节
+ *       发送频率上限10Hz
+ */
+void SelfControl_SendMotorDataToCustom(const float motor_angles[5], USARTInstance* usart_instance);
 
 #endif  // CONTROL_2026_SELFCONTROL_H

@@ -53,6 +53,11 @@ typedef struct {
     bool gripper_opened;                    // 夹爪打开标志
     bool is_initialized;                    // 初始化标志
     bool is_active;                         // 活跃状态
+    
+    // 接收机器人发送的机械臂数据
+    float robot_arm_angles[5];              // 机器人发送的5个关节角度
+    uint32_t last_robot_data_time;          // 上次接收时间戳
+    bool robot_data_valid;                  // 数据有效性标志
 } CustomController_t;
 
 /* ----------------------- 函数声明 ----------------------------- */
@@ -90,5 +95,20 @@ void CustomController_UpdateMotorData(CustomController_t* controller);
  * @param controller 控制器实例
  */
 void CustomController_SendAllData(CustomController_t* controller);
+
+/**
+ * @brief 接收并解析机器人发送的机械臂电机数据
+ * @param controller 控制器实例
+ * @note 在CustomControllerTask中调用，解析CMD_ID 0x0309的数据包
+ */
+void CustomController_ReceiveRobotData(CustomController_t* controller);
+
+/**
+ * @brief 获取机器人发送的指定关节角度
+ * @param controller 控制器实例
+ * @param joint_index 关节索引 (0-4)
+ * @return float 关节角度(单位:度)，数据无效时返回0
+ */
+float CustomController_GetRobotArmAngle(const CustomController_t* controller, uint8_t joint_index);
 
 #endif // CUSTOM_CONTROLLER_H

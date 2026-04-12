@@ -6,6 +6,7 @@
 #include "string.h"
 #include <math.h>
 #include <stdbool.h>
+#include "protocol.h"  // 用于custom_controller_protocol_pack和CMD_ID_ROBOT_TO_CUSTOM
 
 #define SELF_CONTROL_FRAME_SIZE 39u // 接收缓冲区大小
 #define ROBOT_INTERACTIVE_DATA_CMD_ID 0x0302
@@ -265,4 +266,38 @@ SelfC *SelfControlInit(UART_HandleTypeDef *usart_handle)
     self_control.usart_instance = USARTRegister(&conf);
 
     return &self_control;
+}
+
+/**
+ * @brief 发送机械臂电机数据给自定义控制器
+ */
+void SelfControl_SendMotorDataToCustom(const float motor_angles[5], USARTInstance* usart_instance)
+{
+    if (motor_angles == NULL || usart_instance == NULL) {
+        return;
+    }
+    
+    // 构造数据包
+    uint8_t data_buffer[21] = {0};  // 1字节类型 + 5个float(20字节) = 21字节
+    
+    // 数据包类型标识
+    data_buffer[0] = 0x30;  // 机器人->自定义控制器标识
+    
+    // 填充5个电机角度值(小端格式)
+    for (int i = 0; i < 5; i++) {
+        uint8_t* angle_bytes = (uint8_t*)&motor_angles[i];
+        memcpy(&data_buffer[1 + i * 4], angle_bytes, 4);
+    }
+    
+    // 使用协议打包函数
+    uint16_t packed_length = 0;
+    uint8_t* packed_data = custom_controller_protocol_pack(CMD_ID_ROBOT_TO_CUSTOM, 
+                                                           data_buffer, 
+                                                           21, 
+                                                           &packed_length);
+    
+    // 通过USART发送
+    if (packed_data != NULL && packed_length > 0) {
+        USARTSend(usart_instance, packed_data, packed_length, USART_TRANSFER_DMA);
+    }
 }

@@ -11,7 +11,6 @@
 #include "stdlib.h"
 #include "string.h"
 #include "user_lib.h"
-#include "robot_to_custom_controller.h"  // 机器人->自定义控制器通信
 
 /* Private define ------------------------------------------------------------*/
 // 0.3s消抖阈值 (基于2ms的任务周期: 300ms / 2ms = 150)
@@ -628,7 +627,7 @@ static void SendArmMotorDataTask(void)
     // 复用裁判系统的USART1实例发送
     USARTInstance* usart1_instance = GetRefereeUsartInstance();
     if (usart1_instance != NULL) {
-        RobotToCustomController_SendMotorData(motor_angles, usart1_instance);
+        SelfControl_SendMotorDataToCustom(motor_angles, usart1_instance);
     }
     
     // 更新发送时间戳
