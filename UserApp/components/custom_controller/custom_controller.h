@@ -97,13 +97,6 @@ void CustomController_UpdateMotorData(CustomController_t* controller);
 void CustomController_SendAllData(CustomController_t* controller);
 
 /**
- * @brief 接收并解析机器人发送的机械臂电机数据
- * @param controller 控制器实例
- * @note 在CustomControllerTask中调用，解析CMD_ID 0x0309的数据包
- */
-void CustomController_ReceiveRobotData(CustomController_t* controller);
-
-/**
  * @brief 获取机器人发送的指定关节角度
  * @param controller 控制器实例
  * @param joint_index 关节索引 (0-4)

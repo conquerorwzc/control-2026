@@ -7,6 +7,9 @@
 // USART实例声明
 static USARTInstance* custom_controller_usart = NULL;
 
+// 全局控制器实例指针（供回调函数使用）
+static CustomController_t* g_custom_controller = NULL;
+
 // 接收缓冲区大小（DMA缓冲区）
 #define CC_DMA_BUF_SIZE 39u
 
@@ -27,6 +30,7 @@ static float DM_RadianToDegree(float radian);
 static void CalibrateMotorZeroPosition(CustomController_t* controller);
 static bool CheckMotorOnlineStatus(CustomController_t* controller);
 static void MicroSwitchMonitor(CustomController_t* controller);
+static void CustomController_RxCallback(USARTInstance* inst);
 /* ----------------------- 公共函数实现 ----------------------------- */
 
 /**
@@ -91,7 +95,7 @@ CustomController_t* CustomControllerInit(CustomController_Init_Config_s* init_co
         usart_config.recv_buff_size = CC_DMA_BUF_SIZE;  // 39字节，刚好容纳一帧
         extern UART_HandleTypeDef huart1;  // 声明外部USART1句柄
         usart_config.usart_handle = &huart1;
-        usart_config.module_callback = NULL;  // 不使用回调，在Task中轮询
+        usart_config.module_callback = CustomController_RxCallback;  // 注册接收回调
         custom_controller_usart = USARTRegister(&usart_config);
     }
     controller->usart_instance = custom_controller_usart;
@@ -129,9 +133,6 @@ void CustomControllerTask(CustomController_t* controller)
     if (controller == NULL || !controller->is_initialized) {
         return;
     }
-    
-    // 接收并解析机器人发送的机械臂数据
-    CustomController_ReceiveRobotData(controller);
     
     // 检测电机在线状态变化，触发重新校准
     bool need_recalibration = CheckMotorOnlineStatus(controller);
@@ -263,16 +264,124 @@ void CustomController_UpdateMotorData(CustomController_t* controller)
 
 /**
  * @brief USART接收回调函数
- * @param inst USART实例
- * @note 由BSP层在接收到数据时调用
+ * @note 由BSP层在DMA IDLE中断时自动调用
  */
 static void CustomController_RxCallback(USARTInstance* inst)
 {
-    // 获取全局控制器实例
-    extern CustomController_t* g_custom_controller;
+    if (inst == NULL || g_custom_controller == NULL) {
+        return;
+    }
     
-    if (g_custom_controller != NULL && inst != NULL) {
-        CustomController_ReceiveRobotData(g_custom_controller);
+    CustomController_t* controller = g_custom_controller;
+    
+    // 1. 推断本次实际接收长度
+    uint16_t buf_size = (uint16_t)inst->recv_buff_size;
+    uint16_t remain = (uint16_t)__HAL_DMA_GET_COUNTER(inst->usart_handle->hdmarx);
+    if (remain > buf_size) {
+        return;  // DMA计数器异常
+    }
+    uint16_t rx_len = (uint16_t)(buf_size - remain);
+    
+    if (rx_len == 0) {
+        return;  // 没有新数据
+    }
+    
+    // 2. 将新数据追加到流式缓存（处理粘包/拆包）
+    uint8_t* rx_data = inst->recv_buff;
+    
+    // 如果新数据超过缓存大小，只保留最新的部分
+    if (rx_len >= CC_CACHE_SIZE) {
+        rx_data += (rx_len - CC_CACHE_SIZE);
+        rx_len = CC_CACHE_SIZE;
+        cc_cache_len = 0;
+    }
+    // 如果缓存+新数据会溢出，丢弃最老的数据
+    else if ((uint32_t)cc_cache_len + rx_len > CC_CACHE_SIZE) {
+        uint16_t drop = (uint16_t)((uint32_t)cc_cache_len + rx_len - CC_CACHE_SIZE);
+        memmove(cc_cache, cc_cache + drop, cc_cache_len - drop);
+        cc_cache_len -= drop;
+    }
+    
+    // 追加新数据到缓存
+    memcpy(cc_cache + cc_cache_len, rx_data, rx_len);
+    cc_cache_len += rx_len;
+    
+    // 3. 尽可能多地解析完整帧
+    while (cc_cache_len >= 7) {  // 最小帧头5 + CMD_ID 2
+        // 3.1 找帧头 0xA5
+        uint16_t pos = 0;
+        while (pos < cc_cache_len && cc_cache[pos] != 0xA5) {
+            pos++;
+        }
+        
+        if (pos > 0) {
+            memmove(cc_cache, cc_cache + pos, cc_cache_len - pos);
+            cc_cache_len -= pos;
+            if (cc_cache_len < 7) {
+                break;
+            }
+        }
+        
+        // 3.2 CRC8 校验帧头
+        if (!verify_CRC8_check_sum(cc_cache, 5)) {
+            // 这个 0xA5 不是真帧头，丢 1 字节继续找
+            memmove(cc_cache, cc_cache + 1, cc_cache_len - 1);
+            cc_cache_len -= 1;
+            continue;
+        }
+        
+        // 3.3 读取CMD_ID
+        uint16_t cmd_id = (uint16_t)(cc_cache[5] | (cc_cache[6] << 8));
+        if (cmd_id != CMD_ID_ROBOT_TO_CUSTOM) {  // 0x0309
+            // 不是目标CMD_ID，丢弃这帧
+            memmove(cc_cache, cc_cache + 1, cc_cache_len - 1);
+            cc_cache_len -= 1;
+            continue;
+        }
+        
+        // 3.4 读取数据长度并计算整帧长度
+        uint16_t data_len = (uint16_t)(cc_cache[1] | (cc_cache[2] << 8));
+        if (data_len < 21) {  // 最小数据长度：1字节类型 + 20字节角度
+            memmove(cc_cache, cc_cache + 1, cc_cache_len - 1);
+            cc_cache_len -= 1;
+            continue;
+        }
+        
+        uint16_t frame_len = (uint16_t)(5 + 2 + data_len + 2);  // 帧头5 + CMD_ID 2 + 数据 + CRC16 2
+        if (cc_cache_len < frame_len) {
+            // 数据不够一帧，等下次再来
+            break;
+        }
+        
+        // 3.5 验证数据类型标识
+        uint8_t* data_ptr = &cc_cache[7];  // 数据区起始位置
+        if (data_ptr[0] != 0x30) {  // 机器人->控制器标识
+            memmove(cc_cache, cc_cache + 1, cc_cache_len - 1);
+            cc_cache_len -= 1;
+            continue;
+        }
+        
+        // 3.6 CRC16 校验整帧
+        if (!verify_CRC16_check_sum(cc_cache, frame_len)) {
+            memmove(cc_cache, cc_cache + 1, cc_cache_len - 1);
+            cc_cache_len -= 1;
+            continue;
+        }
+        
+        // 3.7 成功得到一帧完整数据：解析5个float角度值
+        float angles[5];
+        for (int i = 0; i < 5; i++) {
+            memcpy(&angles[i], &data_ptr[1 + i * 4], 4);
+        }
+        
+        // 3.8 存储数据
+        memcpy(controller->robot_arm_angles, angles, sizeof(angles));
+        controller->last_robot_data_time = HAL_GetTick();
+        controller->robot_data_valid = true;
+
+        // 3.9 移除本帧，继续解析下一帧（一次回调可能吐出多帧）
+        memmove(cc_cache, cc_cache + frame_len, cc_cache_len - frame_len);
+        cc_cache_len -= frame_len;
     }
 }
 
@@ -430,129 +539,6 @@ static bool CheckMotorOnlineStatus(CustomController_t* controller)
     }
     
     return need_recalibration;
-}
-
-/**
- * @brief 接收并解析机器人发送的机械臂电机数据
- */
-void CustomController_ReceiveRobotData(CustomController_t* controller)
-{
-    if (controller == NULL || !controller->is_initialized || controller->usart_instance == NULL) {
-        return;
-    }
-    
-    USARTInstance* usart = controller->usart_instance;
-    
-    // 通过 DMA 计数器推断本次实际接收字节数
-    uint16_t buf_size = (uint16_t)usart->recv_buff_size;
-    uint16_t remain = (uint16_t)__HAL_DMA_GET_COUNTER(usart->usart_handle->hdmarx);
-    if (remain > buf_size) {
-        return;  // DMA计数器异常
-    }
-    uint16_t rx_len = (uint16_t)(buf_size - remain);
-    
-    // 最小帧长度检查: 帧头5 + CMD_ID 2 + 数据21 + CRC16 2 = 30字节
-    if (rx_len < 30) {
-        return;
-    }
-    
-    // 将新数据追加到流式缓存（处理粘包/拆包）
-    uint8_t* rx_data = usart->recv_buff;
-    
-    // 1. 如果新数据超过缓存大小，只保留最新的部分
-    if (rx_len >= CC_CACHE_SIZE) {
-        rx_data += (rx_len - CC_CACHE_SIZE);
-        rx_len = CC_CACHE_SIZE;
-        cc_cache_len = 0;
-    }
-    // 2. 如果缓存+新数据会溢出，丢弃最老的数据
-    else if ((uint32_t)cc_cache_len + rx_len > CC_CACHE_SIZE) {
-        uint16_t drop = (uint16_t)((uint32_t)cc_cache_len + rx_len - CC_CACHE_SIZE);
-        memmove(cc_cache, cc_cache + drop, cc_cache_len - drop);
-        cc_cache_len -= drop;
-    }
-    
-    // 3. 追加新数据到缓存
-    memcpy(cc_cache + cc_cache_len, rx_data, rx_len);
-    cc_cache_len += rx_len;
-    
-    // 4. 尽可能多地解析完整帧
-    while (cc_cache_len >= 7) {  // 最小帧头5 + CMD_ID 2
-        // 4.1 找帧头 0xA5
-        uint16_t pos = 0;
-        while (pos < cc_cache_len && cc_cache[pos] != 0xA5) {
-            pos++;
-        }
-        
-        if (pos > 0) {
-            memmove(cc_cache, cc_cache + pos, cc_cache_len - pos);
-            cc_cache_len -= pos;
-            if (cc_cache_len < 7) {
-                break;
-            }
-        }
-        
-        // 4.2 CRC8 校验帧头
-        if (!verify_CRC8_check_sum(cc_cache, 5)) {
-            // 这个 0xA5 不是真帧头，丢 1 字节继续找
-            memmove(cc_cache, cc_cache + 1, cc_cache_len - 1);
-            cc_cache_len -= 1;
-            continue;
-        }
-        
-        // 4.3 读取CMD_ID
-        uint16_t cmd_id = (uint16_t)(cc_cache[5] | (cc_cache[6] << 8));
-        if (cmd_id != CMD_ID_ROBOT_TO_CUSTOM) {  // 0x0309
-            // 不是目标CMD_ID，丢弃这帧
-            memmove(cc_cache, cc_cache + 1, cc_cache_len - 1);
-            cc_cache_len -= 1;
-            continue;
-        }
-        
-        // 4.4 读取数据长度并计算整帧长度
-        uint16_t data_len = (uint16_t)(cc_cache[1] | (cc_cache[2] << 8));
-        if (data_len < 21) {  // 最小数据长度：1字节类型 + 20字节角度
-            memmove(cc_cache, cc_cache + 1, cc_cache_len - 1);
-            cc_cache_len -= 1;
-            continue;
-        }
-        
-        uint16_t frame_len = (uint16_t)(5 + 2 + data_len + 2);  // 帧头5 + CMD_ID 2 + 数据 + CRC16 2
-        if (cc_cache_len < frame_len) {
-            // 数据不够一帧，等下次再来
-            break;
-        }
-        
-        // 4.5 验证数据类型标识
-        uint8_t* data_ptr = &cc_cache[7];  // 数据区起始位置
-        if (data_ptr[0] != 0x30) {  // 机器人->控制器标识
-            memmove(cc_cache, cc_cache + 1, cc_cache_len - 1);
-            cc_cache_len -= 1;
-            continue;
-        }
-        
-        // 4.6 CRC16 校验整帧
-        if (!verify_CRC16_check_sum(cc_cache, frame_len)) {
-            memmove(cc_cache, cc_cache + 1, cc_cache_len - 1);
-            cc_cache_len -= 1;
-            continue;
-        }
-        
-        // 4.7 成功得到一帧完整数据：解析5个float角度值
-        float angles[5];
-        for (int i = 0; i < 5; i++) {
-            memcpy(&angles[i], &data_ptr[1 + i * 4], 4);
-        }
-        
-        // 4.8 存储数据
-        memcpy(controller->robot_arm_angles, angles, sizeof(angles));
-        controller->last_robot_data_time = HAL_GetTick();
-        controller->robot_data_valid = true;
-        
-        // 4.9 移除本帧，继续解析下一帧（一次回调可能吐出多帧）
-        memmove(cc_cache, cc_cache + frame_len, cc_cache_len - frame_len);
-        cc_cache_len -= frame_len;
-    }
 }
 
 /**
