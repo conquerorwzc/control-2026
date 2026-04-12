@@ -83,13 +83,13 @@ static void CalcOffsetAngle() {
 static void RemoteControlSet() {
   if (switch_is_down(rc_data[TEMP].rc.switch_right)) {
 
-    chassis_ctrl_cmd->leg_mode = LEG_NORMAL;
+    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_DOWN;
   } else if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
-    chassis_ctrl_cmd->leg_mode = LEG_NORMAL;
+    chassis_ctrl_cmd->leg_mode = LEG_HOLD;
 
   } else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
 
-    chassis_ctrl_cmd->leg_mode = LEG_NORMAL;
+    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_UP;
 
   }
 
@@ -432,7 +432,7 @@ static void EmergencyHandler() {
   // 两switch都在下断电
   if ( switch_is_down(rc_data[TEMP].rc.switch_left)||!RemoteControlIsOnline())  // 全部失能
   {
-    robot->robot_mode = ROBOT_POWER_ON;
+    robot->robot_mode = ROBOT_POWER_OFF;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
     chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
     shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;

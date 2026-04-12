@@ -37,6 +37,10 @@
 #define DM_T_MIN_J4340 (-28.0f)
 #define DM_T_MAX_J4340 28.0f
 
+#define DM_KP_MIN 0.0f
+#define DM_KP_MAX 500.0f
+#define DM_KD_MIN 0.0f
+#define DM_KD_MAX 5.0f
 typedef struct {
   uint8_t id;
   uint8_t state;
@@ -70,6 +74,15 @@ typedef struct {
   DaemonInstance* daemon;
   uint32_t feed_cnt;
   float dt;
+  // ===========================================
+  // 新增：MIT 模式专用的浮点数缓存
+  // ===========================================
+  uint8_t is_mit_mode;  // 是否开启 MIT 模式
+  float mit_pos;        // 目标位置
+  float mit_vel;        // 目标速度
+  float mit_kp;         // 位置刚度
+  float mit_kd;         // 速度刚度
+  float mit_torq;       // 前馈扭矩
 } DMMotorInstance;
 
 typedef enum {
@@ -96,4 +109,5 @@ void DMMotorSetPIDRef(DMMotorInstance* motor, float pid_ref);
 void DMMotorTask(void const* argument);
 
 void DMMotorTaskInit();
+void DMMotorSetMITRef(DMMotorInstance* motor, float pos, float vel, float kp, float kd, float torq);
 #endif  // !DMMOTOR

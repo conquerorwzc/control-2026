@@ -24,7 +24,14 @@ static float uint_to_float(int x_int, float x_min, float x_max, int bits) {
   float offset = x_min;
   return ((float)x_int) * span / ((float)((1 << bits) - 1)) + offset;
 }
-
+void DMMotorSetMITRef(DMMotorInstance* motor, float pos, float vel, float kp, float kd, float torq) {
+  motor->mit_pos = pos;
+  motor->mit_vel = vel;
+  motor->mit_kp = kp;
+  motor->mit_kd = kd;
+  motor->mit_torq = torq;
+  motor->is_mit_mode = 1; // 标记启用了 MIT 模式
+}
 static void DMMotorSetMode(DMMotor_Mode_e cmd, DMMotorInstance* motor) {
   memset(motor->motor_can_instance->tx_buff, 0xff, 7);   // 发送电机指令的时候前面7bytes都是0xff
   motor->motor_can_instance->tx_buff[7] = (uint8_t)cmd;  // 最后一位是命令id
@@ -217,73 +224,145 @@ void DMMotorSetPIDRef(DMMotorInstance* motor, float ref) {
   motor->motor_controller.final_output = pid_ref;
 }
 
-//@Todo: 目前只实现了力控，更多位控PID等请自行添加
+// ==========================================================
+// 完整重写的 DMMotorTask 核心发送线程
+// ==========================================================
 __attribute__((noreturn)) void DMMotorTask(void const* argument) {
-  float set;
   DMMotorInstance* motor = (DMMotorInstance*)argument;
   Motor_Control_Setting_s* setting = &motor->motor_settings;
   DM_Motor_Send_s motor_send_mailbox;
 
   while (1) {
-    set = motor->motor_controller.final_output;
+    float pos_set = 0.0f, vel_set = 0.0f, kp_set = 0.0f, kd_set = 0.0f, torq_set = 0.0f;
 
-        if (setting->motor_reverse_flag == MOTOR_DIRECTION_REVERSE)
-            set *= -1;
-        switch (motor->motor_type)
-        {
+    // 1. 获取目标设定值 (从 MIT 缓存 或 纯扭矩缓存 中读取)
+    if (motor->is_mit_mode) {
+        pos_set  = motor->mit_pos;
+        vel_set  = motor->mit_vel;
+        kp_set   = motor->mit_kp;
+        kd_set   = motor->mit_kd;
+        torq_set = motor->mit_torq;
+    } else {
+        // 兼容原有的纯扭矩模式 (Kp, Kd, 位置, 速度均保持为0)
+        torq_set = motor->motor_controller.final_output;
+    }
+
+    // 2. 电机反向逻辑处理 (Kp 和 Kd 属于绝对刚度，不翻转符号)
+    if (setting->motor_reverse_flag == MOTOR_DIRECTION_REVERSE) {
+        pos_set  *= -1.0f;
+        vel_set  *= -1.0f;
+        torq_set *= -1.0f;
+    }
+
+    // 3. 限幅与转换为报文整数 (uint)
+    switch (motor->motor_type) {
         case J4310:
-            LIMIT_MIN_MAX(set, DM_T_MIN_J4310, DM_T_MAX_J4310);
-            motor_send_mailbox.position_des = float_to_uint(0, DM_P_MIN_J4310, DM_P_MAX_J4310, 16);
-            motor_send_mailbox.velocity_des = float_to_uint(0, DM_V_MIN_J4310, DM_V_MAX_J4310, 12);
-            motor_send_mailbox.torque_des = float_to_uint(set, DM_T_MIN_J4310, DM_T_MAX_J4310, 12);
-            if (motor->stop_flag == MOTOR_STOP)
-                motor_send_mailbox.torque_des = float_to_uint(0, DM_T_MIN_J4310, DM_T_MAX_J4310, 12);
+            LIMIT_MIN_MAX(pos_set,  DM_P_MIN_J4310, DM_P_MAX_J4310);
+            LIMIT_MIN_MAX(vel_set,  DM_V_MIN_J4310, DM_V_MAX_J4310);
+            LIMIT_MIN_MAX(torq_set, DM_T_MIN_J4310, DM_T_MAX_J4310);
+            LIMIT_MIN_MAX(kp_set,   DM_KP_MIN, DM_KP_MAX);
+            LIMIT_MIN_MAX(kd_set,   DM_KD_MIN, DM_KD_MAX);
+
+            motor_send_mailbox.position_des = float_to_uint(pos_set,  DM_P_MIN_J4310, DM_P_MAX_J4310, 16);
+            motor_send_mailbox.velocity_des = float_to_uint(vel_set,  DM_V_MIN_J4310, DM_V_MAX_J4310, 12);
+            motor_send_mailbox.torque_des   = float_to_uint(torq_set, DM_T_MIN_J4310, DM_T_MAX_J4310, 12);
+            motor_send_mailbox.Kp           = float_to_uint(kp_set,   DM_KP_MIN, DM_KP_MAX, 12);
+            motor_send_mailbox.Kd           = float_to_uint(kd_set,   DM_KD_MIN, DM_KD_MAX, 12);
+
+            // 急停模式下强制软化并卸力
+            if (motor->stop_flag == MOTOR_STOP) {
+                motor_send_mailbox.torque_des = float_to_uint(0.0f, DM_T_MIN_J4310, DM_T_MAX_J4310, 12);
+                motor_send_mailbox.Kp         = float_to_uint(0.0f, DM_KP_MIN, DM_KP_MAX, 12);
+                motor_send_mailbox.Kd         = float_to_uint(0.0f, DM_KD_MIN, DM_KD_MAX, 12);
+            }
             break;
+
         case H6215:
-            LIMIT_MIN_MAX(set, DM_T_MIN_H6215, DM_T_MAX_H6215);
-            motor_send_mailbox.position_des = float_to_uint(0, DM_P_MIN_H6215, DM_P_MAX_H6215, 16);
-            motor_send_mailbox.velocity_des = float_to_uint(0, DM_V_MIN_H6215, DM_V_MAX_H6215, 12);
-            motor_send_mailbox.torque_des = float_to_uint(set, DM_T_MIN_H6215, DM_T_MAX_H6215, 12);
-            if (motor->stop_flag == MOTOR_STOP)
-                motor_send_mailbox.torque_des = float_to_uint(0, DM_T_MIN_H6215, DM_T_MAX_H6215, 12);
+            LIMIT_MIN_MAX(pos_set,  DM_P_MIN_H6215, DM_P_MAX_H6215);
+            LIMIT_MIN_MAX(vel_set,  DM_V_MIN_H6215, DM_V_MAX_H6215);
+            LIMIT_MIN_MAX(torq_set, DM_T_MIN_H6215, DM_T_MAX_H6215);
+            LIMIT_MIN_MAX(kp_set,   DM_KP_MIN, DM_KP_MAX);
+            LIMIT_MIN_MAX(kd_set,   DM_KD_MIN, DM_KD_MAX);
+
+            motor_send_mailbox.position_des = float_to_uint(pos_set,  DM_P_MIN_H6215, DM_P_MAX_H6215, 16);
+            motor_send_mailbox.velocity_des = float_to_uint(vel_set,  DM_V_MIN_H6215, DM_V_MAX_H6215, 12);
+            motor_send_mailbox.torque_des   = float_to_uint(torq_set, DM_T_MIN_H6215, DM_T_MAX_H6215, 12);
+            motor_send_mailbox.Kp           = float_to_uint(kp_set,   DM_KP_MIN, DM_KP_MAX, 12);
+            motor_send_mailbox.Kd           = float_to_uint(kd_set,   DM_KD_MIN, DM_KD_MAX, 12);
+
+            if (motor->stop_flag == MOTOR_STOP) {
+                motor_send_mailbox.torque_des = float_to_uint(0.0f, DM_T_MIN_H6215, DM_T_MAX_H6215, 12);
+                motor_send_mailbox.Kp         = float_to_uint(0.0f, DM_KP_MIN, DM_KP_MAX, 12);
+                motor_send_mailbox.Kd         = float_to_uint(0.0f, DM_KD_MIN, DM_KD_MAX, 12);
+            }
             break;
+
         case J8009P:
-            LIMIT_MIN_MAX(set, DM_T_MIN_J8009P, DM_T_MAX_J8009P);
-            motor_send_mailbox.position_des = float_to_uint(0, DM_P_MIN_J8009P, DM_P_MAX_J8009P, 16);
-            motor_send_mailbox.velocity_des = float_to_uint(0, DM_V_MIN_J8009P, DM_V_MAX_J8009P, 12);
-            motor_send_mailbox.torque_des = float_to_uint(set, DM_T_MIN_J8009P, DM_T_MAX_J8009P, 12);
-            if (motor->stop_flag == MOTOR_STOP)
-                motor_send_mailbox.torque_des = float_to_uint(0, DM_T_MIN_J8009P, DM_T_MAX_J8009P, 12);
+            LIMIT_MIN_MAX(pos_set,  DM_P_MIN_J8009P, DM_P_MAX_J8009P);
+            LIMIT_MIN_MAX(vel_set,  DM_V_MIN_J8009P, DM_V_MAX_J8009P);
+            LIMIT_MIN_MAX(torq_set, DM_T_MIN_J8009P, DM_T_MAX_J8009P);
+            LIMIT_MIN_MAX(kp_set,   DM_KP_MIN, DM_KP_MAX);
+            LIMIT_MIN_MAX(kd_set,   DM_KD_MIN, DM_KD_MAX);
+
+            motor_send_mailbox.position_des = float_to_uint(pos_set,  DM_P_MIN_J8009P, DM_P_MAX_J8009P, 16);
+            motor_send_mailbox.velocity_des = float_to_uint(vel_set,  DM_V_MIN_J8009P, DM_V_MAX_J8009P, 12);
+            motor_send_mailbox.torque_des   = float_to_uint(torq_set, DM_T_MIN_J8009P, DM_T_MAX_J8009P, 12);
+            motor_send_mailbox.Kp           = float_to_uint(kp_set,   DM_KP_MIN, DM_KP_MAX, 12);
+            motor_send_mailbox.Kd           = float_to_uint(kd_set,   DM_KD_MIN, DM_KD_MAX, 12);
+
+            if (motor->stop_flag == MOTOR_STOP) {
+                motor_send_mailbox.torque_des = float_to_uint(0.0f, DM_T_MIN_J8009P, DM_T_MAX_J8009P, 12);
+                motor_send_mailbox.Kp         = float_to_uint(0.0f, DM_KP_MIN, DM_KP_MAX, 12);
+                motor_send_mailbox.Kd         = float_to_uint(0.0f, DM_KD_MIN, DM_KD_MAX, 12);
+            }
             break;
+
         case J4340:
-            LIMIT_MIN_MAX(set, DM_T_MIN_J4340, DM_T_MAX_J4340);
-            motor_send_mailbox.position_des = float_to_uint(0, DM_P_MIN_J4340, DM_P_MAX_J4340, 16);
-            motor_send_mailbox.velocity_des = float_to_uint(0, DM_V_MIN_J4340, DM_V_MAX_J4340, 12);
-            motor_send_mailbox.torque_des = float_to_uint(set, DM_T_MIN_J4340, DM_T_MAX_J4340, 12);
-            if (motor->stop_flag == MOTOR_STOP)
-                motor_send_mailbox.torque_des = float_to_uint(0, DM_T_MIN_J4340, DM_T_MAX_J4340, 12);
+            LIMIT_MIN_MAX(pos_set,  DM_P_MIN_J4340, DM_P_MAX_J4340);
+            LIMIT_MIN_MAX(vel_set,  DM_V_MIN_J4340, DM_V_MAX_J4340);
+            LIMIT_MIN_MAX(torq_set, DM_T_MIN_J4340, DM_T_MAX_J4340);
+            LIMIT_MIN_MAX(kp_set,   DM_KP_MIN, DM_KP_MAX);
+            LIMIT_MIN_MAX(kd_set,   DM_KD_MIN, DM_KD_MAX);
+
+            motor_send_mailbox.position_des = float_to_uint(pos_set,  DM_P_MIN_J4340, DM_P_MAX_J4340, 16);
+            motor_send_mailbox.velocity_des = float_to_uint(vel_set,  DM_V_MIN_J4340, DM_V_MAX_J4340, 12);
+            motor_send_mailbox.torque_des   = float_to_uint(torq_set, DM_T_MIN_J4340, DM_T_MAX_J4340, 12);
+            motor_send_mailbox.Kp           = float_to_uint(kp_set,   DM_KP_MIN, DM_KP_MAX, 12);
+            motor_send_mailbox.Kd           = float_to_uint(kd_set,   DM_KD_MIN, DM_KD_MAX, 12);
+
+            if (motor->stop_flag == MOTOR_STOP) {
+                motor_send_mailbox.torque_des = float_to_uint(0.0f, DM_T_MIN_J4340, DM_T_MAX_J4340, 12);
+                motor_send_mailbox.Kp         = float_to_uint(0.0f, DM_KP_MIN, DM_KP_MAX, 12);
+                motor_send_mailbox.Kd         = float_to_uint(0.0f, DM_KD_MIN, DM_KD_MAX, 12);
+            }
             break;
+
         default:
             break;
-        }
-        motor_send_mailbox.Kp = 0;
-        motor_send_mailbox.Kd = 0;
+    }
 
+    // 4. 将打包好的数据严格按照达妙 MIT 协议装填进 CAN 数据帧
+    // MIT 协议帧格式：位置(16bit) + 速度(12bit) + Kp(12bit) + Kd(12bit) + 扭矩(12bit) = 64bit (8Bytes)
     motor->motor_can_instance->tx_buff[0] = (uint8_t)(motor_send_mailbox.position_des >> 8);
     motor->motor_can_instance->tx_buff[1] = (uint8_t)(motor_send_mailbox.position_des);
+
     motor->motor_can_instance->tx_buff[2] = (uint8_t)(motor_send_mailbox.velocity_des >> 4);
-    motor->motor_can_instance->tx_buff[3] =
-        (uint8_t)(((motor_send_mailbox.velocity_des & 0xF) << 4) | (motor_send_mailbox.Kp >> 8));
+    motor->motor_can_instance->tx_buff[3] = (uint8_t)(((motor_send_mailbox.velocity_des & 0x0F) << 4) | (motor_send_mailbox.Kp >> 8));
+
     motor->motor_can_instance->tx_buff[4] = (uint8_t)(motor_send_mailbox.Kp);
+
     motor->motor_can_instance->tx_buff[5] = (uint8_t)(motor_send_mailbox.Kd >> 4);
-    motor->motor_can_instance->tx_buff[6] =
-        (uint8_t)(((motor_send_mailbox.Kd & 0xF) << 4) | (motor_send_mailbox.torque_des >> 8));
+    motor->motor_can_instance->tx_buff[6] = (uint8_t)(((motor_send_mailbox.Kd & 0x0F) << 4) | (motor_send_mailbox.torque_des >> 8));
+
     motor->motor_can_instance->tx_buff[7] = (uint8_t)(motor_send_mailbox.torque_des);
+
+    // 5. 触发 CAN 发送
     CANTransmit(motor->motor_can_instance, 1);
+
+    // 线程挂起 1ms (1000Hz 发送频率)
     osDelay(1);
   }
 }
-
 void DMMotorTaskInit() {
   char dm_task_name[5] = "dm";
   // 遍历所有电机实例,创建任务
