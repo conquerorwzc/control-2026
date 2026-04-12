@@ -341,7 +341,7 @@ static void CustomController_RxCallback(USARTInstance* inst)
         
         // 3.4 读取数据长度并计算整帧长度
         uint16_t data_len = (uint16_t)(cc_cache[1] | (cc_cache[2] << 8));
-        if (data_len < 21) {  // 最小数据长度：1字节类型 + 20字节角度
+        if (data_len < 22) {  // 最小数据长度：1字节类型 + 20字节角度 + 1字节模式
             memmove(cc_cache, cc_cache + 1, cc_cache_len - 1);
             cc_cache_len -= 1;
             continue;
@@ -376,10 +376,18 @@ static void CustomController_RxCallback(USARTInstance* inst)
         
         // 3.8 存储数据
         memcpy(controller->robot_arm_angles, angles, sizeof(angles));
+        
+        // 3.9 解析机械臂控制模式 (第22字节，索引21)
+        if (data_len >= 22) {
+            controller->robot_grab_mode = data_ptr[21];
+        } else {
+            controller->robot_grab_mode = 0;  // 默认值
+        }
+        
         controller->last_robot_data_time = HAL_GetTick();
         controller->robot_data_valid = true;
 
-        // 3.9 移除本帧，继续解析下一帧（一次回调可能吐出多帧）
+        // 3.10 移除本帧，继续解析下一帧（一次回调可能吐出多帧）
         memmove(cc_cache, cc_cache + frame_len, cc_cache_len - frame_len);
         cc_cache_len -= frame_len;
     }

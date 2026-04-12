@@ -10,7 +10,7 @@
 #include "motor_task.h"
 #include "custom_controller.h"
 
-// DM4310 电机配置
+// DM4310 电机配置 - 力矩控制模式
 static Motor_Init_Config_s DM4310_config_1 = {
     .controller_param_init_config =
         {
@@ -31,8 +31,8 @@ static Motor_Init_Config_s DM4310_config_1 = {
         {
             .angle_feedback_source = MOTOR_FEED,
             .speed_feedback_source = MOTOR_FEED,
-            .outer_loop_type = SPEED_LOOP,
-            .close_loop_type = SPEED_LOOP,
+            .outer_loop_type = OPEN_LOOP,      // 开环，直接输出力矩
+            .close_loop_type = OPEN_LOOP,       // 不使用闭环
         },
     .motor_type = J4310,
     .can_init_config.can_handle = &hcan1,
@@ -41,7 +41,7 @@ static Motor_Init_Config_s DM4310_config_1 = {
     .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
 };
 
-// 第二个 DM4310 电机配置
+// 第二个 DM4310 电机配置 - 力矩控制模式
 static Motor_Init_Config_s DM4310_config_2 = {
     .controller_param_init_config =
         {
@@ -62,8 +62,8 @@ static Motor_Init_Config_s DM4310_config_2 = {
         {
             .angle_feedback_source = MOTOR_FEED,
             .speed_feedback_source = MOTOR_FEED,
-            .outer_loop_type = SPEED_LOOP,
-            .close_loop_type = SPEED_LOOP,
+            .outer_loop_type = OPEN_LOOP,      // 开环，直接输出力矩
+            .close_loop_type = OPEN_LOOP,       // 不使用闭环
         },
     .motor_type = J4310,
     .can_init_config.can_handle = &hcan1,
@@ -72,7 +72,7 @@ static Motor_Init_Config_s DM4310_config_2 = {
     .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
 };
 
-// 第一个3508电机配置
+// 第一个3508电机配置 - 电流环控制模式
 static Motor_Init_Config_s M3508_config_1 = {
     .controller_param_init_config =
         {
@@ -88,13 +88,19 @@ static Motor_Init_Config_s M3508_config_1 = {
                           .IntegralLimit = 3000,
                           .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                           .MaxOut = 12000},
+            .current_PID = {.Kp = 1.0f,     // 电流环P参数，需要根据实际调试
+                            .Ki = 0.0f,
+                            .Kd = 0.0f,
+                            .IntegralLimit = 5000,
+                            .Improve = PID_Integral_Limit,
+                            .MaxOut = 15000},
         },
     .controller_setting_init_config =
         {
             .angle_feedback_source = MOTOR_FEED,
             .speed_feedback_source = MOTOR_FEED,
-            .outer_loop_type = SPEED_LOOP,
-            .close_loop_type = SPEED_LOOP,
+            .outer_loop_type = OPEN_LOOP,      // 开环，直接设置电流
+            .close_loop_type = CURRENT_LOOP,    // 只启用电流环
             .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
             .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
         },
@@ -103,7 +109,7 @@ static Motor_Init_Config_s M3508_config_1 = {
     .can_init_config.tx_id = 1,
 };
 
-// 第二个3508电机配置
+// 第二个3508电机配置 - 电流环控制模式
 static Motor_Init_Config_s M3508_config_2 = {
     .controller_param_init_config =
         {
@@ -119,13 +125,19 @@ static Motor_Init_Config_s M3508_config_2 = {
                           .IntegralLimit = 3000,
                           .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                           .MaxOut = 12000},
+            .current_PID = {.Kp = 1.0f,     // 电流环P参数，需要根据实际调试
+                            .Ki = 0.0f,
+                            .Kd = 0.0f,
+                            .IntegralLimit = 5000,
+                            .Improve = PID_Integral_Limit,
+                            .MaxOut = 15000},
         },
     .controller_setting_init_config =
         {
             .angle_feedback_source = MOTOR_FEED,
             .speed_feedback_source = MOTOR_FEED,
-            .outer_loop_type = SPEED_LOOP,
-            .close_loop_type = SPEED_LOOP,
+            .outer_loop_type = OPEN_LOOP,      // 开环，直接设置电流
+            .close_loop_type = CURRENT_LOOP,    // 只启用电流环
             .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
             .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
         },
@@ -134,7 +146,7 @@ static Motor_Init_Config_s M3508_config_2 = {
     .can_init_config.tx_id = 2,
 };
 
-// 2006电机配置
+// 2006电机配置 - 电流环控制模式
 static Motor_Init_Config_s M2006_config = {
     .controller_param_init_config =
         {
@@ -150,13 +162,19 @@ static Motor_Init_Config_s M2006_config = {
                           .IntegralLimit = 3000,
                           .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                           .MaxOut = 12000},
+            .current_PID = {.Kp = 1.0f,     // 电流环P参数，需要根据实际调试
+                            .Ki = 0.0f,
+                            .Kd = 0.0f,
+                            .IntegralLimit = 5000,
+                            .Improve = PID_Integral_Limit,
+                            .MaxOut = 15000},
         },
     .controller_setting_init_config =
         {
             .angle_feedback_source = MOTOR_FEED,
             .speed_feedback_source = MOTOR_FEED,
-            .outer_loop_type = SPEED_LOOP,
-            .close_loop_type = SPEED_LOOP,
+            .outer_loop_type = OPEN_LOOP,      // 开环，直接设置电流
+            .close_loop_type = CURRENT_LOOP,    // 只启用电流环
             .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
             .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
         },

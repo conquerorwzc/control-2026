@@ -77,6 +77,6 @@ float SelfControlGetMotorAngle(const SelfC* controller, uint8_t motor_index);
  * @note 使用CMD_ID 0x0309, 数据格式: packet_type(1字节) + 5个float(20字节) = 21字节
  *       发送频率上限10Hz
  */
-void SelfControl_SendMotorDataToCustom(const float motor_angles[5], USARTInstance* usart_instance);
+void SelfControl_SendMotorDataToCustom(const float motor_angles[5], uint8_t grab_control_mode, USARTInstance* usart_instance);
 
 #endif  // CONTROL_2026_SELFCONTROL_H

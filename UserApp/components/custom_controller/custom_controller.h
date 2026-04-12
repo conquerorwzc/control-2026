@@ -56,6 +56,7 @@ typedef struct {
     
     // 接收机器人发送的机械臂数据
     float robot_arm_angles[5];              // 机器人发送的5个关节角度
+    uint8_t robot_grab_mode;                // 机器人机械臂控制模式 (0=键盘, 1=半自动, 2=自定义)
     uint32_t last_robot_data_time;          // 上次接收时间戳
     bool robot_data_valid;                  // 数据有效性标志
 } CustomController_t;
