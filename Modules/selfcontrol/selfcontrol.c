@@ -271,14 +271,16 @@ SelfC *SelfControlInit(UART_HandleTypeDef *usart_handle)
 /**
  * @brief 发送机械臂电机数据给自定义控制器
  */
-void SelfControl_SendMotorDataToCustom(const float motor_angles[5], USARTInstance* usart_instance)
+void SelfControl_SendMotorDataToCustom(const float motor_angles[5], 
+                                       uint8_t grab_control_mode,
+                                       USARTInstance* usart_instance)
 {
     if (motor_angles == NULL || usart_instance == NULL) {
         return;
     }
     
     // 构造数据包
-    uint8_t data_buffer[21] = {0};  // 1字节类型 + 5个float(20字节) = 21字节
+    uint8_t data_buffer[22] = {0};  // 1字节类型 + 5个float(20字节) + 1字节模式 = 22字节
     
     // 数据包类型标识
     data_buffer[0] = 0x30;  // 机器人->自定义控制器标识
@@ -288,12 +290,15 @@ void SelfControl_SendMotorDataToCustom(const float motor_angles[5], USARTInstanc
         uint8_t* angle_bytes = (uint8_t*)&motor_angles[i];
         memcpy(&data_buffer[1 + i * 4], angle_bytes, 4);
     }
-    
+
+    // 填充机械臂控制模式
+    data_buffer[21] = grab_control_mode;  // 0=键盘, 1=半自动, 2=自定义
+
     // 使用协议打包函数
     uint16_t packed_length = 0;
     uint8_t* packed_data = custom_controller_protocol_pack(CMD_ID_ROBOT_TO_CUSTOM, 
                                                            data_buffer, 
-                                                           21, 
+                                                           22,
                                                            &packed_length);
     
     // 通过USART发送

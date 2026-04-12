@@ -624,9 +624,12 @@ static void SendArmMotorDataTask(void)
         motor_angles[4] = robot->grab->actuator->wrist_roll;  // 腕部滚转
     }
     
+    // 获取当前机械臂控制模式并发送
+    uint8_t control_mode = (uint8_t)grab_control_mode;
+    
     // 使用selfcontrol的USART实例发送（UART7，921600波特率）
     if (robot->self_control != NULL && robot->self_control->usart_instance != NULL) {
-        SelfControl_SendMotorDataToCustom(motor_angles, robot->self_control->usart_instance);
+        SelfControl_SendMotorDataToCustom(motor_angles, control_mode, robot->self_control->usart_instance);
     }
     
     // 更新发送时间戳
