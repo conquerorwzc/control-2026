@@ -624,10 +624,9 @@ static void SendArmMotorDataTask(void)
         motor_angles[4] = robot->grab->actuator->wrist_roll;  // 腕部滚转
     }
     
-    // 复用裁判系统的USART1实例发送
-    USARTInstance* usart1_instance = GetRefereeUsartInstance();
-    if (usart1_instance != NULL) {
-        SelfControl_SendMotorDataToCustom(motor_angles, usart1_instance);
+    // 使用selfcontrol的USART实例发送（UART7，921600波特率）
+    if (robot->self_control != NULL && robot->self_control->usart_instance != NULL) {
+        SelfControl_SendMotorDataToCustom(motor_angles, robot->self_control->usart_instance);
     }
     
     // 更新发送时间戳

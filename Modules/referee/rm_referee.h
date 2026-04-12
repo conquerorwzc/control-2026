@@ -102,10 +102,5 @@ void RefereeSend(uint8_t *send, uint16_t tx_len);
  */
 referee_info_t* GetRefereeInfo(void);
 
-/**
- * @brief 获取裁判系统USART实例（供其他模块复用）
- * @return USARTInstance* 裁判系统USART实例指针
- */
-USARTInstance* GetRefereeUsartInstance(void);
 
 #endif // !REFEREE_H

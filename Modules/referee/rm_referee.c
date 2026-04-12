@@ -146,12 +146,6 @@ referee_info_t* GetRefereeInfo(void)
     return &referee_info;
 }
 
-// 获取裁判系统USART实例（供其他模块复用）
-USARTInstance* GetRefereeUsartInstance(void)
-{
-    return referee_usart_instance;
-}
-
 /**
  * @brief 裁判系统数据发送函数
  * @param
