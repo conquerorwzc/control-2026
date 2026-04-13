@@ -125,6 +125,7 @@ void RobotCMDTask()
     {
         Half_auto_update(grab_ctrl_cmd, chassis_ctrl_cmd, rc_data->mouse.press_l, rc_data_last->mouse.press_l,
                          rc_data->mouse.press_r, rc_data_last->mouse.press_r);
+
     }
     CalcOffsetAngle();
     RemoteControlSet();

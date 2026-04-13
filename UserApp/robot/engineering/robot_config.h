@@ -456,7 +456,7 @@ static Grab_Init_Config_s
                     .elbow_pitch_max = 97.143158f,
                     .elbow_pitch_min = -106.869514f,
                     .base_joint_max = 125.338615f,
-                    .base_joint_min = -20.0f,
+                    .base_joint_min = -28.0f,
                     .elbow_roll_max = 464.973602f,
                     .elbow_roll_min = -362.617554f,
                     .arm_lift_max = 420.0f,

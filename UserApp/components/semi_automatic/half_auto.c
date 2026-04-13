@@ -3,36 +3,59 @@
 void Half_auto_update(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd, uint8_t press_l,
                       uint8_t press_l_last, uint8_t press_r, uint8_t press_r_last)
 {
-    static int step = 0;
+    // 🌟 核心：定义两个互不干扰的步骤记录器
+    static int normal_step = 0; // 专属平地取/存矿的步数
+    static int climb_step = 0;  // 专属上台阶重心的步数
+
     static Half_Control_List half_control_list = Store_First_Energy_Unit;
 
-    // 👈 核心逻辑：如果是上台阶模式且开启了半自动，直接锁定在预备姿态
-    if (grab_ctrl_cmd->is_climb_mode) {
-        climb_step_prep(grab_ctrl_cmd, step);
+    // ========================================================
+    // 1. 上台阶专属控制域 (拦截所有常规操作)
+    // ========================================================
+    if (grab_ctrl_cmd->is_climb_mode)
+    {
+        if (press_l && !press_l_last)
+        {
+            climb_step++; // 左键只增加 climb_step
+        }
+
+        // 🚨 重点：上台阶状态下，不要去管 normal_step！
+        climb_step_prep(grab_ctrl_cmd, climb_step);
         return;
     }
 
-    if (press_r && !press_r_last) {
-        half_control_list = (half_control_list + 1) % 4; // 兑换模式下依然只循环前 4 个
-        step = 0;
+    // ========================================================
+    // 2. 常规取/存矿控制域 (退出上台阶后恢复)
+    // ========================================================
+    climb_step = 0; // 只要退出了爬楼模式，爬楼进度立刻清零，随时准备下次爬楼
+
+    // 右键切路线，并清零取矿步数
+    if (press_r && !press_r_last)
+    {
+        half_control_list = (half_control_list + 1) % 4;
+        normal_step = 0;
     }
 
-    if (press_l && !press_l_last) {
-        step++;
+    // 左键推进取矿进度
+    if (press_l && !press_l_last)
+    {
+        normal_step++;
     }
+
+    // 执行对应的常规半自动
     switch (half_control_list)
     {
     case Store_First_Energy_Unit:
-        store_first_energy_unit(grab_ctrl_cmd, step); // 注意：存矿如果你还没加底盘控制，就不用传 chassis_ctrl_cmd
+        store_first_energy_unit(grab_ctrl_cmd, normal_step);
         break;
     case Store_Second_Energy_Unit:
-        store_second_energy_unit(grab_ctrl_cmd, step);
+        store_second_energy_unit(grab_ctrl_cmd, normal_step);
         break;
     case Grab_Six_Oclock_Energy_Unit:
-        grab_six_oclock_energy_unit(grab_ctrl_cmd, chassis_ctrl_cmd, step);
+        grab_six_oclock_energy_unit(grab_ctrl_cmd, chassis_ctrl_cmd, normal_step);
         break;
-    case Grab_Four_Oclock_Energy_Unit: // 💥 新增的四点钟路由
-        grab_four_oclock_energy_unit(grab_ctrl_cmd, chassis_ctrl_cmd, step);
+    case Grab_Four_Oclock_Energy_Unit:
+        grab_four_oclock_energy_unit(grab_ctrl_cmd, chassis_ctrl_cmd, normal_step);
         break;
     default:
         break;
@@ -44,17 +67,141 @@ void Half_auto_update(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_Cmd_s *chassi
  */
 void climb_step_prep(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, uint8_t step)
 {
-    // 这里设置一个方便上台阶的姿态 (例如：大臂抬起，小臂收回)
-    // grab_ctrl_cmd->base_joint = 0.0f;     // 回正
-    // grab_ctrl_cmd->elbow_roll = 0.0f;    // 不旋转
-    // grab_ctrl_cmd->elbow_pitch = 60.0f;   // 抬高大臂
-    // grab_ctrl_cmd->wrist_pitch = -40.0f; // 腕部向下压，缩小体积
-    // grab_ctrl_cmd->wrist_roll = 0.0f;
-    // grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE; // 关夹爪
-    //
-    // // 配合之前的逻辑：上台阶模式非控制状态前伸锁 0
-    // grab_ctrl_cmd->arm_extend = 0.0f;
-    // grab_ctrl_cmd->arm_lift = 0.0f;
+    // 大臂抬升统一锁定在 0
+    grab_ctrl_cmd->arm_lift = 0.0f;
+
+    switch (step)
+    {
+    case 0:
+        grab_ctrl_cmd->base_joint = 0.00f;
+        grab_ctrl_cmd->elbow_roll = -7.40f;
+        grab_ctrl_cmd->elbow_pitch = -36.47f;
+        grab_ctrl_cmd->wrist_pitch = 31.73f;
+        grab_ctrl_cmd->wrist_roll = -0.18f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        grab_ctrl_cmd->arm_extend = 224.0f;
+        break;
+    case 1:
+        grab_ctrl_cmd->base_joint = 0.00f;
+        grab_ctrl_cmd->elbow_roll = 83.53f;
+        grab_ctrl_cmd->elbow_pitch = -9.85f;
+        grab_ctrl_cmd->wrist_pitch = 73.21f;
+        grab_ctrl_cmd->wrist_roll = 12.13f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        grab_ctrl_cmd->arm_extend = 224.0f;
+        break;
+    case 2:
+        grab_ctrl_cmd->base_joint = 0.00f;
+        grab_ctrl_cmd->elbow_roll = 89.17f;
+        grab_ctrl_cmd->elbow_pitch = 11.25f;
+        grab_ctrl_cmd->wrist_pitch = 61.30f;
+        grab_ctrl_cmd->wrist_roll = 11.78f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        grab_ctrl_cmd->arm_extend = 224.0f;
+        break;
+    case 3:
+        grab_ctrl_cmd->base_joint = 0.00f;
+        grab_ctrl_cmd->elbow_roll = 83.68f;
+        grab_ctrl_cmd->elbow_pitch = 28.99f;
+        grab_ctrl_cmd->wrist_pitch = 46.71f;
+        grab_ctrl_cmd->wrist_roll = -19.47f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        grab_ctrl_cmd->arm_extend = 224.0f;
+        break;
+    case 4:
+        grab_ctrl_cmd->base_joint = 0.00f;
+        grab_ctrl_cmd->elbow_roll = 83.55f;
+        grab_ctrl_cmd->elbow_pitch = 28.77f;
+        grab_ctrl_cmd->wrist_pitch = 38.50f;
+        grab_ctrl_cmd->wrist_roll = -27.64f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        grab_ctrl_cmd->arm_extend = 560.0f; // 🌟 开始伸手
+        break;
+    case 5:
+        grab_ctrl_cmd->base_joint = 0.00f;
+        grab_ctrl_cmd->elbow_roll = 84.12f;
+        grab_ctrl_cmd->elbow_pitch = 28.77f;
+        grab_ctrl_cmd->wrist_pitch = 37.62f;
+        grab_ctrl_cmd->wrist_roll = -27.73f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        grab_ctrl_cmd->arm_extend = 784.0f; // 🌟 伸到极限
+        break;
+    case 6:
+        grab_ctrl_cmd->base_joint = 0.00f;
+        grab_ctrl_cmd->elbow_roll = 84.18f;
+        grab_ctrl_cmd->elbow_pitch = 28.77f;
+        grab_ctrl_cmd->wrist_pitch = 38.32f;
+        grab_ctrl_cmd->wrist_roll = -28.12f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        grab_ctrl_cmd->arm_extend = 784.0f;
+        break;
+    case 7:
+        grab_ctrl_cmd->base_joint = 0.00f;
+        grab_ctrl_cmd->elbow_roll = 86.06f;
+        grab_ctrl_cmd->elbow_pitch = 45.93f;
+        grab_ctrl_cmd->wrist_pitch = 51.28f;
+        grab_ctrl_cmd->wrist_roll = -26.50f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        grab_ctrl_cmd->arm_extend = 784.0f;
+        break;
+    case 8:
+        grab_ctrl_cmd->base_joint = 0.00f;
+        grab_ctrl_cmd->elbow_roll = 76.71f;
+        grab_ctrl_cmd->elbow_pitch = 57.91f;
+        grab_ctrl_cmd->wrist_pitch = 45.75f;
+        grab_ctrl_cmd->wrist_roll = -48.12f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        grab_ctrl_cmd->arm_extend = 784.0f;
+        break;
+    case 9:
+        grab_ctrl_cmd->base_joint = 0.00f;
+        grab_ctrl_cmd->elbow_roll = 83.55f;
+        grab_ctrl_cmd->elbow_pitch = 69.69f;
+        grab_ctrl_cmd->wrist_pitch = 48.78f;
+        grab_ctrl_cmd->wrist_roll = -40.03f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        grab_ctrl_cmd->arm_extend = 784.0f;
+        break;
+    case 10:
+        grab_ctrl_cmd->base_joint = -19.82f; // 🌟 云台开始转向
+        grab_ctrl_cmd->elbow_roll = 87.13f;
+        grab_ctrl_cmd->elbow_pitch = 51.22f;
+        grab_ctrl_cmd->wrist_pitch = -13.23f;
+        grab_ctrl_cmd->wrist_roll = -1.49f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        grab_ctrl_cmd->arm_extend = 784.0f;
+        break;
+    case 11:
+        grab_ctrl_cmd->base_joint = -17.58f;
+        grab_ctrl_cmd->elbow_roll = 91.66f;
+        grab_ctrl_cmd->elbow_pitch = 49.74f;
+        grab_ctrl_cmd->wrist_pitch = 33.57f;
+        grab_ctrl_cmd->wrist_roll = -48.65f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        grab_ctrl_cmd->arm_extend = 784.0f;
+        break;
+    case 12:
+        grab_ctrl_cmd->base_joint = -25.58f;
+        grab_ctrl_cmd->elbow_roll = 85.65f;
+        grab_ctrl_cmd->elbow_pitch = 51.90f;
+        grab_ctrl_cmd->wrist_pitch = 57.74f;
+        grab_ctrl_cmd->wrist_roll = -53.70f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        grab_ctrl_cmd->arm_extend = 784.0f;
+        break;
+    case 13:
+        grab_ctrl_cmd->base_joint = -32.04f;
+        grab_ctrl_cmd->elbow_roll = 85.62f;
+        grab_ctrl_cmd->elbow_pitch = 44.38f;
+        grab_ctrl_cmd->wrist_pitch = 60.64f;
+        grab_ctrl_cmd->wrist_roll = -54.45f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        grab_ctrl_cmd->arm_extend = 784.0f;
+        break;
+    default:
+        // 保持最后姿态
+        break;
+    }
 }
 
 // ========================================================
