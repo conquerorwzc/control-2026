@@ -1,53 +1,26 @@
 /**
-******************************************************************************
-* @file    robot_config.h
-* @brief   robot配置模块实现文件，用于集中管理机器人配置与参数
-******************************************************************************
-*/
-#pragma once
+ ******************************************************************************
+ * @file    robot_config.h
+ * @brief   自定义控制器机器人配置文件
+ ******************************************************************************
+ */
+#ifndef ROBOT_CONFIG_H
+#define ROBOT_CONFIG_H
 
-#include "motor_def.h"
-#include "robot.h"
+#include "motor_task.h"
+#include "custom_controller.h"
 
-static Motor_Init_Config_s J8009P_config = {
+// DM4310 电机配置 - 力矩控制模式
+static Motor_Init_Config_s DM4310_config_1 = {
     .controller_param_init_config =
         {
-            .angle_PID = {.Kp = 20.0f,
+            .angle_PID = {.Kp = 0.0f,
                           .Ki = 0.0f,
                           .Kd = 0.0f,
                           .IntegralLimit = 5.0f,
                           .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                           .MaxOut = 20.0f},
-            .speed_PID = {.Kp = 5.0f,
-                          .Ki = 0.0f,
-                          .Kd = 0.05f,
-                          .IntegralLimit = 5.0f,
-                          .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                          .MaxOut = 20.0f},
-        },
-    .controller_setting_init_config =
-        {
-            .angle_feedback_source = MOTOR_FEED,
-            .speed_feedback_source = MOTOR_FEED,
-            .outer_loop_type = SPEED_LOOP,
-            .close_loop_type = SPEED_LOOP,
-        },
-    .motor_type = J8009P,
-    .can_init_config.can_handle = &hcan1,
-    .can_init_config.tx_id = 1,
-    .can_init_config.rx_id = 0,
-    .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
-};
-
-static Motor_Init_Config_s M3508_config = {
-    .controller_param_init_config =
-        {
-            .angle_PID = {.Kp = 10.0f,
-                          .Ki = 0.0f,
-                          .Kd = 0.0f,
-                          .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                          .MaxOut = 2000.0f},
-            .speed_PID = {.Kp = 4.0f,
+            .speed_PID = {.Kp = 0.0f,
                           .Ki = 0.0f,
                           .Kd = 0.0f,
                           .IntegralLimit = 3000,
@@ -58,147 +31,159 @@ static Motor_Init_Config_s M3508_config = {
         {
             .angle_feedback_source = MOTOR_FEED,
             .speed_feedback_source = MOTOR_FEED,
-            .outer_loop_type = ANGLE_LOOP,
-            .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
+            .outer_loop_type = OPEN_LOOP,      // 开环，直接输出力矩
+            .close_loop_type = OPEN_LOOP,       // 不使用闭环
+        },
+    .motor_type = J4310,
+    .can_init_config.can_handle = &hcan1,
+    .can_init_config.tx_id = 0x01,
+    .can_init_config.rx_id = 0x11,
+    .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+};
+
+// 第二个 DM4310 电机配置 - 力矩控制模式
+static Motor_Init_Config_s DM4310_config_2 = {
+    .controller_param_init_config =
+        {
+            .angle_PID = {.Kp = 0.0f,
+                          .Ki = 0.0f,
+                          .Kd = 0.0f,
+                          .IntegralLimit = 5.0f,
+                          .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+                          .MaxOut = 20.0f},
+            .speed_PID = {.Kp = 0.0f,
+                          .Ki = 0.0f,
+                          .Kd = 0.0f,
+                          .IntegralLimit = 3000,
+                          .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+                          .MaxOut = 12000},
+        },
+    .controller_setting_init_config =
+        {
+            .angle_feedback_source = MOTOR_FEED,
+            .speed_feedback_source = MOTOR_FEED,
+            .outer_loop_type = OPEN_LOOP,      // 开环，直接输出力矩
+            .close_loop_type = OPEN_LOOP,       // 不使用闭环
+        },
+    .motor_type = J4310,
+    .can_init_config.can_handle = &hcan1,
+    .can_init_config.tx_id = 0x02,
+    .can_init_config.rx_id = 0x12,
+    .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+};
+
+// 第一个3508电机配置 - 电流环PID控制模式
+static Motor_Init_Config_s M3508_config_1 = {
+    .controller_param_init_config =
+        {
+            .angle_PID = {.Kp = 0.0f,
+                          .Ki = 0.0f,
+                          .Kd = 0.0f,
+                          .IntegralLimit = 5.0f,
+                          .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+                          .MaxOut = 20.0f},
+            .speed_PID = {.Kp = 0.0f,
+                          .Ki = 0.0f,
+                          .Kd = 0.0f,
+                          .IntegralLimit = 3000,
+                          .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+                          .MaxOut = 12000},
+            .current_PID = {.Kp = 1.0f,     // 电流环P参数，需要根据实际调试
+                            .Ki = 0.0f,
+                            .Kd = 0.0f,
+                            .IntegralLimit = 5000,
+                            .Improve = PID_Integral_Limit,
+                            .MaxOut = 6000,
+                            .DeadBand = 100},  // 电流环死区：100（约0.12A）
+        },
+    .controller_setting_init_config =
+        {
+            .angle_feedback_source = MOTOR_FEED,
+            .speed_feedback_source = MOTOR_FEED,
+            .outer_loop_type = OPEN_LOOP,      // 开环，直接设置电流
+            .close_loop_type = CURRENT_LOOP,       // 使用电流环
+            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
         },
     .motor_type = M3508,
     .can_init_config.can_handle = &hcan1,
     .can_init_config.tx_id = 1,
-    .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
-    .controller_setting_init_config.feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
 };
+
+// 第二个3508电机配置 - 电流环PID控制模式
 static Motor_Init_Config_s M3508_config_2 = {
     .controller_param_init_config =
         {
-            .angle_PID = {.Kp = 10.0f,
+            .angle_PID = {.Kp = 0.0f,
                           .Ki = 0.0f,
                           .Kd = 0.0f,
+                          .IntegralLimit = 5.0f,
                           .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                          .MaxOut = 2000.0f},
-            .speed_PID = {.Kp = 4.0f,
+                          .MaxOut = 20.0f},
+            .speed_PID = {.Kp = 0.0f,
                           .Ki = 0.0f,
                           .Kd = 0.0f,
                           .IntegralLimit = 3000,
                           .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                           .MaxOut = 12000},
+            .current_PID = {.Kp = 1.0f,     // 电流环P参数，需要根据实际调试
+                            .Ki = 0.0f,
+                            .Kd = 0.0f,
+                            .IntegralLimit = 5000,
+                            .Improve = PID_Integral_Limit,
+                            .MaxOut = 6000,
+                            .DeadBand = 100},  // 电流环死区：100（约0.12A）
         },
     .controller_setting_init_config =
         {
             .angle_feedback_source = MOTOR_FEED,
             .speed_feedback_source = MOTOR_FEED,
-            .outer_loop_type = ANGLE_LOOP,
-            .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
+            .outer_loop_type = OPEN_LOOP,      // 开环，直接设置电流
+            .close_loop_type = CURRENT_LOOP,       // 使用电流环
+            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
         },
     .motor_type = M3508,
-    .can_init_config.can_handle = &hcan2,
+    .can_init_config.can_handle = &hcan1,
     .can_init_config.tx_id = 2,
-    .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
 };
 
+// 2006电机配置 - 电流环PID控制模式
 static Motor_Init_Config_s M2006_config = {
     .controller_param_init_config =
         {
-            .angle_PID =
-                {
-                    .Kp = 3.0f,
-                    .Ki = 0.0f,
-                    .Kd = 0.0f,
-                    .MaxOut = 35000.0f,
-                },
-            .speed_PID = {.Kp = 2.0f,
+            .angle_PID = {.Kp = 0.0f,
                           .Ki = 0.0f,
                           .Kd = 0.0f,
-                          .Improve = PID_Integral_Limit | PID_ErrorHandle,
-                          .IntegralLimit = 0.0f,
-                          .MaxOut = 20000.0},
-        },
-    .controller_setting_init_config =
-        {
-            .outer_loop_type = ANGLE_LOOP,
-            .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
-            .angle_feedback_source = MOTOR_FEED,
-            .speed_feedback_source = MOTOR_FEED,
-            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
-            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
-        },
-    .motor_type = M2006,
-    .can_init_config =
-        {
-            .can_handle = &hcan1,
-            .tx_id = 3,
-        },
-};
-static Motor_Init_Config_s M2006_config_2 = {
-    .controller_param_init_config =
-        {
-            .angle_PID =
-                {
-                    .Kp = 3.0f,
-                    .Ki = 0.0f,
-                    .Kd = 0.0f,
-                    .MaxOut = 35000.0f,
-                },
-            .speed_PID = {.Kp = 2.0f,
+                          .IntegralLimit = 5.0f,
+                          .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+                          .MaxOut = 20.0f},
+            .speed_PID = {.Kp = 0.0f,
                           .Ki = 0.0f,
                           .Kd = 0.0f,
-                          .Improve = PID_Integral_Limit | PID_ErrorHandle,
-                          .IntegralLimit = 0.0f,
-                          .MaxOut = 20000.0},
+                          .IntegralLimit = 3000,
+                          .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+                          .MaxOut = 12000},
+            .current_PID = {.Kp = 1.0f,     // 电流环P参数，需要根据实际调试
+                            .Ki = 0.0f,
+                            .Kd = 0.0f,
+                            .IntegralLimit = 5000,
+                            .Improve = PID_Integral_Limit,
+                            .MaxOut = 6000,
+                            .DeadBand = 100},  // 电流环死区：100（约0.1A）
         },
     .controller_setting_init_config =
         {
-            .outer_loop_type = ANGLE_LOOP,
-            .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
             .angle_feedback_source = MOTOR_FEED,
             .speed_feedback_source = MOTOR_FEED,
-            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
-            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
+            .outer_loop_type = OPEN_LOOP,      // 开环，直接设置电流
+            .close_loop_type = CURRENT_LOOP,       // 使用电流环
+            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
         },
     .motor_type = M2006,
-    .can_init_config =
-        {
-            .can_handle = &hcan1,
-            .tx_id = 4,
-        },
+    .can_init_config.can_handle = &hcan1,
+    .can_init_config.tx_id = 4,
 };
 
-static Motor_Init_Config_s GM6020_config = {
-    .controller_param_init_config =
-        {
-            .angle_PID =
-                {
-                    .Kp = 0.0f,
-                    .Ki = 0.0f,
-                    .Kd = 0.0f,
-                    .DeadBand = 0.1f,
-                    .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                    .IntegralLimit = 5.0f,
-                    .MaxOut = 22.0f,
-                },
-            .speed_PID =
-                {
-                    .Kp = 0.0f,
-                    .Ki = 0.0f,
-                    .Kd = 0.0f,
-                    .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                    .IntegralLimit = 12000.0f,
-                    .MaxOut = 25000.0f,
-                },
-
-        },
-    .controller_setting_init_config =
-    {
-        .outer_loop_type = ANGLE_LOOP,
-        .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
-        .angle_feedback_source = MOTOR_FEED,
-        .speed_feedback_source = MOTOR_FEED,
-        .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
-        .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
-    },
-    .motor_type = GM6020,
-    .can_init_config =
-        {
-            .can_handle = &hcan3,
-            .tx_id = 5,
-        },
-};
+#endif // ROBOT_CONFIG_H

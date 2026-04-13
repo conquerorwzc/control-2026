@@ -69,8 +69,8 @@ static void ApplyTorqueFeedback(void)
     // 对5个关节分别计算力反馈
     for (int i = 0; i < 5; i++) {
         // 获取自定义控制器角度和真实机械臂角度
-        custom_angle = angle_controller->robot_arm_angles[i];
-        real_angle = angle_controller->motor_angles[i];
+        custom_angle = angle_controller-> motor_angles[i];
+        real_angle = angle_controller-> robot_arm_angles[i];
         
         // 计算角度误差
         angle_error = custom_angle - real_angle;
