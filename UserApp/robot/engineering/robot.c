@@ -32,8 +32,8 @@ static int save_point_trigger = 0;
 static Grab_Param_s grab_param;
 static GrabControlMode_e grab_control_mode = GRAB_CONTROL_KEYBOARD; // 默认为键鼠控制
 
-float custom_trajectory[50][7];
-uint16_t custom_traj_length = 0; // 记录当前步数
+float custom_trajectory[50][9];
+uint16_t custom_traj_length = 0;
 /* Private function prototypes -----------------------------------------------*/
 static GPIOInstance *gpio_5V_EN;
 static GPIO_Init_Config_s gpio_init_config_5v = {
@@ -585,13 +585,24 @@ static void Record_Current_Waypoint(void)
     {
         if (custom_traj_length < 50)
         {
+            // [0]-[4]：机械臂 5 个旋转关节
             custom_trajectory[custom_traj_length][0] = grab_ctrl_cmd->base_joint;
             custom_trajectory[custom_traj_length][1] = grab_ctrl_cmd->elbow_roll;
             custom_trajectory[custom_traj_length][2] = grab_ctrl_cmd->elbow_pitch;
             custom_trajectory[custom_traj_length][3] = grab_ctrl_cmd->wrist_pitch;
             custom_trajectory[custom_traj_length][4] = grab_ctrl_cmd->wrist_roll;
+
+            // [5]：夹爪状态 (1.0 为闭合，0.0 为开启)
             custom_trajectory[custom_traj_length][5] = (grab_ctrl_cmd->gripper_state == GRIPPER_CLOSE) ? 1.0f : 0.0f;
+
+            // [6]：底盘四腿抬升比例 (兑换模式使用)
             custom_trajectory[custom_traj_length][6] = chassis_ctrl_cmd->lift_ratio;
+
+            // [7]：机械臂前伸推杆 (直线行程)
+            custom_trajectory[custom_traj_length][7] = grab_ctrl_cmd->arm_extend;
+
+            // [8]：机械臂整体抬升机构 (上下行程)
+            custom_trajectory[custom_traj_length][8] = grab_ctrl_cmd->arm_lift;
 
             custom_traj_length++;
             save_point_trigger = 0;
