@@ -121,9 +121,9 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                     {
-                      .Kp = 4.4f,
+                      .Kp = 2.0f,
                       .Ki = 0.0f,
-                      .Kd = 0.15f,
+                      .Kd = 0.07f,
                       .DeadBand = 0.01f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                       .IntegralLimit = 5.0f,
@@ -154,9 +154,9 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                     {
-                      .Kp = 2.7f,
+                      .Kp = 1.0f,
                       .Ki = 0.0f,
-                      .Kd = 0.08f,
+                      .Kd = 0.02f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                       .IntegralLimit = 5.0f,
                       .MaxOut = 25.0f,
