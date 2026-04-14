@@ -216,7 +216,11 @@ void INS_Task(void) {
     INS.Gyro[X] = BMI088.Gyro[X];
     INS.Gyro[Y] = BMI088.Gyro[Y];
     INS.Gyro[Z] = BMI088.Gyro[Z];
-
+    for (uint8_t i = 0; i < 3; ++i)  // 为滑模控制过一个低通滤波，防止速度乱飞，系数就用加速度的得了
+    {
+      INS.GyroWithLPF[i] = INS.Gyro[i] * dt / (INS.AccelLPF + dt) +
+                             INS.GyroWithLPF[i] * INS.AccelLPF / (INS.AccelLPF + dt);
+    }
     // 修正安装误差
     IMU_Param_Correction(&IMU_Param, INS.Gyro, INS.Accel);
 

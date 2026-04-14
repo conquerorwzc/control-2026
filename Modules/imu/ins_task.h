@@ -56,7 +56,7 @@ typedef struct {
   // IMU原始测量值
   float Gyro[3];   // 陀螺仪原始测量角速度 [0]-Pitch方向 [1]-Roll方向 [2]-Yaw方向 单位: °/s
   float Accel[3];  // 加速度计原始测量加速度 [0]-X方向 [1]-Y方向 [2]-Z方向 单位: m/s^2
-
+  float GyroWithLPF[3];   // 陀螺仪滤波后的测量角速度 [0]-Pitch方向 [1]-Roll方向 [2]-Yaw方向 单位: °/s
   // 姿态解算结果
   float Roll;           // 解算得到的横滚角 单位: °
   float Pitch;          // 解算得到的俯仰角 单位: °
