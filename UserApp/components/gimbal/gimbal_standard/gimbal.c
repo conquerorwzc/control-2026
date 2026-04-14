@@ -12,7 +12,6 @@
 */
 
 #include "gimbal.h"
-
 #include "user_lib.h"
 #include "ins_task.h"
 
@@ -50,7 +49,7 @@ GimbalInstance* GimbalInit(Gimbal_Init_Config_s* gimbal_init_config) {
   gimbal_init_config->yaw_motor_config.controller_setting_init_config.speed_feedback_source = OTHER_FEED;
   gimbal_init_config->yaw_motor_config.controller_setting_init_config.outer_loop_type = ANGLE_LOOP;
   gimbal_init_config->yaw_motor_config.controller_setting_init_config.close_loop_type = SPEED_LOOP | ANGLE_LOOP;
-
+  smc_init(&gimbal_instance->YawSMC, 20.0f, 120.0f, 0.0f, 0.001f, 25000.0f, 0.8f, 0.5f);
   // PITCH控制器参数配置
   gimbal_init_config->pitch_motor_config.controller_param_init_config.other_angle_feedback_ptr =
       &gimbal_instance->gimbal_IMU_data->Pitch;
@@ -94,6 +93,8 @@ void GimbalTask() {
     }
     gimbal_ctrl_cmd->yaw = wrap180(gimbal_ctrl_cmd->yaw, last_yaw_cmd);
     DJIMotorSetPIDRef(gimbal->yaw_motor, gimbal_ctrl_cmd->yaw);  // yaw和pitch会在robot_cmd中处理好多圈和单圈
+    smc_tick(&gimbal->YawSMC,gimbal->gimbal_IMU_data->YawTotalAngle,gimbal->gimbal_IMU_data->Gyro[2],gimbal_ctrl_cmd->yaw);
+    gimbal->yaw_motor->motor_controller.final_output = 0.3f*gimbal->YawSMC.u;
     DJIMotorSetPIDRef(gimbal->pitch_motor, gimbal_ctrl_cmd->pitch);
     last_yaw_cmd = gimbal_ctrl_cmd->yaw;
   }

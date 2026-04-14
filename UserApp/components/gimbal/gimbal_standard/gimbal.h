@@ -1,6 +1,7 @@
 #pragma once
 
 #include "dji_motor.h"
+#include "SMC.h"
 #include "ins_task.h"
 #include "HI05.h"
 
@@ -27,6 +28,7 @@ typedef struct {
 typedef struct {
   Gimbal_Ctrl_Cmd_s gimbal_ctrl_cmd;
   DJIMotorInstance *yaw_motor, *pitch_motor;
+  SMC YawSMC;
   INS_t* gimbal_IMU_data;    // 云台IMU数据
   HI05_t* gimbal_hi05_data;   // 外置陀螺仪HI05数据
 } GimbalInstance;
