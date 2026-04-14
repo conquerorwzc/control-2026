@@ -123,9 +123,9 @@ static void DMMotorLostCallback(void *motor_ptr)
 {
     DMMotorInstance *motor = (DMMotorInstance *)motor_ptr;
     DMMotorStop(motor);
-    uint16_t can_bus = motor->motor_can_instance->can_handle == &hcan1
+    uint16_t can_bus = motor->motor_can_instance->can_handle == &hfdcan1
                            ? 1
-                           : (motor->motor_can_instance->can_handle == &hcan2 ? 2 : 3); // 修改：变量名
+                           : (motor->motor_can_instance->can_handle == &hfdcan2 ? 2 : 3); // 修改：变量名
     LOGWARNING("[dm_motor] Motor lost, can bus [%d] , id [%d]", can_bus, motor->motor_can_instance->tx_id);
     motor->motor_controller.angle_PID.ITerm = 0;
     motor->motor_controller.angle_PID.Iout = 0;
@@ -154,10 +154,12 @@ DMMotorInstance *DMMotorInit(Motor_Init_Config_s *config)
     motor->motor_controller.other_angle_feedback_ptr = config->controller_param_init_config.other_angle_feedback_ptr;
     motor->motor_controller.other_speed_feedback_ptr = config->controller_param_init_config.other_speed_feedback_ptr;
 
+    motor->motor_controller.speed_feedforward_ptr = config->controller_param_init_config.speed_feedforward_ptr;
+    motor->motor_controller.current_feedforward_ptr = config->controller_param_init_config.current_feedforward_ptr;
+
     config->can_init_config.can_module_callback = DMMotorDecode;
     config->can_init_config.id = motor;
     motor->motor_can_instance = CANRegister(&config->can_init_config);
-
 
     Daemon_Init_Config_s conf = {
         .callback = DMMotorLostCallback,
@@ -313,9 +315,9 @@ __attribute__((noreturn)) void DMMotorTask(void const *argument)
             (uint8_t)(((motor_send_mailbox.Kd & 0xF) << 4) | (motor_send_mailbox.torque_des >> 8));
         motor->motor_can_instance->tx_buff[7] = (uint8_t)(motor_send_mailbox.torque_des);
 
-        CANTransmit(motor->motor_can_instance, 2);
+        CANTransmit(motor->motor_can_instance, 3);
 
-        osDelay(2);
+        osDelay(4);
         if (motor->daemon->temp_count == 0 || motor->measure.state == 0)
         {
             DMMotorSetMode(DM_CMD_MOTOR_MODE, motor);

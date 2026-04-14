@@ -17,11 +17,12 @@
 #define TORQUE_DEADBAND_DJI     2.0f    // DJI电机角度死区(度)
 
 // 不同电机类型的力控比例增益 (Nm/度)
-#define TORQUE_K_P_4310         0.5f   // DM4310比例增益
+#define TORQUE_K_P_4310         0.8f    // DM4310比例增益（大幅提升，原来1.0太软）
 #define TORQUE_K_P_M3508        0.005f   // M3508比例增益
 #define TORQUE_K_P_M2006        0.04f   // M2006比例增益
 
-#define MAX_TORQUE_OUTPUT       15.0f    // 最大输出力矩限制(Nm)
+#define MAX_TORQUE_4310         10.0f    // DM4310最大输出力矩限制(N·m)
+#define MAX_TORQUE_OUTPUT       10.0f    // DJI电机最大输出力矩限制(Nm)
 
 // 电机扭矩常数 (Nm/A)
 #define KT_DM4310               1.0f    // DM4310直接用力矩控制
@@ -107,27 +108,25 @@ static void ApplyTorqueFeedback(void)
         // 计算原始力矩输出（不应用死区，让电流环PID自己处理）
         torque_outputs[i] = torque_k_p * angle_errors[i];
 
-        // DM4310直接限幅（因为它是开环力矩控制）
+        // 根据电机类型分别限幅和设置
         if (angle_controller->motors[i].dm_motor != NULL) {
-            if (torque_outputs[i] > MAX_TORQUE_OUTPUT) {
-                torque_outputs[i] = MAX_TORQUE_OUTPUT;
-            } else if (torque_outputs[i] < -MAX_TORQUE_OUTPUT) {
-                torque_outputs[i] = -MAX_TORQUE_OUTPUT;
+            // DM4310：使用物理力矩单位(N·m)，直接限幅
+            if (torque_outputs[i] > MAX_TORQUE_4310) {
+                torque_outputs[i] = MAX_TORQUE_4310;
+            } else if (torque_outputs[i] < -MAX_TORQUE_4310) {
+                torque_outputs[i] = -MAX_TORQUE_4310;
             }
-        }
-        // DJI电机不限幅，让电流环PID的MaxOut自动限幅
-
-        // 根据电机类型设置力矩
-        if (angle_controller->motors[i].dm_motor != NULL) {
+            
+            // DM4310直接使用物理力矩单位，不需要乘以1000
             switch (angle_controller->motors[i].dm_motor->motor_type) {
                 case J4310:
-                    // DM4310：直接接收目标力矩
                     DMMotorSetRef(angle_controller->motors[i].dm_motor, torque_outputs[i]);
                     break;
                 default:
                     break;
             }
         } else if (angle_controller->motors[i].dji_motor != NULL) {
+            // DJI电机：转换为电流控制量
             float current_a = 0.0f;  // 所需电流(A)
             int16_t raw_cmd = 0;     // 电调原始控制值
 
