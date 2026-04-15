@@ -23,7 +23,7 @@ static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 static Send_Data_RC_NEW *rc_data_new;
 static VT13_RC_t *vt13_rc_data;
 #endif
-static Sentry_Cmd_t sentry_cmd = {0};
+static Sentry_Cmd_t *sentry_cmd;
 static SuperCapMode supercap_mode = SAFETY_MODE;
 float trigger_time = 0;  // 触发时间
 static float angle = 0;
@@ -240,22 +240,34 @@ static void EmergencyHandler() {
 #endif
 }
 
-static void ModeControl() {
+
+static void SentryCmd() {
   if (robot->control_mode==NAVIGATOR_MODE){
-    // if (robot->referee_data->ProjectileAllowance.projectile_allowance_17mm==0) {
-    //   robot->sentry_mode=DEFENSE_POSE;    //无可用弹丸进入防御姿态
-    //   robot->chassis->chassis_ctrl_cmd.wz=-1500;
-    // }
-    // else
+    if (robot->referee_data->ProjectileAllowance.projectile_allowance_17mm==0) {
+      robot->sentry_mode=DEFENSE_POSE;    //无可用弹丸进入防御姿态
+      robot->chassis->chassis_ctrl_cmd.wz=-2500;
+    }
+    else
     if (robot->chassis->chassis_ctrl_cmd.vx==0&&robot->chassis->chassis_ctrl_cmd.vy==0) {
       robot->sentry_mode=OFFENSE_POSE;    //高于50%血或占据堡垒进入进攻姿态
-      robot->chassis->chassis_ctrl_cmd.wz=-3500;
+      robot->chassis->chassis_ctrl_cmd.wz=-5000;
     }
     else {
       robot->sentry_mode=MOBILITY_POSE;
-      // robot->chassis->chassis_ctrl_cmd.wz=-1500;
+      robot->chassis->chassis_ctrl_cmd.wz=-1500;
     }
   }
+
+  sentry_cmd->fields.confirm_respawn=1;                         //0为不复活，1确认复活
+  sentry_cmd->fields.confirm_instant_respawn=0;                 //0为不买活，1为买活
+  sentry_cmd->fields.projectile_amount=100;                     //买弹量，递增式
+  sentry_cmd->fields.projectile_req_cnt=0;                      //远程买弹次数，开局为0，每买一次增加1
+  sentry_cmd->fields.hp_req_cnt=0;                              //金币买活次数，开局为0，每买一次增加1
+  sentry_cmd->fields.activate_power_rune=0;                     //哨兵选择开符，0为默认，1为开符
+  sentry_cmd->fields.sentry_mode=robot->sentry_mode;            //姿态切换
+  sentry_cmd->fields.reserved=0;                                //保留位
+
+  SentrySend((uint8_t *)sentry_cmd);                            //发送指令
 }
 static void SuperCapControl() {
   switch (supercap_mode) {
@@ -401,7 +413,7 @@ void RobotTask() {
   RobotCMDTask();
   // SuperCapControl();
   chassis_ctrl_cmd->max_power = robot->referee_data->GameRobotState.chassis_power_limit;
-  ModeControl();
+  SentryCmd();
   ChassisTask();
 #endif
 }

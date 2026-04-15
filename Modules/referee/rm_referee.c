@@ -161,6 +161,6 @@ void RefereeSend(uint8_t *send, uint16_t tx_len) {
  * @brief 裁判系统数据发送函数
  * @param
  */
-void SentrySend(uint8_t *send, uint16_t tx_len) {
-  USARTSend(referee_usart_instance, send, tx_len, USART_TRANSFER_DMA);
+void SentrySend(uint8_t *send) {
+  USARTSend(referee_usart_instance, send, LEN_HEADER + LEN_CMDID + LEN_sentry_cmd + LEN_TAIL, USART_TRANSFER_DMA);
 }

@@ -80,6 +80,6 @@ void RefereeSend(uint8_t *send, uint16_t tx_len);
 
 referee_info_t *GetReferee();
 
-void SentrySend(uint8_t *send, uint16_t tx_len);
+void SentrySend(uint8_t *send);
 
 #endif // !REFEREE_H
