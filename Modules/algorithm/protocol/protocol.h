@@ -2,7 +2,7 @@
 #define _PROTOCOL_H
 
 #include "usart.h"
-//#include "crc.h"
+#include "crc.h"
 #include "crc_func.h"
 #include "string.h"
 
