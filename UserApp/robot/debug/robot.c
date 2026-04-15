@@ -14,7 +14,7 @@
 
 // 力反馈参数配置
 #define TORQUE_DEADBAND_4310    2.0f    // DM4310角度死区(度)
-#define TORQUE_DEADBAND_DJI     2.0f    // DJI电机角度死区(度)
+#define TORQUE_DEADBAND_DJI     2.0f    // 这里其实没用，因为电流环中有deadband
 
 // 不同电机类型的力控比例增益 (Nm/度)
 #define TORQUE_K_P_4310         0.01f    // DM4310比例增益
@@ -83,12 +83,9 @@ static void ApplyTorqueFeedback(void)
 
         // 根据电机类型选择对应的Kp参数
         float torque_k_p;
-        float current_deadband;
         if (angle_controller->motors[i].dm_motor != NULL) {
-            current_deadband = TORQUE_DEADBAND_4310;
             torque_k_p = TORQUE_K_P_4310;
         } else {
-            current_deadband = TORQUE_DEADBAND_DJI;
             // 根据DJI电机类型选择Kp
             if (angle_controller->motors[i].dji_motor->motor_type == M3508) {
                 torque_k_p = TORQUE_K_P_M3508;
@@ -97,8 +94,18 @@ static void ApplyTorqueFeedback(void)
             }
         }
 
-        // 计算原始力矩输出（不应用死区，让电流环PID自己处理）
-        torque_outputs[i] = torque_k_p * angle_errors[i];
+        // DM4310：应用角度死区
+        if (angle_controller->motors[i].dm_motor != NULL) {
+            torque_outputs[i] = 0.0f;
+            if (angle_errors[i] > TORQUE_DEADBAND_4310) {
+                torque_outputs[i] = torque_k_p * (angle_errors[i] - TORQUE_DEADBAND_4310);
+            } else if (angle_errors[i] < -TORQUE_DEADBAND_4310) {
+                torque_outputs[i] = torque_k_p * (angle_errors[i] + TORQUE_DEADBAND_4310);
+            }
+        } else {
+            // DJI电机：不应用死区，让电流环PID自己处理
+            torque_outputs[i] = torque_k_p * angle_errors[i];
+        }
 
         // 根据电机类型分别限幅和设置
         if (angle_controller->motors[i].dm_motor != NULL) {
