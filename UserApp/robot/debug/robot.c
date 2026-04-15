@@ -17,12 +17,12 @@
 #define TORQUE_DEADBAND_DJI     2.0f    // DJI电机角度死区(度)
 
 // 不同电机类型的力控比例增益 (Nm/度)
-#define TORQUE_K_P_4310         0.8f    // DM4310比例增益（大幅提升，原来1.0太软）
+#define TORQUE_K_P_4310         0.01f    // DM4310比例增益
 #define TORQUE_K_P_M3508        0.005f   // M3508比例增益
 #define TORQUE_K_P_M2006        0.04f   // M2006比例增益
 
-#define MAX_TORQUE_4310         10.0f    // DM4310最大输出力矩限制(N·m)
-#define MAX_TORQUE_OUTPUT       10.0f    // DJI电机最大输出力矩限制(Nm)
+#define MAX_TORQUE_4310         4.0f    // DM4310最大输出力矩限制(N·m)
+#define MAX_TORQUE_OUTPUT       4.0f    // DJI电机最大输出力矩限制(Nm)
 
 // 电机扭矩常数 (Nm/A)
 #define KT_DM4310               1.0f    // DM4310直接用力矩控制
@@ -63,14 +63,6 @@ static GPIO_Init_Config_s gpio_init_config_5v = {
  */
 static void ApplyTorqueFeedback(void)
 {
-    // if (angle_controller == NULL || !angle_controller->robot_data_valid) {
-    //     return;
-    // }
-    //
-    // // 仅在机械臂处于自定义控制器模式时启用力反馈
-    // if (angle_controller->robot_grab_mode != 2) {
-    //     return;
-    // }
 
     float custom_angles[5], real_angles[5], angle_errors[5], torque_outputs[5];
 
@@ -116,6 +108,9 @@ static void ApplyTorqueFeedback(void)
             } else if (torque_outputs[i] < -MAX_TORQUE_4310) {
                 torque_outputs[i] = -MAX_TORQUE_4310;
             }
+            
+            // 确保DM4310已使能，否则无法输出力矩
+            DMMotorEnable(angle_controller->motors[i].dm_motor);
             
             // DM4310直接使用物理力矩单位，不需要乘以1000
             switch (angle_controller->motors[i].dm_motor->motor_type) {
@@ -176,7 +171,6 @@ void RobotInit() {
     if (angle_controller == NULL) {
         // 错误处理可以根据需要添加
         return;
-
     }
     
     // 等待数据稳定后记录初始角度

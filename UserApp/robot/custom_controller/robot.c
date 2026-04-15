@@ -15,13 +15,19 @@
 // 力反馈参数配置
 #define TORQUE_DEADBAND_4310    2.0f    // DM4310角度死区(度)
 #define TORQUE_DEADBAND_DJI     1.5f    // DJI电机角度死区(度)
-#define TORQUE_K_P              0.05f   // 比例增益(Nm/度)
-#define MAX_TORQUE_OUTPUT       1.0f    // 最大输出力矩限制(Nm)
+
+// 不同电机类型的力控比例增益 (Nm/度)
+#define TORQUE_K_P_4310         0.01f   // DM4310比例增益
+#define TORQUE_K_P_M3508        0.01f   // M3508比例增益
+#define TORQUE_K_P_M2006        0.01f   // M2006比例增益
+
+#define MAX_TORQUE_OUTPUT       1.0f    // 最大输出力矩限制(Nm) - DJI电机
+#define MAX_TORQUE_4310         1.0f    // DM4310最大力矩限制(Nm)
 
 // 电机扭矩常数 (Nm/A)
 #define KT_DM4310               1.0f    // DM4310直接用力矩控制
-#define KT_M3508                0.3f    // M3508扭矩常数
-#define KT_M2006                0.18f   // M2006扭矩常数
+#define KT_M3508                0.02f    // M3508扭矩常数
+#define KT_M2006                0.18f   // M2006扭矩常数（这里是已经加了减速箱的扭矩）
 
 // 减速比
 #define RATIO_M2006             36.0f   // M2006减速比1:36
@@ -63,75 +69,84 @@ static void ApplyTorqueFeedback(void)
     if (angle_controller->robot_grab_mode != 2) {
         return;
     }
-    
-    float custom_angle, real_angle, angle_error, torque_output;
-    
+
+    float custom_angles[5], real_angles[5], angle_errors[5], torque_outputs[5];
+
     // 对5个关节分别计算力反馈
     for (int i = 0; i < 5; i++) {
         // 获取自定义控制器角度和真实机械臂角度
-        custom_angle = angle_controller-> motor_angles[i];
-        real_angle = angle_controller-> robot_arm_angles[i];
-        
-        // 计算角度误差
-        angle_error = custom_angle - real_angle;
-        
-        // 平滑死区逻辑（根据电机类型设定不同死区）
+        custom_angles[i] = angle_controller->motor_angles[i];
+        real_angles[i] = angle_controller->robot_arm_angles[i];
+
+        // 计算角度误差（取反以修正方向）
+        angle_errors[i] = real_angles[i] - custom_angles[i];
+
+        // 根据电机类型选择对应的Kp参数
+        float torque_k_p;
         float current_deadband;
         if (angle_controller->motors[i].dm_motor != NULL) {
             current_deadband = TORQUE_DEADBAND_4310;
+            torque_k_p = TORQUE_K_P_4310;
         } else {
             current_deadband = TORQUE_DEADBAND_DJI;
+            // 根据DJI电机类型选择Kp
+            if (angle_controller->motors[i].dji_motor->motor_type == M3508) {
+                torque_k_p = TORQUE_K_P_M3508;
+            } else {
+                torque_k_p = TORQUE_K_P_M2006;
+            }
         }
-        
-        torque_output = 0.0f;
-        if (angle_error > current_deadband) {
-            torque_output = TORQUE_K_P * (angle_error - current_deadband);
-        } else if (angle_error < -current_deadband) {
-            torque_output = TORQUE_K_P * (angle_error + current_deadband);
-        }
-        
-        // 安全限幅
-        if (torque_output > MAX_TORQUE_OUTPUT) {
-            torque_output = MAX_TORQUE_OUTPUT;
-        } else if (torque_output < -MAX_TORQUE_OUTPUT) {
-            torque_output = -MAX_TORQUE_OUTPUT;
-        }
-        
-        // 根据电机类型设置力矩
+
+        // 计算原始力矩输出（不应用死区，让电流环PID自己处理）
+        torque_outputs[i] = torque_k_p * angle_errors[i];
+
+        // 根据电机类型分别限幅和设置
         if (angle_controller->motors[i].dm_motor != NULL) {
+            // DM4310：使用物理力矩单位(N·m)，直接限幅
+            if (torque_outputs[i] > MAX_TORQUE_4310) {
+                torque_outputs[i] = MAX_TORQUE_4310;
+            } else if (torque_outputs[i] < -MAX_TORQUE_4310) {
+                torque_outputs[i] = -MAX_TORQUE_4310;
+            }
+            
+            // 确保DM4310已使能，否则无法输出力矩
+            DMMotorEnable(angle_controller->motors[i].dm_motor);
+            
+            // DM4310直接使用物理力矩单位，不需要乘以1000
             switch (angle_controller->motors[i].dm_motor->motor_type) {
                 case J4310:
-                    // DM4310：直接接收目标力矩
-                    DMMotorSetRef(angle_controller->motors[i].dm_motor, torque_output);
+                    DMMotorSetRef(angle_controller->motors[i].dm_motor, torque_outputs[i]);
                     break;
                 default:
                     break;
             }
         } else if (angle_controller->motors[i].dji_motor != NULL) {
+            // DJI电机：转换为电流控制量
             float current_a = 0.0f;  // 所需电流(A)
             int16_t raw_cmd = 0;     // 电调原始控制值
-            
+
             switch (angle_controller->motors[i].dji_motor->motor_type) {
                 case M3508:
                     // 计算电流: I = T_out / (Kt * Ratio)
-                    current_a = torque_output / (KT_M3508 * RATIO_M3508);
+                    current_a = torque_outputs[i] / (KT_M3508 * RATIO_M3508);
                     // 转换为C620原始值
                     raw_cmd = (int16_t)(current_a * C620_RAW_PER_AMP);
                     break;
-                    
+
                 case M2006:
                     // 计算电流: I = T_out / (Kt * Ratio)
-                    current_a = torque_output / (KT_M2006 * RATIO_M2006);
+                    current_a = torque_outputs[i] / KT_M2006 ;
                     // 转换为C610原始值
                     raw_cmd = (int16_t)(current_a * C610_RAW_PER_AMP);
                     break;
-                    
+
                 default:
                     raw_cmd = 0;
                     break;
             }
-            
-            angle_controller->motors[i].dji_motor->motor_controller.final_output = raw_cmd;
+
+            // 使用 DJIMotorSetPIDRef 设置参考值，让电流环PID工作并自动限幅
+            DJIMotorSetPIDRef(angle_controller->motors[i].dji_motor, (float)raw_cmd);
         }
     }
 }

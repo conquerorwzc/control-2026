@@ -65,8 +65,8 @@ static Motor_Init_Config_s DM4310_config_2 = {
         {
             .angle_feedback_source = MOTOR_FEED,
             .speed_feedback_source = MOTOR_FEED,
-            .outer_loop_type = ANGLE_LOOP,           // 外环类型
-            .close_loop_type = ANGLE_LOOP | SPEED_LOOP | CURRENT_LOOP,  // 三环都启用
+            .outer_loop_type = OPEN_LOOP,
+            .close_loop_type = OPEN_LOOP,
             .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
             .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
         },
