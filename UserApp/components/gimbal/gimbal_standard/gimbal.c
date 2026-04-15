@@ -20,20 +20,7 @@
 static GimbalInstance* gimbal;
 static Gimbal_Ctrl_Cmd_s* gimbal_ctrl_cmd;  // 声明但不初始化
 static float pitch_feedforward_scale;
-static float last_yaw_cmd = 0.0f;
-
-/**
- * @brief 保证云台每一次旋转不会超过180度，走最短路径
- * @param now 当前目标角度
- * @param last 上一次的目标角度
- * @return float 处理后的目标角度
- */
-static inline float wrap180(float now, float last) {
-  float diff = now - last;
-  diff = fmodf(diff, 360.0f);
-  diff = diff - 360.0f * floorf(diff / 360.0f + 0.5f);
-  return last + diff;
-}
+static float last_yaw_cmd=0.0f;
 
 /**
  * @brief pitch重力补偿前馈
@@ -43,6 +30,13 @@ static inline float wrap180(float now, float last) {
 static float GetPitchGravityFeedforward(void) {
   float pitch_rad = gimbal->gimbal_IMU_data->Pitch * DEGREE_2_RAD;
   return pitch_feedforward_scale * arm_cos_f32(pitch_rad);
+}
+float wrap180(float now, float last)
+{
+  float diff = now - last;
+  diff = fmodf(diff, 360.0f);
+  diff=diff-360.0f*floorf(diff/360.0f+0.5f);
+  return last + diff;
 }
 
 // static BMI088Instance *bmi088; // 云台IMU
@@ -78,11 +72,11 @@ GimbalInstance* GimbalInit(Gimbal_Init_Config_s* gimbal_init_config) {
   gimbal_init_config->pitch_motor_config.controller_setting_init_config.outer_loop_type = ANGLE_LOOP;
   gimbal_init_config->pitch_motor_config.controller_setting_init_config.close_loop_type = SPEED_LOOP | ANGLE_LOOP;
 
-  gimbal_instance->yaw_motor = DJIMotorInit(&gimbal_init_config->yaw_motor_config);
-  gimbal_instance->pitch_motor = DJIMotorInit(&gimbal_init_config->pitch_motor_config);
-
   gimbal = gimbal_instance;
   gimbal_ctrl_cmd = &gimbal->gimbal_ctrl_cmd;  // 在运行时初始化指针
+  gimbal_init_config->yaw_motor_config.controller_param_init_config.speed_feedforward_ptr=&gimbal_ctrl_cmd->chassis_rotate_wz;
+  gimbal_instance->yaw_motor = DJIMotorInit(&gimbal_init_config->yaw_motor_config);
+  gimbal_instance->pitch_motor = DJIMotorInit(&gimbal_init_config->pitch_motor_config);
   return gimbal_instance;
 }
 
@@ -94,18 +88,15 @@ void GimbalTask() {
     DJIMotorStop(gimbal->yaw_motor);
     DJIMotorStop(gimbal->pitch_motor);
     gimbal_ctrl_cmd->yaw = gimbal->gimbal_IMU_data->YawTotalAngle;
-    gimbal_ctrl_cmd->pitch = gimbal->gimbal_IMU_data->Pitch;
   } else {
     DJIMotorEnable(gimbal->yaw_motor);
     DJIMotorEnable(gimbal->pitch_motor);
-    
-    // 保证云台每一次旋转不会超过180度
+    //pid调参测试用
+    //gimbal_ctrl_cmd->yaw=40*sin(DWT_GetTimeline_s()*2.5f);
     gimbal_ctrl_cmd->yaw = wrap180(gimbal_ctrl_cmd->yaw, last_yaw_cmd);
-    
     DJIMotorSetPIDRef(gimbal->yaw_motor, gimbal_ctrl_cmd->yaw);  // yaw和pitch会在robot_cmd中处理好多圈和单圈
     DJIMotorSetPIDRef(gimbal->pitch_motor, gimbal_ctrl_cmd->pitch);
     // gimbal->pitch_motor->motor_controller.final_output += GetPitchGravityFeedforward();  // pitch重力补偿前馈
-    
     last_yaw_cmd = gimbal_ctrl_cmd->yaw;
   }
 }

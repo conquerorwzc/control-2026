@@ -264,10 +264,10 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data) {
     }
     uint32_t color;
     switch (interactive_data->robot_mode) {
-      case ROBOT_CHASSIS_FOLLOW:
+      case ROBOT_CHASSIS_PROSTRATE_FOLLOW:
         color = UI_Color_Pink;
         break;
-      case ROBOT_CHASSIS_ROTATE:
+      case ROBOT_CHASSIS_PROSTRATE_ROTATE:
         color = UI_Color_Green;
         break;
       default:

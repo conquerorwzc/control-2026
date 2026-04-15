@@ -1,21 +1,19 @@
 #pragma once
 
-#include "VT13.h"
-#include "can_comm.h"
 #include "chassis.h"
 #include "gimbal.h"
-#include "master_process.h"
-#include "referee.h"
 #include "remote_control.h"
 #include "shoot.h"
+#include "referee.h"
+#include "can_comm.h"
 #include "super_cap.h"
-
-// todo: add vision_module
+#include "master_process.h"
+#include "VT13.h"
 
 #ifndef ONE_BOARD
 #pragma pack(1)
 typedef struct {
-  float Pitch;  // 俯仰角(绕Y轴旋转) 单位: °
+  float Pitch;          // 俯仰角(绕Y轴旋转) 单位: °
   float YawTotalAngle;
   float yaw_speed;
   float bullet_speed;
@@ -36,31 +34,27 @@ typedef struct {
 
 typedef enum {
   ROBOT_POWER_OFF = 0,
-  ROBOT_CHASSIS_ROTATE,
-  ROBOT_CHASSIS_FOLLOW,
-  ROBOT_CHASSIS_FREE,
+  ROBOT_CHASSIS_PROSTRATE_FOLLOW,
+  ROBOT_CHASSIS_PROSTRATE_ROTATE,
+  ROBOT_CHASSIS_PROSTRATE_FREE,
 } Robot_Mode_e;
 
 typedef struct {
   Robot_Mode_e robot_mode;  // 机器人整体工作状态
-
 #ifdef USE_DUAL_RC
-  RC_ctrl_t* rc_data;  // 遥控器数据,初始化时返回
+  RC_ctrl_t *rc_data;               // 遥控器数据,初始化时返回
 #elifdef USE_DUAL_RC_NEW
-  VT13_RC_t* rc_data;
+  VT13_RC_t *rc_data;
 #endif
-  referee_info_t* referee_data;  // 用于获取裁判系统的数据
+  referee_info_t* referee_data;     // 用于获取裁判系统的数据
 
   float offset_angle;
 
-  SuperCapInstance* super_cap;
   ChassisInstance* chassis;
   GimbalInstance* gimbal;
   ShootInstance* shoot;
 
   Vision_Receive_s* vision_recv_data;
-  PIDInstance chassis_rotate_PID;
-  PIDInstance chassis_vx_PID;
 
 #ifndef ONE_BOARD
   Chassis_Upload_Data_s* chassis_upload_data;  // 此处chassis定义为chassis_board, 而非chassis模组, 故所有处理在robot中

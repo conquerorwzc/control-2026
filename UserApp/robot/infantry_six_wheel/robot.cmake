@@ -1,19 +1,20 @@
 # Set the type of chassis, gimbal and shooter modules for infantry wheel legged
-set(CHASSIS_TYPE chassis_wheel_legged_sjtu)
+set(CHASSIS_TYPE chassis_six_wheel)
 set(GIMBAL_TYPE gimbal_standard)
 set(SHOOT_TYPE shoot_standard)
 
 # 开发板类型定义,烧录时注意不要弄错对应功能;修改定义后需要重新CMake&编译,只能存在一个定义!
 # ONE_BOARD GIMBAL_BOARD CHASSIS_BOARD
 # add_compile_definitions(ONE_BOARD)
-# add_compile_definitions(GIMBAL_BOARD)
-add_compile_definitions(CHASSIS_BOARD)
+add_compile_definitions(GIMBAL_BOARD)
+# add_compile_definitions(CHASSIS_BOARD)
 
 add_compile_definitions(FRICTION_NUM=2)
 
 # 遥控器选择
-#add_compile_definitions(USE_DUAL_RC)
+# add_compile_definitions(USE_DUAL_RC)
 add_compile_definitions(USE_DUAL_RC_NEW)
+
 
 # Include directories for header file searching
 include_sub_directories_recursively(${CMAKE_CURRENT_LIST_DIR})

@@ -54,7 +54,7 @@ static void IMUPWMSet(uint16_t pwm) {
  *
  */
 static void IMU_Temperature_Ctrl(void) {
-  PIDCalculate(&TempCtrl, BMI088.Temperature, RefTemp);
+  PIDCalculate(&TempCtrl, BMI088.Temperature, 40);
   IMUPWMSet(float_constrain(float_rounding(TempCtrl.Output), 0, UINT32_MAX));
 }
 
@@ -143,7 +143,12 @@ static void INS_CalibrateGyroForDebug(uint16_t sample_count) {
 
   // 采集指定次数的数据
   for (uint16_t i = 0; i < sample_count; i++) {
-    BMI088_Read(&BMI088);
+
+    do {
+      BMI088_Read(&BMI088);
+      IMU_Temperature_Ctrl();
+      DWT_Delay(0.001);
+    } while (BMI088.Temperature <= 39.0f || BMI088.Temperature >= 41.0f);
 
     // 累加陀螺仪读数
     for (uint8_t j = 0; j < 3; j++) {
@@ -175,7 +180,19 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
   while (BMI088Init(&hspi2, 0) != BMI088_NO_ERROR);
 #endif
   // 使用我们的调试校准函数来测量陀螺仪零偏值，绕过预定义值
-  while (abs(BMI088.Temperature - 40.0) > 1) {
+
+  // imu heat init
+  PID_Init_Config_s config = {.MaxOut = 2000,
+                              .IntegralLimit = 300,
+                              .DeadBand = 0,
+                              .Kp = 1000,
+                              .Ki = 20,
+                              .Kd = 0,
+                              .Improve = 0x01};  // enable integratiaon limit
+  PIDInit(&TempCtrl, &config);
+
+  for (int i=0;i<1000;i++) {
+    BMI088_Read(&BMI088);
     IMU_Temperature_Ctrl();
     DWT_Delay(0.001);
   }
@@ -209,16 +226,6 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
   // float init_quaternion[4] = {1.0f, 0.0f, 0.0f, 0.0f};  // 单位四元数
   IMU_QuaternionEKF_Init(init_quaternion, 10, 0.001f, 10000000, 0.9996f,
                          0.0085f);  // 增加测量噪声，启用渐消因子和低通滤波
-  // imu heat init
-  PID_Init_Config_s config = {.MaxOut = 2000,
-                              .IntegralLimit = 300,
-                              .DeadBand = 0,
-                              .Kp = 1000,
-                              .Ki = 20,
-                              .Kd = 0,
-                              .Improve = 0x01};  // enable integratiaon limit
-  PIDInit(&TempCtrl, &config);
-
   // noise of accel is relatively big and of high freq,thus lpf is used
   INS.AccelLPF = 0.0085;
   DWT_GetDeltaT(&INS_DWT_Count);

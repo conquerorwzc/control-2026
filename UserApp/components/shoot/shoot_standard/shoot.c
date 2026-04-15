@@ -8,8 +8,7 @@ static Shoot_Ctrl_Cmd_s* shoot_ctrl_cmd;
 
 static float one_bullet_delta_angle;
 static float reduction_ratio_loader;
-static float
-    loader_direction;  // 实际上应该修改loader_config就可以了，但是角度为最外环似乎有bug？？，先打个补丁，后续做修改
+static float loader_direction;  // 实际上应该修改loader_config就可以了，但是角度为最外环似乎有bug？？，先打个补丁，后续做修改
 static float friction_speed;
 static float friction_coefficients[FRICTION_NUM];
 /* 对于双发射机构的机器人,将下面的数据封装成结构体即可,生成两份shoot应用实例 */
@@ -29,7 +28,6 @@ static float feedforward;  // 前馈
 
 //  只在模拟时启用这些参数，正常控制直接从裁判系统读取就好
 static uint16_t shooter_barrel_cooling_value;  // 机器人射击热量每秒冷却值，此变量只在模拟模式下使用
-static uint16_t shooter_barrel_heat_limit;     // 机器人射击热量上限，此变量只在模拟模式下使用
 static uint16_t one_barrel_heat_value;         // 发射一个弹丸的热量
 static int16_t remain_heat;                    // 剩余热量
 static float shooter_barrel_heat;              // 计算的机器人当前射击热量，此变量只在模拟模式下使用
@@ -48,7 +46,6 @@ ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
   bullet_speed_adjustment = shoot_init_config->shoot_param.bullet_speed_adjustment;
   feedforward = shoot_init_config->shoot_param.feedforward;
   shooter_barrel_cooling_value = shoot_init_config->shoot_param.shooter_barrel_cooling_value;
-  shooter_barrel_heat_limit = shoot_init_config->shoot_param.shooter_barrel_heat_limit;
   one_barrel_heat_value = shoot_init_config->shoot_param.one_barrel_heat_value;
   shooter_barrel_heat = 0;  // 初始热量为0
   // 初始化弹速控制PID参数
@@ -87,18 +84,18 @@ static float GetFrictionFeedforward(int i) {
  * @brief 弹速控制函数，根据实际弹速与目标弹速的差异动态调整摩擦轮转速,后续实际弹速从裁判系统中获取
  */
 void ShootBulletSpeedControl(void) {
-  // // 计算弹速误差
-  // actual_bullet_speed = shoot_ctrl_cmd->initial_speed;
-  // if (actual_bullet_speed == 0) {
-  //   return;
-  // }
-  // float speed_error = target_speed - actual_bullet_speed;
-  // if (actual_bullet_speed <= target_speed + 0.5 && actual_bullet_speed >= target_speed - 0.5) {
-  //   return;
-  // }
-  //
-  // // 将误差乘以系数后加到基础摩擦轮速度上
-  // friction_speed = friction_speed + speed_error * bullet_speed_adjustment;
+  // 计算弹速误差
+  actual_bullet_speed = shoot_ctrl_cmd->initial_speed;
+  if (actual_bullet_speed < 10.0f) {
+    return;
+  }
+  float speed_error = target_speed - actual_bullet_speed;
+  if (actual_bullet_speed <= target_speed + 0.5 && actual_bullet_speed >= target_speed - 0.5) {
+    return;
+  }
+
+  // 将误差乘以系数后加到基础摩擦轮速度上
+  friction_speed += speed_error * bullet_speed_adjustment;
 }
 
 /**
@@ -109,7 +106,7 @@ void HeatControl() {
     case DISABLE:
       return;
     case REFEREE_CONTROL:
-      remain_heat = shooter_barrel_heat_limit - shoot_ctrl_cmd->shooter_barrel_heat;
+      remain_heat = shoot_ctrl_cmd->shooter_barrel_heat_limit - shoot_ctrl_cmd->shooter_barrel_heat;
       break;
     case SIMULLATE_CONTROL:
       // 冷却恢复，每1s回24点
@@ -121,12 +118,17 @@ void HeatControl() {
       if (shooter_barrel_heat <= 0) {
         shooter_barrel_heat = 0;
       }
-      remain_heat = shooter_barrel_heat_limit - shooter_barrel_heat;
+      remain_heat = shoot_ctrl_cmd->shooter_barrel_heat_limit - shooter_barrel_heat;
       break;
     default:
       break;
   }
-  if (remain_heat < 2 * one_barrel_heat_value) shoot_ctrl_cmd->load_mode = LOAD_STOP;
+  if (shoot_ctrl_cmd->shooter_barrel_heat_limit > 150) {
+    // if (remain_heat < 5 * one_barrel_heat_value) shoot_ctrl_cmd->load_mode = LOAD_STOP;
+  }
+  else if (shoot_ctrl_cmd->shooter_barrel_heat_limit < 150) {
+    // if (remain_heat < 4 * one_barrel_heat_value) shoot_ctrl_cmd->load_mode = LOAD_STOP;
+  }
 }
 
 /* 机器人发射机构控制核心任务 */
@@ -148,10 +150,8 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
     }
   }
 
-  HeatControl();
   // 如果上一次触发单发或3发指令的时间加上不应期仍然大于当前时间(尚未休眠完毕),直接返回即可
   if (hibernate_time + dead_time > DWT_GetTimeline_ms()) return;
-  ;
 
   if (shoot->loader_motor->motor_controller.speed_PID.ERRORHandler.ERRORType == PID_MOTOR_BLOCKED_ERROR) {
     shoot->loader_motor->motor_controller.speed_PID.ERRORHandler.ERRORType = PID_ERROR_NONE;  // 清空标志位
@@ -159,6 +159,7 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
   }
 
   // 若不在休眠状态,根据robotCMD传来的控制模式进行拨盘电机参考值设定和模式切换
+  HeatControl();
   switch (shoot_ctrl_cmd->load_mode) {
     // 停止拨盘
     case LOAD_STOP:
@@ -171,7 +172,9 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
       DJIMotorOuterLoop(shoot->loader_motor, ANGLE_LOOP);  // 切换到角度环
       loader_set = shoot->loader_motor->measure.total_angle +
                    one_bullet_delta_angle * reduction_ratio_loader * loader_direction;  // 控制量增加一发弹丸的角度
-      shooter_barrel_heat += one_barrel_heat_value;                                     // 减去一个弹丸的消耗
+      if(shoot_ctrl_cmd->heat_mode==SIMULLATE_CONTROL) {
+        shooter_barrel_heat += one_barrel_heat_value;  // 增加一发弹丸消耗热量，只在模拟控制中有效
+      }
       hibernate_time = DWT_GetTimeline_ms();                                            // 记录触发指令的时间
       dead_time = deadtime_onebullet;                                                   // 完成1发弹丸发射的时间
       break;
@@ -181,7 +184,9 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
       DJIMotorOuterLoop(shoot->loader_motor, ANGLE_LOOP);  // 切换到角度环
       loader_set = shoot->loader_motor->measure.total_angle +
                    one_bullet_delta_angle * reduction_ratio_loader * loader_direction;  // 控制量增加一发弹丸的角度
-      shooter_barrel_heat += one_barrel_heat_value;                                     // 减去一个弹丸的消耗
+      if (shoot_ctrl_cmd->heat_mode == SIMULLATE_CONTROL) {
+        shooter_barrel_heat += one_barrel_heat_value;//增加一发弹丸消耗热量，只在模拟控制中有效
+      }
       hibernate_time = DWT_GetTimeline_ms();                                            // 记录触发指令的时间
       dead_time = deadtime_burstfire;                                                   // 弹频
       break;

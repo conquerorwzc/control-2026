@@ -73,7 +73,8 @@ typedef struct {
   HEAT_Mode_e heat_mode;
   uint16_t shooter_barrel_heat;// 机器人当前射击热量,从裁判系统获取
   float initial_speed;  // 当前弹速
-  float friction_speed; //摩擦轮转速
+  float friction_speed; // 摩擦轮转速
+  uint16_t shooter_barrel_heat_limit;  // 机器人射击热量上限
 } Shoot_Ctrl_Cmd_s;
 
 typedef struct {

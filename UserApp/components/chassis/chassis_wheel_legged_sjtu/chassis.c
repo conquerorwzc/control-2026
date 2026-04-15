@@ -17,6 +17,7 @@
 #include "speed_observer.h"
 #include "user_lib.h"
 #include "power_control.h"
+#include "super_cap.h"
 
 static ChassisInstance* chassis;
 static LegInstance* leg[2];
@@ -211,7 +212,7 @@ static void ChassisCtrlUpdate(void) {
 
   StateVarUpdate();
 
-  PowerControl(chassis);
+  // PowerControl(chassis);
   LocomotionController();
   LegController();
 
@@ -286,43 +287,6 @@ static void ChassisRecovery(void) {
     for (int i = 0; i < 2; i++) {
       leg[i]->real_model.T = 0.0f;
     }
-  }
-}
-
-static void SuperCapModeControl() {
-  switch (chassis->super_cap_mode) {
-    case SAFETY_MODE:
-      if (chassis->super_cap->cap_msg.cap_v > 18.0f) chassis->super_cap_mode = PASSIVE_MODE;
-      chassis->chassis_ctrl_cmd.max_power =
-          referee_data->GameRobotState
-              .chassis_power_limit;  // referee_data->GameRobotState.chassis_power_limit;//TODO:用超电记得改;
-      break;
-    case FORCED_CHARGING_MODE:
-      if (chassis->super_cap->cap_msg.cap_v < 8.0f) chassis->super_cap_mode = SAFETY_MODE;
-      if (chassis->super_cap->cap_msg.cap_v > 18.0f) chassis->super_cap_mode = PASSIVE_MODE;
-      chassis->chassis_ctrl_cmd.max_power = (uint16_t)(0.4 * referee_data->GameRobotState.chassis_power_limit);
-      break;
-    case CHARGING_MODE:
-      if (chassis->super_cap->cap_msg.cap_v < 10.0f) chassis->super_cap_mode = FORCED_CHARGING_MODE;
-      if (chassis->super_cap->cap_msg.cap_v > 18.0f) chassis->super_cap_mode = PASSIVE_MODE;
-      chassis->chassis_ctrl_cmd.max_power =
-          referee_data->GameRobotState.chassis_power_limit -
-          (uint16_t)powf((float)referee_data->GameRobotState.chassis_power_limit * 0.05f, 2);
-      break;
-    case PASSIVE_MODE:
-      if (chassis_ctrl_cmd->SuperCapBoost == 1) chassis->super_cap_mode = ACTIVE_MODE;
-      if (chassis->super_cap->cap_msg.cap_v < 12.0f) chassis->super_cap_mode = CHARGING_MODE;
-      chassis->chassis_ctrl_cmd.max_power =
-          referee_data->GameRobotState.chassis_power_limit -
-          (uint16_t)powf((float)referee_data->GameRobotState.chassis_power_limit * 0.04f, 2);
-      break;
-    case ACTIVE_MODE:
-      if (chassis->super_cap->cap_msg.cap_v < 12.0f) chassis->super_cap_mode = CHARGING_MODE;
-      if (chassis_ctrl_cmd->SuperCapBoost != 1) chassis->super_cap_mode = PASSIVE_MODE;
-      chassis->chassis_ctrl_cmd.max_power = 200;
-      break;
-    default:
-      chassis->super_cap_mode = SAFETY_MODE;
   }
 }
 
@@ -402,7 +366,7 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   leg[1] = chassis->leg[1];
   chassis_ctrl_cmd = &chassis->chassis_ctrl_cmd;
 
-  // chassis->super_cap_mode = SAFETY_MODE;
+  chassis->super_cap = SuperCapInit(&chassis_init_config->super_cap_config);
 
   DWT_GetDeltaT(&chassis->DWT_CNT);
   return chassis_instance;
@@ -424,7 +388,6 @@ void ChassisTask(void) {
     }
   }
 
-  // SuperCapModeControl();
 
   // if (chassis->update_flag.is_recovered == 0) {
   //   chassis->chassis_ctrl_cmd.chassis_mode = CHASSIS_RECOVERY;
@@ -458,8 +421,10 @@ void ChassisTask(void) {
       break;
   }
 
-  // SuperCapSendMessage(chassis->super_cap, (int16_t)referee_data->GameRobotState.chassis_power_limit,
-  // referee_data->PowerHeatData.buffer_energy, referee_data->GameRobotState.power_management_chassis_output);
-
+  chassis_ctrl_cmd->max_power =
+     SuperCapModeControl(chassis->super_cap, referee_data->GameRobotState.chassis_power_limit);
+  SuperCapSendMessage(chassis->super_cap, (int16_t)referee_data->GameRobotState.chassis_power_limit * (13.0f/14.0f),
+                      referee_data->PowerHeatData.buffer_energy,
+                      referee_data->GameRobotState.power_management_chassis_output);
   LimitChassisOutput();
 }

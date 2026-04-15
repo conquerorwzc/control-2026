@@ -242,14 +242,26 @@ static Chassis_Init_Config_s
                  .IntegralLimit = 0.0f,
              },
 
-         .imu_init_config = {.flag = 1,
-                             .scale = {1.0f, 1.0f, 1.0f},
-                             .Yaw = 0.0f,
-                             .Pitch = 180.0f,
-                             .Roll = 0.0f,
-                             .CenterOffset[0] = 0.15413f,
-                             .CenterOffset[1] = 0.04612f,
-                             .CenterOffset[2] = 0.09348f}};
+         .imu_init_config =
+             {
+                 .flag = 1,
+                 .scale = {1.0f, 1.0f, 1.0f},
+                 .Yaw = 0.0f,
+                 .Pitch = 180.0f,
+                 .Roll = 0.0f,
+                 .CenterOffset[0] = 0.15413f,
+                 .CenterOffset[1] = 0.04612f,
+                 .CenterOffset[2] = 0.09348f,
+                 .GyroOffset[0] = 0.00708952406,
+                 .GyroOffset[1] = 0.00323308632,
+                 .GyroOffset[2] = 0.00078589347,
+                 .offset_flag = 1,
+             },
+         .super_cap_config = {.can_config = {
+                                  .can_handle = &hcan1,
+                                  .tx_id = 0x210,  // 超级电容默认接收id
+                                  .rx_id = 0x211,  // 超级电容默认发送id,注意tx和rx在其他人看来是反的
+                              }}};
 
 static Gimbal_Init_Config_s gimbal_init_config = {
     .yaw_motor_config =
@@ -326,7 +338,18 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 },
             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
         },
-    .imu_init_config = {.flag = 1, .scale = {1.0f, 1.0f, 1.0f}, .Yaw = -90.0f, .Pitch = 0.0f, .Roll = 0.0f},
+    .imu_init_config =
+        {
+            .flag = 1,
+            .scale = {1.0f, 1.0f, 1.0f},
+            .Yaw = -90.0f,
+            .Pitch = 0.0f,
+            .Roll = 0.0f,
+            .GyroOffset[0] = -0.0014910656f,
+            .GyroOffset[1] = -0.00283604953f,
+            .GyroOffset[2] = 0.00104337547f,
+            .offset_flag = 1,
+        },
     .pitch_feedforward_scale = 7000.0f};
 
 #define FRICTION_MOTOR_CONFIG(handle, id, motor_direction, feedback_direction) \
@@ -434,13 +457,6 @@ static PID_Init_Config_s chassis_vx_PID_config = {
     .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
     .MaxOut = 1.0f,
 };
-
-static SuperCap_Init_Config_s super_cap_config = {
-    .can_config = {
-        .can_handle = &hcan1,
-        .tx_id = 0x302,  // 超级电容默认接收id
-        .rx_id = 0x301,  // 超级电容默认发送id,注意tx和rx在其他人看来是反的
-    }};
 
 #if defined(GIMBAL_BOARD)
 static CANComm_Init_Config_s gimbal_comm_conf = {
