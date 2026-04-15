@@ -21,8 +21,8 @@
 #define TORQUE_K_P_M3508        0.005f   // M3508比例增益
 #define TORQUE_K_P_M2006        0.04f   // M2006比例增益
 
-#define MAX_TORQUE_4310         4.0f    // DM4310最大输出力矩限制(N·m)
-#define MAX_TORQUE_OUTPUT       4.0f    // DJI电机最大输出力矩限制(Nm)
+#define MAX_TORQUE_4310         3.0f    // DM4310最大输出力矩限制(N·m)
+#define MAX_TORQUE_OUTPUT       2.0f    // DJI电机最大输出力矩限制(Nm)，这里其实没用，因为电流环中有deadband
 
 // 电机扭矩常数 (Nm/A)
 #define KT_DM4310               1.0f    // DM4310直接用力矩控制

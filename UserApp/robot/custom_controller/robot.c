@@ -14,15 +14,15 @@
 
 // 力反馈参数配置
 #define TORQUE_DEADBAND_4310    2.0f    // DM4310角度死区(度)
-#define TORQUE_DEADBAND_DJI     1.5f    // DJI电机角度死区(度)
+#define TORQUE_DEADBAND_DJI     2.0f    // 这里其实没用，因为电流环中有deadband
 
 // 不同电机类型的力控比例增益 (Nm/度)
-#define TORQUE_K_P_4310         0.01f   // DM4310比例增益
-#define TORQUE_K_P_M3508        0.01f   // M3508比例增益
-#define TORQUE_K_P_M2006        0.01f   // M2006比例增益
+#define TORQUE_K_P_4310         0.01f    // DM4310比例增益
+#define TORQUE_K_P_M3508        0.005f   // M3508比例增益
+#define TORQUE_K_P_M2006        0.04f   // M2006比例增益
 
-#define MAX_TORQUE_OUTPUT       1.0f    // 最大输出力矩限制(Nm) - DJI电机
-#define MAX_TORQUE_4310         1.0f    // DM4310最大力矩限制(Nm)
+#define MAX_TORQUE_4310         3.0f    // DM4310最大输出力矩限制(N·m)
+#define MAX_TORQUE_OUTPUT       2.0f    // DJI电机最大输出力矩限制(Nm)，这里其实没用，因为电流环中有deadband
 
 // 电机扭矩常数 (Nm/A)
 #define KT_DM4310               1.0f    // DM4310直接用力矩控制
@@ -173,7 +173,7 @@ void RobotInit() {
 
     gpio_5V_EN = GPIORegister(&gpio_init_config_5v);
     GPIOSet(gpio_5V_EN);
-    
+
     angle_controller = CustomControllerInit(&init_config);
     if (angle_controller == NULL) {
         // 错误处理可以根据需要添加

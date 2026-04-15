@@ -33,43 +33,47 @@ static Motor_Init_Config_s DM4310_config_1 = {
             .speed_feedback_source = MOTOR_FEED,
             .outer_loop_type = OPEN_LOOP,      // 开环，直接输出力矩
             .close_loop_type = OPEN_LOOP,       // 不使用闭环
+            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
         },
     .motor_type = J4310,
     .can_init_config.can_handle = &hcan1,
     .can_init_config.tx_id = 0x01,
     .can_init_config.rx_id = 0x11,
-    .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
 };
 
 // 第二个 DM4310 电机配置 - 力矩控制模式
 static Motor_Init_Config_s DM4310_config_2 = {
     .controller_param_init_config =
         {
-            .angle_PID = {.Kp = 0.0f,
-                          .Ki = 0.0f,
-                          .Kd = 0.0f,
-                          .IntegralLimit = 5.0f,
-                          .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                          .MaxOut = 20.0f},
-            .speed_PID = {.Kp = 0.0f,
-                          .Ki = 0.0f,
-                          .Kd = 0.0f,
-                          .IntegralLimit = 3000,
-                          .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                          .MaxOut = 12000},
+            .angle_PID = {.Kp = 12.0f,
+                          .Ki = 0.00f,
+                          .Kd = 0.00f,
+                          .MaxOut = 8.0f,
+                          .DeadBand = 0.01f,
+                          .Improve = PID_Integral_Limit,
+                          .IntegralLimit = 0.0f},
+            .speed_PID = {.Kp = 0.5f,
+                          .Ki = 0.1f,
+                          .Kd = 0.00f,
+                          .MaxOut = 8.0f,
+                          .DeadBand = 0.01f,
+                          .Improve = PID_Integral_Limit,
+                          .IntegralLimit = 0.5f},
         },
     .controller_setting_init_config =
         {
             .angle_feedback_source = MOTOR_FEED,
             .speed_feedback_source = MOTOR_FEED,
-            .outer_loop_type = OPEN_LOOP,      // 开环，直接输出力矩
-            .close_loop_type = OPEN_LOOP,       // 不使用闭环
+            .outer_loop_type = OPEN_LOOP,
+            .close_loop_type = OPEN_LOOP,
+            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
         },
     .motor_type = J4310,
     .can_init_config.can_handle = &hcan1,
     .can_init_config.tx_id = 0x02,
     .can_init_config.rx_id = 0x12,
-    .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
 };
 
 // 第一个3508电机配置 - 电流环PID控制模式
