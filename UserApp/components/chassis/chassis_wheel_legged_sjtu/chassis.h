@@ -32,6 +32,7 @@ typedef enum {
   CHASSIS_ON,
   CHASSIS_JUMP_READY,
   CHASSIS_JUMP_START,
+  CHASSIS_PROSTRATE,
 } Chassis_Mode_e;
 
 typedef enum {
@@ -43,8 +44,8 @@ typedef enum {
 
 typedef struct {
   float vx;
-  float wz;          // 保留用于小陀螺前馈角速度.单位rad/s
-  float target_yaw;  // 新增：LQR目标yaw角度 (rad)
+  float wz;          // 单位rad/s
+  float target_yaw;  // LQR目标yaw角度 (rad)
   float roll;
   float leg_length;
   float jump_force;
@@ -86,6 +87,7 @@ typedef struct {
   Chassis_Param_s param;
   Leg_Init_Config_s leg_init_config[2];
   PID_Init_Config_s roll_PID_config;
+  PID_Init_Config_s yaw_prostrate_PID_config;
   IMU_Init_Config_s imu_init_config;
   SuperCap_Init_Config_s super_cap_config;
 } Chassis_Init_Config_s;
@@ -104,6 +106,7 @@ typedef struct {
 
   LegInstance* leg[2];
   PIDInstance roll_PID;
+  PIDInstance yaw_prostrate_PID;
 
   float LQR_K[4][10];  // [4输出][10状态变量]
 

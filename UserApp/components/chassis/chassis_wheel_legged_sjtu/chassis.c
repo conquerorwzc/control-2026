@@ -13,17 +13,17 @@
 
 #include "general_def.h"
 #include "parallel_leg.h"
+#include "power_control.h"
 #include "referee.h"
 #include "speed_observer.h"
-#include "user_lib.h"
-#include "power_control.h"
 #include "super_cap.h"
+#include "user_lib.h"
 
 static ChassisInstance* chassis;
 static LegInstance* leg[2];
 static Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd;
 static referee_info_t* referee_data;
-
+static float wheel_speed_ref[2];
 /**
  * @brief  计算LQR增益矩阵K
  *
@@ -47,7 +47,8 @@ static void LQR_K_Calc(float K[4][10], const float coef[40][6], float l_l, float
   //      3.236183f},  // T_r_to_b
   //     {-10.215290f, -8.848348f, 21.428168f, 4.233207f, -23.529793f, -2.118162f, 5.299104f, 0.213924f, 41.806390f,
   //      3.236183f},  // T_l_to_b
-  //     {3.816384f, 3.495197f, -5.392899f, -0.783657f, 4.301872f, 0.133936f, 8.740520f, 0.828690f, 11.190289f, 1.421862f},  
+  //     {3.816384f, 3.495197f, -5.392899f, -0.783657f, 4.301872f, 0.133936f, 8.740520f,
+  //     0.828690f, 11.190289f, 1.421862f},
   //     // T_wr_to_r
   //     {3.816384f, 3.495197f, 5.392899f, 0.783657f, 8.740520f, 0.828690f, 4.301872f, 0.133936f, 11.190289f, 1.421862f}
   //     // T_wl_to_l
@@ -320,22 +321,71 @@ static void ChassisJump(void) {
   }
 }
 
-static void LimitChassisOutput(void) {
+/**
+ * @brief 卧倒模式
+ *
+ * 差速：右轮 = vx + wz，左轮 = vx - wz
+ */
+void ChassisProstrateMode(void) {
+#define VX_TO_MOTOR (30000.0f / 660.0f)
+#define WZ_PID_TO_MOTOR 10000.0f
+#define WZ_FF_TO_MOTOR (28000.0f / 660.0f)  // wz 前馈(摇杆量级) → 电机量
+  float vx_motor = 0.0f;
+  float wz_motor = 0.0f;
+  if (chassis_ctrl_cmd->is_rotate == 0) {
+    float wz_pid = -PIDCalculate(&chassis->yaw_prostrate_PID, chassis->imu->YawTotalAngle * DEGREE_2_RAD,
+                                 chassis_ctrl_cmd->target_yaw);
+    vx_motor = chassis_ctrl_cmd->vx * VX_TO_MOTOR;
+    wz_motor = wz_pid * WZ_PID_TO_MOTOR + chassis_ctrl_cmd->wz * WZ_FF_TO_MOTOR;
+  } else if (chassis_ctrl_cmd->is_rotate == 1) {
+    vx_motor = chassis_ctrl_cmd->vx * VX_TO_MOTOR;
+    wz_motor = chassis_ctrl_cmd->wz * WZ_FF_TO_MOTOR;
+  }
+  // 差速分配
+  wheel_speed_ref[0] = -1.0f * (vx_motor - wz_motor);  // 右轮 leg[0]
+  wheel_speed_ref[1] = vx_motor + wz_motor;            // 左轮 leg[1]
+}
+/**
+ * @brief 卧倒模式缩关节
+ */
+static void EnableJointMotor() {
   for (int i = 0; i < 2; i++) {
-    VAL_LIMIT(leg[i]->real_model.Tp_1, -33.0f, 33.0f);
-    VAL_LIMIT(leg[i]->real_model.Tp_2, -33.0f, 33.0f);
-    VAL_LIMIT(leg[i]->real_model.T, -2.45f, 2.45f);
-    DMMotorSetRef(leg[i]->joint_motor[0], leg[i]->real_model.Tp_1);
-    DMMotorSetRef(leg[i]->joint_motor[1], leg[i]->real_model.Tp_2);
-    // DMMotorSetRef(leg[i]->joint_motor[0], 0);
-    // DMMotorSetRef(leg[i]->joint_motor[1], 0);
-    if (leg[i]->update_flag.is_off_ground) {
-      DJIMotorSetRef(leg[i]->wheel_motor, 0);
-    } else {
-      DJIMotorSetRef(leg[i]->wheel_motor, leg[i]->real_model.T * (3591.0f / 187.0f) /
-                                              chassis->leg[i]->param.wheel_reduction_ratio / 0.3f * (16384.0f / 20.0f));
+    leg[i]->update_flag.is_off_ground = 0;
+
+    DMMotorOuterLoop(leg[i]->joint_motor[0], ANGLE_LOOP);
+    DMMotorOuterLoop(leg[i]->joint_motor[1], ANGLE_LOOP);
+
+    DMMotorSetPIDRef(leg[i]->joint_motor[0], -0.125f);
+    DMMotorSetPIDRef(leg[i]->joint_motor[1], 0.125f);
+  }
+}
+
+static void LimitChassisOutput(void) {
+  if (chassis->chassis_ctrl_cmd.chassis_mode == CHASSIS_PROSTRATE) {
+    for (int i = 0; i < 2; i++) {
+      DJIMotorOuterLoop(leg[i]->wheel_motor, SPEED_LOOP);
+      VAL_LIMIT(wheel_speed_ref[i], -50000.0f, 50000.0f);
+      DJIMotorSetPIDRef(leg[i]->wheel_motor, wheel_speed_ref[i]);
     }
-    // DJIMotorSetRef(leg[i]->wheel_motor, 0);
+    EnableJointMotor();
+  } else {
+    for (int i = 0; i < 2; i++) {
+      VAL_LIMIT(leg[i]->real_model.Tp_1, -33.0f, 33.0f);
+      VAL_LIMIT(leg[i]->real_model.Tp_2, -33.0f, 33.0f);
+      VAL_LIMIT(leg[i]->real_model.T, -2.45f, 2.45f);
+      DMMotorSetRef(leg[i]->joint_motor[0], leg[i]->real_model.Tp_1);
+      DMMotorSetRef(leg[i]->joint_motor[1], leg[i]->real_model.Tp_2);
+      // DMMotorSetRef(leg[i]->joint_motor[0], 0);
+      // DMMotorSetRef(leg[i]->joint_motor[1], 0);
+      if (leg[i]->update_flag.is_off_ground) {
+        DJIMotorSetRef(leg[i]->wheel_motor, 0);
+      } else {
+        DJIMotorSetRef(leg[i]->wheel_motor, leg[i]->real_model.T * (3591.0f / 187.0f) /
+                                                chassis->leg[i]->param.wheel_reduction_ratio / 0.3f *
+                                                (16384.0f / 20.0f));
+      }
+      // DJIMotorSetRef(leg[i]->wheel_motor, 0);
+    }
   }
 }
 
@@ -343,15 +393,19 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   ChassisInstance* chassis_instance = (ChassisInstance*)zmalloc(sizeof(ChassisInstance));
 
   referee_data = GetReferee();
+
   chassis_instance->leg[1] = LegInit(&chassis_init_config->leg_init_config[1]);
   chassis_instance->leg[0] = LegInit(&chassis_init_config->leg_init_config[0]);
 
   PIDInit(&chassis_instance->roll_PID, &chassis_init_config->roll_PID_config);
+  PIDInit(&chassis_instance->yaw_prostrate_PID, &chassis_init_config->yaw_prostrate_PID_config);
+
   chassis_instance->imu = INS_Init(&chassis_init_config->imu_init_config);
+
   xvEstimateKF_Init(&chassis_instance->vaEstimateKF);
 
   PowerControlInit(chassis_instance);
-  
+
   chassis_instance->param = chassis_init_config->param;
 
   chassis_instance->jump_state = JUMP_STATE_IDLE;
@@ -362,13 +416,16 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   // chassis_instance->update_flag.is_recovered = 0;
 
   chassis = chassis_instance;
+
   leg[0] = chassis->leg[0];
   leg[1] = chassis->leg[1];
+
   chassis_ctrl_cmd = &chassis->chassis_ctrl_cmd;
 
   chassis->super_cap = SuperCapInit(&chassis_init_config->super_cap_config);
 
   DWT_GetDeltaT(&chassis->DWT_CNT);
+
   return chassis_instance;
 }
 
@@ -387,7 +444,6 @@ void ChassisTask(void) {
       DJIMotorEnable(chassis->leg[i]->wheel_motor);
     }
   }
-
 
   // if (chassis->update_flag.is_recovered == 0) {
   //   chassis->chassis_ctrl_cmd.chassis_mode = CHASSIS_RECOVERY;
@@ -417,13 +473,16 @@ void ChassisTask(void) {
       }
       ChassisJump();
       break;
+    case CHASSIS_PROSTRATE:
+      ChassisProstrateMode();
+      break;
     default:
       break;
   }
 
   chassis_ctrl_cmd->max_power =
-     SuperCapModeControl(chassis->super_cap, referee_data->GameRobotState.chassis_power_limit);
-  SuperCapSendMessage(chassis->super_cap, (int16_t)referee_data->GameRobotState.chassis_power_limit * (13.0f/14.0f),
+      SuperCapModeControl(chassis->super_cap, referee_data->GameRobotState.chassis_power_limit);
+  SuperCapSendMessage(chassis->super_cap, (int16_t)referee_data->GameRobotState.chassis_power_limit * (13.0f / 14.0f),
                       referee_data->PowerHeatData.buffer_energy,
                       referee_data->GameRobotState.power_management_chassis_output);
   LimitChassisOutput();
