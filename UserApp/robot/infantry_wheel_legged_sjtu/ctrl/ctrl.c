@@ -5,7 +5,6 @@
 #include "general_def.h"
 #include "robot_config.h"
 
-
 // Static variables for control state
 #ifdef USE_DUAL_RC
 static RC_ctrl_t* rc_data;
@@ -42,7 +41,7 @@ Ramp_Controller_t chassis_ramp = {
     .max_decel = 3.7f,
     .min_decel = 1.0f,
     .decel_base_speed = 0.3f,
-    .k_error_ff = 0.35f, // 速度误差前馈补偿系数，可根据实际测试调整
+    .k_error_ff = 0.35f,  // 速度误差前馈补偿系数，可根据实际测试调整
 };
 
 #ifdef USE_DUAL_RC
@@ -192,9 +191,8 @@ void JoyStickCtrl(RobotInstance* robot) {
       if (align_attenuation < 0) align_attenuation = 0;
       input_mag *= align_attenuation * align_attenuation * align_attenuation;
       VAL_LIMIT(input_mag, -2.50, 2.50);
-      // chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, input_mag, robot->chassis->state_var.x_b_d, robot->dt);
-      // chassis_ctrl_cmd->vx = input_mag;
-      // chassis_ctrl_cmd->theta_ff = chassis_ramp.expected_a / 9.81f;
+      // chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, input_mag, robot->chassis->state_var.x_b_d,
+      // robot->dt); chassis_ctrl_cmd->vx = input_mag; chassis_ctrl_cmd->theta_ff = chassis_ramp.expected_a / 9.81f;
       chassis_ctrl_cmd->theta_ff = 0.0f;
       break;
 #endif
@@ -210,8 +208,8 @@ void JoyStickCtrl(RobotInstance* robot) {
           robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD - robot->offset_angle * DEGREE_2_RAD;
       chassis_ctrl_cmd->wz = 0.0f;
 #endif
-      chassis_ctrl_cmd->vx =
-          ramp_controller_update(&chassis_ramp, (0.004f) * (float)rc_data[TEMP].rc.rocker_r1, robot->chassis->state_var.x_b_d, robot->dt);
+      chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, (0.004f) * (float)rc_data[TEMP].rc.rocker_r1,
+                                                    robot->chassis->state_var.x_b_d, robot->dt);
       // chassis_ctrl_cmd->vx = (0.0025f) * (float)rc_data[TEMP].rc.rocker_r1;
       // chassis_ctrl_cmd->theta_ff = chassis_ramp.expected_a / 9.81f;
       chassis_ctrl_cmd->theta_ff = 0.0f;
@@ -239,15 +237,22 @@ void JoyStickCtrl(RobotInstance* robot) {
   static float trigger_time = 0;
 
   // 使用VT13遥控器的新控制逻辑
-  if (switch_middle(rc_data->rc.mode_switch)) {  // 中档
+  // 中档：robot follow/rotate,pause键切换为robot free
+  if (switch_middle(rc_data->rc.mode_switch)) {
+    // 中档
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
-    if (abs(rc_data[TEMP].rc.dial) > 20 || rc_data->mouse_key.keyboard.shift) {
-      robot->robot_mode = ROBOT_CHASSIS_ROTATE;
-    } else {
-      robot->robot_mode = ROBOT_CHASSIS_FOLLOW;
+    if (rc_data->button_status.pause_flag == 0) {
+      if ((abs(rc_data[TEMP].rc.dial) > 20 || rc_data->mouse_key.keyboard.shift)) {
+        robot->robot_mode = ROBOT_CHASSIS_ROTATE;
+      } else {
+        robot->robot_mode = ROBOT_CHASSIS_FOLLOW;
+      }
+    } else if (rc_data->button_status.pause_flag == 1) {
+      robot->robot_mode = ROBOT_CHASSIS_FREE;
     }
   }
+  // 上档frc on/shoot，pause键切换为robot free
   if (switch_right(rc_data->rc.mode_switch)) {
     shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
@@ -331,7 +336,8 @@ void JoyStickCtrl(RobotInstance* robot) {
       if (align_attenuation < 0) align_attenuation = 0;
       input_mag *= align_attenuation * align_attenuation * align_attenuation;
       VAL_LIMIT(input_mag, -2.50, 2.50);
-      chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, input_mag, robot->chassis->state_var.x_b_d, robot->dt);
+      chassis_ctrl_cmd->vx =
+          ramp_controller_update(&chassis_ramp, input_mag, robot->chassis->state_var.x_b_d, robot->dt);
       // chassis_ctrl_cmd->vx = input_mag;
       // chassis_ctrl_cmd->theta_ff = chassis_ramp.expected_a / 9.81f;
       chassis_ctrl_cmd->theta_ff = 0.0f;
@@ -349,10 +355,8 @@ void JoyStickCtrl(RobotInstance* robot) {
           robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD - robot->offset_angle * DEGREE_2_RAD;
       chassis_ctrl_cmd->wz = 0.0f;
 #endif
-      chassis_ctrl_cmd->vx =
-          ramp_controller_update(&chassis_ramp, (0.004f) * (float)rc_data->rc.rocker_r1, robot->chassis->state_var.x_b_d, robot->dt);
-      // chassis_ctrl_cmd->vx = (0.0025f) * (float)rc_data->rc.rocker_r1;
-      // chassis_ctrl_cmd->theta_ff = chassis_ramp.expected_a / 9.81f;
+      chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, (0.004f) * (float)rc_data->rc.rocker_r1,
+                                                    robot->chassis->state_var.x_b_d, robot->dt);
       chassis_ctrl_cmd->theta_ff = 0.0f;
       chassis_ctrl_cmd->roll = 0.0004f * (float)rc_data->rc.rocker_l_ * (abs(rc_data->rc.rocker_l_) > 10);
       chassis_ctrl_cmd->leg_length += 0.0000005f * (float)rc_data->rc.rocker_l1;
@@ -369,7 +373,6 @@ void JoyStickCtrl(RobotInstance* robot) {
   rc_data_last = rc_data;
 }
 #endif
-
 
 #ifdef USE_DUAL_RC
 void MouseKeyCtrl(RobotInstance* robot) {
@@ -618,8 +621,9 @@ void MouseKeyCtrl(RobotInstance* robot) {
       if (align_attenuation < 0) align_attenuation = 0;
       input_mag *= align_attenuation * align_attenuation * align_attenuation;
       VAL_LIMIT(input_mag, -2.97, 2.97);
-      chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, input_mag, robot->chassis->state_var.x_b_d, robot->dt);
-      // chassis_ctrl_cmd->vx = input_mag; 
+      chassis_ctrl_cmd->vx =
+          ramp_controller_update(&chassis_ramp, input_mag, robot->chassis->state_var.x_b_d, robot->dt);
+      // chassis_ctrl_cmd->vx = input_mag;
       // chassis_ctrl_cmd->theta_ff = chassis_ramp.expected_a / 9.81f;
       chassis_ctrl_cmd->theta_ff = 0.0f;
       break;
@@ -632,9 +636,11 @@ void MouseKeyCtrl(RobotInstance* robot) {
       chassis_ctrl_cmd->wz = 0.0f;
 #endif
       if (rc_data[TEMP].key[KEY_PRESS].w)
-        chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, (0.99f) * speed_coff, robot->chassis->state_var.x_b_d, robot->dt);
+        chassis_ctrl_cmd->vx =
+            ramp_controller_update(&chassis_ramp, (0.99f) * speed_coff, robot->chassis->state_var.x_b_d, robot->dt);
       else if (rc_data[TEMP].key[KEY_PRESS].s)
-        chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, (-0.99f) * speed_coff, robot->chassis->state_var.x_b_d, robot->dt);
+        chassis_ctrl_cmd->vx =
+            ramp_controller_update(&chassis_ramp, (-0.99f) * speed_coff, robot->chassis->state_var.x_b_d, robot->dt);
       else
         chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, 0.0f, robot->chassis->state_var.x_b_d, robot->dt);
 
@@ -850,8 +856,8 @@ void MouseKeyCtrl(RobotInstance* robot) {
       if (align_attenuation < 0) align_attenuation = 0;
       input_mag *= align_attenuation * align_attenuation * align_attenuation;
       VAL_LIMIT(input_mag, -2.97, 2.97);
-      chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, input_mag, robot->chassis->state_var.x_b_d, robot->dt);
-      // chassis_ctrl_cmd->vx = input_mag;
+      chassis_ctrl_cmd->vx =
+          ramp_controller_update(&chassis_ramp, input_mag, robot->chassis->state_var.x_b_d, robot->dt);
       // chassis_ctrl_cmd->theta_ff = chassis_ramp.expected_a / 9.81f;
       chassis_ctrl_cmd->theta_ff = 0.0f;
       break;
@@ -864,9 +870,11 @@ void MouseKeyCtrl(RobotInstance* robot) {
       chassis_ctrl_cmd->wz = 0.0f;
 #endif
       if (rc_data->mouse_key.keyboard.w)
-        chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, (0.99f) * speed_coff, robot->chassis->state_var.x_b_d, robot->dt);
+        chassis_ctrl_cmd->vx =
+            ramp_controller_update(&chassis_ramp, (0.99f) * speed_coff, robot->chassis->state_var.x_b_d, robot->dt);
       else if (rc_data->mouse_key.keyboard.s)
-        chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, (-0.99f) * speed_coff, robot->chassis->state_var.x_b_d, robot->dt);
+        chassis_ctrl_cmd->vx =
+            ramp_controller_update(&chassis_ramp, (-0.99f) * speed_coff, robot->chassis->state_var.x_b_d, robot->dt);
       else
         chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, 0.0f, robot->chassis->state_var.x_b_d, robot->dt);
 
@@ -922,8 +930,7 @@ void EmergencyHandler(RobotInstance* robot) {
   Gimbal_Ctrl_Cmd_s* gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   Shoot_Ctrl_Cmd_s* shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   // 新VT13遥控器紧急处理逻辑
-  if (switch_left(rc_data->rc.mode_switch) || rc_data->button_status.pause_flag == 1 ||
-      rc_data == NULL) {  // 拨杆在左或按下暂停键时断电
+  if (switch_left(rc_data->rc.mode_switch) || rc_data == NULL) {  // 拨杆在左或按下暂停键时断电
     robot->robot_mode = ROBOT_POWER_OFF;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
     chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
@@ -931,9 +938,9 @@ void EmergencyHandler(RobotInstance* robot) {
     shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
     LOGERROR("[CMD] emergency stop!");
-      } else {
-        LOGINFO("[CMD] reinstate, robot ready");
-      }
+  } else {
+    LOGINFO("[CMD] reinstate, robot ready");
+  }
 
   // shoot关闭
   if (switch_middle(rc_data->rc.mode_switch)) {  // 扳机按下时发射失能
