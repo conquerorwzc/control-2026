@@ -286,6 +286,9 @@ static void CustomController_RxCallback(USARTInstance* inst)
         return;  // 没有新数据
     }
     
+    // 调试：确认有数据接收
+    LOGINFO("[RX OK] len=%d", rx_len);
+    
     // 2. 将新数据追加到流式缓存（处理粘包/拆包）
     uint8_t* rx_data = inst->recv_buff;
     
