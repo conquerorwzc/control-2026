@@ -335,10 +335,10 @@ void MyUIInit()
               1698, 625, "CHS");
     UICharRefresh(&referee_recv_info->referee_id, UI_lift_bar_chassis_text);
 
-    UILineDraw(&UI_vehicle_width_line_left, "vwl", UI_Graph_ADD, 7, UI_Color_Yellow,
-               3, 820, 500, 560, 180);
-    UILineDraw(&UI_vehicle_width_line_right, "vwr", UI_Graph_ADD, 7, UI_Color_Yellow,
-               3, 1100, 500, 1360, 180);
+    // UILineDraw(&UI_vehicle_width_line_left, "vwl", UI_Graph_ADD, 7, UI_Color_Yellow,
+    //            3, 820, 500, 560, 180);
+    // UILineDraw(&UI_vehicle_width_line_right, "vwr", UI_Graph_ADD, 7, UI_Color_Yellow,
+    //            3, 1100, 500, 1360, 180);
     UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_vehicle_width_line_left, UI_vehicle_width_line_right);
 #endif // ROBOT_ENGINEERING
 }
