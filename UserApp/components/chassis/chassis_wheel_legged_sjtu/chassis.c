@@ -332,15 +332,24 @@ void ChassisProstrateMode(void) {
 #define WZ_FF_TO_MOTOR (28000.0f / 660.0f)  // wz 前馈(摇杆量级) → 电机量
   float vx_motor = 0.0f;
   float wz_motor = 0.0f;
-  if (chassis_ctrl_cmd->is_rotate == 0) {
-    float wz_pid = -PIDCalculate(&chassis->yaw_prostrate_PID, chassis->imu->YawTotalAngle * DEGREE_2_RAD,
-                                 chassis_ctrl_cmd->target_yaw);
-    vx_motor = chassis_ctrl_cmd->vx * VX_TO_MOTOR;
-    wz_motor = wz_pid * WZ_PID_TO_MOTOR + chassis_ctrl_cmd->wz * WZ_FF_TO_MOTOR;
-  } else if (chassis_ctrl_cmd->is_rotate == 1) {
-    vx_motor = chassis_ctrl_cmd->vx * VX_TO_MOTOR;
-    wz_motor = chassis_ctrl_cmd->wz * WZ_FF_TO_MOTOR;
+
+  // 设置速度环
+  for (int i = 0;i<2;i++) {
+    leg[i]->wheel_motor->motor_settings.close_loop_type = SPEED_LOOP;
+    leg[i]->wheel_motor->motor_settings.outer_loop_type = SPEED_LOOP;
   }
+
+  // if (chassis_ctrl_cmd->is_rotate == 0) {
+  //   float wz_pid = -PIDCalculate(&chassis->yaw_prostrate_PID, chassis->imu->YawTotalAngle * DEGREE_2_RAD,
+  //                                chassis_ctrl_cmd->target_yaw);
+  //   vx_motor = chassis_ctrl_cmd->vx * VX_TO_MOTOR;
+  //   wz_motor = wz_pid * WZ_PID_TO_MOTOR + chassis_ctrl_cmd->wz * WZ_FF_TO_MOTOR;
+  // } else if (chassis_ctrl_cmd->is_rotate == 1) {
+  //   vx_motor = chassis_ctrl_cmd->vx * VX_TO_MOTOR;
+  //   wz_motor = chassis_ctrl_cmd->wz * WZ_FF_TO_MOTOR;
+  // }
+  vx_motor = chassis_ctrl_cmd->vx * VX_TO_MOTOR;
+  wz_motor = chassis_ctrl_cmd->wz * WZ_FF_TO_MOTOR;
   // 差速分配
   wheel_speed_ref[0] = -1.0f * (vx_motor - wz_motor);  // 右轮 leg[0]
   wheel_speed_ref[1] = vx_motor + wz_motor;            // 左轮 leg[1]
@@ -355,15 +364,14 @@ static void EnableJointMotor() {
     DMMotorOuterLoop(leg[i]->joint_motor[0], ANGLE_LOOP);
     DMMotorOuterLoop(leg[i]->joint_motor[1], ANGLE_LOOP);
 
-    DMMotorSetPIDRef(leg[i]->joint_motor[0], -0.125f);
-    DMMotorSetPIDRef(leg[i]->joint_motor[1], 0.125f);
+    DMMotorSetPIDRef(leg[i]->joint_motor[0], -0.15f);
+    DMMotorSetPIDRef(leg[i]->joint_motor[1], 0.15f);
   }
 }
 
 static void LimitChassisOutput(void) {
   if (chassis->chassis_ctrl_cmd.chassis_mode == CHASSIS_PROSTRATE) {
     for (int i = 0; i < 2; i++) {
-      DJIMotorOuterLoop(leg[i]->wheel_motor, SPEED_LOOP);
       VAL_LIMIT(wheel_speed_ref[i], -50000.0f, 50000.0f);
       DJIMotorSetPIDRef(leg[i]->wheel_motor, wheel_speed_ref[i]);
     }

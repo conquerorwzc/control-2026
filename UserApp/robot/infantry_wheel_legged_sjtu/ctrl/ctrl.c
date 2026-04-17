@@ -31,6 +31,9 @@ static uint8_t joystick_burst = 0;  // 遥控器要求连发
 static uint8_t mouse_fire = 0;      // 鼠标要求开火
 static uint8_t mouse_burst = 0;     // 鼠标要求连发
 
+#define TURN_BOOST_DEADZONE 10
+#define TURN_BOOST_GAIN 3.0f
+
 // Ramp controller (externed in header)
 // 挺好用的一版
 Ramp_Controller_t chassis_ramp = {
@@ -242,7 +245,7 @@ void JoyStickCtrl(RobotInstance* robot) {
   if (switch_middle(rc_data->rc.mode_switch)) {
     // 中档
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-    if (rc_data->button_status.fn_1_flag == 0) {
+    if (rc_data->button_status.fn_1_flag == 1) {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
       if (rc_data->button_status.pause_flag == 0) {
         if (abs(rc_data[TEMP].rc.dial) > 20 || rc_data->mouse_key.keyboard.shift)
@@ -252,12 +255,13 @@ void JoyStickCtrl(RobotInstance* robot) {
       } else if (rc_data->button_status.pause_flag == 1) {
         robot->robot_mode = ROBOT_CHASSIS_FREE;
       }
-    } else if (rc_data->button_status.fn_1_flag == 1) {
+    } else if (rc_data->button_status.fn_1_flag == 0) {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_PROSTRATE;
       if (abs(rc_data[TEMP].rc.dial) > 20 || rc_data->mouse_key.keyboard.shift)
         robot->robot_mode = ROBOT_CHASSIS_PROSTRATE_ROTATE;
       else
         robot->robot_mode = ROBOT_CHASSIS_PROSTRATE_FOLLOW;
+        // robot->robot_mode = ROBOT_CHASSIS_PROSTRATE_FREE;
     }
   }
   // 上档frc on/shoot，pause键切换为robot free
@@ -379,9 +383,17 @@ void JoyStickCtrl(RobotInstance* robot) {
 #if (!defined(ONE_BOARD))
       chassis_ctrl_cmd->is_rotate = 0;
       // 获取输入（左摇杆 → 云台坐标系下的 vx, vy）
-      chassis_vx = (float)rc_data[TEMP].rc.rocker_l_;
-      chassis_vy = (float)rc_data[TEMP].rc.rocker_l1;
+      chassis_vx = (float)rc_data->rc.rocker_l_;
+      chassis_vy = (float)rc_data->rc.rocker_l1;
       input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
+      float max_speed = 800.0f;
+      if (input_mag > max_speed) {
+        chassis_vx = chassis_vx / input_mag * max_speed;
+        chassis_vy = chassis_vy / input_mag * max_speed;
+        input_mag = max_speed;
+      }
+      // ===== 默认无前馈 =====
+      chassis_ctrl_cmd->wz = 0.0f;
       if (input_mag > 5.0f) {
         // 运动方向解算
         follow_err = (atan2f(chassis_vy, chassis_vx) - PI / 2.0f) * RAD_2_DEGREE - robot->offset_angle;
@@ -396,8 +408,14 @@ void JoyStickCtrl(RobotInstance* robot) {
           input_mag = -input_mag;
         }
         chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + follow_err * DEGREE_2_RAD;
+        // ===== 前馈：误差大时额外给 wz 加速转向 =====
+        float abs_err = fabsf(follow_err);
+        if (abs_err > TURN_BOOST_DEADZONE) {
+          chassis_ctrl_cmd->wz = follow_err * TURN_BOOST_GAIN;
+        }
       } else {
         // 静止回正：底盘对齐云台
+        follow_err = 0.0f;  // 静止时清零，防止衰减计算用到脏值
         chassis_ctrl_cmd->target_yaw =
             robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD - robot->offset_angle * DEGREE_2_RAD;
       }
@@ -405,7 +423,6 @@ void JoyStickCtrl(RobotInstance* robot) {
       align_attenuation = cosf(follow_err * DEGREE_2_RAD);
       if (align_attenuation < 0) align_attenuation = 0;
       input_mag *= align_attenuation * align_attenuation * align_attenuation;
-      // 直接传摇杆原始值，ChassisProstrateMode 里做映射
       chassis_ctrl_cmd->vx = input_mag;
 #endif
       break;
