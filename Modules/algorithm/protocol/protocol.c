@@ -55,7 +55,7 @@ void protocol_packed(uint8_t *data,uint16_t cmd_id,uint8_t data_len,uint8_t *tx_
     tx_buff[fixed_data_len + 7] = crc16 & 0xFF;
     tx_buff[fixed_data_len + 8] = (crc16 >> 8) & 0xFF;
     *tx_buff_length = total_len;
-    // seq++; // 序号递增
+    seq++; // 序号递增
 
     return;
 }
