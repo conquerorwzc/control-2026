@@ -1,5 +1,4 @@
 #include "chassis.h"
-
 #include "arm_math.h"
 #include "bsp_dwt.h"
 #include "general_def.h"
@@ -625,28 +624,38 @@ void Leg_FSM()
         LiftLeg_SetTarget(&chassis->rear_legs[LEFT], chassis->cali_state.init_angle[0] + stroke_rear_l * rear_ratio);
         LiftLeg_SetTarget(&chassis->rear_legs[RIGHT], chassis->cali_state.init_angle[1] + stroke_rear_r * rear_ratio);
     }
-    else // ROBOT_CLIMB_MODE
+    else // ROBOT_CLIMB_MODE 或 ROBOT_BUMPY_MODE
     {
-        // 爬楼梯模式：遵循原有的离散小状态，迅捷直接切位置
         float front_l_target = chassis->cali_state.init_angle[2] + stroke_front_l;
         float front_r_target = chassis->cali_state.init_angle[3] + stroke_front_r;
+
+        // 🌟 默认后腿目标：100% 顶满 (爬楼梯正常高度)
         float rear_l_target = chassis->cali_state.init_angle[0] + stroke_rear_l;
         float rear_r_target = chassis->cali_state.init_angle[1] + stroke_rear_r;
+
+        // 🌟 护盾拦截：如果是烂路模式，强行把后腿目标折算成“撅屁股”比例！
+        if (chassis_ctrl_cmd->robot_mode == 4)
+        {
+            rear_l_target = chassis->cali_state.init_angle[0] + stroke_rear_l * chassis_param.climb_tilt_ratio;
+            rear_r_target = chassis->cali_state.init_angle[1] + stroke_rear_r * chassis_param.climb_tilt_ratio;
+        }
 
         switch (chassis_ctrl_cmd->chassis_mode)
         {
         case CHASSIS_CLIMB_BOTH_EXTEND:
             LiftLeg_SetTarget(&chassis->front_legs[LEFT], front_l_target);
             LiftLeg_SetTarget(&chassis->front_legs[RIGHT], front_r_target);
-            LiftLeg_SetTarget(&chassis->rear_legs[LEFT], rear_l_target);
-            LiftLeg_SetTarget(&chassis->rear_legs[RIGHT], rear_r_target);
+            LiftLeg_SetTarget(&chassis->rear_legs[LEFT], rear_l_target);  // 自动根据模式决定顶多少
+            LiftLeg_SetTarget(&chassis->rear_legs[RIGHT], rear_r_target); // 自动根据模式决定顶多少
             break;
+
         case CHASSIS_CLIMB_FRONT_RETRACT:
             LiftLeg_SetTarget(&chassis->front_legs[LEFT], chassis->cali_state.init_angle[2]);
             LiftLeg_SetTarget(&chassis->front_legs[RIGHT], chassis->cali_state.init_angle[3]);
-            LiftLeg_SetTarget(&chassis->rear_legs[LEFT], rear_l_target);
-            LiftLeg_SetTarget(&chassis->rear_legs[RIGHT], rear_r_target);
+            LiftLeg_SetTarget(&chassis->rear_legs[LEFT], rear_l_target);  // 自动根据模式决定顶多少
+            LiftLeg_SetTarget(&chassis->rear_legs[RIGHT], rear_r_target); // 自动根据模式决定顶多少
             break;
+
         default: // 行车模式 / 全部收回
             LiftLeg_SetTarget(&chassis->front_legs[LEFT], chassis->cali_state.init_angle[2]);
             LiftLeg_SetTarget(&chassis->front_legs[RIGHT], chassis->cali_state.init_angle[3]);

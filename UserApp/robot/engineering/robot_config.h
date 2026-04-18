@@ -171,7 +171,7 @@ static Chassis_Init_Config_s chassis_init_config = {
             .forward_lift_out = 13000.0f,
             .backward_lift_in = 1500.0f,
             .backward_lift_out = 313280.938f,
-
+             .climb_tilt_ratio = 0.8f,
         },
     .wheel_motor_config[0] =
         {

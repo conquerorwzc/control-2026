@@ -155,7 +155,7 @@ static void MouseKeySet()
     static uint8_t last_robot_mode = ROBOT_POWER_OFF;
 
     // ================= 1. 大模式切换 (按 G 键循环切换) =================
-    switch (rc_data[TEMP].key_count[KEY_PRESS_NORMAL][KEY_G] % 3)
+    switch (rc_data[TEMP].key_count[KEY_PRESS_NORMAL][KEY_G] % 4)
     {
     case 0:
         robot->robot_mode = ROBOT_POWER_ON;
@@ -166,14 +166,16 @@ static void MouseKeySet()
     case 2:
         robot->robot_mode = ROBOT_CLIMB_MODE;
         break;
+    case 3:
+        robot->robot_mode = ROBOT_BUMPY_MODE; // 🌟 烂路模式
+        break;
     }
 
     if (robot->robot_mode != last_robot_mode)
     {
         // 场景：退出爬楼模式
-        if (last_robot_mode == ROBOT_CLIMB_MODE)
+        if (last_robot_mode == ROBOT_CLIMB_MODE || last_robot_mode == ROBOT_BUMPY_MODE)
         {
-            // 强制洗掉爬楼记忆，防止下次切回来时“自动抬升”
             keyboard_climb_state = CHASSIS_CLIMB_IDLE;
         }
 
@@ -288,6 +290,20 @@ static void MouseKeySet()
                                 angle_rapid_buff);
             }
         }
+        else if (robot->robot_mode == ROBOT_CLIMB_MODE)
+        {
+            // 🛡️ 物理防翻车护盾：绝对禁止在双腿全伸出的高重心状态下旋转！
+            // 只有在 全收 (ALL_RETRACT) 或 前腿收回/后腿支撑 (FRONT_RETRACT) 的相对低重心状态，才允许微调姿态
+            if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_ALL_RETRACT ||
+                chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_FRONT_RETRACT)
+            {
+                set_angle +=
+                    (float)((rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].q - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].e) *
+                                angle_buff +
+                            (rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].a - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].d) *
+                                angle_rapid_buff);
+            }
+        }
         chassis_ctrl_cmd->robot_mode = robot->robot_mode;
 
         // ================= 4. 姿态复用控制 (Q, E, R) 与 兑换模式调节 =================
@@ -304,12 +320,11 @@ static void MouseKeySet()
             if (chassis_ctrl_cmd->lift_ratio > 1.0f)
                 chassis_ctrl_cmd->lift_ratio = 1.0f;
         }
-        else if (robot->robot_mode == ROBOT_CLIMB_MODE)
+        else if (robot->robot_mode == ROBOT_CLIMB_MODE || robot->robot_mode == ROBOT_BUMPY_MODE)
         {
-            // 【上台阶模式】：状态机离散触发 (防呆快速切换)
+            // 【上台阶/烂路模式】：状态机离散触发 (防呆快速切换)
             uint8_t key_q = rc_data[TEMP].key[KEY_PRESS_NORMAL].q;
             uint8_t key_e = rc_data[TEMP].key[KEY_PRESS_NORMAL].e;
-
             if (key_q && key_e)
             {
                 keyboard_climb_state = CHASSIS_CLIMB_BOTH_EXTEND;

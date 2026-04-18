@@ -18,6 +18,7 @@ typedef enum
     ROBOT_POWER_ON,          // 正常行车模式
     ROBOT_EXCHANGE_MODE,     // 兑换模式
     ROBOT_CLIMB_MODE,        // 上台阶模式
+    ROBOT_BUMPY_MODE,
     ROBOT_EMERGENCY_STOP
 } Robot_Mode_e;
 
