@@ -325,18 +325,36 @@ static void MouseKeySet()
             // 【上台阶/烂路模式】：状态机离散触发 (防呆快速切换)
             uint8_t key_q = rc_data[TEMP].key[KEY_PRESS_NORMAL].q;
             uint8_t key_e = rc_data[TEMP].key[KEY_PRESS_NORMAL].e;
-            if (key_q && key_e)
+
+            // 🌟 核心修复：组合按键“时间窗”消抖算法
+            static uint8_t last_raw_state = 0;
+            static uint8_t stable_cnt = 0;
+
+            // 状态编码：3(QE齐按), 2(只按Q), 1(只按E), 0(全松开)
+            uint8_t current_state = (key_q << 1) | key_e;
+
+            if (current_state == last_raw_state)
             {
-                keyboard_climb_state = CHASSIS_CLIMB_BOTH_EXTEND;
+                if (stable_cnt < 15)
+                    stable_cnt++; // 防止累加溢出
+
+                // 维持同一个状态超过 10 帧 (10 * 5ms = 50ms) 才认为是真实意图
+                if (stable_cnt == 10)
+                {
+                    if (current_state == 3)
+                        keyboard_climb_state = CHASSIS_CLIMB_BOTH_EXTEND;
+                    else if (current_state == 2)
+                        keyboard_climb_state = CHASSIS_CLIMB_FRONT_RETRACT;
+                    else if (current_state == 1)
+                        keyboard_climb_state = CHASSIS_CLIMB_ALL_RETRACT;
+                    // 注：如果 current_state == 0，什么都不做，完美保持最后一次成功触发的姿态！
+                }
             }
-            else if (key_q && !key_e)
+            else
             {
-                keyboard_climb_state = CHASSIS_CLIMB_FRONT_RETRACT;
+                stable_cnt = 0; // 只要有任何风吹草动（比如松手瞬间的错位），立刻打断重置
             }
-            else if (!key_q && key_e)
-            {
-                keyboard_climb_state = CHASSIS_CLIMB_ALL_RETRACT;
-            }
+            last_raw_state = current_state;
 
             // 如果 Q 和 E 都不按，保持当前姿态不变
             if (keyboard_climb_state != CHASSIS_CLIMB_IDLE)
