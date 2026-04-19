@@ -24,6 +24,7 @@ static Send_Data_RC_NEW *rc_data_new;
 static VT13_RC_t *vt13_rc_data;
 #endif
 static Sentry_Cmd_t *sentry_cmd;
+static RFID_Status_t *RFID;
 static SuperCapMode supercap_mode = SAFETY_MODE;
 float trigger_time = 0;  // 触发时间
 static float angle = 0;
@@ -260,14 +261,27 @@ static void SentryCmd() {
 
   sentry_cmd->fields.confirm_respawn=1;                         //0为不复活，1确认复活
   sentry_cmd->fields.confirm_instant_respawn=0;                 //0为不买活，1为买活
-  sentry_cmd->fields.projectile_amount=100;                     //买弹量，递增式
-  sentry_cmd->fields.projectile_req_cnt=0;                      //远程买弹次数，开局为0，每买一次增加1
+  if (robot->referee_data->ProjectileAllowance.projectile_allowance_17mm<50) {
+    if(RFID->RFID1_t.fields.RFIDbit0
+      ||RFID->RFID1_t.fields.RFIDbit18
+      ||RFID->RFID1_t.fields.RFIDbit20
+      ||RFID->RFID1_t.fields.RFIDbit19) {
+      if (robot->referee_data->ProjectileAllowance.remaining_gold_coin>=200) {
+        sentry_cmd->fields.projectile_amount+=100;   //买弹量，递增式
+      }
+    }
+    else {
+      if (robot->referee_data->ProjectileAllowance.remaining_gold_coin>=1000) {
+        sentry_cmd->fields.projectile_req_cnt+=1;              //远程买弹次数，开局为0，每买一次增加1
+        sentry_cmd->fields.projectile_amount+=100;
+      }
+    }
+  }
   sentry_cmd->fields.hp_req_cnt=0;                              //金币买活次数，开局为0，每买一次增加1
   sentry_cmd->fields.activate_power_rune=0;                     //哨兵选择开符，0为默认，1为开符
   sentry_cmd->fields.sentry_mode=robot->sentry_mode;            //姿态切换
   sentry_cmd->fields.reserved=0;                                //保留位
-
-  SentrySend((uint8_t *)sentry_cmd);                            //发送指令
+  SentrySend(sentry_cmd->raw_data);                            //发送指令
 }
 static void SuperCapControl() {
   switch (supercap_mode) {
@@ -413,6 +427,8 @@ void RobotTask() {
   RobotCMDTask();
   // SuperCapControl();
   chassis_ctrl_cmd->max_power = robot->referee_data->GameRobotState.chassis_power_limit;
+  RFID->RFID1_t.RFID1=robot->referee_data->RFIDStatus.rfid_status;
+  RFID->RFID2_t.RFID2=robot->referee_data->RFIDStatus.rfid_status_2;
   SentryCmd();
   ChassisTask();
 #endif
