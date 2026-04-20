@@ -66,7 +66,7 @@ static void ApplyTorqueFeedback(void)
     }
     
     // 仅在机械臂处于自定义控制器模式时启用力反馈
-    if (angle_controller->robot_grab_mode != 2) {
+    if (angle_controller->robot_grab_mode != 1) {
         return;
     }
 
