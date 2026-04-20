@@ -30,7 +30,7 @@ static float DM_RadianToDegree(float radian);
 static void CalibrateMotorZeroPosition(CustomController_t* controller);
 static bool CheckMotorOnlineStatus(CustomController_t* controller);
 static void MicroSwitchMonitor(CustomController_t* controller);
-static void CustomController_RxCallback(USARTInstance* inst);
+static void CustomController_RxCallback(void);
 /* ----------------------- 公共函数实现 ----------------------------- */
 
 /**
@@ -99,6 +99,9 @@ CustomController_t* CustomControllerInit(CustomController_Init_Config_s* init_co
         custom_controller_usart = USARTRegister(&usart_config);
     }
     controller->usart_instance = custom_controller_usart;
+
+    // 保存全局指针（供回调函数使用）
+    g_custom_controller = controller;
 
     // 在组件内部创建微动开关 GPIO 实例
     controller->micro_switch_gpio = GPIORegister(&gpio_init_config_micro_switch);
@@ -264,15 +267,13 @@ void CustomController_UpdateMotorData(CustomController_t* controller)
 
 /**
  * @brief USART接收回调函数
- * @note 由BSP层在DMA IDLE中断时自动调用
+ * @note 由BSP层在DMA IDLE中断时自动调用（BSP层不传递参数）
  */
-static void CustomController_RxCallback(USARTInstance* inst)
+static void CustomController_RxCallback(void)
 {
-    if (inst == NULL || g_custom_controller == NULL) {
-        return;
-    }
-    
+    // 直接使用全局变量
     CustomController_t* controller = g_custom_controller;
+    USARTInstance* inst = custom_controller_usart;
     
     // 1. 推断本次实际接收长度
     uint16_t buf_size = (uint16_t)inst->recv_buff_size;
@@ -285,9 +286,6 @@ static void CustomController_RxCallback(USARTInstance* inst)
     if (rx_len == 0) {
         return;  // 没有新数据
     }
-    
-    // 调试：确认有数据接收
-    LOGINFO("[RX OK] len=%d", rx_len);
     
     // 2. 将新数据追加到流式缓存（处理粘包/拆包）
     uint8_t* rx_data = inst->recv_buff;

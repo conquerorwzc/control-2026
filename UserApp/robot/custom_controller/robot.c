@@ -72,11 +72,22 @@ static void ApplyTorqueFeedback(void)
 
     float custom_angles[5], real_angles[5], angle_errors[5], torque_outputs[5];
 
+    // 电机索引映射：自定义控制器电机 -> 工程板发送的角度索引
+    // 根据 engineering/robot.c 的 ProcessCustomControllerData() 反推
+    const uint8_t motor_to_angle_map[5] = {
+        1,  // motors[0] (DM4310_1) <- elbow_roll (index 1)
+        2,  // motors[1] (DM4310_2) <- elbow_pitch (index 2)
+        3,  // motors[2] (M3508_1)  <- wrist_pitch (index 3)
+        0,  // motors[3] (M3508_2)  <- base_joint (index 0)
+        4   // motors[4] (M2006)    <- wrist_roll (index 4)
+    };
+
     // 对5个关节分别计算力反馈
     for (int i = 0; i < 5; i++) {
-        // 获取自定义控制器角度和真实机械臂角度
+        // 获取自定义控制器角度和真实机械臂角度（使用映射后的索引）
+        uint8_t angle_idx = motor_to_angle_map[i];
         custom_angles[i] = angle_controller->motor_angles[i];
-        real_angles[i] = angle_controller->robot_arm_angles[i];
+        real_angles[i] = angle_controller->robot_arm_angles[angle_idx];
 
         // 计算角度误差（取反以修正方向）
         angle_errors[i] = real_angles[i] - custom_angles[i];
