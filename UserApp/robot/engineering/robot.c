@@ -47,7 +47,7 @@ static void MouseKeySet();
 static void EmergencyHandler();
 static void ProcessCustomControllerData();
 static void CalcOffsetAngle();
-static void SendArmMotorDataTask(void);  // 发送机械臂电机数据任务
+static void SendArmMotorDataTask(void); // 发送机械臂电机数据任务
 void RobotInit();
 void RobotCMDTask();
 void RobotTask();
@@ -107,7 +107,7 @@ void RobotTask()
     GrabTask();
     VideoGimbalTask();
 #endif
-    
+
     // 发送机械臂电机数据给自定义控制器 (10Hz)
     SendArmMotorDataTask();
 }
@@ -125,7 +125,6 @@ void RobotCMDTask()
     {
         Half_auto_update(grab_ctrl_cmd, chassis_ctrl_cmd, rc_data->mouse.press_l, rc_data_last->mouse.press_l,
                          rc_data->mouse.press_r, rc_data_last->mouse.press_r);
-
     }
     CalcOffsetAngle();
     RemoteControlSet();
@@ -150,8 +149,13 @@ static void MouseKeySet()
         return; // 有摇杆输入时不进行键鼠控制
     }
 
+    // 1. 把爬楼状态机变量提升到函数开头，方便全局复位
+    static uint8_t keyboard_climb_state = CHASSIS_CLIMB_IDLE;
+    // 记录上一次的大模式，用于边沿检测
+    static uint8_t last_robot_mode = ROBOT_POWER_OFF;
+
     // ================= 1. 大模式切换 (按 G 键循环切换) =================
-    switch (rc_data[TEMP].key_count[KEY_PRESS_NORMAL][KEY_G] % 3)
+    switch (rc_data[TEMP].key_count[KEY_PRESS_NORMAL][KEY_G] % 4)
     {
     case 0:
         robot->robot_mode = ROBOT_POWER_ON;
@@ -162,8 +166,27 @@ static void MouseKeySet()
     case 2:
         robot->robot_mode = ROBOT_CLIMB_MODE;
         break;
+    case 3:
+        robot->robot_mode = ROBOT_BUMPY_MODE; // 🌟 烂路模式
+        break;
     }
 
+    if (robot->robot_mode != last_robot_mode)
+    {
+        // 场景：退出爬楼模式
+        if (last_robot_mode == ROBOT_CLIMB_MODE || last_robot_mode == ROBOT_BUMPY_MODE)
+        {
+            keyboard_climb_state = CHASSIS_CLIMB_IDLE;
+        }
+
+        // 场景：退出兑换模式 (可选，同理清理兑换模式的危险残留)
+        if (last_robot_mode == ROBOT_EXCHANGE_MODE)
+        {
+            chassis_ctrl_cmd->lift_ratio = 0.0f; // 视你的需求决定是否复位抬升机构
+        }
+
+        last_robot_mode = robot->robot_mode;
+    }
     if (robot->robot_mode != ROBOT_POWER_OFF && robot->robot_mode != ROBOT_EMERGENCY_STOP)
     {
         grab_ctrl_cmd->grab_mode = GRAB_POWER_ON;
@@ -267,6 +290,20 @@ static void MouseKeySet()
                                 angle_rapid_buff);
             }
         }
+        else if (robot->robot_mode == ROBOT_CLIMB_MODE)
+        {
+            // 🛡️ 物理防翻车护盾：绝对禁止在双腿全伸出的高重心状态下旋转！
+            // 只有在 全收 (ALL_RETRACT) 或 前腿收回/后腿支撑 (FRONT_RETRACT) 的相对低重心状态，才允许微调姿态
+            if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_ALL_RETRACT ||
+                chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_FRONT_RETRACT)
+            {
+                set_angle +=
+                    (float)((rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].q - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].e) *
+                                angle_buff +
+                            (rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].a - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].d) *
+                                angle_rapid_buff);
+            }
+        }
         chassis_ctrl_cmd->robot_mode = robot->robot_mode;
 
         // ================= 4. 姿态复用控制 (Q, E, R) 与 兑换模式调节 =================
@@ -283,34 +320,53 @@ static void MouseKeySet()
             if (chassis_ctrl_cmd->lift_ratio > 1.0f)
                 chassis_ctrl_cmd->lift_ratio = 1.0f;
         }
-        else if (robot->robot_mode == ROBOT_CLIMB_MODE)
+        else if (robot->robot_mode == ROBOT_CLIMB_MODE || robot->robot_mode == ROBOT_BUMPY_MODE)
         {
-            // 【上台阶模式】：状态机离散触发 (防呆快速切换)
+            // 【上台阶/烂路模式】：状态机离散触发 (防呆快速切换)
             uint8_t key_q = rc_data[TEMP].key[KEY_PRESS_NORMAL].q;
             uint8_t key_e = rc_data[TEMP].key[KEY_PRESS_NORMAL].e;
 
-            if (key_q && key_e)
+            // 🌟 核心修复：组合按键“时间窗”消抖算法
+            static uint8_t last_raw_state = 0;
+            static uint8_t stable_cnt = 0;
+
+            // 状态编码：3(QE齐按), 2(只按Q), 1(只按E), 0(全松开)
+            uint8_t current_state = (key_q << 1) | key_e;
+
+            if (current_state == last_raw_state)
             {
-                // Q 和 E 一起按：全伸展 (准备跨上台阶)
-                chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_BOTH_EXTEND;
+                if (stable_cnt < 15)
+                    stable_cnt++; // 防止累加溢出
+
+                // 维持同一个状态超过 10 帧 (10 * 5ms = 50ms) 才认为是真实意图
+                if (stable_cnt == 10)
+                {
+                    if (current_state == 3)
+                        keyboard_climb_state = CHASSIS_CLIMB_BOTH_EXTEND;
+                    else if (current_state == 2)
+                        keyboard_climb_state = CHASSIS_CLIMB_FRONT_RETRACT;
+                    else if (current_state == 1)
+                        keyboard_climb_state = CHASSIS_CLIMB_ALL_RETRACT;
+                    // 注：如果 current_state == 0，什么都不做，完美保持最后一次成功触发的姿态！
+                }
             }
-            else if (key_q && !key_e)
+            else
             {
-                // 只按 Q：只伸后腿 (即：前腿收回，后腿顶起。前轮搭上台阶时使用)
-                chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_FRONT_RETRACT;
+                stable_cnt = 0; // 只要有任何风吹草动（比如松手瞬间的错位），立刻打断重置
             }
-            else if (!key_q && key_e)
-            {
-                // 只按 E：全收回 (上完台阶恢复平姿态，或复位)
-                chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_ALL_RETRACT;
-            }
+            last_raw_state = current_state;
+
             // 如果 Q 和 E 都不按，保持当前姿态不变
+            if (keyboard_climb_state != CHASSIS_CLIMB_IDLE)
+            {
+                chassis_ctrl_cmd->chassis_mode = keyboard_climb_state;
+            }
         }
 
         // 2. 机械臂全轴微调逻辑 (在兑换和上台阶下均可生效)
         if (robot->robot_mode == ROBOT_EXCHANGE_MODE || robot->robot_mode == ROBOT_CLIMB_MODE)
         {
-            //键鼠和自定义控制器情况下都能用
+            // 键鼠和自定义控制器情况下都能用
             if (grab_control_mode == GRAB_CONTROL_KEYBOARD || grab_control_mode == GRAB_CONTROL_CUSTOM)
             {
                 // 1. 抬升：Shift + W/S
@@ -354,7 +410,6 @@ static void MouseKeySet()
                 grab_ctrl_cmd->wrist_roll += (float)(rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].z -
                                                      rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].x) *
                                              arm_speed;
-
             }
         }
     }
@@ -466,56 +521,68 @@ static void RemoteControlSet()
         return;
     }
 
+    bool is_keyboard_climb = (robot->robot_mode == ROBOT_CLIMB_MODE);
+
     if (switch_is_mid(rc_data[TEMP].rc.switch_right))
     {
-        if (abs(rc_data[TEMP].rc.dial) > 20)
+        // 【修改点】：键盘处于爬台阶模式时，遥控器不要强制切回 FOLLOW
+        if (!is_keyboard_climb)
         {
             chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+        }
+
+        if (abs(rc_data[TEMP].rc.dial) > 20)
+        {
             chassis_ctrl_cmd->wz = 0;
             set_angle += (rc_data[TEMP].rc.dial - 20) * 0.0001;
         }
-        else
-            chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
     }
     else if (switch_is_down(rc_data[TEMP].rc.switch_right))
     {
-        chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
+        // 【修改点】：键盘爬台阶时，防止误触右拨杆导致底盘下电
+        if (!is_keyboard_climb)
+        {
+            chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
+        }
     }
     else if (switch_is_up(rc_data[TEMP].rc.switch_right))
     {
-        if (chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_IDLE &&
-            chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_BOTH_EXTEND &&
-            chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_FRONT_RETRACT &&
-            chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_ALL_RETRACT)
+        // 【修改点】：如果键鼠在控制上台阶，彻底屏蔽遥控器左拨杆的上台阶逻辑，防止相互覆盖
+        if (!is_keyboard_climb)
         {
-            chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_IDLE;
-        }
-
-        uint8_t current_switch = rc_data[TEMP].rc.switch_left;
-        static uint8_t last_switch = 0;
-        static uint32_t switch_stable_cnt = 0;
-
-        if (current_switch == last_switch)
-        {
-            switch_stable_cnt++;
-            if (switch_stable_cnt >= SWITCH_STABLE_TICKS)
+            if (chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_IDLE &&
+                chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_BOTH_EXTEND &&
+                chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_FRONT_RETRACT &&
+                chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_ALL_RETRACT)
             {
-                if (switch_is_up(current_switch))
-                    chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_BOTH_EXTEND;
-                else if (switch_is_mid(current_switch))
-                    chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_FRONT_RETRACT;
-                else if (switch_is_down(current_switch))
-                    chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_ALL_RETRACT;
-                switch_stable_cnt = SWITCH_STABLE_TICKS;
+                chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_IDLE;
+            }
+
+            uint8_t current_switch = rc_data[TEMP].rc.switch_left;
+            static uint8_t last_switch = 0;
+            static uint32_t switch_stable_cnt = 0;
+
+            if (current_switch == last_switch)
+            {
+                switch_stable_cnt++;
+                if (switch_stable_cnt >= SWITCH_STABLE_TICKS)
+                {
+                    if (switch_is_up(current_switch))
+                        chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_BOTH_EXTEND;
+                    else if (switch_is_mid(current_switch))
+                        chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_FRONT_RETRACT;
+                    else if (switch_is_down(current_switch))
+                        chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_ALL_RETRACT;
+                    switch_stable_cnt = SWITCH_STABLE_TICKS;
+                }
+            }
+            else
+            {
+                last_switch = current_switch;
+                switch_stable_cnt = 0;
             }
         }
-        else
-        {
-            last_switch = current_switch;
-            switch_stable_cnt = 0;
-        }
     }
-
     // rocker_r1：向上推大于 300 夹紧，向下推小于 -300 松开
     if (rc_data[TEMP].rc.rocker_r1 > 300)
     {
@@ -619,31 +686,34 @@ static void Record_Current_Waypoint(void)
 static void SendArmMotorDataTask(void)
 {
     static uint32_t last_send_time = 0;
-    
+
     // 10Hz频率控制: 距离上次发送不足100ms则跳过
     uint32_t current_time = HAL_GetTick();
-    if ((current_time - last_send_time) < 100) {
+    if ((current_time - last_send_time) < 100)
+    {
         return;
     }
-    
+
     // 获取机械臂5个关节角度
     float motor_angles[5] = {0.0f};
-    if (robot->grab != NULL && robot->grab->arm != NULL && robot->grab->actuator != NULL) {
+    if (robot->grab != NULL && robot->grab->arm != NULL && robot->grab->actuator != NULL)
+    {
         motor_angles[0] = robot->grab->arm->base_joint;       // 基座关节
         motor_angles[1] = robot->grab->arm->elbow_roll;       // 肘部滚转
         motor_angles[2] = robot->grab->arm->elbow_pitch;      // 肘部俯仰
         motor_angles[3] = robot->grab->actuator->wrist_pitch; // 腕部俯仰
         motor_angles[4] = robot->grab->actuator->wrist_roll;  // 腕部滚转
     }
-    
+
     // 获取当前机械臂控制模式并发送
     uint8_t control_mode = (uint8_t)grab_control_mode;
-    
+
     // 使用selfcontrol的USART实例发送（UART7，921600波特率）
-    if (robot->self_control != NULL && robot->self_control->usart_instance != NULL) {
+    if (robot->self_control != NULL && robot->self_control->usart_instance != NULL)
+    {
         SelfControl_SendMotorDataToCustom(motor_angles, control_mode, robot->self_control->usart_instance);
     }
-    
+
     // 更新发送时间戳
     last_send_time = current_time;
 }

@@ -106,6 +106,7 @@ typedef struct
     float forward_lift_out;         // 导杆伸出位置
     float backward_lift_in;         // 腿抬升收回位置
     float backward_lift_out;       // 腿抬升伸出位置
+    float climb_tilt_ratio;  // 烂路模式 (前收后伸) 时的“撅屁股”程度比例 (0.0 ~ 1.0)
 } Chassis_Param_s;
 
 typedef struct
