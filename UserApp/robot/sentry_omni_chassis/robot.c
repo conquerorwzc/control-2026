@@ -74,17 +74,6 @@ static void CalcOffsetAngle() {
   chassis_ctrl_cmd->offset_angle = delta;
 }
 
-static void SentryRefereeSend() {
-  sentry_cmd.fields.confirm_respawn = 1;
-  sentry_cmd.fields.confirm_instant_respawn = 0;
-  sentry_cmd.fields.projectile_amount = 1000;
-  sentry_cmd.fields.projectile_req_cnt = 1;
-  sentry_cmd.fields.hp_req_cnt = 0;
-  sentry_cmd.fields.sentry_mode = robot->sentry_mode;
-  sentry_cmd.fields.activate_power_rune = 1;
-
-  SentrySend(sentry_cmd.raw_data, sizeof(sentry_cmd.raw_data));
-}
 
 #if defined(USE_DUAL_RC)
 /**
@@ -168,7 +157,8 @@ static void RemoteControlSet() {
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
       chassis_ctrl_cmd->wz = (2.0f) * (float)vt13_rc_data->rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
     }
-  } else if (robot->control_mode == NAVIGATOR_MODE)  // 自动控制，直接收上位机控制量
+  }
+  else if (robot->control_mode == NAVIGATOR_MODE)  // 自动控制，直接收上位机控制量
   {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
       vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vy * 10000;
@@ -259,8 +249,8 @@ static void SentryCmd() {
     }
   }
 
-  sentry_cmd->fields.confirm_respawn=1;                         //0为不复活，1确认复活
-  sentry_cmd->fields.confirm_instant_respawn=0;                 //0为不买活，1为买活
+  // sentry_cmd->fields.confirm_respawn=0;                         //0为不复活，1确认复活
+  // sentry_cmd->fields.confirm_instant_respawn=0;                 //0为不买活，1为买活
   if (robot->referee_data->ProjectileAllowance.projectile_allowance_17mm<50) {
     if(RFID->RFID1_t.fields.RFIDbit0
       ||RFID->RFID1_t.fields.RFIDbit18
@@ -371,6 +361,8 @@ void RobotInit() {
   can_comm_instance = CANCommInit(&comm_config);
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
   referee_data = (Referee_Data *)zmalloc(sizeof(Referee_Data));
+  RFID = (RFID_Status_t *)zmalloc(sizeof(RFID_Status_t));
+  sentry_cmd=(Sentry_Cmd_t *)zmalloc(sizeof(Sentry_Cmd_t));
 #ifdef USE_DUAL_RC
   // 使用旧遥控器
   rc_data_old = (Send_Data_RC *)zmalloc(sizeof(Send_Data_RC));
@@ -389,7 +381,6 @@ void RobotInit() {
   robot->navigator_data = navigator_init(&huart1);
 
   robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
-  robot->sentry_mode = 1;
 
   // robot->super_cap = SuperCapInit(&super_cap_config);
 
