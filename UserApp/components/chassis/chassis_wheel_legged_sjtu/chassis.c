@@ -334,25 +334,26 @@ void ChassisProstrateMode(void) {
   float wz_motor = 0.0f;
 
   // 设置速度环
-  for (int i = 0;i<2;i++) {
+  for (int i = 0; i < 2; i++) {
     leg[i]->wheel_motor->motor_settings.close_loop_type = SPEED_LOOP;
     leg[i]->wheel_motor->motor_settings.outer_loop_type = SPEED_LOOP;
   }
 
-  // if (chassis_ctrl_cmd->is_rotate == 0) {
-  //   float wz_pid = -PIDCalculate(&chassis->yaw_prostrate_PID, chassis->imu->YawTotalAngle * DEGREE_2_RAD,
-  //                                chassis_ctrl_cmd->target_yaw);
-  //   vx_motor = chassis_ctrl_cmd->vx * VX_TO_MOTOR;
-  //   wz_motor = wz_pid * WZ_PID_TO_MOTOR + chassis_ctrl_cmd->wz * WZ_FF_TO_MOTOR;
-  // } else if (chassis_ctrl_cmd->is_rotate == 1) {
-  //   vx_motor = chassis_ctrl_cmd->vx * VX_TO_MOTOR;
-  //   wz_motor = chassis_ctrl_cmd->wz * WZ_FF_TO_MOTOR;
-  // }
-  vx_motor = chassis_ctrl_cmd->vx * VX_TO_MOTOR;
-  wz_motor = chassis_ctrl_cmd->wz * WZ_FF_TO_MOTOR;
+  if (chassis_ctrl_cmd->is_rotate == 0) {
+    float wz_pid = -PIDCalculate(&chassis->yaw_prostrate_PID, chassis->imu->YawTotalAngle * DEGREE_2_RAD,
+                                 chassis_ctrl_cmd->target_yaw);
+    vx_motor = chassis_ctrl_cmd->vx * VX_TO_MOTOR;
+    wz_motor = wz_pid * WZ_PID_TO_MOTOR + chassis_ctrl_cmd->wz * WZ_FF_TO_MOTOR;
+  } else if (chassis_ctrl_cmd->is_rotate == 1) {
+    vx_motor = chassis_ctrl_cmd->vx * VX_TO_MOTOR;
+    wz_motor = chassis_ctrl_cmd->wz * WZ_FF_TO_MOTOR;
+  }
+  // 调试用
+  // vx_motor = chassis_ctrl_cmd->vx * VX_TO_MOTOR;
+  // wz_motor = chassis_ctrl_cmd->wz * WZ_FF_TO_MOTOR;
   // 差速分配
   wheel_speed_ref[0] = -1.0f * (vx_motor - wz_motor);  // 右轮 leg[0]
-  wheel_speed_ref[1] = vx_motor + wz_motor;            // 左轮 leg[1]
+  wheel_speed_ref[1] = -1.0f * (vx_motor + wz_motor);    // 左轮 leg[1]
 }
 /**
  * @brief 卧倒模式缩关节

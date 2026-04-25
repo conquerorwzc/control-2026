@@ -444,6 +444,10 @@ void JoyStickCtrl(RobotInstance* robot) {
         chassis_ctrl_cmd->vx = 0.0f;
       break;
     }
+    case ROBOT_CHASSIS_PROSTRATE_FREE: {
+      chassis_ctrl_cmd->vx = rc_data->rc.rocker_l1;
+      chassis_ctrl_cmd->wz = rc_data->rc.rocker_l_;
+    }
     default:
       break;
   }
