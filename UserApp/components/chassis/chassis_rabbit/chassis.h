@@ -29,7 +29,7 @@
 *          motor[2] - Left Rear Wheel
 *          motor[3] - Right Rear Wheel
 *          腿：0左 1右
-*          (车头方向)                                                (车尾方向)
+*          (车尾方向)                                                (车头方向)
 
  (主电机轴心)                                          (机架固定支点)
       A ==================================================== D
@@ -52,6 +52,7 @@
 #include "dmmotor.h"
 #include "external_imu/external_imu.h"
 #include "super_cap.h"
+#include "tofsense.h"
 typedef enum {
   CHASSIS_POWER_OFF = 0,     // 电流零输入
   CHASSIS_ROTATE,            // 小陀螺模式
@@ -128,6 +129,7 @@ typedef struct {
     FDCAN_HandleTypeDef *can_handle;
   } external_imu; // External IMU sensor configuration
   SuperCap_Init_Config_s super_cap_config;
+  TOFSense_Init_Config_s tof_sense_config;
 } Chassis_Init_Config_s;
 
 typedef struct {
@@ -137,6 +139,7 @@ typedef struct {
   external_imu_t* chassis_external_imu;  // 底盘外部IMU数据
   SuperCapInstance* super_cap;
   SuperCapMode super_cap_mode;
+  TOFSenseInstance* tof_sense;
 } ChassisInstance;
 
 /**

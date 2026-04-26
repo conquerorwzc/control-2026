@@ -213,7 +213,17 @@ static Chassis_Init_Config_s chassis_init_config = {
            .can_id=0x01,
            .mst_id=0x11,
            .can_handle = &hfdcan3,
-         }
+         },
+    .tof_sense_config=
+       {
+          .mode = TOF_ACTIVE_MODE,
+          .tof_id = 5,
+          .can_init_config =
+            {
+            .can_handle = &hfdcan3,
+            .rx_id = 0x205,
+          },
+    },
 
 };
 
@@ -295,12 +305,6 @@ static Gimbal_Init_Config_s gimbal_init_config = {
       .Yaw = 0.0f,
       .Pitch = 0.0f,
       .Roll = 0.0f
-    },
-  .external_imu=
-    {
-      .can_id=0x01,
-      .mst_id=0x11,
-      .can_handle = &hfdcan3,
     },
 };
 
