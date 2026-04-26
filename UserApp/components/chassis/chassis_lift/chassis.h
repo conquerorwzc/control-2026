@@ -39,8 +39,21 @@ typedef enum
     CHASSIS_CLIMB_IDLE,
     CHASSIS_CLIMB_ALL_RETRACT,
     CHASSIS_CLIMB_BOTH_EXTEND,
+    CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF,
     CHASSIS_CLIMB_FRONT_RETRACT
 } Chassis_Mode_e;
+
+typedef enum
+{
+    ROBOT_POWER_OFF = 0,
+    ROBOT_POWER_ON,          // 正常行车模式
+    ROBOT_EXCHANGE_MODE,     // 兑换模式
+    ROBOT_CLIMB_MODE,        // 上台阶模式
+    ROBOT_BUMPY_MODE,
+    ROBOT_EMERGENCY_STOP
+} Robot_Mode_e;
+
+
 typedef enum
 {
     CLIMB_STAGE_IDLE = 0,      // 平地/复位状态 (全收)

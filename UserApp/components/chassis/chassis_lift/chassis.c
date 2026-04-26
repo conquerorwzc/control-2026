@@ -31,7 +31,7 @@
 #define REAR_TOTAL_TIME_SEC 3.0f     // 坚决贯彻 3.0 秒！
 #define REAR_ACCEL_TIME_SEC 1.0f     // 丝杠起步快，给 1.0 秒爆发加速
 #define REAR_MOVING_MAX_OUT 12000.0f // 突破静摩擦力的狂暴输出！
-#define REAR_STOP_MAX_OUT 4000.0f       // 驻车力，靠齿轮摩擦力锁死即可
+#define REAR_STOP_MAX_OUT 4000.0f    // 驻车力，靠齿轮摩擦力锁死即可
 
 // ==================== 【硬件基础信息】 ====================
 #define CALI_TASK_FREQ 500.0f  // 标定任务运行频率 (Hz) ，在ostask里得知
@@ -311,7 +311,6 @@ void ChassisTask()
     LimitChassisOutput();
 }
 
-
 /**
  * @brief 动态重写腿部的梯形曲线速度与加速度
  */
@@ -323,8 +322,8 @@ static void LiftLeg_UpdateSpeed(LiftLeg_t *leg, float total_time, float acc_time
             acc_time = total_time * 0.3f;
 
         float v_max = fabsf(stroke) / (total_time - acc_time);
-        if (v_max > 42000.0f) v_max = 42000.0f; // 硬件安全限幅
-
+        if (v_max > 42000.0f)
+            v_max = 42000.0f; // 硬件安全限幅
 
         leg->planner.max_vel = v_max;
         leg->planner.accel = v_max / acc_time;
@@ -649,11 +648,19 @@ void Leg_FSM()
             LiftLeg_SetTarget(&chassis->rear_legs[RIGHT], rear_r_target); // 自动根据模式决定顶多少
             break;
 
-        case CHASSIS_CLIMB_FRONT_RETRACT:
-            LiftLeg_SetTarget(&chassis->front_legs[LEFT], chassis->cali_state.init_angle[2]);
+        case CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF:
+            LiftLeg_SetTarget(&chassis->front_legs[LEFT], chassis->cali_state.init_angle[2]); // 前腿缩回
             LiftLeg_SetTarget(&chassis->front_legs[RIGHT], chassis->cali_state.init_angle[3]);
-            LiftLeg_SetTarget(&chassis->rear_legs[LEFT], rear_l_target);  // 自动根据模式决定顶多少
-            LiftLeg_SetTarget(&chassis->rear_legs[RIGHT], rear_r_target); // 自动根据模式决定顶多少
+            // 后腿仅伸出最大行程的 50%
+            LiftLeg_SetTarget(&chassis->rear_legs[LEFT], chassis->cali_state.init_angle[0] + stroke_rear_l * 0.50f);
+            LiftLeg_SetTarget(&chassis->rear_legs[RIGHT], chassis->cali_state.init_angle[1] + stroke_rear_r * 0.50f);
+            break;
+
+        case CHASSIS_CLIMB_FRONT_RETRACT:
+            LiftLeg_SetTarget(&chassis->front_legs[LEFT], chassis->cali_state.init_angle[2]); // 前腿缩回
+            LiftLeg_SetTarget(&chassis->front_legs[RIGHT], chassis->cali_state.init_angle[3]);
+            LiftLeg_SetTarget(&chassis->rear_legs[LEFT], rear_l_target);
+            LiftLeg_SetTarget(&chassis->rear_legs[RIGHT], rear_r_target);
             break;
 
         default: // 行车模式 / 全部收回

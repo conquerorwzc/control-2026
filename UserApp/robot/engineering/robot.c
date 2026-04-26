@@ -290,11 +290,12 @@ static void MouseKeySet()
                                 angle_rapid_buff);
             }
         }
-        else if (robot->robot_mode == ROBOT_CLIMB_MODE)
+        else if (robot->robot_mode == ROBOT_CLIMB_MODE || robot->robot_mode == ROBOT_BUMPY_MODE) // 🌟 修复2：向烂路模式开放键盘微调权限
         {
             // 🛡️ 物理防翻车护盾：绝对禁止在双腿全伸出的高重心状态下旋转！
-            // 只有在 全收 (ALL_RETRACT) 或 前腿收回/后腿支撑 (FRONT_RETRACT) 的相对低重心状态，才允许微调姿态
+            // 只有在全收、后腿半伸、后腿全伸等低重心状态下，才允许微调姿态
             if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_ALL_RETRACT ||
+                chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF || // 🌟 修复1：加上后腿半伸的旋转权限
                 chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_FRONT_RETRACT)
             {
                 set_angle +=
@@ -339,15 +340,28 @@ static void MouseKeySet()
                     stable_cnt++; // 防止累加溢出
 
                 // 维持同一个状态超过 10 帧 (10 * 5ms = 50ms) 才认为是真实意图
+                // 维持同一个状态超过 10 帧 (10 * 5ms = 50ms) 才认为是真实意图
                 if (stable_cnt == 10)
                 {
                     if (current_state == 3)
                         keyboard_climb_state = CHASSIS_CLIMB_BOTH_EXTEND;
-                    else if (current_state == 2)
-                        keyboard_climb_state = CHASSIS_CLIMB_FRONT_RETRACT;
+                    else if (current_state == 2) // 🌟 仅按了 Q 键 (前收，后伸)
+                    {
+                        // 两段式后伸逻辑：
+                        // 如果当前不是后腿半伸，则进入半伸 (50%)；
+                        // 如果已经是半伸了，再次按 Q 则进入全伸 (100%)。
+                        if (keyboard_climb_state != CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF &&
+                            keyboard_climb_state != CHASSIS_CLIMB_FRONT_RETRACT)
+                        {
+                            keyboard_climb_state = CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF;
+                        }
+                        else if (keyboard_climb_state == CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF)
+                        {
+                            keyboard_climb_state = CHASSIS_CLIMB_FRONT_RETRACT;
+                        }
+                    }
                     else if (current_state == 1)
                         keyboard_climb_state = CHASSIS_CLIMB_ALL_RETRACT;
-                    // 注：如果 current_state == 0，什么都不做，完美保持最后一次成功触发的姿态！
                 }
             }
             else
@@ -551,9 +565,10 @@ static void RemoteControlSet()
         if (!is_keyboard_climb)
         {
             if (chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_IDLE &&
-                chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_BOTH_EXTEND &&
-                chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_FRONT_RETRACT &&
-                chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_ALL_RETRACT)
+              chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_BOTH_EXTEND &&
+              chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF && // 🌟 新增防打断
+              chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_FRONT_RETRACT &&
+              chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_ALL_RETRACT)
             {
                 chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_IDLE;
             }
@@ -606,7 +621,8 @@ static void RemoteControlSet()
     if (abs(rc_data[TEMP].rc.dial) > 20)
     {
         if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_ALL_RETRACT ||
-            chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_FRONT_RETRACT)
+               chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF ||
+               chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_FRONT_RETRACT)
         {
             set_angle += (rc_data[TEMP].rc.dial - 20) * 0.0001;
         }
