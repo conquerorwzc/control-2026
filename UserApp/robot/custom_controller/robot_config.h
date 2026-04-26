@@ -33,8 +33,8 @@ static Motor_Init_Config_s DM4310_config_1 = {
             .speed_feedback_source = MOTOR_FEED,
             .outer_loop_type = OPEN_LOOP,      // 开环，直接输出力矩
             .close_loop_type = OPEN_LOOP,       // 不使用闭环
-            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
-            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
         },
     .motor_type = J4310,
     .can_init_config.can_handle = &hcan1,
@@ -67,8 +67,8 @@ static Motor_Init_Config_s DM4310_config_2 = {
             .speed_feedback_source = MOTOR_FEED,
             .outer_loop_type = OPEN_LOOP,
             .close_loop_type = OPEN_LOOP,
-            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
-            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
         },
     .motor_type = J4310,
     .can_init_config.can_handle = &hcan1,
