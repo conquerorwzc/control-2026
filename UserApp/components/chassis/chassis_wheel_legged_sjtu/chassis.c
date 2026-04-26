@@ -381,7 +381,8 @@ static void LimitChassisOutput(void) {
     for (int i = 0; i < 2; i++) {
       VAL_LIMIT(leg[i]->real_model.Tp_1, -33.0f, 33.0f);
       VAL_LIMIT(leg[i]->real_model.Tp_2, -33.0f, 33.0f);
-      VAL_LIMIT(leg[i]->real_model.T, -2.45f, 2.45f);
+      // VAL_LIMIT(leg[i]->real_model.T, -2.45f, 2.45f);// 限制额定扭矩
+      VAL_LIMIT(leg[i]->real_model.T, -4.92f, 4.92f); // 限制峰值扭矩
       DMMotorSetRef(leg[i]->joint_motor[0], leg[i]->real_model.Tp_1);
       DMMotorSetRef(leg[i]->joint_motor[1], leg[i]->real_model.Tp_2);
       // DMMotorSetRef(leg[i]->joint_motor[0], 0);

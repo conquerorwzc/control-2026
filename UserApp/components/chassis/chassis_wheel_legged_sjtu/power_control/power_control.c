@@ -177,7 +177,6 @@ void PowerControl(ChassisInstance* chassis) {
 }
 
 void PowerControlInit(ChassisInstance* chassis) {
-  
   power_ctrl = (PowerCtrl_t*)zmalloc(sizeof(PowerCtrl_t));
   PowerCtrl_t* pc = power_ctrl;
   // 6参数模型系数
