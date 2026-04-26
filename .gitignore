@@ -100,3 +100,4 @@ cmake-build-debug-stm32/
 /auto_tune.py
 /.vscode/settings.json
 /test_gdb.gdb
+/cmake-build-debug/
