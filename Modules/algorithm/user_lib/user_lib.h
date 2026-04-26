@@ -116,6 +116,9 @@ float loop_float_constrain(float Input, float minValue, float maxValue);
 // ??? ????? 180 ~ -180
 float theta_format(float Ang);
 
+// 计算当前角度与目标角度的最小差值（[-180, 180]），返回格式化后的当前角度
+float wrap180(float angle_deg);
+
 int float_rounding(float raw);
 
 float soft_limit(float x, float lim);

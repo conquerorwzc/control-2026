@@ -206,6 +206,13 @@ float soft_limit(float x, float lim) {
 // 角度格式化为-180~180
 float theta_format(float Ang) { return loop_float_constrain(Ang, -180.0f, 180.0f); }
 
+// 将角度限制在 [-180, 180] 范围内, O(1)时间复杂度, 效率高于 theta_format
+float wrap180(float angle_deg) {
+  float diff = fmodf(angle_deg, 360.0f);
+  diff = diff - 360.0f * floorf(diff / 360.0f + 0.5f);
+  return diff;
+}
+
 int float_rounding(float raw) {
   static int integer;
   static float decimal;

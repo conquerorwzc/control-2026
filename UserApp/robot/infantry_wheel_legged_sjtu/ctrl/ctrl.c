@@ -34,6 +34,20 @@ static uint8_t mouse_burst = 0;     // 鼠标要求连发
 #define TURN_BOOST_DEADZONE 10
 #define TURN_BOOST_GAIN 3.0f
 
+static float CalcFollowErrDeg(float move_angle_deg, float offset_angle_deg, float* direction_sign) {
+  // wrap180 将角度差限制在 [-180, 180] 范围内，计算最短路径
+  float front_err = wrap180(move_angle_deg - offset_angle_deg);
+  float rear_err = wrap180(move_angle_deg - (offset_angle_deg + 180.0f));
+
+  if (fabsf(front_err) <= fabsf(rear_err)) {
+    *direction_sign = 1.0f;
+    return front_err;
+  }
+
+  *direction_sign = -1.0f;
+  return rear_err;
+}
+
 // Ramp controller (externed in header)
 // 挺好用的一版
 Ramp_Controller_t chassis_ramp = {
@@ -166,27 +180,21 @@ void JoyStickCtrl(RobotInstance* robot) {
     }
     case ROBOT_CHASSIS_FOLLOW: {
 #if (!defined(ONE_BOARD))
+      float follow_direction_sign = 1.0f;
       // 获取输入
       chassis_vx = 0.003f * (float)rc_data[TEMP].rc.rocker_l_;
       chassis_vy = 0.003f * (float)rc_data[TEMP].rc.rocker_l1;
       input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
       if (input_mag > 0.0005f) {
-        // 运动方向解算
-        follow_err = (atan2f(chassis_vy, chassis_vx) - PI / 2.0f) * RAD_2_DEGREE - robot->offset_angle;
-        while (follow_err > 180.0f) follow_err -= 360.0f;
-        while (follow_err < -180.0f) follow_err += 360.0f;
-        // 倒车优化
-        if (abs(follow_err) > 90.0f) {
-          if (follow_err > 0.0f)
-            follow_err -= 180.0f;
-          else
-            follow_err += 180.0f;
-          input_mag = -input_mag;
-        }
+        // 运动方向解算：比较车头 / 车尾两种跟随姿态，选转角更小的那个
+        float move_angle_deg = (atan2f(chassis_vy, chassis_vx) - PI / 2.0f) * RAD_2_DEGREE;
+        follow_err = CalcFollowErrDeg(move_angle_deg, robot->offset_angle, &follow_direction_sign);
+        input_mag *= follow_direction_sign;
         chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + follow_err * DEGREE_2_RAD;
       } else {
-        chassis_ctrl_cmd->target_yaw =
-            robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD - robot->offset_angle * DEGREE_2_RAD;
+        // 松杆时：底盘follow车头或者车尾，看哪个近
+        follow_err = CalcFollowErrDeg(0.0f, robot->offset_angle, &follow_direction_sign);
+        chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + follow_err * DEGREE_2_RAD;
       }
       chassis_ctrl_cmd->wz = 0.0f;  // 无前馈角速度
       // 对齐衰减
@@ -320,27 +328,21 @@ void JoyStickCtrl(RobotInstance* robot) {
     }
     case ROBOT_CHASSIS_FOLLOW: {
 #if (!defined(ONE_BOARD))
+      float follow_direction_sign = 1.0f;
       // 获取输入
       chassis_vx = 0.003f * (float)rc_data->rc.rocker_l_;
       chassis_vy = 0.003f * (float)rc_data->rc.rocker_l1;
       input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
       if (input_mag > 0.0005f) {
-        // 运动方向解算
-        follow_err = (atan2f(chassis_vy, chassis_vx) - PI / 2.0f) * RAD_2_DEGREE - robot->offset_angle;
-        while (follow_err > 180.0f) follow_err -= 360.0f;
-        while (follow_err < -180.0f) follow_err += 360.0f;
-        // 倒车优化
-        if (abs(follow_err) > 90.0f) {
-          if (follow_err > 0.0f)
-            follow_err -= 180.0f;
-          else
-            follow_err += 180.0f;
-          input_mag = -input_mag;
-        }
+        // 运动方向解算：比较车头 / 车尾两种跟随姿态，选转角更小的那个
+        float move_angle_deg = (atan2f(chassis_vy, chassis_vx) - PI / 2.0f) * RAD_2_DEGREE;
+        follow_err = CalcFollowErrDeg(move_angle_deg, robot->offset_angle, &follow_direction_sign);
+        input_mag *= follow_direction_sign;
         chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + follow_err * DEGREE_2_RAD;
       } else {
-        chassis_ctrl_cmd->target_yaw =
-            robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD - robot->offset_angle * DEGREE_2_RAD;
+        // 松杆时：底盘follow车头或者车尾，看哪个近
+        follow_err = CalcFollowErrDeg(0.0f, robot->offset_angle, &follow_direction_sign);
+        chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + follow_err * DEGREE_2_RAD;
       }
       chassis_ctrl_cmd->wz = 0.0f;  // 无前馈角速度
       // 对齐衰减
@@ -382,6 +384,7 @@ void JoyStickCtrl(RobotInstance* robot) {
     case ROBOT_CHASSIS_PROSTRATE_FOLLOW: {
 #if (!defined(ONE_BOARD))
       chassis_ctrl_cmd->is_rotate = 0;
+      float follow_direction_sign = 1.0f;
       // 获取输入（左摇杆 → 云台坐标系下的 vx, vy）
       chassis_vx = (float)rc_data->rc.rocker_l_;
       chassis_vy = (float)rc_data->rc.rocker_l1;
@@ -395,18 +398,10 @@ void JoyStickCtrl(RobotInstance* robot) {
       // ===== 默认无前馈 =====
       chassis_ctrl_cmd->wz = 0.0f;
       if (input_mag > 5.0f) {
-        // 运动方向解算
-        follow_err = (atan2f(chassis_vy, chassis_vx) - PI / 2.0f) * RAD_2_DEGREE - robot->offset_angle;
-        while (follow_err > 180.0f) follow_err -= 360.0f;
-        while (follow_err < -180.0f) follow_err += 360.0f;
-        // 倒车优化
-        if (abs(follow_err) > 90.0f) {
-          if (follow_err > 0.0f)
-            follow_err -= 180.0f;
-          else
-            follow_err += 180.0f;
-          input_mag = -input_mag;
-        }
+        // 运动方向解算：比较车头 / 车尾两种跟随姿态，选转角更小的那个
+        float move_angle_deg = (atan2f(chassis_vy, chassis_vx) - PI / 2.0f) * RAD_2_DEGREE;
+        follow_err = CalcFollowErrDeg(move_angle_deg, robot->offset_angle, &follow_direction_sign);
+        input_mag *= follow_direction_sign;
         chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + follow_err * DEGREE_2_RAD;
         // ===== 前馈：误差大时额外给 wz 加速转向 =====
         float abs_err = fabsf(follow_err);
@@ -414,10 +409,9 @@ void JoyStickCtrl(RobotInstance* robot) {
           chassis_ctrl_cmd->wz = follow_err * TURN_BOOST_GAIN;
         }
       } else {
-        // 静止回正：底盘对齐云台
-        follow_err = 0.0f;  // 静止时清零，防止衰减计算用到脏值
-        chassis_ctrl_cmd->target_yaw =
-            robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD - robot->offset_angle * DEGREE_2_RAD;
+        // 静止时：底盘follow车头或者车尾，看哪个近
+        follow_err = CalcFollowErrDeg(0.0f, robot->offset_angle, &follow_direction_sign);
+        chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + follow_err * DEGREE_2_RAD;
       }
       // 对齐衰减
       align_attenuation = cosf(follow_err * DEGREE_2_RAD);
@@ -656,8 +650,9 @@ void MouseKeyCtrl(RobotInstance* robot) {
       // chassis_ctrl_cmd->vx = input_mag * sinf(target_angle_to_chassis + phase_compensation);
       break;
 
-    case ROBOT_CHASSIS_FOLLOW:
+    case ROBOT_CHASSIS_FOLLOW: {
 #if (!defined(ONE_BOARD))
+      float follow_direction_sign = 1.0f;
       // 设置目标速度矢量 (vx, vy),单位为m/s
       if (rc_data[TEMP].key[KEY_PRESS].w)
         chassis_vy = 0.5f * speed_coff;
@@ -675,26 +670,15 @@ void MouseKeyCtrl(RobotInstance* robot) {
 
       input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
       if (input_mag > 0.0005f) {
-        // 运动方向解算
-        follow_err = (atan2f(chassis_vy, chassis_vx) - PI / 2.0f) * RAD_2_DEGREE - robot->offset_angle;
-        while (follow_err > 180.0f) follow_err -= 360.0f;
-        while (follow_err < -180.0f) follow_err += 360.0f;
-        // 倒车优化
-        if (abs(follow_err) > 90.0f) {
-          if (follow_err > 0.0f)
-            follow_err -= 180.0f;
-          else
-            follow_err += 180.0f;
-          input_mag = -input_mag;
-        }
-        // ====== 核心修改：直接计算目标yaw角度 ======
-        // 目标 = 当前yaw - offset_angle + follow_err (让底盘朝向运动方向)
-        // 等价于：让底盘转到 gimbal方向 再补偿 follow_err
+        // 运动方向解算：比较车头 / 车尾两种跟随姿态，选转角更小的那个
+        float move_angle_deg = (atan2f(chassis_vy, chassis_vx) - PI / 2.0f) * RAD_2_DEGREE;
+        follow_err = CalcFollowErrDeg(move_angle_deg, robot->offset_angle, &follow_direction_sign);
+        input_mag *= follow_direction_sign;
         chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + follow_err * DEGREE_2_RAD;
       } else {
-        // 静止回正：让底盘对齐云台 (offset → 0)
-        chassis_ctrl_cmd->target_yaw =
-            robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD - robot->offset_angle * DEGREE_2_RAD;
+        // 松杆时：底盘follow车头或者车尾，看哪个近
+        follow_err = CalcFollowErrDeg(0.0f, robot->offset_angle, &follow_direction_sign);
+        chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + follow_err * DEGREE_2_RAD;
       }
       chassis_ctrl_cmd->wz = 0.0f;  // 无前馈角速度
       // 对齐衰减
@@ -709,6 +693,7 @@ void MouseKeyCtrl(RobotInstance* robot) {
       chassis_ctrl_cmd->theta_ff = 0.0f;
       break;
 #endif
+    }
     case ROBOT_CHASSIS_FREE:
 #if (!defined(ONE_BOARD))
       // 双板：静止对齐云台
@@ -891,8 +876,9 @@ void MouseKeyCtrl(RobotInstance* robot) {
       // chassis_ctrl_cmd->vx = input_mag * sinf(target_angle_to_chassis + phase_compensation);
       break;
 
-    case ROBOT_CHASSIS_FOLLOW:
+    case ROBOT_CHASSIS_FOLLOW: {
 #if (!defined(ONE_BOARD))
+      float follow_direction_sign = 1.0f;
       // 设置目标速度矢量 (vx, vy),单位为m/s
       if (rc_data->mouse_key.keyboard.w)
         chassis_vy += 0.5f * speed_coff;
@@ -910,26 +896,15 @@ void MouseKeyCtrl(RobotInstance* robot) {
 
       input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
       if (input_mag > 0.0005f) {
-        // 运动方向解算
-        follow_err = (atan2f(chassis_vy, chassis_vx) - PI / 2.0f) * RAD_2_DEGREE - robot->offset_angle;
-        while (follow_err > 180.0f) follow_err -= 360.0f;
-        while (follow_err < -180.0f) follow_err += 360.0f;
-        // 倒车优化
-        if (abs(follow_err) > 90.0f) {
-          if (follow_err > 0.0f)
-            follow_err -= 180.0f;
-          else
-            follow_err += 180.0f;
-          input_mag = -input_mag;
-        }
-        // 直接计算目标yaw角度
-        // 目标 = 当前yaw - offset_angle + follow_err (让底盘朝向运动方向)
-        // 等价于：让底盘转到 gimbal方向 再补偿 follow_err
+        // 运动方向解算：比较车头 / 车尾两种跟随姿态，选转角更小的那个
+        float move_angle_deg = (atan2f(chassis_vy, chassis_vx) - PI / 2.0f) * RAD_2_DEGREE;
+        follow_err = CalcFollowErrDeg(move_angle_deg, robot->offset_angle, &follow_direction_sign);
+        input_mag *= follow_direction_sign;
         chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + follow_err * DEGREE_2_RAD;
       } else {
-        // 静止回正：让底盘对齐云台 (offset → 0)
-        chassis_ctrl_cmd->target_yaw =
-            robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD - robot->offset_angle * DEGREE_2_RAD;
+        // 松杆时：底盘follow车头或者车尾，看哪个近
+        follow_err = CalcFollowErrDeg(0.0f, robot->offset_angle, &follow_direction_sign);
+        chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + follow_err * DEGREE_2_RAD;
       }
       chassis_ctrl_cmd->wz = 0.0f;  // 无前馈角速度
       // 对齐衰减
@@ -943,6 +918,7 @@ void MouseKeyCtrl(RobotInstance* robot) {
       chassis_ctrl_cmd->theta_ff = 0.0f;
       break;
 #endif
+    }
     case ROBOT_CHASSIS_FREE:
 #if (!defined(ONE_BOARD))
       // 双板：静止对齐云台
