@@ -77,7 +77,7 @@ void RobotInit()
 
     // 初始化控制命令指针
     chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
-    chassis_ctrl_cmd->max_power = 80; // 随便给一个初始功率，后面应该要从裁判系统获取
+    chassis_ctrl_cmd->max_power = 120; // 随便给一个初始功率，后面应该要从裁判系统获取
     grab_ctrl_cmd = &robot->grab->grab_ctrl_cmd;
     video_gimbal_ctrl_cmd = &robot->video_gimbal->ctrl_cmd;
 
