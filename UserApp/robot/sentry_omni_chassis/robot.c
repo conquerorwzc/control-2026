@@ -231,26 +231,30 @@ static void EmergencyHandler() {
 #endif
 }
 
-
+float pose_time;       //移动时间
 static void SentryCmd() {
-  if (robot->control_mode==NAVIGATOR_MODE){
+  if (1){
     if (robot->referee_data->ProjectileAllowance.projectile_allowance_17mm==0) {
       robot->sentry_mode=DEFENSE_POSE;    //无可用弹丸进入防御姿态
-      robot->chassis->chassis_ctrl_cmd.wz=-2500;
+      // robot->chassis->chassis_ctrl_cmd.wz=-2500;
     }
-    else
-    if (robot->chassis->chassis_ctrl_cmd.vx==0&&robot->chassis->chassis_ctrl_cmd.vy==0) {
+    else if ((robot->chassis->chassis_ctrl_cmd.vx==0&&robot->chassis->chassis_ctrl_cmd.vy==0)
+      ||RFID->RFID1_t.fields.RFIDbit17) {
+      pose_time=time;
       robot->sentry_mode=OFFENSE_POSE;    //高于50%血或占据堡垒进入进攻姿态
-      robot->chassis->chassis_ctrl_cmd.wz=-5000;
+      // robot->chassis->chassis_ctrl_cmd.wz=-5000;
     }
     else {
-      robot->sentry_mode=MOBILITY_POSE;
-      robot->chassis->chassis_ctrl_cmd.wz=-1500;
+      if (time-pose_time>=1) {                          //避免姿态频繁切换
+        robot->sentry_mode=MOBILITY_POSE;
+        // robot->chassis->chassis_ctrl_cmd.wz=-1500;
+      }
     }
   }
 
-  // sentry_cmd->fields.confirm_respawn=0;                         //0为不复活，1确认复活
-  // sentry_cmd->fields.confirm_instant_respawn=0;                 //0为不买活，1为买活
+  sentry_cmd->fields.confirm_respawn=
+    (robot->referee_data->GameRobotState.current_HP==0);                         //没有血时确认复活
+  sentry_cmd->fields.confirm_instant_respawn=0;               //0为不买活，1为买活
   if (robot->referee_data->ProjectileAllowance.projectile_allowance_17mm<50) {
     if(RFID->RFID1_t.fields.RFIDbit0
       ||RFID->RFID1_t.fields.RFIDbit18
@@ -261,16 +265,16 @@ static void SentryCmd() {
       }
     }
     else {
-      if (robot->referee_data->ProjectileAllowance.remaining_gold_coin>=1000) {
+      if (robot->referee_data->ProjectileAllowance.remaining_gold_coin>=500) {
         sentry_cmd->fields.projectile_req_cnt+=1;              //远程买弹次数，开局为0，每买一次增加1
         sentry_cmd->fields.projectile_amount+=100;
       }
     }
   }
-  sentry_cmd->fields.hp_req_cnt=0;                              //金币买活次数，开局为0，每买一次增加1
-  sentry_cmd->fields.activate_power_rune=0;                     //哨兵选择开符，0为默认，1为开符
+  // sentry_cmd->fields.hp_req_cnt=0;                              //金币买活次数，开局为0，每买一次增加1
+  // sentry_cmd->fields.activate_power_rune=0;                     //哨兵选择开符，0为默认，1为开符
   sentry_cmd->fields.sentry_mode=robot->sentry_mode;            //姿态切换
-  sentry_cmd->fields.reserved=0;                                //保留位
+  // sentry_cmd->fields.reserved=0;                                //保留位
   SentrySend(sentry_cmd->raw_data);                            //发送指令
 }
 static void SuperCapControl() {

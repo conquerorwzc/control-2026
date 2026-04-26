@@ -320,9 +320,33 @@ typedef struct
 }ext_rfid_status_t;
 
 /* ID: 0x020D  Byte:  6   哨兵自主决策信息同步  */
-typedef struct {
-  uint32_t sentry_info;
-  uint16_t sentry_info_2;
+typedef union
+{
+  struct
+  {
+    // 偏移0，4字节的 sentry_info 位域
+    uint32_t ammo_allowance : 11;        // 除远程兑换外，哨兵机器人成功兑换的允许发弹量，开局为0，兑换后更新
+    uint32_t ammo_exchange_count : 4;    // 哨兵机器人成功远程兑换允许发弹量的次数，开局为0，兑换后更新
+    uint32_t hp_exchange_count : 4;      // 哨兵机器人成功远程兑换血量的次数，开局为0，兑换后更新
+    uint32_t free_revive_available : 1;  // 哨兵机器人当前是否可以确认免费复活，1=可以，0=不可以
+    uint32_t instant_revive_available : 1;  // 哨兵机器人当前是否可以兑换立即复活，1=可以，0=不可以
+    uint32_t instant_revive_cost : 10;   // 哨兵机器人当前兑换立即复活需要花费的金币数
+    uint32_t reserved_31 : 1;            // 保留位
+
+    // 偏移4，2字节的 sentry_info_2 位域
+    uint16_t is_offline : 1;             // 哨兵当前是否处于脱战状态，1=脱战，0=非脱战
+    uint16_t ammo_17mm_exchangeable_count : 11;  // 队伍17mm允许发弹量的剩余可兑换数
+    uint16_t sentry_posture : 2;         // 哨兵当前姿态，1=进攻，2=防御，3=移动
+    uint16_t energy_machine_activatable : 1;  // 己方能量机关是否能够进入正在激活状态，1=可激活，0=不可激活
+    uint16_t reserved_15 : 1;           // 保留位
+  };
+
+  // 原始数据访问方式，总大小为6字节
+  struct
+  {
+    uint32_t sentry_info;      // 偏移0，4字节原始数据
+    uint16_t sentry_info_2;    // 偏移4，2字节原始数据
+  } raw;
 } ext_sentry_info_t;
 
 /****************************机器人交互数据****************************/
