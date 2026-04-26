@@ -521,11 +521,11 @@ static void RemoteControlSet()
         return;
     }
 
-    bool is_keyboard_climb = (robot->robot_mode == ROBOT_CLIMB_MODE);
+    bool is_keyboard_climb = (robot->robot_mode == ROBOT_CLIMB_MODE || robot->robot_mode == ROBOT_BUMPY_MODE);
 
     if (switch_is_mid(rc_data[TEMP].rc.switch_right))
     {
-        // 【修改点】：键盘处于爬台阶模式时，遥控器不要强制切回 FOLLOW
+        // 【修改点】：键盘处于爬台阶/过烂路模式时，遥控器不要强制切回 FOLLOW
         if (!is_keyboard_climb)
         {
             chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
