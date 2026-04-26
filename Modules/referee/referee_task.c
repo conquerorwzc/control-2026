@@ -9,11 +9,14 @@
  *
  */
 #include "referee_task.h"
-#include "rm_referee.h"
-#include "referee_UI.h"
-#include "string.h"
-#include "cmsis_os.h"
 
+#include "cmsis_os.h"
+#include "referee_UI.h"
+#include "rm_referee.h"
+#include "robot.h"
+#include "string.h"
+#include "user_lib.h"
+static Sentry_Cmd_t *sentry_info;
 static referee_info_t *referee_recv_info;            // 接收到的裁判系统数据
 uint8_t UI_Seq;                                      // 包序号，供整个referee文件使用
 // @todo 不应该使用全局变量
@@ -95,4 +98,14 @@ void MyUIInit()
     // 能量条初始状态
     UILineDraw(&UI_Energy[2], "sd6", UI_Graph_ADD, 8, UI_Color_Pink, 30, 720, 160, 1020, 160);
     UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_Energy[1], UI_Energy[2]);
+}
+uint8_t SentryInit() {
+  sentry_info=SentryUpdate();
+  if (sentry_info!=NULL) {
+    return 0;
+  }
+  return 1;
+}
+void SentryTask() {
+  SentrySend(sentry_info->raw_data);                            //发送指令
 }

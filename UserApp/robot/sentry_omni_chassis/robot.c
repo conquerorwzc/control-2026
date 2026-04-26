@@ -275,7 +275,7 @@ static void SentryCmd() {
   // sentry_cmd->fields.activate_power_rune=0;                     //哨兵选择开符，0为默认，1为开符
   sentry_cmd->fields.sentry_mode=robot->sentry_mode;            //姿态切换
   // sentry_cmd->fields.reserved=0;                                //保留位
-  SentrySend(sentry_cmd->raw_data);                            //发送指令
+
 }
 static void SuperCapControl() {
   switch (supercap_mode) {
@@ -357,7 +357,9 @@ static void DualBoardCtrlSet() {
 #endif
   }
 }
-
+Sentry_Cmd_t *SentryUpdate() {
+  return sentry_cmd;
+}
 void RobotInit() {
   // 要在云台和底盘任务开始之前完成该任务的初始化
   vTaskDelay(CAN_COMM_TASK_INIT_TIME);

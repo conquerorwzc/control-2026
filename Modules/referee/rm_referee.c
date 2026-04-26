@@ -163,4 +163,5 @@ void RefereeSend(uint8_t *send, uint16_t tx_len) {
  */
 void SentrySend(uint8_t *send) {
   USARTSend(referee_usart_instance, send, LEN_HEADER + LEN_CMDID + LEN_sentry_cmd + LEN_TAIL, USART_TRANSFER_DMA);
+  osDelay(100);
 }
