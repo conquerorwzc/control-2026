@@ -639,11 +639,20 @@ static void ProcessCustomControllerData()
     {
         if (robot->grab != NULL && grab_ctrl_cmd != NULL)
         {
-            grab_ctrl_cmd->base_joint = SelfControlGetMotorAngle(robot->self_control, 3);
-            grab_ctrl_cmd->elbow_pitch = SelfControlGetMotorAngle(robot->self_control, 1);
-            grab_ctrl_cmd->wrist_pitch = SelfControlGetMotorAngle(robot->self_control, 2);
+            // motor[0] = 大yaw (M6020, ID:1)
+            grab_ctrl_cmd->base_joint = SelfControlGetMotorAngle(robot->self_control, 0);
+            
+            // motor[1] = 大roll (DM4340, ID:0x04, MasterID:0x14)
+            grab_ctrl_cmd->elbow_roll = SelfControlGetMotorAngle(robot->self_control, 1);
+            
+            // motor[2] = 大pitch (DM4310, ID:0x03, MasterID:0x13)
+            grab_ctrl_cmd->elbow_pitch = SelfControlGetMotorAngle(robot->self_control, 2);
+            
+            // motor[3] = 小pitch (DM4310, ID:0x02, MasterID:0x12)
+            grab_ctrl_cmd->wrist_pitch = SelfControlGetMotorAngle(robot->self_control, 3);
+            
+            // motor[4] = 小roll (DM4310, ID:0x01, MasterID:0x11)
             grab_ctrl_cmd->wrist_roll = SelfControlGetMotorAngle(robot->self_control, 4);
-            grab_ctrl_cmd->elbow_roll = SelfControlGetMotorAngle(robot->self_control, 0);
         }
     }
 }
