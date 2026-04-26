@@ -26,11 +26,11 @@ typedef struct {
 // @todo: 两个3508的ID最好改成2和3，防止于4310的ID对冲
 /* ----------------------- 初始化配置结构体 ----------------------------- */
 typedef struct {
-    Motor_Init_Config_s dm4310_config_1;    // 第一个 DM4310 电机配置
-    Motor_Init_Config_s dm4310_config_2;    // 第二个 DM4310 电机配置
-    Motor_Init_Config_s m3508_config_1;     // 第一个 3508 电机配置
-    Motor_Init_Config_s m3508_config_2;     // 第二个 3508 电机配置
-    Motor_Init_Config_s m2006_config;       // 2006 电机配置
+    Motor_Init_Config_s dm4310_config_1;    // 小roll电机 (DM4310) 配置
+    Motor_Init_Config_s dm4310_config_2;    // 小pitch电机 (DM4310) 配置
+    Motor_Init_Config_s dm4310_config_3;    // 大pitch电机 (DM4310) 配置
+    Motor_Init_Config_s dm4340_config;      // 大roll电机 (DM4340) 配置
+    Motor_Init_Config_s m6020_config;       // 大yaw电机 (M6020) 配置
 } CustomController_Init_Config_s;
 
 /* ----------------------- 电机数据结构体 ----------------------------- */
@@ -43,7 +43,8 @@ typedef struct {
 
 /* ----------------------- 组件结构体 ----------------------------- */
 typedef struct {
-    MotorUnit_t motors[5];                  // 电机单元数组（5 个电机：2 个 4310、2 个 3508、1 个 2006）
+    MotorUnit_t motors[5];                  // 电机单元数组（5个电机：1个M6020、1个DM4340、3个DM4310）
+                                            // motor[0]=大yaw, [1]=大roll, [2]=大pitch, [3]=小pitch, [4]=小roll
     float motor_angles[5];                  // 各电机角度反馈
     float zero_offset[5];                   // 零位偏移值
     bool motor_online_status[5];            // 电机在线状态（用于检测断电重启）
