@@ -6,10 +6,10 @@
 #include "robot_config.h"
 
 // Static variables for control state
-#ifdef USE_DUAL_RC
+#ifdef USE_RC_CTRL
 static RC_ctrl_t* rc_data;
 static RC_ctrl_t rc_data_last;
-#elifdef USE_DUAL_RC_NEW
+#elifdef USE_OCD_CTRL
 static VT13_RC_t* rc_data;
 static VT13_RC_t* rc_data_last;
 #endif
@@ -47,7 +47,7 @@ Ramp_Controller_t chassis_ramp = {
     .k_error_ff = 0.35f,  // 速度误差前馈补偿系数，可根据实际测试调整
 };
 
-#ifdef USE_DUAL_RC
+#ifdef USE_RC_CTRL
 void JoyStickCtrl(RobotInstance* robot) {
   // Helper pointers
   rc_data = robot->rc_data;
@@ -231,7 +231,7 @@ void JoyStickCtrl(RobotInstance* robot) {
   //  记录上一次数据
   // rc_data_last = rc_data[TEMP];
 }
-#elifdef USE_DUAL_RC_NEW
+#elifdef USE_OCD_CTRL
 void JoyStickCtrl(RobotInstance* robot) {
   rc_data = robot->rc_data;
   Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
@@ -455,7 +455,7 @@ void JoyStickCtrl(RobotInstance* robot) {
 }
 #endif
 
-#ifdef USE_DUAL_RC
+#ifdef USE_RC_CTRL
 void MouseKeyCtrl(RobotInstance* robot) {
   // Helper pointers
   rc_data = robot->rc_data;
@@ -734,7 +734,7 @@ void MouseKeyCtrl(RobotInstance* robot) {
   rc_data_last = rc_data[TEMP];
 }
 
-#elifdef USE_DUAL_RC_NEW
+#elifdef USE_OCD_CTRL
 void MouseKeyCtrl(RobotInstance* robot) {
   // Helper pointers
   rc_data = robot->rc_data;
@@ -969,7 +969,7 @@ void MouseKeyCtrl(RobotInstance* robot) {
 }
 #endif
 
-#ifdef USE_DUAL_RC
+#ifdef USE_RC_CTRL
 void EmergencyHandler(RobotInstance* robot) {
   rc_data = robot->rc_data;
   Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
@@ -1004,7 +1004,7 @@ void EmergencyHandler(RobotInstance* robot) {
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
   }
 }
-#elifdef USE_DUAL_RC_NEW
+#elifdef USE_OCD_CTRL
 void EmergencyHandler(RobotInstance* robot) {
   rc_data = robot->rc_data;
   Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;

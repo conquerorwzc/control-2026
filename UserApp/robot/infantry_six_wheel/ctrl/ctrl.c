@@ -7,10 +7,10 @@
 #include "ui.h"
 
 // Static variables for control state
-#ifdef USE_DUAL_RC
+#ifdef USE_RC_CTRL
 static RC_ctrl_t* rc_data;
 static RC_ctrl_t rc_data_last;
-#elifdef USE_DUAL_RC_NEW
+#elifdef USE_OCD_CTRL
 static VT13_RC_t* rc_data;
 static VT13_RC_t* rc_data_last;
 #endif
@@ -31,7 +31,7 @@ static uint8_t mouse_burst = 0;     // 鼠标要求连发
 #define TURN_BOOST_DEADZONE 10
 #define TURN_BOOST_GAIN 3.0f
 
-#ifdef USE_DUAL_RC
+#ifdef USE_RC_CTRL
 void JoyStickCtrl(RobotInstance* robot) {
   rc_data = robot->rc_data;
   Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
@@ -173,7 +173,7 @@ void JoyStickCtrl(RobotInstance* robot) {
   //  记录上一次数据
   // rc_data_last = rc_data[TEMP];
 }
-#elifdef USE_DUAL_RC_NEW
+#elifdef USE_OCD_CTRL
 void JoyStickCtrl(RobotInstance* robot) {
   rc_data = robot->rc_data;
   Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
@@ -319,7 +319,7 @@ void JoyStickCtrl(RobotInstance* robot) {
  *
  * ===========================================================
  */
-#ifdef USE_DUAL_RC
+#ifdef USE_RC_CTRL
 void MouseKeyCtrl(RobotInstance* robot) {
   // Helper pointers
   rc_data = robot->rc_data;
@@ -600,7 +600,7 @@ void MouseKeyCtrl(RobotInstance* robot) {
   // 6.更新历史数据(遥控器有的话这里就不用)
   rc_data_last = rc_data[TEMP];
 }
-#elifdef USE_DUAL_RC_NEW
+#elifdef USE_OCD_CTRL
 void MouseKeyCtrl(RobotInstance* robot) {
   // Helper pointers
   rc_data = robot->rc_data;
@@ -837,7 +837,7 @@ void MouseKeyCtrl(RobotInstance* robot) {
 
 #endif
 
-#ifdef USE_DUAL_RC
+#ifdef USE_RC_CTRL
 void EmergencyHandler(RobotInstance* robot) {
   rc_data = robot->rc_data;
   Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
@@ -866,7 +866,7 @@ void EmergencyHandler(RobotInstance* robot) {
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
   }
 }
-#elifdef USE_DUAL_RC_NEW
+#elifdef USE_OCD_CTRL
 void EmergencyHandler(RobotInstance* robot) {
   rc_data = robot->rc_data;
   Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;

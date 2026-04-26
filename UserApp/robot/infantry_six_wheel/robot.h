@@ -41,9 +41,9 @@ typedef enum {
 
 typedef struct {
   Robot_Mode_e robot_mode;  // 机器人整体工作状态
-#ifdef USE_DUAL_RC
+#ifdef USE_RC_CTRL
   RC_ctrl_t *rc_data;               // 遥控器数据,初始化时返回
-#elifdef USE_DUAL_RC_NEW
+#elifdef USE_OCD_CTRL
   VT13_RC_t *rc_data;
 #endif
   referee_info_t* referee_data;     // 用于获取裁判系统的数据

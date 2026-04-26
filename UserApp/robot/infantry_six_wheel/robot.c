@@ -247,9 +247,9 @@ void RobotInit() {
 
   // 遥控器初始化
 #if defined(STM32F4)
-#ifdef USE_DUAL_RC
+#ifdef USE_RC_CTRL
   robot->rc_data = RemoteControlInit(&huart3);
-#elifdef USE_DUAL_RC_NEW
+#elifdef USE_OCD_CTRL
   robot->rc_data = VT13RemoteInit(&huart1);
 #endif
 
