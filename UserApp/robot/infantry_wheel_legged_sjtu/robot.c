@@ -256,7 +256,11 @@ void RobotInit() {
 #endif
 
 #elif defined(STM32H7)
+#ifdef USE_RC_CTRL
   robot->rc_data = RemoteControlInit(&huart5);
+#elifdef USE_OCD_CTRL
+  robot->rc_data = VT13RemoteInit(&huart5); // Assuming VT13RemoteInit on H7
+#endif
 #endif
 #endif
 #if !defined(GIMBAL_BOARD)
