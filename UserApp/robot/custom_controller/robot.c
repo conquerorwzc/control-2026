@@ -13,8 +13,7 @@
 #include <math.h>
 
 // 力反馈参数配置
-#define TORQUE_DEADBAND_DM    2.0f    // DM电机角度死区(度)
-#define TORQUE_DEADBAND_DJI   2.0f    // DJI电机电流环死区
+#define TORQUE_DEADBAND       1.5f    // 所有电机角度死区(度)
 
 // 不同电机类型的力控比例增益 (Nm/度)
 #define TORQUE_K_P_DM4310     0.01f   // DM4310比例增益
@@ -23,15 +22,15 @@
 
 #define MAX_TORQUE_DM4310     3.0f    // DM4310最大输出力矩限制(N·m)
 #define MAX_TORQUE_DM4340     3.0f    // DM4340最大输出力矩限制(N·m)
-#define MAX_TORQUE_OUTPUT     2.0f    // DJI电机最大输出力矩限制(Nm)
+#define MAX_TORQUE_M6020      1.0f    // M6020最大输出力矩限制(额定扭矩内，保护电机)
 
 // 电机扭矩常数 (Nm/A)
 #define KT_DM4310             1.0f    // DM4310直接用力矩控制
 #define KT_DM4340             1.0f    // DM4340直接用力矩控制
-#define KT_M6020              0.03f   // M6020扭矩常数
+#define KT_M6020              0.741f   // M6020扭矩常数
 
-// C620 (对应M6020): 控制量 16384 对应 20A
-#define C620_RAW_PER_AMP    (16384.0f / 20.0f)  // 约 819.2
+// GM6020 (M6020): 控制量 16384 对应 3A
+#define GM6020_RAW_PER_AMP    (16384.0f / 3.0f)  // 约 5461.3
 
 // 自定义控制器实例
 static CustomController_t* angle_controller;
@@ -100,17 +99,12 @@ static void ApplyTorqueFeedback(void)
             torque_k_p = TORQUE_K_P_M6020;
         }
 
-        // DM电机：应用角度死区
-        if (angle_controller->motors[i].dm_motor != NULL) {
-            torque_outputs[i] = 0.0f;
-            if (angle_errors[i] > TORQUE_DEADBAND_DM) {
-                torque_outputs[i] = torque_k_p * (angle_errors[i] - TORQUE_DEADBAND_DM);
-            } else if (angle_errors[i] < -TORQUE_DEADBAND_DM) {
-                torque_outputs[i] = torque_k_p * (angle_errors[i] + TORQUE_DEADBAND_DM);
-            }
-        } else {
-            // DJI电机：不应用死区，让电流环PID自己处理
-            torque_outputs[i] = torque_k_p * angle_errors[i];
+        // 对所有电机统一应用角度死区
+        torque_outputs[i] = 0.0f;
+        if (angle_errors[i] > TORQUE_DEADBAND) {
+            torque_outputs[i] = torque_k_p * (angle_errors[i] - TORQUE_DEADBAND);
+        } else if (angle_errors[i] < -TORQUE_DEADBAND) {
+            torque_outputs[i] = torque_k_p * (angle_errors[i] + TORQUE_DEADBAND);
         }
 
         // 根据电机类型分别限幅和设置
@@ -142,16 +136,25 @@ static void ApplyTorqueFeedback(void)
                     break;
             }
         } else if (angle_controller->motors[i].dji_motor != NULL) {
-            // DJI电机：转换为电流控制量
+            // GM6020：力矩 → 电流 → CAN控制量
             float current_a = 0.0f;  // 所需电流(A)
-            int16_t raw_cmd = 0;     // 电调原始控制值
+            int16_t raw_cmd = 0;     // CAN原始控制量
 
-            // M6020使用C620电调
+            // 限幅：确保在额定扭矩内
+            if (torque_outputs[i] > MAX_TORQUE_M6020) {
+                torque_outputs[i] = MAX_TORQUE_M6020;
+            } else if (torque_outputs[i] < -MAX_TORQUE_M6020) {
+                torque_outputs[i] = -MAX_TORQUE_M6020;
+            }
+
+            // 力矩转电流：T = Kt * I → I = T / Kt
             current_a = torque_outputs[i] / KT_M6020;
-            raw_cmd = (int16_t)(current_a * C620_RAW_PER_AMP);
+            
+            // 电流转CAN控制量：16384对应3A
+            raw_cmd = (int16_t)(current_a * GM6020_RAW_PER_AMP);
 
-            // 使用 DJIMotorSetPIDRef 设置参考值，让电流环PID工作并自动限幅
-            DJIMotorSetPIDRef(angle_controller->motors[i].dji_motor, (float)raw_cmd);
+            // 设置参考值（final_output会被转换为int16发送到CAN）
+            DJIMotorSetRef(angle_controller->motors[i].dji_motor, (float)raw_cmd);
         }
     }
 }
