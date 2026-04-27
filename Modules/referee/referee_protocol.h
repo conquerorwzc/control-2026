@@ -76,7 +76,7 @@ typedef enum {
                                          // ID_supply_projectile_booking = 0x0103, // 场地补给站预约子弹数据
   ID_referee_warning = 0x104,            // 裁判系统警告
   ID_dart_info = 0x105,                  // 飞镖发射相关数据
-  ID_sentry_cmd = 0x0120,                 // 哨兵自主决策指令
+
   ID_game_robot_state = 0x0201,          // 机器人状态数据
   ID_power_heat_data = 0x0202,           // 实时功率热量数据
   ID_game_robot_pos = 0x0203,            // 机器人位置数据
@@ -99,7 +99,7 @@ typedef enum {
   LEN_event_data = 4,                // 0x0101
   //LEN_supply_projectile_action = 4,  // 0x0102
   LEN_referee_warning = 3,           // 0x0104
-  LEN_sentry_cmd = 4,                // 0x0120
+
   LEN_game_robot_state = 13,         // 0x0201
   LEN_power_heat_data = 14,          // 0x0202
   LEN_game_robot_pos = 16,           // 0x0203
@@ -391,7 +391,7 @@ typedef enum
 	UI_Data_ID_Draw5 = 0x103,
 	UI_Data_ID_Draw7 = 0x104,
 	UI_Data_ID_DrawChar = 0x110,
-
+        ID_sentry_cmd = 0x0120,                 // 哨兵自主决策指令
 	/* 自定义交互数据部分 */
 	Communicate_Data_ID = 0x0200,
 
@@ -403,9 +403,9 @@ typedef enum
 	UI_Operate_LEN_Del = 2,
 	UI_Operate_LEN_PerDraw = 15,
 	UI_Operate_LEN_DrawChar = 15 + 30,
+        /* 自定义交互数据部分 */
+        LEN_sentry_cmd = 4,
 
-	/* 自定义交互数据部分 */
-	// Communicate_Data_LEN = 5,
 
 } Interactive_Data_Length_e;
 
