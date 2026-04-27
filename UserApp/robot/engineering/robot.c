@@ -173,16 +173,19 @@ static void MouseKeySet()
 
     if (robot->robot_mode != last_robot_mode)
     {
-        // 场景：退出爬楼模式
+        // 🌟 新增：只要车体大模式发生了切换，直接强制清零一切半自动的残留步数！
+        Half_auto_reset();
+
+        // 场景：退出爬楼或烂路模式
         if (last_robot_mode == ROBOT_CLIMB_MODE || last_robot_mode == ROBOT_BUMPY_MODE)
         {
             keyboard_climb_state = CHASSIS_CLIMB_IDLE;
         }
 
-        // 场景：退出兑换模式 (可选，同理清理兑换模式的危险残留)
+        // 场景：退出兑换模式
         if (last_robot_mode == ROBOT_EXCHANGE_MODE)
         {
-            chassis_ctrl_cmd->lift_ratio = 0.0f; // 视你的需求决定是否复位抬升机构
+            chassis_ctrl_cmd->lift_ratio = 0.0f;
         }
 
         last_robot_mode = robot->robot_mode;

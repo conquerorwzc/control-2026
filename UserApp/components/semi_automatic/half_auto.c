@@ -1,25 +1,42 @@
 #include "half_auto.h"
 
+
+static int normal_step = 0; // 专属平地取/存矿的步数
+static int climb_step = 0;  // 专属上台阶重心的步数
+static Half_Control_List half_control_list = Store_First_Energy_Unit;
+
+static void Move_Joint_Smoothly(float *current, float target, float max_step)
+{
+    if (*current < target - max_step) *current += max_step;
+    else if (*current > target + max_step) *current -= max_step;
+    else *current = target;
+}
+
+void Half_auto_reset(void)
+{
+    normal_step = 0;
+    climb_step = 0;
+}
+
 void Half_auto_update(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd, uint8_t press_l,
                       uint8_t press_l_last, uint8_t press_r, uint8_t press_r_last)
 {
-    // 🌟 核心：定义两个互不干扰的步骤记录器
-    static int normal_step = 0; // 专属平地取/存矿的步数
-    static int climb_step = 0;  // 专属上台阶重心的步数
-
-    static Half_Control_List half_control_list = Store_First_Energy_Unit;
-
     // ========================================================
     // 1. 上台阶专属控制域 (拦截所有常规操作)
     // ========================================================
     if (grab_ctrl_cmd->is_climb_mode)
     {
+        // 🌟 防呆设计：上台阶时如果不小心多按了左键，直接按【右键】一键重置爬楼进度！
+        if (press_r && !press_r_last)
+        {
+            climb_step = 0;
+        }
+
         if (press_l && !press_l_last)
         {
             climb_step++; // 左键只增加 climb_step
         }
 
-        // 🚨 重点：上台阶状态下，不要去管 normal_step！
         climb_step_prep(grab_ctrl_cmd, climb_step);
         return;
     }
@@ -67,19 +84,20 @@ void Half_auto_update(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_Cmd_s *chassi
  */
 void climb_step_prep(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, uint8_t step)
 {
-    // 大臂抬升统一锁定在 0
-    grab_ctrl_cmd->arm_lift = 0.0f;
+    // 🌟 抬升机构平滑下降，每次5ms下降2mm (400mm/s)，防砸车
+    Move_Joint_Smoothly(&grab_ctrl_cmd->arm_lift, 0.0f, 2.0f);
 
     switch (step)
     {
     case 0:
-        grab_ctrl_cmd->base_joint = 0.00f;
-        grab_ctrl_cmd->elbow_roll = -7.40f;
-        grab_ctrl_cmd->elbow_pitch = -36.47f;
-        grab_ctrl_cmd->wrist_pitch = 31.73f;
-        grab_ctrl_cmd->wrist_roll = -0.18f;
+        // 🌟 平滑过渡到准备姿态：消除切入半自动时的巨大冲击！(每次移动0.6度，约120度/秒)
+        Move_Joint_Smoothly(&grab_ctrl_cmd->base_joint, 0.00f, 0.6f);
+        Move_Joint_Smoothly(&grab_ctrl_cmd->elbow_roll, -7.40f, 0.6f);
+        Move_Joint_Smoothly(&grab_ctrl_cmd->elbow_pitch, -36.47f, 0.6f);
+        Move_Joint_Smoothly(&grab_ctrl_cmd->wrist_pitch, 31.73f, 0.6f);
+        Move_Joint_Smoothly(&grab_ctrl_cmd->wrist_roll, -0.18f, 0.6f);
+        Move_Joint_Smoothly(&grab_ctrl_cmd->arm_extend, 224.0f, 4.0f); // 丝杠每次伸缩4mm (800mm/s)
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
-        grab_ctrl_cmd->arm_extend = 224.0f;
         break;
     case 1:
         grab_ctrl_cmd->base_joint = 0.00f;
@@ -211,12 +229,12 @@ void store_first_energy_unit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, uint8_t step)
 {
     switch (step)
     {
-    case 0: // custom_trajectory[0]
-        grab_ctrl_cmd->base_joint = -1.80f;
-        grab_ctrl_cmd->elbow_roll = 1.69f;
-        grab_ctrl_cmd->elbow_pitch = -13.93f;
-        grab_ctrl_cmd->wrist_pitch = 82.26f;
-        grab_ctrl_cmd->wrist_roll = -5.27f;
+    case 0: // 🌟 平滑过渡到准备姿态
+        Move_Joint_Smoothly(&grab_ctrl_cmd->base_joint, -1.80f, 0.6f);
+        Move_Joint_Smoothly(&grab_ctrl_cmd->elbow_roll, 1.69f, 0.6f);
+        Move_Joint_Smoothly(&grab_ctrl_cmd->elbow_pitch, -13.93f, 0.6f);
+        Move_Joint_Smoothly(&grab_ctrl_cmd->wrist_pitch, 82.26f, 0.6f);
+        Move_Joint_Smoothly(&grab_ctrl_cmd->wrist_roll, -5.27f, 0.6f);
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
     case 1: // custom_trajectory[0]
@@ -337,6 +355,7 @@ void store_first_energy_unit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, uint8_t step)
         break;
     }
 }
+
 // ========================================================
 // 模式 1：存第二个能量单元 (共 15 步)
 // ========================================================
@@ -344,12 +363,12 @@ void store_second_energy_unit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, uint8_t step)
 {
     switch (step)
     {
-    case 0:
-        grab_ctrl_cmd->base_joint = -1.58f;
-        grab_ctrl_cmd->elbow_roll = -3.31f;
-        grab_ctrl_cmd->elbow_pitch = 12.60f;
-        grab_ctrl_cmd->wrist_pitch = 72.42f;
-        grab_ctrl_cmd->wrist_roll = 3.16f;
+    case 0: // 🌟 平滑过渡到准备姿态
+        Move_Joint_Smoothly(&grab_ctrl_cmd->base_joint, -1.58f, 0.6f);
+        Move_Joint_Smoothly(&grab_ctrl_cmd->elbow_roll, -3.31f, 0.6f);
+        Move_Joint_Smoothly(&grab_ctrl_cmd->elbow_pitch, 12.60f, 0.6f);
+        Move_Joint_Smoothly(&grab_ctrl_cmd->wrist_pitch, 72.42f, 0.6f);
+        Move_Joint_Smoothly(&grab_ctrl_cmd->wrist_roll, 3.16f, 0.6f);
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
     case 1:
@@ -528,12 +547,12 @@ void grab_six_oclock_energy_unit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_Cm
 
     switch (step)
     {
-    case 0:
-        grab_ctrl_cmd->base_joint = 9.62f;
-        grab_ctrl_cmd->elbow_roll = -4.79f;
-        grab_ctrl_cmd->elbow_pitch = 4.68f;
-        grab_ctrl_cmd->wrist_pitch = 45.48f;
-        grab_ctrl_cmd->wrist_roll = -2.10f;
+    case 0: // 🌟 平滑过渡到准备姿态
+        Move_Joint_Smoothly(&grab_ctrl_cmd->base_joint, 9.62f, 0.6f);
+        Move_Joint_Smoothly(&grab_ctrl_cmd->elbow_roll, -4.79f, 0.6f);
+        Move_Joint_Smoothly(&grab_ctrl_cmd->elbow_pitch, 4.68f, 0.6f);
+        Move_Joint_Smoothly(&grab_ctrl_cmd->wrist_pitch, 45.48f, 0.6f);
+        Move_Joint_Smoothly(&grab_ctrl_cmd->wrist_roll, -2.10f, 0.6f);
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
     case 1:
@@ -656,7 +675,7 @@ void grab_six_oclock_energy_unit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_Cm
         grab_ctrl_cmd->wrist_roll = -2.02f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
-    case 16: // 🌟 补齐完整数据
+    case 16: 
         grab_ctrl_cmd->base_joint = -1.01f;
         grab_ctrl_cmd->elbow_roll = -3.48f;
         grab_ctrl_cmd->elbow_pitch = 3.55f;
@@ -664,7 +683,7 @@ void grab_six_oclock_energy_unit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_Cm
         grab_ctrl_cmd->wrist_roll = -2.24f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
-    case 17: // 🌟 新增最后一步平稳归位数据
+    case 17: 
         grab_ctrl_cmd->base_joint = -1.53f;
         grab_ctrl_cmd->elbow_roll = -3.48f;
         grab_ctrl_cmd->elbow_pitch = 3.55f;
@@ -677,6 +696,7 @@ void grab_six_oclock_energy_unit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_Cm
         break;
     }
 }
+
 // ========================================================
 // 模式 3：取四点钟方向的能量单元 (共 11 步，底盘高度 0%)
 // ========================================================
@@ -687,12 +707,12 @@ void grab_four_oclock_energy_unit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_C
 
     switch (step)
     {
-    case 0: //
-        grab_ctrl_cmd->base_joint = 2.46f;
-        grab_ctrl_cmd->elbow_roll = -4.36f;
-        grab_ctrl_cmd->elbow_pitch = 3.79f;
-        grab_ctrl_cmd->wrist_pitch = 38.36f;
-        grab_ctrl_cmd->wrist_roll = -0.79f;
+    case 0: // 🌟 平滑过渡到准备姿态
+        Move_Joint_Smoothly(&grab_ctrl_cmd->base_joint, 2.46f, 0.6f);
+        Move_Joint_Smoothly(&grab_ctrl_cmd->elbow_roll, -4.36f, 0.6f);
+        Move_Joint_Smoothly(&grab_ctrl_cmd->elbow_pitch, 3.79f, 0.6f);
+        Move_Joint_Smoothly(&grab_ctrl_cmd->wrist_pitch, 38.36f, 0.6f);
+        Move_Joint_Smoothly(&grab_ctrl_cmd->wrist_roll, -0.79f, 0.6f);
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
     case 1:
