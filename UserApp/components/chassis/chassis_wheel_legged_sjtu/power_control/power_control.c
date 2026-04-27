@@ -87,7 +87,6 @@ void PowerControl(ChassisInstance* chassis) {
   state_err[2] = sv->phi - chassis->chassis_ctrl_cmd.target_yaw;
   VAL_LIMIT(state_err[2], -0.52f, 0.52f);  // ±30°
   state_err[3] = sv->phi_d - chassis->chassis_ctrl_cmd.wz;
-  VAL_LIMIT(state_err[3], -2.0f, 2.0f);
 
   pc->T_total[0] = chassis->leg[0]->real_model.T;
   pc->T_total[1] = chassis->leg[1]->real_model.T;

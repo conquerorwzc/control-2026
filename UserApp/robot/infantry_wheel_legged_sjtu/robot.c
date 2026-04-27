@@ -301,7 +301,7 @@ void RobotTask() {
   // 进 LQR 前叠加 PID 补偿，提升响应并消除稳态误差
   if ((chassis_ctrl_cmd->chassis_mode == CHASSIS_ON || chassis_ctrl_cmd->chassis_mode == CHASSIS_JUMP_READY ||
        chassis_ctrl_cmd->chassis_mode == CHASSIS_JUMP_START) &&
-      chassis_ctrl_cmd->chassis_mode != CHASSIS_PROSTRATE) {
+      chassis_ctrl_cmd->chassis_mode != CHASSIS_PROSTRATE && robot->robot_mode != ROBOT_CHASSIS_ROTATE) {
     chassis_ctrl_cmd->target_yaw +=
         PIDCalculate(&robot->chassis_rotate_PID, robot->chassis->state_var.phi, chassis_ctrl_cmd->target_yaw);
     // chassis_ctrl_cmd->vx += PIDCalculate(&robot->chassis_vx_PID, robot->chassis->state_var.x_b_d,

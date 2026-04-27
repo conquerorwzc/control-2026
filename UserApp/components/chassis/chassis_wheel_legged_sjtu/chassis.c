@@ -127,8 +127,7 @@ static void LocomotionController(void) {
   VAL_LIMIT(state_err[1], -2.7f, 2.7f);
   state_err[2] = sv->phi - chassis_ctrl_cmd->target_yaw;
   VAL_LIMIT(state_err[2], -0.52f, 0.52f);  // ±30°
-  state_err[3] = sv->phi_d - 0;
-  VAL_LIMIT(state_err[3], -2.0f, 2.0f);
+  state_err[3] = sv->phi_d - chassis_ctrl_cmd->wz;
   state_err[4] = sv->theta_l - chassis_ctrl_cmd->theta_ff;
   state_err[5] = sv->theta_l_d;
   state_err[6] = sv->theta_r - chassis_ctrl_cmd->theta_ff;
