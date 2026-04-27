@@ -71,9 +71,6 @@ typedef struct {
   float theta_b_d;  // 机身俯仰角速度 pitch_rate（rad/s），由IMU陀螺仪Gyro[0]获得
 } State_Var_t;
 
-/* K matrix 4x10, 2D poly fitting coeffs [p00,p10,p01,p20,p11,p02] per element */
-
-
 typedef struct {
   float track_width;
   float body_mass;
