@@ -69,11 +69,11 @@ static void ApplyTorqueFeedback(void)
     // 电机索引映射：自定义控制器电机 -> 工程板发送的角度索引
     // motor[0]=大yaw, [1]=大roll, [2]=大pitch, [3]=小pitch, [4]=小roll
     const uint8_t motor_to_angle_map[5] = {
-        4,  // motors[0] (大yaw M6020)    <- wrist_roll (index 4)
-        0,  // motors[1] (大roll DM4340)  <- base_joint (index 0)
-        3,  // motors[2] (大pitch DM4310) <- wrist_pitch (index 3)
-        2,  // motors[3] (小pitch DM4310) <- elbow_pitch (index 2)
-        1   // motors[4] (小roll DM4310)  <- elbow_roll (index 1)
+        0,  // motors[0] (大yaw M6020)    <- base_joint (index 0)
+        1,  // motors[1] (大roll DM4340)  <- elbow_roll (index 1)
+        2,  // motors[2] (大pitch DM4310) <- elbow_pitch (index 2)
+        3,  // motors[3] (小pitch DM4310) <- wrist_pitch (index 3)
+        4   // motors[4] (小roll DM4310)  <- wrist_roll (index 4)
     };
 
     // 对5个关节分别计算力反馈
