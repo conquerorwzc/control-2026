@@ -9,8 +9,8 @@ add_compile_definitions(GIMBAL_BOARD)
 # add_compile_definitions(CHASSIS_BOARD)
 
 # 控制链路选择
-add_compile_definitions(USE_RC_CTRL) #遥控器链路
-# add_compile_definitions(USE_OCD_CTRL) #图传链路
+# add_compile_definitions(USE_RC_CTRL) #遥控器链路
+add_compile_definitions(USE_OCD_CTRL) #图传链路
 
 # 摩擦轮数量
 add_compile_definitions(FRICTION_NUM=2)
