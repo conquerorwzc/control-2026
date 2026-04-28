@@ -20,6 +20,7 @@ static Sentry_Cmd_t *sentry_info;
 static sentry_interaction_data_t *sentry_interaction_data;
 static referee_info_t *referee_recv_info;            // 接收到的裁判系统数据
 uint8_t UI_Seq;                                      // 包序号，供整个referee文件使用
+static uint8_t Sentry_Seq=0;
 // @todo 不应该使用全局变量
 
 /**
@@ -100,28 +101,24 @@ void MyUIInit()
     UILineDraw(&UI_Energy[2], "sd6", UI_Graph_ADD, 8, UI_Color_Pink, 30, 720, 160, 1020, 160);
     UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_Energy[1], UI_Energy[2]);
 }
-uint8_t SentryInit() {
-  sentry_interaction_data=(sentry_interaction_data_t *)zmalloc(sizeof(sentry_interaction_data_t*));
+void SentryInit() {
+  sentry_interaction_data=(sentry_interaction_data_t *)zmalloc(sizeof(sentry_interaction_data_t));
   DeterminRobotID();
-  sentry_info=SentryUpdate();
-  if (sentry_info!=NULL) {
-    return 0;
-  }
-  return 1;
+
 }
 void SentryTask() {
-  static uint8_t Sentry_Seq=0;
+  sentry_info=SentryUpdate();
   static uint8_t buffer[512]; // 交互数据缓存
   sentry_interaction_data->data_cmd_id=ID_sentry_cmd;
   sentry_interaction_data->FrameHeader.SOF=REFEREE_SOF;
-  sentry_interaction_data->FrameHeader.DataLength=Interactive_Data_LEN_Head + LEN_sentry_cmd;
+  sentry_interaction_data->FrameHeader.DataLength=LEN_CMDID + LEN_receiver + LEN_sender + LEN_sentry_cmd;
   sentry_interaction_data->FrameHeader.Seq=Sentry_Seq;
   sentry_interaction_data->FrameHeader.CRC8=get_CRC8_check_sum((uint8_t *)&sentry_interaction_data, LEN_CRC8, 0xFF);
-  sentry_interaction_data->frametail=get_CRC8_check_sum((uint8_t *)&sentry_interaction_data, LEN_HEADER + LEN_CMDID + Interactive_Data_LEN_Head + LEN_sentry_cmd, 0xFF);
+  sentry_interaction_data->frametail=get_CRC8_check_sum((uint8_t *)&sentry_interaction_data, LEN_HEADER + LEN_CMDID + LEN_receiver + LEN_sender + LEN_sentry_cmd, 0xFF);
   sentry_interaction_data->receiver_id=referee_recv_info->referee_id.Cilent_ID;
   sentry_interaction_data->sender_id=referee_recv_info->referee_id.Robot_ID;
   memcpy(sentry_interaction_data->user_data, sentry_info->raw_data,sizeof(sentry_interaction_data->user_data));
-  memcpy(buffer, (uint8_t *)&sentry_interaction_data, LEN_HEADER + LEN_CMDID + Interactive_Data_LEN_Head + LEN_sentry_cmd); // 将帧头、命令码、交互数据帧头三部分复制到缓存中
+  memcpy(buffer, (uint8_t *)&sentry_interaction_data, LEN_HEADER + LEN_CMDID + LEN_receiver + LEN_sender + LEN_sentry_cmd + LEN_TAIL);
   SentrySend(buffer);                            //发送指令
   Sentry_Seq++;
 }

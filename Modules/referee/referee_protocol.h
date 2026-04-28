@@ -18,7 +18,7 @@
 #define REFEREE_SOF 0xA5 // 起始字节,协议固定为0xA5
 #define Robot_Red 0
 #define Robot_Blue 1
-#define Communicate_Data_LEN 5 // 自定义交互数据长度，该长度决定了我方发送和他方接收，自定义交互数据协议更改时只需要更改此宏定义即可
+#define Communicate_Data_LEN 4 // 自定义交互数据长度，该长度决定了我方发送和他方接收，自定义交互数据协议更改时只需要更改此宏定义即可
 
 #pragma pack(1)
 
@@ -38,7 +38,8 @@ typedef enum
 	LEN_HEADER = 5, // 帧头长
 	LEN_CMDID = 2,	// 命令码长度
 	LEN_TAIL = 2,	// 帧尾CRC16
-
+        LEN_receiver=2,
+        LEN_sender=2,
 	LEN_CRC8 = 4, // 帧头CRC8校验长度=帧头+数据长+包序号
 } JudgeFrameLength_e;
 
@@ -405,7 +406,6 @@ typedef enum
 	UI_Operate_LEN_DrawChar = 15 + 30,
         /* 自定义交互数据部分 */
         LEN_sentry_cmd = 4,
-
 
 } Interactive_Data_Length_e;
 

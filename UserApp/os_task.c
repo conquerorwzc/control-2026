@@ -117,7 +117,7 @@ __attribute__((noreturn)) void StartROBOTTASK(void const *argument) {
 #if 1
 __attribute__((noreturn)) void StartUITASK(void const *argument) {
   LOGINFO("[freeRTOS] UI Task Start");
- while (SentryInit()){}
+  SentryInit();
   LOGINFO("[freeRTOS] UI Init Done, communication with ref has established");
   for (;;) {
 

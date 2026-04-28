@@ -29,6 +29,6 @@ void MyUIInit();
  */
 void UITask();
 
-uint8_t SentryInit();
+void SentryInit();
 void SentryTask();
 #endif // REFEREE_H
