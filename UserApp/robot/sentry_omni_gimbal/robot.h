@@ -20,13 +20,14 @@ typedef enum {
 // 定义枚举体，包含自动模式和手动模式
 typedef enum {
   MANUAL_MODE=0,   // 手动控制
-  AUTO_MODE,    // 自动控制
+  NAVIGATOR_MODE,    // 自动控制
 } Control_Mode_e;
 //联合体定义
 typedef struct {
-  uint16_t projectile_allowance_17mm;    // 机器人自身拥有的17mm弹丸允许发弹量
+  // uint16_t projectile_allowance_17mm;    // 机器人自身拥有的17mm弹丸允许发弹量
   uint16_t  initial_speed;                   // 弹速
   uint16_t shooter_17mm_barrel_heat;     // 17mm发射机构的射击热量
+  uint8_t robot_id;  // 本机器人ID（红蓝阵营）
   // uint16_t shooter_barrel_heat_limit;    // 机器人射击热量上限
   // uint16_t shooter_barrel_cooling_value; // 机器人射击热量每秒冷却值
 } Referee_Data;
@@ -38,7 +39,9 @@ typedef struct {
   float Rotate_speed;
   int16_t Spin_speed;
   float Yaw_motor_angle;
-  uint8_t Switch_right;
+  uint8_t rc_switch_left;
+  uint8_t rc_switch_right;
+  // uint8_t Control_mode;
 } Send_Data_RC;
 #elifdef USE_DUAL_RC_NEW
 typedef struct {
@@ -47,9 +50,9 @@ typedef struct {
   float Rotate_speed;
   int16_t Spin_speed;
   float Yaw_motor_angle;
-  float Mode_switch;
-  float Control_mode;
-  float Pause_flag;
+  uint8_t Mode_switch;
+  uint8_t Control_mode;
+  uint8_t Pause_flag;
 } Send_Data_RC_NEW;
 #endif
 

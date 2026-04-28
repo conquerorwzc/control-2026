@@ -19,14 +19,15 @@ typedef enum {
 // 定义枚举体，包含自动模式和手动模式
 typedef enum {
   MANUAL_MODE=0,   // 手动控制
-  AUTO_MODE,    // 自动控制
+  NAVIGATOR_MODE,    // 自动控制
 } Control_Mode_e;
 
 #pragma pack(1)
 typedef struct {
-  uint16_t projectile_allowance_17mm;//17mm弹丸允许发弹量
+  // uint16_t projectile_allowance_17mm;//17mm弹丸允许发弹量
   uint16_t initial_speed; // 弹速
   uint16_t shooter_17mm_barrel_heat;//17mm发射机构的射击热量
+  uint8_t robot_id;  // 本机器人ID（红蓝阵营）
   // uint16_t shooter_barrel_heat_limit;//机器人射击热量上限
   // uint16_t shooter_barrel_cooling_value;//机器人射击热量每秒冷却值
 } Referee_Data;
@@ -40,7 +41,9 @@ typedef struct {
   float Rotate_speed;
   int16_t Spin_speed;
   float Yaw_motor_angle;
-  uint8_t Switch_right;
+  uint8_t rc_switch_left;
+  uint8_t rc_switch_right;
+  // uint8_t Control_mode;
 } Send_Data_RC;
 #elifdef USE_DUAL_RC_NEW
 typedef struct {
@@ -49,13 +52,65 @@ typedef struct {
   float Rotate_speed;
   int16_t Spin_speed;
   float Yaw_motor_angle;
-  float Mode_switch;
-  float Control_mode;
-  float Pause_flag;
+  uint8_t Mode_switch;
+  uint8_t Control_mode;
+  uint8_t Pause_flag;
 } Send_Data_RC_NEW;
 #endif
 #pragma pack()
-
+#pragma pack(1)
+typedef struct {
+   union{
+    uint32_t RFID1;
+    struct {
+      uint32_t RFIDbit0 : 1;  // bit0:己方基地增益点
+      uint32_t RFIDbit1 : 1; // bit1:己方中央高地增益点
+      uint32_t RFIDbit2 : 1; // bit2:对方中央高地增益点
+      uint32_t RFIDbit3 : 1;// bit3:己方梯形高地增益点
+      uint32_t RFIDbit4 : 1;// bit4:对方梯形高地增益点
+      uint32_t RFIDbit5 : 1; // bit5:己方地形跨越增益点(飞坡)(靠近己方一侧飞坡前)
+      uint32_t RFIDbit6 : 1; // bit6:己方地形跨越增益点(飞坡)(靠近己方一侧飞坡后)
+      uint32_t RFIDbit7 : 1;// bit7:对方地形跨越增益点(飞坡)(靠近对方一侧飞坡前)
+      uint32_t RFIDbit8 : 1;// bit8:对方地形跨越增益点(飞坡)(靠近对方一侧飞坡后)
+      uint32_t RFIDbit9 : 1; // bit9:己方地形跨越增益点(中央高地下方)
+      uint32_t RFIDbit10 : 1; // bit10:己方地形跨越增益点(中央高地上方)
+      uint32_t RFIDbit11 : 1;// bit11:对方地形跨越增益点(中央高地下方)
+      uint32_t RFIDbit12 : 1;// bit12:对方地形跨越增益点(中央高地上方)
+      uint32_t RFIDbit13 : 1;  // bit13:己方地形跨越增益点(公路下方)
+      uint32_t RFIDbit14 : 1;// bit14:己方地形跨越增益点(公路上方)
+      uint32_t RFIDbit15 : 1; // bit15:对方地形跨越增益点(公路下方)
+      uint32_t RFIDbit16 : 1; // bit16:对方地形跨越增益点(公路上方)
+      uint32_t RFIDbit17 : 1;// bit17:己方堡垒增益点
+      uint32_t RFIDbit18 : 1;// bit18:己方前哨站增益点
+      uint32_t RFIDbit19 : 1;  // bit19:己方与资源区不重叠的补给区/RMUL补给区
+      uint32_t RFIDbit20 : 1; // bit 20:己方与资源区重叠的补给区
+      uint32_t RFIDbit21 : 1; // bit21:己方装配增益点
+      uint32_t RFIDbit22 : 1;// bit 22:对方装配增益点
+      uint32_t RFIDbit23 : 1;// bit 23:中心增益点(仅RMUL适用)
+      uint32_t RFIDbit24 : 1; // bit24:对方堡垒增益点
+      uint32_t RFIDbit25 : 1;// bit25:对方前哨站增益点
+      uint32_t RFIDbit26 : 1; // bit26:己方地形跨越增益点(隧道)(靠近己方一侧公路区下方)
+      uint32_t RFIDbit27 : 1; // bit27:己方地形跨越增益点(隧道)(靠近己方一侧公路区中间)
+      uint32_t RFIDbit28 : 1; // bit28:己方地形跨越增益点(隧道)(靠近己方一侧公路区上方)
+      uint32_t RFIDbit29 : 1; // bit29:己方地形跨越增益点(隧道)(靠近己方梯形高地较低处)
+      uint32_t RFIDbit30 : 1;// bit30:己方地形跨越增益点(隧道)(靠近己方梯形高地较中间)
+      uint32_t RFIDbit31 : 1; // bit31:己方地形跨越增益点(隧道)(靠近己方梯形高地较高处)
+    } __attribute__((packed)) fields;
+  }__attribute__((packed)) RFID1_t;
+   union{
+    uint8_t RFID2;
+    struct {
+      uint8_t RFID2bit0 : 1; // bit0:对方地形跨越增益点(隧道)(靠近对方公路一侧下方)
+      uint8_t RFID2bit1 : 1;  // bit1:对方地形跨越增益点(隧道)(靠近对方公路一侧中间)
+      uint8_t RFID2bit2 : 1; // bit2:对方地形跨越增益点(隧道)(靠近对方公路一侧上方)
+      uint8_t RFID2bit3 : 1;  // bit3:对方地形跨越增益点(隧道)(靠近对方梯形高地较低处)
+      uint8_t RFID2bit4 : 1; // bit4:对方地形跨越增益点(隧道)(靠近对方梯形高地较中间)
+      uint8_t RFID2bit5 : 1; // bit5:对方地形跨越增益点(隧道)(靠近对方梯形高地较高处)
+      uint8_t reserve : 2; //保留位
+    } __attribute__((packed)) fields;
+  }__attribute__((packed)) RFID2_t;
+}RFID_Status_t;
+#pragma pack()
 #pragma pack(1)
 typedef union{
   // 方式 1：直接作为 4 字节数组访问（用于底层串口发送/接收）
@@ -143,6 +198,7 @@ typedef struct {
   ShootInstance* shoot;
 } RobotInstance;
 
+Sentry_Cmd_t *SentryUpdate();
 
 /**
  * @brief 机器人初始化,请在开启rtos之前调用.这也是唯一需要放入main函数的函数

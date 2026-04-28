@@ -9,6 +9,13 @@
 #include "robot.h"
 #include "can_comm.h"
 
+/* 输出车体角速度 rad/s */
+#define Wheel_radius 76.475f
+#define Wheel_base 345.96f
+#define Reduction_ratio 19.0f
+#define WZ_CMD_TO_CAR_WZ_RAD_S (DEGREE_2_RAD * DEGREE_2_RAD * Wheel_radius / Reduction_ratio)
+
+
 // 编译warning,提醒开发者修改机器人参数
 #ifndef ROBOT_CONFIG_PARAM_WARNING
 #define ROBOT_CONFIG_PARAM_WARNING
@@ -86,19 +93,19 @@ static Chassis_Init_Config_s chassis_init_config = {
     .chassis_param =
         {
             // 机器人底盘修改的参数,单位为mm(毫米)
-            .wheel_base = 345.96f,              // 纵向轴距(前进后退方向)
+            .wheel_base = Wheel_base,              // 纵向轴距(前进后退方向)
             .track_width = 345.96f,             // 横向轮距(左右平移方向)
             .center_gimbal_offset_x = 0.0f,    // 云台旋转中心距底盘几何中心的距离,前后方向,云台位于正中心时默认设为0
             .center_gimbal_offset_y = 0.0f,    // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
-            .wheel_radius = 76.475f,             // 轮子半径
-            .wheel_reduction_ratio = 19.0f,  // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
+            .wheel_radius = Wheel_radius,             // 轮子半径
+            .wheel_reduction_ratio = Reduction_ratio,  // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
             //3508功率模型参数
-            .power_param.k0=0.7441993412640775f,
-            .power_param.k1=0.006444284468539646f,
-            .power_param.k2=0.0001423857226262331f,
-            .power_param.k3=0.015644430204543864f,
-            .power_param.k4=0.1580143850678086f,
-            .power_param.k5=2.896721772539512e-05f,
+      .power_param.k0=0.7441993412640775f,
+      .power_param.k1=0.0090164284468539646f,
+      .power_param.k2=0.0001988857226262331f,
+      .power_param.k3=0.024694430204543864f,
+      .power_param.k4=0.20160143850678086f,
+      .power_param.k5=3.715221772539512e-05f,
         },
     .wheel_motor_config[0] = WHEEL_MOTOR_CONFIG(&hcan1,1),
     .wheel_motor_config[1] = WHEEL_MOTOR_CONFIG(&hcan1,4),
@@ -106,10 +113,10 @@ static Chassis_Init_Config_s chassis_init_config = {
     .wheel_motor_config[3] = WHEEL_MOTOR_CONFIG(&hcan1,3),
     //跟随PID
     .follow_pid={
-        .Kp = -80.0f,
+        .Kp = -70.0f,
         .Ki = 0.0f,
         .Kd = 0.0f,
-        .DeadBand = 0.0f,
+        .DeadBand = 1.0f,
         .IntegralLimit = 1000.0f,
         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
         .MaxOut = 20000.0f,
@@ -133,13 +140,13 @@ static SuperCap_Init_Config_s super_cap_config = {
 #define BOARD_RX_ID 0x219
 #else
 // 接收板配置
-#define BOARD_TX_ID 0x311
-#define BOARD_RX_ID 0x10
+#define BOARD_TX_ID 0x211
+#define BOARD_RX_ID 0x210
 #endif
 
 static CANComm_Init_Config_s comm_config = {
-  .recv_data_len = 24,        // 接收数据长度，根据实际需求调整
-  .send_data_len = 24,        // 发送数据长度，根据实际需求调整
+  .recv_data_len = 30,        // 接收数据长度，根据实际需求调整
+  .send_data_len = 30,        // 发送数据长度，根据实际需求调整
   .daemon_count = 10,      // 看门狗重载计数，根据实际需求调整
   .can_config = {
     .can_handle = &hcan2,  // 假设使用CAN1，根据实际使用的CAN句柄调整

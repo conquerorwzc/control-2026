@@ -1,13 +1,8 @@
-# Set the type of chassis, gimbal and shooter modules for infantry robot
+# Set the type of chassis, gimbal and shooter modules for infantry_omni robot
 set(CHASSIS_TYPE chassis_mecanum)
-set(GIMBAL_TYPE gimbal_standard)
+set(GIMBAL_TYPE gimbal_dual_yaw)
 set(SHOOT_TYPE shoot_standard)
 add_compile_definitions(FRICTION_NUM=2)
-
-# 遥控器选择
- add_compile_definitions(USE_DUAL_RC)
-# add_compile_definitions(USE_DUAL_RC_NEW)
-
 
 # Include directories for header file searching
 include_sub_directories_recursively(${CMAKE_CURRENT_LIST_DIR})
