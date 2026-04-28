@@ -5,11 +5,13 @@
 #include "dji_motor.h"
 #include "dmmotor.h"
 #include "general_def.h"
+#include "pc_link_22b.h"
 #include "robot.h"
 #include "robot_config.h"
 #include "user_lib.h"
 static Gimbal_Ctrl_Cmd_s *gimbal_ctrl_cmd=NULL;
 static RobotInstance* robot;
+static PCLink22Instance *pc_link = NULL;
 static  float yaw_max_angle=-40.0f;
 static  float yaw_min_angle=-60.0f;
 static  float T=2000;
@@ -40,23 +42,44 @@ void RobotInit() {
     robot=(RobotInstance *)zmalloc(sizeof(RobotInstance));
     robot->gimbal = GimbalInit(&gimbal_init_config);
     gimbal_ctrl_cmd=&robot->gimbal->gimbal_ctrl_cmd;
+    pc_link = PCLink22Init(robot->gimbal->gimbal_IMU_data);
     robot->rc_data = RemoteControlInit(&huart3);
     step = (yaw_max_angle-yaw_min_angle)/T;
 
 }
 
 void RobotTask() {
+    const PCLink22Frame_s *pc_rx = NULL;
+
+    if (pc_link != NULL) {
+        PCLink22Send(pc_link);
+        pc_rx = PCLink22GetRx(pc_link);
+    }
+
     if (switch_is_down(robot->rc_data[TEMP].rc.switch_right))
     {
         gimbal_ctrl_cmd->gimbal_mode=GIMBAL_POWER_OFF;
-        gimbal_ctrl_cmd->yaw = -15.0f;
-        gimbal_ctrl_cmd->pitch = 105.0f;
+        gimbal_ctrl_cmd->yaw = robot->gimbal->gimbal_IMU_data->Yaw;
+        gimbal_ctrl_cmd->pitch = robot->gimbal->gimbal_IMU_data->Pitch;
     }
     else if(switch_is_mid(robot->rc_data[TEMP].rc.switch_right))
     {
         gimbal_ctrl_cmd->gimbal_mode=GIMBAL_ON;
-        gimbal_ctrl_cmd->yaw += -0.0005f * (float)robot->rc_data[TEMP].rc.rocker_r_;
-        gimbal_ctrl_cmd->pitch -= 0.0003f * (float)robot->rc_data[TEMP].rc.rocker_r1;
+        if (pc_rx != NULL)
+        {
+            gimbal_ctrl_cmd->yaw =pc_rx->yaw;
+            gimbal_ctrl_cmd->pitch =pc_rx->pitch;
+        }
+        if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
+            gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
+        } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
+            gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
+        }
+        if (gimbal_ctrl_cmd->yaw > 30) {
+            gimbal_ctrl_cmd->yaw = 30;
+        } else if (gimbal_ctrl_cmd->yaw < -30) {
+            gimbal_ctrl_cmd->yaw = -30;
+        }
     }
     // else if (switch_is_up(robot->rc_data[TEMP].rc.switch_right))
     // {
@@ -73,15 +96,34 @@ void RobotTask() {
     // }
     else if (switch_is_up(robot->rc_data[TEMP].rc.switch_right))
     {
-        //生成三角波扫描位移
-        x = TriangleWave(SCAN_AMPLITUDE, SCAN_FREQUENCY, DWT_GetTimeline_s());
-        
-        /* 根据当前位置计算云台角度 */
-        // yaw 角：水平方向瞄准角度 = arctan(侧向偏移 / 水平距离)
-        gimbal_ctrl_cmd->yaw = -RAD_2_DEGREE*atanf(TARGET_OFFSET / (BASE_DISTANCE + x));
-        // pitch 角：垂直方向瞄准角度 = arctan(垂直高度 / 斜边距离)
-        // 斜边距离 = sqrt(水平距离² + 侧向偏移²)
-        gimbal_ctrl_cmd->pitch = factor*RAD_2_DEGREE*atanf(TARGET_HEIGHT / sqrtf(powf(BASE_DISTANCE + x, 2.0f) + powf(TARGET_OFFSET, 2.0f)))+offset_pitch;
+        gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+
+        if (pc_link != NULL && PCLink22RxValid(pc_link) && pc_rx != NULL) {
+            gimbal_ctrl_cmd->pitch = pc_rx->pitch;
+            gimbal_ctrl_cmd->yaw = pc_rx->yaw;
+
+            if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
+                gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
+            } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
+                gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
+            }
+
+            if (gimbal_ctrl_cmd->yaw > yaw_max_angle) {
+                gimbal_ctrl_cmd->yaw = yaw_max_angle;
+            } else if (gimbal_ctrl_cmd->yaw < yaw_min_angle) {
+                gimbal_ctrl_cmd->yaw = yaw_min_angle;
+            }
+        } else {
+            //生成三角波扫描位移
+            x = TriangleWave(SCAN_AMPLITUDE, SCAN_FREQUENCY, DWT_GetTimeline_s());
+
+            /* 根据当前位置计算云台角度 */
+            // yaw 角：水平方向瞄准角度 = arctan(侧向偏移 / 水平距离)
+            gimbal_ctrl_cmd->yaw = -RAD_2_DEGREE*atanf(TARGET_OFFSET / (BASE_DISTANCE + x));
+            // pitch 角：垂直方向瞄准角度 = arctan(垂直高度 / 斜边距离)
+            // 斜边距离 = sqrt(水平距离² + 侧向偏移²)
+            gimbal_ctrl_cmd->pitch = factor*RAD_2_DEGREE*atanf(TARGET_HEIGHT / sqrtf(powf(BASE_DISTANCE + x, 2.0f) + powf(TARGET_OFFSET, 2.0f)))+offset_pitch;
+        }
     }
 
      GimbalTask();
