@@ -44,8 +44,11 @@ typedef enum {
 
 typedef struct {
   float vx;
-  float wz;          // 单位rad/s
-  float target_yaw;  // LQR目标yaw角度 (rad)
+  // 平衡模式: 目标 yaw 角速度(rad/s), 进入 LQR 的 phi_d 跟踪项。
+  // 卧倒模式: 差速转向前馈量, 不是 rad/s, 由 ChassisProstrateMode() 换算为轮速。
+  float wz;
+  // 目标 yaw 角度(rad)。卧倒小陀螺/自由转向时应对齐当前 yaw, 让 yaw PID 不参与。
+  float target_yaw;
   float roll;
   float leg_length;
   float jump_force;
@@ -54,7 +57,6 @@ typedef struct {
   uint16_t max_power;
   Chassis_Mode_e chassis_mode;
   uint8_t SuperCapBoost;
-  uint8_t is_rotate;
 } Chassis_Ctrl_Cmd_s;
 
 /* SJTU model: 10-dim state vector */

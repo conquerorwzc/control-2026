@@ -10,6 +10,7 @@
     (data != NULL) && \
     (data->gimbal_receive.yaw != 0 || data->gimbal_receive.pitch != 0 || data->shoot_receive.fire_flag != 0)
 
+#define CTRL_SPEED_COFF 2.5f
 /**
  * @brief 抽象控制意图，隔离输入设备（遥控器/键鼠）与运动控制逻辑
  */
@@ -19,7 +20,6 @@ typedef struct {
     float vy;               // 底盘 Y 向期望速度 (前后)，归一化 [-1.0, 1.0]
     float leg_length_delta; // 腿长增量
     float roll_delta;       // Roll(横滚/pike) 增量
-
 } Ctrl_Intent_s;
 
 /**

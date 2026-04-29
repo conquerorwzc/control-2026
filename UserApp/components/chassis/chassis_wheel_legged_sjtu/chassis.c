@@ -324,13 +324,15 @@ static void ChassisJump(void) {
  * @brief 卧倒模式
  *
  * 差速：右轮 = vx + wz，左轮 = vx - wz
+ *
+ * target_yaw 负责 yaw 闭环保持；wz 是卧倒差速转向前馈量, 不是 rad/s。
+ * 小陀螺/自由转向如果不希望 yaw PID 参与, 上层需要把 target_yaw 对齐当前 yaw。
  */
 void ChassisProstrateMode(void) {
 #define VX_TO_MOTOR (30000.0f / 660.0f)
 #define WZ_PID_TO_MOTOR 10000.0f
-#define WZ_FF_TO_MOTOR (28000.0f / 660.0f)  // wz 前馈(摇杆量级) → 电机量
+#define WZ_FF_TO_MOTOR (28000.0f / 660.0f)  // 卧倒 wz 前馈量 -> 电机量
   float vx_motor = 0.0f;
-  float wz_motor = 0.0f;
 
   // 设置速度环
   for (int i = 0; i < 2; i++) {
@@ -338,15 +340,11 @@ void ChassisProstrateMode(void) {
     leg[i]->wheel_motor->motor_settings.outer_loop_type = SPEED_LOOP;
   }
 
-  if (chassis_ctrl_cmd->is_rotate == 0) {
-    float wz_pid = -PIDCalculate(&chassis->yaw_prostrate_PID, chassis->imu->YawTotalAngle * DEGREE_2_RAD,
-                                 chassis_ctrl_cmd->target_yaw);
-    vx_motor = chassis_ctrl_cmd->vx * VX_TO_MOTOR;
-    wz_motor = wz_pid * WZ_PID_TO_MOTOR + chassis_ctrl_cmd->wz * WZ_FF_TO_MOTOR;
-  } else if (chassis_ctrl_cmd->is_rotate == 1) {
-    vx_motor = chassis_ctrl_cmd->vx * VX_TO_MOTOR;
-    wz_motor = chassis_ctrl_cmd->wz * WZ_FF_TO_MOTOR;
-  }
+  float wz_pid = -PIDCalculate(&chassis->yaw_prostrate_PID, chassis->imu->YawTotalAngle * DEGREE_2_RAD,
+                               chassis_ctrl_cmd->target_yaw);
+  vx_motor = chassis_ctrl_cmd->vx * VX_TO_MOTOR;
+  float wz_motor = wz_pid * WZ_PID_TO_MOTOR + chassis_ctrl_cmd->wz * WZ_FF_TO_MOTOR;
+
   // 调试用
   // vx_motor = chassis_ctrl_cmd->vx * VX_TO_MOTOR;
   // wz_motor = chassis_ctrl_cmd->wz * WZ_FF_TO_MOTOR;
