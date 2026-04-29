@@ -125,6 +125,11 @@ CustomController_t* CustomControllerInit(CustomController_Init_Config_s* init_co
         controller->motor_online_status[i] = true;
     }
     
+    // 设置 GM6020 (大yaw) 的零点偏移：当前角度 -96.5 度作为零点
+    // 这样当电机在 -96.5 度时，输出角度为 0 度
+    controller->zero_offset[0] = -96.5f;
+    LOGINFO("CustomController: GM6020 zero offset set to %.2f degrees", controller->zero_offset[0]);
+    
     LOGINFO("CustomController: Initialized with 5 motors");
     return controller;
 }
@@ -143,11 +148,12 @@ void CustomControllerTask(CustomController_t* controller)
     CheckMotorOnlineStatus(controller);
     
     // 读取五个电机的角度值
-    // motor[0]是DJI电机
+    // motor[0]是DJI电机，应用零点偏移
     if (controller->motors[0].dji_motor != NULL) {
-        controller->motor_angles[0] = controller->motors[0].dji_motor->measure.total_angle;
+        float raw_angle = controller->motors[0].dji_motor->measure.total_angle;
+        controller->motor_angles[0] = raw_angle - controller->zero_offset[0];
     }
-    // motor[1-4]是DM电机，弧度转角度
+    // motor[1-4]是DM电机，弧度转角度（DM电机有固定零点，不需要偏移）
     if (controller->motors[1].dm_motor != NULL) {
         controller->motor_angles[1] = DM_RadianToDegree(controller->motors[1].dm_motor->measure.total_angle);
     }

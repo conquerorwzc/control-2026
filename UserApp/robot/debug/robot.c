@@ -13,36 +13,27 @@
 #include <math.h>
 
 // 力反馈参数配置
-#define TORQUE_DEADBAND_4310    2.0f    // DM4310角度死区(度)
-#define TORQUE_DEADBAND_DJI     2.0f    // 这里其实没用，因为电流环中有deadband
+#define TORQUE_DEADBAND       1.5f    // 所有电机角度死区(度)
 
 // 不同电机类型的力控比例增益 (Nm/度)
-#define TORQUE_K_P_4310         0.01f    // DM4310比例增益
-#define TORQUE_K_P_M3508        0.005f   // M3508比例增益
-#define TORQUE_K_P_M2006        0.04f   // M2006比例增益
+#define TORQUE_K_P_DM4310     0.01f   // DM4310比例增益
+#define TORQUE_K_P_DM4340     0.01f   // DM4340比例增益（扭矩更大）
+#define TORQUE_K_P_M6020      0.008f  // M6020比例增益
 
-#define MAX_TORQUE_4310         3.0f    // DM4310最大输出力矩限制(N·m)
-#define MAX_TORQUE_OUTPUT       2.0f    // DJI电机最大输出力矩限制(Nm)，这里其实没用，因为电流环中有deadband
+#define MAX_TORQUE_DM4310     3.0f    // DM4310最大输出力矩限制(N·m)
+#define MAX_TORQUE_DM4340     3.0f    // DM4340最大输出力矩限制(N·m)
+#define MAX_TORQUE_M6020      1.0f    // M6020最大输出力矩限制(额定扭矩内，保护电机)
 
 // 电机扭矩常数 (Nm/A)
-#define KT_DM4310               1.0f    // DM4310直接用力矩控制
-#define KT_M3508                0.02f    // M3508扭矩常数
-#define KT_M2006                0.18f   // M2006扭矩常数（这里是已经加了减速箱的扭矩）
+#define KT_DM4310             1.0f    // DM4310直接用力矩控制
+#define KT_DM4340             1.0f    // DM4340直接用力矩控制
+#define KT_M6020              0.741f  // M6020扭矩常数
 
-// 减速比
-#define RATIO_M2006             36.0f   // M2006减速比1:36
-#define RATIO_M3508             1.0f    // M3508直驱
-
-// C620 (对应3508): 控制量 16384 对应 20A
-#define C620_RAW_PER_AMP    (16384.0f / 20.0f)  // 约 819.2
-
-// C610 (对应2006): 控制量 10000 对应 10A
-#define C610_RAW_PER_AMP    (10000.0f / 10.0f)  // 1000.0
+// GM6020 (M6020): 控制量 16384 对应 3A
+#define GM6020_RAW_PER_AMP    (16384.0f / 3.0f)  // 约 5461.3
 
 // 自定义控制器实例
 static CustomController_t* angle_controller;
-static float initial_angles[5] = {0};  // 保存电机上电时的初始角度
-static bool angles_initialized = false;  // 标记是否已记录初始角度
 static GPIOInstance *gpio_24V_R_EN;
 static GPIO_Init_Config_s gpio_init_config_24v = {
     .GPIO_Pin = POWER_24V_R_Pin,
@@ -63,20 +54,33 @@ static GPIO_Init_Config_s gpio_init_config_5v = {
  */
 static void ApplyTorqueFeedback(void)
 {
+    if (angle_controller == NULL || !angle_controller->robot_data_valid) {
+        return;
+    }
+    
+    // Debug模式：离线测试，不需要检查robot_grab_mode
+    // if (angle_controller->robot_grab_mode != 1) {
+    //     return;
+    // }
 
     float custom_angles[5], real_angles[5], angle_errors[5], torque_outputs[5];
 
+    // 电机索引映射：自定义控制器电机 -> 工程板发送的角度索引
+    // motor[0]=大yaw, [1]=大roll, [2]=大pitch, [3]=小pitch, [4]=小roll
+    const uint8_t motor_to_angle_map[5] = {
+        0,  // motors[0] (大yaw M6020)    <- base_joint (index 0)
+        1,  // motors[1] (大roll DM4340)  <- elbow_roll (index 1)
+        2,  // motors[2] (大pitch DM4310) <- elbow_pitch (index 2)
+        3,  // motors[3] (小pitch DM4310) <- wrist_pitch (index 3)
+        4   // motors[4] (小roll DM4310)  <- wrist_roll (index 4)
+    };
+
     // 对5个关节分别计算力反馈
     for (int i = 0; i < 5; i++) {
-        // 获取自定义控制器角度和真实机械臂角度
+        // 获取自定义控制器角度和真实机械臂角度（使用映射后的索引）
+        uint8_t angle_idx = motor_to_angle_map[i];
         custom_angles[i] = angle_controller->motor_angles[i];
-        
-        // 使用上电初始角度作为参考（用于测试力控）
-        if (!angles_initialized) {
-            real_angles[i] = initial_angles[i];
-        } else {
-            real_angles[i] = angle_controller->robot_arm_angles[i];
-        }
+        real_angles[i] = angle_controller->robot_arm_angles[angle_idx];
 
         // 计算角度误差（取反以修正方向）
         angle_errors[i] = real_angles[i] - custom_angles[i];
@@ -84,76 +88,73 @@ static void ApplyTorqueFeedback(void)
         // 根据电机类型选择对应的Kp参数
         float torque_k_p;
         if (angle_controller->motors[i].dm_motor != NULL) {
-            torque_k_p = TORQUE_K_P_4310;
-        } else {
-            // 根据DJI电机类型选择Kp
-            if (angle_controller->motors[i].dji_motor->motor_type == M3508) {
-                torque_k_p = TORQUE_K_P_M3508;
+            // 根据DM电机型号选择Kp
+            if (angle_controller->motors[i].dm_motor->motor_type == J4340) {
+                torque_k_p = TORQUE_K_P_DM4340;
             } else {
-                torque_k_p = TORQUE_K_P_M2006;
+                torque_k_p = TORQUE_K_P_DM4310;
             }
+        } else {
+            // DJI电机
+            torque_k_p = TORQUE_K_P_M6020;
         }
 
-        // DM4310：应用角度死区
-        if (angle_controller->motors[i].dm_motor != NULL) {
-            torque_outputs[i] = 0.0f;
-            if (angle_errors[i] > TORQUE_DEADBAND_4310) {
-                torque_outputs[i] = torque_k_p * (angle_errors[i] - TORQUE_DEADBAND_4310);
-            } else if (angle_errors[i] < -TORQUE_DEADBAND_4310) {
-                torque_outputs[i] = torque_k_p * (angle_errors[i] + TORQUE_DEADBAND_4310);
-            }
-        } else {
-            // DJI电机：不应用死区，让电流环PID自己处理
-            torque_outputs[i] = torque_k_p * angle_errors[i];
+        // 对所有电机统一应用角度死区
+        torque_outputs[i] = 0.0f;
+        if (angle_errors[i] > TORQUE_DEADBAND) {
+            torque_outputs[i] = torque_k_p * (angle_errors[i] - TORQUE_DEADBAND);
+        } else if (angle_errors[i] < -TORQUE_DEADBAND) {
+            torque_outputs[i] = torque_k_p * (angle_errors[i] + TORQUE_DEADBAND);
         }
 
         // 根据电机类型分别限幅和设置
         if (angle_controller->motors[i].dm_motor != NULL) {
-            // DM4310：使用物理力矩单位(N·m)，直接限幅
-            if (torque_outputs[i] > MAX_TORQUE_4310) {
-                torque_outputs[i] = MAX_TORQUE_4310;
-            } else if (torque_outputs[i] < -MAX_TORQUE_4310) {
-                torque_outputs[i] = -MAX_TORQUE_4310;
+            // DM电机：使用物理力矩单位(N·m)，根据型号限幅
+            float max_torque;
+            if (angle_controller->motors[i].dm_motor->motor_type == J4340) {
+                max_torque = MAX_TORQUE_DM4340;
+            } else {
+                max_torque = MAX_TORQUE_DM4310;
             }
             
-            // 确保DM4310已使能，否则无法输出力矩
+            if (torque_outputs[i] > max_torque) {
+                torque_outputs[i] = max_torque;
+            } else if (torque_outputs[i] < -max_torque) {
+                torque_outputs[i] = -max_torque;
+            }
+            
+            // 确保DM电机已使能，否则无法输出力矩
             DMMotorEnable(angle_controller->motors[i].dm_motor);
             
-            // DM4310直接使用物理力矩单位，不需要乘以1000
+            // DM电机直接使用物理力矩单位，不需要乘以1000
             switch (angle_controller->motors[i].dm_motor->motor_type) {
                 case J4310:
+                case J4340:
                     DMMotorSetRef(angle_controller->motors[i].dm_motor, torque_outputs[i]);
                     break;
                 default:
                     break;
             }
         } else if (angle_controller->motors[i].dji_motor != NULL) {
-            // DJI电机：转换为电流控制量
+            // GM6020：力矩 → 电流 → CAN控制量
             float current_a = 0.0f;  // 所需电流(A)
-            int16_t raw_cmd = 0;     // 电调原始控制值
+            int16_t raw_cmd = 0;     // CAN原始控制量
 
-            switch (angle_controller->motors[i].dji_motor->motor_type) {
-                case M3508:
-                    // 计算电流: I = T_out / (Kt * Ratio)
-                    current_a = torque_outputs[i] / (KT_M3508 * RATIO_M3508);
-                    // 转换为C620原始值
-                    raw_cmd = (int16_t)(current_a * C620_RAW_PER_AMP);
-                    break;
-
-                case M2006:
-                    // 计算电流: I = T_out / (Kt * Ratio)
-                    current_a = torque_outputs[i] / KT_M2006 ;
-                    // 转换为C610原始值
-                    raw_cmd = (int16_t)(current_a * C610_RAW_PER_AMP);
-                    break;
-
-                default:
-                    raw_cmd = 0;
-                    break;
+            // 限幅：确保在额定扭矩内
+            if (torque_outputs[i] > MAX_TORQUE_M6020) {
+                torque_outputs[i] = MAX_TORQUE_M6020;
+            } else if (torque_outputs[i] < -MAX_TORQUE_M6020) {
+                torque_outputs[i] = -MAX_TORQUE_M6020;
             }
 
-            // 使用 DJIMotorSetPIDRef 设置参考值，让电流环PID工作并自动限幅
-            DJIMotorSetPIDRef(angle_controller->motors[i].dji_motor, (float)raw_cmd);
+            // 力矩转电流：T = Kt * I → I = T / Kt
+            current_a = torque_outputs[i] / KT_M6020;
+            
+            // 电流转CAN控制量：16384对应3A
+            raw_cmd = (int16_t)(current_a * GM6020_RAW_PER_AMP);
+
+            // 设置参考值（final_output会被转换为int16发送到CAN）
+            DJIMotorSetRef(angle_controller->motors[i].dji_motor, (float)raw_cmd);
         }
     }
 }
@@ -163,9 +164,9 @@ void RobotInit() {
     CustomController_Init_Config_s init_config = {
         .dm4310_config_1 = DM4310_config_1,
         .dm4310_config_2 = DM4310_config_2,
-        .m3508_config_1 = M3508_config_1,
-        .m3508_config_2 = M3508_config_2,
-        .m2006_config = M2006_config
+        .dm4310_config_3 = DM4310_config_3,
+        .dm4340_config = DM4340_config,
+        .m6020_config = M6020_config
     };
 
     gpio_24V_R_EN = GPIORegister(&gpio_init_config_24v);
@@ -179,23 +180,16 @@ void RobotInit() {
         // 错误处理可以根据需要添加
         return;
     }
-    
-    // 等待数据稳定后记录初始角度
-    osDelay(200);
-    for (int i = 0; i < 5; i++) {
-        initial_angles[i] = angle_controller->motor_angles[i];
-    }
-    angles_initialized = true;
 }
 
 void RobotTask() {
     if (angle_controller != NULL) {
         // 更新电机角度数据
         CustomControllerTask(angle_controller);
-
+        
         // 应用力反馈控制（仅在自定义控制器模式下）
         ApplyTorqueFeedback();
-
+        
         // 发送所有电机数据通过 USART3
         CustomController_SendAllData(angle_controller);
     }
