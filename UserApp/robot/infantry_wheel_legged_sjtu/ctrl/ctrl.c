@@ -758,6 +758,7 @@ void MouseKeyCtrl(RobotInstance* robot) {
   static uint8_t c_key_last = 0;       // 记录上一次C键状态
   static uint8_t is_rotate_mode = 0;   // 小陀螺模式标志位
   static float trigger_time = 0;       // 开火时间
+  static uint8_t ctrl_key_last = 0;
 
   // 2. 云台
   // 2.1 [右键]按住开启自瞄
@@ -829,11 +830,13 @@ void MouseKeyCtrl(RobotInstance* robot) {
     x_key_last = rc_data->mouse_key.keyboard.x;
   }
 
-  if (!rc_data->mouse_key.keyboard.ctrl && rc_data->mouse_key.keyboard.ctrl) {
+
+  if (rc_data->mouse_key.keyboard.ctrl != ctrl_key_last && rc_data->mouse_key.keyboard.ctrl) {
     if (robot->chassis_fetch_data) {
       robot->chassis_fetch_data->force_refresh_ui = 1;  // 告诉底盘板去刷新UI
     }
   }
+  ctrl_key_last = rc_data->mouse_key.keyboard.ctrl;
 
   // [C] 单次切换：超级电容开关
   if (rc_data->mouse_key.keyboard.c != c_key_last) {

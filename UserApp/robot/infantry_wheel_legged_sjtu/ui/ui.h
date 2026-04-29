@@ -79,6 +79,8 @@ typedef struct {
   uint8_t last_Shoot_heat;
   float last_Shoot_rate;
   uint8_t last_autoaim_mode;
+  uint8_t last_heat_mode_e;
+  uint8_t last_bullet_speed_mode_e;
   float last_cap_voltage;
   uint8_t last_cap_mode;
   uint16_t last_bullet_left_real;

@@ -4,6 +4,9 @@
 #include "referee.h"
 #include "robot.h"
 
+#include <math.h>
+#include <stdio.h>
+
 
 static referee_info_t *referee_recv_info;  // 接收到的裁判系统数据
 RobotInstance *robotdata;
@@ -63,14 +66,14 @@ static Referee_Interactive_info_t interactive_data;
 
 // 检测UI变化的函数
 static void UIChangeCheck(Referee_Interactive_info_t *_Interactive_data) {
-  if (_Interactive_data->gimbal_mode != _Interactive_data->gimbal_last_mode) {
+  if (_Interactive_data->heat_mode_e != _Interactive_data->last_heat_mode_e) {
     _Interactive_data->UI_Interactive_Flag.gimbal_flag = 1;
-    _Interactive_data->gimbal_last_mode = _Interactive_data->gimbal_mode;
+    _Interactive_data->last_heat_mode_e = _Interactive_data->heat_mode_e;
   }
 
-  if (_Interactive_data->shoot_mode != _Interactive_data->shoot_last_mode) {
+  if (_Interactive_data->bullet_speed_mode_e != _Interactive_data->last_bullet_speed_mode_e) {
     _Interactive_data->UI_Interactive_Flag.shoot_flag = 1;
-    _Interactive_data->shoot_last_mode = _Interactive_data->shoot_mode;
+    _Interactive_data->last_bullet_speed_mode_e = _Interactive_data->bullet_speed_mode_e;
   }
 
   if (_Interactive_data->friction_mode != _Interactive_data->friction_last_mode) {
@@ -96,11 +99,11 @@ static void UIChangeCheck(Referee_Interactive_info_t *_Interactive_data) {
     _Interactive_data->last_autoaim_mode = _Interactive_data->autoaim_mode;
   }
 
-  if (fabsf(_Interactive_data->cap_voltage - _Interactive_data->last_cap_voltage) > 0.1f
-      ) {
+  if (fabsf(_Interactive_data->cap_voltage - _Interactive_data->last_cap_voltage) > 0.1f ||
+      _Interactive_data->cap_msg.error_detect != _Interactive_data->last_cap_mode) {
     _Interactive_data->UI_Interactive_Flag.cap_flag = 1;
     _Interactive_data->last_cap_voltage = _Interactive_data->cap_voltage;
-
+    _Interactive_data->last_cap_mode = _Interactive_data->cap_msg.error_detect;
   }
   if (_Interactive_data->bullet_left_real != _Interactive_data->last_bullet_left_real) {
     _Interactive_data->UI_Interactive_Flag.ammo_flag = 1;
@@ -124,6 +127,7 @@ static void UIChangeCheck(Referee_Interactive_info_t *_Interactive_data) {
 static void MyUIRefresh(Referee_Interactive_info_t *interactive_data) {
   // 更新云台状态
 
+  if (interactive_data->UI_Interactive_Flag.gimbal_flag == 1) {
     char *gimbal_str = "unknown";
     switch (interactive_data->heat_mode_e) {
       case NO_CONTROL:
@@ -142,10 +146,12 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data) {
     UICharDraw(&UI_State_dyn[1], "sd1", UI_Graph_Change, 8, UI_Color_Yellow, 15, 2, 270, 700, gimbal_str);
     UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[1]);
     interactive_data->UI_Interactive_Flag.gimbal_flag = 0;
+  }
 
 
   // 更新射击状态
 
+  if (interactive_data->UI_Interactive_Flag.shoot_flag == 1) {
     char *bullet_str = "unknown";
     switch (interactive_data->bullet_speed_mode_e) {
       case NO_CONTROL:
@@ -164,6 +170,7 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data) {
     UICharDraw(&UI_State_dyn[2], "sd2", UI_Graph_Change, 8, UI_Color_Orange, 15, 2, 270, 650, bullet_str);
     UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[2]);
     interactive_data->UI_Interactive_Flag.shoot_flag = 0;
+  }
 
 
   // 更新摩擦轮状态
@@ -171,13 +178,21 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data) {
     char *friction_str = interactive_data->friction_mode == FRICTION_ON ? "on " : "off";
     UICharDraw(&UI_State_dyn[3], "sd3", UI_Graph_Change, 8, UI_Color_Pink, 15, 2, 270, 600, friction_str);
     UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[3]);
+    uint16_t left_speed = interactive_data->fric_speed_left;
+    uint16_t display_speed = left_speed / 100;  // 26000 -> 260
+    char fric_speed_str[16];
+    sprintf(fric_speed_str, "frispeed:%d", display_speed);
+    UICharDraw(&UI_fric_text_down, "fs0", UI_Graph_Change, 6, UI_Color_White, 18, 2, 1556, 850, fric_speed_str);
+    UICharRefresh(&referee_recv_info->referee_id, UI_fric_text_down);
     interactive_data->UI_Interactive_Flag.fric_flag = 0;
   }
 
 
-    char *cap_str = interactive_data->cap_msg.error_detect == 0? "good " : "bad";
+  if (interactive_data->UI_Interactive_Flag.cap_flag == 1) {
+    char *cap_str = interactive_data->cap_msg.error_detect == 0 ? "good " : "bad";
     UICharDraw(&UI_State_dyn[4], "sd4", UI_Graph_Change, 8, UI_Color_Pink, 15, 2, 270, 550, cap_str);
     UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[4]);
+  }
 
 
   // 自瞄模式指示器
@@ -206,7 +221,7 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data) {
   // 电容能量圆弧
   if (interactive_data->UI_Interactive_Flag.cap_flag == 1) {
     float volt = interactive_data->cap_voltage;
-    float bar = (volt - 12.0f) / (23.0f - 12.0f) * 40.0f;
+    float bar = (volt - CAP_VOL_LOWER) / (CAP_VOL_UPPER - CAP_VOL_LOWER) * 40.0f;
     if (bar < 1) bar = 1;
     if (bar > 40) bar = 40;
     uint32_t end_angle = 270 + (uint32_t)bar;
@@ -219,8 +234,8 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data) {
   // 弹量圆弧
   if (interactive_data->UI_Interactive_Flag.ammo_flag == 1) {
     uint16_t bullet = interactive_data->bullet_left_real;
-    if (bullet > 500) bullet = 500;
-    float bar = (float)bullet / 500.0f * 40.0f;
+    if (bullet > AMMO_UPPER) bullet = AMMO_UPPER;
+    float bar = (float)bullet / (float)AMMO_UPPER * 40.0f;
     uint32_t start_angle = 270 - (uint32_t)bar;
     uint32_t color;
     if (bullet > 80)
@@ -511,8 +526,8 @@ void MyUIInit(RobotInstance *robot) {
     // 左侧功率/弹量圆弧
     UIArcDraw(&UI_cap_arc, "ap0", UI_Graph_ADD, 6, UI_Color_Pink, 270, 310, 22, 960, 540, 370, 370);
     UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_cap_arc);
-    // UIArcDraw(&UI_ammo_arc, "aa0", UI_Graph_ADD, 6, UI_Color_Main, 230, 270, 22, 960, 535, 370, 370);
-    // UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_ammo_arc);
+    UIArcDraw(&UI_ammo_arc, "aa0", UI_Graph_ADD, 6, UI_Color_Green, 230, 270, 22, 960, 535, 370, 370);
+    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_ammo_arc);
     UICharDraw(&UI_cap_text_E, "ce0", UI_Graph_ADD, 6, UI_Color_White, 17, 2, 610, 545, "E");
     UICharRefresh(&referee_recv_info->referee_id, UI_cap_text_E);
     UICharDraw(&UI_cap_text_F, "cf0", UI_Graph_ADD, 6, UI_Color_White, 17, 2, 702, 775, "F");
@@ -542,6 +557,14 @@ void MyUIInit(RobotInstance *robot) {
     UIGraphRefresh(&referee_recv_info->referee_id, 1, Arc_DecoUp);
     UIArcDraw(&Arc_DecoDown, "ll2", UI_Graph_ADD, 6, UI_Color_White, 229, 230, 22, 960, 535, 370, 370);
     UIGraphRefresh(&referee_recv_info->referee_id, 1, Arc_DecoDown);
+    interactive_data.UI_Interactive_Flag.gimbal_flag = 1;
+    interactive_data.UI_Interactive_Flag.shoot_flag = 1;
+    interactive_data.UI_Interactive_Flag.fric_flag = 1;
+    interactive_data.UI_Interactive_Flag.cap_flag = 1;
+    interactive_data.UI_Interactive_Flag.ammo_flag = 1;
+    interactive_data.UI_Interactive_Flag.yaw_flag = 1;
+    interactive_data.UI_Interactive_Flag.pitch_flag = 1;
+    interactive_data.UI_Interactive_Flag.autoaim_flag = 1;
 }
 
 Referee_Interactive_info_t *getUI() { return &interactive_data; }
@@ -577,11 +600,12 @@ void UITask(RobotInstance *robot) {
   if (robot->chassis) {
     interactive_data.chassis_mode = robot->chassis->chassis_ctrl_cmd.chassis_mode;
     interactive_data.cap_voltage = robot->chassis->super_cap->cap_msg.cap_v;
+    interactive_data.cap_msg = robot->chassis->super_cap->cap_msg;
   }
   if (robot->gimbal) {
     interactive_data.gimbal_mode = robot->gimbal->gimbal_ctrl_cmd.gimbal_mode;
-    interactive_data.pitch_angle = robot->gimbal->gimbal_ctrl_cmd.pitch;                      // 俯仰角
     interactive_data.autoaim_mode = (interactive_data.gimbal_mode == GIMBAL_VISION) ? 1 : 0;
+    interactive_data.pitch_angle = robot->gimbal->gimbal_ctrl_cmd.pitch;                      // 俯仰角
   }
   if (robot->shoot) {
     interactive_data.shoot_mode = robot->shoot->shoot_ctrl_cmd.shoot_mode;
@@ -592,8 +616,28 @@ void UITask(RobotInstance *robot) {
     interactive_data.fric_speed_right = robot->shoot->friction_motor[1]->measure.speed_aps;
   }
 
-  // 动态数值（如果这里的变量名和你的底层解算名字不一致，请手动微调一下）
-  interactive_data.chassis_relative_angle = robot->offset_angle;  // 底盘朝向
+#if !defined(ONE_BOARD)
+  if (robot->chassis_fetch_data) {
+    if (!robot->gimbal) {
+      interactive_data.gimbal_mode = (Gimbal_Mode_e)robot->chassis_fetch_data->ui_gimbal_mode;
+      interactive_data.pitch_angle = (float)robot->chassis_fetch_data->ui_pitch_deg_x10 * 0.1f;
+    }
+    if (!robot->shoot) {
+      interactive_data.friction_mode = (Friction_Mode_e)robot->chassis_fetch_data->ui_friction_mode;
+      interactive_data.bullet_speed_mode_e = (BULLET_Speed_Mode_e)robot->chassis_fetch_data->ui_bullet_speed_mode;
+      interactive_data.heat_mode_e = (HEAT_Mode_e)robot->chassis_fetch_data->ui_heat_mode;
+      interactive_data.fric_speed_left = robot->chassis_fetch_data->ui_fric_speed_left;
+      interactive_data.fric_speed_right = robot->chassis_fetch_data->ui_fric_speed_right;
+    }
+    interactive_data.autoaim_mode = (interactive_data.gimbal_mode == GIMBAL_VISION) ? 1 : 0;
+    interactive_data.chassis_relative_angle =
+        (float)robot->chassis_fetch_data->ui_chassis_relative_angle_deg_x10 * 0.1f;
+  } else
+#endif
+  {
+    interactive_data.chassis_relative_angle = robot->offset_angle;
+  }
+
   if (referee_recv_info) {
     interactive_data.bullet_left_real =
         referee_recv_info->ProjectileAllowance.projectile_allowance_17mm;  // 剩余金币或弹量

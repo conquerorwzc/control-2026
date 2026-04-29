@@ -118,6 +118,14 @@ static void DoubleBoardComms() {
   // 发送底盘控制指令
   chassis_fetch_data->chassis_ctrl_cmd = *chassis_ctrl_cmd;
   chassis_fetch_data->super_cap_ctrl_cmd = robot->chassis->super_cap->super_cap_ctrl_cmd;
+  // chassis_fetch_data->ui_pitch_deg_x10 = (int16_t)(gimbal_ctrl_cmd->pitch * 10.0f);
+  // chassis_fetch_data->ui_chassis_relative_angle_deg_x10 = (int16_t)(robot->offset_angle * 10.0f);
+  // chassis_fetch_data->ui_fric_speed_left = (uint16_t)robot->shoot->friction_motor[0]->measure.speed_aps;
+  // chassis_fetch_data->ui_fric_speed_right = (uint16_t)robot->shoot->friction_motor[1]->measure.speed_aps;
+  // chassis_fetch_data->ui_gimbal_mode = (uint8_t)gimbal_ctrl_cmd->gimbal_mode;
+  // chassis_fetch_data->ui_friction_mode = (uint8_t)shoot_ctrl_cmd->friction_mode;
+  // chassis_fetch_data->ui_bullet_speed_mode = (uint8_t)shoot_ctrl_cmd->bullet_speed_mode;
+  // chassis_fetch_data->ui_heat_mode = (uint8_t)shoot_ctrl_cmd->heat_mode;
 
   // 接收底盘回传数据
   *chassis_upload_data = *(Chassis_Upload_Data_s*)CANCommGet(robot->can_comm);
@@ -164,6 +172,8 @@ static void DoubleBoardComms() {
   CANCommSend(robot->can_comm, (void*)chassis_upload_data);
 #endif
 }
+
+RobotInstance* RobotGetInstance(void) { return robot; }
 #endif
 
 /**
@@ -225,7 +235,7 @@ void RobotCMDTask() {
 // 控制板指令处理与控制逻辑 (只有底盘板不用处理)
 #if !defined(CHASSIS_BOARD)
   JoyStickCtrl(robot);
-  // MouseKeyCtrl(robot);
+  MouseKeyCtrl(robot);
 #if defined(GIMBAL_BOARD)
   CalcOffsetAngle();
   GimbalAlignToChassisForward();
