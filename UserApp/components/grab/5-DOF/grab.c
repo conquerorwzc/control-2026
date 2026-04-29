@@ -618,18 +618,21 @@ static void MotorTask()
             }
         }
 
+        // 抬升和前伸电机控制 (不依赖循环索引，只执行一次)
+        if (DaemonIsOnline(grab->arm->arm_lift_motor->daemon))
+        {
+            DJIMotorEnable(grab->arm->arm_lift_motor);
+            DJIMotorSetPIDRef(grab->arm->arm_lift_motor, grab->grab_ctrl_cmd.arm_lift_target);
+        }
+        if (DaemonIsOnline(grab->arm->arm_extend_motor->daemon))
+        {
+            DJIMotorEnable(grab->arm->arm_extend_motor);
+            DJIMotorSetPIDRef(grab->arm->arm_extend_motor, grab->grab_ctrl_cmd.arm_extend_target);
+        }
+
+        // 腕部电机控制
         for (int i = 0; i < 3; i++)
         {
-            if (DaemonIsOnline(grab->arm->arm_lift_motor->daemon))
-            {
-                DJIMotorEnable(grab->arm->arm_lift_motor);
-                DJIMotorSetPIDRef(grab->arm->arm_lift_motor, grab->grab_ctrl_cmd.arm_lift_target);
-            }
-            if (DaemonIsOnline(grab->arm->arm_extend_motor->daemon))
-            {
-                DJIMotorEnable(grab->arm->arm_extend_motor);
-                DJIMotorSetPIDRef(grab->arm->arm_extend_motor, grab->grab_ctrl_cmd.arm_extend_target);
-            }
             if (DaemonIsOnline(grab->actuator->grab_djimotor[i]->daemon))
             {
                 DJIMotorEnable(grab->actuator->grab_djimotor[i]);

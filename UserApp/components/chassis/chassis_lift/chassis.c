@@ -214,6 +214,20 @@ ChassisInstance *ChassisInit(Chassis_Init_Config_s *chassis_init_config)
 /* 机器人底盘控制核心任务 */
 void ChassisTask()
 {
+    // 标定中断保护：如果从标定模式切走，复位标定状态，防止下次标定使用脏数据
+    static uint8_t last_chassis_mode = CHASSIS_POWER_OFF;
+    if (last_chassis_mode == CHASSIS_CALIBRATING && chassis_ctrl_cmd->chassis_mode != CHASSIS_CALIBRATING)
+    {
+        first_run = 1;
+        startup_grace_cnt = 0;
+        for (int i = 0; i < 4; i++)
+        {
+            cali_block_cnt[i] = 0;
+            max_cali_block_cnt[i] = 0;
+        }
+    }
+    last_chassis_mode = chassis_ctrl_cmd->chassis_mode;
+
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CALIBRATING)
     {
         for (int i = 0; i < 4; i++)

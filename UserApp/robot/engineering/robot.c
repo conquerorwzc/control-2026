@@ -67,7 +67,6 @@ void RobotInit()
     rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
     *rc_data_last = *robot->rc_data; // 记录上一次遥控器的状态
     robot->ins_data = INS_Init(&imu_init_config);
-    // robot->gantry = GantryInit(&gantry_init_config);
     robot->grab = GrabInit(&grab_init_config);
     robot->video_gimbal = VideoGimbalInit(&video_gimbal_init_config);
 
@@ -101,9 +100,7 @@ void RobotTask()
     ChassisTask();
 #endif
 
-    // 新增: 龙门架控制逻辑 (GantryTask)
 #if defined(ONE_BOARD)
-    // GantryTask();
     GrabTask();
     VideoGimbalTask();
 #endif

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "chassis.h"
-#include "gantry.h"
 #include "grab.h"
 #include "gimbal_video.h"
 #include "remote_control.h"
@@ -27,7 +26,6 @@ typedef struct
     referee_info_t* referee_data;     // 用于获取裁判系统的数据
     SuperCapInstance *super_cap;
     ChassisInstance *chassis;
-    GantryInstance *gantry;
     GrabInstance *grab;
     VideoGimbalInstance *video_gimbal; // 图传云台独立组件
     SelfC *self_control; // 自定义控制器实例

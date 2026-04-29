@@ -1,8 +1,8 @@
 #include "half_auto.h"
 
 
-static int normal_step = 0; // 专属平地取/存矿的步数
-static int climb_step = 0;  // 专属上台阶重心的步数
+static uint8_t normal_step = 0; // 专属平地取/存矿的步数 (最大20)
+static uint8_t climb_step = 0;  // 专属上台阶重心的步数 (最大13)
 static Half_Control_List half_control_list = Store_First_Energy_Unit;
 
 static void Move_Joint_Smoothly(float *current, float target, float max_step)
@@ -34,7 +34,7 @@ void Half_auto_update(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_Cmd_s *chassi
 
         if (press_l && !press_l_last)
         {
-            climb_step++; // 左键只增加 climb_step
+            if (climb_step < 13) climb_step++; // 左键只增加 climb_step，上限13
         }
 
         climb_step_prep(grab_ctrl_cmd, climb_step);
@@ -56,7 +56,7 @@ void Half_auto_update(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_Cmd_s *chassi
     // 左键推进取矿进度
     if (press_l && !press_l_last)
     {
-        normal_step++;
+        if (normal_step < 20) normal_step++; // 上限20 (store_second_energy_unit最大case)
     }
 
     // 执行对应的常规半自动

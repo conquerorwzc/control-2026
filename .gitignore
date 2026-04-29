@@ -101,3 +101,5 @@ cmake-build-debug-stm32/
 /.vscode/settings.json
 /test_gdb.gdb
 /cmake-build-debug/
+.idea/editor.xml
+.idea/wheel_legged_demo.iml
