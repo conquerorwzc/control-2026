@@ -13,16 +13,12 @@
 #include <math.h>
 
 // 力反馈参数配置
-#define TORQUE_DEADBAND       1.5f    // 所有电机角度死区(度)
+#define TORQUE_DEADBAND       3.0f    // 所有电机角度死区(度)
 
 // 不同电机类型的力控比例增益 (Nm/度)
-#define TORQUE_K_P_DM4310     0.01f   // DM4310比例增益
-#define TORQUE_K_P_DM4340     0.01f  // DM4340比例增益（扭矩更大）
-#define TORQUE_K_P_M6020      0.008f  // M6020比例增益
-
-#define MAX_TORQUE_DM4310     3.0f    // DM4310最大输出力矩限制(N·m)
-#define MAX_TORQUE_DM4340     3.0f    // DM4340最大输出力矩限制(N·m)
-#define MAX_TORQUE_M6020      1.0f    // M6020最大输出力矩限制(额定扭矩内，保护电机)
+#define TORQUE_K_P_DM4310     0.05f   // DM4310比例增益
+#define TORQUE_K_P_DM4340     0.05f   // DM4340比例增益
+#define TORQUE_K_P_M6020      0.04f   // M6020比例增益
 
 // 电机扭矩常数 (Nm/A)
 #define KT_DM4310             1.0f    // DM4310直接用力矩控制
@@ -35,7 +31,7 @@
 // 力反馈力矩限幅 (仅对力反馈部分限幅，重力补偿不限幅)
 #define MAX_FEEDBACK_TORQUE_DM4310     3.0f    // DM4310力反馈力矩限制(N·m)
 #define MAX_FEEDBACK_TORQUE_DM4340     3.0f    // DM4340力反馈力矩限制(N·m)
-#define MAX_FEEDBACK_TORQUE_M6020      1.0f    // M6020力反馈力矩限制(N·m)
+#define MAX_FEEDBACK_TORQUE_M6020   2.0f    // M6020力反馈力矩限制(N·m)
 
 // 自定义控制器实例
 static CustomController_t* angle_controller;
@@ -159,7 +155,7 @@ static void ApplyTotalTorque(void)
 
     // 3. 总力矩 = 力反馈 + 重力补偿
     for (int i = 0; i < 5; i++) {
-        total_torques[i] = gravity_torques[i]; // + feedback_torques[i];
+        total_torques[i] = gravity_torques[i] + feedback_torques[i];
 
         // 4. 发送到电机
         if (angle_controller->motors[i].dm_motor != NULL) {
