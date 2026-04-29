@@ -104,16 +104,15 @@ void MyUIInit()
 void SentryInit() {
   sentry_interaction_data=(sentry_interaction_data_t *)zmalloc(sizeof(sentry_interaction_data_t));
   DeterminRobotID();
-
 }
 void SentryTask() {
+  referee_recv_info=GetReferee();
   sentry_info=SentryUpdate();
   static uint8_t buffer[512]; // 交互数据缓存
   sentry_interaction_data->data_cmd_id=ID_sentry_cmd;
   sentry_interaction_data->FrameHeader.SOF=REFEREE_SOF;
   sentry_interaction_data->receiver_id=0x8080;
-  sentry_interaction_data->sender_id=7;
-  // sentry_interaction_data->sender_id=107;
+  sentry_interaction_data->sender_id=referee_recv_info->referee_id.Robot_ID;
   sentry_interaction_data->FrameHeader.DataLength=LEN_CMDID + LEN_receiver + LEN_sender + LEN_sentry_cmd;
   memcpy(sentry_interaction_data->user_data, sentry_info->raw_data,sizeof(sentry_interaction_data->user_data));
   sentry_interaction_data->FrameHeader.Seq=Sentry_Seq;
