@@ -41,9 +41,6 @@
 #define GYRO2GIMBAL_DIR_PITCH 1  // 陀螺仪数据相较于云台的pitch的方向,1为相同,-1为相反
 #define GYRO2GIMBAL_DIR_ROLL 1   // 陀螺仪数据相较于云台的roll的方向,1为相同,-1为相反
 
-// 副yaw偏移量配置
-#define YAW_SLAVE_OFFSET 0.0f  // 副yaw相对于主yaw的偏移量，可根据实际机械结构调整
-
 //轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
 #define WHEEL_MOTOR_CONFIG(handle, id) \
 ((Motor_Init_Config_s) { \
@@ -222,6 +219,26 @@ static Gimbal_Dual_Yaw_Init_Config_s gimbal_dual_yaw_config = {
       .Pitch = 0.0f,
       .Roll = 0.0f
     },
+    // 大yaw在FOLLOW/LOCKED状态的PID (粗跟重定位, 应比NORMAL稍快)
+    .yaw_master_follow_angle_PID =
+        {
+            .Kp = 3.0f,
+            .Ki = 0.0f,
+            .Kd = 0.1f,
+            .DeadBand = 0.01f,
+            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+            .IntegralLimit = 5.0f,
+            .MaxOut = 30.0f,
+        },
+    .yaw_master_follow_speed_PID =
+        {
+            .Kp = 6500.0f,
+            .Ki = 500.0f,
+            .Kd = 0.0f,
+            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+            .IntegralLimit = 2000.0f,
+            .MaxOut = 25000.0f,
+        },
 };
 
 #define FRICTION_MOTOR_CONFIG(handle, id, direction) \

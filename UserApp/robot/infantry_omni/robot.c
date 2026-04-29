@@ -344,8 +344,7 @@ void RobotInit() {
   buffer_energy = 60;
   chassis_output = 1;
 
-  // 设置副yaw偏移量
-  robot->gimbal->yaw_slave_offset = YAW_SLAVE_OFFSET;
+  // 双yaw对齐由状态机自动完成, 上电后首次 GimbalDualYawTask() 计算 virtual_gyro_offset
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
