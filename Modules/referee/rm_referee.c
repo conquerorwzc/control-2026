@@ -163,7 +163,7 @@ void RefereeSend(uint8_t *send, uint16_t tx_len) {
  */
 #ifdef CHASSIS_BOARD
 void SentrySend(uint8_t *send) {
-  USARTSend(referee_usart_instance, send, LEN_HEADER + LEN_CMDID + Interactive_Data_LEN_Head + LEN_sentry_cmd, USART_TRANSFER_DMA);
+  USARTSend(referee_usart_instance, send, LEN_HEADER + LEN_CMDID + LEN_sentry_cmd_id + LEN_receiver + LEN_sender + LEN_sentry_cmd_data + LEN_TAIL, USART_TRANSFER_DMA);
   osDelay(100);
 }
 #endif

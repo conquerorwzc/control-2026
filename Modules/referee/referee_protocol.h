@@ -38,11 +38,16 @@ typedef enum
 	LEN_HEADER = 5, // 帧头长
 	LEN_CMDID = 2,	// 命令码长度
 	LEN_TAIL = 2,	// 帧尾CRC16
-        LEN_receiver=2,
-        LEN_sender=2,
 	LEN_CRC8 = 4, // 帧头CRC8校验长度=帧头+数据长+包序号
 } JudgeFrameLength_e;
 
+typedef enum
+{
+  LEN_sentry_cmd_id = 2,
+  LEN_receiver=2,
+  LEN_sender=2,
+  LEN_sentry_cmd_data=4,
+} Sentry_Cmd_Length_e;
 /****************************帧头****************************/
 /****************************帧头****************************/
 
@@ -405,7 +410,6 @@ typedef enum
 	UI_Operate_LEN_PerDraw = 15,
 	UI_Operate_LEN_DrawChar = 15 + 30,
         /* 自定义交互数据部分 */
-        LEN_sentry_cmd = 4,
 
 } Interactive_Data_Length_e;
 
