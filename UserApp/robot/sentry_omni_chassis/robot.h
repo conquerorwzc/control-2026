@@ -10,7 +10,7 @@
 #include "shoot.h"
 #include "super_cap.h"
 // todo: add vision_module
-
+#define CHASSIS_BOARD
 typedef enum {
   ROBOT_POWER_OFF = 0,
   ROBOT_POWER_ON,

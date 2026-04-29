@@ -1,6 +1,6 @@
 #ifndef REFEREE_H
 #define REFEREE_H
-
+#include "robot.h"
 #include "rm_referee.h"
 #pragma pack(1)
 typedef struct{
@@ -28,7 +28,9 @@ void MyUIInit();
  *
  */
 void UITask();
-
+#ifdef CHASSIS_BOARD
 void SentryInit();
 void SentryTask();
+#endif
+
 #endif // REFEREE_H

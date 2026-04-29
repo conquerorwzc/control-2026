@@ -33,7 +33,9 @@
 osThreadId motorTaskHandle;
 osThreadId daemonTaskHandle;
 osThreadId robotTaskHandle;
+#ifdef CHASSIS_BOARD
 osThreadId uiTaskHandle;
+#endif
 
 /**
  * @brief 初始化RTOS任务,所有持续运行的任务都在这里初始化
@@ -60,9 +62,10 @@ void OSTaskInit() {
 
   osThreadDef(robottask, StartROBOTTASK, osPriorityNormal, 0, 1024);
   robotTaskHandle = osThreadCreate(osThread(robottask), NULL);
-
+#ifdef CHASSIS_BOARD
   osThreadDef(uitask, StartUITASK, osPriorityNormal, 0, 512);
   uiTaskHandle = osThreadCreate(osThread(uitask), NULL);
+#endif
 
   // 初始化完成,开启中断
   __enable_irq();
@@ -114,7 +117,7 @@ __attribute__((noreturn)) void StartROBOTTASK(void const *argument) {
   }
 }
 
-#if 1
+#ifdef CHASSIS_BOARD
 __attribute__((noreturn)) void StartUITASK(void const *argument) {
   LOGINFO("[freeRTOS] UI Task Start");
   SentryInit();

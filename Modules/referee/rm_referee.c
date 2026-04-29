@@ -10,7 +10,7 @@
  */
 
 #include "rm_referee.h"
-
+#include "robot.h"
 #include "bsp_log.h"
 #include "bsp_usart.h"
 #include "cmsis_os.h"
@@ -161,7 +161,9 @@ void RefereeSend(uint8_t *send, uint16_t tx_len) {
  * @brief 裁判系统数据发送函数
  * @param
  */
+#ifdef CHASSIS_BOARD
 void SentrySend(uint8_t *send) {
   USARTSend(referee_usart_instance, send, LEN_HEADER + LEN_CMDID + Interactive_Data_LEN_Head + LEN_sentry_cmd, USART_TRANSFER_DMA);
   osDelay(100);
 }
+#endif
