@@ -34,8 +34,10 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
   Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   float input_mag = sqrtf(intent->vx * intent->vx + intent->vy * intent->vy);
 
-  // mini PC 偏置 roll 前馈: 设点修剪量随云台-底盘相对角 cos 调制
-  chassis_ctrl_cmd->roll = ROLL_FF_TRIM * cosf(robot->offset_angle * DEGREE_2_RAD);
+  chassis_ctrl_cmd->roll = 0.0f;
+  // roll 前馈 = 底盘恒定偏置 + 云台 CoM 旋转分量. offset_angle 俯视 CW 为正 → 底盘系下 CoM 角 = α_g - offset_angle.
+  chassis_ctrl_cmd->roll_ff =
+      ROLL_FF_BIAS + ROLL_FF_AMP * sinf((GIMBAL_COM_ANGLE_DEG - robot->offset_angle) * DEGREE_2_RAD);
 
   switch (robot->robot_mode) {
     case ROBOT_CHASSIS_ROTATE: {

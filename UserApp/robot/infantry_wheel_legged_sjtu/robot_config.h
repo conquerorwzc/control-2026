@@ -44,9 +44,16 @@
 #define JUMP_SPEED TARGET_JUMP_DISTANCE / sqrtf(2.0f * TARGET_JUMP_HEIGHT / 9.8f)
 #define JUMP_FORCE 55 * ROBOT_MASS * 9.8f / 2.0f * (1.0f + (TARGET_JUMP_HEIGHT - DELTA_LEG_LENGTH) / DELTA_LEG_LENGTH)
 
-// mini PC 偏置 roll 设点修剪 (rad). 云台朝前时全量生效, cos(offset_angle) 调制后随云台旋转衰减/翻号.
-// 符号: 负值 = 把目标 roll 拉向左, 用以抵消 mini PC 在云台右侧造成的右倾. 实测调.
-#define ROLL_FF_TRIM -0.01f
+// roll 前馈: 底盘恒定偏置 + 云台 CoM 旋转分量.
+//   roll_ff = K_0 + A * sin((α_g - offset_angle) * DEG2RAD), offset_angle 俯视 CW 为正.
+// 几何: CoM 在 yaw 轴右偏后 48.1° → α_g = -180° + 48.1° = -131.9°.
+// 标定 (roll_ff=0 时读 roll iout):
+//   θ=0°:    K_0 + A·sin(α_g) = -3.50
+//   θ=180°:  K_0 - A·sin(α_g) = -1.15
+//   → K_0 = -2.325,  A = -1.175 / sin(-131.9°) ≈ 1.578
+#define GIMBAL_COM_ANGLE_DEG (-131.9f)
+#define ROLL_FF_BIAS (-2.325f)
+#define ROLL_FF_AMP 1.578f
 
 // 云台参数
 #define YAW_CHASSIS_ALIGN_ECD 5075  // 云台和底盘对齐指向相同方向时的电机编码器值,若对云台有机械改动需要修改

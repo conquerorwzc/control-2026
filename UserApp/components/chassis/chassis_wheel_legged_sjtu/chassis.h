@@ -50,6 +50,7 @@ typedef struct {
   // 目标 yaw 角度(rad)。卧倒小陀螺/自由转向时应对齐当前 yaw, 让 yaw PID 不参与。
   float target_yaw;
   float roll;
+  float roll_ff;
   float leg_length;
   float jump_force;
   float theta_ff;

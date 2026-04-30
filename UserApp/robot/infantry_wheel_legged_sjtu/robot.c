@@ -55,11 +55,12 @@ void VOFATask() {
   visualized_data[12] = shoot_init_config.shoot_param.shooter_barrel_cooling_value;
   visualized_data[13] = shoot_init_config.shoot_param.shooter_barrel_cooling_value;
 #elif defined(ONE_BOARD) || defined(CHASSIS_BOARD)
-  visualized_data[0] = robot->chassis->leg[0]->real_model.T;
-  visualized_data[1] = robot->chassis->leg[1]->real_model.T;
-  visualized_data[2] = robot->chassis->state_var.x_b_d;
-  visualized_data[3] = robot->chassis->chassis_ctrl_cmd.vx;
-  visualized_data[4] = robot->chassis->state_var.theta_b * RAD_2_DEGREE;
+  // visualized_data[0] = robot->chassis->leg[0]->real_model.T;
+  // visualized_data[1] = robot->chassis->leg[1]->real_model.T;
+  // visualized_data[2] = robot->chassis->state_var.x_b_d;
+  // visualized_data[3] = robot->chassis->chassis_ctrl_cmd.vx;
+  // visualized_data[4] = robot->chassis->state_var.theta_b * RAD_2_DEGREE;
+  visualized_data[0] = robot->chassis->imu->Roll;
 #endif
   VOFAJustFloatSend(visualized_data, 20);
 }

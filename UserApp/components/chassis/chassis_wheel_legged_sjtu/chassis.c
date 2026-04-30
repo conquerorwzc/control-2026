@@ -178,7 +178,8 @@ static void LocomotionController(void) {
  * -f_inertial，当前实现正确。
  */
 static void LegController(void) {
-  float f_psi = PIDCalculate(&chassis->roll_PID, chassis->imu->Roll * DEGREE_2_RAD, chassis_ctrl_cmd->roll);
+  float f_psi = PIDCalculate(&chassis->roll_PID, chassis->imu->Roll * DEGREE_2_RAD, chassis_ctrl_cmd->roll) +
+                chassis_ctrl_cmd->roll_ff;
   float l_avg = (leg[0]->virtual_model.length + leg[1]->virtual_model.length) * 0.5f;
   float f_l_r =
       PIDCalculate(&chassis->leg[0]->length_PID, leg[0]->virtual_model.length, chassis->chassis_ctrl_cmd.leg_length);
@@ -188,11 +189,11 @@ static void LegController(void) {
   float f_inertial = 0.5f * chassis->param.body_mass * (l_avg / chassis->param.track_width) * chassis->state_var.phi_d *
                      chassis->state_var.x_b_d;
 
-  leg[0]->virtual_model.F = -f_psi + f_l_r + f_gravity + f_inertial * 1.5;
+  leg[0]->virtual_model.F = -f_psi + f_l_r + f_gravity + f_inertial * 1.2;
   if (leg[0]->update_flag.is_off_ground) {
     leg[0]->virtual_model.F = -f_psi * 0.3f + f_l_r + f_gravity;
   }
-  leg[1]->virtual_model.F = f_psi + f_l_l + f_gravity - f_inertial * 1.5;
+  leg[1]->virtual_model.F = f_psi + f_l_l + f_gravity - f_inertial * 1.2;
   if (leg[1]->update_flag.is_off_ground) {
     leg[1]->virtual_model.F = f_psi * 0.3f + f_l_r + f_gravity;
   }
