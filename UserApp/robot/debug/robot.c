@@ -9,27 +9,18 @@
 #include "custom_controller.h"
 #include "motor_task.h"
 #include "bsp_usart.h"
-#include <stdbool.h>
-#include <math.h>
+#include <string.h>
+#include <math.h> // 引入 math.h 以使用 M_PI
 
-// 力反馈参数配置
-#define TORQUE_DEADBAND             3.0f    // 所有电机角度死区(度)
+// 采样模式定义
+typedef enum {
+    SAMPLING_MODE_MOVE = 0, // MOVE: 电机松开/低阻尼，手动摆姿态
+    SAMPLING_MODE_HOLD = 1  // HOLD: 记录角度并短暂保持，采集静态力矩
+} SamplingMode_e;
 
-// 不同电机类型的力控比例增益 (Nm/度)
-#define TORQUE_K_P_DM4310           0.05f   // DM4310比例增益
-#define TORQUE_K_P_DM4340           0.05f   // DM4340比例增益
-#define TORQUE_K_P_M6020            0.04f  // M6020比例增益
-
-// 力反馈力矩限幅 (仅对力反馈部分限幅，重力补偿不限幅)
-#define MAX_FEEDBACK_TORQUE_DM4310  3.0f    // DM4310力反馈力矩限制(N·m)
-#define MAX_FEEDBACK_TORQUE_DM4340  3.0f    // DM4340力反馈力矩限制(N·m)
-#define MAX_FEEDBACK_TORQUE_M6020   2.0f    // M6020力反馈力矩限制(N·m)
-
-// 电机扭矩常数 (Nm/A)
-#define KT_M6020                    0.741f  // M6020扭矩常数
-
-// GM6020 (M6020): 控制量 16384 对应 3A
-#define GM6020_RAW_PER_AMP          (16384.0f / 3.0f)  // 约 5461.3
+static SamplingMode_e sampling_mode = SAMPLING_MODE_MOVE;
+static float hold_angles[5] = {0};
+static uint32_t hold_start_time = 0;
 
 // 自定义控制器实例
 static CustomController_t* angle_controller;
@@ -48,108 +39,67 @@ static GPIO_Init_Config_s gpio_init_config_5v = {
   };
 
 /**
- * @brief 计算重力补偿力矩（预留接口，目前全置零）
+ * @brief 执行重力补偿采样逻辑 (MOVE/HOLD 模式)
  */
-static void CalculateGravityCompensation(float gravity_torques[5])
+static void GravitySamplingTask(void)
 {
-    // TODO: 实现重力补偿算法
-    for (int i = 0; i < 5; i++) {
-        gravity_torques[i] = 0.0f;
-    }
-}
+    if (angle_controller == NULL) return;
 
-/**
- * @brief 计算力反馈力矩
- */
-static void CalculateFeedbackTorque(float feedback_torques[5])
-{
-    if (angle_controller == NULL) {
-        return;
-    }
+    if (sampling_mode == SAMPLING_MODE_MOVE) {
+        // MOVE 模式：除了大 Yaw (索引0, 6020) 以外的电机设为开环零力矩
+        for (int i = 1; i < 5; i++) {
+            if (angle_controller->motors[i].dm_motor != NULL) {
+                DMMotorEnable(angle_controller->motors[i].dm_motor);
+                DMMotorSetRef(angle_controller->motors[i].dm_motor, 0.0f);
+            }
+        }
+    } 
+    else if (sampling_mode == SAMPLING_MODE_HOLD) {
+        static bool just_entered = false;
 
-    // Debug模式：离线测试，不需要检查robot_data_valid
-    float custom_angles[5], angle_errors[5];
+        if (!just_entered) {
+            // 【关键】进入 HOLD 瞬间，读取所有 DM 电机的实际角度
+            for (int i = 1; i < 5; i++) {
+                hold_angles[i] = angle_controller->motor_angles[i];
+            }
+            hold_start_time = HAL_GetTick();
+            just_entered = true;
+        }
 
-    for (int i = 0; i < 5; i++) {
-        custom_angles[i] = angle_controller->motor_angles[i];
-        
-        // 以0度为基准：角度误差 = 0 - 当前角度 = -当前角度
-        angle_errors[i] = 0.0f - custom_angles[i];
-
-        // 选择Kp
-        float torque_k_p;
-        if (angle_controller->motors[i].dm_motor != NULL) {
-            torque_k_p = (angle_controller->motors[i].dm_motor->motor_type == J4340) ? 
-                         TORQUE_K_P_DM4340 : TORQUE_K_P_DM4310;
+        // 保持 2s：持续发送锁定的目标角度
+        if (HAL_GetTick() - hold_start_time < 2000) {
+            for (int i = 1; i < 5; i++) {
+                if (angle_controller->motors[i].dm_motor != NULL) {
+                    float target_rad = hold_angles[i] * (M_PI / 180.0f);
+                    DMMotorSetPIDRef(angle_controller->motors[i].dm_motor, target_rad);
+                }
+            }
         } else {
-            torque_k_p = TORQUE_K_P_M6020;
-        }
-
-        // 死区处理
-        feedback_torques[i] = 0.0f;
-        if (angle_errors[i] > TORQUE_DEADBAND) {
-            feedback_torques[i] = torque_k_p * (angle_errors[i] - TORQUE_DEADBAND);
-        } else if (angle_errors[i] < -TORQUE_DEADBAND) {
-            feedback_torques[i] = torque_k_p * (angle_errors[i] + TORQUE_DEADBAND);
-        }
-
-        // 力反馈限幅
-        if (angle_controller->motors[i].dm_motor != NULL) {
-            float max_fb;
-            if (angle_controller->motors[i].dm_motor->motor_type == J4340) {
-                max_fb = MAX_FEEDBACK_TORQUE_DM4340;
-            } else {
-                max_fb = MAX_FEEDBACK_TORQUE_DM4310;
+            // 2s 结束，采集数据并发送
+            // 协议格式: [Header(1)][Flag(1)][Angles(4*4)][Torques(4*4)] = 18 bytes
+            uint8_t send_buf[18] = {0};
+            send_buf[0] = 0xAA; // 起始位
+            send_buf[1] = 0x01; // 标志位：重力采样数据
+            
+            int indices[4] = {1, 2, 3, 4}; // 对应: 大Roll, 大Pitch, 小Pitch, 小Roll
+            for (int i = 0; i < 4; i++) {
+                int idx = indices[i];
+                memcpy(&send_buf[2 + i * 4], &hold_angles[idx], 4);   // 角度
             }
             
-            if (feedback_torques[i] > max_fb) {
-                feedback_torques[i] = max_fb;
-            } else if (feedback_torques[i] < -max_fb) {
-                feedback_torques[i] = -max_fb;
+            for (int i = 0; i < 4; i++) {
+                int idx = indices[i];
+                float torque = angle_controller->motors[idx].dm_motor->measure.torque;
+                memcpy(&send_buf[2 + 4 * 4 + i * 4], &torque, 4); // 力矩
             }
-        } else {
-            if (feedback_torques[i] > MAX_FEEDBACK_TORQUE_M6020) {
-                feedback_torques[i] = MAX_FEEDBACK_TORQUE_M6020;
-            } else if (feedback_torques[i] < -MAX_FEEDBACK_TORQUE_M6020) {
-                feedback_torques[i] = -MAX_FEEDBACK_TORQUE_M6020;
+
+            if (angle_controller->usart_instance != NULL) {
+                USARTSend(angle_controller->usart_instance, send_buf, 18, USART_TRANSFER_DMA);
             }
-        }
-    }
-}
-
-/**
- * @brief 应用总力矩控制（力反馈 + 重力补偿）
- */
-static void ApplyTotalTorque(void)
-{
-    if (angle_controller == NULL) {
-        return;
-    }
-
-    // Debug模式：离线测试，不需要检查robot_data_valid
-
-    float feedback_torques[5];
-    float gravity_torques[5];
-    float total_torques[5];
-
-    // 1. 计算力反馈力矩
-    CalculateFeedbackTorque(feedback_torques);
-
-    // 2. 计算重力补偿力矩
-    CalculateGravityCompensation(gravity_torques);
-
-    // 3. 总力矩 = 力反馈 + 重力补偿
-    for (int i = 0; i < 5; i++) {
-        total_torques[i] = feedback_torques[i] + gravity_torques[i];
-
-        // 4. 发送到电机
-        if (angle_controller->motors[i].dm_motor != NULL) {
-            DMMotorEnable(angle_controller->motors[i].dm_motor);
-            DMMotorSetRef(angle_controller->motors[i].dm_motor, total_torques[i]);
-        } else if (angle_controller->motors[i].dji_motor != NULL) {
-            float current_a = total_torques[i] / KT_M6020;
-            int16_t raw_cmd = (int16_t)(current_a * GM6020_RAW_PER_AMP);
-            DJIMotorSetRef(angle_controller->motors[i].dji_motor, (float)raw_cmd);
+            
+            // 恢复 MOVE 模式
+            sampling_mode = SAMPLING_MODE_MOVE;
+            just_entered = false;
         }
     }
 }
@@ -172,7 +122,6 @@ void RobotInit() {
 
     angle_controller = CustomControllerInit(&init_config);
     if (angle_controller == NULL) {
-        // 错误处理可以根据需要添加
         return;
     }
 }
@@ -180,10 +129,7 @@ void RobotInit() {
 void RobotTask() {
     if (angle_controller != NULL) {
         CustomControllerTask(angle_controller);
-        
-        // 应用总力矩控制（力反馈+重力补偿）
-        ApplyTotalTorque();
-        
-        CustomController_SendAllData(angle_controller);
+        GravitySamplingTask();
+        //CustomController_SendAllData(angle_controller);
     }
 }
