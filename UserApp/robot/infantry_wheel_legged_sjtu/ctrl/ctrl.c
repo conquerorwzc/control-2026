@@ -446,18 +446,18 @@ void JoyStickCtrl(RobotInstance* robot) {
     chassis_ctrl_cmd->chassis_mode = is_stand ? CHASSIS_ON : CHASSIS_PROSTRATE;
 
     if (is_stand) {
-      if (is_free) {
-        robot->robot_mode = ROBOT_CHASSIS_FREE;
-      } else if (is_rotate) {
+      if (is_rotate) {
         robot->robot_mode = ROBOT_CHASSIS_ROTATE;
+      } else if (is_free) {
+        robot->robot_mode = ROBOT_CHASSIS_FREE;
       } else {
         robot->robot_mode = ROBOT_CHASSIS_FOLLOW;
       }
     } else {
-      if (is_free) {
-        robot->robot_mode = ROBOT_CHASSIS_PROSTRATE_FREE;
-      } else if (is_rotate) {
+      if (is_rotate) {
         robot->robot_mode = ROBOT_CHASSIS_PROSTRATE_ROTATE;
+      } else if (is_free) {
+        robot->robot_mode = ROBOT_CHASSIS_PROSTRATE_FREE;
       } else {
         robot->robot_mode = ROBOT_CHASSIS_PROSTRATE_FOLLOW;
       }
@@ -491,30 +491,42 @@ void JoyStickCtrl(RobotInstance* robot) {
   Gimbal_Ctrl_Cmd_s* gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
   gimbal_ctrl_cmd->yaw += -0.00035f * (float)rc_data->rc.rocker_r_;
-  if (robot->robot_mode != ROBOT_CHASSIS_FREE) {
+  if (!(is_stand && is_free)) {
     gimbal_ctrl_cmd->pitch += -0.00006f * (float)rc_data->rc.rocker_r1;
   }
 
-  if (robot->robot_mode == ROBOT_CHASSIS_ROTATE) {
-    // intent.vx/vy remain 0
+  if (is_stand && is_free) {
+    intent.vy = 0.003f * (float)rc_data->rc.rocker_r1;
+    intent.roll_delta = 0.0003f * (float)rc_data->rc.rocker_l_ * (abs(rc_data->rc.rocker_l_) > 10);
+    intent.leg_length_delta = 0.0000005f * (float)rc_data->rc.rocker_l1;
   } else if (robot->robot_mode == ROBOT_CHASSIS_FOLLOW) {
     intent.vx = 0.003f * (float)rc_data->rc.rocker_l_;
     intent.vy = 0.003f * (float)rc_data->rc.rocker_l1;
-  } else if (robot->robot_mode == ROBOT_CHASSIS_FREE) {
-    intent.vy = 0.003f * (float)rc_data->rc.rocker_r1;
-    intent.roll_delta = 0.0004f * (float)rc_data->rc.rocker_l_ * (abs(rc_data->rc.rocker_l_) > 10);
-    intent.leg_length_delta = 0.0000005f * (float)rc_data->rc.rocker_l1;
   } else if (robot->robot_mode == ROBOT_CHASSIS_PROSTRATE_FOLLOW) {
     intent.vx = (float)rc_data->rc.rocker_l_;
     intent.vy = (float)rc_data->rc.rocker_l1;
-  } else if (robot->robot_mode == ROBOT_CHASSIS_PROSTRATE_ROTATE) {
-    // intent.vx/vy remain 0
-  } else if (robot->robot_mode == ROBOT_CHASSIS_PROSTRATE_FREE) {
+  } else if (!is_stand && is_free) {
     intent.vy = (float)rc_data->rc.rocker_l1;
     intent.vx = (float)rc_data->rc.rocker_l_;
   }
 
   RobotMotionSolve(robot, &intent);
+  if (is_free && is_rotate) {
+    if (is_stand) {
+      chassis_ctrl_cmd->vx =
+          ramp_controller_update(&chassis_ramp, intent.vy, robot->chassis->state_var.x_b_d, robot->dt);
+      chassis_ctrl_cmd->theta_ff = 0.0f;
+      chassis_ctrl_cmd->roll += intent.roll_delta;
+      chassis_ctrl_cmd->leg_length += intent.leg_length_delta;
+
+      if (chassis_ctrl_cmd->leg_length > LEG_MAX_LENGTH)
+        chassis_ctrl_cmd->leg_length = LEG_MAX_LENGTH;
+      else if (chassis_ctrl_cmd->leg_length < LEG_MIN_LENGTH)
+        chassis_ctrl_cmd->leg_length = LEG_MIN_LENGTH;
+    } else {
+      chassis_ctrl_cmd->vx = intent.vy;
+    }
+  }
   rc_data_last = *rc_data;
 }
 
@@ -622,6 +634,8 @@ void EmergencyHandler(RobotInstance* robot) {
     shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
     LOGERROR("[CMD] emergency stop!");
+  } else if ((robot_lost_control) && (chassis_ctrl_cmd->chassis_mode != CHASSIS_PROSTRATE)) {
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_RECOVERY;
   } else {
     LOGINFO("[CMD] reinstate, robot ready");
   }
@@ -629,12 +643,6 @@ void EmergencyHandler(RobotInstance* robot) {
     shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
     shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
-  }
-
-  if (robot_lost_control) {
-    if (chassis_ctrl_cmd->chassis_mode != CHASSIS_PROSTRATE) {
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_RECOVERY;
-    }
   }
 }
 #endif

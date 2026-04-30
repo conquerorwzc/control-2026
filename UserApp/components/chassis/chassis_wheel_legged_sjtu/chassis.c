@@ -471,11 +471,12 @@ void ChassisTask(void) {
   // (-0.15/0.15) 而导致机身砸下；切入 PROSTRATE 时若腿仍然较长，则先用 LQR 把腿降到
   // leg_min_length，再放行进入真正的卧倒控制。基于实测腿长触发，避免依赖 CAN 时序观察
   // 到 CHASSIS_ON 中间态。
+  
   static Chassis_Mode_e last_chassis_mode = CHASSIS_POWER_OFF;
   Chassis_Mode_e cur_mode = chassis->chassis_ctrl_cmd.chassis_mode;
   if (last_chassis_mode != CHASSIS_PROSTRATE && cur_mode == CHASSIS_PROSTRATE) {
     float l_avg = (leg[0]->virtual_model.length + leg[1]->virtual_model.length) * 0.5f;
-    if (l_avg > chassis->param.leg_min_length + 0.02f) {
+    if (l_avg > chassis->param.leg_min_length + 0.05f) {
       descending_to_prostrate = 1;
     }
   }
@@ -489,8 +490,8 @@ void ChassisTask(void) {
     chassis_ctrl_cmd->leg_length = chassis->param.leg_min_length;
     ChassisCtrlUpdate();
     chassis->jump_state = JUMP_STATE_IDLE;
-    if (fabsf(leg[0]->virtual_model.length - chassis->param.leg_min_length) < 0.02f &&
-        fabsf(leg[1]->virtual_model.length - chassis->param.leg_min_length) < 0.02f) {
+    if (fabsf(leg[0]->virtual_model.length - chassis->param.leg_min_length) < 0.05f &&
+        fabsf(leg[1]->virtual_model.length - chassis->param.leg_min_length) < 0.05f) {
       descending_to_prostrate = 0;
     }
   } else {
