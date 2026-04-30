@@ -5,7 +5,9 @@
 #include "master_process.h"
 #include "rm_referee.h"
 #include "robot_config.h"
+#include "tim.h"
 #include "user_lib.h"
+#include "buzzer.h"
 
 static RobotInstance *robot;
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
@@ -27,6 +29,20 @@ static float last_yaw;
 static int16_t referee_power_limit;
 static uint16_t buffer_energy;
 static uint16_t chassis_output;
+
+static BuzzzerInstance *robot_buzzer;
+
+// 四声上扬蜂鸣，最高4000Hz
+// void Buzzer_Sound(uint16_t frq, uint16_t time, float vol)
+// {
+//     HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_3);
+//   __HAL_TIM_SET_AUTORELOAD(&htim4, 500000/frq);
+//   __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_3, (uint16_t)(500000.0f/frq)*vol);
+//   osDelay(time);
+//   // 关闭蜂鸣
+//   __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_3, 0);
+//   HAL_TIM_PWM_Stop(&htim4, TIM_CHANNEL_3);
+// }
 
 /**
  * @brief 根据gimbal app传回的当前电机角度计算和零位的误差
@@ -343,8 +359,22 @@ void RobotInit() {
   referee_power_limit = 118;
   buffer_energy = 60;
   chassis_output = 1;
-
   // 双yaw对齐由状态机自动完成, 上电后首次 GimbalDualYawTask() 计算 virtual_gyro_offset
+  // 使用buzzer.c框架实现四声蜂鸣
+  Buzzer_config_s buzzer_cfg = {
+      .alarm_level = ALARM_LEVEL_HIGH,
+      .octave = OCTAVE_1,
+      .loudness = 0.5f,
+  };
+  robot_buzzer = BuzzerRegister(&buzzer_cfg);
+
+  for (int i = 0; i < 4; i++) {
+      robot_buzzer->octave = (octave_e)(OCTAVE_3 + i);
+      AlarmSetStatus(robot_buzzer, ALARM_ON);
+      osDelay(130);
+      AlarmSetStatus(robot_buzzer, ALARM_OFF);
+      osDelay(50);
+  }
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
