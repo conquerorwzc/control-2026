@@ -24,6 +24,8 @@ static LegInstance* leg[2];
 static Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd;
 static referee_info_t* referee_data;
 static float wheel_speed_ref[2];
+// 平衡 → 卧倒 平滑过渡标志：1 表示正在用 LQR 把腿降到最低，再切真正的卧倒控制
+static uint8_t descending_to_prostrate = 0;
 /**
  * @brief  计算LQR增益矩阵K
  *
@@ -370,7 +372,8 @@ static void EnableJointMotor() {
 }
 
 static void LimitChassisOutput(void) {
-  if (chassis->chassis_ctrl_cmd.chassis_mode == CHASSIS_PROSTRATE) {
+  // 平衡 → 卧倒 过渡期间仍走 LQR 力矩输出路径，不能切到卧倒的速度环 + 关节角度环
+  if (chassis->chassis_ctrl_cmd.chassis_mode == CHASSIS_PROSTRATE && !descending_to_prostrate) {
     for (int i = 0; i < 2; i++) {
       VAL_LIMIT(wheel_speed_ref[i], -50000.0f, 50000.0f);
       DJIMotorSetPIDRef(leg[i]->wheel_motor, wheel_speed_ref[i]);
@@ -464,35 +467,63 @@ void ChassisTask(void) {
   //   chassis->chassis_ctrl_cmd.chassis_mode = CHASSIS_RECOVERY;
   // }
 
-  switch (chassis->chassis_ctrl_cmd.chassis_mode) {
-    case CHASSIS_RECOVERY:
-      ChassisRecovery();
-      chassis->jump_state = JUMP_STATE_IDLE;
-      break;
-    case CHASSIS_ON:
-      ChassisCtrlUpdate();
-      chassis->jump_state = JUMP_STATE_IDLE;
-      break;
-    case CHASSIS_JUMP_READY:
-      if (chassis->jump_state == JUMP_STATE_IDLE || chassis->jump_state == JUMP_STATE_COMPRESS) {
-        chassis->jump_state = JUMP_STATE_COMPRESS;
-      }
-      ChassisJump();
-      break;
-    case CHASSIS_JUMP_START:
-      if (chassis->jump_state == JUMP_STATE_COMPRESS) {
-        if (fabsf(leg[0]->virtual_model.length - chassis->param.leg_min_length) <= 0.05f &&
-            fabsf(leg[1]->virtual_model.length - chassis->param.leg_min_length) <= 0.05f) {
-          chassis->jump_state = JUMP_STATE_EXTEND;
+  // 平衡 → 卧倒 平滑过渡：若直接切到 ChassisProstrateMode 会因关节角度环目标突变
+  // (-0.15/0.15) 而导致机身砸下；切入 PROSTRATE 时若腿仍然较长，则先用 LQR 把腿降到
+  // leg_min_length，再放行进入真正的卧倒控制。基于实测腿长触发，避免依赖 CAN 时序观察
+  // 到 CHASSIS_ON 中间态。
+  static Chassis_Mode_e last_chassis_mode = CHASSIS_POWER_OFF;
+  Chassis_Mode_e cur_mode = chassis->chassis_ctrl_cmd.chassis_mode;
+  if (last_chassis_mode != CHASSIS_PROSTRATE && cur_mode == CHASSIS_PROSTRATE) {
+    float l_avg = (leg[0]->virtual_model.length + leg[1]->virtual_model.length) * 0.5f;
+    if (l_avg > chassis->param.leg_min_length + 0.02f) {
+      descending_to_prostrate = 1;
+    }
+  }
+  if (cur_mode != CHASSIS_PROSTRATE) {
+    descending_to_prostrate = 0;
+  }
+  last_chassis_mode = cur_mode;
+
+  if (descending_to_prostrate) {
+    // 强制最低腿长目标，沿用 LQR 平衡，机身平稳下沉
+    chassis_ctrl_cmd->leg_length = chassis->param.leg_min_length;
+    ChassisCtrlUpdate();
+    chassis->jump_state = JUMP_STATE_IDLE;
+    if (fabsf(leg[0]->virtual_model.length - chassis->param.leg_min_length) < 0.02f &&
+        fabsf(leg[1]->virtual_model.length - chassis->param.leg_min_length) < 0.02f) {
+      descending_to_prostrate = 0;
+    }
+  } else {
+    switch (cur_mode) {
+      case CHASSIS_RECOVERY:
+        ChassisRecovery();
+        chassis->jump_state = JUMP_STATE_IDLE;
+        break;
+      case CHASSIS_ON:
+        ChassisCtrlUpdate();
+        chassis->jump_state = JUMP_STATE_IDLE;
+        break;
+      case CHASSIS_JUMP_READY:
+        if (chassis->jump_state == JUMP_STATE_IDLE || chassis->jump_state == JUMP_STATE_COMPRESS) {
+          chassis->jump_state = JUMP_STATE_COMPRESS;
         }
-      }
-      ChassisJump();
-      break;
-    case CHASSIS_PROSTRATE:
-      ChassisProstrateMode();
-      break;
-    default:
-      break;
+        ChassisJump();
+        break;
+      case CHASSIS_JUMP_START:
+        if (chassis->jump_state == JUMP_STATE_COMPRESS) {
+          if (fabsf(leg[0]->virtual_model.length - chassis->param.leg_min_length) <= 0.05f &&
+              fabsf(leg[1]->virtual_model.length - chassis->param.leg_min_length) <= 0.05f) {
+            chassis->jump_state = JUMP_STATE_EXTEND;
+          }
+        }
+        ChassisJump();
+        break;
+      case CHASSIS_PROSTRATE:
+        ChassisProstrateMode();
+        break;
+      default:
+        break;
+    }
   }
 
   chassis_ctrl_cmd->max_power =

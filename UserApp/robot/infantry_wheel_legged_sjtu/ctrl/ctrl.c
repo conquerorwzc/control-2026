@@ -436,7 +436,8 @@ void JoyStickCtrl(RobotInstance* robot) {
   //   pause_flag (toggle):           1=FREE 模式
   //   dial / shift:                  ROTATE
   // RECOVERY 期间不覆盖 chassis_mode 也不刷新 robot_mode,
-  // 让 GimbalAlignToChassisForward() 走完对齐流程, 避免与正常控制冲突.
+  // 让 GimbalAlignToChassisForward() 走完对齐流程, 避免与正常控制冲突;
+  // 对齐完成后由 GimbalAlign 一次性置为 CHASSIS_ON, 此处恢复正常接管.
   const uint8_t is_stand = (rc_data->button_status.fn_1_flag == 1);
   const uint8_t is_rotate = (abs(rc_data->rc.dial) > 20 || rc_data->mouse_key.keyboard.shift);
   const uint8_t is_free = (rc_data->button_status.pause_flag == 1);
