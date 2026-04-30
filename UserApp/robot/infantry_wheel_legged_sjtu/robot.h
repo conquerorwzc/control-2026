@@ -29,14 +29,9 @@ typedef struct {
   Chassis_Ctrl_Cmd_s chassis_ctrl_cmd;
   SuperCap_Ctrl_Cmd_e super_cap_ctrl_cmd;
   uint8_t force_refresh_ui;
-  int16_t ui_pitch_deg_x10;
   int16_t ui_chassis_relative_angle_deg_x10;
-  uint16_t ui_fric_speed_left;
-  uint16_t ui_fric_speed_right;
   uint8_t ui_gimbal_mode;
   uint8_t ui_friction_mode;
-  uint8_t ui_bullet_speed_mode;
-  uint8_t ui_heat_mode;
 } Chassis_Fetch_Data_s;  // means the Chassis board, not the component
 #pragma pack()
 
