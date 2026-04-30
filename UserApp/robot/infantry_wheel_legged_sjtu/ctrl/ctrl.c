@@ -11,7 +11,7 @@ static RC_ctrl_t* rc_data;
 static RC_ctrl_t rc_data_last;
 #elifdef USE_OCD_CTRL
 static VT13_RC_t* rc_data;
-static VT13_RC_t* rc_data_last;
+static VT13_RC_t rc_data_last;
 #endif
 
 static uint8_t is_first_update = 1;
@@ -425,7 +425,7 @@ void JoyStickCtrl(RobotInstance* robot) {
   Shoot_Ctrl_Cmd_s* shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   static float trigger_time = 0;
   if (is_first_update) {
-    rc_data_last = rc_data;
+    rc_data_last = *rc_data;
     is_first_update = 0;
   }
 
@@ -514,13 +514,18 @@ void JoyStickCtrl(RobotInstance* robot) {
   }
 
   RobotMotionSolve(robot, &intent);
-  rc_data_last = rc_data;
+  rc_data_last = *rc_data;
 }
 
 void MouseKeyCtrl(RobotInstance* robot) {
   rc_data = robot->rc_data;
   Shoot_Ctrl_Cmd_s* shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   Vision_Receive_s* vision_recv_data = robot->vision_recv_data;
+
+  if (is_first_update) {
+    rc_data_last = *rc_data;
+    is_first_update = 0;
+  }
 
   static float trigger_time = 0;
 
@@ -552,7 +557,7 @@ void MouseKeyCtrl(RobotInstance* robot) {
     gimbal_ctrl_cmd->yaw += -(float)rc_data->mouse_key.mouse.x * 0.002f;
     gimbal_ctrl_cmd->pitch += -(float)rc_data->mouse_key.mouse.y * 0.002f;
 
-    if (rc_data->mouse_key.keyboard.x && !rc_data_last->mouse_key.keyboard.x) {
+    if (rc_data->mouse_key.keyboard.x && !rc_data_last.mouse_key.keyboard.x) {
       gimbal_ctrl_cmd->yaw += 180.0f;
     }
   }
@@ -563,13 +568,13 @@ void MouseKeyCtrl(RobotInstance* robot) {
     robot->robot_mode = ROBOT_CHASSIS_FOLLOW;
   }
 
-  if (!rc_data_last->mouse_key.keyboard.ctrl && rc_data->mouse_key.keyboard.ctrl) {
+  if (!rc_data_last.mouse_key.keyboard.ctrl && rc_data->mouse_key.keyboard.ctrl) {
     if (robot->chassis_fetch_data) {
       robot->chassis_fetch_data->force_refresh_ui = 1;
     }
   }
 
-  if (rc_data->mouse_key.keyboard.c && !rc_data_last->mouse_key.keyboard.c) {
+  if (rc_data->mouse_key.keyboard.c && !rc_data_last.mouse_key.keyboard.c) {
     if (robot->chassis->super_cap->super_cap_ctrl_cmd == BOOST) {
       robot->chassis->super_cap->super_cap_ctrl_cmd = NORMAL;
     } else {
@@ -599,7 +604,7 @@ void MouseKeyCtrl(RobotInstance* robot) {
   }
 
   RobotMotionSolve(robot, &intent);
-  rc_data_last = rc_data;
+  rc_data_last = *rc_data;
 }
 
 void EmergencyHandler(RobotInstance* robot) {
