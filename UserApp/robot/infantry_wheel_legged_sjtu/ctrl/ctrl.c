@@ -39,8 +39,8 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
 
   switch (robot->robot_mode) {
     case ROBOT_CHASSIS_ROTATE: {
-      chassis_ctrl_cmd->target_yaw = robot->chassis->state_var.phi;
-      chassis_ctrl_cmd->wz = 8.0f;
+      chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD;
+      chassis_ctrl_cmd->wz = 5.0f;
       chassis_ctrl_cmd->vx = 0.0f;
       break;
     }
@@ -70,15 +70,21 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
 #endif
     }
     case ROBOT_CHASSIS_FREE: {
+      float input_vy = intent->vy;
 #if defined(ONE_BOARD)
       chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD;
-      chassis_ctrl_cmd->wz = 0.0f;
 #else
-      chassis_ctrl_cmd->target_yaw = (robot->chassis->imu->YawTotalAngle - robot->offset_angle) * DEGREE_2_RAD;
-      chassis_ctrl_cmd->wz = 0.0f;
+      float follow_err = wrap180(-robot->offset_angle);
+      float rear_err = wrap180(follow_err - 180.0f);
+      if (fabsf(rear_err) < fabsf(follow_err)) {
+        follow_err = rear_err;
+        input_vy = -input_vy;
+      }
+      chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + follow_err * DEGREE_2_RAD;
 #endif
+      chassis_ctrl_cmd->wz = 0.0f;
       chassis_ctrl_cmd->vx =
-          ramp_controller_update(&chassis_ramp, intent->vy, robot->chassis->state_var.x_b_d, robot->dt);
+          ramp_controller_update(&chassis_ramp, input_vy, robot->chassis->state_var.x_b_d, robot->dt);
       chassis_ctrl_cmd->theta_ff = 0.0f;
       chassis_ctrl_cmd->roll += intent->roll_delta;
       chassis_ctrl_cmd->leg_length += intent->leg_length_delta;
