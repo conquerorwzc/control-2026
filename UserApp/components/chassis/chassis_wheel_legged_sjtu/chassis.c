@@ -270,7 +270,9 @@ static void ChassisRecovery(void) {
     leg[i]->real_model.Tp_2 = leg[i]->joint_motor[1]->motor_controller.final_output;
   }
 
-  // 2. 判断所有关节是否均到达目标位，若到位则正常进行 ChassisCtrlUpdate
+  // 2. 判断关节是否均到达目标位，且云台是否已与底盘正方向对齐
+  //    两者都满足才允许进入 ChassisCtrlUpdate（即 LQR 平衡控制），
+  //    否则保持挂零轮力，避免在云台未就位时提前抬身导致姿态抽动。
   uint8_t all_in_position = 1;
   for (int i = 0; i < 2; i++) {
     if (fabsf(leg[i]->joint_motor[0]->measure.position - (-0.1f)) > 0.5f ||
@@ -280,10 +282,10 @@ static void ChassisRecovery(void) {
     }
   }
 
-  if (all_in_position) {
+  if (all_in_position && chassis->update_flag.gimbal_aligned) {
     ChassisCtrlUpdate();
   } else {
-    // 3. 未到位则挂零轮力输出，防止不稳定
+    // 3. 关节未到位或云台未对齐时挂零轮力输出，防止不稳定
     for (int i = 0; i < 2; i++) {
       leg[i]->real_model.T = 0.0f;
     }
@@ -420,6 +422,12 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   chassis_instance->update_flag.is_first_update = 1;
   chassis_instance->update_flag.is_restart = 1;
   chassis_instance->update_flag.is_controlled = 0;
+  // 双板时由云台板经 CAN 同步；单板没有独立对齐步骤，默认视为已对齐
+#if defined(ONE_BOARD)
+  chassis_instance->update_flag.gimbal_aligned = 1;
+#else
+  chassis_instance->update_flag.gimbal_aligned = 0;
+#endif
   // chassis_instance->update_flag.is_recovered = 0;
 
   chassis = chassis_instance;

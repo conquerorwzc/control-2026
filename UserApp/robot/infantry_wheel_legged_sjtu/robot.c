@@ -118,6 +118,7 @@ static void DoubleBoardComms() {
   // 发送底盘控制指令
   chassis_fetch_data->chassis_ctrl_cmd = *chassis_ctrl_cmd;
   chassis_fetch_data->super_cap_ctrl_cmd = robot->chassis->super_cap->super_cap_ctrl_cmd;
+  chassis_fetch_data->gimbal_aligned = robot->update_flag.is_gimbal_aligned;
 
   // 接收底盘回传数据
   *chassis_upload_data = *(Chassis_Upload_Data_s*)CANCommGet(robot->can_comm);
@@ -152,6 +153,8 @@ static void DoubleBoardComms() {
   *chassis_fetch_data = *(Chassis_Fetch_Data_s*)CANCommGet(robot->can_comm);
   robot->chassis->chassis_ctrl_cmd = chassis_fetch_data->chassis_ctrl_cmd;
   robot->chassis->super_cap->super_cap_ctrl_cmd = chassis_fetch_data->super_cap_ctrl_cmd;
+  robot->update_flag.is_gimbal_aligned = chassis_fetch_data->gimbal_aligned;
+  robot->chassis->update_flag.gimbal_aligned = robot->update_flag.is_gimbal_aligned;
 
   // 处理云台板传来的UI刷新标志
   if (chassis_fetch_data->force_refresh_ui) {
@@ -197,20 +200,19 @@ static void CalcOffsetAngle() {
  * 必须在 CalcOffsetAngle() 之后调用。
  */
 static void GimbalAlignToChassisForward(void) {
-  static uint8_t gimbal_aligned = 0;
   static uint8_t was_recovery = 0;
 
   uint8_t is_recovery = (chassis_ctrl_cmd->chassis_mode == CHASSIS_RECOVERY);
   if (is_recovery && !was_recovery) {
-    gimbal_aligned = 0;
+    robot->update_flag.is_gimbal_aligned = 0;
   }
 
-  if (!gimbal_aligned) {
+  if (!robot->update_flag.is_gimbal_aligned) {
     chassis_ctrl_cmd->chassis_mode = CHASSIS_RECOVERY;
     gimbal_ctrl_cmd->yaw = robot->gimbal->gimbal_IMU_data->YawTotalAngle + robot->offset_angle;
     // 5°误差内认为对齐完成
     if (fabsf(robot->offset_angle) < 5.0f) {
-      gimbal_aligned = 1;
+      robot->update_flag.is_gimbal_aligned = 1;
     }
   }
 

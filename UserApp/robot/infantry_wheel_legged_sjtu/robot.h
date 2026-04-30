@@ -29,6 +29,7 @@ typedef struct {
   Chassis_Ctrl_Cmd_s chassis_ctrl_cmd;
   SuperCap_Ctrl_Cmd_e super_cap_ctrl_cmd;
   uint8_t force_refresh_ui;
+  uint8_t gimbal_aligned;  // 云台板告知底盘板：云台是否完成与底盘正方向对齐
 } Chassis_Fetch_Data_s;  // means the Chassis board, not the component
 #pragma pack()
 
@@ -73,6 +74,10 @@ typedef struct {
 
   uint32_t DWT_CNT;
   float dt;
+
+  struct {
+    uint8_t is_gimbal_aligned : 1;  // 云台是否已与底盘正方向对齐；双板时由 DoubleBoardComms 在 CAN 上同步
+  } update_flag;
 } RobotInstance;
 
 /**
