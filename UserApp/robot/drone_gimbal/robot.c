@@ -331,19 +331,42 @@ void RobotInit() {
   VOFAInit(&huart1);
 }
 
-/* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
+// /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
+// void RobotCMDTask() {
+//   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
+//   shoot_ctrl_cmd->initial_speed = robot->referee_data->ShootData.initial_speed;
+//   RemoteControlSet();
+//   MouseKeySet();
+//   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
+// }
+//
+// void RobotTask() {
+//   VOFATask();
+//   VisionSend();
+//   RobotCMDTask();
+//   GimbalTask();
+//   ShootTask();
+// }
+
+
+/* 仅摩擦轮 */
 void RobotCMDTask() {
-  // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
   shoot_ctrl_cmd->initial_speed = robot->referee_data->ShootData.initial_speed;
   RemoteControlSet();
   MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
+
+  // ==========================================
+  // 测试专用补丁：强制锁死云台和拨弹盘
+  // ==========================================
+  gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF; // 强行让云台失能
+  shoot_ctrl_cmd->load_mode = LOAD_STOP;           // 强行让拨弹盘停止
 }
 
 void RobotTask() {
   VOFATask();
-  VisionSend();
+  // VisionSend();  // 测试摩擦轮不需要视觉，注释掉防干扰
   RobotCMDTask();
-  GimbalTask();
+  // GimbalTask();  //极其关键：直接注释掉云台任务，彻底切断云台电机的CAN报文发送！
   ShootTask();
 }

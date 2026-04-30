@@ -34,6 +34,7 @@ set(MCU_TYPE "stm32-f4")
 #set(ROBOT_TYPE "dart")
 #set(ROBOT_TYPE "debug")
 set(ROBOT_TYPE "drone_gimbal")
+#set(ROBOT_TYPE "outpost")
 include(${CMAKE_SOURCE_DIR}/Hardware/${MCU_TYPE}/${MCU_TYPE}.cmake)
 
 # Generic compiler settings for optimization and basic link lib
