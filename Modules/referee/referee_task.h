@@ -7,8 +7,8 @@ typedef struct{
   xFrameHeader FrameHeader;   //帧头
   uint16_t cmd_id;          //0x301
   uint16_t data_cmd_id;     //0x120
-  uint16_t sender_id;       //0x8080
-  uint16_t receiver_id;     //红7蓝107
+  uint16_t sender_id;       //红7蓝107
+  uint16_t receiver_id;     //0x8080
   uint8_t user_data[4];     //哨兵自主决策数据
   uint16_t frametail;       //CRC16校验
 }sentry_interaction_data_t;

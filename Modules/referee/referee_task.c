@@ -9,7 +9,6 @@
  *
  */
 #include "referee_task.h"
-
 #include "cmsis_os.h"
 #include "referee_UI.h"
 #include "rm_referee.h"
@@ -110,18 +109,18 @@ void SentryInit() {
 void SentryTask() {
   referee_recv_info=GetReferee();
   sentry_info=SentryUpdate();
-  static uint8_t buffer[512]; // 交互数据缓存
+  static uint8_t buffer[64]; // 交互数据缓存
   sentry_interaction_data->cmd_id=ID_student_interactive;
   sentry_interaction_data->data_cmd_id=ID_sentry_cmd;
   sentry_interaction_data->FrameHeader.SOF=REFEREE_SOF;
   sentry_interaction_data->receiver_id=0x8080;
-  sentry_interaction_data->sender_id=referee_recv_info->referee_id.Robot_ID;
+  sentry_interaction_data->sender_id=7;
   sentry_interaction_data->FrameHeader.DataLength=LEN_sentry_cmd_id + LEN_receiver + LEN_sender + LEN_sentry_cmd_data;
   memcpy(sentry_interaction_data->user_data, sentry_info->raw_data,sizeof(sentry_interaction_data->user_data));
   sentry_interaction_data->FrameHeader.Seq=Sentry_Seq;
-  sentry_interaction_data->FrameHeader.CRC8=get_CRC8_check_sum((uint8_t *)&sentry_interaction_data, LEN_CRC8, 0xFF);
-  sentry_interaction_data->frametail=get_CRC16_check_sum((uint8_t *)&sentry_interaction_data, LEN_HEADER + LEN_CMDID + LEN_sentry_cmd_id + LEN_receiver + LEN_sender + LEN_sentry_cmd_data, 0xFFFF);
-  memcpy(buffer, (uint8_t *)&sentry_interaction_data, LEN_HEADER + LEN_CMDID + LEN_sentry_cmd_id + LEN_receiver + LEN_sender + LEN_sentry_cmd_data + LEN_TAIL);
+  sentry_interaction_data->FrameHeader.CRC8=get_CRC8_check_sum((uint8_t *)sentry_interaction_data, LEN_CRC8, 0xFF);
+  sentry_interaction_data->frametail=get_CRC16_check_sum((uint8_t *)sentry_interaction_data, LEN_HEADER + LEN_CMDID + LEN_sentry_cmd_id + LEN_receiver + LEN_sender + LEN_sentry_cmd_data, 0xFFFF);
+  memcpy(buffer, (uint8_t *)sentry_interaction_data, LEN_HEADER + LEN_CMDID + LEN_sentry_cmd_id + LEN_receiver + LEN_sender + LEN_sentry_cmd_data + LEN_TAIL);
   SentrySend(buffer);                            //发送指令
   Sentry_Seq++;
 }
