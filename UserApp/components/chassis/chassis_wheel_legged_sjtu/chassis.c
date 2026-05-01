@@ -126,9 +126,9 @@ static void LocomotionController(void) {
   float state_err[10];
   state_err[0] = sv->x_b - 0.0f;
   state_err[1] = sv->x_b_d - chassis_ctrl_cmd->vx;
-  VAL_LIMIT(state_err[1], -2.7f, 2.7f);
+  VAL_LIMIT(state_err[1], -3.2f, 3.2f);
   state_err[2] = sv->phi - chassis_ctrl_cmd->target_yaw;
-  VAL_LIMIT(state_err[2], -0.52f, 0.52f);  // ±30°
+  VAL_LIMIT(state_err[2], -1.52f, 1.52f);  // ±30°
   state_err[3] = sv->phi_d - chassis_ctrl_cmd->wz;
   state_err[4] = sv->theta_l - chassis_ctrl_cmd->theta_ff;
   state_err[5] = sv->theta_l_d;
@@ -167,6 +167,11 @@ static void LocomotionController(void) {
   leg[1]->virtual_model.Tp = u[1];
   leg[0]->real_model.T = u[2];
   leg[1]->real_model.T = u[3];
+
+  chassis->delta_theta_comp =
+      PIDCalculate(&chassis->delta_theta_PID, leg[0]->virtual_model.theta - leg[1]->virtual_model.theta, 0);
+  leg[0]->virtual_model.Tp -= chassis->delta_theta_comp;
+  leg[1]->virtual_model.Tp += chassis->delta_theta_comp;
 }
 
 /*
@@ -410,6 +415,7 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   chassis_instance->leg[1] = LegInit(&chassis_init_config->leg_init_config[1]);
   chassis_instance->leg[0] = LegInit(&chassis_init_config->leg_init_config[0]);
 
+  PIDInit(&chassis_instance->delta_theta_PID, &chassis_init_config->delta_theta_PID_config);
   PIDInit(&chassis_instance->roll_PID, &chassis_init_config->roll_PID_config);
   PIDInit(&chassis_instance->yaw_prostrate_PID, &chassis_init_config->yaw_prostrate_PID_config);
 

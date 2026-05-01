@@ -86,6 +86,7 @@ typedef struct {
 typedef struct {
   Chassis_Param_s param;
   Leg_Init_Config_s leg_init_config[2];
+  PID_Init_Config_s delta_theta_PID_config;  // 防劈叉PID
   PID_Init_Config_s roll_PID_config;
   PID_Init_Config_s yaw_prostrate_PID_config;
   IMU_Init_Config_s imu_init_config;
@@ -105,8 +106,11 @@ typedef struct {
   State_Var_t last_state_var;
 
   LegInstance* leg[2];
+  PIDInstance delta_theta_PID;  // Only use PD
   PIDInstance roll_PID;
   PIDInstance yaw_prostrate_PID;
+
+  float delta_theta_comp;
 
   float LQR_K[4][10];  // [4输出][10状态变量]
 

@@ -41,8 +41,12 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
 
   switch (robot->robot_mode) {
     case ROBOT_CHASSIS_ROTATE: {
-      chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD;
-      chassis_ctrl_cmd->wz = 5.0f;
+      // 小陀螺频率设置
+      float rotate_frequency = 1.0f;
+      // 小陀螺原地旋转
+      float rotate_omega = rotate_frequency * 2.0f * PI;
+      chassis_ctrl_cmd->target_yaw += rotate_omega * robot->dt;
+      chassis_ctrl_cmd->wz = rotate_omega;
       chassis_ctrl_cmd->vx = 0.0f;
       break;
     }
@@ -57,6 +61,8 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
         if (has_move_input) input_mag = -input_mag;
       }
       chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + follow_err * DEGREE_2_RAD;
+      // 跟随当前机体角速度 → state_err[3]=0, LQR d_phi 项不参与输出, 仅由 yaw 位置误差驱动转向
+      // chassis_ctrl_cmd->wz = robot->chassis->imu->Gyro[2];
       chassis_ctrl_cmd->wz = 0.0f;
 
       VAL_LIMIT(input_mag, -2.97f, 2.97f);
@@ -84,7 +90,8 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
       }
       chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + follow_err * DEGREE_2_RAD;
 #endif
-      chassis_ctrl_cmd->wz = 0.0f;
+      // 跟随当前机体角速度 → state_err[3]=0, LQR d_phi 项不参与输出
+      chassis_ctrl_cmd->wz = robot->chassis->imu->Gyro[2];
       chassis_ctrl_cmd->vx =
           ramp_controller_update(&chassis_ramp, input_vy, robot->chassis->state_var.x_b_d, robot->dt);
       chassis_ctrl_cmd->theta_ff = 0.0f;
@@ -128,13 +135,7 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
       break;
 #endif
     }
-    case ROBOT_CHASSIS_PROSTRATE_FREE: {
-      chassis_ctrl_cmd->roll = 0.0f;
-      chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD;
-      chassis_ctrl_cmd->vx = intent->vy;
-      chassis_ctrl_cmd->wz = intent->vx;
-      break;
-    }
+
     default:
       break;
   }
@@ -447,19 +448,17 @@ void JoyStickCtrl(RobotInstance* robot) {
   if (chassis_ctrl_cmd->chassis_mode != CHASSIS_RECOVERY) {
     chassis_ctrl_cmd->chassis_mode = is_stand ? CHASSIS_ON : CHASSIS_PROSTRATE;
 
-    if (is_stand) {
+    if (is_free) {
+      robot->robot_mode = ROBOT_CHASSIS_FREE;
+    } else if (is_stand) {
       if (is_rotate) {
         robot->robot_mode = ROBOT_CHASSIS_ROTATE;
-      } else if (is_free) {
-        robot->robot_mode = ROBOT_CHASSIS_FREE;
       } else {
         robot->robot_mode = ROBOT_CHASSIS_FOLLOW;
       }
     } else {
       if (is_rotate) {
         robot->robot_mode = ROBOT_CHASSIS_PROSTRATE_ROTATE;
-      } else if (is_free) {
-        robot->robot_mode = ROBOT_CHASSIS_PROSTRATE_FREE;
       } else {
         robot->robot_mode = ROBOT_CHASSIS_PROSTRATE_FOLLOW;
       }
