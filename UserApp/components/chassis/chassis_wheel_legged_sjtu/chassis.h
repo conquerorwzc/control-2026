@@ -58,6 +58,8 @@ typedef struct {
   uint16_t max_power;
   Chassis_Mode_e chassis_mode;
   uint8_t SuperCapBoost;
+  // 小陀螺标志: 1 时 LegController 关闭 f_inertial 前馈, StateVarUpdate 用轮速回授 phi_d/x_b_d 并始终积分 x_b
+  uint8_t is_rotate;
 } Chassis_Ctrl_Cmd_s;
 
 /* SJTU model: 10-dim state vector */

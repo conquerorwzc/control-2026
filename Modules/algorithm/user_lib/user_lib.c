@@ -157,8 +157,8 @@ float ramp_controller_update(Ramp_Controller_t* ramp, float input_v, float actua
       // Acc_limit = P_const / v  =>  Acc_limit = (Max_Acc * Base_V) / Current_V
       current_limit = (ramp->max_accel * ramp->accel_base_speed) / abs_v;
       // 选填：为了防止加速度衰减得太狠（比如速度极高时加速度趋近0导致无法达到满速）
-      // 可以设置一个最低下限，比如 0.5 m/s^2 -> 改为 0.05f
-      if (current_limit < 0.05f) current_limit = 0.05f;
+      // 可以设置一个最低下限
+      if (current_limit < ramp->min_accel) current_limit = ramp->min_accel;
     }
   } else {
     // 减速区：高速时衰减刹车力度，防止轮腿前倾翻车
@@ -185,14 +185,14 @@ float ramp_controller_update(Ramp_Controller_t* ramp, float input_v, float actua
   
   // 5. 增加实际速度静差前馈补偿
   float output_v = ramp->planning_v;
-  if (ramp->k_error_ff > 0.0f) {
+  if (ramp->k_p_vel > 0.0f) {
     float vel_err = ramp->planning_v - actual_v;
-    output_v += ramp->k_error_ff * vel_err;
+    output_v += ramp->k_p_vel * vel_err;
   }
 
   // 6. 输出限幅
-  // if (output_v > ramp->max_v) output_v = ramp->max_v;
-  // if (output_v < -ramp->max_v) output_v = -ramp->max_v;
+  if (output_v > ramp->max_v) output_v = ramp->max_v;
+  if (output_v < -ramp->max_v) output_v = -ramp->max_v;
   
   return output_v;
 }

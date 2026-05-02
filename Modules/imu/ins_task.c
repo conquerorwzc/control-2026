@@ -263,7 +263,7 @@ void INS_Task(void) {
     // ==================== 【新增】 ====================
     // 扣除小陀螺时的向心加速度，防止姿态解算发飘导致平移
     // 必须放在 IMU_Param_Correction 之后，EKF_Update 之前
-    // IMU_LeverArm_Compensation(INS.Accel, INS.Gyro, IMU_Param.CenterOffset);
+    IMU_LeverArm_Compensation(INS.Accel, INS.Gyro, IMU_Param.CenterOffset);
     // 核心函数,EKF更新四元数
     IMU_QuaternionEKF_Update(INS.Gyro[X], INS.Gyro[Y], INS.Gyro[Z], INS.Accel[X], INS.Accel[Y], INS.Accel[Z], dt);
 

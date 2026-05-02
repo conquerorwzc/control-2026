@@ -58,6 +58,7 @@ static Ramp_Controller_t chassis_ramp = {
     .planning_v = 0.0f,
     .max_v = 2.5f,
     .max_accel = 4.0f,
+    .min_accel = 0.05f,
     .max_decel = 5.5f,
     .min_decel = 1.0f,
     .decel_base_speed = 0.8f,
@@ -288,7 +289,7 @@ static void RemoteControlSet() {
       // 1.5f * robot->dt);  // 0.0045(最大3m/s)
 
       chassis_ctrl_cmd->vx =
-          ramp_controller_update(&chassis_ramp, (0.0045f) * (float)rc_data[TEMP].rc.rocker_r1, robot->dt);
+          ramp_controller_update(&chassis_ramp, (0.0045f) * (float)rc_data[TEMP].rc.rocker_r1, robot->chassis->state_var.x_b_d, robot->dt);
       // chassis_ctrl_cmd->vx = (0.0025f) * (float)rc_data[TEMP].rc.rocker_r1;
       // chassis_ctrl_cmd->theta_ff = chassis_ramp.expected_a / 9.81f;
 
@@ -639,11 +640,11 @@ static void MouseKeySet() {
 #endif
 
       if (rc_data[TEMP].key[KEY_PRESS].w)
-        chassis_ctrl_cmd->vx += ramp_controller_update(&chassis_ramp, 0.99f * speed_coff, robot->dt);
+        chassis_ctrl_cmd->vx += ramp_controller_update(&chassis_ramp, 0.99f * speed_coff, robot->chassis->state_var.x_b_d, robot->dt);
       else if (rc_data[TEMP].key[KEY_PRESS].s)
-        chassis_ctrl_cmd->vx += ramp_controller_update(&chassis_ramp, -0.99f * speed_coff, robot->dt);
+        chassis_ctrl_cmd->vx += ramp_controller_update(&chassis_ramp, -0.99f * speed_coff, robot->chassis->state_var.x_b_d, robot->dt);
       else
-        chassis_ctrl_cmd->vx += 0.0f;
+        chassis_ctrl_cmd->vx += ramp_controller_update(&chassis_ramp, 0.0f, robot->chassis->state_var.x_b_d, robot->dt);
       break;
     default:
       break;

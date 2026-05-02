@@ -58,10 +58,10 @@ static float MotorEstimateCurrent(const float k[6], float P_target, float w, flo
   float temp2 = (-B - sqrt_disc) / (2.0f * A);
 
   if (I_current > 0.0f) {
-    return (fabsf(temp1 - I_current) < fabsf(temp2 - I_current) ? fminf(16000.f, temp1) : fminf(16000.f, temp2));
+    return (fabsf(temp1 - I_current) < fabsf(temp2 - I_current) ? fminf(20.f, temp1) : fminf(20.f, temp2));
 
   } else {
-    return (fabsf(temp1 - I_current) < fabsf(temp2 - I_current) ? fmaxf(-16000.f, temp1) : fmaxf(-16000.f, temp2));
+    return (fabsf(temp1 - I_current) < fabsf(temp2 - I_current) ? fmaxf(-20.f, temp1) : fmaxf(-20.f, temp2));
   }
 }
 
@@ -112,7 +112,7 @@ void PowerControl(ChassisInstance* chassis) {
   pc->P_motion_total = pc->P_motion[0] + pc->P_motion[1];
   pc->P_balance_total = pc->P_balance[0] + pc->P_balance[1];
   pc->P_total_ref = chassis->chassis_ctrl_cmd.max_power;
-  pc->P_motion_total_ref = chassis->chassis_ctrl_cmd.max_power - pc->P_balance_total;
+  pc->P_motion_total_ref = fmaxf(pc->P_total_ref - pc->P_balance_total, 0.0f);
 
   if (pc->P_motion_total > pc->P_motion_total_ref) {
     for (int i = 0; i < 2; i++) {
@@ -168,9 +168,9 @@ void PowerControl(ChassisInstance* chassis) {
       // state_err[1] = x_b_d - vx => vx = x_b_d - state_err[1]
       // state_err[2] = phi - target_yaw => target_yaw = phi - state_err[2]
       // state_err[3] = phi_d - wz => wz = phi_d - state_err[3]
-      chassis->chassis_ctrl_cmd.vx = sv->x_b_d - new_state_err[1];
-      chassis->chassis_ctrl_cmd.target_yaw = sv->phi - new_state_err[2];
-      chassis->chassis_ctrl_cmd.wz = sv->phi_d - new_state_err[3];
+      // chassis->chassis_ctrl_cmd.vx = sv->x_b_d - new_state_err[1];
+      // chassis->chassis_ctrl_cmd.target_yaw = sv->phi - new_state_err[2];
+      // chassis->chassis_ctrl_cmd.wz = sv->phi_d - new_state_err[3];
     }
   }
 }

@@ -16,15 +16,28 @@ static VT13_RC_t rc_data_last;
 
 static uint8_t is_first_update = 1;
 
-Ramp_Controller_t chassis_ramp = {
+Ramp_Controller_t vx_ramp = {
     .planning_v = 0.0f,
     .max_v = 15.0f,
     .max_accel = 1.0f,
+    .min_accel = 0.05f,
     .accel_base_speed = 0.3f,
     .max_decel = 3.7f,
     .min_decel = 1.0f,
     .decel_base_speed = 0.3f,
-    .k_error_ff = 0.35f,
+    .k_p_vel = 0.35f,
+};
+
+Ramp_Controller_t wz_ramp = {
+    .planning_v = 0.0f,
+    .max_v = 15.0f,
+    .max_accel = 3.0f,
+    .min_accel = 3.0f,
+    .accel_base_speed = 1.3f,
+    .max_decel = 3.0f,
+    .min_decel = 3.0f,
+    .decel_base_speed = 1.3f,
+    .k_p_vel = 0.35f,
 };
 
 // ==========================================
@@ -34,6 +47,9 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
   Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   float input_mag = sqrtf(intent->vx * intent->vx + intent->vy * intent->vy);
 
+  // 小陀螺标志: 仅 LQR 平衡态下的 ROTATE 才使能 (PROSTRATE_ROTATE 走 ChassisProstrateMode, 不进 LQR)
+  chassis_ctrl_cmd->is_rotate = (robot->robot_mode == ROBOT_CHASSIS_ROTATE) ? 1 : 0;
+
   chassis_ctrl_cmd->roll = 0.0f;
   // roll 前馈 = 底盘恒定偏置 + 云台 CoM 旋转分量. offset_angle 俯视 CW 为正 → 底盘系下 CoM 角 = α_g - offset_angle.
   chassis_ctrl_cmd->roll_ff =
@@ -42,11 +58,13 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
   switch (robot->robot_mode) {
     case ROBOT_CHASSIS_ROTATE: {
       // 小陀螺频率设置
-      float rotate_frequency = 1.0f;
+      float rotate_frequency = 6.0f;
       // 小陀螺原地旋转
       float rotate_omega = rotate_frequency * 2.0f * PI;
-      chassis_ctrl_cmd->target_yaw += rotate_omega * robot->dt;
-      chassis_ctrl_cmd->wz = rotate_omega;
+      // chassis_ctrl_cmd->target_yaw += rotate_omega * robot->dt;
+      chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD;
+      // chassis_ctrl_cmd->wz = ramp_controller_update(&wz_ramp, rotate_omega, robot->chassis->imu->Gyro[2], robot->dt);
+      chassis_ctrl_cmd->wz = rotate_omega;;
       chassis_ctrl_cmd->vx = 0.0f;
       break;
     }
@@ -72,7 +90,7 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
       input_mag *= align_attenuation * align_attenuation * align_attenuation;
 
       chassis_ctrl_cmd->vx =
-          ramp_controller_update(&chassis_ramp, input_mag, robot->chassis->state_var.x_b_d, robot->dt);
+          ramp_controller_update(&vx_ramp, input_mag, robot->chassis->state_var.x_b_d, robot->dt);
       chassis_ctrl_cmd->theta_ff = 0.0f;
       break;
 #endif
@@ -93,7 +111,7 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
       // 跟随当前机体角速度 → state_err[3]=0, LQR d_phi 项不参与输出
       chassis_ctrl_cmd->wz = robot->chassis->imu->Gyro[2];
       chassis_ctrl_cmd->vx =
-          ramp_controller_update(&chassis_ramp, input_vy, robot->chassis->state_var.x_b_d, robot->dt);
+          ramp_controller_update(&vx_ramp, input_vy, robot->chassis->state_var.x_b_d, robot->dt);
       chassis_ctrl_cmd->theta_ff = 0.0f;
       chassis_ctrl_cmd->roll += intent->roll_delta;
       chassis_ctrl_cmd->leg_length += intent->leg_length_delta;
@@ -400,8 +418,10 @@ void EmergencyHandler(RobotInstance* robot) {
     shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
     shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
-    chassis_ramp.planning_v = 0.0f;
-    chassis_ramp.expected_a = 0.0f;
+    vx_ramp.planning_v = 0.0f;
+    vx_ramp.expected_a = 0.0f;
+    wz_ramp.planning_v = 0.0f;
+    wz_ramp.expected_a = 0.0f;
     LOGERROR("[CMD] emergency stop!");
   } else {
     LOGINFO("[CMD] reinstate, robot ready");
@@ -515,7 +535,7 @@ void JoyStickCtrl(RobotInstance* robot) {
   if (is_free && is_rotate) {
     if (is_stand) {
       chassis_ctrl_cmd->vx =
-          ramp_controller_update(&chassis_ramp, intent.vy, robot->chassis->state_var.x_b_d, robot->dt);
+          ramp_controller_update(&vx_ramp, intent.vy, robot->chassis->state_var.x_b_d, robot->dt);
       chassis_ctrl_cmd->theta_ff = 0.0f;
       chassis_ctrl_cmd->roll += intent.roll_delta;
       chassis_ctrl_cmd->leg_length += intent.leg_length_delta;

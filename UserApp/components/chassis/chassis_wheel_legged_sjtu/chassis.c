@@ -88,16 +88,34 @@ static void StateVarUpdate(void) {
   }
   /* x_b: no position sensor, keep 0 or integrate in observer path */
   SpeedEstimate();
-  sv->x_b_d = chassis->vaEstimateKF.FilteredValue[0];
+
+  const uint8_t is_rotate = chassis_ctrl_cmd->is_rotate;
+  const uint8_t off_ground = leg[0]->update_flag.is_off_ground || leg[1]->update_flag.is_off_ground;
+
+  if (is_rotate) {
+    // 小陀螺: 绕过 IMU yaw 陀螺/KF, 直接用左右轮体系速度算 x_b_d 与 phi_d.
+    // phi_d 符号约定: phi_d>0 为左转 → 右轮(leg[0])线速度大于左轮(leg[1]).
+    float vb_r = leg[0]->observer_var.vb;
+    float vb_l = leg[1]->observer_var.vb;
+    sv->x_b_d = (vb_r + vb_l) * 0.5f;
+    sv->phi_d = (vb_r - vb_l) / chassis->param.track_width;
+  } else {
+    sv->x_b_d = chassis->vaEstimateKF.FilteredValue[0];
+    sv->phi_d = imu->Gyro[2];
+  }
+
   // 位移积分
-  if (chassis->update_flag.is_controlled || sv->x_b_d > 0.15f ||
-      (leg[0]->update_flag.is_off_ground || leg[1]->update_flag.is_off_ground)) {
+  if (off_ground) {
+    sv->x_b = 0.0f;
+  } else if (is_rotate) {
+    // 小陀螺: 始终积分 x_b, 不因 is_controlled / x_b_d 阈值清零
+    sv->x_b += ((sv->x_b_d + chassis->last_state_var.x_b_d) / 2.0f) * chassis->dt;
+  } else if (chassis->update_flag.is_controlled || sv->x_b_d > 0.15f) {
     sv->x_b = 0.0f;
   } else {
     sv->x_b += ((sv->x_b_d + chassis->last_state_var.x_b_d) / 2.0f) * chassis->dt;
   }
   sv->phi = imu->YawTotalAngle * DEGREE_2_RAD;
-  sv->phi_d = imu->Gyro[2];
   /* Left leg = leg[1], Right leg = leg[0] */
   sv->theta_r = leg[0]->virtual_model.theta;
   sv->theta_r_d = leg[0]->virtual_model.theta_d;
@@ -128,8 +146,9 @@ static void LocomotionController(void) {
   state_err[1] = sv->x_b_d - chassis_ctrl_cmd->vx;
   VAL_LIMIT(state_err[1], -3.2f, 3.2f);
   state_err[2] = sv->phi - chassis_ctrl_cmd->target_yaw;
-  VAL_LIMIT(state_err[2], -1.52f, 1.52f);  // ±30°
+  VAL_LIMIT(state_err[2], -0.52f, 0.52f);  // ±30°
   state_err[3] = sv->phi_d - chassis_ctrl_cmd->wz;
+  VAL_LIMIT(state_err[3], -3.14f, 3.14f);  // ±30°
   state_err[4] = sv->theta_l - chassis_ctrl_cmd->theta_ff;
   state_err[5] = sv->theta_l_d;
   state_err[6] = sv->theta_r - chassis_ctrl_cmd->theta_ff;
@@ -168,10 +187,10 @@ static void LocomotionController(void) {
   leg[0]->real_model.T = u[2];
   leg[1]->real_model.T = u[3];
 
-  chassis->delta_theta_comp =
-      PIDCalculate(&chassis->delta_theta_PID, leg[0]->virtual_model.theta - leg[1]->virtual_model.theta, 0);
-  leg[0]->virtual_model.Tp -= chassis->delta_theta_comp;
-  leg[1]->virtual_model.Tp += chassis->delta_theta_comp;
+  // chassis->delta_theta_comp =
+  // PIDCalculate(&chassis->delta_theta_PID, leg[0]->virtual_model.theta - leg[1]->virtual_model.theta, 0);
+  // leg[0]->virtual_model.Tp -= chassis->delta_theta_comp;
+  // leg[1]->virtual_model.Tp += chassis->delta_theta_comp;
 }
 
 /*
@@ -193,12 +212,14 @@ static void LegController(void) {
   float f_gravity = 0.5f * chassis->param.body_mass * 9.81f;
   float f_inertial = 0.5f * chassis->param.body_mass * (l_avg / chassis->param.track_width) * chassis->state_var.phi_d *
                      chassis->state_var.x_b_d;
+  // 小陀螺时 phi_d/x_b_d 来自轮速差/和, f_inertial 会随转速近似线性扩张并把支撑力推飞, 直接关闭前馈
+  if (chassis_ctrl_cmd->is_rotate) f_inertial = 0.0f;
 
-  leg[0]->virtual_model.F = -f_psi + f_l_r + f_gravity + f_inertial * 1.2;
+  leg[0]->virtual_model.F = -f_psi + f_l_r + f_gravity + f_inertial * 5.0f;
   if (leg[0]->update_flag.is_off_ground) {
     leg[0]->virtual_model.F = -f_psi * 0.3f + f_l_r + f_gravity;
   }
-  leg[1]->virtual_model.F = f_psi + f_l_l + f_gravity - f_inertial * 1.2;
+  leg[1]->virtual_model.F = f_psi + f_l_l + f_gravity - f_inertial * 5.0f ;
   if (leg[1]->update_flag.is_off_ground) {
     leg[1]->virtual_model.F = f_psi * 0.3f + f_l_r + f_gravity;
   }
@@ -220,7 +241,7 @@ static void ChassisCtrlUpdate(void) {
 
   StateVarUpdate();
 
-  // PowerControl(chassis);
+  PowerControl(chassis);
   LocomotionController();
   LegController();
 
@@ -360,7 +381,7 @@ void ChassisProstrateMode(void) {
   // wz_motor = chassis_ctrl_cmd->wz * WZ_FF_TO_MOTOR;
   // 差速分配
   wheel_speed_ref[0] = -1.0f * (vx_motor - wz_motor);  // 右轮 leg[0]
-  wheel_speed_ref[1] = -1.0f * (vx_motor + wz_motor);    // 左轮 leg[1]
+  wheel_speed_ref[1] = -1.0f * (vx_motor + wz_motor);  // 左轮 leg[1]
 }
 /**
  * @brief 卧倒模式缩关节
@@ -390,7 +411,7 @@ static void LimitChassisOutput(void) {
       VAL_LIMIT(leg[i]->real_model.Tp_1, -33.0f, 33.0f);
       VAL_LIMIT(leg[i]->real_model.Tp_2, -33.0f, 33.0f);
       // VAL_LIMIT(leg[i]->real_model.T, -2.45f, 2.45f);// 限制额定扭矩
-      VAL_LIMIT(leg[i]->real_model.T, -4.92f, 4.92f); // 限制峰值扭矩
+      VAL_LIMIT(leg[i]->real_model.T, -4.92f, 4.92f);  // 限制峰值扭矩
       DMMotorSetRef(leg[i]->joint_motor[0], leg[i]->real_model.Tp_1);
       DMMotorSetRef(leg[i]->joint_motor[1], leg[i]->real_model.Tp_2);
       // DMMotorSetRef(leg[i]->joint_motor[0], 0);
@@ -478,7 +499,7 @@ void ChassisTask(void) {
   // (-0.15/0.15) 而导致机身砸下；切入 PROSTRATE 时若腿仍然较长，则先用 LQR 把腿降到
   // leg_min_length，再放行进入真正的卧倒控制。基于实测腿长触发，避免依赖 CAN 时序观察
   // 到 CHASSIS_ON 中间态。
-  
+
   static Chassis_Mode_e last_chassis_mode = CHASSIS_POWER_OFF;
   Chassis_Mode_e cur_mode = chassis->chassis_ctrl_cmd.chassis_mode;
   if (last_chassis_mode != CHASSIS_PROSTRATE && cur_mode == CHASSIS_PROSTRATE) {

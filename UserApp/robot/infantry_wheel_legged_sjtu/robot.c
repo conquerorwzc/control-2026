@@ -61,6 +61,7 @@ void VOFATask() {
   // visualized_data[3] = robot->chassis->chassis_ctrl_cmd.vx;
   // visualized_data[4] = robot->chassis->state_var.theta_b * RAD_2_DEGREE;
   visualized_data[0] = robot->chassis->imu->Roll;
+  visualized_data[1] = robot->chassis->chassis_ctrl_cmd.roll;
 #endif
   VOFAJustFloatSend(visualized_data, 20);
 }
