@@ -470,12 +470,11 @@ void DJIMotorTask() {
     // 将最终输出分组填入发送数据
     group = motor->sender_group;
     num = motor->message_num;
-    set = (int16_t)(motor->motor_controller.final_output);
     set = (int16_t)motor->motor_controller.final_output;
-    if (motor->motor_settings.motor_reverse_flag == MOTOR_DIRECTION_REVERSE) set *= -1;  // 设置反转
+    if (motor->motor_settings.motor_reverse_flag == MOTOR_DIRECTION_REVERSE) set *= -1.0f;  // 设置反转
 
-    sender_assignment[group].tx_buff[2 * num] = (int8_t)(set >> 8);          // 低八位
-    sender_assignment[group].tx_buff[2 * num + 1] = (int8_t)(set & 0x00ff);  // 高八位
+    sender_assignment[group].tx_buff[2 * num] = (uint8_t)(set >> 8);          // 低八位
+    sender_assignment[group].tx_buff[2 * num + 1] = (uint8_t)(set & 0x00ff);  // 高八位
 
     // 若该电机处于停止状态,直接将buff置零
     if (motor->stop_flag == MOTOR_STOP)

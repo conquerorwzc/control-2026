@@ -81,6 +81,7 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
     for (int j = 0; j < FRICTION_NUM; j++) {
       DJIMotorEnable(shoot->friction_motor[j]);
       DJIMotorSetPIDRef(shoot->friction_motor[j], 0);
+      //DJIMotorStop(shoot->friction_motor[j]);
     }
     DJIMotorStop(shoot->loader_motor);
   } else  // 恢复运行
@@ -148,8 +149,7 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
     friction_set = friction_speed;
   } else  // 关闭摩擦轮
   {
-    friction_set = 0;
-  }
+    friction_set = 0;}
 
   // Todo: 反馈数据,目前暂时没有要设定的反馈数据,后续可能增加应用离线监测以及卡弹反馈
 }
