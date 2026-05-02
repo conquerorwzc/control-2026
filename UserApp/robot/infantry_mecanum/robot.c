@@ -1,6 +1,7 @@
 #include "robot.h"
 
 #include "bsp_gpio.h"
+#include "buzzer.h"
 #include "general_def.h"
 #include "master_process.h"
 #include "rm_referee.h"
@@ -27,7 +28,7 @@ static float last_yaw;
 static int16_t referee_power_limit;
 static uint16_t buffer_energy;
 static uint16_t chassis_output;
-
+static BuzzzerInstance *robot_buzzer;
 // static  DJIMotorInstance* debug_motor;
 
 /**
@@ -386,6 +387,21 @@ void RobotInit() {
   referee_power_limit = 118;
   buffer_energy = 60;
   chassis_output = 1;
+  Buzzer_config_s buzzer_cfg = {
+    .alarm_level = ALARM_LEVEL_HIGH,
+    .octave = OCTAVE_1,
+    .loudness = 0.5f,
+};
+  robot_buzzer = BuzzerRegister(&buzzer_cfg);
+
+  for (int i = 0; i < 6; i++) {
+    robot_buzzer->octave = (octave_e)(OCTAVE_1 + i);
+    AlarmSetStatus(robot_buzzer, ALARM_ON);
+    HAL_Delay(200);
+    AlarmSetStatus(robot_buzzer, ALARM_OFF);
+    HAL_Delay(30);//用os_delay时间不稳定
+    i++;
+  }
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */

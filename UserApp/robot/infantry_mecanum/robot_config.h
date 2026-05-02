@@ -199,7 +199,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
 .Kd = 0.0f, \
 .Improve = PID_Integral_Limit, \
 .IntegralLimit = 10000.0f, \
-.MaxOut = 0.0f, \
+.MaxOut = 15000.0f, \
 }, \
 }, \
 .controller_setting_init_config ={\
