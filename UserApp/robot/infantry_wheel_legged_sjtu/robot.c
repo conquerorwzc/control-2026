@@ -119,8 +119,6 @@ static void DoubleBoardComms() {
   chassis_fetch_data->chassis_ctrl_cmd = *chassis_ctrl_cmd;
   chassis_fetch_data->super_cap_ctrl_cmd = robot->chassis->super_cap->super_cap_ctrl_cmd;
   chassis_fetch_data->ui_chassis_relative_angle_deg_x10 = (int16_t)(robot->offset_angle * 10.0f);
-  chassis_fetch_data->ui_gimbal_mode = (uint8_t)gimbal_ctrl_cmd->gimbal_mode;
-  chassis_fetch_data->ui_friction_mode = (uint8_t)shoot_ctrl_cmd->friction_mode;
 
   // 接收底盘回传数据
   *chassis_upload_data = *(Chassis_Upload_Data_s*)CANCommGet(robot->can_comm);
@@ -280,9 +278,6 @@ void RobotInit() {
   chassis_ctrl_cmd->leg_length = chassis_init_config.param.initial_leg_length;  // 初始腿长
   DWT_GetDeltaT(&robot->DWT_CNT);
   // chassis_ctrl_cmd->max_power = 60;  // 测试用
-
-  // UI初始化
-  // MyUIInit(robot);
 }
 
 void RobotTask() {
@@ -309,7 +304,7 @@ void RobotTask() {
     // chassis_ctrl_cmd->vx);
   }
 
-  ChassisTask();
+  // ChassisTask();
 
   // 恢复原始指令，防止对后续积分逻辑造成干扰
   chassis_ctrl_cmd->vx = raw_vx;
