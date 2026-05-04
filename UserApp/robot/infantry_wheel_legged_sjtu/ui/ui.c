@@ -37,6 +37,11 @@
 #define UI_LEG_LAYER 7                 // Layer for five-link leg posture.
 #define UI_LEG_BASE_X 1750             // Leg drawing origin x.
 #define UI_LEG_BASE_Y 480              // Leg drawing origin y.
+#define UI_LEG_TOP_BASE_Y 700         // Upper leg drawing origin y.
+#define UI_LEG_LABEL_X 1600            // Leg label x.
+#define UI_LEG_LABEL_OFFSET_Y 20       // Leg label y offset from drawing origin.
+#define UI_LEG_LABEL_FONT_SIZE 15      // Leg label text size.
+#define UI_LEG_LABEL_WIDTH 2           // Leg label stroke width.
 #define UI_LEG_SCALE 400.0f            // Meter-to-pixel scale for leg drawing.
 #define UI_LEG_ROD_WIDTH 5             // Leg rod line width.
 #define UI_LEG_CHANGE_THRESHOLD 0.02f  // Reserved posture change threshold.
@@ -112,7 +117,8 @@ uint8_t UI_Seq;
  */
 static Graph_Data_t UI_RelativeRing;
 static Graph_Data_t UI_RelativeArc[2];
-static Graph_Data_t UI_LegRods[5];
+static Graph_Data_t UI_LegRods[2][5];
+static String_Data_t UI_LegLabel[2];
 static Graph_Data_t UI_AimCross[2];
 static Graph_Data_t UI_AimRect;
 static Graph_Data_t UI_CapArc;
@@ -347,7 +353,8 @@ static void SampleLegPosture(RobotInstance *robot, Referee_Interactive_info_t *d
   float model_y[5];
   float leg_phi[4];
 
-  if (robot->chassis && CalculateLegPosture(robot->chassis->leg[0], model_x, model_y, leg_phi)) {
+  if (robot->chassis && (CalculateLegPosture(robot->chassis->leg[0], model_x, model_y, leg_phi) ||
+                         CalculateLegPosture(robot->chassis->leg[1], model_x, model_y, leg_phi))) {
     data->leg_valid = 1;
     data->leg_phi1 = leg_phi[0];
     data->leg_phi2 = leg_phi[1];
@@ -557,39 +564,60 @@ static void DrawAimIndicator(uint8_t target_locked, uint32_t operate) {
   UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_AimRect);
 }
 
-static void DrawLegPosture(RobotInstance *robot, uint32_t operate) {
+static void DrawSingleLegPosture(const LegInstance *leg, uint8_t ui_index, int32_t base_y, uint32_t operate) {
   int32_t point_x[5] = {UI_LEG_BASE_X, UI_LEG_BASE_X, UI_LEG_BASE_X, UI_LEG_BASE_X, UI_LEG_BASE_X};
-  int32_t point_y[5] = {UI_LEG_BASE_Y, UI_LEG_BASE_Y, UI_LEG_BASE_Y, UI_LEG_BASE_Y, UI_LEG_BASE_Y};
+  int32_t point_y[5] = {base_y, base_y, base_y, base_y, base_y};
   uint32_t color = UI_Color_Black;
 
-  if (robot->chassis && robot->chassis->leg[0]) {
+  if (leg) {
     float model_x[5];
     float model_y[5];
     float leg_phi[4];
 
-    if (CalculateLegPosture(robot->chassis->leg[0], model_x, model_y, leg_phi)) {
+    if (CalculateLegPosture(leg, model_x, model_y, leg_phi)) {
       for (uint8_t i = 0; i < 5; i++) {
         point_x[i] = UI_LEG_BASE_X + (int32_t)(model_x[i] * UI_LEG_SCALE);
-        point_y[i] = UI_LEG_BASE_Y - (int32_t)(model_y[i] * UI_LEG_SCALE);
-        watch_data1[i] = point_x[i];
-        watch_data2[i] = point_y[i];
+        point_y[i] = base_y - (int32_t)(model_y[i] * UI_LEG_SCALE);
       }
       color = UI_Color_Yellow;
     }
   }
 
-  UILineDraw(&UI_LegRods[0], "lg0", operate, UI_LEG_LAYER, color, UI_LEG_ROD_WIDTH, point_x[0], point_y[0], point_x[1],
-             point_y[1]);
-  UILineDraw(&UI_LegRods[1], "lg1", operate, UI_LEG_LAYER, color, UI_LEG_ROD_WIDTH, point_x[1], point_y[1], point_x[2],
-             point_y[2]);
-  UILineDraw(&UI_LegRods[2], "lg2", operate, UI_LEG_LAYER, color, UI_LEG_ROD_WIDTH, point_x[2], point_y[2], point_x[3],
-             point_y[3]);
-  UILineDraw(&UI_LegRods[3], "lg3", operate, UI_LEG_LAYER, color, UI_LEG_ROD_WIDTH, point_x[3], point_y[3], point_x[4],
-             point_y[4]);
-  UILineDraw(&UI_LegRods[4], "lg4", operate, UI_LEG_LAYER, color, UI_LEG_ROD_WIDTH, point_x[4], point_y[4], point_x[0],
-             point_y[0]);
-  UIGraphRefresh(&referee_recv_info->referee_id, 5, UI_LegRods[0], UI_LegRods[1], UI_LegRods[2], UI_LegRods[3],
-                 UI_LegRods[4]);
+  UILineDraw(&UI_LegRods[ui_index][0], ui_index == 0 ? "ll0" : "rl0", operate, UI_LEG_LAYER, color, UI_LEG_ROD_WIDTH,
+             point_x[0], point_y[0], point_x[1], point_y[1]);
+  UILineDraw(&UI_LegRods[ui_index][1], ui_index == 0 ? "ll1" : "rl1", operate, UI_LEG_LAYER, color, UI_LEG_ROD_WIDTH,
+             point_x[1], point_y[1], point_x[2], point_y[2]);
+  UILineDraw(&UI_LegRods[ui_index][2], ui_index == 0 ? "ll2" : "rl2", operate, UI_LEG_LAYER, color, UI_LEG_ROD_WIDTH,
+             point_x[2], point_y[2], point_x[3], point_y[3]);
+  UILineDraw(&UI_LegRods[ui_index][3], ui_index == 0 ? "ll3" : "rl3", operate, UI_LEG_LAYER, color, UI_LEG_ROD_WIDTH,
+             point_x[3], point_y[3], point_x[4], point_y[4]);
+  UILineDraw(&UI_LegRods[ui_index][4], ui_index == 0 ? "ll4" : "rl4", operate, UI_LEG_LAYER, color, UI_LEG_ROD_WIDTH,
+             point_x[4], point_y[4], point_x[0], point_y[0]);
+  UIGraphRefresh(&referee_recv_info->referee_id, 5, UI_LegRods[ui_index][0], UI_LegRods[ui_index][1],
+                 UI_LegRods[ui_index][2], UI_LegRods[ui_index][3], UI_LegRods[ui_index][4]);
+}
+
+static void DrawLegLabels(uint32_t operate) {
+  UICharDraw(&UI_LegLabel[0], "llb", operate, UI_LEG_LAYER, UI_Color_White, UI_LEG_LABEL_FONT_SIZE,
+             UI_LEG_LABEL_WIDTH, UI_LEG_LABEL_X, UI_LEG_TOP_BASE_Y + UI_LEG_LABEL_OFFSET_Y, "LEFT");
+  UICharRefresh(&referee_recv_info->referee_id, UI_LegLabel[0]);
+
+  UICharDraw(&UI_LegLabel[1], "rlb", operate, UI_LEG_LAYER, UI_Color_White, UI_LEG_LABEL_FONT_SIZE,
+             UI_LEG_LABEL_WIDTH, UI_LEG_LABEL_X, UI_LEG_BASE_Y + UI_LEG_LABEL_OFFSET_Y, "RIGHT");
+  UICharRefresh(&referee_recv_info->referee_id, UI_LegLabel[1]);
+}
+
+static void DrawLegPosture(RobotInstance *robot, uint32_t operate) {
+  const LegInstance *left_leg = NULL;
+  const LegInstance *right_leg = NULL;
+
+  if (robot->chassis) {
+    left_leg = robot->chassis->leg[1];
+    right_leg = robot->chassis->leg[0];
+  }
+
+  DrawSingleLegPosture(left_leg, 0, UI_LEG_TOP_BASE_Y, operate);
+  DrawSingleLegPosture(right_leg, 1, UI_LEG_BASE_Y, operate);
 }
 
 static void DrawRelativePosition(float offset_angle, uint32_t operate) {
@@ -786,6 +814,7 @@ void MyUIInit(RobotInstance *robot) {
   interactive_data.last_aim_target_flag = interactive_data.aim_target_flag;
   DrawRelativePosition(interactive_data.chassis_relative_angle, UI_Graph_ADD);
   DrawAimIndicator(interactive_data.aim_target_flag, UI_Graph_ADD);
+  DrawLegLabels(UI_Graph_ADD);
   DrawLegPosture(robot, UI_Graph_ADD);
   DrawStatusStatic(UI_Graph_ADD);
   DrawStatusDynamic(&interactive_data, UI_Graph_ADD);
