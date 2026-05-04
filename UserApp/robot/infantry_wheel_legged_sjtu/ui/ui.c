@@ -17,24 +17,38 @@
  * - UI 圆弧接口使用 [0, 360] 范围内的角度值。
  * - 机器人侧的角度会先转换到屏幕坐标系，使 0 度显示在圆环正上方。
  */
-#define UI_GRAPH_LAYER 7
-#define UI_RELATIVE_CENTER_X 960
-#define UI_RELATIVE_CENTER_Y 540
-#define UI_RELATIVE_RADIUS 88
-#define UI_RELATIVE_ARC_HALF_ANGLE 16.0f
-#define UI_RELATIVE_RING_WIDTH 3
-#define UI_RELATIVE_ARC_WIDTH 8
-#define UI_TASK_PERIOD_MS 30
+#define UI_GRAPH_LAYER 7                         // Layer for chassis relative-angle indicator.
+#define UI_RELATIVE_CENTER_X 960                 // Relative-angle circle center x.
+#define UI_RELATIVE_CENTER_Y 540                 // Relative-angle circle center y.
+#define UI_RELATIVE_RADIUS 88                    // Relative-angle circle radius.
+#define UI_RELATIVE_ARC_HALF_ANGLE 16.0f         // Half width of the relative-angle arc, in degrees.
+#define UI_RELATIVE_RING_WIDTH 3                 // Background circle line width.
+#define UI_RELATIVE_ARC_WIDTH 8                  // Relative-angle arc line width.
+#define UI_TASK_PERIOD_MS 30                     // Expected UI task period.
 #define UI_AUTO_REFRESH_PERIOD_MS 10000  // 10秒刷新一次UI
+// Auto refresh period converted from milliseconds to UITask ticks.
 #define UI_AUTO_REFRESH_INTERVAL_TICKS ((UI_AUTO_REFRESH_PERIOD_MS + UI_TASK_PERIOD_MS - 1) / UI_TASK_PERIOD_MS)
-#define UI_LEG_LAYER 7
-#define UI_LEG_BASE_X 1750
-#define UI_LEG_BASE_Y 480
-#define UI_LEG_SCALE 400.0f
-#define UI_LEG_ROD_WIDTH 5
-#define UI_LEG_CHANGE_THRESHOLD 0.02f
-#define UI_LEG_REFRESH_PERIOD_MS 100
+#define UI_LEG_LAYER 7                           // Layer for five-link leg posture.
+#define UI_LEG_BASE_X 1750                       // Leg drawing origin x.
+#define UI_LEG_BASE_Y 480                        // Leg drawing origin y.
+#define UI_LEG_SCALE 400.0f                      // Meter-to-pixel scale for leg drawing.
+#define UI_LEG_ROD_WIDTH 5                       // Leg rod line width.
+#define UI_LEG_CHANGE_THRESHOLD 0.02f            // Reserved posture change threshold.
+#define UI_LEG_REFRESH_PERIOD_MS 100             // Forced leg redraw period.
+// Leg refresh period converted from milliseconds to UITask ticks.
 #define UI_LEG_REFRESH_INTERVAL_TICKS ((UI_LEG_REFRESH_PERIOD_MS + UI_TASK_PERIOD_MS - 1) / UI_TASK_PERIOD_MS)
+#define UI_STATUS_LAYER 8                        // Layer for status text.
+#define UI_STATUS_LABEL_X 90                     // Status label x.
+#define UI_STATUS_VALUE_X 245                    // Status value x.
+#define UI_STATUS_BASE_Y 850                     // First status row y.
+#define UI_STATUS_ROW_GAP 38                     // Vertical gap between status rows.
+#define UI_STATUS_FONT_SIZE 14                   // Status text size.
+#define UI_STATUS_WIDTH 2                        // Status text stroke width.
+#define UI_STATUS_ROW_COUNT 5                    // ROBOT, CHASSIS, GIMBAL, FRICTION, LOADER.
+#define UI_STATUS_VALUE_CHARS 12                 // Fixed value width; clears old longer strings.
+#define UI_STATUS_REFRESH_PERIOD_MS 300          // Forced status redraw period.
+// Status refresh period converted from milliseconds to UITask ticks.
+#define UI_STATUS_REFRESH_INTERVAL_TICKS ((UI_STATUS_REFRESH_PERIOD_MS + UI_TASK_PERIOD_MS - 1) / UI_TASK_PERIOD_MS)
 
 int32_t watch_data1[5], watch_data2[5];
 
@@ -61,6 +75,96 @@ uint8_t UI_Seq;
 static Graph_Data_t UI_RelativeRing;
 static Graph_Data_t UI_RelativeArc[2];
 static Graph_Data_t UI_LegRods[5];
+static String_Data_t UI_StatusLabel[UI_STATUS_ROW_COUNT];
+static String_Data_t UI_StatusValue[UI_STATUS_ROW_COUNT];
+
+static void MakeUiName(char name[4], char prefix, uint8_t index) {
+  name[0] = prefix;
+  name[1] = (char)('0' + index / 10u);
+  name[2] = (char)('0' + index % 10u);
+  name[3] = '\0';
+}
+
+static const char *RobotModeStr(Robot_Mode_e mode) {
+  switch (mode) {
+    case ROBOT_POWER_OFF:
+      return "P_OFF";
+    case ROBOT_CHASSIS_ROTATE:
+      return "LEG_ROTATE";
+    case ROBOT_CHASSIS_FOLLOW:
+      return "LEG_FOLLOW";
+    case ROBOT_CHASSIS_FREE:
+      return "LEG_FREE";
+    case ROBOT_CHASSIS_PROSTRATE_ROTATE:
+      return "PRO_ROTATE";
+    case ROBOT_CHASSIS_PROSTRATE_FOLLOW:
+      return "PRO_FOLLOW";
+    case ROBOT_CHASSIS_PROSTRATE_FREE:
+      return "PRO_FREE";
+    default:
+      return "UNK";
+  }
+}
+
+static const char *ChassisModeStr(Chassis_Mode_e mode) {
+  switch (mode) {
+    case CHASSIS_POWER_OFF:
+      return "P_OFF";
+    case CHASSIS_RECOVERY:
+      return "RECOVERY";
+    case CHASSIS_ON:
+      return "ON";
+    case CHASSIS_JUMP_READY:
+      return "JUMP_READY";
+    case CHASSIS_JUMP_START:
+      return "JUMP_START";
+    case CHASSIS_PROSTRATE:
+      return "PROSTRATE";
+    default:
+      return "UNK";
+  }
+}
+
+static const char *GimbalModeStr(Gimbal_Mode_e mode) {
+  switch (mode) {
+    case GIMBAL_POWER_OFF:
+      return "P_OFF";
+    case GIMBAL_ON:
+      return "ON";
+    case GIMBAL_VISION:
+      return "VISION";
+    default:
+      return "UNK";
+  }
+}
+
+static const char *FrictionModeStr(Friction_Mode_e mode) {
+  switch (mode) {
+    case FRICTION_OFF:
+      return "OFF";
+    case FRICTION_ON:
+      return "ON";
+    default:
+      return "UNK";
+  }
+}
+
+static const char *LoaderModeStr(Loader_Mode_e mode) {
+  switch (mode) {
+    case LOAD_STOP:
+      return "STOP";
+    case LOAD_REVERSE:
+      return "REVERSE";
+    case LOAD_1_BULLET:
+      return "1";
+    case LOAD_3_BULLET:
+      return "3";
+    case LOAD_BURSTFIRE:
+      return "BURST";
+    default:
+      return "UNK";
+  }
+}
 
 static uint8_t CalculateLegPosture(const LegInstance *leg, float model_x[5], float model_y[5], float leg_phi[4]) {
   if (leg == NULL || leg->joint_motor[0] == NULL || leg->joint_motor[1] == NULL) {
@@ -157,7 +261,7 @@ static float GetRelativeAngle(RobotInstance *robot) {
    * 该字段放大了 10 倍保存，例如 123 表示 12.3 度。
    */
   if (robot->chassis_fetch_data) {
-    angle = (float)robot->chassis_fetch_data->ui_chassis_relative_angle_deg_x10 * 0.1f;
+    angle = (float)robot->chassis_fetch_data->ui_status.ui_chassis_relative_angle_deg_x10 * 0.1f;
   }
 #endif
   return angle;
@@ -177,6 +281,89 @@ static void SampleLegPosture(RobotInstance *robot, Referee_Interactive_info_t *d
   } else {
     data->leg_valid = 0;
   }
+}
+
+static void SampleStatusData(RobotInstance *robot, Referee_Interactive_info_t *data) {
+  data->robot_mode = ROBOT_POWER_OFF;
+  data->chassis_mode = CHASSIS_POWER_OFF;
+  data->gimbal_mode = GIMBAL_POWER_OFF;
+  data->friction_mode = FRICTION_OFF;
+  data->loader_mode = LOAD_STOP;
+
+  if (robot == NULL) {
+    return;
+  }
+
+  data->robot_mode = robot->robot_mode;
+
+  if (robot->chassis) {
+    data->chassis_mode = robot->chassis->chassis_ctrl_cmd.chassis_mode;
+  }
+
+  if (robot->gimbal) {
+    data->gimbal_mode = robot->gimbal->gimbal_ctrl_cmd.gimbal_mode;
+  }
+
+  if (robot->shoot) {
+    data->friction_mode = robot->shoot->shoot_ctrl_cmd.friction_mode;
+    data->loader_mode = robot->shoot->shoot_ctrl_cmd.load_mode;
+  }
+
+#if !defined(ONE_BOARD)
+  if (robot->chassis_fetch_data) {
+    const UI_Remote_Status_s *status = &robot->chassis_fetch_data->ui_status;
+    data->robot_mode = (Robot_Mode_e)status->robot_mode;
+    data->gimbal_mode = (Gimbal_Mode_e)status->gimbal_mode;
+    data->friction_mode = (Friction_Mode_e)status->friction_mode;
+    data->loader_mode = (Loader_Mode_e)status->loader_mode;
+  }
+#endif
+}
+
+static void DrawStatusStatic(uint32_t operate) {
+  static const char *labels[UI_STATUS_ROW_COUNT] = {"ROBOT:", "CHASSIS:", "GIMBAL:", "FRICTION:", "LOADER:"};
+
+  for (uint8_t i = 0; i < UI_STATUS_ROW_COUNT; i++) {
+    char name[4];
+    MakeUiName(name, 'u', i);
+    UICharDraw(&UI_StatusLabel[i], name, operate, UI_STATUS_LAYER, UI_Color_White, UI_STATUS_FONT_SIZE, UI_STATUS_WIDTH,
+               UI_STATUS_LABEL_X, UI_STATUS_BASE_Y - i * UI_STATUS_ROW_GAP, labels[i]);
+    UICharRefresh(&referee_recv_info->referee_id, UI_StatusLabel[i]);
+  }
+}
+
+static void DrawStatusDynamic(Referee_Interactive_info_t *data, uint32_t operate) {
+  char name[4];
+
+  MakeUiName(name, 'v', 0);
+  uint32_t row_y = UI_STATUS_BASE_Y;
+  UICharDraw(&UI_StatusValue[0], name, operate, UI_STATUS_LAYER, UI_Color_Green, UI_STATUS_FONT_SIZE, UI_STATUS_WIDTH,
+             UI_STATUS_VALUE_X, row_y, "%-*s", UI_STATUS_VALUE_CHARS, RobotModeStr(data->robot_mode));
+  UICharRefresh(&referee_recv_info->referee_id, UI_StatusValue[0]);
+
+  MakeUiName(name, 'v', 1);
+  row_y = UI_STATUS_BASE_Y - UI_STATUS_ROW_GAP;
+  UICharDraw(&UI_StatusValue[1], name, operate, UI_STATUS_LAYER, UI_Color_Green, UI_STATUS_FONT_SIZE, UI_STATUS_WIDTH,
+             UI_STATUS_VALUE_X, row_y, "%-*s", UI_STATUS_VALUE_CHARS, ChassisModeStr(data->chassis_mode));
+  UICharRefresh(&referee_recv_info->referee_id, UI_StatusValue[1]);
+
+  MakeUiName(name, 'v', 2);
+  row_y = UI_STATUS_BASE_Y - 2 * UI_STATUS_ROW_GAP;
+  UICharDraw(&UI_StatusValue[2], name, operate, UI_STATUS_LAYER, UI_Color_Green, UI_STATUS_FONT_SIZE, UI_STATUS_WIDTH,
+             UI_STATUS_VALUE_X, row_y, "%-*s", UI_STATUS_VALUE_CHARS, GimbalModeStr(data->gimbal_mode));
+  UICharRefresh(&referee_recv_info->referee_id, UI_StatusValue[2]);
+
+  MakeUiName(name, 'v', 3);
+  row_y = UI_STATUS_BASE_Y - 3 * UI_STATUS_ROW_GAP;
+  UICharDraw(&UI_StatusValue[3], name, operate, UI_STATUS_LAYER, UI_Color_Green, UI_STATUS_FONT_SIZE, UI_STATUS_WIDTH,
+             UI_STATUS_VALUE_X, row_y, "%-*s", UI_STATUS_VALUE_CHARS, FrictionModeStr(data->friction_mode));
+  UICharRefresh(&referee_recv_info->referee_id, UI_StatusValue[3]);
+
+  MakeUiName(name, 'v', 4);
+  row_y = UI_STATUS_BASE_Y - 4 * UI_STATUS_ROW_GAP;
+  UICharDraw(&UI_StatusValue[4], name, operate, UI_STATUS_LAYER, UI_Color_Green, UI_STATUS_FONT_SIZE, UI_STATUS_WIDTH,
+             UI_STATUS_VALUE_X, row_y, "%-*s", UI_STATUS_VALUE_CHARS, LoaderModeStr(data->loader_mode));
+  UICharRefresh(&referee_recv_info->referee_id, UI_StatusValue[4]);
 }
 
 static void DrawLegPosture(RobotInstance *robot, uint32_t operate) {
@@ -289,6 +476,20 @@ static void UIChangeCheck(Referee_Interactive_info_t *data) {
     data->last_leg_phi3 = data->leg_phi3;
     data->last_leg_phi4 = data->leg_phi4;
   }
+
+  uint8_t status_changed = data->robot_mode != data->last_robot_mode || data->chassis_mode != data->last_chassis_mode ||
+                           data->gimbal_mode != data->last_gimbal_mode ||
+                           data->friction_mode != data->last_friction_mode ||
+                           data->loader_mode != data->last_loader_mode;
+
+  if (status_changed) {
+    data->UI_Interactive_Flag.status_flag = 1;
+    data->last_robot_mode = data->robot_mode;
+    data->last_chassis_mode = data->chassis_mode;
+    data->last_gimbal_mode = data->gimbal_mode;
+    data->last_friction_mode = data->friction_mode;
+    data->last_loader_mode = data->loader_mode;
+  }
 }
 
 static void MyUIRefresh(RobotInstance *robot, Referee_Interactive_info_t *data) {
@@ -304,6 +505,11 @@ static void MyUIRefresh(RobotInstance *robot, Referee_Interactive_info_t *data) 
   if (data->UI_Interactive_Flag.leg_flag) {
     DrawLegPosture(robot, UI_Graph_Change);
     data->UI_Interactive_Flag.leg_flag = 0;
+  }
+
+  if (data->UI_Interactive_Flag.status_flag) {
+    DrawStatusDynamic(data, UI_Graph_Change);
+    data->UI_Interactive_Flag.status_flag = 0;
   }
 }
 
@@ -338,8 +544,16 @@ void MyUIInit(RobotInstance *robot) {
   interactive_data.last_leg_phi2 = interactive_data.leg_phi2;
   interactive_data.last_leg_phi3 = interactive_data.leg_phi3;
   interactive_data.last_leg_phi4 = interactive_data.leg_phi4;
+  SampleStatusData(robot, &interactive_data);
+  interactive_data.last_robot_mode = interactive_data.robot_mode;
+  interactive_data.last_chassis_mode = interactive_data.chassis_mode;
+  interactive_data.last_gimbal_mode = interactive_data.gimbal_mode;
+  interactive_data.last_friction_mode = interactive_data.friction_mode;
+  interactive_data.last_loader_mode = interactive_data.loader_mode;
   DrawRelativePosition(interactive_data.chassis_relative_angle, UI_Graph_ADD);
   DrawLegPosture(robot, UI_Graph_ADD);
+  DrawStatusStatic(UI_Graph_ADD);
+  DrawStatusDynamic(&interactive_data, UI_Graph_ADD);
 }
 
 /*
@@ -379,11 +593,18 @@ void UITask(RobotInstance *robot) {
   /* 处理完可能的重新初始化后，再采样最新角度。 */
   interactive_data.chassis_relative_angle = GetRelativeAngle(robot);
   SampleLegPosture(robot, &interactive_data);
+  SampleStatusData(robot, &interactive_data);
 
   static uint16_t leg_refresh_counter = 0;
   if (++leg_refresh_counter >= UI_LEG_REFRESH_INTERVAL_TICKS) {
     leg_refresh_counter = 0;
     interactive_data.UI_Interactive_Flag.leg_flag = 1;
+  }
+
+  static uint16_t status_refresh_counter = 0;
+  if (++status_refresh_counter >= UI_STATUS_REFRESH_INTERVAL_TICKS) {
+    status_refresh_counter = 0;
+    interactive_data.UI_Interactive_Flag.status_flag = 1;
   }
 
   /*

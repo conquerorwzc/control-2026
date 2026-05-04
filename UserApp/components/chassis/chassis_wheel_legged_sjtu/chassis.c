@@ -494,5 +494,5 @@ void ChassisTask(void) {
   SuperCapSendMessage(chassis->super_cap, (int16_t)referee_data->GameRobotState.chassis_power_limit * (13.0f / 14.0f),
                       referee_data->PowerHeatData.buffer_energy,
                       referee_data->GameRobotState.power_management_chassis_output);
-  LimitChassisOutput();
+  // LimitChassisOutput();
 }

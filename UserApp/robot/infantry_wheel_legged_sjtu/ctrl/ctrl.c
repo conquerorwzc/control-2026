@@ -451,7 +451,6 @@ void JoyStickCtrl(RobotInstance* robot) {
     default:
       break;
   }
-  rc_data_last = rc_data;
 }
 #endif
 
@@ -850,123 +849,123 @@ void MouseKeyCtrl(RobotInstance* robot) {
     c_key_last = rc_data->mouse_key.keyboard.c;
   }
 
-  // 4. 核心运动算法
-  //  确定 Robot Mode
-  if (is_rotate_mode) {  // 小陀螺
-    robot->robot_mode = ROBOT_CHASSIS_ROTATE;
-  } else {
-    robot->robot_mode = ROBOT_CHASSIS_FOLLOW;  // 默认是FOLLOW模式
-  }
-  // 处理对应模式
-  switch (robot->robot_mode) {
-    case ROBOT_CHASSIS_ROTATE:
-      // 小陀螺频率设置
-      rotate_frequency = 0.5f * rotate_coff;
-
-      // 小陀螺原地旋转
-      rotate_omega = rotate_frequency * 2.0f * PI;
-      chassis_ctrl_cmd->target_yaw += rotate_omega * robot->dt;
-
-      // // 设置目标速度矢量 (vx, vy),单位为m/s
-      // if (rc_data[TEMP].key[KEY_PRESS].w)
-      //   chassis_vy = 0.5f * speed_coff;
-      // else if (rc_data[TEMP].key[KEY_PRESS].s)
-      //   chassis_vy = -0.5f * speed_coff;
-      // else
-      //   chassis_vy = 0.0f;
-
-      // if (rc_data[TEMP].key[KEY_PRESS].d)
-      //   chassis_vx = 0.5f * speed_coff;
-      // else if (rc_data[TEMP].key[KEY_PRESS].a)
-      //   chassis_vx = -0.5f * speed_coff;
-      // else
-      //   chassis_vx = 0.0f;
-
-      // input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);  // 速度的模
-
-      // // 转换角度坐标系
-      // float target_angle_to_gimbal = atan2f(chassis_vy, chassis_vx);  // 目标方向矢量与云台正方向方向夹角
-      // float target_angle_to_chassis = target_angle_to_gimbal + robot->offset_angle * DEGREE_2_RAD;
-
-      // // 相位补偿，单位是rad todo:参数，要测试
-      // float phase_compensation = 0.03f;
-      // // 正弦速度调制
-      // chassis_ctrl_cmd->vx = input_mag * sinf(target_angle_to_chassis + phase_compensation);
-      break;
-
-    case ROBOT_CHASSIS_FOLLOW:
-#if (!defined(ONE_BOARD))
-      // 设置目标速度矢量 (vx, vy),单位为m/s
-      if (rc_data->mouse_key.keyboard.w)
-        chassis_vy += 0.5f * speed_coff;
-      else if (rc_data->mouse_key.keyboard.s)
-        chassis_vy += -0.5f * speed_coff;
-      else
-        chassis_vy += 0.0f;
-
-      if (rc_data->mouse_key.keyboard.d)
-        chassis_vx += 0.5f * speed_coff;
-      else if (rc_data->mouse_key.keyboard.a)
-        chassis_vx += -0.5f * speed_coff;
-      else
-        chassis_vx += 0.0f;
-
-      input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
-      if (input_mag > 0.0005f) {
-        // 运动方向解算
-        follow_err = (atan2f(chassis_vy, chassis_vx) - PI / 2.0f) * RAD_2_DEGREE - robot->offset_angle;
-        while (follow_err > 180.0f) follow_err -= 360.0f;
-        while (follow_err < -180.0f) follow_err += 360.0f;
-        // 倒车优化
-        if (abs(follow_err) > 90.0f) {
-          if (follow_err > 0.0f)
-            follow_err -= 180.0f;
-          else
-            follow_err += 180.0f;
-          input_mag = -input_mag;
-        }
-        // 直接计算目标yaw角度
-        // 目标 = 当前yaw - offset_angle + follow_err (让底盘朝向运动方向)
-        // 等价于：让底盘转到 gimbal方向 再补偿 follow_err
-        chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + follow_err * DEGREE_2_RAD;
-      } else {
-        // 静止回正：让底盘对齐云台 (offset → 0)
-        chassis_ctrl_cmd->target_yaw =
-            robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD - robot->offset_angle * DEGREE_2_RAD;
-      }
-      chassis_ctrl_cmd->wz = 0.0f;  // 无前馈角速度
-      // 对齐衰减
-      align_attenuation = cosf(follow_err * DEGREE_2_RAD);
-      if (align_attenuation < 0) align_attenuation = 0;
-      input_mag *= align_attenuation * align_attenuation * align_attenuation;
-      VAL_LIMIT(input_mag, -2.97, 2.97);
-      chassis_ctrl_cmd->vx =
-          ramp_controller_update(&chassis_ramp, input_mag, robot->chassis->state_var.x_b_d, robot->dt);
-      // chassis_ctrl_cmd->theta_ff = chassis_ramp.expected_a / 9.81f;
-      chassis_ctrl_cmd->theta_ff = 0.0f;
-      break;
-#endif
-    case ROBOT_CHASSIS_FREE:
-#if (!defined(ONE_BOARD))
-      // 双板：静止对齐云台
-      chassis_ctrl_cmd->target_yaw =
-          robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD - robot->offset_angle * DEGREE_2_RAD;
-      chassis_ctrl_cmd->wz = 0.0f;
-#endif
-      if (rc_data->mouse_key.keyboard.w)
-        chassis_ctrl_cmd->vx =
-            ramp_controller_update(&chassis_ramp, (0.99f) * speed_coff, robot->chassis->state_var.x_b_d, robot->dt);
-      else if (rc_data->mouse_key.keyboard.s)
-        chassis_ctrl_cmd->vx =
-            ramp_controller_update(&chassis_ramp, (-0.99f) * speed_coff, robot->chassis->state_var.x_b_d, robot->dt);
-      else
-        chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, 0.0f, robot->chassis->state_var.x_b_d, robot->dt);
-
-      chassis_ctrl_cmd->theta_ff = 0.0f;
-      break;
-    default:
-      break;
-  }
+//   // 4. 核心运动算法
+//   //  确定 Robot Mode
+//   if (is_rotate_mode) {  // 小陀螺
+//     robot->robot_mode = ROBOT_CHASSIS_ROTATE;
+//   } else {
+//     robot->robot_mode = ROBOT_CHASSIS_FOLLOW;  // 默认是FOLLOW模式
+//   }
+//   // 处理对应模式
+//   switch (robot->robot_mode) {
+//     case ROBOT_CHASSIS_ROTATE:
+//       // 小陀螺频率设置
+//       rotate_frequency = 0.5f * rotate_coff;
+//
+//       // 小陀螺原地旋转
+//       rotate_omega = rotate_frequency * 2.0f * PI;
+//       chassis_ctrl_cmd->target_yaw += rotate_omega * robot->dt;
+//
+//       // // 设置目标速度矢量 (vx, vy),单位为m/s
+//       // if (rc_data[TEMP].key[KEY_PRESS].w)
+//       //   chassis_vy = 0.5f * speed_coff;
+//       // else if (rc_data[TEMP].key[KEY_PRESS].s)
+//       //   chassis_vy = -0.5f * speed_coff;
+//       // else
+//       //   chassis_vy = 0.0f;
+//
+//       // if (rc_data[TEMP].key[KEY_PRESS].d)
+//       //   chassis_vx = 0.5f * speed_coff;
+//       // else if (rc_data[TEMP].key[KEY_PRESS].a)
+//       //   chassis_vx = -0.5f * speed_coff;
+//       // else
+//       //   chassis_vx = 0.0f;
+//
+//       // input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);  // 速度的模
+//
+//       // // 转换角度坐标系
+//       // float target_angle_to_gimbal = atan2f(chassis_vy, chassis_vx);  // 目标方向矢量与云台正方向方向夹角
+//       // float target_angle_to_chassis = target_angle_to_gimbal + robot->offset_angle * DEGREE_2_RAD;
+//
+//       // // 相位补偿，单位是rad todo:参数，要测试
+//       // float phase_compensation = 0.03f;
+//       // // 正弦速度调制
+//       // chassis_ctrl_cmd->vx = input_mag * sinf(target_angle_to_chassis + phase_compensation);
+//       break;
+//
+//     case ROBOT_CHASSIS_FOLLOW:
+// #if (!defined(ONE_BOARD))
+//       // 设置目标速度矢量 (vx, vy),单位为m/s
+//       if (rc_data->mouse_key.keyboard.w)
+//         chassis_vy += 0.5f * speed_coff;
+//       else if (rc_data->mouse_key.keyboard.s)
+//         chassis_vy += -0.5f * speed_coff;
+//       else
+//         chassis_vy += 0.0f;
+//
+//       if (rc_data->mouse_key.keyboard.d)
+//         chassis_vx += 0.5f * speed_coff;
+//       else if (rc_data->mouse_key.keyboard.a)
+//         chassis_vx += -0.5f * speed_coff;
+//       else
+//         chassis_vx += 0.0f;
+//
+//       input_mag = sqrtf(chassis_vx * chassis_vx + chassis_vy * chassis_vy);
+//       if (input_mag > 0.0005f) {
+//         // 运动方向解算
+//         follow_err = (atan2f(chassis_vy, chassis_vx) - PI / 2.0f) * RAD_2_DEGREE - robot->offset_angle;
+//         while (follow_err > 180.0f) follow_err -= 360.0f;
+//         while (follow_err < -180.0f) follow_err += 360.0f;
+//         // 倒车优化
+//         if (abs(follow_err) > 90.0f) {
+//           if (follow_err > 0.0f)
+//             follow_err -= 180.0f;
+//           else
+//             follow_err += 180.0f;
+//           input_mag = -input_mag;
+//         }
+//         // 直接计算目标yaw角度
+//         // 目标 = 当前yaw - offset_angle + follow_err (让底盘朝向运动方向)
+//         // 等价于：让底盘转到 gimbal方向 再补偿 follow_err
+//         chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + follow_err * DEGREE_2_RAD;
+//       } else {
+//         // 静止回正：让底盘对齐云台 (offset → 0)
+//         chassis_ctrl_cmd->target_yaw =
+//             robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD - robot->offset_angle * DEGREE_2_RAD;
+//       }
+//       chassis_ctrl_cmd->wz = 0.0f;  // 无前馈角速度
+//       // 对齐衰减
+//       align_attenuation = cosf(follow_err * DEGREE_2_RAD);
+//       if (align_attenuation < 0) align_attenuation = 0;
+//       input_mag *= align_attenuation * align_attenuation * align_attenuation;
+//       VAL_LIMIT(input_mag, -2.97, 2.97);
+//       chassis_ctrl_cmd->vx =
+//           ramp_controller_update(&chassis_ramp, input_mag, robot->chassis->state_var.x_b_d, robot->dt);
+//       // chassis_ctrl_cmd->theta_ff = chassis_ramp.expected_a / 9.81f;
+//       chassis_ctrl_cmd->theta_ff = 0.0f;
+//       break;
+// #endif
+//     case ROBOT_CHASSIS_FREE:
+// #if (!defined(ONE_BOARD))
+//       // 双板：静止对齐云台
+//       chassis_ctrl_cmd->target_yaw =
+//           robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD - robot->offset_angle * DEGREE_2_RAD;
+//       chassis_ctrl_cmd->wz = 0.0f;
+// #endif
+//       if (rc_data->mouse_key.keyboard.w)
+//         chassis_ctrl_cmd->vx =
+//             ramp_controller_update(&chassis_ramp, (0.99f) * speed_coff, robot->chassis->state_var.x_b_d, robot->dt);
+//       else if (rc_data->mouse_key.keyboard.s)
+//         chassis_ctrl_cmd->vx =
+//             ramp_controller_update(&chassis_ramp, (-0.99f) * speed_coff, robot->chassis->state_var.x_b_d, robot->dt);
+//       else
+//         chassis_ctrl_cmd->vx = ramp_controller_update(&chassis_ramp, 0.0f, robot->chassis->state_var.x_b_d, robot->dt);
+//
+//       chassis_ctrl_cmd->theta_ff = 0.0f;
+//       break;
+//     default:
+//       break;
+//   }
   // 6.更新历史数据
   rc_data_last = rc_data;
 }

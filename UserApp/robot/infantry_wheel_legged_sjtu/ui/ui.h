@@ -9,6 +9,7 @@
 typedef struct {
   uint32_t relative_flag : 1;
   uint32_t leg_flag : 1;
+  uint32_t status_flag : 1;
 } UI_Interactive_Flag_t;
 #pragma pack()
 
@@ -28,6 +29,17 @@ typedef struct {
   float last_leg_phi2;
   float last_leg_phi3;
   float last_leg_phi4;
+
+  Robot_Mode_e robot_mode;
+  Robot_Mode_e last_robot_mode;
+  Chassis_Mode_e chassis_mode;
+  Chassis_Mode_e last_chassis_mode;
+  Gimbal_Mode_e gimbal_mode;
+  Gimbal_Mode_e last_gimbal_mode;
+  Friction_Mode_e friction_mode;
+  Friction_Mode_e last_friction_mode;
+  Loader_Mode_e loader_mode;
+  Loader_Mode_e last_loader_mode;
 
   uint8_t force_refresh_ui;
 } Referee_Interactive_info_t;

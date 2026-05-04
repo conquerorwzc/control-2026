@@ -118,7 +118,11 @@ static void DoubleBoardComms() {
   // 发送底盘控制指令
   chassis_fetch_data->chassis_ctrl_cmd = *chassis_ctrl_cmd;
   chassis_fetch_data->super_cap_ctrl_cmd = robot->chassis->super_cap->super_cap_ctrl_cmd;
-  chassis_fetch_data->ui_chassis_relative_angle_deg_x10 = (int16_t)(robot->offset_angle * 10.0f);
+  chassis_fetch_data->ui_status.ui_chassis_relative_angle_deg_x10 = (int16_t)(robot->offset_angle * 10.0f);
+  chassis_fetch_data->ui_status.robot_mode = (uint8_t)robot->robot_mode;
+  chassis_fetch_data->ui_status.gimbal_mode = (uint8_t)gimbal_ctrl_cmd->gimbal_mode;
+  chassis_fetch_data->ui_status.friction_mode = (uint8_t)shoot_ctrl_cmd->friction_mode;
+  chassis_fetch_data->ui_status.loader_mode = (uint8_t)shoot_ctrl_cmd->load_mode;
 
   // 接收底盘回传数据
   *chassis_upload_data = *(Chassis_Upload_Data_s*)CANCommGet(robot->can_comm);
@@ -254,12 +258,16 @@ void RobotInit() {
 #if defined(STM32F4)
 #ifdef USE_DUAL_RC
   robot->rc_data = RemoteControlInit(&huart3);
-#elifdef USE_DUAL_RC_NEW
+#elif defined(USE_DUAL_RC_NEW)
   robot->rc_data = VT13RemoteInit(&huart1);
 #endif
 
 #elif defined(STM32H7)
+#ifdef USE_DUAL_RC
   robot->rc_data = RemoteControlInit(&huart5);
+#elif defined(USE_DUAL_RC_NEW)
+  robot->rc_data = VT13RemoteInit(&huart1);
+#endif
 #endif
 #endif
 #if !defined(GIMBAL_BOARD)
