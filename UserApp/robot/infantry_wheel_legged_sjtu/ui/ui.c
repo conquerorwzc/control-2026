@@ -415,7 +415,11 @@ static void DrawRelativePosition(float offset_angle, uint32_t operate) {
    * 使用 90 度减去 offset_angle，是为了把机器人坐标系映射到屏幕显示习惯：
    * 圆环正上方作为视觉上的前方。
    */
-  const float ui_angle = NormalizeAngle(offset_angle);
+  /*
+   * The measured relative angle has the opposite sign from the referee UI's horizontal direction.
+   * Negating it keeps front/back unchanged while fixing left/right mirroring.
+   */
+  const float ui_angle = NormalizeAngle(-offset_angle);
 
   /*
    * 绿色指示区域是一个以 ui_angle 为中心的对称圆弧。
