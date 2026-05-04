@@ -5,6 +5,7 @@
 #include "cmsis_os.h"
 #include "referee.h"
 #include "referee_ui.h"
+#include "robot_config.h"
 
 /*
  * 本文件负责 infantry_wheel_legged_sjtu 机器人的自定义裁判系统 UI。
@@ -17,15 +18,25 @@
  * - 机器人侧的角度会先转换到屏幕坐标系，使 0 度显示在圆环正上方。
  */
 #define UI_GRAPH_LAYER 7
+#define UI_RELATIVE_CENTER_X 960
+#define UI_RELATIVE_CENTER_Y 540
 #define UI_RELATIVE_RADIUS 88
 #define UI_RELATIVE_ARC_HALF_ANGLE 16.0f
 #define UI_RELATIVE_RING_WIDTH 3
 #define UI_RELATIVE_ARC_WIDTH 8
 #define UI_TASK_PERIOD_MS 30
-#define UI_AUTO_REFRESH_PERIOD_MS 10000 //5秒刷新一次UI
+#define UI_AUTO_REFRESH_PERIOD_MS 10000  // 10秒刷新一次UI
 #define UI_AUTO_REFRESH_INTERVAL_TICKS ((UI_AUTO_REFRESH_PERIOD_MS + UI_TASK_PERIOD_MS - 1) / UI_TASK_PERIOD_MS)
+#define UI_LEG_LAYER 7
+#define UI_LEG_BASE_X 1750
+#define UI_LEG_BASE_Y 480
+#define UI_LEG_SCALE 400.0f
+#define UI_LEG_ROD_WIDTH 5
+#define UI_LEG_CHANGE_THRESHOLD 0.02f
+#define UI_LEG_REFRESH_PERIOD_MS 100
+#define UI_LEG_REFRESH_INTERVAL_TICKS ((UI_LEG_REFRESH_PERIOD_MS + UI_TASK_PERIOD_MS - 1) / UI_TASK_PERIOD_MS)
 
-float watch_data1,watch_data2;
+int32_t watch_data1[5], watch_data2[5];
 
 /* 缓存 RobotInstance 中的裁判系统数据指针，便于本文件各函数直接访问。 */
 static referee_info_t *referee_recv_info;
@@ -49,6 +60,54 @@ uint8_t UI_Seq;
  */
 static Graph_Data_t UI_RelativeRing;
 static Graph_Data_t UI_RelativeArc[2];
+static Graph_Data_t UI_LegRods[5];
+
+static uint8_t CalculateLegPosture(const LegInstance *leg, float model_x[5], float model_y[5], float leg_phi[4]) {
+  if (leg == NULL || leg->joint_motor[0] == NULL || leg->joint_motor[1] == NULL) {
+    return 0;
+  }
+
+  const Leg_Param_t *param = &leg->param;
+  const float phi1 = param->joint_motor_zero_offset[0] + leg->joint_motor[0]->measure.position;
+  const float phi4 = param->joint_motor_zero_offset[1] + leg->joint_motor[1]->measure.position;
+
+  const float xb = param->rod_length[0] * cosf(phi1);
+  const float yb = param->rod_length[0] * sinf(phi1);
+  const float xd = param->rod_length[4] + param->rod_length[3] * cosf(phi4);
+  const float yd = param->rod_length[3] * sinf(phi4);
+
+  const float a0 = 2.0f * param->rod_length[1] * (xd - xb);
+  const float b0 = 2.0f * param->rod_length[1] * (yd - yb);
+  const float c0 = param->rod_length[1] * param->rod_length[1] + (xb - xd) * (xb - xd) + (yb - yd) * (yb - yd) -
+                   param->rod_length[2] * param->rod_length[2];
+  const float sqrt_arg = a0 * a0 + b0 * b0 - c0 * c0;
+  if (sqrt_arg < 0.0f) {
+    return 0;
+  }
+
+  const float phi2 = 2.0f * atan2f(b0 + sqrtf(sqrt_arg), a0 + c0);
+  const float phi3 = atan2f(yb - yd + param->rod_length[1] * sinf(phi2), xb - xd + param->rod_length[1] * cosf(phi2));
+  const float xc = xb + param->rod_length[1] * cosf(phi2);
+  const float yc = yb + param->rod_length[1] * sinf(phi2);
+
+  const float l5 = param->rod_length[4];
+  model_x[0] = 0.0f;
+  model_y[0] = 0.0f;
+  model_x[1] = l5;
+  model_y[1] = 0.0f;
+  model_x[2] = l5 - xb;
+  model_y[2] = yb;
+  model_x[3] = l5 - xc;
+  model_y[3] = yc;
+  model_x[4] = l5 - xd;
+  model_y[4] = yd;
+
+  leg_phi[0] = phi1;
+  leg_phi[1] = phi2;
+  leg_phi[2] = phi3;
+  leg_phi[3] = phi4;
+  return 1;
+}
 
 static void DeterminRobotID(void) {
   /*
@@ -104,6 +163,57 @@ static float GetRelativeAngle(RobotInstance *robot) {
   return angle;
 }
 
+static void SampleLegPosture(RobotInstance *robot, Referee_Interactive_info_t *data) {
+  float model_x[5];
+  float model_y[5];
+  float leg_phi[4];
+
+  if (robot->chassis && CalculateLegPosture(robot->chassis->leg[0], model_x, model_y, leg_phi)) {
+    data->leg_valid = 1;
+    data->leg_phi1 = leg_phi[0];
+    data->leg_phi2 = leg_phi[1];
+    data->leg_phi3 = leg_phi[2];
+    data->leg_phi4 = leg_phi[3];
+  } else {
+    data->leg_valid = 0;
+  }
+}
+
+static void DrawLegPosture(RobotInstance *robot, uint32_t operate) {
+  int32_t point_x[5] = {UI_LEG_BASE_X, UI_LEG_BASE_X, UI_LEG_BASE_X, UI_LEG_BASE_X, UI_LEG_BASE_X};
+  int32_t point_y[5] = {UI_LEG_BASE_Y, UI_LEG_BASE_Y, UI_LEG_BASE_Y, UI_LEG_BASE_Y, UI_LEG_BASE_Y};
+  uint32_t color = UI_Color_Black;
+
+  if (robot->chassis && robot->chassis->leg[0]) {
+    float model_x[5];
+    float model_y[5];
+    float leg_phi[4];
+
+    if (CalculateLegPosture(robot->chassis->leg[0], model_x, model_y, leg_phi)) {
+      for (uint8_t i = 0; i < 5; i++) {
+        point_x[i] = UI_LEG_BASE_X + (int32_t)(model_x[i] * UI_LEG_SCALE);
+        point_y[i] = UI_LEG_BASE_Y - (int32_t)(model_y[i] * UI_LEG_SCALE);
+        watch_data1[i] = point_x[i];
+        watch_data2[i] = point_y[i];
+      }
+      color = UI_Color_Yellow;
+    }
+  }
+
+  UILineDraw(&UI_LegRods[0], "lg0", operate, UI_LEG_LAYER, color, UI_LEG_ROD_WIDTH, point_x[0], point_y[0], point_x[1],
+             point_y[1]);
+  UILineDraw(&UI_LegRods[1], "lg1", operate, UI_LEG_LAYER, color, UI_LEG_ROD_WIDTH, point_x[1], point_y[1], point_x[2],
+             point_y[2]);
+  UILineDraw(&UI_LegRods[2], "lg2", operate, UI_LEG_LAYER, color, UI_LEG_ROD_WIDTH, point_x[2], point_y[2], point_x[3],
+             point_y[3]);
+  UILineDraw(&UI_LegRods[3], "lg3", operate, UI_LEG_LAYER, color, UI_LEG_ROD_WIDTH, point_x[3], point_y[3], point_x[4],
+             point_y[4]);
+  UILineDraw(&UI_LegRods[4], "lg4", operate, UI_LEG_LAYER, color, UI_LEG_ROD_WIDTH, point_x[4], point_y[4], point_x[0],
+             point_y[0]);
+  UIGraphRefresh(&referee_recv_info->referee_id, 5, UI_LegRods[0], UI_LegRods[1], UI_LegRods[2], UI_LegRods[3],
+                 UI_LegRods[4]);
+}
+
 static void DrawRelativePosition(float offset_angle, uint32_t operate) {
   /*
    * 绘制一个白色圆环和一个绿色方向圆弧。
@@ -127,8 +237,6 @@ static void DrawRelativePosition(float offset_angle, uint32_t operate) {
   const float start_angle = NormalizeAngle(ui_angle - UI_RELATIVE_ARC_HALF_ANGLE);
   const float end_angle = NormalizeAngle(ui_angle + UI_RELATIVE_ARC_HALF_ANGLE);
 
-  watch_data1 = start_angle;
-  watch_data2 = end_angle;
   /* 绘制背景参考圆环。 */
   UICircleDraw(&UI_RelativeRing, "rg0", operate, UI_GRAPH_LAYER, UI_Color_White, UI_RELATIVE_RING_WIDTH, center_x,
                center_y, UI_RELATIVE_RADIUS);
@@ -141,8 +249,8 @@ static void DrawRelativePosition(float offset_angle, uint32_t operate) {
     UIArcDraw(&UI_RelativeArc[0], "sa0", operate, UI_GRAPH_LAYER, UI_Color_Green, AngleToUiDegree(start_angle),
               AngleToUiDegree(end_angle), UI_RELATIVE_ARC_WIDTH, center_x, center_y, UI_RELATIVE_RADIUS,
               UI_RELATIVE_RADIUS);
-    UIArcDraw(&UI_RelativeArc[1], "sa1", operate, UI_GRAPH_LAYER, UI_Color_Black, 0, 1, UI_RELATIVE_ARC_WIDTH,
-              center_x, center_y, UI_RELATIVE_RADIUS, UI_RELATIVE_RADIUS);
+    UIArcDraw(&UI_RelativeArc[1], "sa1", operate, UI_GRAPH_LAYER, UI_Color_Black, 0, 1, UI_RELATIVE_ARC_WIDTH, center_x,
+              center_y, UI_RELATIVE_RADIUS, UI_RELATIVE_RADIUS);
   } else {
     /*
      * 跨 0 度情况：目标圆弧跨过 0 度，例如 350..10。
@@ -168,13 +276,22 @@ static void UIChangeCheck(Referee_Interactive_info_t *data) {
    * 避免因为角度微小抖动而频繁刷新裁判系统 UI。
    * 只有当前显示的底盘相对角度变化超过 1 度时，才请求重绘。
    */
-  if (fabsf(data->chassis_relative_angle - data->last_chassis_relative_angle) > 1.0f) {
+  if (data->chassis_relative_angle != data->last_chassis_relative_angle) {
     data->UI_Interactive_Flag.relative_flag = 1;
     data->last_chassis_relative_angle = data->chassis_relative_angle;
   }
+
+  if (data->leg_valid != data->last_leg_valid || data->leg_valid) {
+    data->UI_Interactive_Flag.leg_flag = 1;
+    data->last_leg_valid = data->leg_valid;
+    data->last_leg_phi1 = data->leg_phi1;
+    data->last_leg_phi2 = data->leg_phi2;
+    data->last_leg_phi3 = data->leg_phi3;
+    data->last_leg_phi4 = data->leg_phi4;
+  }
 }
 
-static void MyUIRefresh(Referee_Interactive_info_t *data) {
+static void MyUIRefresh(RobotInstance *robot, Referee_Interactive_info_t *data) {
   /*
    * 基于脏标志刷新 UI：只绘制发生变化的 UI 元素。
    * 这样可以减少裁判系统交互数据链路上的带宽占用。
@@ -182,6 +299,11 @@ static void MyUIRefresh(Referee_Interactive_info_t *data) {
   if (data->UI_Interactive_Flag.relative_flag) {
     DrawRelativePosition(data->chassis_relative_angle, UI_Graph_Change);
     data->UI_Interactive_Flag.relative_flag = 0;
+  }
+
+  if (data->UI_Interactive_Flag.leg_flag) {
+    DrawLegPosture(robot, UI_Graph_Change);
+    data->UI_Interactive_Flag.leg_flag = 0;
   }
 }
 
@@ -210,7 +332,14 @@ void MyUIInit(RobotInstance *robot) {
    */
   interactive_data.chassis_relative_angle = GetRelativeAngle(robot);
   interactive_data.last_chassis_relative_angle = interactive_data.chassis_relative_angle;
+  SampleLegPosture(robot, &interactive_data);
+  interactive_data.last_leg_valid = interactive_data.leg_valid;
+  interactive_data.last_leg_phi1 = interactive_data.leg_phi1;
+  interactive_data.last_leg_phi2 = interactive_data.leg_phi2;
+  interactive_data.last_leg_phi3 = interactive_data.leg_phi3;
+  interactive_data.last_leg_phi4 = interactive_data.leg_phi4;
   DrawRelativePosition(interactive_data.chassis_relative_angle, UI_Graph_ADD);
+  DrawLegPosture(robot, UI_Graph_ADD);
 }
 
 /*
@@ -238,31 +367,29 @@ void UITask(RobotInstance *robot) {
   if (need_full_refresh) {
     /*
      * 强制刷新会重新构建全部 UI 图形。
-     * 适用于客户端重连、手动删除 UI、Ctrl 手动刷新、2 秒自动刷新，
+     * 适用于客户端重连、手动删除 UI、Ctrl 手动刷新、周期自动刷新，
      * 或者客户端图形状态可能和本地状态不一致的情况。
      */
     MyUIInit(robot);
     interactive_data.force_refresh_ui = 0;
     auto_refresh_counter = 0;
-  }
-
-  static uint16_t slow_refresh_counter = 0;
-  if (++slow_refresh_counter >= 150) {
-    /*
-     * 即使角度没有变化，也周期性刷新相对角度指示器。
-     * 当裁判系统数据包丢失，或客户端漏掉上一帧更新时，这能让 UI 自动恢复。
-     */
-    slow_refresh_counter = 0;
-    interactive_data.UI_Interactive_Flag.relative_flag = 1;
+    need_full_refresh = 0;
   }
 
   /* 处理完可能的重新初始化后，再采样最新角度。 */
   interactive_data.chassis_relative_angle = GetRelativeAngle(robot);
+  SampleLegPosture(robot, &interactive_data);
+
+  static uint16_t leg_refresh_counter = 0;
+  if (++leg_refresh_counter >= UI_LEG_REFRESH_INTERVAL_TICKS) {
+    leg_refresh_counter = 0;
+    interactive_data.UI_Interactive_Flag.leg_flag = 1;
+  }
 
   /*
    * 先根据数据变化设置脏标志，再绘制所有脏 UI 元素。
-   * 当前只有底盘相对角度指示器使用这套机制。
+   * 底盘相对角度和五连杆位姿都使用这套机制。
    */
   UIChangeCheck(&interactive_data);
-  MyUIRefresh(&interactive_data);
+  MyUIRefresh(robot, &interactive_data);
 }

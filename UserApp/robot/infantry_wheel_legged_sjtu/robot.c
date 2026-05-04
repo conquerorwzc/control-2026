@@ -304,7 +304,7 @@ void RobotTask() {
     // chassis_ctrl_cmd->vx);
   }
 
-  // ChassisTask();
+  ChassisTask();
 
   // 恢复原始指令，防止对后续积分逻辑造成干扰
   chassis_ctrl_cmd->vx = raw_vx;
