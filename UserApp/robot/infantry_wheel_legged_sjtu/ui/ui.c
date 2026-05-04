@@ -78,6 +78,10 @@
 #define UI_CAP_F_Y 775                         // F label y.
 #define UI_CAP_VOLTAGE_X 480                   // Voltage text x, left of capacitor arc.
 #define UI_CAP_VOLTAGE_Y 660                   // Voltage text y, left of capacitor arc.
+#define UI_CAP_CTRL_X UI_CAP_VOLTAGE_X         // Super capacitor command text x.
+#define UI_CAP_CTRL_Y 700                      // Super capacitor command text y.
+#define UI_CAP_CTRL_TEXT_SIZE UI_CAP_TEXT_SIZE // Super capacitor command text size.
+#define UI_CAP_CTRL_TEXT_WIDTH UI_CAP_TEXT_WIDTH // Super capacitor command text stroke width.
 #define UI_SPEED_LAYER 6                       // Layer for speed arc.
 #define UI_SPEED_CENTER_X UI_CAP_CENTER_X      // Speed arc center x.
 #define UI_SPEED_CENTER_Y UI_CAP_CENTER_Y      // Speed arc center y.
@@ -126,6 +130,7 @@ static Graph_Data_t UI_SpeedArc;
 static String_Data_t UI_CapTextE;
 static String_Data_t UI_CapTextF;
 static String_Data_t UI_CapVoltage;
+static String_Data_t UI_CapCtrlCmd;
 static String_Data_t UI_SpeedValue;
 static String_Data_t UI_StatusLabel[UI_STATUS_ROW_COUNT];
 static String_Data_t UI_StatusValue[UI_STATUS_ROW_COUNT];
@@ -231,6 +236,14 @@ static const char *SuperCapModeStr(SuperCap_Mode_e mode) {
     default:
       return "UNK";
   }
+}
+
+static const char *SuperCapCtrlCmdStr(SuperCap_Ctrl_Cmd_e cmd) {
+  return cmd == BOOST ? "BOOST" : "NORMAL";
+}
+
+static uint32_t SuperCapCtrlCmdColor(SuperCap_Ctrl_Cmd_e cmd) {
+  return cmd == BOOST ? UI_Color_Purplish_red : UI_Color_Cyan;
 }
 
 static uint8_t IsProstrateMode(Robot_Mode_e robot_mode, Chassis_Mode_e chassis_mode) {
@@ -372,6 +385,7 @@ static void SampleStatusData(RobotInstance *robot, Referee_Interactive_info_t *d
   data->friction_mode = FRICTION_OFF;
   data->loader_mode = LOAD_STOP;
   data->super_cap_mode = SAFETY_MODE;
+  data->super_cap_ctrl_cmd = NORMAL;
   data->cap_voltage = 0.0f;
   data->cap_error = 1;
   data->speed = 0.0f;
@@ -400,6 +414,7 @@ static void SampleStatusData(RobotInstance *robot, Referee_Interactive_info_t *d
 
   if (robot->chassis && robot->chassis->super_cap) {
     data->super_cap_mode = robot->chassis->super_cap->super_cap_mode;
+    data->super_cap_ctrl_cmd = robot->chassis->super_cap->super_cap_ctrl_cmd;
     data->cap_voltage = robot->chassis->super_cap->cap_msg.cap_v;
     data->cap_error = robot->chassis->super_cap->cap_msg.error_detect;
   }
@@ -518,9 +533,14 @@ static void DrawCapDynamic(const Referee_Interactive_info_t *data, uint32_t oper
             UI_CAP_RADIUS_Y);
   UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_CapArc);
 
-  UICharDraw(&UI_CapVoltage, "cv0", operate, UI_CAP_LAYER, CapArcColor(data), UI_CAP_TEXT_SIZE, UI_CAP_TEXT_WIDTH,
+  UICharDraw(&UI_CapVoltage, "cv0", operate, UI_CAP_LAYER, UI_Color_Cyan, UI_CAP_TEXT_SIZE, UI_CAP_TEXT_WIDTH,
              UI_CAP_VOLTAGE_X, UI_CAP_VOLTAGE_Y, "%2d.%dV   ", (int)(voltage_x10 / 10), (int)(voltage_x10 % 10));
   UICharRefresh(&referee_recv_info->referee_id, UI_CapVoltage);
+
+  UICharDraw(&UI_CapCtrlCmd, "cc0", operate, UI_CAP_LAYER, SuperCapCtrlCmdColor(data->super_cap_ctrl_cmd),
+             UI_CAP_CTRL_TEXT_SIZE, UI_CAP_CTRL_TEXT_WIDTH, UI_CAP_CTRL_X, UI_CAP_CTRL_Y, "%-6s",
+             SuperCapCtrlCmdStr(data->super_cap_ctrl_cmd));
+  UICharRefresh(&referee_recv_info->referee_id, UI_CapCtrlCmd);
 }
 
 static void DrawSpeedDynamic(const Referee_Interactive_info_t *data, uint32_t operate) {
@@ -715,10 +735,12 @@ static void UIChangeCheck(Referee_Interactive_info_t *data) {
     data->last_super_cap_mode = data->super_cap_mode;
   }
 
-  if (fabsf(data->cap_voltage - data->last_cap_voltage) > 0.1f || data->cap_error != data->last_cap_error) {
+  if (fabsf(data->cap_voltage - data->last_cap_voltage) > 0.1f || data->cap_error != data->last_cap_error ||
+      data->super_cap_ctrl_cmd != data->last_super_cap_ctrl_cmd) {
     data->UI_Interactive_Flag.cap_flag = 1;
     data->last_cap_voltage = data->cap_voltage;
     data->last_cap_error = data->cap_error;
+    data->last_super_cap_ctrl_cmd = data->super_cap_ctrl_cmd;
   }
 
   if (fabsf(data->speed - data->last_speed) > 0.05f || data->speed_is_prostrate != data->last_speed_is_prostrate) {
@@ -807,6 +829,7 @@ void MyUIInit(RobotInstance *robot) {
   interactive_data.last_friction_mode = interactive_data.friction_mode;
   interactive_data.last_loader_mode = interactive_data.loader_mode;
   interactive_data.last_super_cap_mode = interactive_data.super_cap_mode;
+  interactive_data.last_super_cap_ctrl_cmd = interactive_data.super_cap_ctrl_cmd;
   interactive_data.last_cap_voltage = interactive_data.cap_voltage;
   interactive_data.last_cap_error = interactive_data.cap_error;
   interactive_data.last_speed = interactive_data.speed;

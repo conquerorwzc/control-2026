@@ -45,6 +45,8 @@ typedef struct {
   Loader_Mode_e last_loader_mode;
   SuperCap_Mode_e super_cap_mode;
   SuperCap_Mode_e last_super_cap_mode;
+  SuperCap_Ctrl_Cmd_e super_cap_ctrl_cmd;
+  SuperCap_Ctrl_Cmd_e last_super_cap_ctrl_cmd;
   float cap_voltage;
   float last_cap_voltage;
   uint8_t cap_error;

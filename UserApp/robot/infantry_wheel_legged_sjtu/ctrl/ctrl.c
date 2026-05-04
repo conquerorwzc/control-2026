@@ -1012,6 +1012,11 @@ void EmergencyHandler(RobotInstance* robot) {
   Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   Gimbal_Ctrl_Cmd_s* gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   Shoot_Ctrl_Cmd_s* shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
+  if (robot_lost_control) {
+    if (chassis_ctrl_cmd->chassis_mode != CHASSIS_PROSTRATE) {
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_RECOVERY;
+    }
+  }
   // 新VT13遥控器紧急处理逻辑
   if (switch_left(rc_data->rc.mode_switch) || rc_data == NULL) {  // 拨杆在左或按下暂停键时断电
     robot->robot_mode = ROBOT_POWER_OFF;
@@ -1025,11 +1030,7 @@ void EmergencyHandler(RobotInstance* robot) {
     LOGINFO("[CMD] reinstate, robot ready");
   }
   // 失控处理
-  if (robot_lost_control) {
-    if (chassis_ctrl_cmd->chassis_mode != CHASSIS_PROSTRATE) {
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_RECOVERY;
-    }
-  }
+
   // shoot关闭
   if (switch_middle(rc_data->rc.mode_switch)) {  // 扳机按下时发射失能
     shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
