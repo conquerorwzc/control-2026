@@ -483,6 +483,11 @@ void ChassisTask(void) {
       ChassisJump();
       break;
     case CHASSIS_PROSTRATE:
+      // 加速度观测器给UI显示
+      LegModelUpdate(leg[0], chassis->imu);
+      LegModelUpdate(leg[1], chassis->imu);
+      SpeedEstimate();
+      chassis->state_var.x_b_d = chassis->vaEstimateKF.FilteredValue[0];
       ChassisProstrateMode();
       break;
     default:
