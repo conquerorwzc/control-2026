@@ -1,6 +1,7 @@
 #include "robot.h"
 
 #include "general_def.h"
+#include "buzzer.h"
 #include "master_process.h"
 #include "new_RC_VT13.h"
 #include "robot_config.h"
@@ -23,6 +24,7 @@ static VT13_RC_t *vt13_rc_data;
 static CANCommInstance* can_comm_instance = NULL;
 static Referee_Data *RefereeData;
 static float time=0;  //判断按钮按下需要重复读取时间，这里简化成一次读取
+static BuzzzerInstance *robot_buzzer;
 
 static float DecodeBulletSpeedFromU16(uint16_t speed_raw) {
   float speed_mps = (float)speed_raw / 100.0f;
@@ -524,6 +526,21 @@ void RobotInit() {
   // navigator_data  = robot->navigator_data;
   vision_recv_data = robot->vision_recv_data;
   can_comm_instance = CANCommInit(&comm_config);
+
+  Buzzer_config_s buzzer_cfg = {
+    .alarm_level = ALARM_LEVEL_HIGH,
+    .octave = OCTAVE_1,
+    .loudness = 0.5f,
+};
+  robot_buzzer = BuzzerRegister(&buzzer_cfg);
+
+  for (int i = 0; i < 6; i++) {
+    robot_buzzer->octave = (octave_e)(OCTAVE_1 + i);
+    AlarmSetStatus(robot_buzzer, ALARM_ON);
+    HAL_Delay(200);
+    AlarmSetStatus(robot_buzzer, ALARM_OFF);
+    HAL_Delay(30);//用os_delay时间不稳定
+  }
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */

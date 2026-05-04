@@ -1,5 +1,6 @@
 #include "robot.h"
 
+#include "buzzer.h"
 #include "can_comm.h"
 #include "general_def.h"
 #include "master_process.h"
@@ -31,7 +32,7 @@ static float angle = 0;
 CANCommInstance *can_comm_instance = NULL;
 static Referee_Data *referee_data;
 static float time=0;  //判断按钮按下需要重复读取时间，这里简化成一次读取
-
+static BuzzzerInstance *robot_buzzer;
 static float x_speed_time = 0;  // x方向加速触发时间
 static float y_speed_time = 0;  // y方向加速触发时间
 static float vx_initial;        // x轴输入控制量
@@ -396,6 +397,21 @@ void RobotInit() {
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   // navigator_data  = robot->navigator_data;
+
+  Buzzer_config_s buzzer_cfg = {
+    .alarm_level = ALARM_LEVEL_HIGH,
+    .octave = OCTAVE_1,
+    .loudness = 0.5f,
+};
+  robot_buzzer = BuzzerRegister(&buzzer_cfg);
+
+  for (int i = 0; i < 6; i++) {
+    robot_buzzer->octave = (octave_e)(OCTAVE_6 - i);
+    AlarmSetStatus(robot_buzzer, ALARM_ON);
+    HAL_Delay(200);
+    AlarmSetStatus(robot_buzzer, ALARM_OFF);
+    HAL_Delay(30);//用os_delay时间不稳定
+  }
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发频率) */
