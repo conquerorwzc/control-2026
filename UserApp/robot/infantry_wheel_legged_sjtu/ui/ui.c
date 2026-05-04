@@ -65,6 +65,8 @@
 #define UI_CAP_E_Y 545                           // E label y.
 #define UI_CAP_F_X 702                           // F label x.
 #define UI_CAP_F_Y 775                           // F label y.
+#define UI_CAP_VOLTAGE_X 510                     // Voltage text x, left of capacitor arc.
+#define UI_CAP_VOLTAGE_Y 660                     // Voltage text y, left of capacitor arc.
 int32_t watch_data1[5], watch_data2[5];
 
 /* 缓存 RobotInstance 中的裁判系统数据指针，便于本文件各函数直接访问。 */
@@ -93,6 +95,7 @@ static Graph_Data_t UI_LegRods[5];
 static Graph_Data_t UI_CapArc;
 static String_Data_t UI_CapTextE;
 static String_Data_t UI_CapTextF;
+static String_Data_t UI_CapVoltage;
 static String_Data_t UI_StatusLabel[UI_STATUS_ROW_COUNT];
 static String_Data_t UI_StatusValue[UI_STATUS_ROW_COUNT];
 
@@ -443,17 +446,25 @@ static void DrawCapStatic(uint32_t operate) {
 static void DrawCapDynamic(const Referee_Interactive_info_t *data, uint32_t operate) {
   float sweep = (data->cap_voltage - UI_CAP_EMPTY_VOLTAGE) / (UI_CAP_FULL_VOLTAGE - UI_CAP_EMPTY_VOLTAGE) *
                 UI_CAP_MAX_SWEEP;
+  int32_t voltage_x10 = (int32_t)(data->cap_voltage * 10.0f + 0.5f);
   if (sweep < 1.0f) {
     sweep = 1.0f;
   }
   if (sweep > UI_CAP_MAX_SWEEP) {
     sweep = UI_CAP_MAX_SWEEP;
   }
+  if (voltage_x10 < 0) {
+    voltage_x10 = 0;
+  }
 
   UIArcDraw(&UI_CapArc, "cp0", operate, UI_CAP_LAYER, CapArcColor(data), UI_CAP_START_ANGLE,
             UI_CAP_START_ANGLE + (uint32_t)sweep, UI_CAP_WIDTH, UI_CAP_CENTER_X, UI_CAP_CENTER_Y, UI_CAP_RADIUS_X,
             UI_CAP_RADIUS_Y);
   UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_CapArc);
+
+  UICharDraw(&UI_CapVoltage, "cv0", operate, UI_CAP_LAYER, UI_Color_White, UI_CAP_TEXT_SIZE, UI_CAP_TEXT_WIDTH,
+             UI_CAP_VOLTAGE_X, UI_CAP_VOLTAGE_Y, "%2d.%dV   ", (int)(voltage_x10 / 10), (int)(voltage_x10 % 10));
+  UICharRefresh(&referee_recv_info->referee_id, UI_CapVoltage);
 }
 
 static void DrawLegPosture(RobotInstance *robot, uint32_t operate) {
