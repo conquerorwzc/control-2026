@@ -48,13 +48,13 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                     {
-                      .Kp = 2.3f,
+                      .Kp = 0.0f,
                       .Ki = 0.0f,
-                      .Kd = 0.03f,
+                      .Kd = 0.0f,
                       .DeadBand = 0.01f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                       .IntegralLimit = 5.0f,
-                      .MaxOut = 22.0f,
+                      .MaxOut = 50.0f,
                   },
                     .speed_PID =
                     {
@@ -104,6 +104,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                     .tx_id = 2,
                 },
             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+            .controller_setting_init_config.feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
         },
     .imu_init_config = {
         .flag = 1,

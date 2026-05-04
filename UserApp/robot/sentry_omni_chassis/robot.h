@@ -30,6 +30,7 @@ typedef struct {
   uint8_t robot_id;  // 本机器人ID（红蓝阵营）
   // uint16_t shooter_barrel_heat_limit;//机器人射击热量上限
   // uint16_t shooter_barrel_cooling_value;//机器人射击热量每秒冷却值
+  float wz;
 } Referee_Data;
 #pragma pack()
 

@@ -541,6 +541,7 @@ void RobotCMDTask() {
   DualBoardCtrlSet();
   shoot_ctrl_cmd->initial_speed = DecodeBulletSpeedFromU16(RefereeData->initial_speed);
   shoot_ctrl_cmd->shooter_barrel_heat=RefereeData->shooter_17mm_barrel_heat;
+  gimbal_ctrl_cmd->chassis_rotate_wz = -0.11f * RefereeData->wz;
   RemoteControlSet();
   // MouseKeySet();
   PitchAngleLimit();
@@ -550,6 +551,7 @@ void RobotCMDTask() {
 void RobotTask() {
   VisionSend();
   RobotCMDTask();
+  gimbal_ctrl_cmd->yaw=robot->gimbal->gimbal_IMU_data->YawTotalAngle;
   GimbalTask();
   ShootTask();
 
