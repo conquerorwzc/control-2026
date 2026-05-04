@@ -25,6 +25,12 @@
 #define UI_RELATIVE_RING_WIDTH 3                 // Background circle line width.
 #define UI_RELATIVE_ARC_WIDTH 8                  // Relative-angle arc line width.
 #define UI_TASK_PERIOD_MS 30                     // Expected UI task period.
+#define UI_AIM_LAYER 8                           // Layer for center aim indicator.
+#define UI_AIM_CROSS_HALF_LEN 18                 // Half length of center X cross.
+#define UI_AIM_CROSS_WIDTH 3                     // Center X cross line width.
+#define UI_AIM_RECT_HALF_W 300                   // Half width of center target rectangle.
+#define UI_AIM_RECT_HALF_H 200                   // Half height of center target rectangle.
+#define UI_AIM_RECT_WIDTH 2                      // Center target rectangle line width.
 #define UI_AUTO_REFRESH_PERIOD_MS 10000  // 10秒刷新一次UI
 // Auto refresh period converted from milliseconds to UITask ticks.
 #define UI_AUTO_REFRESH_INTERVAL_TICKS ((UI_AUTO_REFRESH_PERIOD_MS + UI_TASK_PERIOD_MS - 1) / UI_TASK_PERIOD_MS)
@@ -65,7 +71,7 @@
 #define UI_CAP_E_Y 545                           // E label y.
 #define UI_CAP_F_X 702                           // F label x.
 #define UI_CAP_F_Y 775                           // F label y.
-#define UI_CAP_VOLTAGE_X 510                     // Voltage text x, left of capacitor arc.
+#define UI_CAP_VOLTAGE_X 480                     // Voltage text x, left of capacitor arc.
 #define UI_CAP_VOLTAGE_Y 660                     // Voltage text y, left of capacitor arc.
 int32_t watch_data1[5], watch_data2[5];
 
@@ -92,6 +98,8 @@ uint8_t UI_Seq;
 static Graph_Data_t UI_RelativeRing;
 static Graph_Data_t UI_RelativeArc[2];
 static Graph_Data_t UI_LegRods[5];
+static Graph_Data_t UI_AimCross[2];
+static Graph_Data_t UI_AimRect;
 static Graph_Data_t UI_CapArc;
 static String_Data_t UI_CapTextE;
 static String_Data_t UI_CapTextF;
@@ -328,6 +336,7 @@ static void SampleStatusData(RobotInstance *robot, Referee_Interactive_info_t *d
   data->super_cap_mode = SAFETY_MODE;
   data->cap_voltage = 0.0f;
   data->cap_error = 1;
+  data->aim_target_flag = 0;
 
   if (robot == NULL) {
     return;
@@ -354,6 +363,10 @@ static void SampleStatusData(RobotInstance *robot, Referee_Interactive_info_t *d
     data->cap_error = robot->chassis->super_cap->cap_msg.error_detect;
   }
 
+  if (robot->vision_recv_data) {
+    data->aim_target_flag = robot->vision_recv_data->shoot_receive.fire_flag != 0;
+  }
+
 #if !defined(ONE_BOARD)
   if (robot->chassis_fetch_data) {
     const UI_Remote_Status_s *status = &robot->chassis_fetch_data->ui_status;
@@ -361,6 +374,7 @@ static void SampleStatusData(RobotInstance *robot, Referee_Interactive_info_t *d
     data->gimbal_mode = (Gimbal_Mode_e)status->gimbal_mode;
     data->friction_mode = (Friction_Mode_e)status->friction_mode;
     data->loader_mode = (Loader_Mode_e)status->loader_mode;
+    data->aim_target_flag = status->fire_flag != 0;
   }
 #endif
 
@@ -462,9 +476,27 @@ static void DrawCapDynamic(const Referee_Interactive_info_t *data, uint32_t oper
             UI_CAP_RADIUS_Y);
   UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_CapArc);
 
-  UICharDraw(&UI_CapVoltage, "cv0", operate, UI_CAP_LAYER, UI_Color_White, UI_CAP_TEXT_SIZE, UI_CAP_TEXT_WIDTH,
+  UICharDraw(&UI_CapVoltage, "cv0", operate, UI_CAP_LAYER, CapArcColor(data), UI_CAP_TEXT_SIZE, UI_CAP_TEXT_WIDTH,
              UI_CAP_VOLTAGE_X, UI_CAP_VOLTAGE_Y, "%2d.%dV   ", (int)(voltage_x10 / 10), (int)(voltage_x10 % 10));
   UICharRefresh(&referee_recv_info->referee_id, UI_CapVoltage);
+}
+
+static void DrawAimIndicator(uint8_t target_locked, uint32_t operate) {
+  const uint32_t color = target_locked ? UI_Color_Purplish_red : UI_Color_Yellow;
+  const int32_t center_x = UI_CENTER_X;
+  const int32_t center_y = UI_CENTER_Y;
+
+  UILineDraw(&UI_AimCross[0], "ax0", operate, UI_AIM_LAYER, color, UI_AIM_CROSS_WIDTH,
+             center_x - UI_AIM_CROSS_HALF_LEN, center_y - UI_AIM_CROSS_HALF_LEN,
+             center_x + UI_AIM_CROSS_HALF_LEN, center_y + UI_AIM_CROSS_HALF_LEN);
+  UILineDraw(&UI_AimCross[1], "ax1", operate, UI_AIM_LAYER, color, UI_AIM_CROSS_WIDTH,
+             center_x - UI_AIM_CROSS_HALF_LEN, center_y + UI_AIM_CROSS_HALF_LEN,
+             center_x + UI_AIM_CROSS_HALF_LEN, center_y - UI_AIM_CROSS_HALF_LEN);
+  UIRectangleDraw(&UI_AimRect, "ar0", operate, UI_AIM_LAYER, color, UI_AIM_RECT_WIDTH,
+                  center_x - UI_AIM_RECT_HALF_W, center_y - UI_AIM_RECT_HALF_H,
+                  center_x + UI_AIM_RECT_HALF_W, center_y + UI_AIM_RECT_HALF_H);
+  UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_AimCross[0], UI_AimCross[1]);
+  UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_AimRect);
 }
 
 static void DrawLegPosture(RobotInstance *robot, uint32_t operate) {
@@ -603,6 +635,11 @@ static void UIChangeCheck(Referee_Interactive_info_t *data) {
     data->last_cap_voltage = data->cap_voltage;
     data->last_cap_error = data->cap_error;
   }
+
+  if (data->aim_target_flag != data->last_aim_target_flag) {
+    data->UI_Interactive_Flag.aim_flag = 1;
+    data->last_aim_target_flag = data->aim_target_flag;
+  }
 }
 
 static void MyUIRefresh(RobotInstance *robot, Referee_Interactive_info_t *data) {
@@ -628,6 +665,11 @@ static void MyUIRefresh(RobotInstance *robot, Referee_Interactive_info_t *data) 
   if (data->UI_Interactive_Flag.cap_flag) {
     DrawCapDynamic(data, UI_Graph_Change);
     data->UI_Interactive_Flag.cap_flag = 0;
+  }
+
+  if (data->UI_Interactive_Flag.aim_flag) {
+    DrawAimIndicator(data->aim_target_flag, UI_Graph_Change);
+    data->UI_Interactive_Flag.aim_flag = 0;
   }
 }
 
@@ -671,7 +713,9 @@ void MyUIInit(RobotInstance *robot) {
   interactive_data.last_super_cap_mode = interactive_data.super_cap_mode;
   interactive_data.last_cap_voltage = interactive_data.cap_voltage;
   interactive_data.last_cap_error = interactive_data.cap_error;
+  interactive_data.last_aim_target_flag = interactive_data.aim_target_flag;
   DrawRelativePosition(interactive_data.chassis_relative_angle, UI_Graph_ADD);
+  DrawAimIndicator(interactive_data.aim_target_flag, UI_Graph_ADD);
   DrawLegPosture(robot, UI_Graph_ADD);
   DrawStatusStatic(UI_Graph_ADD);
   DrawStatusDynamic(&interactive_data, UI_Graph_ADD);
@@ -729,6 +773,7 @@ void UITask(RobotInstance *robot) {
     status_refresh_counter = 0;
     interactive_data.UI_Interactive_Flag.status_flag = 1;
     interactive_data.UI_Interactive_Flag.cap_flag = 1;
+    interactive_data.UI_Interactive_Flag.aim_flag = 1;
   }
 
   /*

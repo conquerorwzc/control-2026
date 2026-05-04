@@ -11,6 +11,7 @@ typedef struct {
   uint32_t leg_flag : 1;
   uint32_t status_flag : 1;
   uint32_t cap_flag : 1;
+  uint32_t aim_flag : 1;
 } UI_Interactive_Flag_t;
 #pragma pack()
 
@@ -47,6 +48,8 @@ typedef struct {
   float last_cap_voltage;
   uint8_t cap_error;
   uint8_t last_cap_error;
+  uint8_t aim_target_flag;
+  uint8_t last_aim_target_flag;
 
   uint8_t force_refresh_ui;
 } Referee_Interactive_info_t;

@@ -30,6 +30,7 @@ typedef struct {
   uint8_t gimbal_mode;
   uint8_t friction_mode;
   uint8_t loader_mode;
+  uint8_t fire_flag;
   int16_t ui_chassis_relative_angle_deg_x10;
 } UI_Remote_Status_s;
 

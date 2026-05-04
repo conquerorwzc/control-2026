@@ -123,6 +123,8 @@ static void DoubleBoardComms() {
   chassis_fetch_data->ui_status.gimbal_mode = (uint8_t)gimbal_ctrl_cmd->gimbal_mode;
   chassis_fetch_data->ui_status.friction_mode = (uint8_t)shoot_ctrl_cmd->friction_mode;
   chassis_fetch_data->ui_status.loader_mode = (uint8_t)shoot_ctrl_cmd->load_mode;
+  chassis_fetch_data->ui_status.fire_flag =
+      (uint8_t)(robot->vision_recv_data != NULL && robot->vision_recv_data->shoot_receive.fire_flag != 0);
 
   // 接收底盘回传数据
   *chassis_upload_data = *(Chassis_Upload_Data_s*)CANCommGet(robot->can_comm);
