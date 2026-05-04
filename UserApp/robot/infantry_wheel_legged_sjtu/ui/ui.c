@@ -125,6 +125,7 @@ static Graph_Data_t UI_LegRods[2][5];
 static String_Data_t UI_LegLabel[2];
 static Graph_Data_t UI_AimCross[2];
 static Graph_Data_t UI_AimRect;
+static uint8_t UI_AimCrossVisible;
 static Graph_Data_t UI_CapArc;
 static Graph_Data_t UI_SpeedArc;
 static String_Data_t UI_CapTextE;
@@ -570,17 +571,24 @@ static void DrawSpeedDynamic(const Referee_Interactive_info_t *data, uint32_t op
 }
 
 static void DrawAimIndicator(uint8_t target_locked, uint32_t operate) {
-  const uint32_t color = target_locked ? UI_Color_Purplish_red : UI_Color_Yellow;
+  const uint32_t rect_color = target_locked ? UI_Color_Purplish_red : UI_Color_Yellow;
   const int32_t center_x = UI_CENTER_X;
   const int32_t center_y = UI_CENTER_Y;
 
-  UILineDraw(&UI_AimCross[0], "ax0", operate, UI_AIM_LAYER, color, UI_AIM_CROSS_WIDTH, center_x - UI_AIM_CROSS_HALF_LEN,
-             center_y - UI_AIM_CROSS_HALF_LEN, center_x + UI_AIM_CROSS_HALF_LEN, center_y + UI_AIM_CROSS_HALF_LEN);
-  UILineDraw(&UI_AimCross[1], "ax1", operate, UI_AIM_LAYER, color, UI_AIM_CROSS_WIDTH, center_x - UI_AIM_CROSS_HALF_LEN,
-             center_y + UI_AIM_CROSS_HALF_LEN, center_x + UI_AIM_CROSS_HALF_LEN, center_y - UI_AIM_CROSS_HALF_LEN);
-  UIRectangleDraw(&UI_AimRect, "ar0", operate, UI_AIM_LAYER, color, UI_AIM_RECT_WIDTH, center_x - UI_AIM_RECT_HALF_W,
+  if (target_locked || UI_AimCrossVisible) {
+    const uint32_t cross_operate = target_locked ? (UI_AimCrossVisible ? UI_Graph_Change : UI_Graph_ADD) : UI_Graph_Del;
+    UILineDraw(&UI_AimCross[0], "ax0", cross_operate, UI_AIM_LAYER, UI_Color_Purplish_red, UI_AIM_CROSS_WIDTH,
+               center_x - UI_AIM_CROSS_HALF_LEN, center_y - UI_AIM_CROSS_HALF_LEN,
+               center_x + UI_AIM_CROSS_HALF_LEN, center_y + UI_AIM_CROSS_HALF_LEN);
+    UILineDraw(&UI_AimCross[1], "ax1", cross_operate, UI_AIM_LAYER, UI_Color_Purplish_red, UI_AIM_CROSS_WIDTH,
+               center_x - UI_AIM_CROSS_HALF_LEN, center_y + UI_AIM_CROSS_HALF_LEN,
+               center_x + UI_AIM_CROSS_HALF_LEN, center_y - UI_AIM_CROSS_HALF_LEN);
+    UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_AimCross[0], UI_AimCross[1]);
+    UI_AimCrossVisible = target_locked;
+  }
+
+  UIRectangleDraw(&UI_AimRect, "ar0", operate, UI_AIM_LAYER, rect_color, UI_AIM_RECT_WIDTH, center_x - UI_AIM_RECT_HALF_W,
                   center_y - UI_AIM_RECT_HALF_H, center_x + UI_AIM_RECT_HALF_W, center_y + UI_AIM_RECT_HALF_H);
-  UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_AimCross[0], UI_AimCross[1]);
   UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_AimRect);
 }
 
@@ -809,6 +817,7 @@ void MyUIInit(RobotInstance *robot) {
    */
   DeterminRobotID();
   UIDelete(&referee_recv_info->referee_id, UI_Data_Del_ALL, 0);
+  UI_AimCrossVisible = 0;
 
   /*
    * 将当前角度和上一次角度初始化为同一个值。
