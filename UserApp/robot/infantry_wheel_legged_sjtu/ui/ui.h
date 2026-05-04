@@ -10,6 +10,7 @@ typedef struct {
   uint32_t relative_flag : 1;
   uint32_t leg_flag : 1;
   uint32_t status_flag : 1;
+  uint32_t cap_flag : 1;
 } UI_Interactive_Flag_t;
 #pragma pack()
 
@@ -40,6 +41,12 @@ typedef struct {
   Friction_Mode_e last_friction_mode;
   Loader_Mode_e loader_mode;
   Loader_Mode_e last_loader_mode;
+  SuperCap_Mode_e super_cap_mode;
+  SuperCap_Mode_e last_super_cap_mode;
+  float cap_voltage;
+  float last_cap_voltage;
+  uint8_t cap_error;
+  uint8_t last_cap_error;
 
   uint8_t force_refresh_ui;
 } Referee_Interactive_info_t;

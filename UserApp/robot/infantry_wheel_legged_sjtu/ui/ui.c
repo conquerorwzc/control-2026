@@ -44,12 +44,27 @@
 #define UI_STATUS_ROW_GAP 38                     // Vertical gap between status rows.
 #define UI_STATUS_FONT_SIZE 14                   // Status text size.
 #define UI_STATUS_WIDTH 2                        // Status text stroke width.
-#define UI_STATUS_ROW_COUNT 5                    // ROBOT, CHASSIS, GIMBAL, FRICTION, LOADER.
+#define UI_STATUS_ROW_COUNT 6                    // ROBOT, CHASSIS, GIMBAL, FRICTION, LOADER, SUPERCAP.
 #define UI_STATUS_VALUE_CHARS 12                 // Fixed value width; clears old longer strings.
 #define UI_STATUS_REFRESH_PERIOD_MS 300          // Forced status redraw period.
 // Status refresh period converted from milliseconds to UITask ticks.
 #define UI_STATUS_REFRESH_INTERVAL_TICKS ((UI_STATUS_REFRESH_PERIOD_MS + UI_TASK_PERIOD_MS - 1) / UI_TASK_PERIOD_MS)
-
+#define UI_CAP_LAYER 6                           // Layer for super capacitor arc.
+#define UI_CAP_CENTER_X 960                      // Super capacitor arc center x.
+#define UI_CAP_CENTER_Y 540                      // Super capacitor arc center y.
+#define UI_CAP_RADIUS_X 370                      // Super capacitor arc x radius.
+#define UI_CAP_RADIUS_Y 370                      // Super capacitor arc y radius.
+#define UI_CAP_START_ANGLE 270                   // Empty capacitor arc angle.
+#define UI_CAP_MAX_SWEEP 40.0f                   // Full capacitor arc sweep, in degrees.
+#define UI_CAP_WIDTH 22                          // Super capacitor arc line width.
+#define UI_CAP_EMPTY_VOLTAGE 14.0f               // Voltage displayed as empty.
+#define UI_CAP_FULL_VOLTAGE 23.0f                // Voltage displayed as full.
+#define UI_CAP_TEXT_SIZE 17                      // E/F text size.
+#define UI_CAP_TEXT_WIDTH 2                      // E/F text stroke width.
+#define UI_CAP_E_X 610                           // E label x.
+#define UI_CAP_E_Y 545                           // E label y.
+#define UI_CAP_F_X 702                           // F label x.
+#define UI_CAP_F_Y 775                           // F label y.
 int32_t watch_data1[5], watch_data2[5];
 
 /* 缓存 RobotInstance 中的裁判系统数据指针，便于本文件各函数直接访问。 */
@@ -75,6 +90,9 @@ uint8_t UI_Seq;
 static Graph_Data_t UI_RelativeRing;
 static Graph_Data_t UI_RelativeArc[2];
 static Graph_Data_t UI_LegRods[5];
+static Graph_Data_t UI_CapArc;
+static String_Data_t UI_CapTextE;
+static String_Data_t UI_CapTextF;
 static String_Data_t UI_StatusLabel[UI_STATUS_ROW_COUNT];
 static String_Data_t UI_StatusValue[UI_STATUS_ROW_COUNT];
 
@@ -161,6 +179,21 @@ static const char *LoaderModeStr(Loader_Mode_e mode) {
       return "3";
     case LOAD_BURSTFIRE:
       return "BURST";
+    default:
+      return "UNK";
+  }
+}
+
+static const char *SuperCapModeStr(SuperCap_Mode_e mode) {
+  switch (mode) {
+    case SAFETY_MODE:
+      return "SAFETY";
+    case PASSIVE_MODE:
+      return "PASSIVE";
+    case ACTIVE_MODE:
+      return "ACTIVE";
+    case CHARGING_MODE:
+      return "CHARGING";
     default:
       return "UNK";
   }
@@ -289,6 +322,9 @@ static void SampleStatusData(RobotInstance *robot, Referee_Interactive_info_t *d
   data->gimbal_mode = GIMBAL_POWER_OFF;
   data->friction_mode = FRICTION_OFF;
   data->loader_mode = LOAD_STOP;
+  data->super_cap_mode = SAFETY_MODE;
+  data->cap_voltage = 0.0f;
+  data->cap_error = 1;
 
   if (robot == NULL) {
     return;
@@ -309,6 +345,12 @@ static void SampleStatusData(RobotInstance *robot, Referee_Interactive_info_t *d
     data->loader_mode = robot->shoot->shoot_ctrl_cmd.load_mode;
   }
 
+  if (robot->chassis && robot->chassis->super_cap) {
+    data->super_cap_mode = robot->chassis->super_cap->super_cap_mode;
+    data->cap_voltage = robot->chassis->super_cap->cap_msg.cap_v;
+    data->cap_error = robot->chassis->super_cap->cap_msg.error_detect;
+  }
+
 #if !defined(ONE_BOARD)
   if (robot->chassis_fetch_data) {
     const UI_Remote_Status_s *status = &robot->chassis_fetch_data->ui_status;
@@ -318,10 +360,12 @@ static void SampleStatusData(RobotInstance *robot, Referee_Interactive_info_t *d
     data->loader_mode = (Loader_Mode_e)status->loader_mode;
   }
 #endif
+
 }
 
 static void DrawStatusStatic(uint32_t operate) {
-  static const char *labels[UI_STATUS_ROW_COUNT] = {"ROBOT:", "CHASSIS:", "GIMBAL:", "FRICTION:", "LOADER:"};
+  static const char *labels[UI_STATUS_ROW_COUNT] = {"ROBOT:", "CHASSIS:", "GIMBAL:",
+                                                    "FRICTION:", "LOADER:", "SUPERCAP:"};
 
   for (uint8_t i = 0; i < UI_STATUS_ROW_COUNT; i++) {
     char name[4];
@@ -364,6 +408,52 @@ static void DrawStatusDynamic(Referee_Interactive_info_t *data, uint32_t operate
   UICharDraw(&UI_StatusValue[4], name, operate, UI_STATUS_LAYER, UI_Color_Green, UI_STATUS_FONT_SIZE, UI_STATUS_WIDTH,
              UI_STATUS_VALUE_X, row_y, "%-*s", UI_STATUS_VALUE_CHARS, LoaderModeStr(data->loader_mode));
   UICharRefresh(&referee_recv_info->referee_id, UI_StatusValue[4]);
+
+  MakeUiName(name, 'v', 5);
+  row_y = UI_STATUS_BASE_Y - 5 * UI_STATUS_ROW_GAP;
+  UICharDraw(&UI_StatusValue[5], name, operate, UI_STATUS_LAYER, UI_Color_Green, UI_STATUS_FONT_SIZE, UI_STATUS_WIDTH,
+             UI_STATUS_VALUE_X, row_y, "%-*s", UI_STATUS_VALUE_CHARS, SuperCapModeStr(data->super_cap_mode));
+  UICharRefresh(&referee_recv_info->referee_id, UI_StatusValue[5]);
+}
+
+static uint32_t CapArcColor(const Referee_Interactive_info_t *data) {
+  if (data->cap_error != 0 || data->cap_voltage <= 0.0f) {
+    return UI_Color_Black;
+  }
+
+  if (data->cap_voltage > 18.0f) {
+    return UI_Color_Green;
+  }
+  if (data->cap_voltage > 15.0f) {
+    return UI_Color_Yellow;
+  }
+  return UI_Color_Orange;
+}
+
+static void DrawCapStatic(uint32_t operate) {
+  UICharDraw(&UI_CapTextE, "ce0", operate, UI_CAP_LAYER, UI_Color_White, UI_CAP_TEXT_SIZE, UI_CAP_TEXT_WIDTH,
+             UI_CAP_E_X, UI_CAP_E_Y, "E");
+  UICharRefresh(&referee_recv_info->referee_id, UI_CapTextE);
+
+  UICharDraw(&UI_CapTextF, "cf0", operate, UI_CAP_LAYER, UI_Color_White, UI_CAP_TEXT_SIZE, UI_CAP_TEXT_WIDTH,
+             UI_CAP_F_X, UI_CAP_F_Y, "F");
+  UICharRefresh(&referee_recv_info->referee_id, UI_CapTextF);
+}
+
+static void DrawCapDynamic(const Referee_Interactive_info_t *data, uint32_t operate) {
+  float sweep = (data->cap_voltage - UI_CAP_EMPTY_VOLTAGE) / (UI_CAP_FULL_VOLTAGE - UI_CAP_EMPTY_VOLTAGE) *
+                UI_CAP_MAX_SWEEP;
+  if (sweep < 1.0f) {
+    sweep = 1.0f;
+  }
+  if (sweep > UI_CAP_MAX_SWEEP) {
+    sweep = UI_CAP_MAX_SWEEP;
+  }
+
+  UIArcDraw(&UI_CapArc, "cp0", operate, UI_CAP_LAYER, CapArcColor(data), UI_CAP_START_ANGLE,
+            UI_CAP_START_ANGLE + (uint32_t)sweep, UI_CAP_WIDTH, UI_CAP_CENTER_X, UI_CAP_CENTER_Y, UI_CAP_RADIUS_X,
+            UI_CAP_RADIUS_Y);
+  UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_CapArc);
 }
 
 static void DrawLegPosture(RobotInstance *robot, uint32_t operate) {
@@ -484,7 +574,8 @@ static void UIChangeCheck(Referee_Interactive_info_t *data) {
   uint8_t status_changed = data->robot_mode != data->last_robot_mode || data->chassis_mode != data->last_chassis_mode ||
                            data->gimbal_mode != data->last_gimbal_mode ||
                            data->friction_mode != data->last_friction_mode ||
-                           data->loader_mode != data->last_loader_mode;
+                           data->loader_mode != data->last_loader_mode ||
+                           data->super_cap_mode != data->last_super_cap_mode;
 
   if (status_changed) {
     data->UI_Interactive_Flag.status_flag = 1;
@@ -493,6 +584,13 @@ static void UIChangeCheck(Referee_Interactive_info_t *data) {
     data->last_gimbal_mode = data->gimbal_mode;
     data->last_friction_mode = data->friction_mode;
     data->last_loader_mode = data->loader_mode;
+    data->last_super_cap_mode = data->super_cap_mode;
+  }
+
+  if (fabsf(data->cap_voltage - data->last_cap_voltage) > 0.1f || data->cap_error != data->last_cap_error) {
+    data->UI_Interactive_Flag.cap_flag = 1;
+    data->last_cap_voltage = data->cap_voltage;
+    data->last_cap_error = data->cap_error;
   }
 }
 
@@ -514,6 +612,11 @@ static void MyUIRefresh(RobotInstance *robot, Referee_Interactive_info_t *data) 
   if (data->UI_Interactive_Flag.status_flag) {
     DrawStatusDynamic(data, UI_Graph_Change);
     data->UI_Interactive_Flag.status_flag = 0;
+  }
+
+  if (data->UI_Interactive_Flag.cap_flag) {
+    DrawCapDynamic(data, UI_Graph_Change);
+    data->UI_Interactive_Flag.cap_flag = 0;
   }
 }
 
@@ -554,10 +657,15 @@ void MyUIInit(RobotInstance *robot) {
   interactive_data.last_gimbal_mode = interactive_data.gimbal_mode;
   interactive_data.last_friction_mode = interactive_data.friction_mode;
   interactive_data.last_loader_mode = interactive_data.loader_mode;
+  interactive_data.last_super_cap_mode = interactive_data.super_cap_mode;
+  interactive_data.last_cap_voltage = interactive_data.cap_voltage;
+  interactive_data.last_cap_error = interactive_data.cap_error;
   DrawRelativePosition(interactive_data.chassis_relative_angle, UI_Graph_ADD);
   DrawLegPosture(robot, UI_Graph_ADD);
   DrawStatusStatic(UI_Graph_ADD);
   DrawStatusDynamic(&interactive_data, UI_Graph_ADD);
+  DrawCapStatic(UI_Graph_ADD);
+  DrawCapDynamic(&interactive_data, UI_Graph_ADD);
 }
 
 /*
@@ -609,6 +717,7 @@ void UITask(RobotInstance *robot) {
   if (++status_refresh_counter >= UI_STATUS_REFRESH_INTERVAL_TICKS) {
     status_refresh_counter = 0;
     interactive_data.UI_Interactive_Flag.status_flag = 1;
+    interactive_data.UI_Interactive_Flag.cap_flag = 1;
   }
 
   /*
