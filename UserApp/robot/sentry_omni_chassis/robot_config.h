@@ -144,10 +144,22 @@ static SuperCap_Init_Config_s super_cap_config = {
 #define BOARD_RX_ID 0x210
 #endif
 
+#define DUALBOARD_TX_PACKET_TYPE Referee_Data
+#if defined(USE_DUAL_RC)
+#define DUALBOARD_RX_PACKET_TYPE Send_Data_RC
+#elif defined(USE_DUAL_RC_NEW)
+#define DUALBOARD_RX_PACKET_TYPE Send_Data_RC_NEW
+#else
+#error "Dual-board comm requires USE_DUAL_RC or USE_DUAL_RC_NEW"
+#endif
+
+_Static_assert(sizeof(DUALBOARD_TX_PACKET_TYPE) <= CAN_COMM_MAX_BUFFSIZE, "Dual-board TX packet exceeds CAN_COMM_MAX_BUFFSIZE");
+_Static_assert(sizeof(DUALBOARD_RX_PACKET_TYPE) <= CAN_COMM_MAX_BUFFSIZE, "Dual-board RX packet exceeds CAN_COMM_MAX_BUFFSIZE");
+
 static CANComm_Init_Config_s comm_config = {
-  .recv_data_len = 30,        // 接收数据长度，根据实际需求调整
-  .send_data_len = 30,        // 发送数据长度，根据实际需求调整
-  .daemon_count = 10,      // 看门狗重载计数，根据实际需求调整
+  .recv_data_len = sizeof(DUALBOARD_RX_PACKET_TYPE),
+  .send_data_len = sizeof(DUALBOARD_TX_PACKET_TYPE),
+  .daemon_count = 10,
   .can_config = {
     .can_handle = &hcan2,  // 假设使用CAN1，根据实际使用的CAN句柄调整
     .tx_id = BOARD_TX_ID,        // 发送ID，根据实际需求调整

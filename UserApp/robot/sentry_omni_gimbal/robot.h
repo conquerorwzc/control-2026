@@ -23,6 +23,7 @@ typedef enum {
   NAVIGATOR_MODE,    // 自动控制
 } Control_Mode_e;
 //联合体定义
+#pragma pack(1)
 typedef struct {
   // uint16_t projectile_allowance_17mm;    // 机器人自身拥有的17mm弹丸允许发弹量
   uint16_t  initial_speed;                   // 弹速
@@ -32,7 +33,6 @@ typedef struct {
   // uint16_t shooter_barrel_cooling_value; // 机器人射击热量每秒冷却值
   float wz;
 } Referee_Data;
-#pragma pack(1)
 #ifdef USE_DUAL_RC
 typedef struct {
   int16_t Rc_vx;
