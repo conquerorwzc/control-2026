@@ -67,9 +67,13 @@ typedef enum {
   LEG_MANUAL_UP,          // 手动上升
   LEG_MANUAL_DOWN,        // 手动下降
   LEG_HOLD,
-  LEG_CRUISE,
-  LEG_IN_AIR,
 } Leg_Mode_e;
+//  定义腿部的高级状态机
+typedef enum {
+  LEG_STATE_AIR_LOCK = 0, // 锁定在空中 (比如收起状态)
+  LEG_STATE_PROBING = 1,  // 寻地相 (软腿，往下试探)
+  LEG_STATE_STANCE = 2    // 支撑相 (硬腿，完全承重)
+} LegState_e;
 typedef struct {
   // 控制部分
   float vx;            // 前进方向速度
