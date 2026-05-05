@@ -6,9 +6,6 @@
 #include <stdint.h>
 #include <stdio.h>
 
-/// @brief 发弹云台接收数据结构体
-
-
 typedef struct
 {
   void *ptr_list[32];  ///< 数据包指针

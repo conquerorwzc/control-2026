@@ -17,6 +17,7 @@ uint16_t get_srm_protocol_info(uint8_t *rx_buf, Message *receive)
   short buf_pos = 0, id = 0;
   char *ptr;
 
+  // Step 1: 读取总数据长度
   if (receive_size == 0) {
     memcpy(&receive_size, rx_buf + buf_pos, sizeof(short));
     buf_pos += sizeof(short);
@@ -28,6 +29,8 @@ uint16_t get_srm_protocol_info(uint8_t *rx_buf, Message *receive)
       return USBD_OK;   // 丢弃此包以尝试重新同步
     }
   }
+
+  // Step 2: 累积数据到buffer
   short remain_size = receive_size - buffer_size;
   if (remain_size > 0) {
     if (remain_size > 64 - buf_pos) {
@@ -38,9 +41,13 @@ uint16_t get_srm_protocol_info(uint8_t *rx_buf, Message *receive)
       buffer_size += remain_size;
     }
   }
+
+  // Step 3: 数据未收完则等待
   if (receive_size != buffer_size) {
-    return (USBD_OK);
+    return USBD_OK;
   }
+
+  // Step 4: 解析数据
   ptr = buffer;
   while (ptr < buffer + buffer_size) {
     // 检查剩余长度是否足够读取 id
@@ -49,9 +56,10 @@ uint16_t get_srm_protocol_info(uint8_t *rx_buf, Message *receive)
     }
     memcpy(&id, ptr, sizeof(short));
     ptr += sizeof(short);
+
     if (id == -1) {
       receive_size = 0;
-      return (USBD_OK);
+      return USBD_OK;
     } else if (id >= 0 && id < 32) {
       if(receive->ptr_list[id] != NULL) {
         // 检查剩余长度是否足够读取数据
@@ -65,7 +73,7 @@ uint16_t get_srm_protocol_info(uint8_t *rx_buf, Message *receive)
   }
 
   receive_size = 0;
-  return (USBD_OK);
+  return USBD_OK;
 }
 
 uint16_t srm_protocol_pack_send_data(Message *send, uint8_t *tx_buffer, uint16_t *tx_len)
