@@ -99,6 +99,8 @@ static void StateVarUpdate(void) {
     float vb_l = leg[1]->observer_var.vb;
     sv->x_b_d = (vb_r + vb_l) * 0.5f;
     sv->phi_d = (vb_r - vb_l) / chassis->param.track_width;
+    // sv->x_b_d = chassis->vaEstimateKF.FilteredValue[0];
+    // sv->phi_d = imu->Gyro[2];
   } else {
     sv->x_b_d = chassis->vaEstimateKF.FilteredValue[0];
     sv->phi_d = imu->Gyro[2];
@@ -115,6 +117,7 @@ static void StateVarUpdate(void) {
   } else {
     sv->x_b += ((sv->x_b_d + chassis->last_state_var.x_b_d) / 2.0f) * chassis->dt;
   }
+
   sv->phi = imu->YawTotalAngle * DEGREE_2_RAD;
   /* Left leg = leg[1], Right leg = leg[0] */
   sv->theta_r = leg[0]->virtual_model.theta;
@@ -127,34 +130,26 @@ static void StateVarUpdate(void) {
   chassis->last_state_var = *sv;
 }
 
-static void LocomotionController(void) {
+static void StateErrCalc(void) {
   State_Var_t* sv = &chassis->state_var;
+
+  chassis->state_err[0] = sv->x_b - 0.0f;
+  chassis->state_err[1] = sv->x_b_d - chassis_ctrl_cmd->vx;
+  VAL_LIMIT(chassis->state_err[1], -3.2f, 3.2f);
+  chassis->state_err[2] = sv->phi - chassis_ctrl_cmd->target_yaw;
+  VAL_LIMIT(chassis->state_err[2], -0.52f, 0.52f);  // ±30°
+  chassis->state_err[3] = sv->phi_d - chassis_ctrl_cmd->wz;
+  VAL_LIMIT(chassis->state_err[3], -3.14f, 3.14f);  // ±30°
+  chassis->state_err[4] = sv->theta_l - chassis_ctrl_cmd->theta_ff;
+  chassis->state_err[5] = sv->theta_l_d;
+  chassis->state_err[6] = sv->theta_r - chassis_ctrl_cmd->theta_ff;
+  chassis->state_err[7] = sv->theta_r_d;
+  chassis->state_err[8] = sv->theta_b;
+  chassis->state_err[9] = sv->theta_b_d;
+}
+
+static void LocomotionController(void) {
   chassis->update_flag.is_controlled = chassis_ctrl_cmd->vx != 0;
-
-  float l_l = leg[1]->virtual_model.length;
-  float l_r = leg[0]->virtual_model.length;
-  LQR_K_Calc(chassis->LQR_K, chassis->param.LQR_K_Coefficients, l_l, l_r);
-  // 减小phi和phi_d的权重
-  // chassis->LQR_K[0][2] *= 0.2f;
-  // chassis->LQR_K[0][3] *= 0.2f;
-  // chassis->LQR_K[1][2] *= 0.2f;
-  // chassis->LQR_K[1][3] *= 0.2f;
-
-  // TODO: 状态误差限幅
-  float state_err[10];
-  state_err[0] = sv->x_b - 0.0f;
-  state_err[1] = sv->x_b_d - chassis_ctrl_cmd->vx;
-  VAL_LIMIT(state_err[1], -3.2f, 3.2f);
-  state_err[2] = sv->phi - chassis_ctrl_cmd->target_yaw;
-  VAL_LIMIT(state_err[2], -0.52f, 0.52f);  // ±30°
-  state_err[3] = sv->phi_d - chassis_ctrl_cmd->wz;
-  VAL_LIMIT(state_err[3], -3.14f, 3.14f);  // ±30°
-  state_err[4] = sv->theta_l - chassis_ctrl_cmd->theta_ff;
-  state_err[5] = sv->theta_l_d;
-  state_err[6] = sv->theta_r - chassis_ctrl_cmd->theta_ff;
-  state_err[7] = sv->theta_r_d;
-  state_err[8] = sv->theta_b;
-  state_err[9] = sv->theta_b_d;
 
   /* u[0] = T_{r→b} (hip torque on body, same convention as virtual_model.Tp)
    * u[1] = T_{l→b}
@@ -164,7 +159,7 @@ static void LocomotionController(void) {
   for (int i = 0; i < 4; i++) {
     u[i] = 0.0f;
     for (int j = 0; j < 10; j++) {
-      u[i] -= chassis->LQR_K[i][j] * state_err[j];
+      u[i] -= chassis->LQR_K[i][j] * chassis->state_err[j];
     }
   }
 
@@ -173,24 +168,19 @@ static void LocomotionController(void) {
   if (leg[0]->update_flag.is_off_ground) {
     u[2] = 0.0f;
     // theta_r (idx 6) 和 theta_r_d (idx 7)
-    u[0] = -chassis->LQR_K[0][6] * state_err[6] - chassis->LQR_K[0][7] * state_err[7];
+    u[0] = -chassis->LQR_K[0][6] * chassis->state_err[6] - chassis->LQR_K[0][7] * chassis->state_err[7];
   }
   /* 左腿 leg[1] */
   if (leg[1]->update_flag.is_off_ground) {
     u[3] = 0.0f;
     // theta_l (idx 4) 和 theta_l_d (idx 5)
-    u[1] = -chassis->LQR_K[1][4] * state_err[4] - chassis->LQR_K[1][5] * state_err[5];
+    u[1] = -chassis->LQR_K[1][4] * chassis->state_err[4] - chassis->LQR_K[1][5] * chassis->state_err[5];
   }
 
   leg[0]->virtual_model.Tp = u[0];
   leg[1]->virtual_model.Tp = u[1];
   leg[0]->real_model.T = u[2];
   leg[1]->real_model.T = u[3];
-
-  // chassis->delta_theta_comp =
-  // PIDCalculate(&chassis->delta_theta_PID, leg[0]->virtual_model.theta - leg[1]->virtual_model.theta, 0);
-  // leg[0]->virtual_model.Tp -= chassis->delta_theta_comp;
-  // leg[1]->virtual_model.Tp += chassis->delta_theta_comp;
 }
 
 /*
@@ -213,15 +203,27 @@ static void LegController(void) {
   float f_inertial = 0.5f * chassis->param.body_mass * (l_avg / chassis->param.track_width) * chassis->state_var.phi_d *
                      chassis->state_var.x_b_d;
   // 小陀螺时 phi_d/x_b_d 来自轮速差/和, f_inertial 会随转速近似线性扩张并把支撑力推飞, 直接关闭前馈
-  if (chassis_ctrl_cmd->is_rotate) f_inertial = 0.0f;
+  // 退出小陀螺后可能仍有较高转速，加入转速阈值衰减，避免离心力补偿突变导致 roll 飞掉
+  float phi_d_abs = fabsf(chassis->state_var.phi_d);
+  float inertial_scale = 1.0f;
+  if (phi_d_abs > 3.0f) {
+    inertial_scale = 1.0f - (phi_d_abs - 3.0f) / 2.0f; // >5.0rad/s时为0, 3.0~5.0rad/s之间线性过渡
+    if (inertial_scale < 0.0f) inertial_scale = 0.0f;
+  }
 
-  leg[0]->virtual_model.F = -f_psi + f_l_r + f_gravity + f_inertial * 5.0f;
+  if (chassis_ctrl_cmd->is_rotate) {
+    f_inertial = 0.0f;
+  } else {
+    f_inertial *= inertial_scale;
+  }
+
+  leg[0]->virtual_model.F = -f_psi + f_l_r + f_gravity + f_inertial * 6.0f;
   if (leg[0]->update_flag.is_off_ground) {
     leg[0]->virtual_model.F = -f_psi * 0.3f + f_l_r + f_gravity;
   }
-  leg[1]->virtual_model.F = f_psi + f_l_l + f_gravity - f_inertial * 5.0f ;
+  leg[1]->virtual_model.F = f_psi + f_l_l + f_gravity - f_inertial * 6.0f;
   if (leg[1]->update_flag.is_off_ground) {
-    leg[1]->virtual_model.F = f_psi * 0.3f + f_l_r + f_gravity;
+    leg[1]->virtual_model.F = f_psi * 0.3f + f_l_l + f_gravity;
   }
 }
 
@@ -240,6 +242,13 @@ static void ChassisCtrlUpdate(void) {
   LegModelUpdate(leg[1], chassis->imu);
 
   StateVarUpdate();
+
+  // 由于 LQR_K_Calc 依赖 leg length，故需要先更新 K，再算 state_err
+  float l_l = leg[1]->virtual_model.length;
+  float l_r = leg[0]->virtual_model.length;
+  LQR_K_Calc(chassis->LQR_K, chassis->param.LQR_K_Coefficients, l_l, l_r);
+
+  StateErrCalc();
 
   PowerControl(chassis);
   LocomotionController();
@@ -436,7 +445,7 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   chassis_instance->leg[1] = LegInit(&chassis_init_config->leg_init_config[1]);
   chassis_instance->leg[0] = LegInit(&chassis_init_config->leg_init_config[0]);
 
-  PIDInit(&chassis_instance->delta_theta_PID, &chassis_init_config->delta_theta_PID_config);
+  // PIDInit(&chassis_instance->delta_theta_PID, &chassis_init_config->delta_theta_PID_config);
   PIDInit(&chassis_instance->roll_PID, &chassis_init_config->roll_PID_config);
   PIDInit(&chassis_instance->yaw_prostrate_PID, &chassis_init_config->yaw_prostrate_PID_config);
 

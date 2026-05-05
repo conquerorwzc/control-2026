@@ -26,8 +26,8 @@
 #include "vofa.h"
 // robot components
 #include "ctrl.h"
+#include "power_control.h"
 #include "ui.h"
-
 static RobotInstance* robot;
 
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
@@ -55,13 +55,16 @@ void VOFATask() {
   visualized_data[12] = shoot_init_config.shoot_param.shooter_barrel_cooling_value;
   visualized_data[13] = shoot_init_config.shoot_param.shooter_barrel_cooling_value;
 #elif defined(ONE_BOARD) || defined(CHASSIS_BOARD)
-  // visualized_data[0] = robot->chassis->leg[0]->real_model.T;
-  // visualized_data[1] = robot->chassis->leg[1]->real_model.T;
-  // visualized_data[2] = robot->chassis->state_var.x_b_d;
-  // visualized_data[3] = robot->chassis->chassis_ctrl_cmd.vx;
-  // visualized_data[4] = robot->chassis->state_var.theta_b * RAD_2_DEGREE;
-  visualized_data[0] = robot->chassis->imu->Roll;
-  visualized_data[1] = robot->chassis->chassis_ctrl_cmd.roll;
+  visualized_data[0] = robot->chassis->power_ctrl->P_total;
+  visualized_data[1] = robot->chassis->power_ctrl->P[0];
+  visualized_data[2] = robot->chassis->power_ctrl->P_total_ref;
+  visualized_data[3] = robot->chassis->power_ctrl->P_ref[0];
+  visualized_data[4] = robot->chassis->power_ctrl->T_motion[0];
+  visualized_data[5] = robot->chassis->power_ctrl->T_motion_ref[0];
+  visualized_data[6] = robot->chassis->power_ctrl->T_balance[0];
+  visualized_data[7] = robot->chassis->power_ctrl->I[0];
+  visualized_data[8] = robot->chassis->power_ctrl->I_ref[0];
+  visualized_data[9] = robot->chassis->power_ctrl->scale_combined;
 #endif
   VOFAJustFloatSend(visualized_data, 20);
 }
@@ -265,7 +268,7 @@ void RobotInit() {
 #ifdef USE_RC_CTRL
   robot->rc_data = RemoteControlInit(&huart5);
 #elifdef USE_OCD_CTRL
-  robot->rc_data = VT13RemoteInit(&huart5); // Assuming VT13RemoteInit on H7
+  robot->rc_data = VT13RemoteInit(&huart5);  // Assuming VT13RemoteInit on H7
 #endif
 #endif
 #endif
@@ -309,7 +312,7 @@ void RobotTask() {
        chassis_ctrl_cmd->chassis_mode == CHASSIS_JUMP_START) &&
       chassis_ctrl_cmd->chassis_mode != CHASSIS_PROSTRATE && robot->robot_mode != ROBOT_CHASSIS_ROTATE) {
     // chassis_ctrl_cmd->target_yaw +=
-        // PIDCalculate(&robot->chassis_rotate_PID, robot->chassis->state_var.phi, chassis_ctrl_cmd->target_yaw);
+    // PIDCalculate(&robot->chassis_rotate_PID, robot->chassis->state_var.phi, chassis_ctrl_cmd->target_yaw);
     // chassis_ctrl_cmd->vx += PIDCalculate(&robot->chassis_vx_PID, robot->chassis->state_var.x_b_d,
     // chassis_ctrl_cmd->vx);
   }

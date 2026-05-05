@@ -258,21 +258,11 @@ static Chassis_Init_Config_s
                                                   &hcan2, 0x06, 0x03, &hcan1, 0x01, 0x00),
             .leg_init_config[1] = LEG_INIT_CONFIG(MOTOR_DIRECTION_REVERSE, MOTOR_DIRECTION_NORMAL, &hcan2, 0x08, 0x04,
                                                   &hcan2, 0x0A, 0x05, &hcan1, 0x02, 0x00),
-            .delta_theta_PID_config =
-                {
-                    .Kp = 50.0f,
-                    .Ki = 0.0f,
-                    .Kd = 0.1f,
-                    .MaxOut = 17.0f,
-                    .DeadBand = 0.01f,
-                    .Improve = PID_IMPROVE_NONE,
-                    .IntegralLimit = 0.0f,
-                },
             .roll_PID_config =
                 {
                     .Kp = 500.0f,
                     .Ki = 0.0f,
-                    .Kd = 0.0f,
+                    .Kd = 10.0f,
                     .MaxOut = 100.0f,
                     .DeadBand = 0.0f,
                     .Improve = PID_IMPROVE_NONE,
@@ -318,7 +308,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 0.8f,
+                            .Kp = 0.4f,
                             .Ki = 0.0f,
                             .Kd = 0.02f,
                             .DeadBand = 0.01f,
@@ -480,7 +470,7 @@ static Shoot_Init_Config_s shoot_init_config = {
 
 // 云台 yaw 角度环参数:手瞄(默认)/自瞄两套,运行时按 gimbal_mode 切换
 static PID_Init_Config_s yaw_angle_PID_manual_config = {
-    .Kp = 0.8f,
+    .Kp = 0.4f,
     .Ki = 0.0f,
     .Kd = 0.02f,
     .DeadBand = 0.01f,
