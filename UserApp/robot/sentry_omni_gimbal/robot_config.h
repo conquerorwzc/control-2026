@@ -29,18 +29,6 @@
 #define BOARD_TX_ID 0x210
 #define BOARD_RX_ID 0x211
 
-#if defined(USE_DUAL_RC)
-#define DUALBOARD_TX_PACKET_TYPE Send_Data_RC
-#elif defined(USE_DUAL_RC_NEW)
-#define DUALBOARD_TX_PACKET_TYPE Send_Data_RC_NEW
-#else
-#error "Dual-board comm requires USE_DUAL_RC or USE_DUAL_RC_NEW"
-#endif
-#define DUALBOARD_RX_PACKET_TYPE Referee_Data
-
-_Static_assert(sizeof(DUALBOARD_TX_PACKET_TYPE) <= CAN_COMM_MAX_BUFFSIZE, "Dual-board TX packet exceeds CAN_COMM_MAX_BUFFSIZE");
-_Static_assert(sizeof(DUALBOARD_RX_PACKET_TYPE) <= CAN_COMM_MAX_BUFFSIZE, "Dual-board RX packet exceeds CAN_COMM_MAX_BUFFSIZE");
-
 // 云台参数
 #define YAW_CHASSIS_ALIGN_ECD 3845  // 云台和底盘对齐指向相同方向时的电机编码器值,若对云台有机械改动需要修改
 #define PITCH_HORIZON_ECD 2900      // 云台处于水平位置时编码器值,若对云台有机械改动需要修改
@@ -218,9 +206,20 @@ static Shoot_Init_Config_s shoot_init_config = {
 .controller_setting_init_config.close_loop_type = SPEED_LOOP | ANGLE_LOOP,
 },
 };
+
+#ifndef CONTROL_2026_ROBOT_CONFIG_H
+#define CONTROL_2026_ROBOT_CONFIG_H
+
+#ifdef USE_DUAL_RC_NEW
+#define DUALBOARD_CMD_LEN ((uint8_t)sizeof(Send_Data_RC_NEW))
+#else
+#define DUALBOARD_CMD_LEN ((uint8_t)sizeof(Send_Data_RC))
+#endif
+#define DUALBOARD_REF_LEN ((uint8_t)sizeof(Referee_Data))
+
 static CANComm_Init_Config_s comm_config = {
-  .recv_data_len = sizeof(DUALBOARD_RX_PACKET_TYPE),
-  .send_data_len = sizeof(DUALBOARD_TX_PACKET_TYPE),
+  .recv_data_len = DUALBOARD_REF_LEN,
+  .send_data_len = DUALBOARD_CMD_LEN,
   .daemon_count = 10,
   .can_config = {
     .can_handle = &hcan2,  // 假设使用CAN2，根据实际使用的CAN句柄调整

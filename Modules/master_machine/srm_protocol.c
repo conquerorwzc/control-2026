@@ -4,12 +4,12 @@
 #include "memory.h"
 
 int vision_data_ready_to_send;
-short receive_size;
+short receive_size; //从包首读到的发送过来的数据包长度
 short send_size;
 short send_id_list[32];
 short send_id_num;
 char buffer[256];
-short buffer_size;
+short buffer_size; //buffer还剩余的字节数量
 
 
 uint16_t get_srm_protocol_info(uint8_t *rx_buf, Message *receive)
@@ -17,6 +17,9 @@ uint16_t get_srm_protocol_info(uint8_t *rx_buf, Message *receive)
   short buf_pos = 0, id = 0;
   char *ptr;
 
+  if (receive == NULL || rx_buf == NULL) {
+    return USBD_OK;
+  }
   // Step 1: 读取总数据长度
   if (receive_size == 0) {
     memcpy(&receive_size, rx_buf + buf_pos, sizeof(short));
@@ -24,14 +27,14 @@ uint16_t get_srm_protocol_info(uint8_t *rx_buf, Message *receive)
     buffer_size = 0;
 
     // 增加边界检查，防止 receive_size 过大导致缓冲区溢出
-    if (receive_size < 0 || receive_size > sizeof(buffer)) {
+    if (receive_size < 0 || receive_size > (short)sizeof(buffer)) {
       receive_size = 0; // 无效长度，重置状态
       return USBD_OK;   // 丢弃此包以尝试重新同步
     }
   }
 
   // Step 2: 累积数据到buffer
-  short remain_size = receive_size - buffer_size;
+  short remain_size = receive_size - buffer_size; //若是一个数据被拆分开发，还剩多少字节没有接收
   if (remain_size > 0) {
     if (remain_size > 64 - buf_pos) {
       memcpy(buffer + buffer_size, rx_buf + buf_pos, 64 - buf_pos);
@@ -48,10 +51,10 @@ uint16_t get_srm_protocol_info(uint8_t *rx_buf, Message *receive)
   }
 
   // Step 4: 解析数据
-  ptr = buffer;
+  ptr = buffer; //一个在buffer里往后滑动的指针，来表示读到哪一位了。
   while (ptr < buffer + buffer_size) {
     // 检查剩余长度是否足够读取 id
-    if (buffer + buffer_size - ptr < sizeof(short)) {
+    if (buffer + buffer_size < ptr + sizeof(short)) {
       break;
     }
     memcpy(&id, ptr, sizeof(short));

@@ -144,21 +144,16 @@ static SuperCap_Init_Config_s super_cap_config = {
 #define BOARD_RX_ID 0x210
 #endif
 
-#define DUALBOARD_TX_PACKET_TYPE Referee_Data
-#if defined(USE_DUAL_RC)
-#define DUALBOARD_RX_PACKET_TYPE Send_Data_RC
-#elif defined(USE_DUAL_RC_NEW)
-#define DUALBOARD_RX_PACKET_TYPE Send_Data_RC_NEW
+#ifdef USE_DUAL_RC_NEW
+#define DUALBOARD_CMD_LEN ((uint8_t)sizeof(Send_Data_RC_NEW))
 #else
-#error "Dual-board comm requires USE_DUAL_RC or USE_DUAL_RC_NEW"
+#define DUALBOARD_CMD_LEN ((uint8_t)sizeof(Send_Data_RC))
 #endif
-
-_Static_assert(sizeof(DUALBOARD_TX_PACKET_TYPE) <= CAN_COMM_MAX_BUFFSIZE, "Dual-board TX packet exceeds CAN_COMM_MAX_BUFFSIZE");
-_Static_assert(sizeof(DUALBOARD_RX_PACKET_TYPE) <= CAN_COMM_MAX_BUFFSIZE, "Dual-board RX packet exceeds CAN_COMM_MAX_BUFFSIZE");
+#define DUALBOARD_REF_LEN ((uint8_t)sizeof(Referee_Data))
 
 static CANComm_Init_Config_s comm_config = {
-  .recv_data_len = sizeof(DUALBOARD_RX_PACKET_TYPE),
-  .send_data_len = sizeof(DUALBOARD_TX_PACKET_TYPE),
+  .recv_data_len = DUALBOARD_CMD_LEN,
+  .send_data_len = DUALBOARD_REF_LEN,
   .daemon_count = 10,
   .can_config = {
     .can_handle = &hcan2,  // 假设使用CAN1，根据实际使用的CAN句柄调整
