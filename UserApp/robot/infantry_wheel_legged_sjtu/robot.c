@@ -246,7 +246,7 @@ void RobotCMDTask() {
 // 双板通信
 #if !defined(ONE_BOARD)
   static float last_comm_time = 0.0f;
-  if (DWT_GetTimeline_ms() - last_comm_time >= 10.f) {
+  if (DWT_GetTimeline_ms() - last_comm_time >= 25.f) {
     last_comm_time = DWT_GetTimeline_ms();
     DoubleBoardComms();
   }
