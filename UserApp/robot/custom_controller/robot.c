@@ -9,11 +9,16 @@
 #include "custom_controller.h"
 #include "motor_task.h"
 #include "bsp_usart.h"
+#include "gravity_trig_model.h" // 引入重力补偿模型
 #include <stdbool.h>
 #include <math.h>
 
 // 力反馈参数配置
 #define TORQUE_DEADBAND       3.0f    // 所有电机角度死区(度)
+
+// 重力补偿验证系数 (0.0 ~ 1.0)
+// 建议从 0.1 开始验证方向，确认无误后再改为 1.0
+#define GRAVITY_COMP_SCALE    1.0f
 
 // 不同电机类型的力控比例增益 (Nm/度)
 #define TORQUE_K_P_DM4310     0.05f   // DM4310比例增益
@@ -50,14 +55,26 @@ static GPIO_Init_Config_s gpio_init_config_5v = {
   };
 
 /**
- * @brief 计算重力补偿力矩（预留接口，目前全置零）
+ * @brief 计算重力补偿力矩（基于三角函数模型）
  */
 static void CalculateGravityCompensation(float gravity_torques[5])
 {
-    // TODO: 实现重力补偿算法
-    for (int i = 0; i < 5; i++) {
-        gravity_torques[i] = 0.0f;
-    }
+    if (angle_controller == NULL) return;
+
+    // 获取当前角度并转换为弧度 (q2, q3, q4, q5)
+    // 假设 motor_angles 索引对应: [0]=Yaw, [1]=Roll(J2), [2]=Pitch(J3), [3]=Pitch(J4), [4]=Roll(J5)
+    float q2 = angle_controller->motor_angles[1] * (M_PI / 180.0f);
+    float q3 = angle_controller->motor_angles[2] * (M_PI / 180.0f);
+    float q4 = angle_controller->motor_angles[3] * (M_PI / 180.0f);
+    float q5 = angle_controller->motor_angles[4] * (M_PI / 180.0f);
+
+    // 根据模型计算各关节的重力力矩
+    // 注意：模型中的 J2, J3, J4 对应你的大 Roll, 大 Pitch, 小 Pitch
+    gravity_torques[0] = 0.0f; // Yaw 轴通常不需要重力补偿
+    gravity_torques[1] = MecArm_Gravity_J2(q2, q3, q4, q5); // 大 Roll
+    gravity_torques[2] = MecArm_Gravity_J3(q2, q3, q4, q5); // 大 Pitch
+    gravity_torques[3] = MecArm_Gravity_J4(q2, q3, q4, q5); // 小 Pitch
+    gravity_torques[4] = 0.0f; // 小 Roll (根据你的需求暂时不补偿或没有模型)
 }
 
 /**
@@ -65,7 +82,7 @@ static void CalculateGravityCompensation(float gravity_torques[5])
  */
 static void CalculateFeedbackTorque(float feedback_torques[5])
 {
-    if (angle_controller == NULL || !angle_controller->robot_data_valid) {
+    if (angle_controller == NULL) {
         return;
     }
 
@@ -139,7 +156,7 @@ static void CalculateFeedbackTorque(float feedback_torques[5])
  */
 static void ApplyTotalTorque(void)
 {
-    if (angle_controller == NULL || !angle_controller->robot_data_valid) {
+    if (angle_controller == NULL) {
         return;
     }
 
@@ -153,9 +170,9 @@ static void ApplyTotalTorque(void)
     // 2. 计算重力补偿力矩
     CalculateGravityCompensation(gravity_torques);
 
-    // 3. 总力矩 = 力反馈 + 重力补偿
+    // 3. 总力矩 = 重力补偿 * 验证系数 + 力反馈
     for (int i = 0; i < 5; i++) {
-        total_torques[i] = gravity_torques[i] + feedback_torques[i];
+        total_torques[i] = (gravity_torques[i] * GRAVITY_COMP_SCALE) + feedback_torques[i];
 
         // 4. 发送到电机
         if (angle_controller->motors[i].dm_motor != NULL) {
@@ -197,6 +214,13 @@ void RobotTask() {
     if (angle_controller != NULL) {
         CustomControllerTask(angle_controller);
         
+        // 【强行使能】在每个周期确保电机处于工作状态
+        for (int i = 1; i < 5; i++) {
+            if (angle_controller->motors[i].dm_motor != NULL) {
+                DMMotorEnable(angle_controller->motors[i].dm_motor);
+            }
+        }
+
         // 应用总力矩控制（力反馈+重力补偿）
         ApplyTotalTorque();
         

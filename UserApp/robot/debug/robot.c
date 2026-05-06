@@ -18,8 +18,8 @@ typedef enum {
     SAMPLING_MODE_HOLD = 1  // HOLD: 记录角度并短暂保持，采集静态力矩
 } SamplingMode_e;
 
-#define HOLD_TOTAL_MS            2000u
-#define HOLD_SETTLE_MS            300u
+#define HOLD_TOTAL_MS            2700u
+#define HOLD_SETTLE_MS            800u
 #define SAMPLE_SEND_PERIOD_MS      50u
 
 static uint32_t last_sample_send_time = 0;
@@ -27,6 +27,7 @@ static uint32_t last_sample_send_time = 0;
 static SamplingMode_e sampling_mode = SAMPLING_MODE_MOVE;
 static float hold_angles[5] = {0};
 static uint32_t hold_start_time = 0;
+static uint8_t gravity_send_buf[30] = {0};  // DMA发送缓冲区，必须是static
 
 // 自定义控制器实例
 static CustomController_t* angle_controller;
@@ -120,10 +121,11 @@ static void GravitySamplingTask(void)
 
             last_sample_send_time = now;
 
-            uint8_t send_buf[30] = {0};
-
-            send_buf[0] = 0xAA;
-            send_buf[1] = 0x01;
+            // 清空并填充发送缓冲区
+            memset(gravity_send_buf, 0, sizeof(gravity_send_buf));
+            
+            gravity_send_buf[0] = 0xAA;
+            gravity_send_buf[1] = 0x01;
 
             /*
              * 发送当前实时角度，而不是 hold_angles。
@@ -144,7 +146,7 @@ static void GravitySamplingTask(void)
 
                 float angle_rad = angle_controller->motor_angles[idx] * (M_PI / 180.0f);
 
-                memcpy(&send_buf[2 + i * 4], &angle_rad, 4);
+                memcpy(&gravity_send_buf[2 + i * 4], &angle_rad, 4);
             }
 
             /*
@@ -160,15 +162,19 @@ static void GravitySamplingTask(void)
             for (int i = 0; i < 3; i++) {
                 int idx = torque_indices[i];
 
-                float torque = angle_controller->motors[idx].dm_motor->measure.torque;
+                float torque = 0.0f;
+                
+                if (angle_controller->motors[idx].dm_motor != NULL) {
+                    torque = angle_controller->motors[idx].dm_motor->measure.torque;
+                }
 
-                memcpy(&send_buf[2 + 4 * 4 + i * 4], &torque, 4);
+                memcpy(&gravity_send_buf[2 + 4 * 4 + i * 4], &torque, 4);
             }
 
             if (angle_controller->usart_instance != NULL) {
                 USARTSend(angle_controller->usart_instance,
-                          send_buf,
-                          sizeof(send_buf),
+                          gravity_send_buf,
+                          sizeof(gravity_send_buf),
                           USART_TRANSFER_DMA);
             }
         }

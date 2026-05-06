@@ -116,17 +116,17 @@ static Motor_Init_Config_s DM4310_config_3 = {
 static Motor_Init_Config_s DM4340_config = {
     .controller_param_init_config =
         {
-            .angle_PID = {.Kp = 7.0f,
+            .angle_PID = {.Kp = 8.0f,
                           .Ki = 0.00f,
                           .Kd = 0.00f,
                           .MaxOut = 8.0f,
                           .DeadBand = 0.01f,
                           .Improve = PID_Integral_Limit,
                           .IntegralLimit = 0.0f},
-            .speed_PID = {.Kp = 0.3f,
-                          .Ki = 0.13f,
+            .speed_PID = {.Kp = 1.0f,
+                          .Ki = 0.1f,
                           .Kd = 0.00f,
-                          .MaxOut = 8.0f,
+                          .MaxOut = 5.0f,
                           .DeadBand = 0.01f,
                           .Improve = PID_Integral_Limit,
                           .IntegralLimit = 0.5f},
