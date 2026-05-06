@@ -265,10 +265,10 @@ static void RemoteControlSet() {
   static float search_phase = 0.0f;
   static uint8_t search_start_flag = 0;
   // 控制云台&打弹
-  if (switch_left(vt13_rc_data->rc.mode_switch)) {  // 中档
+  if (switch_middle(vt13_rc_data->rc.mode_switch)) {  // 中档
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
   }
-  if (switch_left(vt13_rc_data->rc.mode_switch)) {
+  if (switch_right(vt13_rc_data->rc.mode_switch)) {
     // 上档
     shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
@@ -294,7 +294,7 @@ static void RemoteControlSet() {
     robot->control_mode = MANUAL_MODE;
   }
 
-  if (vt13_rc_data->button_status.fn_1_flag==0) {
+  if (vt13_rc_data->button_status.fn_1_flag==1) {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_VISION;
     if (has_non_zero_data(vision_recv_data)==1){
       gimbal_ctrl_cmd->yaw=vision_recv_data->gimbal_receive.yaw;
@@ -426,7 +426,7 @@ static void EmergencyHandler() {
 
 # elifdef USE_DUAL_RC_NEW
   // 新VT13遥控器紧急处理逻辑
-  if (switch_right(vt13_rc_data->rc.mode_switch) || vt13_rc_data->button_status.pause_flag==1){  // 拨杆在左或按下暂停键时断电
+  if (switch_left(vt13_rc_data->rc.mode_switch) || vt13_rc_data->button_status.pause_flag==1){  // 拨杆在左或按下暂停键时断电
     robot->robot_mode = ROBOT_POWER_ON;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
     shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;

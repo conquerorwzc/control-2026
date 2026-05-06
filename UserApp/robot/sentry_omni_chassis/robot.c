@@ -144,7 +144,7 @@ static void MouseKeySet() {}
 
 #elifdef USE_DUAL_RC_NEW
 static void RemoteControlSet() {
-  if (switch_left(vt13_rc_data->rc.mode_switch)) {
+  if (switch_middle(vt13_rc_data->rc.mode_switch)||switch_right(vt13_rc_data->rc.mode_switch)) {
     chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
     if (abs(vt13_rc_data->rc.dial) > 20) chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
   }
@@ -225,7 +225,7 @@ static void EmergencyHandler() {
   }
 
 #elifdef USE_DUAL_RC_NEW
-  if (switch_right(vt13_rc_data->rc.mode_switch) || vt13_rc_data->button_status.pause_flag == 1)  // 底盘失能
+  if (switch_left(vt13_rc_data->rc.mode_switch) || vt13_rc_data->button_status.pause_flag == 1)  // 底盘失能
   {
     robot->robot_mode = ROBOT_POWER_ON;
     chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
