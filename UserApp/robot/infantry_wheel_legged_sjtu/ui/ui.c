@@ -131,14 +131,20 @@
 #define UI_GUIDE_LINE_WIDTH 2
 
 /* 底边：车身宽度附近；顶点：向中心上方收敛形成纵深 */
-#define UI_GUIDE_BOTTOM_Y 50       // 屏幕下方（裁判系统 y 轴向上，值越小越靠下）
-#define UI_GUIDE_BOTTOM_HALF_W 900 // 底部半宽 ≈ 车身宽度
+#define UI_GUIDE_BOTTOM_Y 50        // 屏幕下方（裁判系统 y 轴向上，值越小越靠下）
+#define UI_GUIDE_BOTTOM_HALF_W 900  // 底部半宽 ≈ 车身宽度
 #define UI_GUIDE_TOP_Y 430          // 汇聚点的纵向高度
-#define UI_GUIDE_TOP_HALF_W 300      // 顶部半宽（透视收敛）
+#define UI_GUIDE_TOP_HALF_W 300     // 顶部半宽（透视收敛）
 #define UI_GUIDE_CENTER_X 960
 
 /* 横向刻度线数量（地面格） */
 #define UI_GUIDE_RUNG_COUNT 3
+
+/* ---- 屏幕下方水平横线 ---- */
+#define UI_BOTTOM_LINE_Y 300                       // 与引导线底边同高，贴在下方
+#define UI_BOTTOM_LINE_X_LEFT 580    // 横线左端 x
+#define UI_BOTTOM_LINE_X_RIGHT 1340  // 横线右端 x
+#define UI_BOTTOM_LINE_WIDTH 2
 
 /* ===========================================================================
  * 文件级状态
@@ -190,8 +196,9 @@ static String_Data_t UI_StatusLabel[UI_STATUS_ROW_COUNT];
 static String_Data_t UI_StatusValue[UI_STATUS_ROW_COUNT];
 
 /* 引导线模块 */
-static Graph_Data_t UI_GuideSide[2];                  // 左右两条斜边
-static Graph_Data_t UI_GuideRung[UI_GUIDE_RUNG_COUNT]; // 中间横向透视刻度
+static Graph_Data_t UI_GuideSide[2];                    // 左右两条斜边
+static Graph_Data_t UI_GuideRung[UI_GUIDE_RUNG_COUNT];  // 中间横向透视刻度
+static Graph_Data_t UI_BottomLine;                      // 屏幕下方水平横线
 
 /* ===========================================================================
  * 通用工具函数
@@ -763,11 +770,11 @@ static void DrawGuideLine(uint32_t operate) {
   const int32_t half_top = UI_GUIDE_TOP_HALF_W;
 
   /* 左斜边：从左下 -> 左上（向中心收敛） */
-  UILineDraw(&UI_GuideSide[0], "gd0", operate, UI_GUIDE_LAYER, UI_GUIDE_COLOR, UI_GUIDE_LINE_WIDTH,
-             cx - half_bot, y_bot, cx - half_top, y_top);
+  UILineDraw(&UI_GuideSide[0], "gd0", operate, UI_GUIDE_LAYER, UI_GUIDE_COLOR, UI_GUIDE_LINE_WIDTH, cx - half_bot,
+             y_bot, cx - half_top, y_top);
   /* 右斜边：从右下 -> 右上 */
-  UILineDraw(&UI_GuideSide[1], "gd1", operate, UI_GUIDE_LAYER, UI_GUIDE_COLOR, UI_GUIDE_LINE_WIDTH,
-             cx + half_bot, y_bot, cx + half_top, y_top);
+  UILineDraw(&UI_GuideSide[1], "gd1", operate, UI_GUIDE_LAYER, UI_GUIDE_COLOR, UI_GUIDE_LINE_WIDTH, cx + half_bot,
+             y_bot, cx + half_top, y_top);
   UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_GuideSide[0], UI_GuideSide[1]);
 
   /* 中间横向刻度线：越靠上越窄，形成地面栅格的纵深感 */
@@ -780,21 +787,24 @@ static void DrawGuideLine(uint32_t operate) {
     int32_t half_w = half_bot + (int32_t)((half_top - half_bot) * tp);
 
     char name[4];
-    MakeUiName(name, 'g', i + 2);  /* "g02", "g03", ... 避免与 gd0/gd1 冲突 */
+    MakeUiName(name, 'g', i + 2); /* "g02", "g03", ... 避免与 gd0/gd1 冲突 */
 
-    UILineDraw(&UI_GuideRung[i], name, operate, UI_GUIDE_LAYER, UI_GUIDE_COLOR, UI_GUIDE_LINE_WIDTH,
-               cx - half_w, y, cx + half_w, y);
+    UILineDraw(&UI_GuideRung[i], name, operate, UI_GUIDE_LAYER, UI_GUIDE_COLOR, UI_GUIDE_LINE_WIDTH, cx - half_w, y,
+               cx + half_w, y);
   }
 
   /* 一次最多刷 7 个 Graph，这里最多 3 个横线，直接批量发送 */
   if (UI_GUIDE_RUNG_COUNT == 3) {
-    UIGraphRefresh(&referee_recv_info->referee_id, 3,
-                   UI_GuideRung[0], UI_GuideRung[1], UI_GuideRung[2]);
+    UIGraphRefresh(&referee_recv_info->referee_id, 3, UI_GuideRung[0], UI_GuideRung[1], UI_GuideRung[2]);
   } else {
     for (uint8_t i = 0; i < UI_GUIDE_RUNG_COUNT; i++) {
       UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_GuideRung[i]);
     }
   }
+  /* 屏幕下方水平横线（与底边同高，贯通左右） */
+  UILineDraw(&UI_BottomLine, "gbl", operate, UI_GUIDE_LAYER, UI_GUIDE_COLOR, UI_BOTTOM_LINE_WIDTH,
+             UI_BOTTOM_LINE_X_LEFT, UI_BOTTOM_LINE_Y, UI_BOTTOM_LINE_X_RIGHT, UI_BOTTOM_LINE_Y);
+  UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_BottomLine);
 }
 
 /* ===========================================================================
