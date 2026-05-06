@@ -441,8 +441,20 @@ void EmergencyHandler(RobotInstance* robot) {
 // ==========================================
 #elifdef USE_OCD_CTRL
 
+// ---------- 两路 Ctrl 共享状态 ----------
+// JS 与 MK 各自往 intent_shared / *_fire / *_burst 写, 由 CtrlSolve 合并.
+static Ctrl_Intent_s intent_shared;
+static uint8_t joystick_fire = 0, joystick_burst = 0;
+static uint8_t mouse_fire = 0, mouse_burst = 0;
+static uint8_t mk_request_vision = 0;
+static uint8_t mk_set_leg_length = 0;
+static float   mk_leg_length_target = 0.0f;
+
+// 三档腿长: LOW=initial_leg_length, MID=(MAX+initial)/2, HIGH=LEG_MAX_LENGTH
+static const float LEG_TABLE[3] = {0.20f, 0.285f, 0.370f};
+static int leg_step = 0;
+
 void JoyStickCtrl(RobotInstance* robot) {
-  // USE_OCD_CTRL definition of rc_data is different, it is a pointer
   rc_data = robot->rc_data;
   Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   Shoot_Ctrl_Cmd_s* shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
@@ -452,7 +464,10 @@ void JoyStickCtrl(RobotInstance* robot) {
     is_first_update = 0;
   }
 
-  Ctrl_Intent_s intent = {0};
+  // 帧起始: 共享 intent 与 fire flag 复位 (rc_data_last 在 CtrlSolve 末尾更新)
+  intent_shared = (Ctrl_Intent_s){0};
+  joystick_fire = 0;
+  joystick_burst = 0;
 
   // 状态机 (按当前输入纯映射):
   //   fn_1_flag  (toggle, 边沿触发): 1=站立 CHASSIS_ON, 0=卧倒 CHASSIS_PROSTRATE
@@ -471,17 +486,9 @@ void JoyStickCtrl(RobotInstance* robot) {
     if (is_free) {
       robot->robot_mode = ROBOT_CHASSIS_FREE;
     } else if (is_stand) {
-      if (is_rotate) {
-        robot->robot_mode = ROBOT_CHASSIS_ROTATE;
-      } else {
-        robot->robot_mode = ROBOT_CHASSIS_FOLLOW;
-      }
+      robot->robot_mode = is_rotate ? ROBOT_CHASSIS_ROTATE : ROBOT_CHASSIS_FOLLOW;
     } else {
-      if (is_rotate) {
-        robot->robot_mode = ROBOT_CHASSIS_PROSTRATE_ROTATE;
-      } else {
-        robot->robot_mode = ROBOT_CHASSIS_PROSTRATE_FOLLOW;
-      }
+      robot->robot_mode = is_rotate ? ROBOT_CHASSIS_PROSTRATE_ROTATE : ROBOT_CHASSIS_PROSTRATE_FOLLOW;
     }
   }
 
@@ -494,13 +501,8 @@ void JoyStickCtrl(RobotInstance* robot) {
     }
     trigger_last = rc_data->rc.trigger;
     if (rc_data->rc.trigger == 1) {
-      if (DWT_GetTimeline_s() - trigger_time > 1.0f) {
-        shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
-      } else {
-        shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
-      }
-    } else {
-      shoot_ctrl_cmd->load_mode = LOAD_STOP;
+      joystick_fire = 1;
+      joystick_burst = (DWT_GetTimeline_s() - trigger_time > 1.0f) ? 1 : 0;
     }
   } else {
     shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
@@ -517,97 +519,60 @@ void JoyStickCtrl(RobotInstance* robot) {
   }
 
   if (is_stand && is_free) {
-    intent.vy = 0.003f * (float)rc_data->rc.rocker_r1;
-    intent.roll_delta = 0.0003f * (float)rc_data->rc.rocker_l_ * (abs(rc_data->rc.rocker_l_) > 10);
-    intent.leg_length_delta = 0.0000005f * (float)rc_data->rc.rocker_l1;
+    intent_shared.vy = 0.003f * (float)rc_data->rc.rocker_r1;
+    intent_shared.roll_delta = 0.0003f * (float)rc_data->rc.rocker_l_ * (abs(rc_data->rc.rocker_l_) > 10);
+    intent_shared.leg_length_delta = 0.0000005f * (float)rc_data->rc.rocker_l1;
   } else if (robot->robot_mode == ROBOT_CHASSIS_FOLLOW) {
-    intent.vx = 0.003f * (float)rc_data->rc.rocker_l_;
-    intent.vy = 0.003f * (float)rc_data->rc.rocker_l1;
+    intent_shared.vx = 0.003f * (float)rc_data->rc.rocker_l_;
+    intent_shared.vy = 0.003f * (float)rc_data->rc.rocker_l1;
   } else if (robot->robot_mode == ROBOT_CHASSIS_PROSTRATE_FOLLOW) {
-    intent.vx = (float)rc_data->rc.rocker_l_;
-    intent.vy = (float)rc_data->rc.rocker_l1;
+    intent_shared.vx = (float)rc_data->rc.rocker_l_;
+    intent_shared.vy = (float)rc_data->rc.rocker_l1;
   } else if (!is_stand && is_free) {
-    intent.vy = (float)rc_data->rc.rocker_l1;
-    intent.vx = (float)rc_data->rc.rocker_l_;
+    intent_shared.vy = (float)rc_data->rc.rocker_l1;
+    intent_shared.vx = (float)rc_data->rc.rocker_l_;
   }
-
-  RobotMotionSolve(robot, &intent);
-  if (is_free && is_rotate) {
-    if (is_stand) {
-      chassis_ctrl_cmd->vx =
-          ramp_controller_update(&vx_ramp, intent.vy, robot->chassis->state_var.x_b_d, robot->dt);
-      chassis_ctrl_cmd->theta_ff = 0.0f;
-      chassis_ctrl_cmd->roll += intent.roll_delta;
-      chassis_ctrl_cmd->leg_length += intent.leg_length_delta;
-
-      if (chassis_ctrl_cmd->leg_length > LEG_MAX_LENGTH)
-        chassis_ctrl_cmd->leg_length = LEG_MAX_LENGTH;
-      else if (chassis_ctrl_cmd->leg_length < LEG_MIN_LENGTH)
-        chassis_ctrl_cmd->leg_length = LEG_MIN_LENGTH;
-    } else {
-      chassis_ctrl_cmd->vx = intent.vy;
-    }
-  }
-  rc_data_last = *rc_data;
+  // RobotMotionSolve / free+rotate 后处理 / rc_data_last 更新均移至 CtrlSolve()
 }
 
 void MouseKeyCtrl(RobotInstance* robot) {
   rc_data = robot->rc_data;
   Shoot_Ctrl_Cmd_s* shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   Vision_Receive_s* vision_recv_data = robot->vision_recv_data;
-
-  if (is_first_update) {
-    rc_data_last = *rc_data;
-    is_first_update = 0;
-  }
-
-  static float trigger_time = 0;
-
-  Ctrl_Intent_s intent = {0};
-
   Gimbal_Ctrl_Cmd_s* gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
 
+  static float mouse_trigger_time = 0;
+
+  // 帧起始: MK 输出 flag 复位 (intent_shared 已由 JS 清零)
+  mouse_fire = 0;
+  mouse_burst = 0;
+  mk_request_vision = 0;
+
+  // 鼠标左键开火 -> 仅设 flag, 由 CtrlSolve OR 合并
   if (rc_data->mouse_key.mouse.press_l) {
     if (shoot_ctrl_cmd->friction_mode == FRICTION_ON) {
-      if (DWT_GetTimeline_s() - trigger_time > 0.3f) {
-        shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
-      } else {
-        shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
-      }
+      mouse_fire = 1;
+      mouse_burst = (DWT_GetTimeline_s() - mouse_trigger_time > 0.3f) ? 1 : 0;
     }
   } else {
-    if (!rc_data->rc.trigger) {
-      shoot_ctrl_cmd->load_mode = LOAD_STOP;
-      trigger_time = DWT_GetTimeline_s();
-    }
+    mouse_trigger_time = DWT_GetTimeline_s();
   }
 
+  // 鼠标右键自瞄请求 -> 仅设 flag, CtrlSolve 中应用
   if (rc_data->mouse_key.mouse.press_r && has_non_zero_data(vision_recv_data)) {
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_VISION;
-    gimbal_ctrl_cmd->yaw = vision_recv_data->gimbal_receive.yaw;
-    gimbal_ctrl_cmd->pitch = vision_recv_data->gimbal_receive.pitch;
-  } else {
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-    gimbal_ctrl_cmd->yaw += -(float)rc_data->mouse_key.mouse.x * 0.002f;
-    gimbal_ctrl_cmd->pitch += -(float)rc_data->mouse_key.mouse.y * 0.002f;
-
-    if (rc_data->mouse_key.keyboard.x && !rc_data_last.mouse_key.keyboard.x) {
-      gimbal_ctrl_cmd->yaw += 180.0f;
-    }
+    mk_request_vision = 1;
   }
 
-  if (abs(rc_data->rc.dial) > 20 || rc_data->mouse_key.keyboard.shift) {
-    robot->robot_mode = ROBOT_CHASSIS_ROTATE;
-  } else {
-    robot->robot_mode = ROBOT_CHASSIS_FOLLOW;
+  // 鼠标手动云台增量 (与 JS 摇杆 += 加性叠加; 自瞄激活时 CtrlSolve 会覆盖)
+  gimbal_ctrl_cmd->yaw += -(float)rc_data->mouse_key.mouse.x * 0.002f;
+  gimbal_ctrl_cmd->pitch += -(float)rc_data->mouse_key.mouse.y * 0.002f;
+
+  // X 边沿: 云台 +180 度掉头
+  if (rc_data->mouse_key.keyboard.x && !rc_data_last.mouse_key.keyboard.x) {
+    gimbal_ctrl_cmd->yaw += 180.0f;
   }
 
-  if (!rc_data_last.mouse_key.keyboard.ctrl && rc_data->mouse_key.keyboard.ctrl) {
-    if (robot->chassis_fetch_data) {
-      robot->chassis_fetch_data->force_refresh_ui = 1;
-    }
-  }
-
+  // C 边沿: 超级电容 BOOST/NORMAL 切换
   if (rc_data->mouse_key.keyboard.c && !rc_data_last.mouse_key.keyboard.c) {
     if (robot->chassis->super_cap->super_cap_ctrl_cmd == BOOST) {
       robot->chassis->super_cap->super_cap_ctrl_cmd = NORMAL;
@@ -616,28 +581,110 @@ void MouseKeyCtrl(RobotInstance* robot) {
     }
   }
 
-  if (rc_data->mouse_key.keyboard.w)
-    intent.vy = CTRL_SPEED_COFF;
-  else if (rc_data->mouse_key.keyboard.s)
-    intent.vy = -CTRL_SPEED_COFF;
-  else
-    intent.vy = 0.0f;
-
-  if (rc_data->mouse_key.keyboard.d)
-    intent.vx = CTRL_SPEED_COFF;
-  else if (rc_data->mouse_key.keyboard.a)
-    intent.vx = -CTRL_SPEED_COFF;
-  else
-    intent.vx = 0.0f;
-
-  float target_speed = CTRL_SPEED_COFF;
-  float input_mag = sqrtf(intent.vx * intent.vx + intent.vy * intent.vy);
-  if (input_mag > 1e-3f) {
-    intent.vx = intent.vx / input_mag * target_speed;
-    intent.vy = intent.vy / input_mag * target_speed;
+  // Q/E 持续按住 -> roll 增量 (与 JS rocker_l_ 叠加)
+  if (rc_data->mouse_key.keyboard.q) {
+    intent_shared.roll_delta -= 0.4f;
+  } else if (rc_data->mouse_key.keyboard.e) {
+    intent_shared.roll_delta += 0.4f;
   }
 
-  RobotMotionSolve(robot, &intent);
+  // Ctrl+R / Ctrl+F 三档腿长 (边沿触发)
+  uint8_t cr = rc_data->mouse_key.keyboard.ctrl && rc_data->mouse_key.keyboard.r;
+  uint8_t cr_last = rc_data_last.mouse_key.keyboard.ctrl && rc_data_last.mouse_key.keyboard.r;
+  uint8_t cf = rc_data->mouse_key.keyboard.ctrl && rc_data->mouse_key.keyboard.f;
+  uint8_t cf_last = rc_data_last.mouse_key.keyboard.ctrl && rc_data_last.mouse_key.keyboard.f;
+  if (cr && !cr_last) {
+    if (leg_step < 2) leg_step++;
+    mk_set_leg_length = 1;
+    mk_leg_length_target = LEG_TABLE[leg_step];
+  }
+  if (cf && !cf_last) {
+    if (leg_step > 0) leg_step--;
+    mk_set_leg_length = 1;
+    mk_leg_length_target = LEG_TABLE[leg_step];
+  }
+
+  // WASD -> intent_shared.vx/vy 加性叠加; 单位按当前 robot_mode 匹配 JS
+  // FOLLOW / stand+FREE: m/s 量级 (JS 用 0.003*rocker, 全推≈2.0)
+  // PROSTRATE_FOLLOW / !stand+FREE: 原始摇杆量级 (全推≈660)
+  // ROTATE 系: RobotMotionSolve 不读 intent.vx/vy, 这里给 0 即可
+  const uint8_t is_stand = (rc_data->button_status.fn_1_flag == 1);
+  float wasd_scale;
+  switch (robot->robot_mode) {
+    case ROBOT_CHASSIS_FOLLOW:
+      wasd_scale = 2.0f;
+      break;
+    case ROBOT_CHASSIS_PROSTRATE_FOLLOW:
+      wasd_scale = 660.0f;
+      break;
+    case ROBOT_CHASSIS_FREE:
+      wasd_scale = is_stand ? 2.0f : 660.0f;
+      break;
+    default:
+      wasd_scale = 0.0f;
+      break;
+  }
+  if (rc_data->mouse_key.keyboard.w) intent_shared.vy += wasd_scale;
+  if (rc_data->mouse_key.keyboard.s) intent_shared.vy -= wasd_scale;
+  if (rc_data->mouse_key.keyboard.d) intent_shared.vx += wasd_scale;
+  if (rc_data->mouse_key.keyboard.a) intent_shared.vx -= wasd_scale;
+
+  // RobotMotionSolve / rc_data_last 更新均移至 CtrlSolve()
+}
+
+void CtrlSolve(RobotInstance* robot) {
+  Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
+  Gimbal_Ctrl_Cmd_s* gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
+  Shoot_Ctrl_Cmd_s* shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
+
+  // 1. 自瞄优先: MK 右键有效时覆盖 yaw/pitch
+  if (mk_request_vision) {
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_VISION;
+    gimbal_ctrl_cmd->yaw = robot->vision_recv_data->gimbal_receive.yaw;
+    gimbal_ctrl_cmd->pitch = robot->vision_recv_data->gimbal_receive.pitch;
+  }
+
+  // 2. 开火 OR 合并 (沿用 six_wheel pattern)
+  if (shoot_ctrl_cmd->shoot_mode == SHOOT_ON && shoot_ctrl_cmd->friction_mode == FRICTION_ON) {
+    if (joystick_burst || mouse_burst) {
+      shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+    } else if (joystick_fire || mouse_fire) {
+      shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
+    } else {
+      shoot_ctrl_cmd->load_mode = LOAD_STOP;
+    }
+  }
+
+  // 3. 三档腿长边沿: 一次性写绝对值; JS 的 leg_length_delta 由 RobotMotionSolve 内部叠加
+  if (mk_set_leg_length) {
+    chassis_ctrl_cmd->leg_length = mk_leg_length_target;
+    mk_set_leg_length = 0;
+  }
+
+  // 4. 解算运动
+  RobotMotionSolve(robot, &intent_shared);
+
+  // 5. JS 原 free+rotate 后处理 (移自 JoyStickCtrl, 应用合并后的 intent)
+  const uint8_t is_stand = (rc_data->button_status.fn_1_flag == 1);
+  const uint8_t is_free = (rc_data->button_status.pause_flag == 1);
+  const uint8_t is_rotate = (abs(rc_data->rc.dial) > 20 || rc_data->mouse_key.keyboard.shift);
+  if (is_free && is_rotate) {
+    if (is_stand) {
+      chassis_ctrl_cmd->vx =
+          ramp_controller_update(&vx_ramp, intent_shared.vy, robot->chassis->state_var.x_b_d, robot->dt);
+      chassis_ctrl_cmd->theta_ff = 0.0f;
+      chassis_ctrl_cmd->roll += intent_shared.roll_delta;
+      chassis_ctrl_cmd->leg_length += intent_shared.leg_length_delta;
+      if (chassis_ctrl_cmd->leg_length > LEG_MAX_LENGTH)
+        chassis_ctrl_cmd->leg_length = LEG_MAX_LENGTH;
+      else if (chassis_ctrl_cmd->leg_length < LEG_MIN_LENGTH)
+        chassis_ctrl_cmd->leg_length = LEG_MIN_LENGTH;
+    } else {
+      chassis_ctrl_cmd->vx = intent_shared.vy;
+    }
+  }
+
+  // 6. 帧末更新 rc_data_last (供下一帧 MK 边沿检测)
   rc_data_last = *rc_data;
 }
 

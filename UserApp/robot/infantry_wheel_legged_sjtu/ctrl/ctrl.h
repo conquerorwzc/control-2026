@@ -40,4 +40,10 @@ void MouseKeyCtrl(RobotInstance* robot);
  */
 void EmergencyHandler(RobotInstance* robot);
 
+/**
+ * @brief 合并 JoyStickCtrl/MouseKeyCtrl 输出 + 解算运动 (OCD 链路).
+ * @note 必须在 JoyStickCtrl 与 MouseKeyCtrl 之后调用.
+ */
+void CtrlSolve(RobotInstance* robot);
+
 #endif // INFANTRY_CTRL_H

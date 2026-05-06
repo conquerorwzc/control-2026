@@ -237,7 +237,8 @@ void RobotCMDTask() {
 // 控制板指令处理与控制逻辑 (只有底盘板不用处理)
 #if !defined(CHASSIS_BOARD)
   JoyStickCtrl(robot);
-  // MouseKeyCtrl(robot);
+  MouseKeyCtrl(robot);
+  CtrlSolve(robot);
 #if defined(GIMBAL_BOARD)
   CalcOffsetAngle();
   GimbalAlignToChassisForward();

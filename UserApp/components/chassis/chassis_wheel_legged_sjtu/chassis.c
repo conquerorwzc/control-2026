@@ -341,6 +341,7 @@ static void ChassisJump(void) {
       ChassisCtrlUpdate();
       if (fabsf(leg[0]->virtual_model.length - chassis->param.leg_max_length) <= 0.05f &&
           fabsf(leg[1]->virtual_model.length - chassis->param.leg_max_length) <= 0.05f) {
+        osDelay(50);
         chassis->jump_state = JUMP_STATE_RETRACT;
       }
       break;
@@ -368,7 +369,7 @@ static void ChassisJump(void) {
  * target_yaw 负责 yaw 闭环保持；wz 是卧倒差速转向前馈量, 不是 rad/s。
  * 小陀螺/自由转向如果不希望 yaw PID 参与, 上层需要把 target_yaw 对齐当前 yaw。
  */
-void ChassisProstrateMode(void) {
+void ChassisProstrate(void) {
 #define VX_TO_MOTOR (30000.0f / 660.0f)
 #define WZ_PID_TO_MOTOR 10000.0f
 #define WZ_FF_TO_MOTOR (28000.0f / 660.0f)  // 卧倒 wz 前馈量 -> 电机量
@@ -504,7 +505,7 @@ void ChassisTask(void) {
   //   chassis->chassis_ctrl_cmd.chassis_mode = CHASSIS_RECOVERY;
   // }
 
-  // 平衡 → 卧倒 平滑过渡：若直接切到 ChassisProstrateMode 会因关节角度环目标突变
+  // 平衡 → 卧倒 平滑过渡：若直接切到 ChassisProstrate 会因关节角度环目标突变
   // (-0.15/0.15) 而导致机身砸下；切入 PROSTRATE 时若腿仍然较长，则先用 LQR 把腿降到
   // leg_min_length，再放行进入真正的卧倒控制。基于实测腿长触发，避免依赖 CAN 时序观察
   // 到 CHASSIS_ON 中间态。
@@ -557,7 +558,7 @@ void ChassisTask(void) {
         ChassisJump();
         break;
       case CHASSIS_PROSTRATE:
-        ChassisProstrateMode();
+        ChassisProstrate();
         break;
       default:
         break;
@@ -569,5 +570,6 @@ void ChassisTask(void) {
   SuperCapSendMessage(chassis->super_cap, (int16_t)referee_data->GameRobotState.chassis_power_limit * (13.0f / 14.0f),
                       referee_data->PowerHeatData.buffer_energy,
                       referee_data->GameRobotState.power_management_chassis_output);
+
   LimitChassisOutput();
 }
