@@ -18,7 +18,6 @@ typedef struct daemon_ins
 
     uint16_t temp_count; // 当前值,减为零说明模块离线或异常
     void *owner_id;      // daemon实例的地址,初始化的时候填入
-    BuzzzerInstance *buzzer;
 } DaemonInstance;
 
 /* daemon初始化配置 */
