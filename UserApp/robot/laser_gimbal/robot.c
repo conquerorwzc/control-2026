@@ -48,29 +48,29 @@ void RobotInit() {
     pc_link = PCLink22Init(robot->gimbal->gimbal_IMU_data);
     robot->rc_data = RemoteControlInit(&huart3);
     step = (yaw_max_angle-yaw_min_angle)/T;
-    Buzzer_config_s buzzer_cfg = {
-        .alarm_level = ALARM_LEVEL_HIGH,
-        .octave = OCTAVE_1,
-        .loudness = 0.5f,
-    };
-    robot_buzzer = BuzzerRegister(&buzzer_cfg);
-
-    for (int i = 0; i < 7; i++) {
-        robot_buzzer->octave = (octave_e)(OCTAVE_1 + i);
-        AlarmSetStatus(robot_buzzer, ALARM_ON);
-        HAL_Delay(200);
-        AlarmSetStatus(robot_buzzer, ALARM_OFF);
-        HAL_Delay(30);//用os_delay时间不稳定
-        //i++;
-    }
-    for (int i = 8; i > 0; i--) {
-        robot_buzzer->octave = (octave_e)(OCTAVE_1 + i);
-        AlarmSetStatus(robot_buzzer, ALARM_ON);
-        HAL_Delay(200);
-        AlarmSetStatus(robot_buzzer, ALARM_OFF);
-        HAL_Delay(30);//用os_delay时间不稳定
-        //i++;
-    }
+    // Buzzer_config_s buzzer_cfg = {
+    //     .alarm_level = ALARM_LEVEL_HIGH,
+    //     .octave = OCTAVE_1,
+    //     .loudness = 0.5f,
+    // };
+    // robot_buzzer = BuzzerRegister(&buzzer_cfg);
+    //
+    // for (int i = 0; i < 7; i++) {
+    //     robot_buzzer->octave = (octave_e)(OCTAVE_1 + i);
+    //     AlarmSetStatus(robot_buzzer, ALARM_ON);
+    //     HAL_Delay(200);
+    //     AlarmSetStatus(robot_buzzer, ALARM_OFF);
+    //     HAL_Delay(30);//用os_delay时间不稳定
+    //     //i++;
+    // }
+    // for (int i = 8; i > 0; i--) {
+    //     robot_buzzer->octave = (octave_e)(OCTAVE_1 + i);
+    //     AlarmSetStatus(robot_buzzer, ALARM_ON);
+    //     HAL_Delay(200);
+    //     AlarmSetStatus(robot_buzzer, ALARM_OFF);
+    //     HAL_Delay(30);//用os_delay时间不稳定
+    //     //i++;
+    // }
 }
 
 void RobotTask() {

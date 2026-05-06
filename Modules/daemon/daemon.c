@@ -7,7 +7,6 @@
 // 用于保存所有的daemon instance
 static DaemonInstance *daemon_instances[DAEMON_MX_CNT] = {NULL};
 static uint8_t idx; // 用于记录当前的daemon instance数量,配合回调使用
-
 DaemonInstance *DaemonRegister(Daemon_Init_Config_s *config)
 {
     DaemonInstance *instance = (DaemonInstance *)malloc(sizeof(DaemonInstance));
@@ -19,6 +18,15 @@ DaemonInstance *DaemonRegister(Daemon_Init_Config_s *config)
     instance->temp_count = config->init_count == 0 ? 100 : config->init_count; // 默认值为100,初始计数
 
     instance->temp_count = config->reload_count;
+    Buzzer_config_s buzzer_cfg = {
+        .alarm_level = ALARM_LEVEL_HIGH,
+        .octave = OCTAVE_1,
+        .loudness = 0.5f,
+    };
+    instance->buzzer = BuzzerRegister(&buzzer_cfg);
+    AlarmSetStatus(instance->buzzer, ALARM_ON);
+    DWT_Delay(0.2);
+    AlarmSetStatus(instance->buzzer, ALARM_OFF);
     daemon_instances[idx++] = instance;
     return instance;
 }
@@ -42,10 +50,15 @@ void DaemonTask()
 
         dins = daemon_instances[i];
         if (dins->temp_count > 0) // 如果计数器还有值,说明上一次喂狗后还没有超时,则计数器减一
+        {
             dins->temp_count--;
+            AlarmSetStatus(dins->buzzer, ALARM_OFF);
+        }
         else if (dins->callback) // 等于零说明超时了,调用回调函数(如果有的话)
         {
             dins->callback(dins->owner_id); // module内可以将owner_id强制类型转换成自身类型从而调用特定module的offline callback
+            dins->buzzer->octave = (octave_e)(OCTAVE_1 + idx%7);
+            AlarmSetStatus(dins->buzzer, ALARM_ON);
             // @todo 为蜂鸣器/led等增加离线报警的功能,非常关键!
         }
     }
