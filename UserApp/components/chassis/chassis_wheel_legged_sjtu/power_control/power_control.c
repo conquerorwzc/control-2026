@@ -17,7 +17,10 @@ static Power_Ctrl_t* power_ctrl;
  *                注意：speed_aps 为转子侧 deg/s，不除减速比
  * @return     估算电功率 (W)，钳位到 [0, +∞)
  */
-static float MotorEstimatePower(const float k[6], float I, float w) {
+ static float power_ctrl_k_coff;
+static float MotorEstimatePower(float k[6], float I, float w) {
+  for (int i = 0; i<6; i++)
+    k[i] *= power_ctrl_k_coff;
   float P = k[0] + k[1] * I + k[2] * w + k[3] * I * w + k[4] * I * I + k[5] * w * w;
   return fmaxf(P, 0.0f);
 }
@@ -109,22 +112,26 @@ void PowerControl(ChassisInstance* chassis) {
 #define P_FILTER_COEF 0.02f
   for (int i = 0; i < 2; i++) {
     // 实际电机电流 / 力矩 (来自上一拍 final_output)
-    float current_I = (float)chassis->leg[i]->wheel_motor->motor_controller.final_output * DJI_CURRENT_SCALE;
-    pc->I[i] = pc->I[i] * (1.0f - I_FILTER_COEF) + current_I * I_FILTER_COEF;
+    // float current_I = (float)chassis->leg[i]->wheel_motor->motor_controller.final_output * DJI_CURRENT_SCALE;
+    // 实际电机电流 / 力矩 (来自当前拍 T)
+    float current_I = t2i(pc->T_motion[i] + pc->T_balance[i]);
+    // pc->I[i] = pc->I[i] * (1.0f - I_FILTER_COEF) + current_I * I_FILTER_COEF;
+    pc->I[i] = current_I;
 
-    // 对 w 应用一阶低通滤波
+    // 对 w 应用一阶低通滤波 (当前不加滤波)
     float current_w = chassis->leg[i]->wheel_motor->measure.speed_aps * DEGREE_2_RAD;
     pc->w[i] = pc->w[i] * (1.0f - W_FILTER_COEF) + current_w * W_FILTER_COEF;
+    // pc->w[i] = current_w;
 
-    // 总功率用实际电机电流估算，并应用一阶低通滤波
-    float current_P =
-        MotorEstimatePower(pc->k, pc->I[i], pc->w[i]);  // 使用原始 current_w 计算瞬态功率，随后对功率 P 滤波
+    // 总功率用实际电机电流估算，并应用一阶低通滤波 (当前不加滤波)
+    float current_P = MotorEstimatePower(pc->k, pc->I[i], pc->w[i]);  // 使用原始 current_w 计算瞬态功率
     pc->P[i] = pc->P[i] * (1.0f - P_FILTER_COEF) + current_P * P_FILTER_COEF;
+    // pc->P[i] = current_P;
   }
 
   pc->P_total = pc->P[0] + pc->P[1];
   // pc->P_total_ref = chassis->chassis_ctrl_cmd.max_power;
-  pc->P_total_ref = 65.f;
+  pc->P_total_ref = 200.f;
 
   if (pc->P_total > pc->P_total_ref) {
     for (int i = 0; i < 2; i++) {
@@ -134,9 +141,9 @@ void PowerControl(ChassisInstance* chassis) {
       // 2) 由 P_ref 反解允许的总电流 (符号跟随 I_total)
       // pc->I_ref[i] = MotorEstimateCurrent(pc->k, pc->P_ref[i], pc->w[i], pc->I[i]);
       // 计算当前拍的预期输出总电流，用于决定功率逆解求出的允许电流的符号
-      float I_cmd = t2i(pc->T_motion[i] + pc->T_balance[i]);
+      // float I_cmd = t2i(pc->T_motion[i] + pc->T_balance[i]);
       // 2) 由 P_ref 反解允许的总电流 (符号跟随 I_cmd)
-      pc->I_ref[i] = MotorEstimateCurrent(pc->k, pc->P_ref[i], pc->w[i], I_cmd);
+      pc->I_ref[i] = MotorEstimateCurrent(pc->k, pc->P_ref[i], pc->w[i], pc->I[i]);
 
       pc->T_ref[i] = i2t(pc->I_ref[i]);
 
@@ -152,7 +159,7 @@ void PowerControl(ChassisInstance* chassis) {
     }
 
     // 两电机给出两个 scale, state_err 在两电机间共享, 取算术平均回写
-    pc->scale_combined = (pc->scale_motion[0] + pc->scale_motion[1]) * 0.5f;
+    pc->scale_combined = (pc->scale_motion[0] + pc->scale_motion[1]) * 0.5f;//todo: 取最小值还是平均？
 
     chassis->state_err[1] *= pc->scale_combined;
     chassis->state_err[2] *= pc->scale_combined;

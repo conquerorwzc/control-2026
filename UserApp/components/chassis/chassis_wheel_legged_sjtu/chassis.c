@@ -207,7 +207,7 @@ static void LegController(void) {
   float phi_d_abs = fabsf(chassis->state_var.phi_d);
   float inertial_scale = 1.0f;
   if (phi_d_abs > 3.0f) {
-    inertial_scale = 1.0f - (phi_d_abs - 3.0f) / 2.0f; // >5.0rad/s时为0, 3.0~5.0rad/s之间线性过渡
+    inertial_scale = 1.0f - (phi_d_abs - 3.0f) / 2.0f;  // >5.0rad/s时为0, 3.0~5.0rad/s之间线性过渡
     if (inertial_scale < 0.0f) inertial_scale = 0.0f;
   }
 
@@ -249,8 +249,8 @@ static void ChassisCtrlUpdate(void) {
   LQR_K_Calc(chassis->LQR_K, chassis->param.LQR_K_Coefficients, l_l, l_r);
 
   StateErrCalc();
-
   PowerControl(chassis);
+
   LocomotionController();
   LegController();
 
