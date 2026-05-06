@@ -249,7 +249,7 @@ static void ChassisCtrlUpdate(void) {
   LQR_K_Calc(chassis->LQR_K, chassis->param.LQR_K_Coefficients, l_l, l_r);
 
   StateErrCalc();
-  PowerControl(chassis);
+  // PowerControl(chassis);
 
   LocomotionController();
   LegController();

@@ -108,8 +108,8 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
       }
       chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + follow_err * DEGREE_2_RAD;
 #endif
-      // 跟随当前机体角速度 → state_err[3]=0, LQR d_phi 项不参与输出
-      chassis_ctrl_cmd->wz = robot->chassis->imu->Gyro[2];
+      // 与 FOLLOW 一致: FREE 只用 target_yaw 位置误差收敛, 不叠加当前 gyro 前馈.
+      chassis_ctrl_cmd->wz = 0.0f;
       chassis_ctrl_cmd->vx =
           ramp_controller_update(&vx_ramp, input_vy, robot->chassis->state_var.x_b_d, robot->dt);
       chassis_ctrl_cmd->theta_ff = 0.0f;
@@ -449,10 +449,36 @@ static uint8_t mouse_fire = 0, mouse_burst = 0;
 static uint8_t mk_request_vision = 0;
 static uint8_t mk_set_leg_length = 0;
 static float   mk_leg_length_target = 0.0f;
+static uint8_t mk_jump_ready = 0;
+static uint8_t mk_jump_started = 0;
+static uint8_t mk_jump_started_seen_active = 0;
+static float mk_jump_started_time = 0.0f;
+static uint8_t mk_stand_mode = 0;
 
 // 三档腿长: LOW=initial_leg_length, MID=(MAX+initial)/2, HIGH=LEG_MAX_LENGTH
 static const float LEG_TABLE[3] = {0.20f, 0.285f, 0.370f};
 static int leg_step = 0;
+
+static uint8_t OcdIsStand(void) {
+  return mk_stand_mode;
+}
+
+static void ApplyOcdNormalMode(RobotInstance* robot) {
+  Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
+  const uint8_t is_stand = OcdIsStand();
+  const uint8_t is_rotate = (abs(rc_data->rc.dial) > 20 || rc_data->mouse_key.keyboard.shift);
+  const uint8_t is_free = (rc_data->button_status.pause_flag == 1);
+
+  chassis_ctrl_cmd->chassis_mode = is_stand ? CHASSIS_ON : CHASSIS_PROSTRATE;
+
+  if (is_free) {
+    robot->robot_mode = ROBOT_CHASSIS_FREE;
+  } else if (is_stand) {
+    robot->robot_mode = is_rotate ? ROBOT_CHASSIS_ROTATE : ROBOT_CHASSIS_FOLLOW;
+  } else {
+    robot->robot_mode = is_rotate ? ROBOT_CHASSIS_PROSTRATE_ROTATE : ROBOT_CHASSIS_PROSTRATE_FOLLOW;
+  }
+}
 
 void JoyStickCtrl(RobotInstance* robot) {
   rc_data = robot->rc_data;
@@ -470,25 +496,35 @@ void JoyStickCtrl(RobotInstance* robot) {
   joystick_burst = 0;
 
   // 状态机 (按当前输入纯映射):
-  //   fn_1_flag  (toggle, 边沿触发): 1=站立 CHASSIS_ON, 0=卧倒 CHASSIS_PROSTRATE
+  //   fn_1       (rising edge): toggles local stand/prostrate mode, initial=prostrate.
   //   pause_flag (toggle):           1=FREE 模式
   //   dial / shift:                  ROTATE
   // RECOVERY 期间不覆盖 chassis_mode 也不刷新 robot_mode,
   // 让 GimbalAlignToChassisForward() 走完对齐流程, 避免与正常控制冲突;
   // 对齐完成后由 GimbalAlign 一次性置为 CHASSIS_ON, 此处恢复正常接管.
-  const uint8_t is_stand = (rc_data->button_status.fn_1_flag == 1);
-  const uint8_t is_rotate = (abs(rc_data->rc.dial) > 20 || rc_data->mouse_key.keyboard.shift);
+  const uint8_t fn_1_pressed = rc_data->rc.fn_1 && !rc_data_last.rc.fn_1;
+  if (fn_1_pressed && chassis_ctrl_cmd->chassis_mode != CHASSIS_RECOVERY && !mk_jump_started) {
+    mk_jump_ready = 0;
+    mk_jump_started_seen_active = 0;
+    mk_stand_mode = !mk_stand_mode;
+  }
+  const uint8_t is_stand = OcdIsStand();
   const uint8_t is_free = (rc_data->button_status.pause_flag == 1);
 
-  if (chassis_ctrl_cmd->chassis_mode != CHASSIS_RECOVERY) {
-    chassis_ctrl_cmd->chassis_mode = is_stand ? CHASSIS_ON : CHASSIS_PROSTRATE;
-
-    if (is_free) {
+  if (chassis_ctrl_cmd->chassis_mode == CHASSIS_RECOVERY) {
+    mk_jump_ready = 0;
+    mk_jump_started = 0;
+    mk_jump_started_seen_active = 0;
+  } else {
+    if (mk_jump_started) {
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_JUMP_START;
+      chassis_ctrl_cmd->jump_force = JUMP_FORCE;
       robot->robot_mode = ROBOT_CHASSIS_FREE;
-    } else if (is_stand) {
-      robot->robot_mode = is_rotate ? ROBOT_CHASSIS_ROTATE : ROBOT_CHASSIS_FOLLOW;
+    } else if (mk_jump_ready) {
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_JUMP_READY;
+      robot->robot_mode = ROBOT_CHASSIS_FOLLOW;
     } else {
-      robot->robot_mode = is_rotate ? ROBOT_CHASSIS_PROSTRATE_ROTATE : ROBOT_CHASSIS_PROSTRATE_FOLLOW;
+      ApplyOcdNormalMode(robot);
     }
   }
 
@@ -588,27 +624,61 @@ void MouseKeyCtrl(RobotInstance* robot) {
     intent_shared.roll_delta += 0.4f;
   }
 
-  // Ctrl+R / Ctrl+F 三档腿长 (边沿触发)
-  uint8_t cr = rc_data->mouse_key.keyboard.ctrl && rc_data->mouse_key.keyboard.r;
-  uint8_t cr_last = rc_data_last.mouse_key.keyboard.ctrl && rc_data_last.mouse_key.keyboard.r;
-  uint8_t cf = rc_data->mouse_key.keyboard.ctrl && rc_data->mouse_key.keyboard.f;
-  uint8_t cf_last = rc_data_last.mouse_key.keyboard.ctrl && rc_data_last.mouse_key.keyboard.f;
-  if (cr && !cr_last) {
+  // R / F 三档腿长 (边沿触发)
+  const uint8_t r_pressed = rc_data->mouse_key.keyboard.r && !rc_data_last.mouse_key.keyboard.r;
+  const uint8_t f_pressed = rc_data->mouse_key.keyboard.f && !rc_data_last.mouse_key.keyboard.f;
+  if (r_pressed) {
     if (leg_step < 2) leg_step++;
     mk_set_leg_length = 1;
     mk_leg_length_target = LEG_TABLE[leg_step];
   }
-  if (cf && !cf_last) {
+  if (f_pressed) {
     if (leg_step > 0) leg_step--;
     mk_set_leg_length = 1;
     mk_leg_length_target = LEG_TABLE[leg_step];
+  }
+
+  // Ctrl+G: hot switch between inverted pendulum and prostrate.
+  const uint8_t ctrl_g = rc_data->mouse_key.keyboard.ctrl && rc_data->mouse_key.keyboard.g;
+  const uint8_t ctrl_g_last = rc_data_last.mouse_key.keyboard.ctrl && rc_data_last.mouse_key.keyboard.g;
+  Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
+  if (ctrl_g && !ctrl_g_last && chassis_ctrl_cmd->chassis_mode != CHASSIS_RECOVERY && !mk_jump_started) {
+    mk_jump_ready = 0;
+    mk_jump_started_seen_active = 0;
+    mk_stand_mode = !mk_stand_mode;
+    ApplyOcdNormalMode(robot);
+  }
+
+  // Ctrl+V: jump ready toggle. V alone in ready state starts the jump.
+  const uint8_t ctrl_v = rc_data->mouse_key.keyboard.ctrl && rc_data->mouse_key.keyboard.v;
+  const uint8_t ctrl_v_last = rc_data_last.mouse_key.keyboard.ctrl && rc_data_last.mouse_key.keyboard.v;
+  const uint8_t v_pressed = rc_data->mouse_key.keyboard.v && !rc_data_last.mouse_key.keyboard.v;
+  if (ctrl_v && !ctrl_v_last && chassis_ctrl_cmd->chassis_mode != CHASSIS_RECOVERY && !mk_jump_started) {
+    if (mk_jump_ready) {
+      mk_jump_ready = 0;
+      mk_jump_started_seen_active = 0;
+      ApplyOcdNormalMode(robot);
+    } else {
+      mk_jump_ready = 1;
+      mk_jump_started_seen_active = 0;
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_JUMP_READY;
+      robot->robot_mode = ROBOT_CHASSIS_FOLLOW;
+    }
+  } else if (v_pressed && !rc_data->mouse_key.keyboard.ctrl && mk_jump_ready) {
+    mk_jump_ready = 0;
+    mk_jump_started = 1;
+    mk_jump_started_seen_active = 0;
+    mk_jump_started_time = DWT_GetTimeline_s();
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_JUMP_START;
+    chassis_ctrl_cmd->jump_force = JUMP_FORCE;
+    robot->robot_mode = ROBOT_CHASSIS_FREE;
   }
 
   // WASD -> intent_shared.vx/vy 加性叠加; 单位按当前 robot_mode 匹配 JS
   // FOLLOW / stand+FREE: m/s 量级 (JS 用 0.003*rocker, 全推≈2.0)
   // PROSTRATE_FOLLOW / !stand+FREE: 原始摇杆量级 (全推≈660)
   // ROTATE 系: RobotMotionSolve 不读 intent.vx/vy, 这里给 0 即可
-  const uint8_t is_stand = (rc_data->button_status.fn_1_flag == 1);
+  const uint8_t is_stand = OcdIsStand();
   float wasd_scale;
   switch (robot->robot_mode) {
     case ROBOT_CHASSIS_FOLLOW:
@@ -665,7 +735,7 @@ void CtrlSolve(RobotInstance* robot) {
   RobotMotionSolve(robot, &intent_shared);
 
   // 5. JS 原 free+rotate 后处理 (移自 JoyStickCtrl, 应用合并后的 intent)
-  const uint8_t is_stand = (rc_data->button_status.fn_1_flag == 1);
+  const uint8_t is_stand = OcdIsStand();
   const uint8_t is_free = (rc_data->button_status.pause_flag == 1);
   const uint8_t is_rotate = (abs(rc_data->rc.dial) > 20 || rc_data->mouse_key.keyboard.shift);
   if (is_free && is_rotate) {
@@ -682,6 +752,25 @@ void CtrlSolve(RobotInstance* robot) {
     } else {
       chassis_ctrl_cmd->vx = intent_shared.vy;
     }
+  }
+
+  if (mk_jump_started) {
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_JUMP_START;
+    chassis_ctrl_cmd->jump_force = JUMP_FORCE;
+    robot->robot_mode = ROBOT_CHASSIS_FREE;
+    if (robot->chassis->jump_state != JUMP_STATE_IDLE) {
+      mk_jump_started_seen_active = 1;
+    }
+    const uint8_t jump_state_done = (mk_jump_started_seen_active && robot->chassis->jump_state == JUMP_STATE_IDLE);
+    const uint8_t jump_timeout = (DWT_GetTimeline_s() - mk_jump_started_time > 1.2f);
+    if (jump_state_done || jump_timeout) {
+      mk_jump_started = 0;
+      mk_jump_started_seen_active = 0;
+      ApplyOcdNormalMode(robot);
+    }
+  } else if (mk_jump_ready) {
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_JUMP_READY;
+    robot->robot_mode = ROBOT_CHASSIS_FOLLOW;
   }
 
   // 6. 帧末更新 rc_data_last (供下一帧 MK 边沿检测)

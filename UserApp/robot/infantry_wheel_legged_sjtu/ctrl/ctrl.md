@@ -4,10 +4,11 @@
 
 `ctrl` 模块负责将遥控器（摇杆/拨杆）和键鼠输入映射为机器人底盘、云台、发射机构的控制指令。
 
-模块包含三个核心函数：
+模块包含核心函数：
 
 - **`JoyStickCtrl()`** — 遥控器摇杆/拨杆控制
 - **`MouseKeyCtrl()`** — 键盘鼠标控制
+- **`CtrlSolve()`** — OCD 链路下合并遥控器与键鼠输出，并统一解算运动
 - **`EmergencyHandler()`** — 急停与失能保护
 
 ---
@@ -110,65 +111,107 @@
 
 ---
 
-## 二、键鼠控制 (MouseKeyCtrl)
+## 二、键鼠控制 (MouseKeyCtrl, OCD)
 
-### 2.1 鼠标操作
+当前 `USE_OCD_CTRL` 下，`MouseKeyCtrl()` 不是完整控制闭环入口。它只读取 VT13 的 `mouse_key`，把键鼠意图叠加到共享变量 `intent_shared`，或设置 `mouse_fire` / `mouse_burst` / `mk_request_vision` / `mk_set_leg_length` 这类 flag。真正的自瞄覆盖、开火合并、腿长写入、运动解算和 `rc_data_last` 更新都在 `CtrlSolve()` 里完成。
 
-| 操作            | 功能       | 灵敏度 / 说明                            |
-| --------------- | ---------- | ---------------------------------------- |
-| 鼠标 X 移动     | 云台 Yaw   | −0.002                                   |
-| 鼠标 Y 移动     | 云台 Pitch | −0.001                                   |
-| 右键按住        | 自瞄模式   | 视觉有效时 `GIMBAL_VISION`，否则保持手动 |
-| 左键点击        | 单发       | `LOAD_1_BULLET`                          |
-| 左键长按 > 0.2s | 连发       | `LOAD_BURSTFIRE`                         |
+调用顺序必须是：
 
-> **射击前提**：摩擦轮已开启，且（自瞄 `fire_flag` 有效 **或** 未处于自瞄状态）。
+1. `JoyStickCtrl()`：清空 `intent_shared`，写入遥控器意图，设置机器人模式。
+2. `MouseKeyCtrl()`：把键鼠意图叠加到 `intent_shared`，设置键鼠相关 flag。
+3. `CtrlSolve()`：合并两路输入，调用 `RobotMotionSolve()`。
 
-### 2.2 移动键 (WASD)
+### 2.1 帧内状态处理
 
-#### FOLLOW 和 ROTATE 模式
+每帧进入 `MouseKeyCtrl()` 时会清零：
 
-| 按键 | 方向 | 速度                  |
-| ---- | ---- | --------------------- |
-| `W`  | 前   | +0.5 × 固定速度系数   |
-| `S`  | 后   | −0.5 × 固定速度系数   |
-| `D`  | 右   | +0.5 × 固定速度系数   |
-| `A`  | 左   | −0.5 × 固定速度系数   |
+- `mouse_fire = 0`
+- `mouse_burst = 0`
+- `mk_request_vision = 0`
 
-WASD 生成 `(vx, vy)` 矢量后进入与遥控器相同的 FOLLOW / ROTATE 解算逻辑。
+它不会清空 `intent_shared`，因为该变量已经由本帧的 `JoyStickCtrl()` 清零并写入遥控器输入；键鼠输入在此基础上做加性叠加。`mk_set_leg_length` 也不会在这里清零，它由 `CtrlSolve()` 消费后清零。
 
-#### FREE 模式
+### 2.2 鼠标操作
 
-| 按键 | 功能 | 速度                        |
-| ---- | ---- | --------------------------- |
-| `W`  | 前进 | +0.99 × 固定速度系数，经 ramp |
-| `S`  | 后退 | −0.99 × 固定速度系数，经 ramp |
+| 操作            | 当前行为                                      | 最终生效位置  |
+| --------------- | --------------------------------------------- | ------------- |
+| 鼠标 X 移动     | `gimbal_ctrl_cmd->yaw += -mouse.x * 0.002`    | 本函数直接累加 |
+| 鼠标 Y 移动     | `gimbal_ctrl_cmd->pitch += -mouse.y * 0.002`  | 本函数直接累加 |
+| 左键按住        | 摩擦轮开启时置 `mouse_fire = 1`               | `CtrlSolve()` |
+| 左键长按 > 0.3s | 摩擦轮开启时置 `mouse_burst = 1`              | `CtrlSolve()` |
+| 右键按住        | 视觉数据非零时置 `mk_request_vision = 1`      | `CtrlSolve()` |
 
-### 2.3 功能键
+左键松开时会刷新 `mouse_trigger_time`，所以下一次按下从 0 开始计时。开火模式在 `CtrlSolve()` 中与遥控器扳机 OR 合并：连发优先，其次单发，否则停止拨弹。
 
-| 按键     | 触发方式         | 功能                                         |
-| -------- | ---------------- | -------------------------------------------- |
-| `Shift`  | 持续按住         | 开启小陀螺 (`ROBOT_CHASSIS_ROTATE`)          |
-| `X`      | 单次触发         | 云台 Yaw +180°（快速掉头）                   |
-| `Q`      | 持续按住         | 底盘左倾 Roll = −0.2                         |
-| `E`      | 持续按住         | 底盘右倾 Roll = +0.2                         |
-| `Ctrl+G` | 单次切换         | 自起模式 (`CHASSIS_RECOVERY` ↔ `CHASSIS_ON`) |
-| `Ctrl+R` | 持续按住         | 升高腿长                                     |
-| `Ctrl+F` | 持续按住         | 降低腿长                                     |
-| `F`      | 单次触发         | 飞坡模式切换（**待实现**）                   |
-| `C`      | 单次触发         | 超级电容开关（**待实现**）                   |
+右键自瞄不是在 `MouseKeyCtrl()` 内直接改云台模式；它只设置请求 flag。`CtrlSolve()` 看到 `mk_request_vision` 后才把云台切到 `GIMBAL_VISION`，并用视觉 yaw/pitch 覆盖前面累加的手动云台输入。
 
-### 2.4 键鼠模式决策逻辑
+### 2.3 移动键 (WASD)
 
-1. 如果底盘处于 `CHASSIS_RECOVERY` / `JUMP_READY` / `JUMP_START` → 强制 **FREE**
-2. 否则，`Shift` 按住 → **ROTATE**
-3. 否则 → **FOLLOW**（默认）
+WASD 直接叠加到 `intent_shared.vx/vy`。比例由当前 `robot->robot_mode` 决定：
 
-### 2.5 ROTATE 模式附加行为（键鼠独有）
+| 当前模式                         | `wasd_scale` | 单位/含义                         |
+| -------------------------------- | ------------ | --------------------------------- |
+| `ROBOT_CHASSIS_FOLLOW`           | `2.0f`       | 平衡站立速度量级，约 m/s          |
+| `ROBOT_CHASSIS_PROSTRATE_FOLLOW` | `660.0f`     | 卧倒轮速/摇杆原始量级             |
+| `ROBOT_CHASSIS_FREE` 且站立      | `2.0f`       | 平衡站立速度量级，约 m/s          |
+| `ROBOT_CHASSIS_FREE` 且卧倒      | `660.0f`     | 卧倒轮速/摇杆原始量级             |
+| 其他模式                         | `0.0f`       | 不接受 WASD 平移输入              |
 
-- `wz = 固定旋转角速度`
-- `target_yaw = 当前 phi`，让 LQR 的 `phi - target_yaw` 项为 0
-- `vx += input_mag × sin(角度 + 0.03)`（正弦速度调制）
+| 按键 | 写入动作                         |
+| ---- | -------------------------------- |
+| `W`  | `intent_shared.vy += wasd_scale` |
+| `S`  | `intent_shared.vy -= wasd_scale` |
+| `D`  | `intent_shared.vx += wasd_scale` |
+| `A`  | `intent_shared.vx -= wasd_scale` |
+
+这里不做对角线归一化。若同时按多个方向，`vx/vy` 会按分量直接相加，后续由 `RobotMotionSolve()` 按当前机器人模式解释。
+
+### 2.4 功能键
+
+| 按键     | 触发方式 | 当前行为                                                                 |
+| -------- | -------- | ------------------------------------------------------------------------ |
+| `X`      | 上升沿   | `gimbal_ctrl_cmd->yaw += 180.0f`                                         |
+| `C`      | 上升沿   | 在 `BOOST` 和 `NORMAL` 间切换超级电容控制命令                            |
+| `Q`      | 按住     | `intent_shared.roll_delta -= 0.4f`                                       |
+| `E`      | 按住     | `intent_shared.roll_delta += 0.4f`                                       |
+| `R`      | 上升沿   | `leg_step` 最多加到 2，并请求写入 `LEG_TABLE[leg_step]`                  |
+| `F`      | 上升沿   | `leg_step` 最少减到 0，并请求写入 `LEG_TABLE[leg_step]`                  |
+| `Fn1`    | 上升沿   | 热切换倒立摆平衡态和 `CHASSIS_PROSTRATE`，初始为 `CHASSIS_PROSTRATE`     |
+| `Ctrl+G` | 上升沿   | 与 `Fn1` 相同，热切换倒立摆平衡态和 `CHASSIS_PROSTRATE`                 |
+| `Ctrl+V` | 上升沿   | 在正常状态和 `CHASSIS_JUMP_READY` 之间切换                              |
+| `V`      | 上升沿   | 仅在 `CHASSIS_JUMP_READY` 锁存时触发 `CHASSIS_JUMP_START` 并写入 `JUMP_FORCE` |
+| `Shift`  | 按住     | 不在 `MouseKeyCtrl()` 中处理；由 `JoyStickCtrl()` / `CtrlSolve()` 参与小陀螺判定 |
+
+三档腿长表为：
+
+| 档位 | 腿长目标 |
+| ---- | -------- |
+| 0    | `0.20f`  |
+| 1    | `0.285f` |
+| 2    | `0.370f` |
+
+### 2.5 倒立摆/卧倒热切换
+
+OCD 控制层使用本地姿态锁存 `mk_stand_mode` 作为唯一有效姿态源，初始值为 0，即 `CHASSIS_PROSTRATE`。VT13 的 `fn_1_flag` 不再直接决定姿态。
+
+`Fn1` 上升沿和 `Ctrl+G` 上升沿都会对 `mk_stand_mode` 取反：如果当前是倒立摆平衡态，则切到 `CHASSIS_PROSTRATE`；如果当前是卧倒，则切回倒立摆平衡态。因此按 `Ctrl+G` 热切换后，再按 `Fn1` 仍然可以切到另一个形态。
+
+切换时会清除 `CHASSIS_JUMP_READY` 锁存，并按当前 `pause_flag` / `dial` / `Shift` 重新计算 `robot_mode`。`CHASSIS_RECOVERY` 和已经起跳后的 `CHASSIS_JUMP_START` 期间不响应形态切换。
+
+### 2.6 跳跃键鼠流程
+
+`Ctrl+V` 第一次按下后，OCD 控制层会锁存 `mk_jump_ready = 1`，每帧把底盘保持在 `CHASSIS_JUMP_READY`，并把机器人运动模式保持为 `ROBOT_CHASSIS_FOLLOW`。这会阻止 `JoyStickCtrl()` 下一帧把底盘模式覆盖回正常站立/卧倒，同时准备跳跃期间走 FOLLOW 的 yaw 解算，不再挂在 FREE 下。
+
+在 `CHASSIS_JUMP_READY` 下再次按 `Ctrl+V`，会清除准备锁存，并立即按当前 `mk_stand_mode` / `pause_flag` / `dial` / `Shift` 恢复正常模式。
+
+在 `CHASSIS_JUMP_READY` 下按单独的 `V`，会切到 `CHASSIS_JUMP_START`，写入 `jump_force = JUMP_FORCE`。控制层会保持起跳状态直到 chassis 的 `jump_state` 离开过 `IDLE` 后再次回到 `IDLE`；如果控制侧读不到真实跳跃状态，则 1.2 秒后兜底恢复正常模式。
+
+### 2.7 当前没有做的事
+
+- `MouseKeyCtrl()` 不设置 `gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON`。
+- `MouseKeyCtrl()` 不调用 `RobotMotionSolve()`。
+- `MouseKeyCtrl()` 不更新 `rc_data_last`。
+- 当前 OCD 键鼠没有实现飞坡切换或 `Ctrl+Z` 速度档切换。
 
 ---
 
@@ -260,44 +303,42 @@ WASD 生成 `(vx, vy)` 矢量后进入与遥控器相同的 FOLLOW / ROTATE 解�
 
 #### 移动
 
-| 按键 | FOLLOW / ROTATE 模式 | FREE 模式                 |
-| ---- | -------------------- | ------------------------- |
-| `W`  | 前方 +0.5 × coff     | 前进 +0.99 × coff（ramp） |
-| `S`  | 后方 −0.5 × coff     | 后退 −0.99 × coff（ramp） |
-| `A`  | 左方 −0.5 × coff     | —                         |
-| `D`  | 右方 +0.5 × coff     | —                         |
+| 按键 | 站立 FOLLOW / 站立 FREE | 卧倒 FOLLOW / 卧倒 FREE | 其他模式 |
+| ---- | ----------------------- | ----------------------- | -------- |
+| `W`  | `vy += 2.0`             | `vy += 660.0`           | 无效     |
+| `S`  | `vy -= 2.0`             | `vy -= 660.0`           | 无效     |
+| `A`  | `vx -= 2.0`             | `vx -= 660.0`           | 无效     |
+| `D`  | `vx += 2.0`             | `vx += 660.0`           | 无效     |
 
 #### 鼠标
 
-| 操作            | 功能                        |
-| --------------- | --------------------------- |
-| 鼠标移动 X      | 云台 Yaw（灵敏度 −0.002）   |
-| 鼠标移动 Y      | 云台 Pitch（灵敏度 −0.001） |
-| 左键点击        | 单发                        |
-| 左键长按 > 0.2s | 连发                        |
-| 右键按住        | 自瞄（视觉有效时生效）      |
+| 操作            | 功能                                      |
+| --------------- | ----------------------------------------- |
+| 鼠标移动 X      | 云台 Yaw 增量（灵敏度 `-0.002`）         |
+| 鼠标移动 Y      | 云台 Pitch 增量（灵敏度 `-0.002`）       |
+| 左键按住        | 摩擦轮开启时请求单发                      |
+| 左键长按 > 0.3s | 摩擦轮开启时请求连发                      |
+| 右键按住        | 视觉数据有效时请求自瞄，最终由 `CtrlSolve()` 覆盖云台目标 |
 
 #### 功能键（持续按住）
 
-| 按键     | 功能                 |
-| -------- | -------------------- |
-| `Shift`  | 小陀螺模式           |
-| `Q`      | 底盘左倾 Roll = −0.2 |
-| `E`      | 底盘右倾 Roll = +0.2 |
-| `Ctrl+R` | 升高腿长             |
-| `Ctrl+F` | 降低腿长             |
+| 按键    | 功能                                                         |
+| ------- | ------------------------------------------------------------ |
+| `Shift` | 小陀螺判定输入，由 `JoyStickCtrl()` / `CtrlSolve()` 使用     |
+| `Q`     | `roll_delta -= 0.4`                                          |
+| `E`     | `roll_delta += 0.4`                                          |
 
 #### 功能键（单次触发）
 
-| 按键 | 功能                      |
-| ---- | ------------------------- |
-| `X`  | 云台掉头 +180°            |
-| `F`  | 飞坡模式切换 *（待实现）* |
-| `C`  | 超级电容开关 *（待实现）* |
+| 按键     | 功能                                   |
+| -------- | -------------------------------------- |
+| `X`      | 云台掉头 `yaw += 180°`                 |
+| `C`      | 超级电容 `BOOST` / `NORMAL` 切换       |
+| `R`      | 腿长档位上升，最高到 `0.370f`          |
+| `F`      | 腿长档位下降，最低到 `0.20f`           |
+| `Fn1`    | 热切换倒立摆平衡态和 `CHASSIS_PROSTRATE` |
+| `Ctrl+G` | 热切换倒立摆平衡态和 `CHASSIS_PROSTRATE` |
+| `Ctrl+V` | 进入/退出 `CHASSIS_JUMP_READY`         |
+| `V`      | 在 `CHASSIS_JUMP_READY` 下触发起跳     |
 
-#### 功能键（单次切换）
-
-| 按键     | 功能                                         |
-| -------- | -------------------------------------------- |
-| `Ctrl+G` | 自起模式 `CHASSIS_RECOVERY` ↔ `CHASSIS_ON`   |
-| `Ctrl+Z` | 速度/旋转系数循环切换：`1.0` → `1.5` → `2.0` |
+> 当前 OCD 键鼠未实现飞坡切换和 `Ctrl+Z` 速度档切换。
