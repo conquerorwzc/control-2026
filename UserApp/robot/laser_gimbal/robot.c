@@ -7,6 +7,8 @@
 #include "general_def.h"
 #include "pc_link_22b.h"
 #include "robot.h"
+
+#include "buzzer.h"
 #include "robot_config.h"
 #include "user_lib.h"
 static Gimbal_Ctrl_Cmd_s *gimbal_ctrl_cmd=NULL;
@@ -26,6 +28,7 @@ static float x=0;
 float factor=-3.6f;
   float TARGET_OFFSET = 4.2f;         /* 目标侧向偏移 (m) */
 float offset_pitch=130.0f;
+static BuzzzerInstance *robot_buzzer;
 /**
  * @brief 生成三角波信号
  * @param amplitude 幅度 (峰值)
@@ -45,7 +48,29 @@ void RobotInit() {
     pc_link = PCLink22Init(robot->gimbal->gimbal_IMU_data);
     robot->rc_data = RemoteControlInit(&huart3);
     step = (yaw_max_angle-yaw_min_angle)/T;
+    Buzzer_config_s buzzer_cfg = {
+        .alarm_level = ALARM_LEVEL_HIGH,
+        .octave = OCTAVE_1,
+        .loudness = 0.5f,
+    };
+    robot_buzzer = BuzzerRegister(&buzzer_cfg);
 
+    for (int i = 0; i < 7; i++) {
+        robot_buzzer->octave = (octave_e)(OCTAVE_1 + i);
+        AlarmSetStatus(robot_buzzer, ALARM_ON);
+        HAL_Delay(200);
+        AlarmSetStatus(robot_buzzer, ALARM_OFF);
+        HAL_Delay(30);//用os_delay时间不稳定
+        //i++;
+    }
+    for (int i = 8; i > 0; i--) {
+        robot_buzzer->octave = (octave_e)(OCTAVE_1 + i);
+        AlarmSetStatus(robot_buzzer, ALARM_ON);
+        HAL_Delay(200);
+        AlarmSetStatus(robot_buzzer, ALARM_OFF);
+        HAL_Delay(30);//用os_delay时间不稳定
+        //i++;
+    }
 }
 
 void RobotTask() {
@@ -108,10 +133,10 @@ void RobotTask() {
                 gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
             }
 
-            if (gimbal_ctrl_cmd->yaw > yaw_max_angle) {
-                gimbal_ctrl_cmd->yaw = yaw_max_angle;
-            } else if (gimbal_ctrl_cmd->yaw < yaw_min_angle) {
-                gimbal_ctrl_cmd->yaw = yaw_min_angle;
+            if (gimbal_ctrl_cmd->yaw > 30) {
+                gimbal_ctrl_cmd->yaw = 30;
+            } else if (gimbal_ctrl_cmd->yaw < -30) {
+                gimbal_ctrl_cmd->yaw = -30;
             }
         } else {
             //生成三角波扫描位移
