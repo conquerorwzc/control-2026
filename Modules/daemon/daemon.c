@@ -13,6 +13,7 @@ Buzzer_config_s buzzer_cfg = {
     .loudness = 0.5f,
 };
 static BuzzzerInstance *buzzer=NULL;
+static float time_stamp;
 DaemonInstance *DaemonRegister(Daemon_Init_Config_s *config)
 {
     DaemonInstance *instance = (DaemonInstance *)malloc(sizeof(DaemonInstance));
@@ -56,9 +57,14 @@ void DaemonTask()
         }
         else if (dins->callback) // 等于零说明超时了,调用回调函数(如果有的话)
         {
+
             dins->callback(dins->owner_id); // module内可以将owner_id强制类型转换成自身类型从而调用特定module的offline callback
             buzzer->octave = (octave_e)(OCTAVE_1 + idx%7);
-            AlarmSetStatus(buzzer, ALARM_ON);
+            if (DWT_GetTimeline_ms()-time_stamp>200)
+            {
+                AlarmSetStatus(buzzer, buzzer->alarm_state=buzzer->alarm_state?ALARM_OFF:ALARM_ON);
+                time_stamp=DWT_GetTimeline_ms();
+            }
             // @todo 为蜂鸣器/led等增加离线报警的功能,非常关键!
         }
     }
