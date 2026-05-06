@@ -48,9 +48,9 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                     {
-                      .Kp = 0.0f,
+                      .Kp = 2.3f,
                       .Ki = 0.0f,
-                      .Kd = 0.0f,
+                      .Kd = 0.03f,
                       .DeadBand = 0.01f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                       .IntegralLimit = 5.0f,
@@ -74,6 +74,8 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                     .tx_id = 2,
                 },
             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+            .controller_setting_init_config.feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+            .controller_setting_init_config.feedforward_flag = SPEED_FEEDFORWARD,
         },
     .pitch_motor_config =
         {
@@ -104,7 +106,6 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                     .tx_id = 2,
                 },
             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
-            .controller_setting_init_config.feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
         },
     .imu_init_config = {
         .flag = 1,

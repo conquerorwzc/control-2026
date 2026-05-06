@@ -155,7 +155,7 @@ static void RemoteControlSet() {
     vx_initial = 60.0f * (float)vt13_rc_data->rc.rocker_l_;  // l_水平方向，最大660*60=39600
     vy_initial = 60.0f * (float)vt13_rc_data->rc.rocker_l1;  // l1竖直方向，最大660*60
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE)
-      chassis_ctrl_cmd->wz = 5.0f * (float)vt13_rc_data->rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
+      chassis_ctrl_cmd->wz = 10.0f * (float)vt13_rc_data->rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
       chassis_ctrl_cmd->wz = (2.0f) * (float)vt13_rc_data->rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
     }
@@ -408,9 +408,9 @@ void RobotInit() {
   for (int i = 0; i < 6; i++) {
     robot_buzzer->octave = (octave_e)(OCTAVE_6 - i);
     AlarmSetStatus(robot_buzzer, ALARM_ON);
-    HAL_Delay(200);
+    osDelay(50);
     AlarmSetStatus(robot_buzzer, ALARM_OFF);
-    HAL_Delay(30);//用os_delay时间不稳定
+    osDelay(5);//用os_delay时间不稳定
   }
 }
 

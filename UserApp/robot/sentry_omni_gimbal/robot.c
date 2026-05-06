@@ -537,9 +537,9 @@ void RobotInit() {
   for (int i = 0; i < 6; i++) {
     robot_buzzer->octave = (octave_e)(OCTAVE_1 + i);
     AlarmSetStatus(robot_buzzer, ALARM_ON);
-    HAL_Delay(200);
+    osDelay(50);
     AlarmSetStatus(robot_buzzer, ALARM_OFF);
-    HAL_Delay(30);//用os_delay时间不稳定
+    osDelay(5);//用os_delay时间不稳定
   }
 }
 
@@ -558,7 +558,8 @@ void RobotCMDTask() {
   DualBoardCtrlSet();
   shoot_ctrl_cmd->initial_speed = DecodeBulletSpeedFromU16(RefereeData->initial_speed);
   shoot_ctrl_cmd->shooter_barrel_heat=RefereeData->shooter_17mm_barrel_heat;
-  gimbal_ctrl_cmd->chassis_rotate_wz = -0.11f * RefereeData->wz;
+  if (RefereeData->wz >= 0)gimbal_ctrl_cmd->chassis_rotate_wz = 0.00030f * RefereeData->wz;
+  if (RefereeData->wz < 0)  gimbal_ctrl_cmd->chassis_rotate_wz = 0.00034f * RefereeData->wz;
   RemoteControlSet();
   // MouseKeySet();
   PitchAngleLimit();
@@ -568,7 +569,6 @@ void RobotCMDTask() {
 void RobotTask() {
   VisionSend();
   RobotCMDTask();
-  gimbal_ctrl_cmd->yaw=robot->gimbal->gimbal_IMU_data->YawTotalAngle;
   GimbalTask();
   ShootTask();
 
