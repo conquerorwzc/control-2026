@@ -125,6 +125,21 @@
 #define UI_SPEED_TEXT_SIZE 15
 #define UI_SPEED_TEXT_WIDTH UI_CAP_TEXT_WIDTH
 
+/* ---- 引导线（地面透视引导） ---- */
+#define UI_GUIDE_LAYER 8
+#define UI_GUIDE_COLOR UI_Color_Green
+#define UI_GUIDE_LINE_WIDTH 2
+
+/* 底边：车身宽度附近；顶点：向中心上方收敛形成纵深 */
+#define UI_GUIDE_BOTTOM_Y 50       // 屏幕下方（裁判系统 y 轴向上，值越小越靠下）
+#define UI_GUIDE_BOTTOM_HALF_W 900 // 底部半宽 ≈ 车身宽度
+#define UI_GUIDE_TOP_Y 430          // 汇聚点的纵向高度
+#define UI_GUIDE_TOP_HALF_W 300      // 顶部半宽（透视收敛）
+#define UI_GUIDE_CENTER_X 960
+
+/* 横向刻度线数量（地面格） */
+#define UI_GUIDE_RUNG_COUNT 3
+
 /* ===========================================================================
  * 文件级状态
  * =========================================================================*/
@@ -173,6 +188,10 @@ static String_Data_t UI_SpeedValue;
 /* 状态模块 */
 static String_Data_t UI_StatusLabel[UI_STATUS_ROW_COUNT];
 static String_Data_t UI_StatusValue[UI_STATUS_ROW_COUNT];
+
+/* 引导线模块 */
+static Graph_Data_t UI_GuideSide[2];                  // 左右两条斜边
+static Graph_Data_t UI_GuideRung[UI_GUIDE_RUNG_COUNT]; // 中间横向透视刻度
 
 /* ===========================================================================
  * 通用工具函数
@@ -729,6 +748,56 @@ static void DrawSpeedDynamic(const Referee_Interactive_info_t *data, uint32_t op
 }
 
 /* ===========================================================================
+ * 模块：Guide —— 屏幕下方斜向透视引导线
+ * =========================================================================*/
+
+/**
+ * @brief 绘制下方的梯形透视引导线：两侧斜边 + 若干横向刻度线。
+ *        底边靠近屏幕下方，顶部向中心汇聚产生纵深感。
+ */
+static void DrawGuideLine(uint32_t operate) {
+  const int32_t cx = UI_GUIDE_CENTER_X;
+  const int32_t y_bot = UI_GUIDE_BOTTOM_Y;
+  const int32_t y_top = UI_GUIDE_TOP_Y;
+  const int32_t half_bot = UI_GUIDE_BOTTOM_HALF_W;
+  const int32_t half_top = UI_GUIDE_TOP_HALF_W;
+
+  /* 左斜边：从左下 -> 左上（向中心收敛） */
+  UILineDraw(&UI_GuideSide[0], "gd0", operate, UI_GUIDE_LAYER, UI_GUIDE_COLOR, UI_GUIDE_LINE_WIDTH,
+             cx - half_bot, y_bot, cx - half_top, y_top);
+  /* 右斜边：从右下 -> 右上 */
+  UILineDraw(&UI_GuideSide[1], "gd1", operate, UI_GUIDE_LAYER, UI_GUIDE_COLOR, UI_GUIDE_LINE_WIDTH,
+             cx + half_bot, y_bot, cx + half_top, y_top);
+  UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_GuideSide[0], UI_GuideSide[1]);
+
+  /* 中间横向刻度线：越靠上越窄，形成地面栅格的纵深感 */
+  for (uint8_t i = 0; i < UI_GUIDE_RUNG_COUNT; i++) {
+    /* 非线性插值让靠近远端的线更密集（更像透视）： t^1.6 */
+    float t = (float)(i + 1) / (float)(UI_GUIDE_RUNG_COUNT + 1);
+    float tp = powf(t, 1.6f);
+
+    int32_t y = y_bot + (int32_t)((y_top - y_bot) * tp);
+    int32_t half_w = half_bot + (int32_t)((half_top - half_bot) * tp);
+
+    char name[4];
+    MakeUiName(name, 'g', i + 2);  /* "g02", "g03", ... 避免与 gd0/gd1 冲突 */
+
+    UILineDraw(&UI_GuideRung[i], name, operate, UI_GUIDE_LAYER, UI_GUIDE_COLOR, UI_GUIDE_LINE_WIDTH,
+               cx - half_w, y, cx + half_w, y);
+  }
+
+  /* 一次最多刷 7 个 Graph，这里最多 3 个横线，直接批量发送 */
+  if (UI_GUIDE_RUNG_COUNT == 3) {
+    UIGraphRefresh(&referee_recv_info->referee_id, 3,
+                   UI_GuideRung[0], UI_GuideRung[1], UI_GuideRung[2]);
+  } else {
+    for (uint8_t i = 0; i < UI_GUIDE_RUNG_COUNT; i++) {
+      UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_GuideRung[i]);
+    }
+  }
+}
+
+/* ===========================================================================
  * 脏标志检测：根据当前数据与上一次数据的差异，决定本帧需要刷新哪些 UI
  * =========================================================================*/
 
@@ -877,6 +946,7 @@ void MyUIInit(RobotInstance *robot) {
 
   DrawRelativePosition(interactive_data.chassis_relative_angle, UI_Graph_ADD);
   DrawAimIndicator(interactive_data.aim_target_flag, UI_Graph_ADD);
+  DrawGuideLine(UI_Graph_ADD);
   DrawLegLabels(UI_Graph_ADD);
   DrawLegPosture(robot, UI_Graph_ADD);
   DrawStatusStatic(UI_Graph_ADD);
