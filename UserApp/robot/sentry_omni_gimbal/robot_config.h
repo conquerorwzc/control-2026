@@ -207,8 +207,6 @@ static Shoot_Init_Config_s shoot_init_config = {
 },
 };
 
-#ifndef CONTROL_2026_ROBOT_CONFIG_H
-#define CONTROL_2026_ROBOT_CONFIG_H
 
 #ifdef USE_DUAL_RC_NEW
 #define DUALBOARD_CMD_LEN ((uint8_t)sizeof(Send_Data_RC_NEW))
