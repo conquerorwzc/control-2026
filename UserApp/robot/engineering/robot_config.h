@@ -849,7 +849,7 @@ static Grab_Init_Config_s
                             .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
                             .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
                         },
-                    .motor_type = M3508,
+                    .motor_type = M3508,//前伸电机
                     .can_init_config =
                         {
                             .can_handle = &hcan3, // 建议挂在CAN3上，ID设为7以避开底盘和云台
@@ -895,11 +895,11 @@ static VideoGimbal_Init_Config_s video_gimbal_init_config = {
             .motor_type = GM6020,
             .can_init_config =
                 {
-                    .can_handle = &hcan2,
+                    .can_handle = &hcan2,//云台yaw
                     .tx_id = 3,
                 },
         },
-    // M3508 Pitch (hcan3, id=6)
+
     .pitch_motor_config =
         {
             .controller_param_init_config =
@@ -935,7 +935,7 @@ static VideoGimbal_Init_Config_s video_gimbal_init_config = {
             .motor_type = M3508,
             .can_init_config =
                 {
-                    .can_handle = &hcan3,
+                    .can_handle = &hcan3,//云台pitch
                     .tx_id = 6, // pitch
                 },
         },

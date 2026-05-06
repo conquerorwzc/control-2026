@@ -1,15 +1,82 @@
 #include "half_auto.h"
+#include "trajectory_planner.h"
 
 
 static uint8_t normal_step = 0; // 专属平地取/存矿的步数 (最大20)
 static uint8_t climb_step = 0;  // 专属上台阶重心的步数 (最大13)
 static Half_Control_List half_control_list = Store_First_Energy_Unit;
 
-static void Move_Joint_Smoothly(float *current, float target, float max_step)
+// ========================================================
+// S曲线规划器实例 (每个关节独立，由 Half_Auto_Smooth 统一管理)
+// ========================================================
+static SCurvePlanner_t sc_base;
+static SCurvePlanner_t sc_elbow_roll;
+static SCurvePlanner_t sc_elbow_pitch;
+static SCurvePlanner_t sc_wrist_pitch;
+static SCurvePlanner_t sc_wrist_roll;
+static SCurvePlanner_t sc_arm_lift;
+static SCurvePlanner_t sc_arm_extend;
+static uint8_t scurve_inited = 0;
+
+// ========================================================
+// S曲线平滑层：初始化 + 统一更新
+// ========================================================
+static void Half_Auto_Smooth_Init(Grab_Ctrl_Cmd_s *cmd)
 {
-    if (*current < target - max_step) *current += max_step;
-    else if (*current > target + max_step) *current -= max_step;
-    else *current = target;
+    // 角度类关节 (度/秒, 度/秒², 度/秒³)
+    SCurvePlanner_Reset(&sc_base, cmd->base_joint);
+    sc_base.max_vel = 300.0f; sc_base.max_accel = 1500.0f; sc_base.max_jerk = 15000.0f;
+
+    SCurvePlanner_Reset(&sc_elbow_roll, cmd->elbow_roll);
+    sc_elbow_roll.max_vel = 300.0f; sc_elbow_roll.max_accel = 1500.0f; sc_elbow_roll.max_jerk = 15000.0f;
+
+    SCurvePlanner_Reset(&sc_elbow_pitch, cmd->elbow_pitch);
+    sc_elbow_pitch.max_vel = 300.0f; sc_elbow_pitch.max_accel = 1500.0f; sc_elbow_pitch.max_jerk = 15000.0f;
+
+    SCurvePlanner_Reset(&sc_wrist_pitch, cmd->wrist_pitch);
+    sc_wrist_pitch.max_vel = 300.0f; sc_wrist_pitch.max_accel = 1500.0f; sc_wrist_pitch.max_jerk = 15000.0f;
+
+    SCurvePlanner_Reset(&sc_wrist_roll, cmd->wrist_roll);
+    sc_wrist_roll.max_vel = 300.0f; sc_wrist_roll.max_accel = 1500.0f; sc_wrist_roll.max_jerk = 15000.0f;
+
+    // 线性执行器 (mm/秒, mm/秒², mm/秒³)
+    SCurvePlanner_Reset(&sc_arm_lift, cmd->arm_lift);
+    sc_arm_lift.max_vel = 400.0f; sc_arm_lift.max_accel = 2000.0f; sc_arm_lift.max_jerk = 20000.0f;
+
+    SCurvePlanner_Reset(&sc_arm_extend, cmd->arm_extend);
+    sc_arm_extend.max_vel = 800.0f; sc_arm_extend.max_accel = 5000.0f; sc_arm_extend.max_jerk = 50000.0f;
+
+    scurve_inited = 1;
+}
+
+static void Half_Auto_Smooth_Update(Grab_Ctrl_Cmd_s *cmd, float freq)
+{
+    // 1. 从 cmd 读取模式函数写入的目标值
+    sc_base.target        = cmd->base_joint;
+    sc_elbow_roll.target  = cmd->elbow_roll;
+    sc_elbow_pitch.target = cmd->elbow_pitch;
+    sc_wrist_pitch.target = cmd->wrist_pitch;
+    sc_wrist_roll.target  = cmd->wrist_roll;
+    sc_arm_lift.target    = cmd->arm_lift;
+    sc_arm_extend.target  = cmd->arm_extend;
+
+    // 2. 逐关节 S曲线更新 (jerk限幅 → accel限幅 → vel限幅 → pos更新)
+    SCurvePlanner_Update(&sc_base, freq);
+    SCurvePlanner_Update(&sc_elbow_roll, freq);
+    SCurvePlanner_Update(&sc_elbow_pitch, freq);
+    SCurvePlanner_Update(&sc_wrist_pitch, freq);
+    SCurvePlanner_Update(&sc_wrist_roll, freq);
+    SCurvePlanner_Update(&sc_arm_lift, freq);
+    SCurvePlanner_Update(&sc_arm_extend, freq);
+
+    // 3. 将平滑后的值写回 cmd (gripper_state 等非浮点量不受影响)
+    cmd->base_joint   = sc_base.pos;
+    cmd->elbow_roll   = sc_elbow_roll.pos;
+    cmd->elbow_pitch  = sc_elbow_pitch.pos;
+    cmd->wrist_pitch  = sc_wrist_pitch.pos;
+    cmd->wrist_roll   = sc_wrist_roll.pos;
+    cmd->arm_lift     = sc_arm_lift.pos;
+    cmd->arm_extend   = sc_arm_extend.pos;
 }
 
 void Half_auto_reset(void)
@@ -21,6 +88,9 @@ void Half_auto_reset(void)
 void Half_auto_update(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd, uint8_t press_l,
                       uint8_t press_l_last, uint8_t press_r, uint8_t press_r_last)
 {
+    // 首次调用时用当前关节角度初始化S曲线规划器
+    if (!scurve_inited) Half_Auto_Smooth_Init(grab_ctrl_cmd);
+
     // ========================================================
     // 1. 上台阶专属控制域 (拦截所有常规操作)
     // ========================================================
@@ -38,6 +108,7 @@ void Half_auto_update(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_Cmd_s *chassi
         }
 
         climb_step_prep(grab_ctrl_cmd, climb_step);
+        Half_Auto_Smooth_Update(grab_ctrl_cmd, 500.0f);
         return;
     }
 
@@ -77,6 +148,9 @@ void Half_auto_update(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_Cmd_s *chassi
     default:
         break;
     }
+
+    // S曲线平滑层：统一输出 (gripper_state 不受影响)
+    Half_Auto_Smooth_Update(grab_ctrl_cmd, 500.0f);
 }
 
 /**
@@ -84,19 +158,17 @@ void Half_auto_update(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_Cmd_s *chassi
  */
 void climb_step_prep(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, uint8_t step)
 {
-    // 🌟 抬升机构平滑下降，每次5ms下降2mm (400mm/s)，防砸车
-    Move_Joint_Smoothly(&grab_ctrl_cmd->arm_lift, 0.0f, 2.0f);
+    grab_ctrl_cmd->arm_lift = 0.0f;
 
     switch (step)
     {
     case 0:
-        // 🌟 平滑过渡到准备姿态：消除切入半自动时的巨大冲击！(每次移动0.6度，约120度/秒)
-        Move_Joint_Smoothly(&grab_ctrl_cmd->base_joint, 0.00f, 0.6f);
-        Move_Joint_Smoothly(&grab_ctrl_cmd->elbow_roll, -7.40f, 0.6f);
-        Move_Joint_Smoothly(&grab_ctrl_cmd->elbow_pitch, -36.47f, 0.6f);
-        Move_Joint_Smoothly(&grab_ctrl_cmd->wrist_pitch, 31.73f, 0.6f);
-        Move_Joint_Smoothly(&grab_ctrl_cmd->wrist_roll, -0.18f, 0.6f);
-        Move_Joint_Smoothly(&grab_ctrl_cmd->arm_extend, 224.0f, 4.0f); // 丝杠每次伸缩4mm (800mm/s)
+        grab_ctrl_cmd->base_joint = 0.00f;
+        grab_ctrl_cmd->elbow_roll = -7.40f;
+        grab_ctrl_cmd->elbow_pitch = -36.47f;
+        grab_ctrl_cmd->wrist_pitch = 31.73f;
+        grab_ctrl_cmd->wrist_roll = -0.18f;
+        grab_ctrl_cmd->arm_extend = 224.0f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
     case 1:
@@ -229,15 +301,15 @@ void store_first_energy_unit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, uint8_t step)
 {
     switch (step)
     {
-    case 0: // 🌟 平滑过渡到准备姿态
-        Move_Joint_Smoothly(&grab_ctrl_cmd->base_joint, -1.80f, 0.6f);
-        Move_Joint_Smoothly(&grab_ctrl_cmd->elbow_roll, 1.69f, 0.6f);
-        Move_Joint_Smoothly(&grab_ctrl_cmd->elbow_pitch, -13.93f, 0.6f);
-        Move_Joint_Smoothly(&grab_ctrl_cmd->wrist_pitch, 82.26f, 0.6f);
-        Move_Joint_Smoothly(&grab_ctrl_cmd->wrist_roll, -5.27f, 0.6f);
+    case 0:
+        grab_ctrl_cmd->base_joint = -1.80f;
+        grab_ctrl_cmd->elbow_roll = 1.69f;
+        grab_ctrl_cmd->elbow_pitch = -13.93f;
+        grab_ctrl_cmd->wrist_pitch = 82.26f;
+        grab_ctrl_cmd->wrist_roll = -5.27f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
-    case 1: // custom_trajectory[0]
+    case 1:
         grab_ctrl_cmd->base_joint = -1.80f;
         grab_ctrl_cmd->elbow_roll = 1.69f;
         grab_ctrl_cmd->elbow_pitch = -13.93f;
@@ -363,12 +435,12 @@ void store_second_energy_unit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, uint8_t step)
 {
     switch (step)
     {
-    case 0: // 🌟 平滑过渡到准备姿态
-        Move_Joint_Smoothly(&grab_ctrl_cmd->base_joint, -1.58f, 0.6f);
-        Move_Joint_Smoothly(&grab_ctrl_cmd->elbow_roll, -3.31f, 0.6f);
-        Move_Joint_Smoothly(&grab_ctrl_cmd->elbow_pitch, 12.60f, 0.6f);
-        Move_Joint_Smoothly(&grab_ctrl_cmd->wrist_pitch, 72.42f, 0.6f);
-        Move_Joint_Smoothly(&grab_ctrl_cmd->wrist_roll, 3.16f, 0.6f);
+    case 0:
+        grab_ctrl_cmd->base_joint = -1.58f;
+        grab_ctrl_cmd->elbow_roll = -3.31f;
+        grab_ctrl_cmd->elbow_pitch = 12.60f;
+        grab_ctrl_cmd->wrist_pitch = 72.42f;
+        grab_ctrl_cmd->wrist_roll = 3.16f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
     case 1:
@@ -547,12 +619,12 @@ void grab_six_oclock_energy_unit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_Cm
 
     switch (step)
     {
-    case 0: // 🌟 平滑过渡到准备姿态
-        Move_Joint_Smoothly(&grab_ctrl_cmd->base_joint, 9.62f, 0.6f);
-        Move_Joint_Smoothly(&grab_ctrl_cmd->elbow_roll, -4.79f, 0.6f);
-        Move_Joint_Smoothly(&grab_ctrl_cmd->elbow_pitch, 4.68f, 0.6f);
-        Move_Joint_Smoothly(&grab_ctrl_cmd->wrist_pitch, 45.48f, 0.6f);
-        Move_Joint_Smoothly(&grab_ctrl_cmd->wrist_roll, -2.10f, 0.6f);
+    case 0:
+        grab_ctrl_cmd->base_joint = 9.62f;
+        grab_ctrl_cmd->elbow_roll = -4.79f;
+        grab_ctrl_cmd->elbow_pitch = 4.68f;
+        grab_ctrl_cmd->wrist_pitch = 45.48f;
+        grab_ctrl_cmd->wrist_roll = -2.10f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
     case 1:
@@ -707,12 +779,12 @@ void grab_four_oclock_energy_unit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_C
 
     switch (step)
     {
-    case 0: // 🌟 平滑过渡到准备姿态
-        Move_Joint_Smoothly(&grab_ctrl_cmd->base_joint, 2.46f, 0.6f);
-        Move_Joint_Smoothly(&grab_ctrl_cmd->elbow_roll, -4.36f, 0.6f);
-        Move_Joint_Smoothly(&grab_ctrl_cmd->elbow_pitch, 3.79f, 0.6f);
-        Move_Joint_Smoothly(&grab_ctrl_cmd->wrist_pitch, 38.36f, 0.6f);
-        Move_Joint_Smoothly(&grab_ctrl_cmd->wrist_roll, -0.79f, 0.6f);
+    case 0:
+        grab_ctrl_cmd->base_joint = 2.46f;
+        grab_ctrl_cmd->elbow_roll = -4.36f;
+        grab_ctrl_cmd->elbow_pitch = 3.79f;
+        grab_ctrl_cmd->wrist_pitch = 38.36f;
+        grab_ctrl_cmd->wrist_roll = -0.79f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
     case 1:
