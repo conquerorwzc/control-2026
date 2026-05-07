@@ -61,17 +61,11 @@ void RobotInit() {
     //     HAL_Delay(200);
     //     AlarmSetStatus(robot_buzzer, ALARM_OFF);
     //     HAL_Delay(30);//用os_delay时间不稳定
-    //     //i++;
+    //
     // }
-    // for (int i = 8; i > 0; i--) {
-    //     robot_buzzer->octave = (octave_e)(OCTAVE_1 + i);
-    //     AlarmSetStatus(robot_buzzer, ALARM_ON);
-    //     HAL_Delay(200);
-    //     AlarmSetStatus(robot_buzzer, ALARM_OFF);
-    //     HAL_Delay(30);//用os_delay时间不稳定
-    //     //i++;
-    // }
-}
+    // robot_buzzer->alarm_level=ALARM_LEVEL_LOW;
+        //i++;
+    }
 
 void RobotTask() {
     const PCLink22Frame_s *pc_rx = NULL;
