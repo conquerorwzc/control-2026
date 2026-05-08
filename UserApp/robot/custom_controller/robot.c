@@ -16,9 +16,11 @@
 // 力反馈参数配置
 #define TORQUE_DEADBAND       3.0f    // 所有电机角度死区(度)
 
-// 重力补偿验证系数 (0.0 ~ 1.0)
+// 重力补偿验证系数 (0.0 ~ 1.0) - 可在调试时动态修改
 // 建议从 0.1 开始验证方向，确认无误后再改为 1.0
-#define GRAVITY_COMP_SCALE    1.0f
+static float gravity_comp_scale_roll = 0.5f;   // Roll轴(J2)重力补偿比例
+static float gravity_comp_scale_pitch1 = 1.0f; // Pitch轴(J3)重力补偿比例
+static float gravity_comp_scale_pitch2 = 1.0f; // Pitch轴(J4)重力补偿比例
 
 // 不同电机类型的力控比例增益 (Nm/度)
 #define TORQUE_K_P_DM4310     0.05f   // DM4310比例增益
@@ -40,6 +42,17 @@
 
 // 自定义控制器实例
 static CustomController_t* angle_controller;
+
+// ===== 重力补偿调试变量，可在 Debug Watch 里查看 =====
+static float dbg_q2 = 0.0f;
+static float dbg_q3 = 0.0f;
+static float dbg_q4 = 0.0f;
+static float dbg_q5 = 0.0f;
+
+static float dbg_g2 = 0.0f;
+static float dbg_g3 = 0.0f;
+static float dbg_g4 = 0.0f;
+
 static GPIOInstance *gpio_24V_R_EN;
 static GPIO_Init_Config_s gpio_init_config_24v = {
     .GPIO_Pin = POWER_24V_R_Pin,
@@ -71,10 +84,19 @@ static void CalculateGravityCompensation(float gravity_torques[5])
     // 根据模型计算各关节的重力力矩
     // 注意：模型中的 J2, J3, J4 对应你的大 Roll, 大 Pitch, 小 Pitch
     gravity_torques[0] = 0.0f; // Yaw 轴通常不需要重力补偿
-    gravity_torques[1] = MecArm_Gravity_J2(q2, q3, q4, q5); // 大 Roll
-    gravity_torques[2] = MecArm_Gravity_J3(q2, q3, q4, q5); // 大 Pitch
-    gravity_torques[3] = MecArm_Gravity_J4(q2, q3, q4, q5); // 小 Pitch
+    gravity_torques[1] = 0.0f;//MecArm_Gravity_J2(q2, q3, q4, q5); // 大 Roll
+    gravity_torques[2] = 0.0f;//MecArm_Gravity_J3(q2, q3, q4, q5); // 大 Pitch
+    gravity_torques[3] = 0.0f;//MecArm_Gravity_J4(q2, q3, q4, q5); // 小 Pitch
     gravity_torques[4] = 0.0f; // 小 Roll (根据你的需求暂时不补偿或没有模型)
+
+    dbg_q2 = q2;
+    dbg_q3 = q3;
+    dbg_q4 = q4;
+    dbg_q5 = q5;
+
+    dbg_g2 = gravity_torques[1];
+    dbg_g3 = gravity_torques[2];
+    dbg_g4 = gravity_torques[3];
 }
 
 /**
@@ -172,7 +194,12 @@ static void ApplyTotalTorque(void)
 
     // 3. 总力矩 = 重力补偿 * 验证系数 + 力反馈
     for (int i = 0; i < 5; i++) {
-        total_torques[i] = (gravity_torques[i] * GRAVITY_COMP_SCALE) + feedback_torques[i];
+        float scale = 1.0f;
+        if (i == 1) scale = gravity_comp_scale_roll;
+        else if (i == 2) scale = gravity_comp_scale_pitch1;
+        else if (i == 3) scale = gravity_comp_scale_pitch2;
+        
+        total_torques[i] = (gravity_torques[i] * scale) + feedback_torques[i];
 
         // 4. 发送到电机
         if (angle_controller->motors[i].dm_motor != NULL) {

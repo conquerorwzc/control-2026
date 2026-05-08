@@ -14,15 +14,15 @@
 static Motor_Init_Config_s DM4310_config_1 = {
     .controller_param_init_config =
         {
-            .angle_PID = {.Kp = 7.0f,  // 12
+            .angle_PID = {.Kp = 10.0f,
                           .Ki = 0.00f,
                           .Kd = 0.00f,
                           .MaxOut = 8.0f,
                           .DeadBand = 0.01f,
                           .Improve = PID_Integral_Limit,
                           .IntegralLimit = 0.0f},
-            .speed_PID = {.Kp = 0.3f,  // 0.5
-                          .Ki = 0.13f,  // 0.1
+            .speed_PID = {.Kp = 0.4f,
+                          .Ki = 0.05f,
                           .Kd = 0.00f,
                           .MaxOut = 8.0f,
                           .DeadBand = 0.01f,
@@ -48,15 +48,15 @@ static Motor_Init_Config_s DM4310_config_1 = {
 static Motor_Init_Config_s DM4310_config_2 = {
     .controller_param_init_config =
         {
-            .angle_PID = {.Kp = 7.0f,
+            .angle_PID = {.Kp = 10.0f,
                           .Ki = 0.00f,
                           .Kd = 0.00f,
                           .MaxOut = 8.0f,
                           .DeadBand = 0.01f,
                           .Improve = PID_Integral_Limit,
                           .IntegralLimit = 0.0f},
-            .speed_PID = {.Kp = 0.3f,
-                          .Ki = 0.13f,
+            .speed_PID = {.Kp = 0.4f,
+                          .Ki = 0.05f,
                           .Kd = 0.00f,
                           .MaxOut = 8.0f,
                           .DeadBand = 0.01f,
@@ -82,15 +82,15 @@ static Motor_Init_Config_s DM4310_config_2 = {
 static Motor_Init_Config_s DM4310_config_3 = {
     .controller_param_init_config =
         {
-            .angle_PID = {.Kp = 7.0f,
+            .angle_PID = {.Kp = 10.0f,
                           .Ki = 0.00f,
                           .Kd = 0.00f,
                           .MaxOut = 8.0f,
                           .DeadBand = 0.01f,
                           .Improve = PID_Integral_Limit,
                           .IntegralLimit = 0.0f},
-            .speed_PID = {.Kp = 0.3f,
-                          .Ki = 0.13f,
+            .speed_PID = {.Kp = 0.4f,
+                          .Ki = 0.05f,
                           .Kd = 0.00f,
                           .MaxOut = 8.0f,
                           .DeadBand = 0.01f,
