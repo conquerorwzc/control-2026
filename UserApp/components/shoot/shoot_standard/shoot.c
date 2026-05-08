@@ -36,6 +36,14 @@ static int16_t  remain_heat;                   // 剩余热量
 static float shooter_barrel_heat;           // 计算的机器人当前射击热量，此变量只在模拟模式下使用
 static float  heat_cooling_time;               // 用于计算冷却时间，此变量只在模拟模式下使用
 
+static float LoaderSpeedFromDelay(float delta_angle, float delay_ms) {
+  if (delay_ms <= 0.0f) {
+    return 0.0f;
+  }
+  // Convert angle-per-shot to angle-per-second using ms delay.
+  return delta_angle / delay_ms * 1000.0f;
+}
+
 ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
   ShootInstance* shoot_instance = (ShootInstance*)zmalloc(sizeof(ShootInstance));
 
@@ -177,9 +185,10 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
       // 连发模式,对位置闭环,射频根据dead_time改变；原版是速度闭环，可能会更柔和一些？
     case LOAD_BURSTFIRE:
       ShootBulletSpeedControl();
-      DJIMotorOuterLoop(shoot->loader_motor, ANGLE_LOOP);  // 切换到角度环
-      loader_set = shoot->loader_motor->measure.total_angle +
-                   one_bullet_delta_angle * reduction_ratio_loader * loader_direction;  // 控制量增加一发弹丸的角度
+      DJIMotorOuterLoop(shoot->loader_motor, SPEED_LOOP);  // 切换到速度环
+      loader_set = LoaderSpeedFromDelay(
+          one_bullet_delta_angle * reduction_ratio_loader * (float)loader_direction,
+          deadtime_burstfire);
       if (shoot_ctrl_cmd->heat_mode == SIMULLATE_CONTROL) {
         shooter_barrel_heat += one_barrel_heat_value;//增加一发弹丸消耗热量，只在模拟控制中有效
       }
