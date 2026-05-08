@@ -25,9 +25,6 @@ static PIDInstance follow_pid;
 static float k0,k1,k2,k3,k4,k5;       //中科大的功率模型
 static float power;
 
-// 左右腿目标位置
-static float target_position_left = 0.0f;
-static float target_position_right = 0.0f;
 
 // 左右腿当前位置（静态变量，保持状态）
 static float leg_current_position_left = 0.0f;
@@ -39,13 +36,18 @@ static float pos_l_currentx = 0.0f;
 static float pos_l_currenty = 0.0f;
 static float debug_pos_l=0.0f;
 static float debug_pos_r=0.0f;
-static float debug_force_l=0.0f;
-static float debug_force_r=0.0f;
+static float debug_footforce_l=0.0f;
+static float debug_footforce_r=0.0f;
+static float debug_theta=0.0f;
 // 雅可比力臂监控 (Jy)
 static float debug_Jy_l = 0.0f;
 static float debug_Jy_r = 0.0f;
 // 垂直支撑力监控 (Fy)
 static float debug_Fy_total = 0.0f;
+// 弹簧长度监控
+static float spring_length = 0.0f;
+static float spring_force = 0.0f;
+static float spring_stroke = 0.0f;
 // 定义常量
 #define G 9.81f
 #define NUM_REAR_LEGS 2.0f // 后腿数量
@@ -53,111 +55,134 @@ static float debug_Fy_total = 0.0f;
 #define DEG_TO_RAD  0.0174532925f  // PI / 180.0
 // ==================== 机器人物理与机构参数 ====================
 //  整车动态负载参数 (基于实测双秤垫高法解算)
-const float M_TOTAL = 32.00f;  // 整车总质量 (kg)
-const float L_F     = 0.2088f; // 重心距前轴水平距离 (m)
-const float H_CG    = 0.250f;  // 重心垂直高度 (m)
-const float M_LEG   = 2.0f;    // 腿重量（kg)
+const float M_TOTAL = 31.10f;  // 整车总质量 (kg)
+const float L_F     = 0.2280f; // 重心距前轴水平距离 (m)
+const float H_CG    = 0.30f;  // 重心垂直高度 (m)
+const float M_LEG   = 1.8f;    // 腿重量（kg)
 const float L_FRONT_TO_MOTOR = 0.40f; //前轴到后关节电机的水平距离（m）
 const float M_THIGH = 0.2f;
 const float L2_HALF = 0.10522f;
 const float M_WHEEL = 1.8f;
 //姿态解算参数
 const float TRACK_WIDTH = 0.4f; // 左右腿间距 40cm
-const float VMC_KP_Z = 1.0f;    // 姿态位置环 Kp
-const float VMC_KD_Z = 0.05f;   // 姿态速度环 Kd (用陀螺仪数据)
-const float VMC_STIFFNESS = 50.0f; // 虚拟恢复力刚度
+const float VMC_KP_Z = 0.0f;    // 姿态位置环 Kp
+const float VMC_KD_Z = 0.00f;   // 姿态速度环 Kd (用陀螺仪数据)
+const float VMC_STIFFNESS = 0.0f; // 虚拟恢复力刚度
 const float TRACK_WIDTH_HALF = 0.2f;
 const float WHEELBASE_FACTOR = 0.3f;
-const float VMC_KP_ROLL = 1.0f, VMC_KD_ROLL = 0.05f;
-const float VMC_KP_PITCH = 1.0f, VMC_KD_PITCH = 0.05f;
-const float VMC_STIFF_ROLL = 50.0f, VMC_STIFF_PITCH = 60.0f;
+const float VMC_KP_ROLL = 0.0f, VMC_KD_ROLL = 0.00f;
+const float VMC_KP_PITCH = 0.0f, VMC_KD_PITCH = 0.00f;
+const float VMC_STIFF_ROLL = 00.0f, VMC_STIFF_PITCH = 00.0f;
 const float CTRL_DT = 0.002f; // 2ms 周期
 // ==================== 提取到外部的物理几何参数 ====================
 //连杆参数
 // 在全局坐标系下 (X正向朝车尾，Y正向朝地)
 const float L1_X  = -0.06782f;  // D点在电机前方 -> 负值
 const float L1_Y  = -0.06782f;  // D点在电机上方 -> 负值
-const float L2    = 0.21044f;
-const float L3    = 0.05923f;
-const float L4    = 0.20851f;
-const float L_EXT = 0.20256f;
+const float L2    = 0.20944f;
+const float L3    = 0.05016f;
+const float L4    = 0.21472f;
+const float L_EXT = 0.20680f;
+const float TOP_DX =  0.02200f;
+const float TOP_DY = -0.03098f;
+
+// 【下支点】相对于 B点，X为B->C方向，Y为垂直于BC向上
+const float BOT_DX = -0.05180f;
+const float BOT_DY = -0.00700f;
+const GasSpringPoint_t gas_spring_table[GAS_SPRING_TABLE_SIZE] = {
+  {0.005f,       56.65f,     48.65f},
+  {0.015f,       59.95f,     51.95f},
+  {0.030f,       64.90f,     56.90f},
+  {0.055f,       73.15f,     65.15f},
+  {0.060f,       74.80f,     66.80f},
+  {0.065f,       76.45f,     68.45f},
+  {0.068f,       77.44f,     69.44f},
+  {0.071f,       78.43f,     70.43f},
+  {0.073f,       79.09f,     71.09f}
+
+};
+const float GAS_SPRING_FREE_LENGTH = 0.230f;
 // theta=0 时，主动杆 L2 绝对水平指向车头；向下压时 theta 为正。
-#define LEFT_MOTOR_HORIZON_OFFSET  (-2.75687f) // 左腿绝对水平时的编码器弧度
-#define RIGHT_MOTOR_HORIZON_OFFSET 2.52379f  // 右腿绝对水平时的编码器弧度
+// 2026-05 最新实车物理标定零位 (水平为0，下压为正)
+#define LEFT_MOTOR_HORIZON_OFFSET  (-2.6145f ) //
+#define RIGHT_MOTOR_HORIZON_OFFSET 1.4085f  //
 // 电机旋转方向系数 (如果往下压时编码器数值减小，则填 -1.0f，增大填 1.0f)
 #define LEFT_MOTOR_DIR   1.0f
 #define RIGHT_MOTOR_DIR  (-1.0f)
 // 在文件顶部定义位置缓变速率和极限角度 (均为标准数学弧度)
 #define LEG_RAMP_RATE       0.0005f  // 腿长变化速度 (弧度/ms)，数值越小动作越慢
-#define UPPER_LIMIT_ANGLE   0.390f   // 上方机械限位角度 (几乎水平)
+#define UPPER_LIMIT_ANGLE   0.300f   // 上方机械限位角度 (几乎水平)
 #define LOWER_LIMIT_ANGLE   1.0f   // 下方最大伸展角度 (防止顶死或奇异点)
                                    //单位都为弧度，车辆坐标系
-// 轮子坐标结构体
-typedef struct {
-  float x;
-  float y;
-  uint8_t is_valid;
-} WheelPos_t;
 // ==============================================================
 float rad_to_deg(float encoder_val) {
   return encoder_val * (180.0f / PI);
 }
-static void CalculateEulerCompensation(ChassisInstance* chassis, float* compensation_x, float* compensation_y) {
-  if (chassis->chassis_external_imu != NULL) {
-    // 使用外部IMU的欧拉角数据计算补偿
-    float roll = chassis->chassis_external_imu->pitch;
-    float pitch = chassis->chassis_external_imu->roll;
-
-    // 根据欧拉角计算腿部位置补偿
-    // 这里假设一定的补偿系数，可根据实际效果调整
-    float roll_compensation_factor = 0.005f;  // 横滚补偿系数
-    float pitch_compensation_factor = 0.01f; // 俯仰补偿系数
-
-    *compensation_x = pitch * pitch_compensation_factor;  // 俯仰影响前后腿
-    *compensation_y = roll * roll_compensation_factor;    // 横滚影响左右腿差异
-  } else {
-    // 如果没有IMU数据，补偿值为0
-    *compensation_x = 0.0f;
-    *compensation_y = 0.0f;
-  }
-}
+#include <math.h>
 /**
- * @brief 飞坡补偿模式控制
+ * @brief  气弹簧物理长度解算 (终极向量映射版)
  */
-static void SlopeCompensationControl() {
-  if (chassis->chassis_external_imu != NULL) {
-    // 计算基于欧拉角的补偿
-    float compensation_x, compensation_y;
-    CalculateEulerCompensation(chassis, &compensation_x, &compensation_y);
-    //限制最大补偿角度为0.2
-    if (fabsf(compensation_x)>0.2) {
-      compensation_x = (compensation_x > 0) ? 0.2f : -0.2f;
-    }
-    if (fabsf(compensation_y)>0.2) {
-      compensation_y = (compensation_y > 0) ? 0.2f : -0.2f;
-    }
-    // 应用补偿到腿部目标位置
-    float target_left = LEFT_LEG_MOTOR_CRUISE_POSITION - compensation_x+ compensation_y;
-    float target_right = RIGHT_LEG_MOTOR_CRUISE_POSITION  + compensation_x+ compensation_y;
-    if (target_left < LEFT_LEG_MOTOR_NORMAL_POSITION) {
-      target_left = LEFT_LEG_MOTOR_NORMAL_POSITION;
-    }
-    if (target_right > RIGHT_LEG_MOTOR_NORMAL_POSITION) {
-      target_right = RIGHT_LEG_MOTOR_NORMAL_POSITION;
-    }
-    // 限制最大位置为KIKE位置
-    if (target_left> LEFT_LEG_MOTOR_KIKE_POSITION) {
-      target_left = LEFT_LEG_MOTOR_KIKE_POSITION;
-    }
-    if (target_right < RIGHT_LEG_MOTOR_KIKE_POSITION) {
-      target_right = RIGHT_LEG_MOTOR_KIKE_POSITION;
-    }
-    // 设置腿部电机目标
-    DMMotorSetPIDRef(chassis->leg_motor[0], target_left);
-    DMMotorSetPIDRef(chassis->leg_motor[1], target_right);
-  }
-}
+float Kinematics_Calc_Spring_Length(float theta) {
+    // =========================================================
+    // 1. 正运动学解算关节坐标 (完美复刻 chassis.c)
+    // =========================================================
+    float B_x = -L2 * cosf(theta);
+    float B_y =  L2 * sinf(theta);
 
+    float dx = L1_X - B_x;
+    float dy = L1_Y - B_y;
+    float d = sqrtf(dx*dx + dy*dy);
+
+    float gamma = atan2f(dy, dx);
+    float cos_alpha = (L3*L3 + d*d - L4*L4) / (2.0f * L3 * d);
+    if (cos_alpha > 1.0f) cos_alpha = 1.0f;
+    if (cos_alpha < -1.0f) cos_alpha = -1.0f;
+    float alpha = acosf(cos_alpha);
+
+    float theta_3 = gamma - alpha;
+    float C_x = B_x + L3 * cosf(theta_3);
+    float C_y = B_y + L3 * sinf(theta_3);
+
+    // =========================================================
+    // 2. 向量法建立局部刚体坐标系
+    // =========================================================
+
+    // ------ 解析 AB 曲柄 ------
+    // u_AB 为 A 指向 B 的单位方向向量
+    float u_AB_x = B_x / L2;
+    float u_AB_y = B_y / L2;
+    // v_AB 为垂直 AB 指向上方(-Y区域)的单位法向量
+    float v_AB_x = u_AB_y;
+    float v_AB_y = -u_AB_x;
+
+    // 根据局部坐标映射 P_top 全局坐标 (A点为 0,0)
+    float P_top_x = 0.0f + TOP_DX * u_AB_x + TOP_DY * v_AB_x;
+    float P_top_y = 0.0f + TOP_DX * u_AB_y + TOP_DY * v_AB_y;
+
+    // ------ 解析 BC 短连杆 ------
+    // u_BC 为 B 指向 C 的单位方向向量
+    float vec_BC_x = C_x - B_x;
+    float vec_BC_y = C_y - B_y;
+    float u_BC_x = vec_BC_x / L3;
+    float u_BC_y = vec_BC_y / L3;
+    // v_BC 为垂直 BC 指向上方(向内侧凹折区)的单位法向量
+    float v_BC_x = u_BC_y;
+    float v_BC_y = -u_BC_x;
+
+    // 根据局部坐标映射 P_bot 全局坐标 (起点是 B_x, B_y)
+    float P_bot_x = B_x + BOT_DX * u_BC_x + BOT_DY * v_BC_x;
+    float P_bot_y = B_y + BOT_DX * u_BC_y + BOT_DY * v_BC_y;
+
+    // =========================================================
+    // 3. 计算最终长度
+    // =========================================================
+    float diff_x = P_top_x - P_bot_x;
+    float diff_y = P_top_y - P_bot_y;
+    float length = sqrtf(diff_x*diff_x + diff_y*diff_y);
+
+    spring_length = length;
+    return length;
+}
 /**
  * @brief 腿部正运动学解算 (原生坐标系，无翻转补丁)
  * @param theta 电机标准下压角(弧度，水平指向车头为0，向下压为正)
@@ -206,15 +231,85 @@ static WheelPos_t Kinematics_Calc_Wheel(float theta) {
   return pos;
 }
 /**
- * @brief 动态触地干扰观测器 (DOB)
- * @return float 返回足底估计的外部受力 (牛顿 N)
+ * @brief  计算气弹簧完整解耦补偿力 (包含非线性迟滞 LUT 与粘性阻尼)
+ * @param  stroke_m 气弹簧当前压缩量 (m)
+ * @param  vel_m_s  气弹簧当前压缩速度 (m/s) -> 正代表正在被压缩
+ * @retval 气弹簧向外推的总力 (N)
  */
-static float Estimate_Contact_Force_Math(float t_real_math, float theta_math, float vel_math, float J_y, float *t_ext_filtered) {
+float Calc_Gas_Spring_Total_Force(float stroke_m, float vel_m_s) {
+    // =========================================================
+    // 第一步：速度死区与方向权重混合 (解决 0 速高频震荡)
+    // =========================================================
+    const float VEL_DEADBAND = 0.02f; // 2cm/s 内为过渡死区
+    float dir_blend = 0.0f;
+
+    if (vel_m_s > VEL_DEADBAND) {
+        dir_blend = 1.0f;  // 明确在压缩
+    } else if (vel_m_s < -VEL_DEADBAND) {
+        dir_blend = -1.0f; // 明确在伸展
+    } else {
+        dir_blend = vel_m_s / VEL_DEADBAND; // 死区内线性过渡
+    }
+
+    // 将 -1~1 的方向映射为 0~1 的权重比例 (0 对应纯 Lift，1 对应纯 Push)
+    float weight_push = (dir_blend + 1.0f) / 2.0f;
+
+    // =========================================================
+    // 第二步：LUT 查表与双轨线性插值
+    // =========================================================
+    float push_force = gas_spring_table[0].push_N;
+    float lift_force = gas_spring_table[0].lift_N;
+
+    // 1. 安全钳位保护 (越界直接取端点值)
+    if (stroke_m <= gas_spring_table[0].stroke_m) {
+        push_force = gas_spring_table[0].push_N;
+        lift_force = gas_spring_table[0].lift_N;
+    }
+    else if (stroke_m >= gas_spring_table[GAS_SPRING_TABLE_SIZE - 1].stroke_m) {
+        push_force = gas_spring_table[GAS_SPRING_TABLE_SIZE - 1].push_N;
+        lift_force = gas_spring_table[GAS_SPRING_TABLE_SIZE - 1].lift_N;
+    }
+    else {
+        // 2. 遍历查找所在区间并插值
+        for (uint8_t i = 0; i < GAS_SPRING_TABLE_SIZE - 1; i++) {
+            float x0 = gas_spring_table[i].stroke_m;
+            float x1 = gas_spring_table[i + 1].stroke_m;
+
+            if (stroke_m >= x0 && stroke_m <= x1) {
+                float ratio = (stroke_m - x0) / (x1 - x0);
+                push_force = gas_spring_table[i].push_N + ratio * (gas_spring_table[i + 1].push_N - gas_spring_table[i].push_N);
+                lift_force = gas_spring_table[i].lift_N + ratio * (gas_spring_table[i + 1].lift_N - gas_spring_table[i].lift_N);
+                break;
+            }
+        }
+    }
+
+    // =========================================================
+    // 第三步：静力融合与动态阻尼叠加
+    // =========================================================
+    // 融合得到准静态查表力 F_LUT(x, dir)
+    float F_LUT = lift_force + weight_push * (push_force - lift_force);
+
+    // 假设粘性摩擦系数 C_v = 50.0 N/(m/s) (该参数需实车调参)
+    const float C_v = 50.0f;
+    float F_viscous = C_v * vel_m_s;
+
+    // 最终输出推力
+    spring_force=F_LUT + F_viscous;
+    return F_LUT + F_viscous;
+}
+/**
+ * @brief 动态触地干扰观测器 (DOB) - 带气弹簧补偿版
+ */
+static float Estimate_Contact_Force_Math(float t_real_math, float theta_math, float vel_math, float J_y, float T_gas_assist, float *t_ext_filtered) {
 
   // 1. 重力期望 (悬空时需向上抬，所以带负号)
   float t_thigh = M_THIGH * G * L2_HALF * arm_cos_f32(theta_math);
   float t_wheel = M_WHEEL * G * J_y;
-  float t_expected_air = -(t_thigh + t_wheel);
+
+  // 🚨 核心修正：加入气弹簧预期
+  // 气弹簧 (T_gas_assist) 把腿往下踹 (相当于正向外力)，电机必须额外出一个负向的力矩来拉住它！
+  float t_expected_air = -(t_thigh + t_wheel) - T_gas_assist;
 
   // 2. 摩擦力补偿 (直接使用已经归一化好的 vel_math)
   if (vel_math > 0.05f) {
@@ -228,7 +323,7 @@ static float Estimate_Contact_Force_Math(float t_real_math, float theta_math, fl
   const float ALPHA = 0.05f;
   *t_ext_filtered = ALPHA * t_ext_raw + (1.0f - ALPHA) * (*t_ext_filtered);
 
-  // 4. 折算输出
+  // 4. 折算输出 (正值代表地面把轮子往上托)
   float safe_Jy = (J_y < 0.02f) ? 0.02f : J_y;
   float foot_force = (*t_ext_filtered) / safe_Jy;
 
@@ -237,8 +332,12 @@ static float Estimate_Contact_Force_Math(float t_real_math, float theta_math, fl
 static void NewLegControl() {
   static LegState_e left_leg_state = LEG_STATE_AIR_LOCK;
   static LegState_e right_leg_state = LEG_STATE_AIR_LOCK;
-    static float p_des_math_l = UPPER_LIMIT_ANGLE;
-    static float p_des_math_r = UPPER_LIMIT_ANGLE;
+  static float p_des_math_l = UPPER_LIMIT_ANGLE;
+  static float p_des_math_r = UPPER_LIMIT_ANGLE;
+  static float base_p_des_l = UPPER_LIMIT_ANGLE;
+  static float base_p_des_r = UPPER_LIMIT_ANGLE;
+  static float last_base_p_des_l = UPPER_LIMIT_ANGLE;
+  static float last_base_p_des_r = UPPER_LIMIT_ANGLE;
     static uint8_t is_first_run = 1;
 
     // 0. 失能状态检测与无扰切换重置
@@ -264,7 +363,7 @@ static void NewLegControl() {
     float raw_angle_r = chassis->leg_motor[1]->measure.total_angle;
     float theta_math_l = (raw_angle_l - LEFT_MOTOR_HORIZON_OFFSET) * LEFT_MOTOR_DIR;
     float theta_math_r = (raw_angle_r - RIGHT_MOTOR_HORIZON_OFFSET) * RIGHT_MOTOR_DIR;
-
+    debug_theta=theta_math_l;
     float vel_l = chassis->leg_motor[0]->measure.velocity * LEFT_MOTOR_DIR;
     float vel_r = chassis->leg_motor[1]->measure.velocity * RIGHT_MOTOR_DIR;
     float t_real_math_l = chassis->leg_motor[0]->measure.torque * LEFT_MOTOR_DIR;
@@ -272,11 +371,22 @@ static void NewLegControl() {
     // 清洗数据，归一极性，方便后续数学解算
     // 开机/唤醒无缝衔接
     if (is_first_run) {
-        p_des_math_l = theta_math_l;
-        p_des_math_r = theta_math_r;
-        left_leg_state = LEG_STATE_PROBING;
-        right_leg_state = LEG_STATE_PROBING;
-        is_first_run = 0;
+      // 宏观基准线对齐
+      base_p_des_l = theta_math_l;
+      base_p_des_r = theta_math_r;
+
+      // 历史微分变量对齐 (极其重要！防止第一帧速度算出无穷大)
+      last_base_p_des_l = theta_math_l;
+      last_base_p_des_r = theta_math_r;
+
+      // 最终输出量对齐
+      p_des_math_l = theta_math_l;
+      p_des_math_r = theta_math_r;
+
+      left_leg_state = LEG_STATE_PROBING;
+      right_leg_state = LEG_STATE_PROBING;
+
+      is_first_run = 0;
     }
 
     // 3. 目标轨迹平滑生成
@@ -299,193 +409,219 @@ static void NewLegControl() {
 
     // 4. 全局前馈力学解算
     WheelPos_t pos_l_ff = Kinematics_Calc_Wheel(theta_math_l);
-    WheelPos_t pos_r_ff = Kinematics_Calc_Wheel(theta_math_r);
+    pos_l_currentx=pos_l_ff.x;
+    pos_l_currenty=pos_l_ff.y;
+
+
 
 
     float l_base_real = L_FRONT_TO_MOTOR + pos_l_ff.x;
     if(l_base_real <= 0.1f) l_base_real = 0.1f;
 
     float m_load_rear_total = M_TOTAL * ((L_F * arm_cos_f32(pitch_angle) + H_CG * arm_sin_f32(pitch_angle)) / l_base_real);
-    float m_load_single = m_load_rear_total / NUM_REAR_LEGS;
+    float m_load_single = m_load_rear_total / NUM_REAR_LEGS-2.0f;
     if (m_load_single < 0.0f) m_load_single = 0.0f;
 
-    float force_support = m_load_single * G;
+    float force_support = m_load_single * G * 0.71f;
     float F_x_chassis = force_support * arm_sin_f32(pitch_angle);
     float F_y_chassis = force_support * arm_cos_f32(pitch_angle);
     debug_Fy_total=F_y_chassis;
 
 
     // ============================== 【左腿独立控制块】 ==============================
+    // 声明独立调试变量
+    static float debug_spring_l = 0.0f;
 
-    // ---------------- [1] 运动学与平滑雅可比解算 ----------------
-    float J_x_l = 0.0f, J_y_l = 0.01f;
-    float delta_theta = 0.001f;
-
-    WheelPos_t pos1_l = pos_l_ff;
-    WheelPos_t pos2_l = Kinematics_Calc_Wheel(theta_math_l + delta_theta);
-    if (pos1_l.is_valid && pos2_l.is_valid) {
-        J_x_l = (pos2_l.x - pos1_l.x) / delta_theta;
-        J_y_l = (pos2_l.y - pos1_l.y) / delta_theta;
+    // ---------------- [模块 A] 真实物理观测 (DOB 专属，绝对忠于传感器) ----------------
+    float Jy_real_l = 0.01f;
+    WheelPos_t pos_real_l = Kinematics_Calc_Wheel(theta_math_l);
+    WheelPos_t pos_real_next_l = Kinematics_Calc_Wheel(theta_math_l + 0.001f);
+    if (pos_real_l.is_valid && pos_real_next_l.is_valid) {
+        Jy_real_l = (pos_real_next_l.y - pos_real_l.y) / 0.001f;
     }
 
-    // 奇异点保护：防止在极限位置力臂趋近于 0 导致数值爆炸
-    float safe_Jy_l = (J_y_l < 0.05f) ? 0.05f : J_y_l;
+    // 1. 计算真实的内部气弹簧推力
+    float L_gas_real_l = Kinematics_Calc_Spring_Length(theta_math_l);
+    float L_gas_real_next_l = Kinematics_Calc_Spring_Length(theta_math_l + 0.001f);
+    float dL_dTheta_real_l = (L_gas_real_next_l - L_gas_real_l) / 0.001f;
 
-    // ---------------- [2] 动力学触地观测器 (DOB) ----------------
-    // 获取绝对数学极性的电机真实力矩
-    t_real_math_l = chassis->leg_motor[0]->measure.torque * LEFT_MOTOR_DIR;
+    float stroke_real_l = GAS_SPRING_FREE_LENGTH - L_gas_real_l;
+    float gas_vel_real_l = -dL_dTheta_real_l * vel_l; // 使用真实速度，感知当前真实阻力
+    float F_gas_real_l = Calc_Gas_Spring_Total_Force(stroke_real_l, gas_vel_real_l);
+    float T_gas_real_l = F_gas_real_l * dL_dTheta_real_l;
+
+    // 2. 剥离内力，获取纯净触地力
     static float filter_state_l = 0.0f;
-    float contact_force_l = Estimate_Contact_Force_Math(t_real_math_l, theta_math_l, vel_l, J_y_l, &filter_state_l);
+    float contact_force_l = Estimate_Contact_Force_Math(t_real_math_l, theta_math_l, vel_l, Jy_real_l, T_gas_real_l, &filter_state_l);
+    debug_footforce_l = contact_force_l;
 
-    // ---------------- [3] 核心状态机与 VMC 记忆变量 ----------------
 
-    // 极其关键：区分【宏观基准线】与【微观输出量】
-    static float base_p_des_l = UPPER_LIMIT_ANGLE;      // 不含 VMC 补偿的手动/状态机基准线
+    // ---------------- [模块 B] 核心状态机与轨迹规划 ----------------
+    p_des_math_l = base_p_des_l; // 初始化
+    float vmc_extra_force_l = 0.0f; // 存放 VMC 虚拟推力(N)
 
-    p_des_math_l = base_p_des_l; // 初始化当前帧最终输出
-    float vmc_extra_tff_l = 0.0f;      // VMC 专属抗侧翻补偿力矩
+    // 预计算 Base 雅可比供 VMC 高度映射使用 (滤除传感器噪声)
+    float safe_Jy_base_l = 0.05f;
+    WheelPos_t pos_base_l = Kinematics_Calc_Wheel(base_p_des_l);
+    WheelPos_t pos_base_next_l = Kinematics_Calc_Wheel(base_p_des_l + 0.001f);
+    if (pos_base_l.is_valid && pos_base_next_l.is_valid) {
+        float temp_Jy = (pos_base_next_l.y - pos_base_l.y) / 0.001f;
+        safe_Jy_base_l = (temp_Jy < 0.05f) ? 0.05f : temp_Jy;
+    }
 
-    // ---------------- [4] 状态机跳转与 VMC 解算 ----------------
     switch (left_leg_state) {
         case LEG_STATE_AIR_LOCK:
-            // 高空锁定。收到下探指令切入寻地相
             if (chassis_ctrl_cmd->leg_mode == LEG_MANUAL_DOWN) {
                 left_leg_state = LEG_STATE_PROBING;
             }
             break;
 
         case LEG_STATE_PROBING:
-            // 无视地形，向下规划虚拟穿透
-            base_p_des_l += LEG_RAMP_RATE*2.0f;
+            base_p_des_l += LEG_RAMP_RATE * 2.0f;
             p_des_math_l = base_p_des_l;
 
-            // 高灵敏度触地打断
             if (contact_force_l > 15.0f) {
                 left_leg_state = LEG_STATE_STANCE;
-                // 瞬间接管,将基准位置锁死在此时真实的物理角度
-                base_p_des_l = theta_math_l;
+                base_p_des_l = theta_math_l; // 接触瞬间，物理对齐
             }
             break;
 
         case LEG_STATE_STANCE:
-            // 基础检查：受力消失跌回寻地相
+            // 基础检查：遥控器强行收放
+            if (chassis_ctrl_cmd->leg_mode == LEG_MANUAL_DOWN) {
+                base_p_des_l += LEG_RAMP_RATE;
+            } else if (chassis_ctrl_cmd->leg_mode == LEG_MANUAL_UP) {
+                base_p_des_l -= LEG_RAMP_RATE;
+            }
+            if (base_p_des_l > LOWER_LIMIT_ANGLE) base_p_des_l = LOWER_LIMIT_ANGLE;
+            if (base_p_des_l < UPPER_LIMIT_ANGLE) base_p_des_l = UPPER_LIMIT_ANGLE;
+
+            // 脱离地面检测
             if (contact_force_l < 5.0f) {
                 left_leg_state = LEG_STATE_PROBING;
                 break;
             }
-            // 基础检查：遥控器强行收腿
-        if (chassis_ctrl_cmd->leg_mode == LEG_MANUAL_DOWN) {
-          base_p_des_l += LEG_RAMP_RATE;
-        } else if (chassis_ctrl_cmd->leg_mode == LEG_MANUAL_UP) {
-          base_p_des_l -= LEG_RAMP_RATE;
-        }
-        if (contact_force_l < 5.0f ) {
-          left_leg_state = LEG_STATE_PROBING;
-        }
-        if (base_p_des_l <= UPPER_LIMIT_ANGLE + 0.02f) {
-          left_leg_state = LEG_STATE_AIR_LOCK;
-        }
+            if (base_p_des_l <= UPPER_LIMIT_ANGLE + 0.005f) {
+                left_leg_state = LEG_STATE_AIR_LOCK;
+            }
 
+            // === VMC 解算 (高度位置环 -> 角度差模) ===
+            float z_roll_l = (roll_err * VMC_KP_ROLL - roll_gyro * VMC_KD_ROLL) * TRACK_WIDTH_HALF;
+            float z_pitch_l = (-pitch_err * VMC_KP_PITCH + pitch_gyro * VMC_KD_PITCH) * WHEELBASE_FACTOR;
+            float delta_Z_des_l = z_roll_l + z_pitch_l;
 
-        // ==========================================================
-        // 🚨 【左腿】全姿态 VMC (Roll + Pitch 叠加)
-        // ==========================================================
+            // 用平滑的 Base 雅可比映射为角度，杜绝高频振荡
+            float delta_theta_vmc_l = delta_Z_des_l / safe_Jy_base_l;
+            p_des_math_l = base_p_des_l + delta_theta_vmc_l;
 
-
-        // C. 运动学：计算高度补偿 (米)
-        // 1. 横滚差模：左倾时左侧伸长 (正)
-        float z_roll_l = (roll_err * VMC_KP_ROLL - roll_gyro * VMC_KD_ROLL) * TRACK_WIDTH_HALF;
-
-        // 2. 俯仰共模：低头(正)时后腿需缩短 (负)，抬头(负)时后腿需伸长 (正)
-        float z_pitch = (-pitch_err * VMC_KP_PITCH + pitch_gyro * VMC_KD_PITCH) * WHEELBASE_FACTOR;
-
-        // 3. 叠加最终高度
-        float delta_Z_des_l = z_roll_l + z_pitch;
-
-        // 逆雅可比映射，并限幅
-        float delta_theta_vmc_l = delta_Z_des_l / safe_Jy_l;
-        p_des_math_l = base_p_des_l + delta_theta_vmc_l;
-
-        // D. 动力学：计算抗倾覆力矩
-        float fy_roll_l = roll_err * VMC_STIFF_ROLL;
-        float fy_pitch = -pitch_err * VMC_STIFF_PITCH; // 低头时，后腿减少推力让屁股掉下来
-
-        // 叠加最终虚拟推力，乘上转置雅可比
-        float extra_Fy_l = fy_roll_l + fy_pitch;
-        vmc_extra_tff_l = extra_Fy_l * J_y_l;
+            // === VMC 虚拟刚度 (发力环 -> 虚拟推力) ===
+            float fy_roll_l = roll_err * VMC_STIFF_ROLL;
+            float fy_pitch_l = -pitch_err * VMC_STIFF_PITCH;
+            vmc_extra_force_l = fy_roll_l + fy_pitch_l; // 先存下推力，等有了终极力臂再算扭矩
+            break;
     }
 
-    // ---------------- [5] 安全限幅与速度前馈 (严格差分求导) ----------------
-    // 强制截断，绝不允许最终输出超过机械限位
-  if (p_des_math_l > LOWER_LIMIT_ANGLE) p_des_math_l = LOWER_LIMIT_ANGLE;
-  if (p_des_math_l < UPPER_LIMIT_ANGLE) p_des_math_l = UPPER_LIMIT_ANGLE;
+    // 强制截断保护
+    if (p_des_math_l > LOWER_LIMIT_ANGLE) p_des_math_l = LOWER_LIMIT_ANGLE;
+    if (p_des_math_l < UPPER_LIMIT_ANGLE) p_des_math_l = UPPER_LIMIT_ANGLE;
 
-    // 基于限幅后的最终目标指令，一阶差分得到绝对平滑的速度前馈
-  static float last_base_p_des_l = UPPER_LIMIT_ANGLE;
-  float v_des_math_l = (base_p_des_l - last_base_p_des_l) / CTRL_DT;
-  last_base_p_des_l = base_p_des_l;
+    // 【极其关键】基于极其平滑的 base_p_des 差分出期望速度，这是前馈平滑的根基！
+    float v_des_math_l = (base_p_des_l - last_base_p_des_l) / CTRL_DT;
+    last_base_p_des_l = base_p_des_l;
 
-    // ---------------- [6] 阻抗参数与前馈分配 ----------------
+
+    // ---------------- [模块 C] 纯净前馈力学解算 (完全基于目标姿态，提供动态爆发力) ----------------
     float target_tff_l = 0.0f, target_kp_l = 10.0f, target_kd_l = 1.0f;
 
-    if (left_leg_state == LEG_STATE_PROBING) {
-        // 软面条寻地模式：极小刚度，像盲人探路棍一样往下伸
+    if (left_leg_state == LEG_STATE_PROBING || left_leg_state == LEG_STATE_AIR_LOCK) {
         target_kp_l = 15.0f;
         target_kd_l = 1.5f;
         target_tff_l = 0.0f;
     }
     else if (left_leg_state == LEG_STATE_STANCE) {
-        // 钢铁之躯支撑模式：高刚度承重
-        target_kp_l = 80.0f;
-        target_kd_l = 2.5f;
-        // 总前馈力矩 = 基础重力补偿 + VMC 姿态抗倾覆补偿
-        target_tff_l = (F_x_chassis * J_x_l) + (F_y_chassis * J_y_l) + vmc_extra_tff_l;
+        target_kp_l = 200.0f;
+        target_kd_l = 5.0f;
+
+        // 1. 目标雅可比 (根据你要去的位置算力臂，保证发力不缩水)
+        float Jx_des_l = 0.0f, Jy_des_l = 0.01f;
+        WheelPos_t pos_des_l = Kinematics_Calc_Wheel(p_des_math_l);
+        WheelPos_t pos_des_next_l = Kinematics_Calc_Wheel(p_des_math_l + 0.001f);
+        if (pos_des_l.is_valid && pos_des_next_l.is_valid) {
+            Jx_des_l = (pos_des_next_l.x - pos_des_l.x) / 0.001f;
+            Jy_des_l = (pos_des_next_l.y - pos_des_l.y) / 0.001f;
+        }
+
+        // 2. 目标气弹簧辅助力矩 (根据你要去的速度算阻尼，彻底消除电流锯齿)
+        float L_gas_des_l = Kinematics_Calc_Spring_Length(p_des_math_l);
+        float L_gas_des_next_l = Kinematics_Calc_Spring_Length(p_des_math_l + 0.001f);
+        float dL_dTheta_des_l = (L_gas_des_next_l - L_gas_des_l) / 0.001f;
+
+        float stroke_des_l = GAS_SPRING_FREE_LENGTH - L_gas_des_l;
+        float gas_vel_des_l = -dL_dTheta_des_l * v_des_math_l; // 🚨 使用纯净期望速度！
+        float F_gas_des_l = Calc_Gas_Spring_Total_Force(stroke_des_l, gas_vel_des_l);
+        float T_gas_assist_des_l = F_gas_des_l * dL_dTheta_des_l;
+
+        // 3. 终极前馈融合
+        float vmc_torque_l = vmc_extra_force_l * Jy_des_l;
+        target_tff_l = (F_x_chassis * Jx_des_l) + (F_y_chassis * Jy_des_l) + vmc_torque_l ;
     }
 
-    // ---------------- [7] 一阶低通滤波器 (平滑过渡) ---------------
-static float actual_tff_l = 0.0f, actual_kp_l = 10.0f, actual_kd_l = 1.0f;
-const float BLEND_ALPHA = 0.08f;
-actual_tff_l += BLEND_ALPHA * (target_tff_l - actual_tff_l);
-actual_kp_l  += BLEND_ALPHA * (target_kp_l  - actual_kp_l);
-actual_kd_l  += BLEND_ALPHA * (target_kd_l  - actual_kd_l);
+    // ---------------- [模块 D] 低通滤波与指令下发 ----------------
+    static float actual_tff_l = 0.0f, actual_kp_l = 10.0f, actual_kd_l = 1.0f;
+    const float BLEND_ALPHA = 0.08f;
+    actual_tff_l += BLEND_ALPHA * (target_tff_l - actual_tff_l);
+    actual_kp_l  += BLEND_ALPHA * (target_kp_l  - actual_kp_l);
+    actual_kd_l  += BLEND_ALPHA * (target_kd_l  - actual_kd_l);
 
-// 7. 方向映射与下发
-float v_des_raw_l = v_des_math_l * LEFT_MOTOR_DIR;
-float p_des_raw_l = (p_des_math_l * LEFT_MOTOR_DIR) + LEFT_MOTOR_HORIZON_OFFSET;
-left_torque_feedforward = actual_tff_l * LEFT_MOTOR_DIR;
+    // 映射回电机底层极性
+    float v_des_raw_l = v_des_math_l * LEFT_MOTOR_DIR;
+    float p_des_raw_l = (p_des_math_l * LEFT_MOTOR_DIR) + LEFT_MOTOR_HORIZON_OFFSET;
+    left_torque_feedforward = actual_tff_l * LEFT_MOTOR_DIR;
 
-DMMotorSetMITRef(chassis->leg_motor[0], p_des_raw_l, v_des_raw_l, actual_kp_l, actual_kd_l, left_torque_feedforward);
+    DMMotorSetMITRef(chassis->leg_motor[0], p_des_raw_l, v_des_raw_l, actual_kp_l, actual_kd_l, left_torque_feedforward);
 
 
    // ============================== 【右腿独立控制块】 ==============================
+    // 声明独立调试变量
+    static float debug_spring_r = 0.0f;
 
-    // ---------------- [1] 运动学与平滑雅可比解算 ----------------
-    float J_x_r = 0.0f, J_y_r = 0.01f;
-    float delta_theta_r = 0.001f;
-
-    WheelPos_t pos1_r = pos_r_ff; // 当前帧右腿足端位置
-    WheelPos_t pos2_r = Kinematics_Calc_Wheel(theta_math_r + delta_theta_r);
-    if (pos1_r.is_valid && pos2_r.is_valid) {
-        J_x_r = (pos2_r.x - pos1_r.x) / delta_theta_r;
-        J_y_r = (pos2_r.y - pos1_r.y) / delta_theta_r;
+    // ---------------- [模块 A] 真实物理观测 (DOB 专属，绝对忠于传感器) ----------------
+    float Jy_real_r = 0.01f;
+    WheelPos_t pos_real_r = Kinematics_Calc_Wheel(theta_math_r);
+    WheelPos_t pos_real_next_r = Kinematics_Calc_Wheel(theta_math_r + 0.001f);
+    if (pos_real_r.is_valid && pos_real_next_r.is_valid) {
+        Jy_real_r = (pos_real_next_r.y - pos_real_r.y) / 0.001f;
     }
 
-    // 奇异点保护
-    float safe_Jy_r = (J_y_r < 0.05f) ? 0.05f : J_y_r;
+    // 1. 计算真实的内部气弹簧推力
+    float L_gas_real_r = Kinematics_Calc_Spring_Length(theta_math_r);
+    float L_gas_real_next_r = Kinematics_Calc_Spring_Length(theta_math_r + 0.001f);
+    float dL_dTheta_real_r = (L_gas_real_next_r - L_gas_real_r) / 0.001f;
 
-    // ---------------- [2] 动力学触地观测器 (DOB) ----------------
-    t_real_math_r = chassis->leg_motor[1]->measure.torque * RIGHT_MOTOR_DIR;
+    float stroke_real_r = GAS_SPRING_FREE_LENGTH - L_gas_real_r;
+    float gas_vel_real_r = -dL_dTheta_real_r * vel_r; // 使用真实速度，感知当前真实阻力
+    float F_gas_real_r = Calc_Gas_Spring_Total_Force(stroke_real_r, gas_vel_real_r);
+    float T_gas_real_r = F_gas_real_r * dL_dTheta_real_r;
+
+    // 2. 剥离内力，获取纯净触地力
     static float filter_state_r = 0.0f;
-    float contact_force_r = Estimate_Contact_Force_Math(t_real_math_r, theta_math_r, vel_r, J_y_r, &filter_state_r);
+    float contact_force_r = Estimate_Contact_Force_Math(t_real_math_r, theta_math_r, vel_r, Jy_real_r, T_gas_real_r, &filter_state_r);
+    debug_footforce_r = contact_force_r;
 
-    // ---------------- [3] 核心状态机与 VMC 记忆变量 ----------------
-    static float base_p_des_r = UPPER_LIMIT_ANGLE;
-    static float last_p_des_math_r = UPPER_LIMIT_ANGLE;
 
-    p_des_math_r = base_p_des_r;
-    float vmc_extra_tff_r = 0.0f;
+    // ---------------- [模块 B] 核心状态机与轨迹规划 ----------------
+    p_des_math_r = base_p_des_r; // 初始化
+    float vmc_extra_force_r = 0.0f; // 存放右腿 VMC 虚拟推力(N)
 
-    // ---------------- [4] 状态机跳转与右腿专属 VMC 解算 ----------------
+    // 预计算 Base 雅可比供 VMC 高度映射使用 (滤除传感器噪声)
+    float safe_Jy_base_r = 0.05f;
+    WheelPos_t pos_base_r = Kinematics_Calc_Wheel(base_p_des_r);
+    WheelPos_t pos_base_next_r = Kinematics_Calc_Wheel(base_p_des_r + 0.001f);
+    if (pos_base_r.is_valid && pos_base_next_r.is_valid) {
+        float temp_Jy = (pos_base_next_r.y - pos_base_r.y) / 0.001f;
+        safe_Jy_base_r = (temp_Jy < 0.05f) ? 0.05f : temp_Jy;
+    }
+
     switch (right_leg_state) {
         case LEG_STATE_AIR_LOCK:
             if (chassis_ctrl_cmd->leg_mode == LEG_MANUAL_DOWN) {
@@ -494,86 +630,104 @@ DMMotorSetMITRef(chassis->leg_motor[0], p_des_raw_l, v_des_raw_l, actual_kp_l, a
             break;
 
         case LEG_STATE_PROBING:
-            base_p_des_r += LEG_RAMP_RATE*2.0f;
+            base_p_des_r += LEG_RAMP_RATE * 2.0f;
             p_des_math_r = base_p_des_r;
 
             if (contact_force_r > 15.0f) {
                 right_leg_state = LEG_STATE_STANCE;
-                base_p_des_r = theta_math_r;
+                base_p_des_r = theta_math_r; // 接触瞬间，物理对齐
             }
             break;
 
         case LEG_STATE_STANCE:
+            // 基础检查：遥控器强行收放
+            if (chassis_ctrl_cmd->leg_mode == LEG_MANUAL_DOWN) {
+                base_p_des_r += LEG_RAMP_RATE;
+            } else if (chassis_ctrl_cmd->leg_mode == LEG_MANUAL_UP) {
+                base_p_des_r -= LEG_RAMP_RATE;
+            }
+            if (base_p_des_r > LOWER_LIMIT_ANGLE) base_p_des_r = LOWER_LIMIT_ANGLE;
+            if (base_p_des_r < UPPER_LIMIT_ANGLE) base_p_des_r = UPPER_LIMIT_ANGLE;
 
+            // 脱离地面检测
+            if (contact_force_r < 5.0f) {
+                right_leg_state = LEG_STATE_PROBING;
+                break;
+            }
+            if (base_p_des_r <= UPPER_LIMIT_ANGLE + 0.005f) {
+                right_leg_state = LEG_STATE_AIR_LOCK;
+            }
 
-        if (chassis_ctrl_cmd->leg_mode == LEG_MANUAL_DOWN) {
-          base_p_des_r += LEG_RAMP_RATE;
-        } else if (chassis_ctrl_cmd->leg_mode == LEG_MANUAL_UP) {
-          base_p_des_r -= LEG_RAMP_RATE;
-        }
-        if (contact_force_r < 5.0f ) {
-          right_leg_state = LEG_STATE_PROBING;
-        }
-        if (base_p_des_r <= UPPER_LIMIT_ANGLE + 0.02f) {
-          right_leg_state = LEG_STATE_AIR_LOCK;
-        }
-            // ==========================================================
-            // 🚨 【右腿专属】非线性雅可比 VMC 姿态自适应
+            // === VMC 解算 (高度位置环 -> 角度差模) ===
+            // 🚨 极其关键：右腿 Roll 补偿带有天然负号 (左倾时左侧伸长，右侧缩短)
+            float z_roll_r = -(roll_err * VMC_KP_ROLL - roll_gyro * VMC_KD_ROLL) * TRACK_WIDTH_HALF;
+            float z_pitch_r = (-pitch_err * VMC_KP_PITCH + pitch_gyro * VMC_KD_PITCH) * WHEELBASE_FACTOR; // Pitch 共模，方向与左腿一致
+            float delta_Z_des_r = z_roll_r + z_pitch_r;
 
+            // 用平滑的 Base 雅可比映射为角度，杜绝高频振荡
+            float delta_theta_vmc_r = delta_Z_des_r / safe_Jy_base_r;
+            p_des_math_r = base_p_des_r + delta_theta_vmc_r;
 
-        // C. 运动学高度补偿
-        // 1. 横滚差模：左倾时左侧伸长，右侧缩短 (加负号！)
-        float z_roll_r = -(roll_err * VMC_KP_ROLL - roll_gyro * VMC_KD_ROLL) * TRACK_WIDTH_HALF;
-
-        // 2. 俯仰共模：照抄左腿，方向完全一致！
-        float z_pitch = (-pitch_err * VMC_KP_PITCH + pitch_gyro * VMC_KD_PITCH) * WHEELBASE_FACTOR;
-
-        // 3. 叠加
-        float delta_Z_des_r = z_roll_r + z_pitch;
-
-        float delta_theta_vmc_r = delta_Z_des_r / safe_Jy_r;
-        p_des_math_r = base_p_des_r + delta_theta_vmc_r;
-
-        // D. 动力学抗倾覆力矩
-        // Roll 的推力取反
-        float fy_roll_r = -roll_err * VMC_STIFF_ROLL;
-        // Pitch 推力照抄
-        float fy_pitch = -pitch_err * VMC_STIFF_PITCH;
-
-        float extra_Fy_r = fy_roll_r + fy_pitch;
-        vmc_extra_tff_r = extra_Fy_r * J_y_r;
+            // === VMC 虚拟刚度 (发力环 -> 虚拟推力) ===
+            // 🚨 Roll 推力取反
+            float fy_roll_r = -roll_err * VMC_STIFF_ROLL;
+            float fy_pitch_r = -pitch_err * VMC_STIFF_PITCH;
+            vmc_extra_force_r = fy_roll_r + fy_pitch_r;
+            break;
     }
 
-    // ---------------- [5] 安全限幅与速度前馈 (差分) ----------------
-        if (p_des_math_r > LOWER_LIMIT_ANGLE) p_des_math_r = LOWER_LIMIT_ANGLE;
-        if (p_des_math_r < UPPER_LIMIT_ANGLE) p_des_math_r = UPPER_LIMIT_ANGLE;
+    // 强制截断保护
+    if (p_des_math_r > LOWER_LIMIT_ANGLE) p_des_math_r = LOWER_LIMIT_ANGLE;
+    if (p_des_math_r < UPPER_LIMIT_ANGLE) p_des_math_r = UPPER_LIMIT_ANGLE;
 
-    static float last_base_p_des_r = UPPER_LIMIT_ANGLE;
+    // 【极其关键】基于极其平滑的 base_p_des 差分出期望速度
     float v_des_math_r = (base_p_des_r - last_base_p_des_r) / CTRL_DT;
     last_base_p_des_r = base_p_des_r;
 
-    // ---------------- [6] 阻抗参数与前馈分配 ----------------
+
+    // ---------------- [模块 C] 纯净前馈力学解算 (完全基于目标姿态，提供动态爆发力) ----------------
     float target_tff_r = 0.0f, target_kp_r = 10.0f, target_kd_r = 1.0f;
 
-    if (right_leg_state == LEG_STATE_PROBING) {
+    if (right_leg_state == LEG_STATE_PROBING || right_leg_state == LEG_STATE_AIR_LOCK) {
         target_kp_r = 15.0f;
         target_kd_r = 1.5f;
         target_tff_r = 0.0f;
     }
     else if (right_leg_state == LEG_STATE_STANCE) {
-        target_kp_r = 80.0f;
-        target_kd_r = 2.5f;
-        // 重力补偿 (F_y * Jy) + VMC 姿态补偿
-        target_tff_r = (F_x_chassis * J_x_r) + (F_y_chassis * J_y_r) + vmc_extra_tff_r;
+        target_kp_r = 200.0f;
+        target_kd_r = 5.0f;
+
+        // 1. 目标雅可比
+        float Jx_des_r = 0.0f, Jy_des_r = 0.01f;
+        WheelPos_t pos_des_r = Kinematics_Calc_Wheel(p_des_math_r);
+        WheelPos_t pos_des_next_r = Kinematics_Calc_Wheel(p_des_math_r + 0.001f);
+        if (pos_des_r.is_valid && pos_des_next_r.is_valid) {
+            Jx_des_r = (pos_des_next_r.x - pos_des_r.x) / 0.001f;
+            Jy_des_r = (pos_des_next_r.y - pos_des_r.y) / 0.001f;
+        }
+
+        // 2. 目标气弹簧辅助力矩 (彻底消除右腿电流锯齿)
+        float L_gas_des_r = Kinematics_Calc_Spring_Length(p_des_math_r);
+        float L_gas_des_next_r = Kinematics_Calc_Spring_Length(p_des_math_r + 0.001f);
+        float dL_dTheta_des_r = (L_gas_des_next_r - L_gas_des_r) / 0.001f;
+
+        float stroke_des_r = GAS_SPRING_FREE_LENGTH - L_gas_des_r;
+        float gas_vel_des_r = -dL_dTheta_des_r * v_des_math_r; // 🚨 使用纯净期望速度！
+        float F_gas_des_r = Calc_Gas_Spring_Total_Force(stroke_des_r, gas_vel_des_r);
+        float T_gas_assist_des_r = F_gas_des_r * dL_dTheta_des_r;
+
+        // 3. 终极前馈融合 (虚拟推力 * 目标雅可比)
+        float vmc_torque_r = vmc_extra_force_r * Jy_des_r;
+        target_tff_r = (F_x_chassis * Jx_des_r) + (F_y_chassis * Jy_des_r) + vmc_torque_r ;
     }
 
-    // ---------------- [7] 一阶低通滤波器 (平滑过渡) ----------------
+    // ---------------- [模块 D] 低通滤波与指令下发 ----------------
     static float actual_tff_r = 0.0f, actual_kp_r = 10.0f, actual_kd_r = 1.0f;
     actual_tff_r += BLEND_ALPHA * (target_tff_r - actual_tff_r);
     actual_kp_r  += BLEND_ALPHA * (target_kp_r  - actual_kp_r);
     actual_kd_r  += BLEND_ALPHA * (target_kd_r  - actual_kd_r);
 
-    // ---------------- [8] 底层下发 ----------------
+    // 映射回右腿电机底层极性
     float v_des_raw_r = v_des_math_r * RIGHT_MOTOR_DIR;
     float p_des_raw_r = (p_des_math_r * RIGHT_MOTOR_DIR) + RIGHT_MOTOR_HORIZON_OFFSET;
     right_torque_feedforward = actual_tff_r * RIGHT_MOTOR_DIR;

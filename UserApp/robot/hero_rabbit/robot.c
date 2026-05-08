@@ -99,6 +99,7 @@ static void RemoteControlSet() {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
+    chassis_ctrl_cmd->SuperCapBoost=0;
     // 待添加,视觉会发来和目标的误差,同样将其转化为total angle的增量进行控制
     // ...
     // 左上，开火，发射，根据时间判断单发或者连发
@@ -108,15 +109,17 @@ static void RemoteControlSet() {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
-    if (switch_is_mid(rc_data_last[TEMP].rc.switch_left)) {
-      trigger_time = DWT_GetTimeline_s();
-    }
-    if (DWT_GetTimeline_s() - trigger_time > 1.0f) {
-      shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
-    } else {
-      shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
-    }
+    chassis_ctrl_cmd->SuperCapBoost=1;
+    // if (switch_is_mid(rc_data_last[TEMP].rc.switch_left)) {
+    //   trigger_time = DWT_GetTimeline_s();
+    // }
+    // if (DWT_GetTimeline_s() - trigger_time > 1.0f) {
+    //   shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+    // } else {
+    //   shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
+    // }
   }
+
   // 云台使能,或视觉未识别到目标,纯遥控器拨杆控制
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
     gimbal_ctrl_cmd->yaw += -0.003f * (float)rc_data[TEMP].rc.rocker_r_;
@@ -411,12 +414,12 @@ chassis_ctrl_cmd->vx=vx_initial*chassis_ctrl_cmd->chassis_direction;
      default:
        break;
    }
-  if (rc_data[TEMP].key[KEY_PRESS].shift) {
-    chassis_ctrl_cmd->SuperCapBoost=1;
-  }
-  else {
-    chassis_ctrl_cmd->SuperCapBoost=0;
-  }
+  // if (rc_data[TEMP].key[KEY_PRESS].shift) {
+  //   chassis_ctrl_cmd->SuperCapBoost=1;
+  // }
+  // else {
+  //   chassis_ctrl_cmd->SuperCapBoost=0;
+  // }
   *rc_data_last = *rc_data;
 }
 
@@ -439,6 +442,7 @@ static void EmergencyHandler() {
     shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
     chassis_ctrl_cmd->leg_mode = LEG_DISABLE;
+    chassis_ctrl_cmd->SuperCapBoost=0;
     LOGERROR("[CMD] emergency stop!");
   } else {
     LOGINFO("[CMD] reinstate, robot ready");

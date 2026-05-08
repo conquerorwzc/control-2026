@@ -53,6 +53,8 @@
 #include "external_imu/external_imu.h"
 #include "super_cap.h"
 #include "tofsense.h"
+#include "stdint.h"
+#define GAS_SPRING_TABLE_SIZE 9
 typedef enum {
   CHASSIS_POWER_OFF = 0,     // 电流零输入
   CHASSIS_ROTATE,            // 小陀螺模式
@@ -74,6 +76,20 @@ typedef enum {
   LEG_STATE_PROBING = 1,  // 寻地相 (软腿，往下试探)
   LEG_STATE_STANCE = 2    // 支撑相 (硬腿，完全承重)
 } LegState_e;
+
+// 定义双轨气弹簧数据点结构体
+typedef struct {
+  float stroke_m;   // 压缩量 (米)
+  float push_N;     // 下压准静态推力 (包含向上的库仑摩擦)
+  float lift_N;     // 抬起准静态推力 (摩擦力反转)
+} GasSpringPoint_t;
+// 轮子坐标结构体
+typedef struct {
+  float x;
+  float y;
+  uint8_t is_valid;
+} WheelPos_t;
+
 typedef struct {
   // 控制部分
   float vx;            // 前进方向速度
