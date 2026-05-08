@@ -115,12 +115,13 @@ static void INS_CalibrateGyroForDebug(uint16_t sample_count) {
       BMI088_Read(&BMI088);
       IMU_Temperature_Ctrl();
       DWT_Delay(0.001);
-    } while (BMI088.Temperature <= 39.5f || BMI088.Temperature >= 40.5f);
+    } while (BMI088.Temperature < 39.5f || BMI088.Temperature > 40.5f);
 
     // 累加陀螺仪读数
     for (uint8_t j = 0; j < 3; j++) {
       gyro_sum[j] += BMI088.Gyro[j];
     }
+    LOGINFO("IMU calibrating %d", i);
     DWT_Delay(0.001);  // 1ms延时
   }
 
@@ -154,7 +155,7 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
                               .DeadBand = 0,
                               .Kp = 1000,
                               .Ki = 20,
-                              .Kd = 0,
+                              .Kd = 0.5,
                               .Improve = 0x01};  // enable integratiaon limit
   PIDInit(&TempCtrl, &config);
 

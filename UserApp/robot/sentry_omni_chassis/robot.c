@@ -101,9 +101,9 @@ static void RemoteControlSet() {
     vx_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l_;  // l_水平方向，最大660*60=39600
     vy_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // l1竖直方向，最大660*60
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_HOLD) {
-      float yaw_ang_cmd = 0.01f * (float)vt13_rc_data->rc.dial + 0.005f * (float)vt13_rc_data->rc.rocker_r_;
-      chassis_ctrl_cmd->yaw_hold_delta = yaw_ang_cmd;
-      chassis_ctrl_cmd->wz = yaw_ang_cmd / WZ_CMD_TO_CAR_WZ_RAD_S;
+      float yaw_ang_cmd = 0.01f * (float)rc_data[TEMP].rc.dial + 0.005f * (float)rc_data[TEMP].rc.rocker_r_;
+      chassis_ctrl_cmd->yaw_hold_ref -= yaw_ang_cmd;
+      chassis_ctrl_cmd->wz = yaw_ang_cmd / WZ_CMD_TO_CAR_WZ_RAD_S * 2.6f;
     }
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
       chassis_ctrl_cmd->wz = 5.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
@@ -118,27 +118,29 @@ static void RemoteControlSet() {
     vy_initial = robot->navigator_data->robot_cmd.speed_vector.vx * 10000;
     chassis_ctrl_cmd->wz = robot->navigator_data->robot_cmd.speed_vector.wz / WZ_CMD_TO_CAR_WZ_RAD_S;
   }
-  // 缓加速
-  if (abs(vx_initial) <= 10000) {
-    x_speed_time = time;
-    chassis_ctrl_cmd->vx = vx_initial;
-  }  // 速度绝对值在10000以下输出控制量=输入控制量
-  if (vx_initial > 10000 && chassis_ctrl_cmd->vx <= 60.0f * (float)rc_data[TEMP].rc.rocker_l_) {
-    chassis_ctrl_cmd->vx = 10000 + (time - x_speed_time) * 10000;
-  }
-  if (vx_initial < -10000 && chassis_ctrl_cmd->vx >= 60.0f * (float)rc_data[TEMP].rc.rocker_l_) {
-    chassis_ctrl_cmd->vx = -10000 - (time - x_speed_time) * 10000;
-  }  // 速度绝对值在10000以上输出控制量=10000+10000t(s)
-  if (abs(vy_initial) <= 10000) {
-    y_speed_time = time;
-    chassis_ctrl_cmd->vy = vy_initial;
-  }  // 速度绝对值在10000以下输出控制量=输入控制量
-  if (vy_initial > 10000 && chassis_ctrl_cmd->vy <= 60.0f * (float)rc_data[TEMP].rc.rocker_l1) {
-    chassis_ctrl_cmd->vy = 10000 + (time - y_speed_time) * 10000;
-  }
-  if (vy_initial < -10000 && chassis_ctrl_cmd->vy >= 60.0f * (float)rc_data[TEMP].rc.rocker_l1) {
-    chassis_ctrl_cmd->vy = -10000 - (time - y_speed_time) * 10000;
-  }  // 速度绝对值在10000以上输出控制量=10000+10000t(s)
+  // // 缓加速
+  // if (abs(vx_initial) <= 10000) {
+  //   x_speed_time = time;
+  //   chassis_ctrl_cmd->vx = vx_initial;
+  // }  // 速度绝对值在10000以下输出控制量=输入控制量
+  // if (vx_initial > 10000 && chassis_ctrl_cmd->vx <= 60.0f * (float)rc_data[TEMP].rc.rocker_l_) {
+  //   chassis_ctrl_cmd->vx = 10000 + (time - x_speed_time) * 10000;
+  // }
+  // if (vx_initial < -10000 && chassis_ctrl_cmd->vx >= 60.0f * (float)rc_data[TEMP].rc.rocker_l_) {
+  //   chassis_ctrl_cmd->vx = -10000 - (time - x_speed_time) * 10000;
+  // }  // 速度绝对值在10000以上输出控制量=10000+10000t(s)
+  // if (abs(vy_initial) <= 10000) {
+  //   y_speed_time = time;
+  //   chassis_ctrl_cmd->vy = vy_initial;
+  // }  // 速度绝对值在10000以下输出控制量=输入控制量
+  // if (vy_initial > 10000 && chassis_ctrl_cmd->vy <= 60.0f * (float)rc_data[TEMP].rc.rocker_l1) {
+  //   chassis_ctrl_cmd->vy = 10000 + (time - y_speed_time) * 10000;
+  // }
+  // if (vy_initial < -10000 && chassis_ctrl_cmd->vy >= 60.0f * (float)rc_data[TEMP].rc.rocker_l1) {
+  //   chassis_ctrl_cmd->vy = -10000 - (time - y_speed_time) * 10000;
+  // }  // 速度绝对值在10000以上输出控制量=10000+10000t(s)
+  chassis_ctrl_cmd->vx = vx_initial;
+  chassis_ctrl_cmd->vy = vy_initial;
   *rc_data_last = *rc_data;
 }
 
@@ -160,12 +162,12 @@ static void RemoteControlSet() {
     vx_initial = 60.0f * (float)vt13_rc_data->rc.rocker_l_;  // l_水平方向，最大660*60=39600
     vy_initial = 60.0f * (float)vt13_rc_data->rc.rocker_l1;  // l1竖直方向，最大660*60
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_HOLD) {
-      float yaw_ang_cmd = 0.01f * (float)vt13_rc_data->rc.dial + 0.005f * (float)vt13_rc_data->rc.rocker_r_;
-      chassis_ctrl_cmd->yaw_hold_delta = yaw_ang_cmd;
-      chassis_ctrl_cmd->wz = yaw_ang_cmd / WZ_CMD_TO_CAR_WZ_RAD_S;
+      float yaw_ang_cmd = 0.004f * (float)vt13_rc_data->rc.dial; //+ 0.0008f * (float)vt13_rc_data->rc.rocker_r_;
+      chassis_ctrl_cmd->yaw_hold_ref -= yaw_ang_cmd;
+      chassis_ctrl_cmd->wz = yaw_ang_cmd / WZ_CMD_TO_CAR_WZ_RAD_S * 2.6f;
     }
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
-      chassis_ctrl_cmd->wz = 5.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
+      chassis_ctrl_cmd->wz = 5.0f * (float)vt13_rc_data->rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
     }
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
       chassis_ctrl_cmd->wz = (2.0f) * (float)vt13_rc_data->rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
@@ -178,27 +180,29 @@ static void RemoteControlSet() {
       vy_initial = robot->navigator_data->robot_cmd.speed_vector.vx * 10000;
       chassis_ctrl_cmd->wz = robot->navigator_data->robot_cmd.speed_vector.wz / WZ_CMD_TO_CAR_WZ_RAD_S;
   }
-  // 缓加速
-  if (abs(vx_initial) <= 10000) {
-    x_speed_time = time;
-    chassis_ctrl_cmd->vx = vx_initial;
-  }  // 速度绝对值在10000以下输出控制量=输入控制量
-  if (vx_initial > 10000 && chassis_ctrl_cmd->vx <= 60.0f * (float)vt13_rc_data->rc.rocker_l_) {
-    chassis_ctrl_cmd->vx = 10000 + (time - x_speed_time) * 10000;
-  }
-  if (vx_initial < -10000 && chassis_ctrl_cmd->vx >= 60.0f * (float)vt13_rc_data->rc.rocker_l_) {
-    chassis_ctrl_cmd->vx = -10000 - (time - x_speed_time) * 10000;
-  }  // 速度绝对值在10000以上输出控制量=10000+10000t(s)
-  if (abs(vy_initial) <= 10000) {
-    y_speed_time = time;
-    chassis_ctrl_cmd->vy = vy_initial;
-  }  // 速度绝对值在10000以下输出控制量=输入控制量
-  if (vy_initial > 10000 && chassis_ctrl_cmd->vy <= 60.0f * (float)vt13_rc_data->rc.rocker_l1) {
-    chassis_ctrl_cmd->vy = 10000 + (time - y_speed_time) * 10000;
-  }
-  if (vy_initial < -10000 && chassis_ctrl_cmd->vy >= 60.0f * (float)vt13_rc_data->rc.rocker_l1) {
-    chassis_ctrl_cmd->vy = -10000 - (time - y_speed_time) * 10000;
-  }  // 速度绝对值在10000以上输出控制量=10000+10000t(s)
+  // // 缓加速
+  // if (abs(vx_initial) <= 10000) {
+  //   x_speed_time = time;
+  //   chassis_ctrl_cmd->vx = vx_initial;
+  // }  // 速度绝对值在10000以下输出控制量=输入控制量
+  // if (vx_initial > 10000 && chassis_ctrl_cmd->vx <= 60.0f * (float)vt13_rc_data->rc.rocker_l_) {
+  //   chassis_ctrl_cmd->vx = 10000 + (time - x_speed_time) * 10000;
+  // }
+  // if (vx_initial < -10000 && chassis_ctrl_cmd->vx >= 60.0f * (float)vt13_rc_data->rc.rocker_l_) {
+  //   chassis_ctrl_cmd->vx = -10000 - (time - x_speed_time) * 10000;
+  // }  // 速度绝对值在10000以上输出控制量=10000+10000t(s)
+  // if (abs(vy_initial) <= 10000) {
+  //   y_speed_time = time;
+  //   chassis_ctrl_cmd->vy = vy_initial;
+  // }  // 速度绝对值在10000以下输出控制量=输入控制量
+  // if (vy_initial > 10000 && chassis_ctrl_cmd->vy <= 60.0f * (float)vt13_rc_data->rc.rocker_l1) {
+  //   chassis_ctrl_cmd->vy = 10000 + (time - y_speed_time) * 10000;
+  // }
+  // if (vy_initial < -10000 && chassis_ctrl_cmd->vy >= 60.0f * (float)vt13_rc_data->rc.rocker_l1) {
+  //   chassis_ctrl_cmd->vy = -10000 - (time - y_speed_time) * 10000;
+  // }  // 速度绝对值在10000以上输出控制量=10000+10000t(s)
+  chassis_ctrl_cmd->vx = vx_initial;
+  chassis_ctrl_cmd->vy = vy_initial;
 }
 
 static void MouseKeySet() {}

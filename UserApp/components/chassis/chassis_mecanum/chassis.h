@@ -45,7 +45,7 @@ typedef struct {
   float wz;            // 旋转速度
   Chassis_Mode_e chassis_mode;
   float offset_angle;  // 底盘和归中位置的夹角
-  float yaw_hold_delta; // 航向保持角度增量（度）
+  float yaw_hold_ref; // 航向保持角度增量（度）
   int chassis_speed_buff;
   uint16_t max_power;  // 最大功率限制
   // UI部分

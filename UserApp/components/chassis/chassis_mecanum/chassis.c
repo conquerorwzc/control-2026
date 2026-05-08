@@ -166,8 +166,7 @@ static float YawHoldCompensate() {
     chassis->yaw_hold_pid.Last_Output = 0.0f;
   }
 
-  yaw_hold_ref += chassis_ctrl_cmd->yaw_hold_delta;
-  return PIDCalculate(&chassis->yaw_hold_pid, chassis->chassis_IMU->YawTotalAngle, yaw_hold_ref);
+  return PIDCalculate(&chassis->yaw_hold_pid, chassis->chassis_IMU->YawTotalAngle, chassis_ctrl_cmd->yaw_hold_ref);
 }
 
 

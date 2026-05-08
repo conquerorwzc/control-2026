@@ -125,17 +125,19 @@ static Chassis_Init_Config_s chassis_init_config = {
       .Kp = -80.0f,
       .Ki = 0.0f,
       .Kd = 0.0f,
-      .DeadBand = 1.0f,
+      .DeadBand = 5.0f,
       .IntegralLimit = 1000.0f,
       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
       .MaxOut = 10000.0f,
   },
   .imu_init_config = {
       .flag = 1,
+      .offset_flag=1,
       .scale = {1.0f, 1.0f, 1.0f},
       .Yaw = 0.0f,
       .Pitch = 0.0f,
       .Roll = 0.0f,
+      .GyroOffset ={0.00269625871,0.00128621224,0.00186533504},
   },
 };
 
