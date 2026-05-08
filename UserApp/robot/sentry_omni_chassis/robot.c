@@ -26,8 +26,7 @@ static RFID_Status_t *RFID;
 static SuperCapMode supercap_mode = SAFETY_MODE;
 float trigger_time = 0;  // 触发时间
 static float angle = 0;
-CANCommInstance *can_comm_instance = NULL;
-static Referee_Data *referee_data;
+ CANCommInstance *can_comm_main = NULL;
 static float time=0;  //判断按钮按下需要重复读取时间，这里简化成一次读取
 static BuzzzerInstance *robot_buzzer;
 static float x_speed_time = 0;  // x方向加速触发时间
@@ -35,6 +34,11 @@ static float y_speed_time = 0;  // y方向加速触发时间
 static float vx_initial;        // x轴输入控制量
 static float vy_initial;        // y轴输入控制量
 // static  DJIMotorInstance* debug_motor;
+CANCommInstance *can_comm_motion = NULL;
+CANCommInstance *can_comm_gamestate = NULL;
+static Referee_Main_s *referee_main;
+static Chassis_Motion_s *chassis_motion;
+static Referee_Game_State_s *referee_game_state;
 
 static uint16_t EncodeBulletSpeedToU16(float speed_mps) {
   if (speed_mps <= 0.0f) return 0u;
@@ -217,8 +221,8 @@ static void MouseKeySet() {}
  *
  */
 static void EmergencyHandler() {
-  // 底盘双板通信离线,好痛
-  if (!CANCommIsOnline(can_comm_instance)) {
+  // Dual-board comm offline.
+  if (!CANCommIsOnline(can_comm_main)) {
     chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
     LOGERROR("[CMD] Emergency Stop! DualBoardComm Lost");
   } else
@@ -330,28 +334,42 @@ static void SuperCapControl() {
 }
 void Chassis_CANCommSend() {
 #ifdef USE_DUAL_RC
-  if (can_comm_instance == NULL || rc_data == NULL) {
+  if (can_comm_main == NULL || rc_data == NULL) {
     return;
   }
 #elifdef USE_DUAL_RC_NEW
-  if (can_comm_instance == NULL || vt13_rc_data == NULL) {
+  if (can_comm_main == NULL || vt13_rc_data == NULL) {
     return;
   }
 #endif
-  // referee_data->projectile_allowance_17mm = robot->referee_data->ProjectileAllowance.projectile_allowance_17mm;
-  referee_data->initial_speed = EncodeBulletSpeedToU16(robot->referee_data->ShootData.initial_speed);
-  referee_data->shooter_17mm_barrel_heat = robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
-  referee_data->robot_id = robot->referee_data->GameRobotState.robot_id;
-  referee_data->wz = robot->chassis->chassis_ctrl_cmd.wz;
-  CANCommSend(can_comm_instance, (void *)referee_data);
+  referee_main->initial_speed = EncodeBulletSpeedToU16(robot->referee_data->ShootData.initial_speed);
+  referee_main->shooter_17mm_barrel_heat = robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
+  CANCommSend(can_comm_main, (void *)referee_main);
+}
+
+static void Chassis_CANCommSendMotion() {
+  if (can_comm_motion == NULL) {
+    return;
+  }
+  chassis_motion->wz = robot->chassis->chassis_ctrl_cmd.wz;
+  CANCommSend(can_comm_motion, (void *)chassis_motion);
+}
+
+static void Chassis_CANCommSendHeatLimit() {
+  if (can_comm_gamestate == NULL) {
+    return;
+  }
+  referee_game_state->shooter_barrel_heat_limit = robot->referee_data->GameRobotState.shooter_barrel_heat_limit;
+  referee_game_state->robot_id = robot->referee_data->GameRobotState.robot_id;
+  CANCommSend(can_comm_gamestate, (void *)referee_game_state);
 }
 // 解析底盘板收到的遥控数据
 static void DualBoardCtrlSet() {
-  if (CANCommIsOnline(can_comm_instance)) {
+  if (CANCommIsOnline(can_comm_main)) {
 #ifdef USE_DUAL_RC
-    *rc_data_old = *(Send_Data_RC *)CANCommGet(can_comm_instance);
+    *rc_data_old = *(Send_Data_RC *)CANCommGet(can_comm_main);
 #elifdef USE_DUAL_RC_NEW
-    *rc_data_new = *(Send_Data_RC_NEW *)CANCommGet(can_comm_instance);
+    *rc_data_new = *(Send_Data_RC_NEW *)CANCommGet(can_comm_main);
 #endif
 
 #ifdef USE_DUAL_RC
@@ -380,9 +398,13 @@ void RobotInit() {
   // 要在云台和底盘任务开始之前完成该任务的初始化
   vTaskDelay(CAN_COMM_TASK_INIT_TIME);
   // 初始化CAN接收
-  can_comm_instance = CANCommInit(&comm_config);
+  can_comm_main = CANCommInit(&comm_config);
+  can_comm_motion = CANCommInit(&comm_config_motion);
+  can_comm_gamestate = CANCommInit(&comm_config_game_state);
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
-  referee_data = (Referee_Data *)zmalloc(sizeof(Referee_Data));
+  referee_main = (Referee_Main_s *)zmalloc(sizeof(Referee_Main_s));
+  chassis_motion = (Chassis_Motion_s *)zmalloc(sizeof(Chassis_Motion_s));
+  referee_game_state = (Referee_Game_State_s *)zmalloc(sizeof(Referee_Game_State_s));
   RFID = (RFID_Status_t *)zmalloc(sizeof(RFID_Status_t));
   sentry_cmd=(Sentry_Cmd_t *)zmalloc(sizeof(Sentry_Cmd_t));
 #ifdef USE_DUAL_RC
@@ -421,9 +443,9 @@ void RobotInit() {
   for (int i = 0; i < 6; i++) {
     robot_buzzer->octave = (octave_e)(OCTAVE_6 - i);
     AlarmSetStatus(robot_buzzer, ALARM_ON);
-    HAL_Delay(50);
+    HAL_Delay(100);
     AlarmSetStatus(robot_buzzer, ALARM_OFF);
-    HAL_Delay(5);//用os_delay时间不稳定
+    HAL_Delay(20);//用os_delay时间不稳定
   }
 }
 
@@ -431,12 +453,18 @@ void RobotInit() {
 void RobotCMDTask() {
   static float last_rc_dualboard_time = 0.0f;
   static uint8_t rc_dualboard_first_run = 1;
+  static float last_heat_limit_time = 0.0f;
   time = DWT_GetTimeline_s();
   // 双板数据按100Hz更新，其他安全逻辑维持高频
   if (rc_dualboard_first_run || (time - last_rc_dualboard_time) >= 0.012f) {
     rc_dualboard_first_run = 0;
     last_rc_dualboard_time = time;
     Chassis_CANCommSend();
+    Chassis_CANCommSendMotion();
+    if (time - last_heat_limit_time >= 1.0f) {
+      last_heat_limit_time = time;
+      Chassis_CANCommSendHeatLimit();
+    }
     // SentryRefereeSend();
   }
   DualBoardCtrlSet();

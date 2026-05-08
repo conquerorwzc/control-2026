@@ -26,8 +26,12 @@
 #define VISION_USE_VCP  // 使用虚拟串口发送视觉数据
 // #define VISION_USE_UART // 使用串口发送视觉数据
 
-#define BOARD_TX_ID 0x210
-#define BOARD_RX_ID 0x211
+#define CANID_MAIN_TX 0x03
+#define CANID_MAIN_RX 0x01
+#define CANID_MOTION_TX 0x210
+#define CANID_MOTION_RX 0x211
+#define CANID_GAME_STATE_TX 0x212
+#define CANID_GAME_STATE_RX 0x213
 
 // 云台参数
 #define YAW_CHASSIS_ALIGN_ECD 3845  // 云台和底盘对齐指向相同方向时的电机编码器值,若对云台有机械改动需要修改
@@ -167,7 +171,7 @@ static Shoot_Init_Config_s shoot_init_config = {
             .bullet_speed_deadband = 0.2f,//弹速死区，正负deadband。
             .one_barrel_heat_value = 10,//一发弹丸所需热量
             .shooter_barrel_cooling_value = 30,//每秒冷却回复
-            .shooter_barrel_heat_limit = 220,//热量上限
+            // .shooter_barrel_heat_limit = 210,//热量上限
         },
     .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan1, 2, MOTOR_DIRECTION_NORMAL),
     .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan1, 1, MOTOR_DIRECTION_NORMAL),
@@ -214,27 +218,53 @@ static Shoot_Init_Config_s shoot_init_config = {
 #else
 #define DUALBOARD_CMD_LEN ((uint8_t)sizeof(Send_Data_RC))
 #endif
-#define DUALBOARD_REF_LEN ((uint8_t)sizeof(Referee_Data))
+#define DUALBOARD_REF_MAIN_LEN ((uint8_t)sizeof(Referee_Main_s))
+#define DUALBOARD_REF_MOTION_LEN ((uint8_t)sizeof(Chassis_Motion_s))
+#define DUALBOARD_REF_GAME_STATE_LEN ((uint8_t)sizeof(Referee_Game_State_s))
 
 static CANComm_Init_Config_s comm_config = {
-  .recv_data_len = DUALBOARD_REF_LEN,
+  .recv_data_len = DUALBOARD_REF_MAIN_LEN,
   .send_data_len = DUALBOARD_CMD_LEN,
   .daemon_count = 10,
   .can_config = {
     .can_handle = &hcan2,  // 假设使用CAN2，根据实际使用的CAN句柄调整
-    .tx_id = BOARD_TX_ID,        // 发送ID，根据实际需求调整
-    .rx_id = BOARD_RX_ID,        // 接收ID，根据实际需求调整
+    .tx_id = CANID_MAIN_TX,        // 发送ID，根据实际需求调整
+    .rx_id = CANID_MAIN_RX,        // 接收ID，根据实际需求调整
     .id = NULL                   // 将在CANCommInit中设置
+  }
+};
+
+static CANComm_Init_Config_s comm_config_motion = {
+  .recv_data_len = DUALBOARD_REF_MOTION_LEN,
+  .send_data_len = 0,
+  .daemon_count = 10,
+  .can_config = {
+    .can_handle = &hcan2,
+    .tx_id = CANID_MOTION_TX,
+    .rx_id = CANID_MOTION_RX,
+    .id = NULL
+  }
+};
+
+static CANComm_Init_Config_s comm_config_game_state = {
+  .recv_data_len = DUALBOARD_REF_GAME_STATE_LEN,
+  .send_data_len = 0,
+  .daemon_count = 200,
+  .can_config = {
+    .can_handle = &hcan2,
+    .tx_id = CANID_GAME_STATE_TX,
+    .rx_id = CANID_GAME_STATE_RX,
+    .id = NULL
   }
 };
 
 // CAN实例配置（用于数据存储）
 static CANInstance board_can_comm_data = {
   .can_handle = &hcan2,
-  .tx_id = BOARD_TX_ID,          // 与comm_config中的ID保持一致
-  .rx_id = BOARD_RX_ID,
+  .tx_id = CANID_MAIN_TX,          // 与comm_config中的ID保持一致
+  .rx_id = CANID_MAIN_RX,
   .txconf = {
-    .StdId = BOARD_TX_ID,      // 发送ID
+    .StdId = CANID_MAIN_TX,      // 发送ID
     .IDE = CAN_ID_STD,   // 标准帧
     .RTR = CAN_RTR_DATA, // 数据帧
     .DLC = 0x08,         // 数据长度8字节

@@ -56,7 +56,7 @@ ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
   bullet_speed_adjustment = shoot_init_config->shoot_param.bullet_speed_adjustment;
   bullet_speed_deadband=shoot_init_config->shoot_param.bullet_speed_deadband;
   shooter_barrel_cooling_value = shoot_init_config->shoot_param.shooter_barrel_cooling_value;
-  shooter_barrel_heat_limit = shoot_init_config->shoot_param.shooter_barrel_heat_limit;
+  // shooter_barrel_heat_limit = shoot_init_config->shoot_param.shooter_barrel_heat_limit;
   one_barrel_heat_value = shoot_init_config->shoot_param.one_barrel_heat_value;
   shooter_barrel_heat = 0;//初始热量为0
   // 初始化弹速控制PID参数
@@ -112,7 +112,7 @@ void HeatControl() {
     case DISABLE:
       return;
     case REFEREE_CONTROL:
-        remain_heat = shooter_barrel_heat_limit-shoot_ctrl_cmd->shooter_barrel_heat;
+        remain_heat = shoot_ctrl_cmd->shooter_barrel_heat_limit - shoot_ctrl_cmd->shooter_barrel_heat;
       break;
     case SIMULLATE_CONTROL:
       //冷却恢复，每1s回24点
@@ -174,10 +174,9 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
     case LOAD_1_BULLET:  // 激活能量机关/干扰对方用,英雄用.
       ShootBulletSpeedControl();
       DJIMotorOuterLoop(shoot->loader_motor, ANGLE_LOOP);  // 切换到角度环
-      loader_set = shoot->loader_motor->measure.total_angle +
-                   one_bullet_delta_angle * reduction_ratio_loader * loader_direction;  // 控制量增加一发弹丸的角度
+      loader_set = shoot->loader_motor->measure.total_angle + one_bullet_delta_angle * reduction_ratio_loader * (float)loader_direction;  // 控制量增加一发弹丸的角度
       if(shoot_ctrl_cmd->heat_mode==SIMULLATE_CONTROL) {
-        shooter_barrel_heat += one_barrel_heat_value;  // 增加一发弹丸消耗热量，只在模拟控制中有效
+        shooter_barrel_heat += (float)one_barrel_heat_value;  // 增加一发弹丸消耗热量，只在模拟控制中有效
       }
       hibernate_time = DWT_GetTimeline_ms();                                            // 记录触发指令的时间
       dead_time = deadtime_onebullet;                                                   // 完成1发弹丸发射的时间
@@ -186,11 +185,9 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
     case LOAD_BURSTFIRE:
       ShootBulletSpeedControl();
       DJIMotorOuterLoop(shoot->loader_motor, SPEED_LOOP);  // 切换到速度环
-      loader_set = LoaderSpeedFromDelay(
-          one_bullet_delta_angle * reduction_ratio_loader * (float)loader_direction,
-          deadtime_burstfire);
+      loader_set = LoaderSpeedFromDelay(one_bullet_delta_angle * reduction_ratio_loader * (float)loader_direction,deadtime_burstfire);
       if (shoot_ctrl_cmd->heat_mode == SIMULLATE_CONTROL) {
-        shooter_barrel_heat += one_barrel_heat_value;//增加一发弹丸消耗热量，只在模拟控制中有效
+        shooter_barrel_heat += (float)one_barrel_heat_value;//增加一发弹丸消耗热量，只在模拟控制中有效
       }
       hibernate_time = DWT_GetTimeline_ms();                                            // 记录触发指令的时间
 

@@ -21,8 +21,12 @@ static Send_Data_RC *send_data;
 static Send_Data_RC_NEW *send_data_new;
 static VT13_RC_t *vt13_rc_data;
 #endif
-static CANCommInstance* can_comm_instance = NULL;
-static Referee_Data *RefereeData;
+static CANCommInstance* can_comm_main = NULL;
+static CANCommInstance* can_comm_motion = NULL;
+static CANCommInstance* can_comm_gamestate = NULL;
+static Referee_Main_s *referee_main;
+static Chassis_Motion_s *chassis_motion;
+static Referee_Game_State_s *referee_game_state;
 static float time=0;  //判断按钮按下需要重复读取时间，这里简化成一次读取
 static BuzzzerInstance *robot_buzzer;
 
@@ -451,7 +455,7 @@ static void EmergencyHandler() {
 void Gimbal_CANCommSend()
 {
   #ifdef USE_DUAL_RC
-  if (can_comm_instance == NULL || rc_data == NULL)
+  if (can_comm_main == NULL || rc_data == NULL)
   {
     return;
   }
@@ -463,9 +467,9 @@ void Gimbal_CANCommSend()
   send_data->rc_switch_left = rc_data->rc.switch_left;
   send_data->rc_switch_right = rc_data->rc.switch_right;
   // send_data->Control_mode = robot->control_mode;
-  CANCommSend(can_comm_instance,(void*)send_data);
+  CANCommSend(can_comm_main,(void*)send_data);
   #elifdef USE_DUAL_RC_NEW
-  if (can_comm_instance == NULL || vt13_rc_data == NULL)
+  if (can_comm_main == NULL || vt13_rc_data == NULL)
   {
     return;
   }
@@ -478,22 +482,36 @@ void Gimbal_CANCommSend()
   send_data_new->Mode_switch = vt13_rc_data->rc.mode_switch;
   send_data_new->Control_mode = robot->control_mode;
   send_data_new->Pause_flag = vt13_rc_data->button_status.pause_flag;
-  CANCommSend(can_comm_instance,(void*)send_data_new);
+  CANCommSend(can_comm_main,(void*)send_data_new);
   #endif
 
 
   }
 static void DualBoardCtrlSet() {
   //chassis_ctrl_cmd->wz=0;
-  if (CANCommIsOnline(can_comm_instance)) {
-    // 检查是否有新数据更新
-    *RefereeData = *(Referee_Data*)CANCommGet(can_comm_instance);
-    // 如果收到数据，可以在这里处理
+  static float rec_time_last_1;
+  if (CANCommIsOnline(can_comm_main)) {
+    if (can_comm_main->update_flag) {
+      // 检查是否有新数据更新
+      *referee_main = *(Referee_Main_s*)CANCommGet(can_comm_main);
+      // 如果收到数据，可以在这里处理
+      uint32_t dt_ms = (uint32_t)((time - rec_time_last_1) * 1000.0f);
+      LOGINFO("can_comm_main receive time %lu ms", (unsigned long)dt_ms);
+      rec_time_last_1 = time;
+    }
+  }
+  if (CANCommIsOnline(can_comm_motion)) {
+    *chassis_motion = *(Chassis_Motion_s*)CANCommGet(can_comm_motion);
+  }
+  if (CANCommIsOnline(can_comm_gamestate)) {
+    *referee_game_state = *(Referee_Game_State_s*)CANCommGet(can_comm_gamestate);
   }
 }
 void RobotInit() {
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
-  RefereeData = (Referee_Data* )zmalloc(sizeof(Referee_Data));
+  referee_main = (Referee_Main_s* )zmalloc(sizeof(Referee_Main_s));
+  chassis_motion = (Chassis_Motion_s* )zmalloc(sizeof(Chassis_Motion_s));
+  referee_game_state = (Referee_Game_State_s* )zmalloc(sizeof(Referee_Game_State_s));
 
 #ifdef USE_DUAL_RC
   // 使用旧遥控器
@@ -518,14 +536,16 @@ void RobotInit() {
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
 
-  robot->vision_recv_data = VisionInit(&gimbal_init_config.imu_init_config, &shoot_ctrl_cmd->initial_speed, &RefereeData->robot_id);
-  // robot->super_cap = SuperCapInit(&super_cap_config)
+    robot->vision_recv_data = VisionInit(&gimbal_init_config.imu_init_config, &shoot_ctrl_cmd->initial_speed, &referee_game_state->robot_id);
+    // robot->super_cap = SuperCapInit(&super_cap_config)
 
   shoot_ctrl_cmd->heat_mode=REFEREE_CONTROL;
   shoot_ctrl_cmd->bullet_speed_mode=ENABLE_BULLET_SPEED;
   // navigator_data  = robot->navigator_data;
   vision_recv_data = robot->vision_recv_data;
-  can_comm_instance = CANCommInit(&comm_config);
+  can_comm_main = CANCommInit(&comm_config);
+  can_comm_motion = CANCommInit(&comm_config_motion);
+  can_comm_gamestate = CANCommInit(&comm_config_game_state);
 
   Buzzer_config_s buzzer_cfg = {
     .alarm_level = ALARM_LEVEL_HIGH,
@@ -555,15 +575,16 @@ void RobotCMDTask() {
     last_rc_dualboard_time = time;
     Gimbal_CANCommSend();
   }
-  DualBoardCtrlSet();
-  shoot_ctrl_cmd->initial_speed = DecodeBulletSpeedFromU16(RefereeData->initial_speed);
-  shoot_ctrl_cmd->shooter_barrel_heat=RefereeData->shooter_17mm_barrel_heat;
-  if (RefereeData->wz >= 0)gimbal_ctrl_cmd->chassis_rotate_wz = 0.00030f * RefereeData->wz;
-  if (RefereeData->wz < 0)  gimbal_ctrl_cmd->chassis_rotate_wz = 0.00034f * RefereeData->wz;
-  RemoteControlSet();
-  // MouseKeySet();
-  PitchAngleLimit();
-  EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
+    DualBoardCtrlSet();
+    shoot_ctrl_cmd->initial_speed = DecodeBulletSpeedFromU16(referee_main->initial_speed);
+    shoot_ctrl_cmd->shooter_barrel_heat=referee_main->shooter_17mm_barrel_heat;
+    shoot_ctrl_cmd->shooter_barrel_heat_limit = referee_game_state->shooter_barrel_heat_limit-30;
+    if (chassis_motion->wz >= 0)gimbal_ctrl_cmd->chassis_rotate_wz = 0.00030f * chassis_motion->wz;
+    if (chassis_motion->wz < 0)  gimbal_ctrl_cmd->chassis_rotate_wz = 0.00034f * chassis_motion->wz;
+    RemoteControlSet();
+    // MouseKeySet();
+    PitchAngleLimit();
+    EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
 
 void RobotTask() {

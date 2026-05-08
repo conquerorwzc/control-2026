@@ -24,17 +24,21 @@ typedef enum {
 
 #pragma pack(1)
 typedef struct {
-  // uint16_t projectile_allowance_17mm;//17mm弹丸允许发弹量
   uint16_t initial_speed; // 弹速
   uint16_t shooter_17mm_barrel_heat;//17mm发射机构的射击热量
-  uint8_t robot_id;  // 本机器人ID（红蓝阵营）
-  // uint16_t shooter_barrel_heat_limit;//机器人射击热量上限
-  // uint16_t shooter_barrel_cooling_value;//机器人射击热量每秒冷却值
-  float wz;
-} Referee_Data;
-#pragma pack()
+} Referee_Main_s;
 
-#pragma pack(1)
+typedef struct {
+  float wz;
+} Chassis_Motion_s;
+
+typedef struct {
+  // uint16_t projectile_allowance_17mm;//17mm弹丸允许发弹量
+  // uint16_t shooter_barrel_cooling_value;//机器人射击热量每秒冷却值
+  uint16_t shooter_barrel_heat_limit;//机器人射击热量上限
+  uint8_t robot_id;  // 本机器人ID（红蓝阵营）
+} Referee_Game_State_s;
+
 #ifdef USE_DUAL_RC
 typedef struct {
   int16_t Rc_vx;
@@ -58,8 +62,7 @@ typedef struct {
   uint8_t Pause_flag;
 } Send_Data_RC_NEW;
 #endif
-#pragma pack()
-#pragma pack(1)
+
 typedef struct {
    union{
     uint32_t RFID1;
@@ -111,8 +114,7 @@ typedef struct {
     } fields;
   } RFID2_t;
 } RFID_Status_t;
-#pragma pack()
-#pragma pack(1)
+
 typedef union{
   // 方式 1：直接作为 4 字节数组访问（用于底层串口发送/接收）
   uint8_t raw_data[4];

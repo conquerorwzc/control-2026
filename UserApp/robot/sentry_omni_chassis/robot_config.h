@@ -152,12 +152,20 @@ static SuperCap_Init_Config_s super_cap_config = {
 #define CONTROL_2026_ROBOT_CONFIG_H
 #if DEVICE_ROLE_TX
 // 发送板配置
-#define BOARD_TX_ID 0x218
-#define BOARD_RX_ID 0x219
+#define CANID_MAIN_TX 0x218
+#define CANID_MAIN_RX 0x219
+#define CANID_MOTION_TX 0x21A
+#define CANID_MOTION_RX 0x21B
+#define CANID_GAME_STATE_TX 0x21C
+#define CANID_GAME_STATE_RX 0x21D
 #else
 // 接收板配置
-#define BOARD_TX_ID 0x211
-#define BOARD_RX_ID 0x210
+#define CANID_MAIN_TX 0x01
+#define CANID_MAIN_RX 0x03
+#define CANID_MOTION_TX 0x211
+#define CANID_MOTION_RX 0x210
+#define CANID_GAME_STATE_TX 0x213
+#define CANID_GAME_STATE_RX 0x212
 #endif
 
 #ifdef USE_DUAL_RC_NEW
@@ -165,30 +173,57 @@ static SuperCap_Init_Config_s super_cap_config = {
 #else
 #define DUALBOARD_CMD_LEN ((uint8_t)sizeof(Send_Data_RC))
 #endif
-#define DUALBOARD_REF_LEN ((uint8_t)sizeof(Referee_Data))
+#define DUALBOARD_REF_MAIN_LEN ((uint8_t)sizeof(Referee_Main_s))
+#define DUALBOARD_REF_MOTION_LEN ((uint8_t)sizeof(Chassis_Motion_s))
+#define DUALBOARD_REF_GAME_STATE_LEN ((uint8_t)sizeof(Referee_Game_State_s))
 
 static CANComm_Init_Config_s comm_config = {
   .recv_data_len = DUALBOARD_CMD_LEN,
-  .send_data_len = DUALBOARD_REF_LEN,
+  .send_data_len = DUALBOARD_REF_MAIN_LEN,
   .daemon_count = 10,
   .can_config = {
     .can_handle = &hcan2,  // 假设使用CAN1，根据实际使用的CAN句柄调整
-    .tx_id = BOARD_TX_ID,        // 发送ID，根据实际需求调整
-    .rx_id = BOARD_RX_ID,        // 接收ID，根据实际需求调整
+    .tx_id = CANID_MAIN_TX,        // 发送ID，根据实际需求调整
+    .rx_id = CANID_MAIN_RX,        // 接收ID，根据实际需求调整
     .id = NULL                   // 将在CANCommInit中设置
+  }
+};
+
+static CANComm_Init_Config_s comm_config_motion = {
+  .recv_data_len = 0,
+  .send_data_len = DUALBOARD_REF_MOTION_LEN,
+  .daemon_count = 10,
+  .can_config = {
+    .can_handle = &hcan2,
+    .tx_id = CANID_MOTION_TX,
+    .rx_id = CANID_MOTION_RX,
+    .id = NULL
+  }
+};
+
+static CANComm_Init_Config_s comm_config_game_state = {
+  .recv_data_len = 0,
+  .send_data_len = DUALBOARD_REF_GAME_STATE_LEN,
+  .daemon_count = 200,
+  .can_config = {
+    .can_handle = &hcan2,
+    .tx_id = CANID_GAME_STATE_TX,
+    .rx_id = CANID_GAME_STATE_RX,
+    .id = NULL
   }
 };
 
 // CAN实例配置（用于数据存储）
 static CANInstance board_can_comm_data = {
   .can_handle = &BOARD_CAN,
-  .tx_id = BOARD_TX_ID,          // 与comm_config中的ID保持一致
-  .rx_id = BOARD_RX_ID,
+  .tx_id = CANID_MAIN_TX,          // 与comm_config中的ID保持一致
+  .rx_id = CANID_MAIN_RX,
   .txconf = {
-    .StdId = BOARD_TX_ID,      // 发送ID
+    .StdId = CANID_MAIN_TX,      // 发送ID
     .IDE = CAN_ID_STD,   // 标准帧
     .RTR = CAN_RTR_DATA, // 数据帧
     .DLC = 0x08,         // 数据长度8字节
   }
 };
 #endif  // CONTROL_2026_ROBOT_CONFIG_H
+
