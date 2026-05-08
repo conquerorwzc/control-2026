@@ -12,9 +12,6 @@ static RobotInstance *robot;
 
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
-static Gimbal_Ctrl_Cmd_s *gimbal_ctrl_cmd;
-static Shoot_Ctrl_Cmd_s *shoot_ctrl_cmd;
-static Vision_Receive_s *vision_recv_data;
 // static navigator_recv_t* navigator_data;
 #ifdef USE_DUAL_RC
 static Send_Data_RC *rc_data_old;
@@ -83,10 +80,11 @@ static void CalcOffsetAngle() {
  */
 static void RemoteControlSet() {
   if (switch_is_mid(rc_data[TEMP].rc.switch_left)||switch_is_up(rc_data[TEMP].rc.switch_left)) {
-    if (abs(rc_data[TEMP].rc.dial) > 20) {
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
-    } else
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+    // if (abs(rc_data[TEMP].rc.dial) > 20) {
+    //   chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+    // } else
+    //   chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_HOLD;
   }
 
   if ((switch_is_up(rc_data[TEMP].rc.switch_right)||switch_is_off(rc_data[TEMP].rc.switch_right))&&robot->referee_data->GameState.game_progress == 4)//除了右拨杆在上机器人使用导航数据，其余都正常人为控制
@@ -102,16 +100,20 @@ static void RemoteControlSet() {
   {
     vx_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l_;  // l_水平方向，最大660*60=39600
     vy_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // l1竖直方向，最大660*60
+    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_HOLD) {
+      float yaw_ang_cmd = 0.01f * (float)vt13_rc_data->rc.dial + 0.005f * (float)vt13_rc_data->rc.rocker_r_;
+      chassis_ctrl_cmd->yaw_hold_delta = yaw_ang_cmd;
+      chassis_ctrl_cmd->wz = yaw_ang_cmd / WZ_CMD_TO_CAR_WZ_RAD_S;
+    }
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
       chassis_ctrl_cmd->wz = 5.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
-      chassis_ctrl_cmd->wz = (2.0f) * (float)rc_data->rc.rocker_r_;
     }
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
       chassis_ctrl_cmd->wz = (2.0f) * (float)rc_data->rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
     }
   } else if (robot->control_mode == NAVIGATOR_MODE)  // 自动控制，直接收上位机控制量
   {
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_HOLD;
     vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vy * 10000;
     vy_initial = robot->navigator_data->robot_cmd.speed_vector.vx * 10000;
     chassis_ctrl_cmd->wz = robot->navigator_data->robot_cmd.speed_vector.wz / WZ_CMD_TO_CAR_WZ_RAD_S;
@@ -145,8 +147,11 @@ static void MouseKeySet() {}
 #elifdef USE_DUAL_RC_NEW
 static void RemoteControlSet() {
   if (switch_middle(vt13_rc_data->rc.mode_switch)||switch_right(vt13_rc_data->rc.mode_switch)) {
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
-    if (abs(vt13_rc_data->rc.dial) > 20) chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+    // if (abs(rc_data[TEMP].rc.dial) > 20) {
+    //   chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+    // } else
+    //   chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_HOLD;
   }
 
   // 底盘控制部分,系数需要调整
@@ -154,15 +159,21 @@ static void RemoteControlSet() {
   {
     vx_initial = 60.0f * (float)vt13_rc_data->rc.rocker_l_;  // l_水平方向，最大660*60=39600
     vy_initial = 60.0f * (float)vt13_rc_data->rc.rocker_l1;  // l1竖直方向，最大660*60
-    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE)
-      chassis_ctrl_cmd->wz = 10.0f * (float)vt13_rc_data->rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
+    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_HOLD) {
+      float yaw_ang_cmd = 0.01f * (float)vt13_rc_data->rc.dial + 0.005f * (float)vt13_rc_data->rc.rocker_r_;
+      chassis_ctrl_cmd->yaw_hold_delta = yaw_ang_cmd;
+      chassis_ctrl_cmd->wz = yaw_ang_cmd / WZ_CMD_TO_CAR_WZ_RAD_S;
+    }
+    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
+      chassis_ctrl_cmd->wz = 5.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
+    }
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
       chassis_ctrl_cmd->wz = (2.0f) * (float)vt13_rc_data->rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
     }
   }
   else if (robot->control_mode == NAVIGATOR_MODE)  // 自动控制，直接收上位机控制量
   {
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_HOLD;
       vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vy * 10000;
       vy_initial = robot->navigator_data->robot_cmd.speed_vector.vx * 10000;
       chassis_ctrl_cmd->wz = robot->navigator_data->robot_cmd.speed_vector.wz / WZ_CMD_TO_CAR_WZ_RAD_S;
@@ -408,9 +419,9 @@ void RobotInit() {
   for (int i = 0; i < 6; i++) {
     robot_buzzer->octave = (octave_e)(OCTAVE_6 - i);
     AlarmSetStatus(robot_buzzer, ALARM_ON);
-    osDelay(50);
+    HAL_Delay(50);
     AlarmSetStatus(robot_buzzer, ALARM_OFF);
-    osDelay(5);//用os_delay时间不稳定
+    HAL_Delay(5);//用os_delay时间不稳定
   }
 }
 

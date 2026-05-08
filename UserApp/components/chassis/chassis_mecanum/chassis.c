@@ -24,6 +24,8 @@ static float rf_radius;
 static float lb_radius;
 static float rb_radius;
 static PIDInstance follow_pid;
+static float yaw_hold_ref;
+static uint8_t yaw_hold_active;
 static float k0, k1, k2, k3, k4, k5;  // 中科大的功率模型
 
 /**
@@ -139,6 +141,36 @@ static void EstimateSpeed() {
   // DJIMotor得改otherfeed
 }
 
+
+static float YawHoldCompensate() {
+  if (chassis == NULL || chassis_ctrl_cmd == NULL) {
+    return 0.0f;
+  }
+  if (chassis->chassis_IMU == NULL || !chassis->chassis_IMU->init) {
+    yaw_hold_active = 0;
+    return 0.0f;
+  }
+
+  if (chassis_ctrl_cmd->chassis_mode != CHASSIS_HOLD) {
+    yaw_hold_active = 0;
+    return 0.0f;
+  }
+
+  if (!yaw_hold_active) {
+    yaw_hold_ref = chassis->chassis_IMU->YawTotalAngle;
+    yaw_hold_active = 1;
+    chassis->yaw_hold_pid.Iout = 0.0f;
+    chassis->yaw_hold_pid.ITerm = 0.0f;
+    chassis->yaw_hold_pid.Last_ITerm = 0.0f;
+    chassis->yaw_hold_pid.Last_Err = 0.0f;
+    chassis->yaw_hold_pid.Last_Output = 0.0f;
+  }
+
+  yaw_hold_ref += chassis_ctrl_cmd->yaw_hold_delta;
+  return PIDCalculate(&chassis->yaw_hold_pid, chassis->chassis_IMU->YawTotalAngle, yaw_hold_ref);
+}
+
+
 ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   ChassisInstance* chassis_instance = (ChassisInstance*)zmalloc(sizeof(ChassisInstance));
 
@@ -172,6 +204,7 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
               DEGREE_2_RAD;
 
   PIDInit(&follow_pid, &chassis_init_config->follow_pid);
+  PIDInit(&chassis_instance->yaw_hold_pid, &chassis_init_config->yaw_hold_pid);
 
   for (int i = 0; i < 4; i++) {
     chassis_init_config->wheel_motor_config[i].controller_setting_init_config.angle_feedback_source = MOTOR_FEED;
@@ -181,6 +214,7 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
     chassis_instance->wheel_motor[i] = DJIMotorInit(&chassis_init_config->wheel_motor_config[i]);
   }
 
+  chassis_instance->chassis_IMU = INS_Init(&chassis_init_config->imu_init_config);
   chassis = chassis_instance;
   chassis_ctrl_cmd = &chassis->chassis_ctrl_cmd;  // 在运行时初始化指针
   return chassis_instance;
@@ -201,7 +235,8 @@ void ChassisTask() {
       chassis_ctrl_cmd->wz += PIDCalculate(&follow_pid, chassis_ctrl_cmd->offset_angle, 0);
       break;
     case CHASSIS_ROTATE:  // 自旋,同时保持全向机动;当前wz维持定值,后续增加不规则的变速策略
-      // chassis_cmd_recv.wz = 4000;
+      break;
+    case CHASSIS_HOLD:  // 航向保持，wz 由上层前馈给定
       break;
     default:
       break;
@@ -214,6 +249,7 @@ void ChassisTask() {
   // chassis_vx = chassis_ctrl_cmd->vx * cos_theta +chassis_ctrl_cmd->vy * sin_theta;
   // chassis_vy = -chassis_ctrl_cmd->vx * sin_theta + chassis_ctrl_cmd->vy * cos_theta;
 
+  chassis_ctrl_cmd->wz += YawHoldCompensate();
   chassis_vx = chassis_ctrl_cmd->vx;
   chassis_vy = chassis_ctrl_cmd->vy;
 

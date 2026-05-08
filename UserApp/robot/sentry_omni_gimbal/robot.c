@@ -537,9 +537,9 @@ void RobotInit() {
   for (int i = 0; i < 6; i++) {
     robot_buzzer->octave = (octave_e)(OCTAVE_1 + i);
     AlarmSetStatus(robot_buzzer, ALARM_ON);
-    osDelay(50);
+    HAL_Delay(50);
     AlarmSetStatus(robot_buzzer, ALARM_OFF);
-    osDelay(5);//用os_delay时间不稳定
+    HAL_Delay(5);//用os_delay时间不稳定
   }
 }
 
