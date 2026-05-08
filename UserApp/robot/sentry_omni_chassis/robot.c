@@ -241,7 +241,7 @@ static void SentryCmd() {
       // robot->chassis->chassis_ctrl_cmd.wz=-2500;
     }
     else if ((robot->chassis->chassis_ctrl_cmd.vx==0&&robot->chassis->chassis_ctrl_cmd.vy==0)
-      ||RFID->RFID1_t.fields.RFIDbit17) {
+      ||RFID->RFID1_t.fields.own_fortress_boost) {
       pose_time=time;
       robot->sentry_mode=OFFENSE_POSE;    //高于50%血或占据堡垒进入进攻姿态
       // robot->chassis->chassis_ctrl_cmd.wz=-5000;
@@ -258,10 +258,10 @@ static void SentryCmd() {
     (robot->referee_data->GameRobotState.current_HP==0);                         //没有血时确认复活
   sentry_cmd->fields.confirm_instant_respawn=0;               //0为不买活，1为买活
   if (robot->referee_data->ProjectileAllowance.projectile_allowance_17mm<50) {
-    if(RFID->RFID1_t.fields.RFIDbit0
-      ||RFID->RFID1_t.fields.RFIDbit18
-      ||RFID->RFID1_t.fields.RFIDbit20
-      ||RFID->RFID1_t.fields.RFIDbit19) {
+    if(RFID->RFID1_t.fields.base_boost
+      ||RFID->RFID1_t.fields.own_outpost_boost
+      ||RFID->RFID1_t.fields.own_overlap_supply_boost
+      ||RFID->RFID1_t.fields.own_supply_zone_boost) {
       if (robot->referee_data->ProjectileAllowance.remaining_gold_coin>=200) {
         sentry_cmd->fields.projectile_amount+=100;   //买弹量，递增式
       }

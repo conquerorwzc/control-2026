@@ -64,53 +64,53 @@ typedef struct {
    union{
     uint32_t RFID1;
     struct {
-      uint32_t RFIDbit0 : 1;  // bit0:己方基地增益点
-      uint32_t RFIDbit1 : 1; // bit1:己方中央高地增益点
-      uint32_t RFIDbit2 : 1; // bit2:对方中央高地增益点
-      uint32_t RFIDbit3 : 1;// bit3:己方梯形高地增益点
-      uint32_t RFIDbit4 : 1;// bit4:对方梯形高地增益点
-      uint32_t RFIDbit5 : 1; // bit5:己方地形跨越增益点(飞坡)(靠近己方一侧飞坡前)
-      uint32_t RFIDbit6 : 1; // bit6:己方地形跨越增益点(飞坡)(靠近己方一侧飞坡后)
-      uint32_t RFIDbit7 : 1;// bit7:对方地形跨越增益点(飞坡)(靠近对方一侧飞坡前)
-      uint32_t RFIDbit8 : 1;// bit8:对方地形跨越增益点(飞坡)(靠近对方一侧飞坡后)
-      uint32_t RFIDbit9 : 1; // bit9:己方地形跨越增益点(中央高地下方)
-      uint32_t RFIDbit10 : 1; // bit10:己方地形跨越增益点(中央高地上方)
-      uint32_t RFIDbit11 : 1;// bit11:对方地形跨越增益点(中央高地下方)
-      uint32_t RFIDbit12 : 1;// bit12:对方地形跨越增益点(中央高地上方)
-      uint32_t RFIDbit13 : 1;  // bit13:己方地形跨越增益点(公路下方)
-      uint32_t RFIDbit14 : 1;// bit14:己方地形跨越增益点(公路上方)
-      uint32_t RFIDbit15 : 1; // bit15:对方地形跨越增益点(公路下方)
-      uint32_t RFIDbit16 : 1; // bit16:对方地形跨越增益点(公路上方)
-      uint32_t RFIDbit17 : 1;// bit17:己方堡垒增益点
-      uint32_t RFIDbit18 : 1;// bit18:己方前哨站增益点
-      uint32_t RFIDbit19 : 1;  // bit19:己方与资源区不重叠的补给区/RMUL补给区
-      uint32_t RFIDbit20 : 1; // bit 20:己方与资源区重叠的补给区
-      uint32_t RFIDbit21 : 1; // bit21:己方装配增益点
-      uint32_t RFIDbit22 : 1;// bit 22:对方装配增益点
-      uint32_t RFIDbit23 : 1;// bit 23:中心增益点(仅RMUL适用)
-      uint32_t RFIDbit24 : 1; // bit24:对方堡垒增益点
-      uint32_t RFIDbit25 : 1;// bit25:对方前哨站增益点
-      uint32_t RFIDbit26 : 1; // bit26:己方地形跨越增益点(隧道)(靠近己方一侧公路区下方)
-      uint32_t RFIDbit27 : 1; // bit27:己方地形跨越增益点(隧道)(靠近己方一侧公路区中间)
-      uint32_t RFIDbit28 : 1; // bit28:己方地形跨越增益点(隧道)(靠近己方一侧公路区上方)
-      uint32_t RFIDbit29 : 1; // bit29:己方地形跨越增益点(隧道)(靠近己方梯形高地较低处)
-      uint32_t RFIDbit30 : 1;// bit30:己方地形跨越增益点(隧道)(靠近己方梯形高地较中间)
-      uint32_t RFIDbit31 : 1; // bit31:己方地形跨越增益点(隧道)(靠近己方梯形高地较高处)
-    } __attribute__((packed)) fields;
-  }__attribute__((packed)) RFID1_t;
+      uint32_t base_boost : 1;                        // bit0: 己方基地增益点
+      uint32_t own_center_highland_boost : 1;         // bit1: 己方中央高地增益点
+      uint32_t enemy_center_highland_boost : 1;       // bit2: 对方中央高地增益点
+      uint32_t own_trapezoid_highland_boost : 1;      // bit3: 己方梯形高地增益点
+      uint32_t enemy_trapezoid_highland_boost : 1;    // bit4: 对方梯形高地增益点
+      uint32_t own_ramp_before_boost : 1;             // bit5: 己方地形跨越增益点(飞坡)(靠近己方一侧飞坡前)
+      uint32_t own_ramp_after_boost : 1;              // bit6: 己方地形跨越增益点(飞坡)(靠近己方一侧飞坡后)
+      uint32_t enemy_ramp_before_boost : 1;           // bit7: 对方地形跨越增益点(飞坡)(靠近对方一侧飞坡前)
+      uint32_t enemy_ramp_after_boost : 1;            // bit8: 对方地形跨越增益点(飞坡)(靠近对方一侧飞坡后)
+      uint32_t own_center_highland_lower_boost : 1;   // bit9: 己方地形跨越增益点(中央高地下方)
+      uint32_t own_center_highland_upper_boost : 1;   // bit10: 己方地形跨越增益点(中央高地上方)
+      uint32_t enemy_center_highland_lower_boost : 1; // bit11: 对方地形跨越增益点(中央高地下方)
+      uint32_t enemy_center_highland_upper_boost : 1; // bit12: 对方地形跨越增益点(中央高地上方)
+      uint32_t own_road_lower_boost : 1;              // bit13: 己方地形跨越增益点(公路下方)
+      uint32_t own_road_upper_boost : 1;              // bit14: 己方地形跨越增益点(公路上方)
+      uint32_t enemy_road_lower_boost : 1;            // bit15: 对方地形跨越增益点(公路下方)
+      uint32_t enemy_road_upper_boost : 1;            // bit16: 对方地形跨越增益点(公路上方)
+      uint32_t own_fortress_boost : 1;                // bit17: 己方堡垒增益点
+      uint32_t own_outpost_boost : 1;                 // bit18: 己方前哨站增益点
+      uint32_t own_supply_zone_boost : 1;             // bit19: 己方与资源区不重叠的补给区/RMUL补给区
+      uint32_t own_overlap_supply_boost : 1;          // bit20: 己方与资源区重叠的补给区
+      uint32_t own_assembly_boost : 1;                // bit21: 己方装配增益点
+      uint32_t enemy_assembly_boost : 1;              // bit22: 对方装配增益点
+      uint32_t center_boost_rmull : 1;                // bit23: 中心增益点(仅RMUL适用)
+      uint32_t enemy_fortress_boost : 1;              // bit24: 对方堡垒增益点
+      uint32_t enemy_outpost_boost : 1;               // bit25: 对方前哨站增益点
+      uint32_t own_tunnel_boost_road_lower : 1;       // bit26: 己方地形跨越增益点(隧道)(靠近己方一侧公路区下方)
+      uint32_t own_tunnel_boost_road_middle : 1;      // bit27: 己方地形跨越增益点(隧道)(靠近己方一侧公路区中间)
+      uint32_t own_tunnel_boost_road_upper : 1;       // bit28: 己方地形跨越增益点(隧道)(靠近己方一侧公路区上方)
+      uint32_t own_tunnel_boost_trapezoid_low : 1;    // bit29: 己方地形跨越增益点(隧道)(靠近己方梯形高地较低处)
+      uint32_t own_tunnel_boost_trapezoid_mid : 1;    // bit30: 己方地形跨越增益点(隧道)(靠近己方梯形高地较中间)
+      uint32_t own_tunnel_boost_trapezoid_high : 1;   // bit31: 己方地形跨越增益点(隧道)(靠近己方梯形高地较高处)
+    } fields;
+  } RFID1_t;
    union{
     uint8_t RFID2;
     struct {
-      uint8_t RFID2bit0 : 1; // bit0:对方地形跨越增益点(隧道)(靠近对方公路一侧下方)
-      uint8_t RFID2bit1 : 1;  // bit1:对方地形跨越增益点(隧道)(靠近对方公路一侧中间)
-      uint8_t RFID2bit2 : 1; // bit2:对方地形跨越增益点(隧道)(靠近对方公路一侧上方)
-      uint8_t RFID2bit3 : 1;  // bit3:对方地形跨越增益点(隧道)(靠近对方梯形高地较低处)
-      uint8_t RFID2bit4 : 1; // bit4:对方地形跨越增益点(隧道)(靠近对方梯形高地较中间)
-      uint8_t RFID2bit5 : 1; // bit5:对方地形跨越增益点(隧道)(靠近对方梯形高地较高处)
-      uint8_t reserve : 2; //保留位
-    } __attribute__((packed)) fields;
-  }__attribute__((packed)) RFID2_t;
-}RFID_Status_t;
+      uint8_t enemy_tunnel_boost_road_lower : 1;   // bit0: 对方地形跨越增益点(隧道)(靠近对方公路一侧下方)
+      uint8_t enemy_tunnel_boost_road_middle : 1;  // bit1: 对方地形跨越增益点(隧道)(靠近对方公路一侧中间)
+      uint8_t enemy_tunnel_boost_road_upper : 1;   // bit2: 对方地形跨越增益点(隧道)(靠近对方公路一侧上方)
+      uint8_t enemy_tunnel_boost_trapezoid_low : 1;// bit3: 对方地形跨越增益点(隧道)(靠近对方梯形高地较低处)
+      uint8_t enemy_tunnel_boost_trapezoid_mid : 1;// bit4: 对方地形跨越增益点(隧道)(靠近对方梯形高地较中间)
+      uint8_t enemy_tunnel_boost_trapezoid_high : 1;// bit5: 对方地形跨越增益点(隧道)(靠近对方梯形高地较高处)
+      uint8_t reserved : 2;                         // 保留位(用于未来扩展)
+    } fields;
+  } RFID2_t;
+} RFID_Status_t;
 #pragma pack()
 #pragma pack(1)
 typedef union{
