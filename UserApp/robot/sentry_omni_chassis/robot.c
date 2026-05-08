@@ -246,15 +246,14 @@ static void EmergencyHandler() {
 
 float pose_time;       //移动时间
 static void SentryCmd() {
-  if (1){
-    if (robot->referee_data->ProjectileAllowance.projectile_allowance_17mm==0) {
-      robot->sentry_mode=DEFENSE_POSE;    //无可用弹丸进入防御姿态
+    if (robot->referee_data->ProjectileAllowance.projectile_allowance_17mm<=50) {
+      robot->sentry_mode=DEFENSE_POSE;    //弹丸不足时进入防御姿态
       // robot->chassis->chassis_ctrl_cmd.wz=-2500;
     }
     else if ((robot->chassis->chassis_ctrl_cmd.vx==0&&robot->chassis->chassis_ctrl_cmd.vy==0)
       ||RFID->RFID1_t.fields.own_fortress_boost) {
       pose_time=time;
-      robot->sentry_mode=OFFENSE_POSE;    //高于50%血或占据堡垒进入进攻姿态
+      robot->sentry_mode=OFFENSE_POSE;    //不移动或低速移动开始进攻
       // robot->chassis->chassis_ctrl_cmd.wz=-5000;
     }
     else {
@@ -263,11 +262,10 @@ static void SentryCmd() {
         // robot->chassis->chassis_ctrl_cmd.wz=-1500;
       }
     }
-  }
-
-  sentry_cmd->fields.confirm_respawn=
-    (robot->referee_data->GameRobotState.current_HP==0);                         //没有血时确认复活
-  sentry_cmd->fields.confirm_instant_respawn=0;               //0为不买活，1为买活
+  sentry_cmd->fields.confirm_respawn=robot->referee_data->SentryInfo.free_revive_available;                //裁判端反馈可免费复活时确认复活
+  sentry_cmd->fields.confirm_instant_respawn=robot->referee_data->GameRobotState.current_HP==0
+    &&robot->referee_data->ProjectileAllowance.remaining_gold_coin > robot->referee_data->SentryInfo.instant_revive_cost
+    &&robot->referee_data->ProjectileAllowance.remaining_gold_coin - robot->referee_data->SentryInfo.instant_revive_cost>=500;               //0为不买活，1为买活
   if (robot->referee_data->ProjectileAllowance.projectile_allowance_17mm<50) {
     if(RFID->RFID1_t.fields.base_boost
       ||RFID->RFID1_t.fields.own_outpost_boost
