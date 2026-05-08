@@ -13,7 +13,7 @@
 #define Wheel_radius 76.475f
 #define Wheel_base 345.96f
 #define Reduction_ratio 19.0f
-#define WZ_CMD_TO_CAR_WZ_RAD_S (DEGREE_2_RAD * DEGREE_2_RAD * Wheel_radius / Reduction_ratio)
+#define WZ_CMD_TO_CAR_WZ_RAD_S (DEGREE_2_RAD * DEGREE_2_RAD * Wheel_radius / Reduction_ratio) //wz乘以这个参数，得出的就是车辆的实际转动角速度
 
 
 // 编译warning,提醒开发者修改机器人参数
@@ -121,8 +121,22 @@ static Chassis_Init_Config_s chassis_init_config = {
         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
         .MaxOut = 20000.0f,
     },
-
-
+  .yaw_hold_pid = {
+      .Kp = -80.0f,
+      .Ki = 0.0f,
+      .Kd = 0.0f,
+      .DeadBand = 1.0f,
+      .IntegralLimit = 1000.0f,
+      .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+      .MaxOut = 10000.0f,
+  },
+  .imu_init_config = {
+      .flag = 1,
+      .scale = {1.0f, 1.0f, 1.0f},
+      .Yaw = 0.0f,
+      .Pitch = 0.0f,
+      .Roll = 0.0f,
+  },
 };
 
 static SuperCap_Init_Config_s super_cap_config = {

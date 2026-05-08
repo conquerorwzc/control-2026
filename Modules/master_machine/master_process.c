@@ -152,6 +152,7 @@ static uint8_t *vis_recv_buff;
 static void DecodeVision(uint16_t recv_len)
 {
     // uint16_t flag_register;
+    DaemonReload(vision_daemon_instance); // 喂狗
     get_srm_protocol_info(vis_recv_buff, &receive);
     // TODO: code to resolve flag_register;
 }
