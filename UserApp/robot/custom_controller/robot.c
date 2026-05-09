@@ -13,19 +13,27 @@
 #include <stdbool.h>
 #include <math.h>
 
-// 力反馈参数配置
-#define TORQUE_DEADBAND       3.0f    // 所有电机角度死区(度)
+// 力反馈参数配置 (针对 10Hz 低频链路优化)
+#define TORQUE_DEADBAND       3.8f    // 所有电机角度死区(度)
 
-// 重力补偿验证系数 (0.0 ~ 1.0) - 可在调试时动态修改
-// 建议从 0.1 开始验证方向，确认无误后再改为 1.0
-static float gravity_comp_scale_roll = 0.5f;   // Roll轴(J2)重力补偿比例
-static float gravity_comp_scale_pitch1 = 1.0f; // Pitch轴(J3)重力补偿比例
-static float gravity_comp_scale_pitch2 = 1.0f; // Pitch轴(J4)重力补偿比例
+// 刚度系数 (Nm/deg) - 降低以避免延迟震荡
+#define TORQUE_K_P_DM4310     0.005f
+#define TORQUE_K_P_DM4340     0.005f
+#define TORQUE_K_P_M6020      0.004f
 
-// 不同电机类型的力控比例增益 (Nm/度)
-#define TORQUE_K_P_DM4310     0.05f   // DM4310比例增益
-#define TORQUE_K_P_DM4340     0.05f   // DM4340比例增益
-#define TORQUE_K_P_M6020      0.04f   // M6020比例增益
+// 阻尼系数 (Nm/(deg/s)) - 本地速度阻尼，抑制震荡
+#define TORQUE_K_D_DM4310     0.006f   
+#define TORQUE_K_D_DM4340     0.006f   
+#define TORQUE_K_D_M6020      0.003f   
+
+// 力反馈力矩限幅 (仅对力反馈部分限幅)
+#define MAX_FEEDBACK_TORQUE_DM4310  0.30f
+#define MAX_FEEDBACK_TORQUE_DM4340  0.30f
+#define MAX_FEEDBACK_TORQUE_M6020   0.18f
+
+// 力矩斜率限制 (Nm/cycle) - 缓解 10Hz 数据跳变
+#define MAX_TORQUE_STEP_DM          0.02f
+#define MAX_TORQUE_STEP_M6020       0.005f
 
 // 电机扭矩常数 (Nm/A)
 #define KT_DM4310             1.0f    // DM4310直接用力矩控制
@@ -35,10 +43,11 @@ static float gravity_comp_scale_pitch2 = 1.0f; // Pitch轴(J4)重力补偿比例
 // GM6020 (M6020): 控制量 16384 对应 3A
 #define GM6020_RAW_PER_AMP    (16384.0f / 3.0f)  // 约 5461.3
 
-// 力反馈力矩限幅 (仅对力反馈部分限幅，重力补偿不限幅)
-#define MAX_FEEDBACK_TORQUE_DM4310     3.0f    // DM4310力反馈力矩限制(N·m)
-#define MAX_FEEDBACK_TORQUE_DM4340     3.0f    // DM4340力反馈力矩限制(N·m)
-#define MAX_FEEDBACK_TORQUE_M6020   2.0f    // M6020力反馈力矩限制(N·m)
+// 重力补偿验证系数 (0.0 ~ 1.0) - 可在调试时动态修改
+// 建议从 0.1 开始验证方向，确认无误后再改为 1.0
+static float gravity_comp_scale_roll = 0.5f;   // Roll轴(J2)重力补偿比例
+static float gravity_comp_scale_pitch1 = 1.0f; // Pitch轴(J3)重力补偿比例
+static float gravity_comp_scale_pitch2 = 1.0f; // Pitch轴(J4)重力补偿比例
 
 // 自定义控制器实例
 static CustomController_t* angle_controller;
@@ -100,23 +109,92 @@ static void CalculateGravityCompensation(float gravity_torques[5])
 }
 
 /**
- * @brief 计算力反馈力矩
+ * @brief 辅助函数：限幅
+ */
+static float LimitFloat(float x, float min_val, float max_val)
+{
+    if (x > max_val) return max_val;
+    if (x < min_val) return min_val;
+    return x;
+}
+
+/**
+ * @brief 辅助函数：斜率限制
+ */
+static float LimitSlew(float target, float last, float max_step)
+{
+    float delta = target - last;
+    if (delta > max_step) delta = max_step;
+    if (delta < -max_step) delta = -max_step;
+    return last + delta;
+}
+
+/**
+ * @brief 计算力反馈力矩 (含本地阻尼与斜率限制)
  */
 static void CalculateFeedbackTorque(float feedback_torques[5])
 {
+    // 静态变量用于计算速度和斜率限制
+    static float last_custom_angles[5] = {0.0f};
+    static float last_feedback_torques[5] = {0.0f};
+    static uint32_t last_calc_time = 0;
+    static bool feedback_state_inited = false;
+
+    // 方向系数：如果某轴越晃越厉害，尝试将该轴系数改为 -1.0f
+    // 注意：弹簧项和阻尼项都会乘以此系数，确保方向一致
+    static const float feedback_dir[5] = {
+        1.0f,   // yaw
+        1.0f,   // roll
+        1.0f,   // big pitch
+        1.0f,   // small pitch
+        1.0f    // small roll
+    };
+
     if (angle_controller == NULL) {
+        for (int i = 0; i < 5; i++) feedback_torques[i] = 0.0f;
+        feedback_state_inited = false;
         return;
     }
 
-    // 仅在mode=1时计算力反馈
+    // 仅在 mode=1 时计算力反馈
     if (angle_controller->robot_grab_mode != 1) {
         for (int i = 0; i < 5; i++) {
             feedback_torques[i] = 0.0f;
+            last_feedback_torques[i] = 0.0f;
         }
+        feedback_state_inited = false;
         return;
     }
 
-    float custom_angles[5], real_angles[5], angle_errors[5];
+    // 数据太久没更新，直接撤力，防止拿旧数据持续推
+    if (!angle_controller->robot_data_valid ||
+        (HAL_GetTick() - angle_controller->last_robot_data_time) > 300) {
+        for (int i = 0; i < 5; i++) {
+            feedback_torques[i] = 0.0f;
+            last_feedback_torques[i] = 0.0f;
+        }
+        feedback_state_inited = false;
+        return;
+    }
+
+    // 状态初始化：避免首次进入或断连恢复时的速度尖峰
+    if (!feedback_state_inited) {
+        for (int i = 0; i < 5; i++) {
+            last_custom_angles[i] = angle_controller->motor_angles[i];
+            last_feedback_torques[i] = 0.0f;
+            feedback_torques[i] = 0.0f;
+        }
+        last_calc_time = HAL_GetTick();
+        feedback_state_inited = true;
+        return;
+    }
+
+    uint32_t now = HAL_GetTick();
+    float dt = 0.001f * (float)(now - last_calc_time);
+    if (last_calc_time == 0 || dt <= 0.0f || dt > 0.05f) {
+        dt = 0.005f; // 默认按 200Hz 周期计算
+    }
+    last_calc_time = now;
 
     const uint8_t motor_to_angle_map[5] = {
         0,  // motors[0] (大yaw M6020)
@@ -128,48 +206,54 @@ static void CalculateFeedbackTorque(float feedback_torques[5])
 
     for (int i = 0; i < 5; i++) {
         uint8_t angle_idx = motor_to_angle_map[i];
-        custom_angles[i] = angle_controller->motor_angles[i];
-        real_angles[i] = angle_controller->robot_arm_angles[angle_idx];
-        angle_errors[i] = real_angles[i] - custom_angles[i];
+        float custom_angle = angle_controller->motor_angles[i];
+        float real_angle = angle_controller->robot_arm_angles[angle_idx];
+        float error = real_angle - custom_angle;
 
-        // 选择Kp
-        float torque_k_p;
+        // 计算本地速度 (deg/s)
+        float custom_vel = (custom_angle - last_custom_angles[i]) / dt;
+        last_custom_angles[i] = custom_angle;
+
+        // 选择参数
+        float kp, kd, max_torque, max_step;
         if (angle_controller->motors[i].dm_motor != NULL) {
-            torque_k_p = (angle_controller->motors[i].dm_motor->motor_type == J4340) ? 
-                         TORQUE_K_P_DM4340 : TORQUE_K_P_DM4310;
-        } else {
-            torque_k_p = TORQUE_K_P_M6020;
-        }
-
-        // 死区处理
-        feedback_torques[i] = 0.0f;
-        if (angle_errors[i] > TORQUE_DEADBAND) {
-            feedback_torques[i] = torque_k_p * (angle_errors[i] - TORQUE_DEADBAND);
-        } else if (angle_errors[i] < -TORQUE_DEADBAND) {
-            feedback_torques[i] = torque_k_p * (angle_errors[i] + TORQUE_DEADBAND);
-        }
-
-        // 力反馈限幅
-        if (angle_controller->motors[i].dm_motor != NULL) {
-            float max_fb;
             if (angle_controller->motors[i].dm_motor->motor_type == J4340) {
-                max_fb = MAX_FEEDBACK_TORQUE_DM4340;
+                kp = TORQUE_K_P_DM4340; kd = TORQUE_K_D_DM4340;
+                max_torque = MAX_FEEDBACK_TORQUE_DM4340;
             } else {
-                max_fb = MAX_FEEDBACK_TORQUE_DM4310;
+                kp = TORQUE_K_P_DM4310; kd = TORQUE_K_D_DM4310;
+                max_torque = MAX_FEEDBACK_TORQUE_DM4310;
             }
-            
-            if (feedback_torques[i] > max_fb) {
-                feedback_torques[i] = max_fb;
-            } else if (feedback_torques[i] < -max_fb) {
-                feedback_torques[i] = -max_fb;
-            }
+            max_step = MAX_TORQUE_STEP_DM;
         } else {
-            if (feedback_torques[i] > MAX_FEEDBACK_TORQUE_M6020) {
-                feedback_torques[i] = MAX_FEEDBACK_TORQUE_M6020;
-            } else if (feedback_torques[i] < -MAX_FEEDBACK_TORQUE_M6020) {
-                feedback_torques[i] = -MAX_FEEDBACK_TORQUE_M6020;
-            }
+            kp = TORQUE_K_P_M6020; kd = TORQUE_K_D_M6020;
+            max_torque = MAX_FEEDBACK_TORQUE_M6020;
+            max_step = MAX_TORQUE_STEP_M6020;
         }
+
+        // 1. 弹簧项 (带死区)
+        float spring_torque = 0.0f;
+        if (error > TORQUE_DEADBAND) {
+            spring_torque = kp * (error - TORQUE_DEADBAND);
+        } else if (error < -TORQUE_DEADBAND) {
+            spring_torque = kp * (error + TORQUE_DEADBAND);
+        }
+
+        // 2. 阻尼项 (本地速度)
+        float damping_torque = -kd * custom_vel;
+
+        // 3. 总力矩 = 方向系数 * (弹簧 + 阻尼)
+        // 这样如果某个轴符号反了，只改 feedback_dir[i] 就能同时修正弹簧和阻尼
+        float torque = feedback_dir[i] * (spring_torque + damping_torque);
+
+        // 4. 限幅
+        torque = LimitFloat(torque, -max_torque, max_torque);
+
+        // 5. 斜率限制
+        torque = LimitSlew(torque, last_feedback_torques[i], max_step);
+
+        last_feedback_torques[i] = torque;
+        feedback_torques[i] = torque;
     }
 }
 
