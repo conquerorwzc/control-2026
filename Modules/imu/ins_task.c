@@ -153,7 +153,7 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
       BMI088.GyroOffset[i]=imu_init_config->GyroOffset[i];
   }
   else {
-    INS_CalibrateGyroForDebug(10000);
+    INS_CalibrateGyroForDebug(5000);
   }
   //for (uint8_t i = 0; i < 3; i++) {
     //BMI088.GyroOffset[0] = 0.00253310893f;

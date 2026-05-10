@@ -7,17 +7,25 @@
 // 用于保存所有的daemon instance
 static DaemonInstance *daemon_instances[DAEMON_MX_CNT] = {NULL};
 static uint8_t idx; // 用于记录当前的daemon instance数量,配合回调使用
-
+Buzzer_config_s buzzer_cfg = {
+    .alarm_level = ALARM_LEVEL_HIGH,
+    .octave = OCTAVE_1,
+    .loudness = 0.5f,
+};
+static BuzzzerInstance *buzzer=NULL;
+static float time_stamp;
+static int8_t err_idx=-1;
+static float boom_time;
 DaemonInstance *DaemonRegister(Daemon_Init_Config_s *config)
 {
     DaemonInstance *instance = (DaemonInstance *)malloc(sizeof(DaemonInstance));
     memset(instance, 0, sizeof(DaemonInstance));
-
+    if (buzzer==NULL)
+        buzzer = BuzzerRegister(&buzzer_cfg);
     instance->owner_id = config->owner_id;
     instance->reload_count = config->reload_count == 0 ? 100 : config->reload_count; // 默认值为100
     instance->callback = config->callback;
     instance->temp_count = config->init_count == 0 ? 100 : config->init_count; // 默认值为100,初始计数
-
     instance->temp_count = config->reload_count;
     daemon_instances[idx++] = instance;
     return instance;
@@ -37,17 +45,40 @@ uint8_t DaemonIsOnline(DaemonInstance *instance)
 void DaemonTask()
 {
     DaemonInstance *dins; // 提高可读性同时降低访存开销
+    err_idx=-1;
     for (size_t i = 0; i < idx; ++i)
     {
 
         dins = daemon_instances[i];
         if (dins->temp_count > 0) // 如果计数器还有值,说明上一次喂狗后还没有超时,则计数器减一
+        {
             dins->temp_count--;
+            //AlarmSetStatus(buzzer, ALARM_OFF);
+        }
         else if (dins->callback) // 等于零说明超时了,调用回调函数(如果有的话)
         {
+            err_idx=i;
+
             dins->callback(dins->owner_id); // module内可以将owner_id强制类型转换成自身类型从而调用特定module的offline callback
+
             // @todo 为蜂鸣器/led等增加离线报警的功能,非常关键!
         }
+    }
+    if (err_idx>=0)
+    {
+        buzzer->octave = (octave_e)(OCTAVE_1 + err_idx%7);
+        if (DWT_GetTimeline_ms()-time_stamp>(boom_time>10?boom_time:10))
+        {
+
+            boom_time*=0.95f;
+            AlarmSetStatus(buzzer, buzzer->alarm_state=buzzer->alarm_state?ALARM_OFF:ALARM_ON);
+            time_stamp=DWT_GetTimeline_ms();
+        }
+    }
+    else
+    {
+        AlarmSetStatus(buzzer, ALARM_OFF);
+        boom_time=350;
     }
 }
 // (需要id的原因是什么?) 下面是copilot的回答!

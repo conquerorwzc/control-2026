@@ -1,6 +1,7 @@
 #ifndef MONITOR_H
 #define MONITOR_H
 
+#include "buzzer.h"
 #include "stdint.h"
 #include "string.h"
 

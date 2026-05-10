@@ -459,7 +459,7 @@ void ChassisTask()
         if (chassis->super_cap->cap_msg.cap_v > 18.0f)
             chassis->super_cap_mode = PASSIVE_MODE;
         chassis->chassis_ctrl_cmd.max_power =
-           25;//TODO:用超电记得改;
+           200;//TODO:用超电记得改;
         break;
     case FORCED_CHARGING_MODE:
         if (chassis->super_cap->cap_msg.cap_v < 8.0f)
