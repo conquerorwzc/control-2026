@@ -19,7 +19,7 @@ static uint8_t is_first_update = 1;
 Ramp_Controller_t vx_ramp = {
     .planning_v = 0.0f,
     .max_v = 15.0f,
-    .max_accel = 1.0f,
+    .max_accel = 2.0f,
     .min_accel = 0.05f,
     .accel_base_speed = 0.3f,
     .max_decel = 3.7f,
@@ -682,13 +682,13 @@ void MouseKeyCtrl(RobotInstance* robot) {
   float wasd_scale;
   switch (robot->robot_mode) {
     case ROBOT_CHASSIS_FOLLOW:
-      wasd_scale = 2.0f;
+      wasd_scale = 2.5f;
       break;
     case ROBOT_CHASSIS_PROSTRATE_FOLLOW:
       wasd_scale = 660.0f;
       break;
     case ROBOT_CHASSIS_FREE:
-      wasd_scale = is_stand ? 2.0f : 660.0f;
+      wasd_scale = is_stand ? 2.5f : 660.0f;
       break;
     default:
       wasd_scale = 0.0f;

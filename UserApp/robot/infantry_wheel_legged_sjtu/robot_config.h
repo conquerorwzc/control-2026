@@ -512,8 +512,8 @@ static CANComm_Init_Config_s gimbal_comm_conf = {
     .can_config =
         {
             .can_handle = &hcan2,
-            .tx_id = 0x312,
-            .rx_id = 0x311,
+            .tx_id = 0x012,
+            .rx_id = 0x011,
         },
     .recv_data_len = sizeof(Chassis_Upload_Data_s),
     .send_data_len = sizeof(Chassis_Fetch_Data_s),  // chassis_ctrl_cmd
@@ -525,8 +525,8 @@ static CANComm_Init_Config_s chassis_comm_conf = {
     .can_config =
         {
             .can_handle = &hcan3,
-            .tx_id = 0x311,
-            .rx_id = 0x312,
+            .tx_id = 0x011,
+            .rx_id = 0x012,
         },
     .recv_data_len = sizeof(Chassis_Fetch_Data_s),  // chassis_ctrl_cmd
     .send_data_len = sizeof(Chassis_Upload_Data_s),
