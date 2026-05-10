@@ -41,6 +41,7 @@ static float debug_footforce_r=0.0f;
 static float debug_theta=0.0f;
 static float debug_angle=0.0f;
 static float vmc_target_l=0.0f;
+static float debug_raw_r=0.0f;
 // 雅可比力臂监控 (Jy)
 static float debug_Jy_l = 0.0f;
 static float debug_Jy_r = 0.0f;
@@ -1077,54 +1078,60 @@ static void legangleloopcontrol() {
     }
 
   // =========================================================================
-  // 🚨 [模块 A] 穿透式收腿与恒力柔顺保护 (消除静差且绝不回弹)
-  // =========================================================================
+    // [模块 A] 区间精细化控制：穿透式收腿与定点离合保护
+    // =========================================================================
 
-  // --- 左腿控制逻辑 ---
-  if (chassis_ctrl_cmd->leg_mode == LEG_MANUAL_DOWN) {
-    if (base_p_des_l < LOWER_LIMIT_ANGLE) {
-      base_p_des_l += LEG_RAMP_RATE;
+    // --- 左腿控制逻辑 ---
+    if (chassis_ctrl_cmd->leg_mode == LEG_MANUAL_DOWN) {
+        if (base_p_des_l < LOWER_LIMIT_ANGLE) {
+            base_p_des_l += LEG_RAMP_RATE;
+        }
     }
-  }
-  else if (chassis_ctrl_cmd->leg_mode == LEG_MANUAL_UP) {
-    // 正常收腿，继续向极限压迫
-    base_p_des_l -= LEG_RAMP_RATE;
+    else if (chassis_ctrl_cmd->leg_mode == LEG_MANUAL_UP) {
+        // 先无条件执行向上收腿指令
+        base_p_des_l -= LEG_RAMP_RATE;
 
-    // 🚀 核心修复：恒力柔顺机制 (Admittance)
-    // 如果撞击到机械死区，力矩开始飙升，我们【不重置】，而是让目标点【微步撤退】
-    if (fabsf(t_real_math_l) > 15.0f) {
-      // 撤销了前面的减法，并反向加了一点点，给 PID “泄力”
-      base_p_des_l += LEG_RAMP_RATE * 2.0f;
+        //  只有进入“穿透区”后，才开启堵转离合！
+        // 在正常上下限范围内时，即使力矩超标也不会停下，防止中途误触发。
+        if (base_p_des_l < UPPER_LIMIT_ANGLE) {
+            // 一旦进入穿透区且撞死点（力矩>=15Nm）
+            if (fabsf(t_real_math_l) >= 15.0f) {
+                // 撤销这一帧的减法，目标指令被死死冻结，电机以恒定 15Nm 贴合机械挡块
+                base_p_des_l += 1.5f*LEG_RAMP_RATE;
+            }
+        }
     }
-  }
 
-  // --- 右腿控制逻辑 ---
-  if (chassis_ctrl_cmd->leg_mode == LEG_MANUAL_DOWN) {
-    if (base_p_des_r < LOWER_LIMIT_ANGLE) {
-      base_p_des_r += LEG_RAMP_RATE;
+    // --- 右腿控制逻辑 ---
+    if (chassis_ctrl_cmd->leg_mode == LEG_MANUAL_DOWN) {
+        if (base_p_des_r < LOWER_LIMIT_ANGLE) {
+            base_p_des_r += LEG_RAMP_RATE;
+        }
     }
-  }
-  else if (chassis_ctrl_cmd->leg_mode == LEG_MANUAL_UP) {
-    base_p_des_r -= LEG_RAMP_RATE;
+    else if (chassis_ctrl_cmd->leg_mode == LEG_MANUAL_UP) {
+        base_p_des_r -= LEG_RAMP_RATE;
 
-    if (fabsf(t_real_math_r) > 15.0f) {
-      base_p_des_r += LEG_RAMP_RATE * 2.0f;
+        if (base_p_des_r < UPPER_LIMIT_ANGLE) {
+            if (fabsf(t_real_math_r) >= 15.0f) {
+                base_p_des_r += 1.5f*LEG_RAMP_RATE;
+            }
+        }
     }
-  }
 
-  // =========================================================================
-  // 🔒 全局绝对死区钳制 (带条件穿透)
-  // =========================================================================
+    // =========================================================================
+    // 🔒 全局绝对死区钳制
+    // =========================================================================
 
-  // 1. 下限位永远死死锁住
-  if (base_p_des_l > LOWER_LIMIT_ANGLE) base_p_des_l = LOWER_LIMIT_ANGLE;
-  if (base_p_des_r > LOWER_LIMIT_ANGLE) base_p_des_r = LOWER_LIMIT_ANGLE;
+    // 1. 下限位（伸直方向）绝对不允许越界，防止反关节
+    if (base_p_des_l > LOWER_LIMIT_ANGLE) base_p_des_l = LOWER_LIMIT_ANGLE;
+    if (base_p_des_r > LOWER_LIMIT_ANGLE) base_p_des_r = LOWER_LIMIT_ANGLE;
 
-  // 2. 只有在【松开】MANUAL_UP 按钮时，上限位才起作用，将腿拉回绝对安全区
-  if (chassis_ctrl_cmd->leg_mode != LEG_MANUAL_UP) {
-    if (base_p_des_l < UPPER_LIMIT_ANGLE) base_p_des_l = UPPER_LIMIT_ANGLE;
-    if (base_p_des_r < UPPER_LIMIT_ANGLE) base_p_des_r = UPPER_LIMIT_ANGLE;
-  }
+    // 2. 🚀 松手回弹：只要你松开了 MANUAL_UP 按钮，软件限位立刻生效！
+    // 如果刚才穿透了，现在会被瞬间拉回到 UPPER_LIMIT_ANGLE 的安全区
+    if (chassis_ctrl_cmd->leg_mode != LEG_MANUAL_UP) {
+        if (base_p_des_l < UPPER_LIMIT_ANGLE) base_p_des_l = UPPER_LIMIT_ANGLE;
+        if (base_p_des_r < UPPER_LIMIT_ANGLE) base_p_des_r = UPPER_LIMIT_ANGLE;
+    }
 
     // 获取期望速度，仅用于预估气弹簧的动态摩擦力
     float v_des_math_l = (base_p_des_l - last_base_p_des_l) / CTRL_DT;
@@ -1212,6 +1219,7 @@ static void legangleloopcontrol() {
     if (theta_math_r < UPPER_LIMIT_ANGLE + 0.005 ) {final_tff_r = 0;}
   if (chassis_ctrl_cmd->leg_mode!=LEG_MANUAL_DOWN){final_tff_r = 0.0f;}
     right_torque_feedforward = final_tff_r ;
+   debug_raw_r=p_des_raw_r;
     // 💡 接口调用：使用你的 PID 与前馈双轨下发
     DMMotorSetPIDRef(chassis->leg_motor[1], p_des_raw_r);
     chassis->leg_motor[1]->motor_controller.final_output+=final_tff_r;
