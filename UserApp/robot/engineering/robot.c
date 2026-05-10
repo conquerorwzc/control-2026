@@ -731,15 +731,29 @@ static void SendArmMotorDataTask(void)
         return;
     }
 
-    // 获取机械臂5个关节实际测量角度
+    // 获取机械臂5个关节角度
     float motor_angles[5] = {0.0f};
     if (robot->grab != NULL && robot->grab->arm != NULL && robot->grab->actuator != NULL)
     {
-        motor_angles[0] = robot->grab->grab_measure.base_joint;    // 基座关节
-        motor_angles[1] = robot->grab->grab_measure.elbow_roll;    // 肘部滚转
-        motor_angles[2] = robot->grab->grab_measure.elbow_pitch;   // 肘部俯仰
-        motor_angles[3] = robot->grab->grab_measure.wrist_pitch;   // 腕部俯仰
-        motor_angles[4] = robot->grab->grab_measure.wrist_roll;    // 腕部滚转
+        // 根据控制模式选择数据源
+        if (grab_control_mode == GRAB_CONTROL_HALF_AUTO)
+        {
+            // 半自动模式：发送指令角度（目标位置）
+            motor_angles[0] = robot->grab->grab_ctrl_cmd.base_joint;    // 基座关节
+            motor_angles[1] = robot->grab->grab_ctrl_cmd.elbow_roll;    // 肘部滚转
+            motor_angles[2] = robot->grab->grab_ctrl_cmd.elbow_pitch;   // 肘部俯仰
+            motor_angles[3] = robot->grab->grab_ctrl_cmd.wrist_pitch;   // 腕部俯仰
+            motor_angles[4] = robot->grab->grab_ctrl_cmd.wrist_roll;    // 腕部滚转
+        }
+        else
+        {
+            // 自定义控制器模式：发送实时测量角度（实际位置）
+            motor_angles[0] = robot->grab->grab_measure.base_joint;    // 基座关节
+            motor_angles[1] = robot->grab->grab_measure.elbow_roll;    // 肘部滚转
+            motor_angles[2] = robot->grab->grab_measure.elbow_pitch;   // 肘部俯仰
+            motor_angles[3] = robot->grab->grab_measure.wrist_pitch;   // 腕部俯仰
+            motor_angles[4] = robot->grab->grab_measure.wrist_roll;    // 腕部滚转
+        }
     }
 
     // 获取当前机械臂控制模式并发送

@@ -26,11 +26,11 @@ typedef struct {
 // @todo: 两个3508的ID最好改成2和3，防止于4310的ID对冲
 /* ----------------------- 初始化配置结构体 ----------------------------- */
 typedef struct {
-    Motor_Init_Config_s dm4310_config_1;    // 第一个 DM4310 电机配置
-    Motor_Init_Config_s dm4310_config_2;    // 第二个 DM4310 电机配置
-    Motor_Init_Config_s m3508_config_1;     // 第一个 3508 电机配置
-    Motor_Init_Config_s m3508_config_2;     // 第二个 3508 电机配置
-    Motor_Init_Config_s m2006_config;       // 2006 电机配置
+    Motor_Init_Config_s dm4310_config_1;    // 小roll电机 (DM4310) 配置
+    Motor_Init_Config_s dm4310_config_2;    // 小pitch电机 (DM4310) 配置
+    Motor_Init_Config_s dm4310_config_3;    // 大pitch电机 (DM4310) 配置
+    Motor_Init_Config_s dm4340_config;      // 大roll电机 (DM4340) 配置
+    Motor_Init_Config_s m6020_config;       // 大yaw电机 (M6020) 配置
 } CustomController_Init_Config_s;
 
 /* ----------------------- 电机数据结构体 ----------------------------- */
@@ -43,7 +43,8 @@ typedef struct {
 
 /* ----------------------- 组件结构体 ----------------------------- */
 typedef struct {
-    MotorUnit_t motors[5];                  // 电机单元数组（5 个电机：2 个 4310、2 个 3508、1 个 2006）
+    MotorUnit_t motors[5];                  // 电机单元数组（5个电机：1个M6020、1个DM4340、3个DM4310）
+                                            // motor[0]=大yaw, [1]=大roll, [2]=大pitch, [3]=小pitch, [4]=小roll
     float motor_angles[5];                  // 各电机角度反馈
     float zero_offset[5];                   // 零位偏移值
     bool motor_online_status[5];            // 电机在线状态（用于检测断电重启）
@@ -53,6 +54,12 @@ typedef struct {
     bool gripper_opened;                    // 夹爪打开标志
     bool is_initialized;                    // 初始化标志
     bool is_active;                         // 活跃状态
+    
+    // 接收机器人发送的机械臂数据
+    float robot_arm_angles[5];              // 机器人发送的5个关节角度
+    uint8_t robot_grab_mode;                // 机器人机械臂控制模式 (0=键盘, 1=自定义控制器, 2=半自动)
+    uint32_t last_robot_data_time;          // 上次接收时间戳
+    bool robot_data_valid;                  // 数据有效性标志
 } CustomController_t;
 
 /* ----------------------- 函数声明 ----------------------------- */
@@ -90,5 +97,13 @@ void CustomController_UpdateMotorData(CustomController_t* controller);
  * @param controller 控制器实例
  */
 void CustomController_SendAllData(CustomController_t* controller);
+
+/**
+ * @brief 获取机器人发送的指定关节角度
+ * @param controller 控制器实例
+ * @param joint_index 关节索引 (0-4)
+ * @return float 关节角度(单位:度)，数据无效时返回0
+ */
+float CustomController_GetRobotArmAngle(const CustomController_t* controller, uint8_t joint_index);
 
 #endif // CUSTOM_CONTROLLER_H
