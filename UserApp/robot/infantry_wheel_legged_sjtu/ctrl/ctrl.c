@@ -4,6 +4,7 @@
 
 #include "general_def.h"
 #include "robot_config.h"
+#include "ui.h"
 
 // Static variables for control state
 #ifdef USE_RC_CTRL
@@ -15,6 +16,23 @@ static VT13_RC_t rc_data_last;
 #endif
 
 static uint8_t is_first_update = 1;
+
+static void RequestUiForceRefresh(RobotInstance* robot) {
+  if (robot == NULL) return;
+
+#if !defined(ONE_BOARD)
+  if (robot->chassis_fetch_data != NULL) {
+    robot->chassis_fetch_data->force_refresh_ui = 1;
+  }
+#endif
+
+#if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
+  Referee_Interactive_info_t* ui_data = getUI();
+  if (ui_data != NULL) {
+    ui_data->force_refresh_ui = 1;
+  }
+#endif
+}
 
 Ramp_Controller_t vx_ramp = {
     .planning_v = 0.0f,
@@ -312,6 +330,10 @@ void MouseKeyCtrl(RobotInstance* robot) {
     }
   }
 
+  if (rc_data[TEMP].key[KEY_PRESS].ctrl && !rc_data_last.key[KEY_PRESS].ctrl) {
+    RequestUiForceRefresh(robot);
+  }
+
   if (abs(rc_data[TEMP].rc.dial) > 20 || rc_data[TEMP].key[KEY_PRESS].shift) {
     robot->robot_mode = ROBOT_CHASSIS_ROTATE;
   } else {
@@ -606,6 +628,10 @@ void MouseKeyCtrl(RobotInstance* robot) {
   // X 边沿: 云台 +180 度掉头
   if (rc_data->mouse_key.keyboard.x && !rc_data_last.mouse_key.keyboard.x) {
     gimbal_ctrl_cmd->yaw += 180.0f;
+  }
+
+  if (rc_data->mouse_key.keyboard.ctrl && !rc_data_last.mouse_key.keyboard.ctrl) {
+    RequestUiForceRefresh(robot);
   }
 
   // C 边沿: 超级电容 BOOST/NORMAL 切换

@@ -15,7 +15,7 @@
 #include "stdio.h"
 #include "string.h"
 
-static uint8_t UI_Seq; // 包序号
+static uint8_t UI_Seq;  // 包序号
 /********************************************删除操作*************************************
 **参数：_id 对应的id结构体
                 Del_Operate  对应头文件删除操作
@@ -387,7 +387,7 @@ void UIGraphRefresh(referee_id_t* _id, int cnt, ...) {
   append_CRC16_check_sum(buffer, temp_datalength);
   RefereeSend(buffer, temp_datalength);
 
-  UI_Seq++; // 包序号+1
+  UI_Seq++;    // 包序号+1
   va_end(ap);  // 结束可变参数的获取
 }
 

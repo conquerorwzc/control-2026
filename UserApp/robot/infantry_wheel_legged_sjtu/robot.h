@@ -26,10 +26,20 @@ typedef struct {
 } Chassis_Upload_Data_s;  // means the Chassis board, not the component
 
 typedef struct {
+  uint8_t robot_mode;
+  uint8_t gimbal_mode;
+  uint8_t friction_mode;
+  uint8_t loader_mode;
+  uint8_t fire_flag;
+  int16_t ui_chassis_relative_angle_deg_x10;
+} UI_Remote_Status_s;
+
+typedef struct {
   Chassis_Ctrl_Cmd_s chassis_ctrl_cmd;
   SuperCap_Ctrl_Cmd_e super_cap_ctrl_cmd;
   uint8_t force_refresh_ui;
   uint8_t gimbal_aligned;  // 云台板告知底盘板：云台是否完成与底盘正方向对齐
+  UI_Remote_Status_s ui_status;
 } Chassis_Fetch_Data_s;  // means the Chassis board, not the component
 #pragma pack()
 
@@ -90,3 +100,5 @@ void RobotInit();
  *
  */
 void RobotTask();
+
+RobotInstance* RobotGetInstance(void);

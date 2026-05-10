@@ -127,6 +127,13 @@ static void DoubleBoardComms() {
   chassis_fetch_data->chassis_ctrl_cmd = *chassis_ctrl_cmd;
   chassis_fetch_data->super_cap_ctrl_cmd = robot->chassis->super_cap->super_cap_ctrl_cmd;
   chassis_fetch_data->gimbal_aligned = robot->update_flag.is_gimbal_aligned;
+  chassis_fetch_data->ui_status.ui_chassis_relative_angle_deg_x10 = (int16_t)(robot->offset_angle * 10.0f);
+  chassis_fetch_data->ui_status.robot_mode = (uint8_t)robot->robot_mode;
+  chassis_fetch_data->ui_status.gimbal_mode = (uint8_t)gimbal_ctrl_cmd->gimbal_mode;
+  chassis_fetch_data->ui_status.friction_mode = (uint8_t)shoot_ctrl_cmd->friction_mode;
+  chassis_fetch_data->ui_status.loader_mode = (uint8_t)shoot_ctrl_cmd->load_mode;
+  chassis_fetch_data->ui_status.fire_flag =
+      (uint8_t)(robot->vision_recv_data != NULL && robot->vision_recv_data->shoot_receive.fire_flag != 0);
 
   // 接收底盘回传数据
   *chassis_upload_data = *(Chassis_Upload_Data_s*)CANCommGet(robot->can_comm);
@@ -175,6 +182,8 @@ static void DoubleBoardComms() {
   CANCommSend(robot->can_comm, (void*)chassis_upload_data);
 #endif
 }
+
+RobotInstance* RobotGetInstance(void) { return robot; }
 #endif
 
 /**
@@ -250,7 +259,7 @@ void RobotCMDTask() {
 // 双板通信
 #if !defined(ONE_BOARD)
   static float last_comm_time = 0.0f;
-  if (DWT_GetTimeline_ms() - last_comm_time >= 10.f) {
+  if (DWT_GetTimeline_ms() - last_comm_time >= 25.f) {
     last_comm_time = DWT_GetTimeline_ms();
     DoubleBoardComms();
   }
@@ -292,9 +301,6 @@ void RobotInit() {
   chassis_ctrl_cmd->leg_length = chassis_init_config.param.initial_leg_length;  // 初始腿长
   DWT_GetDeltaT(&robot->DWT_CNT);
   // chassis_ctrl_cmd->max_power = 60;  // 测试用
-
-  // UI初始化
-  // MyUIInit(robot);
 }
 
 void RobotTask() {

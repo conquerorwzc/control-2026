@@ -1,608 +1,1024 @@
+/**
+ * @file ui.c
+ * @brief 步兵轮腿机器人(SJTU)的自定义裁判系统 UI。
+ *
+ * UI 元素分为以下几个模块：
+ *  - Relative   : 底盘相对云台角度指示（圆环 + 圆弧）
+ *  - Leg        : 五连杆腿部位姿（左右腿）
+ *  - Status     : 机器人各子系统状态文字
+ *  - Cap        : 超级电容电量弧 + 电压数字 + 控制命令
+ *  - Speed      : 底盘速度弧 + 数字
+ *  - Aim        : 中心瞄准框 + 命中十字
+ *
+ * 每个模块都遵循统一的三段式结构：
+ *  - DrawXxxStatic    : 添加（ADD）静态图形（仅初始化用）
+ *  - DrawXxxDynamic   : 添加/更新动态图形（数值会变的）
+ *  - 模块持有本地图形描述符（static），跨调用保持有效
+ *
+ * 调度由 UITask 周期性触发：
+ *  - 每帧采样数据，调用 UIChangeCheck() 设置脏标志
+ *  - 调用 MyUIRefresh() 只刷新发生变化的元素
+ *  - 周期性强制全量刷新，防止客户端图形丢失
+ */
+
 #include "ui.h"
+
+#include <math.h>
+
 #include "cmsis_os.h"
-#include "referee_ui.h"
 #include "referee.h"
-#include "robot.h"
+#include "referee_ui.h"
+#include "robot_config.h"
 
+/* ===========================================================================
+ * 常量定义
+ * =========================================================================*/
 
-static referee_info_t *referee_recv_info;  // 接收到的裁判系统数据
-RobotInstance *robotdata;
-uint8_t UI_Seq;  // 包序号，供整个referee文件使用
+/* ---- 通用任务周期 ---- */
+#define UI_TASK_PERIOD_MS 30
+#define UI_AUTO_REFRESH_PERIOD_MS 10000  // 全量刷新周期
+#define UI_LEG_REFRESH_PERIOD_MS 100     // 腿部强制重绘周期
+#define UI_STATUS_REFRESH_PERIOD_MS 300  // 状态强制重绘周期
+
+#define UI_AUTO_REFRESH_INTERVAL_TICKS ((UI_AUTO_REFRESH_PERIOD_MS + UI_TASK_PERIOD_MS - 1) / UI_TASK_PERIOD_MS)
+#define UI_LEG_REFRESH_INTERVAL_TICKS ((UI_LEG_REFRESH_PERIOD_MS + UI_TASK_PERIOD_MS - 1) / UI_TASK_PERIOD_MS)
+#define UI_STATUS_REFRESH_INTERVAL_TICKS ((UI_STATUS_REFRESH_PERIOD_MS + UI_TASK_PERIOD_MS - 1) / UI_TASK_PERIOD_MS)
+
+/* ---- 相对角度指示器 ---- */
+#define UI_GRAPH_LAYER 7
+#define UI_RELATIVE_CENTER_X 960
+#define UI_RELATIVE_CENTER_Y 540
+#define UI_RELATIVE_RADIUS 88
+#define UI_RELATIVE_ARC_HALF_ANGLE 16.0f
+#define UI_RELATIVE_RING_WIDTH 3
+#define UI_RELATIVE_ARC_WIDTH 8
+
+/* ---- 中心瞄准 ---- */
+#define UI_AIM_LAYER 8
+#define UI_AIM_CROSS_HALF_LEN 18
+#define UI_AIM_CROSS_WIDTH 3
+#define UI_AIM_RECT_HALF_W 300
+#define UI_AIM_RECT_HALF_H 200
+#define UI_AIM_RECT_WIDTH 2
+
+/* ---- 五连杆腿部 ---- */
+#define UI_LEG_LAYER 7
+#define UI_LEG_BASE_X 1750
+#define UI_LEG_BASE_Y 480
+#define UI_LEG_TOP_BASE_Y 700
+#define UI_LEG_LABEL_X 1600
+#define UI_LEG_LABEL_OFFSET_Y 20
+#define UI_LEG_LABEL_FONT_SIZE 15
+#define UI_LEG_LABEL_WIDTH 2
+#define UI_LEG_SCALE 400.0f
+#define UI_LEG_ROD_WIDTH 5
+
+/* ---- 状态文字 ---- */
+#define UI_STATUS_LAYER 8
+#define UI_STATUS_LABEL_X 90
+#define UI_STATUS_VALUE_X 245
+#define UI_STATUS_BASE_Y 850
+#define UI_STATUS_ROW_GAP 38
+#define UI_STATUS_FONT_SIZE 14
+#define UI_STATUS_WIDTH 2
+#define UI_STATUS_ROW_COUNT 6
+#define UI_STATUS_VALUE_CHARS 12
+
+/* ---- 超级电容 ---- */
+#define UI_CAP_LAYER 6
+#define UI_CAP_CENTER_X 960
+#define UI_CAP_CENTER_Y 540
+#define UI_CAP_RADIUS_X 370
+#define UI_CAP_RADIUS_Y 370
+#define UI_CAP_START_ANGLE 270
+#define UI_CAP_MAX_SWEEP 40.0f
+#define UI_CAP_WIDTH 22
+#define UI_CAP_EMPTY_VOLTAGE 14.0f
+#define UI_CAP_FULL_VOLTAGE 23.0f
+#define UI_CAP_TEXT_SIZE 17
+#define UI_CAP_TEXT_WIDTH 2
+#define UI_CAP_E_X 610
+#define UI_CAP_E_Y 545
+#define UI_CAP_F_X 702
+#define UI_CAP_F_Y 775
+#define UI_CAP_VOLTAGE_X 480
+#define UI_CAP_VOLTAGE_Y 660
+#define UI_CAP_CTRL_X UI_CAP_VOLTAGE_X
+#define UI_CAP_CTRL_Y 700
+#define UI_CAP_CTRL_TEXT_SIZE UI_CAP_TEXT_SIZE
+#define UI_CAP_CTRL_TEXT_WIDTH UI_CAP_TEXT_WIDTH
+
+/* ---- 速度 ---- */
+#define UI_SPEED_LAYER 6
+#define UI_SPEED_CENTER_X UI_CAP_CENTER_X
+#define UI_SPEED_CENTER_Y UI_CAP_CENTER_Y
+#define UI_SPEED_RADIUS_X UI_CAP_RADIUS_X
+#define UI_SPEED_RADIUS_Y UI_CAP_RADIUS_Y
+#define UI_SPEED_CENTER_ANGLE 270
+#define UI_SPEED_MAX_SWEEP UI_CAP_MAX_SWEEP
+#define UI_SPEED_WIDTH UI_CAP_WIDTH
+#define UI_SPEED_LEG_MAX 2.5f
+#define UI_SPEED_PROSTRATE_MAX 3.0f
+#define UI_SPEED_WARN_RATIO 0.85f
+#define UI_SPEED_TEXT_X 480
+#define UI_SPEED_TEXT_Y 420
+#define UI_SPEED_TEXT_SIZE 15
+#define UI_SPEED_TEXT_WIDTH UI_CAP_TEXT_WIDTH
+
+/* ---- 引导线（地面透视引导） ---- */
+#define UI_GUIDE_LAYER 8
+#define UI_GUIDE_COLOR UI_Color_Green
+#define UI_GUIDE_LINE_WIDTH 2
+
+/* 底边：车身宽度附近；顶点：向中心上方收敛形成纵深 */
+#define UI_GUIDE_BOTTOM_Y 50        // 屏幕下方（裁判系统 y 轴向上，值越小越靠下）
+#define UI_GUIDE_BOTTOM_HALF_W 900  // 底部半宽 ≈ 车身宽度
+#define UI_GUIDE_TOP_Y 430          // 汇聚点的纵向高度
+#define UI_GUIDE_TOP_HALF_W 300     // 顶部半宽（透视收敛）
+#define UI_GUIDE_CENTER_X 960
+
+/* 横向刻度线数量（地面格） */
+#define UI_GUIDE_RUNG_COUNT 3
+
+/* ---- 屏幕下方水平横线 ---- */
+#define UI_BOTTOM_LINE_Y 300                       // 与引导线底边同高，贴在下方
+#define UI_BOTTOM_LINE_X_LEFT 580    // 横线左端 x
+#define UI_BOTTOM_LINE_X_RIGHT 1340  // 横线右端 x
+#define UI_BOTTOM_LINE_WIDTH 2
+
+/* ===========================================================================
+ * 文件级状态
+ * =========================================================================*/
+
+/* 调试观察用变量（保留与原文件一致）。 */
+int32_t watch_data1[5], watch_data2[5];
+
+/* 通信序号占位（与原文件一致）。 */
+uint8_t UI_Seq;
+
+/* 缓存 RobotInstance 中的裁判系统数据指针。 */
+static referee_info_t *referee_recv_info;
+
+/* 本文件维护的 UI 交互状态（含脏标志、上次值等）。 */
+static Referee_Interactive_info_t interactive_data;
+
+/* ===========================================================================
+ * 各 UI 模块持有的图形描述符
+ * 跨调用必须保持，因此使用 static 全局存储。
+ * =========================================================================*/
+
+/* 相对角度模块 */
+static Graph_Data_t UI_RelativeRing;
+static Graph_Data_t UI_RelativeArc[2];
+
+/* 腿部模块 */
+static Graph_Data_t UI_LegRods[2][5];  // [0]=left, [1]=right
+static String_Data_t UI_LegLabel[2];
+
+/* 瞄准模块 */
+static Graph_Data_t UI_AimCross[2];
+static Graph_Data_t UI_AimRect;
+static uint8_t UI_AimCrossVisible;
+
+/* 电容模块 */
+static Graph_Data_t UI_CapArc;
+static String_Data_t UI_CapTextE;
+static String_Data_t UI_CapTextF;
+static String_Data_t UI_CapVoltage;
+static String_Data_t UI_CapCtrlCmd;
+
+/* 速度模块 */
+static Graph_Data_t UI_SpeedArc;
+static String_Data_t UI_SpeedValue;
+
+/* 状态模块 */
+static String_Data_t UI_StatusLabel[UI_STATUS_ROW_COUNT];
+static String_Data_t UI_StatusValue[UI_STATUS_ROW_COUNT];
+
+/* 引导线模块 */
+static Graph_Data_t UI_GuideSide[2];                    // 左右两条斜边
+static Graph_Data_t UI_GuideRung[UI_GUIDE_RUNG_COUNT];  // 中间横向透视刻度
+static Graph_Data_t UI_BottomLine;                      // 屏幕下方水平横线
+
+/* ===========================================================================
+ * 通用工具函数
+ * =========================================================================*/
 
 /**
- * @brief  判断各种ID，选择客户端ID
- * @param  referee_info_t *referee_recv_info
- * @retval none
- * @attention
+ * @brief 生成 3 字节图形名（首字母 + 两位十进制索引），方便批量命名。
  */
-static void DeterminRobotID() {
-  // id小于7是红色,大于7是蓝色,0为红色，1为蓝色   #define Robot_Red 0    #define Robot_Blue 1
+static void MakeUiName(char name[4], char prefix, uint8_t index) {
+  name[0] = prefix;
+  name[1] = (char)('0' + index / 10u);
+  name[2] = (char)('0' + index % 10u);
+  name[3] = '\0';
+}
+
+/** @brief 浮点绝对值。 */
+static float AbsFloat(float value) { return value >= 0.0f ? value : -value; }
+
+/** @brief 角度归一化到 [0, 360)。 */
+static float NormalizeAngle(float angle) {
+  while (angle < 0.0f) angle += 360.0f;
+  while (angle >= 360.0f) angle -= 360.0f;
+  return angle;
+}
+
+/** @brief 转换为四舍五入后的 [0, 359] 整数角度。 */
+static uint32_t AngleToUiDegree(float angle) {
+  uint32_t degree = (uint32_t)(NormalizeAngle(angle) + 0.5f);
+  return degree >= 360 ? degree - 360 : degree;
+}
+
+/* ===========================================================================
+ * 模式 → 字符串映射
+ * =========================================================================*/
+
+static const char *RobotModeStr(Robot_Mode_e mode) {
+  switch (mode) {
+    case ROBOT_POWER_OFF:
+      return "P_OFF";
+    case ROBOT_CHASSIS_ROTATE:
+      return "LEG_ROTATE";
+    case ROBOT_CHASSIS_FOLLOW:
+      return "LEG_FOLLOW";
+    case ROBOT_CHASSIS_FREE:
+      return "LEG_FREE";
+    case ROBOT_CHASSIS_PROSTRATE_ROTATE:
+      return "PRO_ROTATE";
+    case ROBOT_CHASSIS_PROSTRATE_FOLLOW:
+      return "PRO_FOLLOW";
+    default:
+      return "UNK";
+  }
+}
+
+static const char *ChassisModeStr(Chassis_Mode_e mode) {
+  switch (mode) {
+    case CHASSIS_POWER_OFF:
+      return "P_OFF";
+    case CHASSIS_RECOVERY:
+      return "RECOVERY";
+    case CHASSIS_ON:
+      return "ON";
+    case CHASSIS_JUMP_READY:
+      return "JUMP_READY";
+    case CHASSIS_JUMP_START:
+      return "JUMP_START";
+    case CHASSIS_PROSTRATE:
+      return "PROSTRATE";
+    default:
+      return "UNK";
+  }
+}
+
+static const char *GimbalModeStr(Gimbal_Mode_e mode) {
+  switch (mode) {
+    case GIMBAL_POWER_OFF:
+      return "P_OFF";
+    case GIMBAL_ON:
+      return "ON";
+    case GIMBAL_VISION:
+      return "VISION";
+    default:
+      return "UNK";
+  }
+}
+
+static const char *FrictionModeStr(Friction_Mode_e mode) {
+  switch (mode) {
+    case FRICTION_OFF:
+      return "OFF";
+    case FRICTION_ON:
+      return "ON";
+    default:
+      return "UNK";
+  }
+}
+
+static const char *LoaderModeStr(Loader_Mode_e mode) {
+  switch (mode) {
+    case LOAD_STOP:
+      return "STOP";
+    case LOAD_REVERSE:
+      return "REVERSE";
+    case LOAD_1_BULLET:
+      return "1";
+    case LOAD_3_BULLET:
+      return "3";
+    case LOAD_BURSTFIRE:
+      return "BURST";
+    default:
+      return "UNK";
+  }
+}
+
+static const char *SuperCapModeStr(SuperCap_Mode_e mode) {
+  switch (mode) {
+    case SAFETY_MODE:
+      return "SAFETY";
+    case PASSIVE_MODE:
+      return "PASSIVE";
+    case ACTIVE_MODE:
+      return "ACTIVE";
+    case CHARGING_MODE:
+      return "CHARGING";
+    default:
+      return "UNK";
+  }
+}
+
+static const char *SuperCapCtrlCmdStr(SuperCap_Ctrl_Cmd_e cmd) { return cmd == BOOST ? "BOOST" : "NORMAL"; }
+
+static uint32_t SuperCapCtrlCmdColor(SuperCap_Ctrl_Cmd_e cmd) {
+  return cmd == BOOST ? UI_Color_Purplish_red : UI_Color_Cyan;
+}
+
+/** @brief 判断当前是否处于"匍匐"模式（影响速度上限/姿势 UI 等）。 */
+static uint8_t IsProstrateMode(Robot_Mode_e robot_mode, Chassis_Mode_e chassis_mode) {
+  return chassis_mode == CHASSIS_PROSTRATE || robot_mode == ROBOT_CHASSIS_PROSTRATE_ROTATE ||
+         robot_mode == ROBOT_CHASSIS_PROSTRATE_FOLLOW;
+}
+
+static float SpeedMax(uint8_t is_prostrate) { return is_prostrate ? UI_SPEED_PROSTRATE_MAX : UI_SPEED_LEG_MAX; }
+
+static uint32_t SpeedArcColor(const Referee_Interactive_info_t *data) {
+  const float max_speed = SpeedMax(data->speed_is_prostrate);
+  return AbsFloat(data->speed) >= max_speed * UI_SPEED_WARN_RATIO ? UI_Color_Purplish_red : UI_Color_Cyan;
+}
+
+/* ===========================================================================
+ * 五连杆运动学求解
+ * =========================================================================*/
+
+/**
+ * @brief 用关节角解算五连杆的 5 个铰接点和 4 段杆角度。
+ * @return 1 成功；0 失败（输入无效或无实数解）
+ */
+static uint8_t CalculateLegPosture(const LegInstance *leg, float model_x[5], float model_y[5], float leg_phi[4]) {
+  if (leg == NULL || leg->joint_motor[0] == NULL || leg->joint_motor[1] == NULL) {
+    return 0;
+  }
+
+  const Leg_Param_t *param = &leg->param;
+  const float phi1 = param->joint_motor_zero_offset[0] + leg->joint_motor[0]->measure.position;
+  const float phi4 = param->joint_motor_zero_offset[1] + leg->joint_motor[1]->measure.position;
+
+  const float xb = param->rod_length[0] * cosf(phi1);
+  const float yb = param->rod_length[0] * sinf(phi1);
+  const float xd = param->rod_length[4] + param->rod_length[3] * cosf(phi4);
+  const float yd = param->rod_length[3] * sinf(phi4);
+
+  const float a0 = 2.0f * param->rod_length[1] * (xd - xb);
+  const float b0 = 2.0f * param->rod_length[1] * (yd - yb);
+  const float c0 = param->rod_length[1] * param->rod_length[1] + (xb - xd) * (xb - xd) + (yb - yd) * (yb - yd) -
+                   param->rod_length[2] * param->rod_length[2];
+  const float sqrt_arg = a0 * a0 + b0 * b0 - c0 * c0;
+  if (sqrt_arg < 0.0f) {
+    return 0;
+  }
+
+  const float phi2 = 2.0f * atan2f(b0 + sqrtf(sqrt_arg), a0 + c0);
+  const float phi3 = atan2f(yb - yd + param->rod_length[1] * sinf(phi2), xb - xd + param->rod_length[1] * cosf(phi2));
+  const float xc = xb + param->rod_length[1] * cosf(phi2);
+  const float yc = yb + param->rod_length[1] * sinf(phi2);
+
+  const float l5 = param->rod_length[4];
+  model_x[0] = 0.0f;
+  model_y[0] = 0.0f;
+  model_x[1] = l5;
+  model_y[1] = 0.0f;
+  model_x[2] = l5 - xb;
+  model_y[2] = yb;
+  model_x[3] = l5 - xc;
+  model_y[3] = yc;
+  model_x[4] = l5 - xd;
+  model_y[4] = yd;
+
+  leg_phi[0] = phi1;
+  leg_phi[1] = phi2;
+  leg_phi[2] = phi3;
+  leg_phi[3] = phi4;
+  return 1;
+}
+
+/* ===========================================================================
+ * 裁判系统 ID 配置
+ * =========================================================================*/
+
+/**
+ * @brief 根据裁判系统下发的机器人 ID 配置接收方/客户端 ID。
+ */
+static void DeterminRobotID(void) {
   referee_recv_info->referee_id.Robot_Color = referee_recv_info->GameRobotState.robot_id > 7 ? Robot_Blue : Robot_Red;
   referee_recv_info->referee_id.Robot_ID = referee_recv_info->GameRobotState.robot_id;
-  referee_recv_info->referee_id.Cilent_ID = 0x0100 + referee_recv_info->referee_id.Robot_ID;  // 计算客户端ID
+  referee_recv_info->referee_id.Cilent_ID = 0x0100 + referee_recv_info->referee_id.Robot_ID;
   referee_recv_info->referee_id.Receiver_Robot_ID = 0;
 }
 
+/* ===========================================================================
+ * 数据采样：从 RobotInstance 中提取本帧 UI 所需信息
+ * =========================================================================*/
 
-static Graph_Data_t UI_shoot_line[10]; // 射击准线
-static Graph_Data_t UI_drone_width_line[2]; //车辆示宽线
-static Graph_Data_t UI_shoot_dir_circle[3]; //射击中心圆
-static String_Data_t UI_State_sta[6];  // 机器人状态,静态只需画一次
-static String_Data_t UI_State_dyn[6];  // 机器人状态,动态先add才能change
-
-// 定义用于UI更新的数据结构
-
-// 云台俯仰角表盘
-static Graph_Data_t UI_pitch_ticks[20];    // 刻度线
-static String_Data_t UI_pitch_labels[20];  // 刻度标签
-static Graph_Data_t UI_pitch_needle;       // 指针
-
-// 自瞄模式选择器
-static Graph_Data_t UI_autoaim_bg;         // 背景圆弧
-static Graph_Data_t UI_autoaim_indicator;  // 选择指示圆弧
-static String_Data_t UI_autoaim_text;      // 模式文字 "A  B  C"
-
-// 左侧功率/弹量圆弧
-static Graph_Data_t UI_cap_arc;          // 电容能量圆弧
-static Graph_Data_t UI_ammo_arc;         // 弹量圆弧
-static String_Data_t UI_cap_text_E;      // 文字 "E"
-static String_Data_t UI_cap_text_F;      // 文字 "F"
-static String_Data_t UI_ammo_text_full;  // 文字 "500"
-static String_Data_t UI_ammo_text_mid;   // 文字 "250"
-
-// 摩擦轮转速指示器
-static String_Data_t UI_fric_text_down;     // 文字 "3"
-// 车头方向动态圆弧
-static Graph_Data_t UI_yaw_arc;  // 方向指示弧
-
-static Graph_Data_t Line_DecoMid;
-static Graph_Data_t Arc_DecoUp;
-static Graph_Data_t Arc_DecoDown;
-
-static Referee_Interactive_info_t interactive_data;
-
-// 检测UI变化的函数
-static void UIChangeCheck(Referee_Interactive_info_t *_Interactive_data) {
-  if (_Interactive_data->gimbal_mode != _Interactive_data->gimbal_last_mode) {
-    _Interactive_data->UI_Interactive_Flag.gimbal_flag = 1;
-    _Interactive_data->gimbal_last_mode = _Interactive_data->gimbal_mode;
+/**
+ * @brief 获取底盘相对云台角度。
+ *
+ * - 单板（ONE_BOARD）下使用 robot->offset_angle；
+ * - 双板下若底盘板数据可用，则用上报的 ui_chassis_relative_angle_deg_x10。
+ */
+static float GetRelativeAngle(RobotInstance *robot) {
+  float angle = robot->offset_angle;
+#if !defined(ONE_BOARD)
+  if (robot->chassis_fetch_data) {
+    angle = (float)robot->chassis_fetch_data->ui_status.ui_chassis_relative_angle_deg_x10 * 0.1f;
   }
+#endif
+  return angle;
+}
 
-  if (_Interactive_data->shoot_mode != _Interactive_data->shoot_last_mode) {
-    _Interactive_data->UI_Interactive_Flag.shoot_flag = 1;
-    _Interactive_data->shoot_last_mode = _Interactive_data->shoot_mode;
-  }
+/** @brief 采样腿部位姿（任一腿可用即视为有效）。 */
+static void SampleLegPosture(RobotInstance *robot, Referee_Interactive_info_t *data) {
+  float model_x[5];
+  float model_y[5];
+  float leg_phi[4];
 
-  if (_Interactive_data->friction_mode != _Interactive_data->friction_last_mode) {
-    _Interactive_data->UI_Interactive_Flag.fric_flag = 1;
-    _Interactive_data->friction_last_mode = _Interactive_data->friction_mode;
-  }
-
-  if (_Interactive_data->Chassis_Power_Data.chassis_power_mx !=
-      _Interactive_data->Chassis_last_Power_Data.chassis_power_mx) {
-    _Interactive_data->UI_Interactive_Flag.power_flag = 1;
-    _Interactive_data->Chassis_last_Power_Data.chassis_power_mx =
-        _Interactive_data->Chassis_Power_Data.chassis_power_mx;
-  }
-
-  // 俯仰角变化
-  if (fabsf(_Interactive_data->pitch_angle - _Interactive_data->last_pitch_angle) > 0.1f) {
-    _Interactive_data->UI_Interactive_Flag.pitch_flag = 1;
-    _Interactive_data->last_pitch_angle = _Interactive_data->pitch_angle;
-  }
-
-  if (_Interactive_data->autoaim_mode != _Interactive_data->last_autoaim_mode) {
-    _Interactive_data->UI_Interactive_Flag.autoaim_flag = 1;
-    _Interactive_data->last_autoaim_mode = _Interactive_data->autoaim_mode;
-  }
-
-  if (fabsf(_Interactive_data->cap_voltage - _Interactive_data->last_cap_voltage) > 0.1f
-      ) {
-    _Interactive_data->UI_Interactive_Flag.cap_flag = 1;
-    _Interactive_data->last_cap_voltage = _Interactive_data->cap_voltage;
-
-  }
-  if (_Interactive_data->bullet_left_real != _Interactive_data->last_bullet_left_real) {
-    _Interactive_data->UI_Interactive_Flag.ammo_flag = 1;
-    _Interactive_data->last_bullet_left_real = _Interactive_data->bullet_left_real;
-  }
-
-  if (_Interactive_data->fric_speed_left != _Interactive_data->last_fric_speed_left ||
-    _Interactive_data->fric_speed_right != _Interactive_data->last_fric_speed_right) {
-    _Interactive_data->UI_Interactive_Flag.fric_flag = 1;
-    _Interactive_data->last_fric_speed_left = _Interactive_data->fric_speed_left;
-    _Interactive_data->last_fric_speed_right = _Interactive_data->fric_speed_right;
-    }
-
-  if (fabsf(_Interactive_data->chassis_relative_angle - _Interactive_data->last_chassis_relative_angle) > 0.01f) {
-    _Interactive_data->UI_Interactive_Flag.yaw_flag = 1;
-    _Interactive_data->last_chassis_relative_angle = _Interactive_data->chassis_relative_angle;
+  if (robot->chassis && (CalculateLegPosture(robot->chassis->leg[0], model_x, model_y, leg_phi) ||
+                         CalculateLegPosture(robot->chassis->leg[1], model_x, model_y, leg_phi))) {
+    data->leg_valid = 1;
+    data->leg_phi1 = leg_phi[0];
+    data->leg_phi2 = leg_phi[1];
+    data->leg_phi3 = leg_phi[2];
+    data->leg_phi4 = leg_phi[3];
+  } else {
+    data->leg_valid = 0;
   }
 }
 
-// UI更新函数
-static void MyUIRefresh(Referee_Interactive_info_t *interactive_data) {
-  // 更新云台状态
+/** @brief 采样机器人各子系统状态、电容、速度、瞄准等数据。 */
+static void SampleStatusData(RobotInstance *robot, Referee_Interactive_info_t *data) {
+  /* 默认值 */
+  data->robot_mode = ROBOT_POWER_OFF;
+  data->chassis_mode = CHASSIS_POWER_OFF;
+  data->gimbal_mode = GIMBAL_POWER_OFF;
+  data->friction_mode = FRICTION_OFF;
+  data->loader_mode = LOAD_STOP;
+  data->super_cap_mode = SAFETY_MODE;
+  data->super_cap_ctrl_cmd = NORMAL;
+  data->cap_voltage = 0.0f;
+  data->cap_error = 1;
+  data->speed = 0.0f;
+  data->speed_is_prostrate = 0;
+  data->aim_target_flag = 0;
 
-    char *gimbal_str = "unknown";
-    switch (interactive_data->heat_mode_e) {
-      case NO_CONTROL:
-        gimbal_str = "no";
-        break;
-      case REFEREE_CONTROL:
-        gimbal_str = "referee      ";
-        break;
-      case SIMULLATE_CONTROL:
-        gimbal_str = "simulate  ";
-        break;
-      default:
+  if (robot == NULL) return;
 
-        break;
-    }
-    UICharDraw(&UI_State_dyn[1], "sd1", UI_Graph_Change, 8, UI_Color_Yellow, 15, 2, 270, 700, gimbal_str);
-    UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[1]);
-    interactive_data->UI_Interactive_Flag.gimbal_flag = 0;
+  data->robot_mode = robot->robot_mode;
 
-
-  // 更新射击状态
-
-    char *bullet_str = "unknown";
-    switch (interactive_data->bullet_speed_mode_e) {
-      case NO_CONTROL:
-        bullet_str = "no";
-        break;
-      case MANUAL_BULLET_SPEED:
-        bullet_str = "man      ";
-        break;
-      case ENABLE_BULLET_SPEED:
-        bullet_str = "en  ";
-        break;
-      default:
-
-        break;
-    }
-    UICharDraw(&UI_State_dyn[2], "sd2", UI_Graph_Change, 8, UI_Color_Orange, 15, 2, 270, 650, bullet_str);
-    UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[2]);
-    interactive_data->UI_Interactive_Flag.shoot_flag = 0;
-
-
-  // 更新摩擦轮状态
-  if (interactive_data->UI_Interactive_Flag.fric_flag == 1) {
-    char *friction_str = interactive_data->friction_mode == FRICTION_ON ? "on " : "off";
-    UICharDraw(&UI_State_dyn[3], "sd3", UI_Graph_Change, 8, UI_Color_Pink, 15, 2, 270, 600, friction_str);
-    UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[3]);
-    interactive_data->UI_Interactive_Flag.fric_flag = 0;
+  if (robot->chassis) {
+    data->chassis_mode = robot->chassis->chassis_ctrl_cmd.chassis_mode;
+    data->speed = robot->chassis->state_var.x_b_d;
+  }
+  if (robot->gimbal) {
+    data->gimbal_mode = robot->gimbal->gimbal_ctrl_cmd.gimbal_mode;
+  }
+  if (robot->shoot) {
+    data->friction_mode = robot->shoot->shoot_ctrl_cmd.friction_mode;
+    data->loader_mode = robot->shoot->shoot_ctrl_cmd.load_mode;
+  }
+  if (robot->chassis && robot->chassis->super_cap) {
+    data->super_cap_mode = robot->chassis->super_cap->super_cap_mode;
+    data->super_cap_ctrl_cmd = robot->chassis->super_cap->super_cap_ctrl_cmd;
+    data->cap_voltage = robot->chassis->super_cap->cap_msg.cap_v;
+    data->cap_error = robot->chassis->super_cap->cap_msg.error_detect;
+  }
+  if (robot->vision_recv_data) {
+    data->aim_target_flag = robot->vision_recv_data->shoot_receive.fire_flag != 0;
   }
 
+#if !defined(ONE_BOARD)
+  if (robot->chassis_fetch_data) {
+    const UI_Remote_Status_s *status = &robot->chassis_fetch_data->ui_status;
+    data->robot_mode = (Robot_Mode_e)status->robot_mode;
+    data->gimbal_mode = (Gimbal_Mode_e)status->gimbal_mode;
+    data->friction_mode = (Friction_Mode_e)status->friction_mode;
+    data->loader_mode = (Loader_Mode_e)status->loader_mode;
+    data->aim_target_flag = status->fire_flag != 0;
+  }
+#endif
 
-    char *cap_str = interactive_data->cap_msg.error_detect == 0? "good " : "bad";
-    UICharDraw(&UI_State_dyn[4], "sd4", UI_Graph_Change, 8, UI_Color_Pink, 15, 2, 270, 550, cap_str);
-    UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[4]);
+  data->speed_is_prostrate = IsProstrateMode(data->robot_mode, data->chassis_mode);
+}
 
+/* ===========================================================================
+ * 模块：Relative —— 底盘相对云台角度指示
+ * =========================================================================*/
 
-  // 自瞄模式指示器
-  if (interactive_data->UI_Interactive_Flag.autoaim_flag == 1) {
-    uint32_t start_angle, end_angle;
-    switch (interactive_data->autoaim_mode) {
-      case 0:
-        start_angle = 168;
-        end_angle = 180;
-        break;  // 左段
-      case 1:
-        start_angle = 180;
-        end_angle = 192;
-        break;  // 右段
-      default:
-        start_angle = 168;
-        end_angle = 192;
-        break;  // 全段
-    }
-    UIArcDraw(&UI_autoaim_indicator, "ac0", UI_Graph_Change, 6, UI_Color_Pink, start_angle, end_angle, 14, 960, 540,
-              310, 240);
-    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_autoaim_indicator);
-    interactive_data->UI_Interactive_Flag.autoaim_flag = 0;
+static void DrawRelativePosition(float offset_angle, uint32_t operate) {
+  const int32_t cx = UI_RELATIVE_CENTER_X;
+  const int32_t cy = UI_RELATIVE_CENTER_Y;
+
+  /*
+   * 测得的角度方向与裁判系统 UI 水平方向相反，取负后才能保持
+   * 前后不变、左右不再镜像。
+   */
+  const float ui_angle = NormalizeAngle(-offset_angle);
+  const float start = NormalizeAngle(ui_angle - UI_RELATIVE_ARC_HALF_ANGLE);
+  const float end = NormalizeAngle(ui_angle + UI_RELATIVE_ARC_HALF_ANGLE);
+
+  /* 背景圆环 */
+  UICircleDraw(&UI_RelativeRing, "rg0", operate, UI_GRAPH_LAYER, UI_Color_White, UI_RELATIVE_RING_WIDTH, cx, cy,
+               UI_RELATIVE_RADIUS);
+
+  if (start <= end) {
+    /* 不跨 0°：单段绿色圆弧；第二段画极小黑色圆弧"清除"上一帧分裂状态 */
+    UIArcDraw(&UI_RelativeArc[0], "sa0", operate, UI_GRAPH_LAYER, UI_Color_Green, AngleToUiDegree(start),
+              AngleToUiDegree(end), UI_RELATIVE_ARC_WIDTH, cx, cy, UI_RELATIVE_RADIUS, UI_RELATIVE_RADIUS);
+    UIArcDraw(&UI_RelativeArc[1], "sa1", operate, UI_GRAPH_LAYER, UI_Color_Black, 0, 1, UI_RELATIVE_ARC_WIDTH, cx, cy,
+              UI_RELATIVE_RADIUS, UI_RELATIVE_RADIUS);
+  } else {
+    /* 跨 0°：拆成 [start..360] 和 [0..end] 两段绘制 */
+    UIArcDraw(&UI_RelativeArc[0], "sa0", operate, UI_GRAPH_LAYER, UI_Color_Green, AngleToUiDegree(start), 360,
+              UI_RELATIVE_ARC_WIDTH, cx, cy, UI_RELATIVE_RADIUS, UI_RELATIVE_RADIUS);
+    UIArcDraw(&UI_RelativeArc[1], "sa1", operate, UI_GRAPH_LAYER, UI_Color_Green, 0, AngleToUiDegree(end),
+              UI_RELATIVE_ARC_WIDTH, cx, cy, UI_RELATIVE_RADIUS, UI_RELATIVE_RADIUS);
   }
 
-  // 电容能量圆弧
-  if (interactive_data->UI_Interactive_Flag.cap_flag == 1) {
-    float volt = interactive_data->cap_voltage;
-    float bar = (volt - 12.0f) / (23.0f - 12.0f) * 40.0f;
-    if (bar < 1) bar = 1;
-    if (bar > 40) bar = 40;
-    uint32_t end_angle = 270 + (uint32_t)bar;
-    uint32_t color = UI_Color_Pink;
-    UIArcDraw(&UI_cap_arc, "ap0", UI_Graph_Change, 6, color, 270, end_angle, 22, 960, 540, 370, 370);
-    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_cap_arc);
-    interactive_data->UI_Interactive_Flag.cap_flag = 0;
+  UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_RelativeRing);
+  UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_RelativeArc[0], UI_RelativeArc[1]);
+}
+
+/* ===========================================================================
+ * 模块：Aim —— 中心瞄准框 + 命中十字
+ * =========================================================================*/
+
+static void DrawAimIndicator(uint8_t target_locked, uint32_t operate) {
+  const uint32_t rect_color = target_locked ? UI_Color_Purplish_red : UI_Color_Yellow;
+  const int32_t cx = UI_CENTER_X;
+  const int32_t cy = UI_CENTER_Y;
+
+  /* 命中十字：仅在锁定目标时显示，状态切换时按需 ADD/CHANGE/Del */
+  if (target_locked || UI_AimCrossVisible) {
+    const uint32_t cross_op = target_locked ? (UI_AimCrossVisible ? UI_Graph_Change : UI_Graph_ADD) : UI_Graph_Del;
+
+    UILineDraw(&UI_AimCross[0], "ax0", cross_op, UI_AIM_LAYER, UI_Color_Purplish_red, UI_AIM_CROSS_WIDTH,
+               cx - UI_AIM_CROSS_HALF_LEN, cy - UI_AIM_CROSS_HALF_LEN, cx + UI_AIM_CROSS_HALF_LEN,
+               cy + UI_AIM_CROSS_HALF_LEN);
+    UILineDraw(&UI_AimCross[1], "ax1", cross_op, UI_AIM_LAYER, UI_Color_Purplish_red, UI_AIM_CROSS_WIDTH,
+               cx - UI_AIM_CROSS_HALF_LEN, cy + UI_AIM_CROSS_HALF_LEN, cx + UI_AIM_CROSS_HALF_LEN,
+               cy - UI_AIM_CROSS_HALF_LEN);
+    UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_AimCross[0], UI_AimCross[1]);
+    UI_AimCrossVisible = target_locked;
   }
 
-  // 弹量圆弧
-  if (interactive_data->UI_Interactive_Flag.ammo_flag == 1) {
-    uint16_t bullet = interactive_data->bullet_left_real;
-    if (bullet > 500) bullet = 500;
-    float bar = (float)bullet / 500.0f * 40.0f;
-    uint32_t start_angle = 270 - (uint32_t)bar;
-    uint32_t color;
-    if (bullet > 80)
-      color = UI_Color_Green;
-    else if (bullet > 30)
+  /* 外框矩形：常显，颜色根据是否锁定切换 */
+  UIRectangleDraw(&UI_AimRect, "ar0", operate, UI_AIM_LAYER, rect_color, UI_AIM_RECT_WIDTH, cx - UI_AIM_RECT_HALF_W,
+                  cy - UI_AIM_RECT_HALF_H, cx + UI_AIM_RECT_HALF_W, cy + UI_AIM_RECT_HALF_H);
+  UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_AimRect);
+}
+
+/* ===========================================================================
+ * 模块：Leg —— 五连杆腿部位姿
+ * =========================================================================*/
+
+static void DrawSingleLegPosture(const LegInstance *leg, uint8_t ui_index, int32_t base_y, uint32_t operate) {
+  int32_t px[5] = {UI_LEG_BASE_X, UI_LEG_BASE_X, UI_LEG_BASE_X, UI_LEG_BASE_X, UI_LEG_BASE_X};
+  int32_t py[5] = {base_y, base_y, base_y, base_y, base_y};
+  uint32_t color = UI_Color_Black;
+
+  if (leg) {
+    float mx[5], my[5], phi[4];
+    if (CalculateLegPosture(leg, mx, my, phi)) {
+      for (uint8_t i = 0; i < 5; i++) {
+        px[i] = UI_LEG_BASE_X + (int32_t)(mx[i] * UI_LEG_SCALE);
+        py[i] = base_y - (int32_t)(my[i] * UI_LEG_SCALE);
+      }
       color = UI_Color_Yellow;
-    else if (bullet > 0)
-      color = UI_Color_Orange;
-    else
-      color = UI_Color_Black;
-    UIArcDraw(&UI_ammo_arc, "aa0", UI_Graph_Change, 6, color, start_angle, 270, 22, 960, 535, 370, 370);
-    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_ammo_arc);
-    interactive_data->UI_Interactive_Flag.ammo_flag = 0;
-  }
-
-  // 显示左侧摩擦轮转速（精确到 100）
-  if (interactive_data->UI_Interactive_Flag.fric_flag == 1) {
-    uint16_t left_speed = interactive_data->fric_speed_left;
-    uint16_t display_speed = left_speed / 100;  // 26000 -> 260
-    char fric_speed_str[16];
-    sprintf(fric_speed_str, "frispeed:%d", display_speed);
-    UICharDraw(&UI_fric_text_down, "fs0", UI_Graph_Change, 6, UI_Color_White, 18, 2, 1556, 850, fric_speed_str);
-    UICharRefresh(&referee_recv_info->referee_id, UI_fric_text_down);
-    interactive_data->UI_Interactive_Flag.fric_flag = 0;
-  }
-
-  // 车头方向圆弧
-  if (interactive_data->UI_Interactive_Flag.yaw_flag == 1) {
-    int yaw_deg = (int)interactive_data->chassis_relative_angle;
-    if (yaw_deg < 0) yaw_deg += 360;
-    uint32_t show1, show2;
-    if (yaw_deg < 30) {
-      show1 = yaw_deg + 30;
-      show2 = 360 - (30 - yaw_deg);
-    } else if (yaw_deg > 345) {
-      show1 = yaw_deg - 330;
-      show2 = yaw_deg - 30;
-    } else {
-      show1 = yaw_deg + 30;
-      show2 = yaw_deg - 30;
     }
-    uint32_t color;
-    switch (interactive_data->robot_mode) {
-      case ROBOT_CHASSIS_FOLLOW:
-        color = UI_Color_Pink;
-        break;
-      case ROBOT_CHASSIS_ROTATE:
-        color = UI_Color_Green;
-        break;
-      default:
-        color = UI_Color_Orange;
-        break;
+  }
+
+  /* 5 段杆的命名：左腿用 "ll0..ll4"，右腿用 "rl0..rl4" */
+  const char *name_table[2][5] = {
+      {"ll0", "ll1", "ll2", "ll3", "ll4"},
+      {"rl0", "rl1", "rl2", "rl3", "rl4"},
+  };
+  /* 端点连线：0-1, 1-2, 2-3, 3-4, 4-0 */
+  const uint8_t edges[5][2] = {{0, 1}, {1, 2}, {2, 3}, {3, 4}, {4, 0}};
+
+  for (uint8_t i = 0; i < 5; i++) {
+    UILineDraw(&UI_LegRods[ui_index][i], (char *)name_table[ui_index][i], operate, UI_LEG_LAYER, color,
+               UI_LEG_ROD_WIDTH, px[edges[i][0]], py[edges[i][0]], px[edges[i][1]], py[edges[i][1]]);
+  }
+  UIGraphRefresh(&referee_recv_info->referee_id, 5, UI_LegRods[ui_index][0], UI_LegRods[ui_index][1],
+                 UI_LegRods[ui_index][2], UI_LegRods[ui_index][3], UI_LegRods[ui_index][4]);
+}
+
+static void DrawLegLabels(uint32_t operate) {
+  UICharDraw(&UI_LegLabel[0], "llb", operate, UI_LEG_LAYER, UI_Color_White, UI_LEG_LABEL_FONT_SIZE, UI_LEG_LABEL_WIDTH,
+             UI_LEG_LABEL_X, UI_LEG_TOP_BASE_Y + UI_LEG_LABEL_OFFSET_Y, "LEFT");
+  UICharRefresh(&referee_recv_info->referee_id, UI_LegLabel[0]);
+
+  UICharDraw(&UI_LegLabel[1], "rlb", operate, UI_LEG_LAYER, UI_Color_White, UI_LEG_LABEL_FONT_SIZE, UI_LEG_LABEL_WIDTH,
+             UI_LEG_LABEL_X, UI_LEG_BASE_Y + UI_LEG_LABEL_OFFSET_Y, "RIGHT");
+  UICharRefresh(&referee_recv_info->referee_id, UI_LegLabel[1]);
+}
+
+static void DrawLegPosture(RobotInstance *robot, uint32_t operate) {
+  const LegInstance *left_leg = NULL;
+  const LegInstance *right_leg = NULL;
+
+  if (robot->chassis) {
+    left_leg = robot->chassis->leg[1];
+    right_leg = robot->chassis->leg[0];
+  }
+  DrawSingleLegPosture(left_leg, 0, UI_LEG_TOP_BASE_Y, operate);
+  DrawSingleLegPosture(right_leg, 1, UI_LEG_BASE_Y, operate);
+}
+
+/* ===========================================================================
+ * 模块：Status —— 状态文字（标签 + 值）
+ * =========================================================================*/
+
+/** @brief 添加 6 行固定标签（仅 Init 时调用）。 */
+static void DrawStatusStatic(uint32_t operate) {
+  static const char *labels[UI_STATUS_ROW_COUNT] = {
+      "ROBOT:", "CHASSIS:", "GIMBAL:", "FRICTION:", "LOADER:", "SUPERCAP:"};
+
+  for (uint8_t i = 0; i < UI_STATUS_ROW_COUNT; i++) {
+    char name[4];
+    MakeUiName(name, 'u', i);
+    UICharDraw(&UI_StatusLabel[i], name, operate, UI_STATUS_LAYER, UI_Color_Purplish_red, UI_STATUS_FONT_SIZE,
+               UI_STATUS_WIDTH, UI_STATUS_LABEL_X, UI_STATUS_BASE_Y - i * UI_STATUS_ROW_GAP, labels[i]);
+    UICharRefresh(&referee_recv_info->referee_id, UI_StatusLabel[i]);
+  }
+}
+
+/** @brief 把第 i 行状态值写到 UI_StatusValue[i] 并发送。 */
+static void DrawStatusValue(uint8_t row, uint32_t operate, const char *value_str) {
+  char name[4];
+  MakeUiName(name, 'v', row);
+  UICharDraw(&UI_StatusValue[row], name, operate, UI_STATUS_LAYER, UI_Color_Green, UI_STATUS_FONT_SIZE, UI_STATUS_WIDTH,
+             UI_STATUS_VALUE_X, UI_STATUS_BASE_Y - row * UI_STATUS_ROW_GAP, "%-*s", UI_STATUS_VALUE_CHARS, value_str);
+  UICharRefresh(&referee_recv_info->referee_id, UI_StatusValue[row]);
+}
+
+/** @brief 刷新 6 行动态状态值。 */
+static void DrawStatusDynamic(Referee_Interactive_info_t *data, uint32_t operate) {
+  DrawStatusValue(0, operate, RobotModeStr(data->robot_mode));
+  DrawStatusValue(1, operate, ChassisModeStr(data->chassis_mode));
+  DrawStatusValue(2, operate, GimbalModeStr(data->gimbal_mode));
+  DrawStatusValue(3, operate, FrictionModeStr(data->friction_mode));
+  DrawStatusValue(4, operate, LoaderModeStr(data->loader_mode));
+  DrawStatusValue(5, operate, SuperCapModeStr(data->super_cap_mode));
+}
+
+/* ===========================================================================
+ * 模块：Cap —— 超级电容
+ * =========================================================================*/
+
+/** @brief 根据电压/错误状态决定电容弧的颜色。 */
+static uint32_t CapArcColor(const Referee_Interactive_info_t *data) {
+  if (data->cap_error != 0 || data->cap_voltage <= 0.0f) {
+    return UI_Color_Black;
+  }
+  if (data->cap_voltage > 18.0f) return UI_Color_Green;
+  if (data->cap_voltage > 15.0f) return UI_Color_Yellow;
+  return UI_Color_Orange;
+}
+
+static void DrawCapStatic(uint32_t operate) {
+  UICharDraw(&UI_CapTextE, "ce0", operate, UI_CAP_LAYER, UI_Color_White, UI_CAP_TEXT_SIZE, UI_CAP_TEXT_WIDTH,
+             UI_CAP_E_X, UI_CAP_E_Y, "E");
+  UICharRefresh(&referee_recv_info->referee_id, UI_CapTextE);
+
+  UICharDraw(&UI_CapTextF, "cf0", operate, UI_CAP_LAYER, UI_Color_White, UI_CAP_TEXT_SIZE, UI_CAP_TEXT_WIDTH,
+             UI_CAP_F_X, UI_CAP_F_Y, "F");
+  UICharRefresh(&referee_recv_info->referee_id, UI_CapTextF);
+}
+
+static void DrawCapDynamic(const Referee_Interactive_info_t *data, uint32_t operate) {
+  /* 电压映射成弧的扫角 */
+  float sweep =
+      (data->cap_voltage - UI_CAP_EMPTY_VOLTAGE) / (UI_CAP_FULL_VOLTAGE - UI_CAP_EMPTY_VOLTAGE) * UI_CAP_MAX_SWEEP;
+  if (sweep < 1.0f) sweep = 1.0f;
+  if (sweep > UI_CAP_MAX_SWEEP) sweep = UI_CAP_MAX_SWEEP;
+
+  int32_t voltage_x10 = (int32_t)(data->cap_voltage * 10.0f + 0.5f);
+  if (voltage_x10 < 0) voltage_x10 = 0;
+
+  /* 电量弧 */
+  UIArcDraw(&UI_CapArc, "cp0", operate, UI_CAP_LAYER, CapArcColor(data), UI_CAP_START_ANGLE,
+            UI_CAP_START_ANGLE + (uint32_t)sweep, UI_CAP_WIDTH, UI_CAP_CENTER_X, UI_CAP_CENTER_Y, UI_CAP_RADIUS_X,
+            UI_CAP_RADIUS_Y);
+  UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_CapArc);
+
+  /* 电压数字 */
+  UICharDraw(&UI_CapVoltage, "cv0", operate, UI_CAP_LAYER, UI_Color_Cyan, UI_CAP_TEXT_SIZE, UI_CAP_TEXT_WIDTH,
+             UI_CAP_VOLTAGE_X, UI_CAP_VOLTAGE_Y, "%2d.%dV   ", (int)(voltage_x10 / 10), (int)(voltage_x10 % 10));
+  UICharRefresh(&referee_recv_info->referee_id, UI_CapVoltage);
+
+  /* 控制命令文字（NORMAL / BOOST） */
+  UICharDraw(&UI_CapCtrlCmd, "cc0", operate, UI_CAP_LAYER, SuperCapCtrlCmdColor(data->super_cap_ctrl_cmd),
+             UI_CAP_CTRL_TEXT_SIZE, UI_CAP_CTRL_TEXT_WIDTH, UI_CAP_CTRL_X, UI_CAP_CTRL_Y, "%-6s",
+             SuperCapCtrlCmdStr(data->super_cap_ctrl_cmd));
+  UICharRefresh(&referee_recv_info->referee_id, UI_CapCtrlCmd);
+}
+
+/* ===========================================================================
+ * 模块：Speed —— 底盘速度
+ * =========================================================================*/
+
+static void DrawSpeedDynamic(const Referee_Interactive_info_t *data, uint32_t operate) {
+  const float max_speed = SpeedMax(data->speed_is_prostrate);
+  const uint32_t color = SpeedArcColor(data);
+
+  float sweep = AbsFloat(data->speed) / max_speed * UI_SPEED_MAX_SWEEP;
+  if (sweep < 1.0f) sweep = 1.0f;
+  if (sweep > UI_SPEED_MAX_SWEEP) sweep = UI_SPEED_MAX_SWEEP;
+
+  int32_t speed_x10 = (int32_t)(data->speed * 10.0f + (data->speed >= 0.0f ? 0.5f : -0.5f));
+  int32_t abs_speed_x10 = speed_x10 >= 0 ? speed_x10 : -speed_x10;
+  const char sign = speed_x10 < 0 ? '-' : ' ';
+
+  /* 速度弧 */
+  UIArcDraw(&UI_SpeedArc, "sp0", operate, UI_SPEED_LAYER, color, UI_SPEED_CENTER_ANGLE - (uint32_t)sweep,
+            UI_SPEED_CENTER_ANGLE, UI_SPEED_WIDTH, UI_SPEED_CENTER_X, UI_SPEED_CENTER_Y, UI_SPEED_RADIUS_X,
+            UI_SPEED_RADIUS_Y);
+  UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_SpeedArc);
+
+  /* 速度数字 */
+  UICharDraw(&UI_SpeedValue, "sv0", operate, UI_SPEED_LAYER, color, UI_SPEED_TEXT_SIZE, UI_SPEED_TEXT_WIDTH,
+             UI_SPEED_TEXT_X, UI_SPEED_TEXT_Y, "%c%d.%dm/s  ", sign, (int)(abs_speed_x10 / 10),
+             (int)(abs_speed_x10 % 10));
+  UICharRefresh(&referee_recv_info->referee_id, UI_SpeedValue);
+}
+
+/* ===========================================================================
+ * 模块：Guide —— 屏幕下方斜向透视引导线
+ * =========================================================================*/
+
+/**
+ * @brief 绘制下方的梯形透视引导线：两侧斜边 + 若干横向刻度线。
+ *        底边靠近屏幕下方，顶部向中心汇聚产生纵深感。
+ */
+static void DrawGuideLine(uint32_t operate) {
+  const int32_t cx = UI_GUIDE_CENTER_X;
+  const int32_t y_bot = UI_GUIDE_BOTTOM_Y;
+  const int32_t y_top = UI_GUIDE_TOP_Y;
+  const int32_t half_bot = UI_GUIDE_BOTTOM_HALF_W;
+  const int32_t half_top = UI_GUIDE_TOP_HALF_W;
+
+  /* 左斜边：从左下 -> 左上（向中心收敛） */
+  UILineDraw(&UI_GuideSide[0], "gd0", operate, UI_GUIDE_LAYER, UI_GUIDE_COLOR, UI_GUIDE_LINE_WIDTH, cx - half_bot,
+             y_bot, cx - half_top, y_top);
+  /* 右斜边：从右下 -> 右上 */
+  UILineDraw(&UI_GuideSide[1], "gd1", operate, UI_GUIDE_LAYER, UI_GUIDE_COLOR, UI_GUIDE_LINE_WIDTH, cx + half_bot,
+             y_bot, cx + half_top, y_top);
+  UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_GuideSide[0], UI_GuideSide[1]);
+
+  /* 中间横向刻度线：越靠上越窄，形成地面栅格的纵深感 */
+  for (uint8_t i = 0; i < UI_GUIDE_RUNG_COUNT; i++) {
+    /* 非线性插值让靠近远端的线更密集（更像透视）： t^1.6 */
+    float t = (float)(i + 1) / (float)(UI_GUIDE_RUNG_COUNT + 1);
+    float tp = powf(t, 1.6f);
+
+    int32_t y = y_bot + (int32_t)((y_top - y_bot) * tp);
+    int32_t half_w = half_bot + (int32_t)((half_top - half_bot) * tp);
+
+    char name[4];
+    MakeUiName(name, 'g', i + 2); /* "g02", "g03", ... 避免与 gd0/gd1 冲突 */
+
+    UILineDraw(&UI_GuideRung[i], name, operate, UI_GUIDE_LAYER, UI_GUIDE_COLOR, UI_GUIDE_LINE_WIDTH, cx - half_w, y,
+               cx + half_w, y);
+  }
+
+  /* 一次最多刷 7 个 Graph，这里最多 3 个横线，直接批量发送 */
+  if (UI_GUIDE_RUNG_COUNT == 3) {
+    UIGraphRefresh(&referee_recv_info->referee_id, 3, UI_GuideRung[0], UI_GuideRung[1], UI_GuideRung[2]);
+  } else {
+    for (uint8_t i = 0; i < UI_GUIDE_RUNG_COUNT; i++) {
+      UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_GuideRung[i]);
     }
-    UIArcDraw(&UI_yaw_arc, "yd0", UI_Graph_Change, 6, color, show1, show2, 23, 1556, 721, 88, 88);
-    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_yaw_arc);
-    interactive_data->UI_Interactive_Flag.yaw_flag = 0;
+  }
+  /* 屏幕下方水平横线（与底边同高，贯通左右） */
+  UILineDraw(&UI_BottomLine, "gbl", operate, UI_GUIDE_LAYER, UI_GUIDE_COLOR, UI_BOTTOM_LINE_WIDTH,
+             UI_BOTTOM_LINE_X_LEFT, UI_BOTTOM_LINE_Y, UI_BOTTOM_LINE_X_RIGHT, UI_BOTTOM_LINE_Y);
+  UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_BottomLine);
+}
+
+/* ===========================================================================
+ * 脏标志检测：根据当前数据与上一次数据的差异，决定本帧需要刷新哪些 UI
+ * =========================================================================*/
+
+static void UIChangeCheck(Referee_Interactive_info_t *data) {
+  /* 相对角度：原文件以"任何不等"作为变化条件，这里保持一致 */
+  if (data->chassis_relative_angle != data->last_chassis_relative_angle) {
+    data->UI_Interactive_Flag.relative_flag = 1;
+    data->last_chassis_relative_angle = data->chassis_relative_angle;
   }
 
-  // 俯仰角仪表盘指针和数值
-  if (interactive_data->UI_Interactive_Flag.pitch_flag == 1) {
-    float pitch_deg = interactive_data->pitch_angle;
-    float ui_angle = 90.0f + pitch_deg;  // 转换为UI坐标系角度
-
-    while (ui_angle < 0) ui_angle += 360.0f;
-    while (ui_angle >= 360) ui_angle -= 360.0f;
-
-    uint32_t start_angle = (uint32_t)(ui_angle - 1);
-    uint32_t end_angle = (uint32_t)(ui_angle + 1);
-
-    if (start_angle >= 360) start_angle -= 360;
-    if (end_angle >= 360) end_angle -= 360;
-
-    UIArcDraw(&UI_pitch_needle, "pn0", UI_Graph_Change, 6, UI_Color_Pink, start_angle, end_angle, 38, 960, 540, 365,
-              365);
-    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_pitch_needle);
-    interactive_data->UI_Interactive_Flag.pitch_flag = 0;
+  /* 腿部：只要有效就持续刷新（数据连续变化） */
+  if (data->leg_valid != data->last_leg_valid || data->leg_valid) {
+    data->UI_Interactive_Flag.leg_flag = 1;
+    data->last_leg_valid = data->leg_valid;
+    data->last_leg_phi1 = data->leg_phi1;
+    data->last_leg_phi2 = data->leg_phi2;
+    data->last_leg_phi3 = data->leg_phi3;
+    data->last_leg_phi4 = data->leg_phi4;
   }
+
+  /* 各模式状态：任一变化即重绘整组状态文字 */
+  uint8_t status_changed =
+      data->robot_mode != data->last_robot_mode || data->chassis_mode != data->last_chassis_mode ||
+      data->gimbal_mode != data->last_gimbal_mode || data->friction_mode != data->last_friction_mode ||
+      data->loader_mode != data->last_loader_mode || data->super_cap_mode != data->last_super_cap_mode;
+  if (status_changed) {
+    data->UI_Interactive_Flag.status_flag = 1;
+    data->last_robot_mode = data->robot_mode;
+    data->last_chassis_mode = data->chassis_mode;
+    data->last_gimbal_mode = data->gimbal_mode;
+    data->last_friction_mode = data->friction_mode;
+    data->last_loader_mode = data->loader_mode;
+    data->last_super_cap_mode = data->super_cap_mode;
+  }
+
+  /* 电容：电压抖动 0.1V 以上、错误位变化、控制命令变化 */
+  if (fabsf(data->cap_voltage - data->last_cap_voltage) > 0.1f || data->cap_error != data->last_cap_error ||
+      data->super_cap_ctrl_cmd != data->last_super_cap_ctrl_cmd) {
+    data->UI_Interactive_Flag.cap_flag = 1;
+    data->last_cap_voltage = data->cap_voltage;
+    data->last_cap_error = data->cap_error;
+    data->last_super_cap_ctrl_cmd = data->super_cap_ctrl_cmd;
+  }
+
+  /* 速度：变化大于 0.05 m/s，或匍匐/腿模式切换 */
+  if (fabsf(data->speed - data->last_speed) > 0.05f || data->speed_is_prostrate != data->last_speed_is_prostrate) {
+    data->UI_Interactive_Flag.speed_flag = 1;
+    data->last_speed = data->speed;
+    data->last_speed_is_prostrate = data->speed_is_prostrate;
+  }
+
+  /* 瞄准：是否锁定目标 */
+  if (data->aim_target_flag != data->last_aim_target_flag) {
+    data->UI_Interactive_Flag.aim_flag = 1;
+    data->last_aim_target_flag = data->aim_target_flag;
+  }
+}
+
+/* ===========================================================================
+ * 主刷新：按脏标志重绘各模块
+ * =========================================================================*/
+
+static void MyUIRefresh(RobotInstance *robot, Referee_Interactive_info_t *data) {
+  if (data->UI_Interactive_Flag.relative_flag) {
+    DrawRelativePosition(data->chassis_relative_angle, UI_Graph_Change);
+    data->UI_Interactive_Flag.relative_flag = 0;
+  }
+  if (data->UI_Interactive_Flag.leg_flag) {
+    DrawLegPosture(robot, UI_Graph_Change);
+    data->UI_Interactive_Flag.leg_flag = 0;
+  }
+  if (data->UI_Interactive_Flag.status_flag) {
+    DrawStatusDynamic(data, UI_Graph_Change);
+    data->UI_Interactive_Flag.status_flag = 0;
+  }
+  if (data->UI_Interactive_Flag.cap_flag) {
+    DrawCapDynamic(data, UI_Graph_Change);
+    data->UI_Interactive_Flag.cap_flag = 0;
+  }
+  if (data->UI_Interactive_Flag.speed_flag) {
+    DrawSpeedDynamic(data, UI_Graph_Change);
+    data->UI_Interactive_Flag.speed_flag = 0;
+  }
+  if (data->UI_Interactive_Flag.aim_flag) {
+    DrawAimIndicator(data->aim_target_flag, UI_Graph_Change);
+    data->UI_Interactive_Flag.aim_flag = 0;
+  }
+}
+
+/* ===========================================================================
+ * 缓存初始化辅助：把 last_* 与当前值同步，避免初始化后立即触发不必要的 CHANGE
+ * =========================================================================*/
+
+static void SyncLastValues(Referee_Interactive_info_t *d) {
+  d->last_chassis_relative_angle = d->chassis_relative_angle;
+
+  d->last_leg_valid = d->leg_valid;
+  d->last_leg_phi1 = d->leg_phi1;
+  d->last_leg_phi2 = d->leg_phi2;
+  d->last_leg_phi3 = d->leg_phi3;
+  d->last_leg_phi4 = d->leg_phi4;
+
+  d->last_robot_mode = d->robot_mode;
+  d->last_chassis_mode = d->chassis_mode;
+  d->last_gimbal_mode = d->gimbal_mode;
+  d->last_friction_mode = d->friction_mode;
+  d->last_loader_mode = d->loader_mode;
+  d->last_super_cap_mode = d->super_cap_mode;
+  d->last_super_cap_ctrl_cmd = d->super_cap_ctrl_cmd;
+
+  d->last_cap_voltage = d->cap_voltage;
+  d->last_cap_error = d->cap_error;
+  d->last_speed = d->speed;
+  d->last_speed_is_prostrate = d->speed_is_prostrate;
+  d->last_aim_target_flag = d->aim_target_flag;
+}
+
+/* ===========================================================================
+ * 公有 API
+ * =========================================================================*/
+
+/**
+ * @brief 全量初始化（清空 + ADD 所有图形）。
+ *
+ * 启动后、客户端重连后、强制刷新时调用。
+ */
+void MyUIInit(RobotInstance *robot) {
+  /* 重新缓存裁判系统数据指针 */
+  referee_recv_info = robot->referee_data;
+
+  /* 等待裁判系统下发有效机器人 ID */
+  while (referee_recv_info->GameRobotState.robot_id == 0) {
+    osDelay(100);
+  }
+
+  /* 配置发送方/客户端 ID，并清空客户端旧 UI */
+  DeterminRobotID();
+  UIDelete(&referee_recv_info->referee_id, UI_Data_Del_ALL, 0);
+  UI_AimCrossVisible = 0;
+
+  /* 采样并同步 last_* 值，再 ADD 全部图形 */
+  interactive_data.chassis_relative_angle = GetRelativeAngle(robot);
+  SampleLegPosture(robot, &interactive_data);
+  SampleStatusData(robot, &interactive_data);
+  SyncLastValues(&interactive_data);
+
+  DrawRelativePosition(interactive_data.chassis_relative_angle, UI_Graph_ADD);
+  DrawAimIndicator(interactive_data.aim_target_flag, UI_Graph_ADD);
+  DrawGuideLine(UI_Graph_ADD);
+  DrawLegLabels(UI_Graph_ADD);
+  DrawLegPosture(robot, UI_Graph_ADD);
+  DrawStatusStatic(UI_Graph_ADD);
+  DrawStatusDynamic(&interactive_data, UI_Graph_ADD);
+  DrawCapStatic(UI_Graph_ADD);
+  DrawCapDynamic(&interactive_data, UI_Graph_ADD);
+  DrawSpeedDynamic(&interactive_data, UI_Graph_ADD);
 }
 
 /**
- * @brief 初始化俯仰角仪表盘UI组件
- * @param[in] center_x 仪表盘圆心X坐标
- * @param[in] center_y 仪表盘圆心Y坐标
- * @param[in] radius 仪表盘半径
- * @return void
+ * @brief 暴露内部交互状态，便于其他模块请求强制刷新或读取当前 UI 数据。
  */
-void UIPitchGaugeInit(uint32_t center_x, uint32_t center_y, uint32_t radius) {
-  const int main_ticks[] = {50, 70, 90, 110, 130};
-  const char *main_labels[] = {"50", "70", "90", "110", "130"};
-  const int sub_ticks[] = {60, 80, 100, 120};
+Referee_Interactive_info_t *getUI(void) { return &interactive_data; }
 
-  for (int i = 0; i < 5; i++) {
-    float ui_angle = 90.0f - (float)main_ticks[i];
-    float angle_rad = ui_angle * 3.1415926535f / 180.0f;
-    uint32_t tick_length = 27;
-
-    int32_t start_x = center_x + (int32_t)(radius * cosf(angle_rad));
-    int32_t start_y = center_y - (int32_t)(radius * sinf(angle_rad));
-    int32_t end_x = center_x + (int32_t)((radius - tick_length) * cosf(angle_rad));
-    int32_t end_y = center_y - (int32_t)((radius - tick_length) * sinf(angle_rad));
-
-    char graph_name[3] = {0};
-    graph_name[0] = 'p';
-    graph_name[1] = 't';
-    graph_name[2] = '0' + i;
-
-    UILineDraw(&UI_pitch_ticks[i], graph_name, UI_Graph_ADD, 8, UI_Color_White, 7, start_x, start_y, end_x, end_y);
-
-    int32_t label_x, label_y;
-    int32_t label_distance = radius - tick_length - 25;
-    int32_t base_x = center_x + (int32_t)(label_distance * cosf(angle_rad));
-    int32_t base_y = center_y - (int32_t)(label_distance * sinf(angle_rad));
-    int32_t text_width = 18;
-    int32_t text_height = 12;
-    float cos_val = cosf(angle_rad);
-    float sin_val = sinf(angle_rad);
-
-    if (cos_val > 0.7f) {
-      label_x = base_x - text_width;
-    } else if (cos_val < -0.7f) {
-      label_x = base_x;
-    } else if (cos_val > 0.3f) {
-      label_x = base_x - text_width / 2;
-    } else if (cos_val < -0.3f) {
-      label_x = base_x - text_width / 2;
-    } else {
-      label_x = base_x - text_width / 2;
-    }
-
-    if (sin_val > 0.7f) {
-      label_y = base_y;
-    } else if (sin_val < -0.7f) {
-      label_y = base_y - text_height;
-    } else if (sin_val > 0.3f) {
-      label_y = base_y - text_height / 2;
-    } else if (sin_val < -0.3f) {
-      label_y = base_y - text_height / 2;
-    } else {
-      label_y = base_y - text_height / 2;
-    }
-
-    switch (main_ticks[i]) {
-      case 50:
-        label_x -= 2;
-        label_y += 4;
-        break;
-      case 70:
-        label_x -= 1;
-        label_y += 2;
-        break;
-      case 90:
-        break;
-      case 110:
-        label_x -= 1;
-        label_y -= 2;
-        break;
-      case 130:
-        label_x -= 2;
-        label_y -= 4;
-        break;
-    }
-
-    char label_name[3] = {0};
-    label_name[0] = 'p';
-    label_name[1] = 'l';
-    label_name[2] = '0' + i;
-
-    UICharDraw(&UI_pitch_labels[i], label_name, UI_Graph_ADD, 8, UI_Color_White, 12, 2, label_x, label_y,
-               main_labels[i]);
-  }
-
-  for (int i = 0; i < 4; i++) {
-    float ui_angle = 90.0f - (float)sub_ticks[i];
-    float angle_rad = ui_angle * 3.1415926535f / 180.0f;
-    uint32_t tick_length = 13;
-
-    int32_t start_x = center_x + (int32_t)(radius * cosf(angle_rad));
-    int32_t start_y = center_y - (int32_t)(radius * sinf(angle_rad));
-    int32_t end_x = center_x + (int32_t)((radius - tick_length) * cosf(angle_rad));
-    int32_t end_y = center_y - (int32_t)((radius - tick_length) * sinf(angle_rad));
-
-    char graph_name[3] = {0};
-    graph_name[0] = 'p';
-    graph_name[1] = 's';
-    graph_name[2] = '0' + i;
-
-    static Graph_Data_t UI_sub_ticks[4];
-    UILineDraw(&UI_sub_ticks[i], graph_name, UI_Graph_ADD, 8, UI_Color_White, 7, start_x, start_y, end_x, end_y);
-    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_sub_ticks[i]);
-  }
-
-  for (int i = 0; i < 5; i++) {
-    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_pitch_ticks[i]);
-    UICharRefresh(&referee_recv_info->referee_id, UI_pitch_labels[i]);
-  }
-}
-
-void MyUIInit(RobotInstance *robot) {
-  referee_recv_info = robot->referee_data;
-
-  while (referee_recv_info->GameRobotState.robot_id == 0) osDelay(100);
-  DeterminRobotID();
-  UIDelete(&referee_recv_info->referee_id, UI_Data_Del_ALL, 0);
-   // 绘制发射基准线
-    UILineDraw(&UI_shoot_line[0], "sl0", UI_Graph_ADD, 7, UI_Color_White, 2, CENTER_X - 300, CENTER_Y, CENTER_X + 300, CENTER_Y);
-    UILineDraw(&UI_shoot_line[1], "sl1", UI_Graph_ADD, 7, UI_Color_White, 1, CENTER_X - 50, CENTER_Y + Aim_Line_1, CENTER_X + 50, CENTER_Y + Aim_Line_1);
-    UILineDraw(&UI_shoot_line[2], "sl2", UI_Graph_ADD, 7, UI_Color_White, 1, CENTER_X - 80, CENTER_Y + Aim_Line_2, CENTER_X + 80, CENTER_Y + Aim_Line_2);
-    UILineDraw(&UI_shoot_line[3], "sl3", UI_Graph_ADD, 7, UI_Color_White, 1, CENTER_X - 120, CENTER_Y + Aim_Line_3, CENTER_X + 120, CENTER_Y + Aim_Line_3);
-    UILineDraw(&UI_shoot_line[4], "sl4", UI_Graph_ADD, 7, UI_Color_White, 1, CENTER_X - 200, CENTER_Y + Aim_Line_4, CENTER_X + 200, CENTER_Y + Aim_Line_4);
-    UILineDraw(&UI_shoot_line[5], "sl5", UI_Graph_ADD, 7, UI_Color_White, 1, CENTER_X, 300, CENTER_X, 650);
-    UIGraphRefresh(&referee_recv_info->referee_id, 5, UI_shoot_line[0], UI_shoot_line[1], UI_shoot_line[2], UI_shoot_line[3], UI_shoot_line[4]);
-    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_shoot_line[5]);
-
-    // 绘制车辆示宽线
-    UILineDraw(&UI_drone_width_line[0], "sl6", UI_Graph_ADD, 7, UI_Color_Green, 2, 960 - WIDTHLINE_UP, 320, 960 - WIDTHLINE_DOWN, 0);
-    UILineDraw(&UI_drone_width_line[1], "sl7", UI_Graph_ADD, 7, UI_Color_Green, 2, 960 + WIDTHLINE_DOWN, 0, 960 + WIDTHLINE_UP, 320);
-    UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_drone_width_line[0], UI_drone_width_line[1]);
-
-    // 绘制发射中心圆
-    UICircleDraw(&UI_shoot_dir_circle[0], "sc0", UI_Graph_ADD, 7, UI_Color_White, 3, 960, 540, 15);
-    //绘制车头方向指示的中心圆
-    UICircleDraw(&UI_shoot_dir_circle[1], "sc1", UI_Graph_ADD, 7, UI_Color_White, 3, 1556, 721, 76);
-    UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_shoot_dir_circle[0],  UI_shoot_dir_circle[1]);
-
-    // 绘制车辆状态标志指示
-    // UICharDraw(&UI_State_sta[0], "ss0", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 750, "chassis:");
-    // UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[0]);
-    UICharDraw(&UI_State_sta[1], "ss1", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 700, "heat:");
-    UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[1]);
-    UICharDraw(&UI_State_sta[2], "ss2", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 650, "bullet:");
-    UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[2]);
-    UICharDraw(&UI_State_sta[3], "ss3", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 600, "frict:");
-    UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[3]);
-    UICharDraw(&UI_State_sta[4], "ss4", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 550, "supercap:");
-    UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[4]);
-
-
-    // 绘制车辆状态标志，动态
-    // 由于初始化时xxx_last_mode默认为0，所以此处对应UI也应该设为0时对应的UI，防止模式不变的情况下无法置位flag，导致UI无法刷新
-    // UICharDraw(&UI_State_dyn[0], "sd0", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 270, 750, "PowerOff");
-    // UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[0]);
-    UICharDraw(&UI_State_dyn[1], "sd1", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 270, 700, "PowerOff");
-    UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[1]);
-    UICharDraw(&UI_State_dyn[2], "sd2", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 270, 650, "off");
-    UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[2]);
-    UICharDraw(&UI_State_dyn[3], "sd3", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 270, 600, "off");
-    UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[3]);
-    UICharDraw(&UI_State_dyn[4], "sd4", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 270, 550, "close ");
-    UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[4]);
-
-    //绘制枪口热度，射频指示
-    // UICharDraw(&UI_Shoot_sta[0], "ss5", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 1500, 750, "SHOOT_HEAT:");
-    // UICharRefresh(&referee_recv_info->referee_id, UI_Shoot_sta[0]);
-    // UICharDraw(&UI_Shoot_sta[1], "ss6", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 1500, 700, "SHOOT_RATE:");
-    // UICharRefresh(&referee_recv_info->referee_id, UI_Shoot_sta[1]);
-
-    //绘制枪口热度，射频指示，动态
-    // UICharDraw(&UI_Shoot_dyn[0], "sd7", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 1700, 750, "0");
-    // UIFloatDraw(&UI_Shoot_dyn[0], "sd7", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 2, 1700, 750, 0);
-    // UICharRefresh(&referee_recv_info->referee_id, UI_Shoot_dyn[0]);
-    // UICharDraw(&UI_Shoot_dyn[1], "sd8", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 1700, 700, "0");
-    // UIFloatDraw(&UI_Shoot_dyn[1], "sd8", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 2, 1700, 700, 0);
-    // UICharRefresh(&referee_recv_info->referee_id, UI_Shoot_dyn[1]);
-
-    // 底盘功率显示，静态
-    // UICharDraw(&UI_State_sta[5], "ss5", UI_Graph_ADD, 7, UI_Color_Green, 18, 2, 620, 230, "Power:");
-    // UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[5]);
-    // 能量条框
-    // UIRectangleDraw(&UI_Energy[0], "ss6", UI_Graph_ADD, 7, UI_Color_Green, 2, 720, 140, 1220, 180);
-    // UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_Energy[0]);
-
-    // 底盘功率显示,动态
-    // UIFloatDraw(&UI_Energy[1], "sd5", UI_Graph_ADD, 8, UI_Color_Green, 18, 2, 2, 750, 230, 24000);
-    // 能量条初始状态
-    // UILineDraw(&UI_Energy[2], "sd6", UI_Graph_ADD, 8, UI_Color_Pink, 30, 720, 160, 1020, 160);
-    // UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_Energy[1], UI_Energy[2]);
-
-    UIPitchGaugeInit(960, 540, 390);
-
-    // 自瞄模式选择器 (假设有3个模式，显示 "A  B  C")
-    UIArcDraw(&UI_autoaim_bg, "ab0", UI_Graph_ADD, 5, UI_Color_White, 168, 192, 14, 960, 540, 310, 240);
-    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_autoaim_bg);
-    UIArcDraw(&UI_autoaim_indicator, "ac0", UI_Graph_ADD, 6, UI_Color_Pink, 168, 180, 14, 960, 540, 310, 240);
-    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_autoaim_indicator);
-    UICharDraw(&UI_autoaim_text, "at0", UI_Graph_ADD, 5, UI_Color_White, 18, 3, 900, 280, "A  B  C");
-    UICharRefresh(&referee_recv_info->referee_id, UI_autoaim_text);
-
-    // 左侧功率/弹量圆弧
-    UIArcDraw(&UI_cap_arc, "ap0", UI_Graph_ADD, 6, UI_Color_Pink, 270, 310, 22, 960, 540, 370, 370);
-    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_cap_arc);
-    // UIArcDraw(&UI_ammo_arc, "aa0", UI_Graph_ADD, 6, UI_Color_Main, 230, 270, 22, 960, 535, 370, 370);
-    // UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_ammo_arc);
-    UICharDraw(&UI_cap_text_E, "ce0", UI_Graph_ADD, 6, UI_Color_White, 17, 2, 610, 545, "E");
-    UICharRefresh(&referee_recv_info->referee_id, UI_cap_text_E);
-    UICharDraw(&UI_cap_text_F, "cf0", UI_Graph_ADD, 6, UI_Color_White, 17, 2, 702, 775, "F");
-    UICharRefresh(&referee_recv_info->referee_id, UI_cap_text_F);
-    UICharDraw(&UI_ammo_text_full, "af0", UI_Graph_ADD, 6, UI_Color_White, 12, 2, 697, 300, "500");
-    UICharRefresh(&referee_recv_info->referee_id, UI_ammo_text_full);
-    UICharDraw(&UI_ammo_text_mid, "am0", UI_Graph_ADD, 6, UI_Color_White, 12, 2, 630, 420, "250");
-    UICharRefresh(&referee_recv_info->referee_id, UI_ammo_text_mid);
-
-    // 摩擦轮转速指示器
-  // 初始化显示左侧摩擦轮转速
-  UICharDraw(&UI_fric_text_down, "fs0", UI_Graph_ADD, 6, UI_Color_White, 18, 2, 1556, 850, "frispeed:0");
-  UICharRefresh(&referee_recv_info->referee_id, UI_fric_text_down);
-
-    // 车头方向动态圆弧
-    UIArcDraw(&UI_yaw_arc, "yd0", UI_Graph_ADD, 6, UI_Color_Main, 15, 345, 23, 1556, 721, 88, 88);
-    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_yaw_arc);
-
-    // 俯仰角仪表盘指针
-    // 绘制指针初始位置（指向90°）
-    UIArcDraw(&UI_pitch_needle, "pn0", UI_Graph_ADD, 6, UI_Color_Pink, 90 - 1, 90 + 1, 45, 960, 540, 365, 365);
-    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_pitch_needle);
-
-    UILineDraw(&Line_DecoMid, "ll0", UI_Graph_ADD, 6, UI_Color_White, 7, 577, 538, 606, 538);
-    UIGraphRefresh(&referee_recv_info->referee_id, 1, Line_DecoMid);
-    UIArcDraw(&Arc_DecoUp, "ll1", UI_Graph_ADD, 6, UI_Color_White, 310, 311, 22, 960, 540, 370, 370);
-    UIGraphRefresh(&referee_recv_info->referee_id, 1, Arc_DecoUp);
-    UIArcDraw(&Arc_DecoDown, "ll2", UI_Graph_ADD, 6, UI_Color_White, 229, 230, 22, 960, 535, 370, 370);
-    UIGraphRefresh(&referee_recv_info->referee_id, 1, Arc_DecoDown);
-}
-
-Referee_Interactive_info_t *getUI() { return &interactive_data; }
-
+/**
+ * @brief 周期性 UI 任务（建议每 UI_TASK_PERIOD_MS 调用一次）。
+ *
+ * 工作流程：
+ *  1. 必要时执行强制全量刷新（手动或周期触发）。
+ *  2. 采样最新数据。
+ *  3. 周期触发部分模块的强制重绘（防止客户端图形丢失）。
+ *  4. 比较脏标志，仅刷新发生变化的模块。
+ */
 void UITask(RobotInstance *robot) {
   referee_recv_info = robot->referee_data;
 
-  // 【1】按键强制清屏重绘（仅当按下 Ctrl 时触发）
-  if (interactive_data.force_refresh_ui == 1) {
-    MyUIInit(robot);  // 只有手动按下 Ctrl，才允许执行全屏 Delete 和静态线 ADD
+  /* ---------- 1. 全量刷新判断 ---------- */
+  static uint16_t auto_refresh_counter = 0;
+  uint8_t need_full_refresh = (interactive_data.force_refresh_ui == 1);
+
+  if (++auto_refresh_counter >= UI_AUTO_REFRESH_INTERVAL_TICKS) {
+    auto_refresh_counter = 0;
+    need_full_refresh = 1;
+  }
+  if (need_full_refresh) {
+    MyUIInit(robot);
     interactive_data.force_refresh_ui = 0;
+    auto_refresh_counter = 0;
+    /* 全量刷新已经画过最新状态，此处直接返回也可，
+       但为了保留原行为（继续往下采样并按脏标志刷新），不直接 return。 */
   }
 
-  // 【2】防丢包心跳保底（不删图层，只重发 CHANGE）
-  static uint16_t slow_refresh_counter = 0;
-  if (++slow_refresh_counter >= 150) {
-    slow_refresh_counter = 0;
-    // 仅仅把所有动态标志位置 1，逼迫 MyUIRefresh 重发一遍最新参数
-    interactive_data.UI_Interactive_Flag.gimbal_flag = 1;
-    interactive_data.UI_Interactive_Flag.shoot_flag = 1;
-    interactive_data.UI_Interactive_Flag.fric_flag = 1;
+  /* ---------- 2. 采样最新数据 ---------- */
+  interactive_data.chassis_relative_angle = GetRelativeAngle(robot);
+  SampleLegPosture(robot, &interactive_data);
+  SampleStatusData(robot, &interactive_data);
+
+  /* ---------- 3. 周期性强制脏标志 ---------- */
+  static uint16_t leg_refresh_counter = 0;
+  if (++leg_refresh_counter >= UI_LEG_REFRESH_INTERVAL_TICKS) {
+    leg_refresh_counter = 0;
+    interactive_data.UI_Interactive_Flag.leg_flag = 1;
+  }
+
+  static uint16_t status_refresh_counter = 0;
+  if (++status_refresh_counter >= UI_STATUS_REFRESH_INTERVAL_TICKS) {
+    status_refresh_counter = 0;
+    interactive_data.UI_Interactive_Flag.status_flag = 1;
     interactive_data.UI_Interactive_Flag.cap_flag = 1;
-    interactive_data.UI_Interactive_Flag.ammo_flag = 1;
-    interactive_data.UI_Interactive_Flag.fric_flag = 1;
-    interactive_data.UI_Interactive_Flag.yaw_flag = 1;
-    interactive_data.UI_Interactive_Flag.pitch_flag = 1;
-    interactive_data.UI_Interactive_Flag.autoaim_flag = 1;
+    interactive_data.UI_Interactive_Flag.speed_flag = 1;
+    interactive_data.UI_Interactive_Flag.aim_flag = 1;
   }
 
-  // 【3】核心修复：必须把真实数据喂给 interactive_data，UIChangeCheck 才能正常工作！
-  // 基础状态
-  interactive_data.robot_mode = robot->robot_mode;
-  if (robot->chassis) {
-    interactive_data.chassis_mode = robot->chassis->chassis_ctrl_cmd.chassis_mode;
-    interactive_data.cap_voltage = robot->chassis->super_cap->cap_msg.cap_v;
-  }
-  if (robot->gimbal) {
-    interactive_data.gimbal_mode = robot->gimbal->gimbal_ctrl_cmd.gimbal_mode;
-    interactive_data.pitch_angle = robot->gimbal->gimbal_ctrl_cmd.pitch;                      // 俯仰角
-    interactive_data.autoaim_mode = (interactive_data.gimbal_mode == GIMBAL_VISION) ? 1 : 0;
-  }
-  if (robot->shoot) {
-    interactive_data.shoot_mode = robot->shoot->shoot_ctrl_cmd.shoot_mode;
-    interactive_data.friction_mode = robot->shoot->shoot_ctrl_cmd.friction_mode;
-    interactive_data.bullet_speed_mode_e = robot->shoot->shoot_ctrl_cmd.bullet_speed_mode;
-    interactive_data.heat_mode_e = robot->shoot->shoot_ctrl_cmd.heat_mode;
-    interactive_data.fric_speed_left = robot->shoot->friction_motor[0]->measure.speed_aps;
-    interactive_data.fric_speed_right = robot->shoot->friction_motor[1]->measure.speed_aps;
-  }
-
-  // 动态数值（如果这里的变量名和你的底层解算名字不一致，请手动微调一下）
-  interactive_data.chassis_relative_angle = robot->offset_angle;  // 底盘朝向
-  if (referee_recv_info) {
-    interactive_data.bullet_left_real =
-        referee_recv_info->ProjectileAllowance.projectile_allowance_17mm;  // 剩余金币或弹量
-  }
-
-
-  // 检查是否有变化
+  /* ---------- 4. 比较 + 刷新 ---------- */
   UIChangeCheck(&interactive_data);
-
-  // 执行UI刷新
-  MyUIRefresh(&interactive_data);
+  MyUIRefresh(robot, &interactive_data);
 }
