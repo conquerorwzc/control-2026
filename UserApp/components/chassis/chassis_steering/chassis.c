@@ -16,6 +16,7 @@
 #include "rm_referee.h"
 // #include "robot_config.h"
 #include "user_lib.h"
+#define SQRT2_OVER_2  0.7071067811865476f   // √2 / 2
 #define MIN_WITH_WHEEL_MAX_SLEW_RATE(var) ((var) < (WHEEL_MAX_SLEW_RATE) ? (var) : (WHEEL_MAX_SLEW_RATE))
 static referee_info_t *referee_data;
 static ChassisInstance *chassis;
@@ -38,10 +39,34 @@ static float k0, k1, k2, k3, k4, k5; // 中科大的功率模型
 static float k0r, k1r, k2r, k3r, k4r, k5r;
 static float r1, r2, r3, r4;
 static float power;
+static float omegaX[4];
+static float omegaY[4];
+static float FK_Vx, FK_Vy,FK_Wz;
+/**
+ * @brief 正向运动学解算用于估算当前底盘实际运动速度
+ */
+static void ForwardKinematicCal()
+{
+    float rudder_angle[4];
+    for (uint8_t i=0;i<4;i++)
+    {
+        rudder_angle[i]=chassis->rudder_motor[i]->measure.angle_single_round-(float)chassis->rudder_offset[i] * ECD_ANGLE_COEF_DJI;
+        if (rudder_angle[i]<0)
+            rudder_angle[i] += 360.0f;
+        omegaX[i]=chassis->wheel_motor[i]->measure.speed_aps*arm_cos_f32(rudder_angle[i]);
+        omegaY[i]=chassis->wheel_motor[i]->measure.speed_aps*arm_sin_f32(rudder_angle[i]);
+    }
+    FK_Vx= (omegaX[0] + omegaX[1] +omegaX[2] + omegaX[3]) / 4.f;
+    FK_Vy= (omegaY[0] + omegaY[1] +omegaY[2] + omegaY[3]) / 4.f;
+    FK_Wz= (-omegaX[0] + omegaY[0] - omegaX[1] - omegaY[1] + omegaX[2] - omegaY[2] + omegaX[3] + omegaY[3]) * SQRT2_OVER_2 /  4;
+}
+static void InverseDynamicCal()
+{
+
+}
 /**
  * @brief 角度标准化
  */
-
 // 函数用于将角度转换为最优角度，带方向控制（必要时反转）和转劣弧
 static float AngleToOptimalAngle(float target_angle, float current_angle, int8_t *direction)
 {
@@ -541,7 +566,11 @@ void ChassisTask()
     power = total_power;
 
     if (chassis_ctrl_cmd->chassis_mode != CHASSIS_POWER_OFF)
+    {
         SteeringCalculate();
+        ForwardKinematicCal();
+    }
+
     SuperCapSendMessage(chassis->super_cap,
        (int16_t)((uint8_t)(referee_data->GameRobotState.chassis_power_limit)),//这里uint8转换确保发送给超电的功率不会超过255
        referee_data->PowerHeatData.buffer_energy,
