@@ -254,6 +254,7 @@ static void EmergencyHandler() {
 
 float pose_time;       //移动时间
 static void SentryCmd() {
+  static float request_timestamp=0;
     if (robot->referee_data->ProjectileAllowance.projectile_allowance_17mm<=50) {
       robot->sentry_mode=DEFENSE_POSE;    //弹丸不足时进入防御姿态
       // robot->chassis->chassis_ctrl_cmd.wz=-2500;
@@ -274,21 +275,30 @@ static void SentryCmd() {
   sentry_cmd->fields.confirm_instant_respawn=robot->referee_data->GameRobotState.current_HP==0
     &&robot->referee_data->ProjectileAllowance.remaining_gold_coin > robot->referee_data->SentryInfo.instant_revive_cost
     &&robot->referee_data->ProjectileAllowance.remaining_gold_coin - robot->referee_data->SentryInfo.instant_revive_cost>=500;               //0为不买活，1为买活
-  if (robot->referee_data->ProjectileAllowance.projectile_allowance_17mm<50) {
+  if (robot->referee_data->ProjectileAllowance.projectile_allowance_17mm<100) {
     if(RFID->RFID1_t.fields.base_boost
       ||RFID->RFID1_t.fields.own_outpost_boost
       ||RFID->RFID1_t.fields.own_overlap_supply_boost
       ||RFID->RFID1_t.fields.own_supply_zone_boost) {
       if (robot->referee_data->ProjectileAllowance.remaining_gold_coin>=200) {
-        sentry_cmd->fields.projectile_amount+=100;   //买弹量，递增式
+        if (time-request_timestamp>=0.5f) {
+          sentry_cmd->fields.projectile_amount+=100;   //买弹量，递增式
+          request_timestamp=time;
+        }
       }
     }
     else {
       if (robot->referee_data->ProjectileAllowance.remaining_gold_coin>=500) {
-        sentry_cmd->fields.projectile_req_cnt+=1;              //远程买弹次数，开局为0，每买一次增加1
-        sentry_cmd->fields.projectile_amount+=100;
+        if (time-request_timestamp>=0.5f) {
+          sentry_cmd->fields.projectile_req_cnt+=1;              //远程买弹次数，开局为0，每买一次增加1
+          sentry_cmd->fields.projectile_amount+=100;
+          request_timestamp=time;
+        }
       }
     }
+  }
+  else {
+    request_timestamp=time;
   }
   // sentry_cmd->fields.hp_req_cnt=0;                              //金币买活次数，开局为0，每买一次增加1
   // sentry_cmd->fields.activate_power_rune=0;                     //哨兵选择开符，0为默认，1为开符
