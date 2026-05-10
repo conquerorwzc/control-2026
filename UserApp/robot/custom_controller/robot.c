@@ -17,9 +17,9 @@
 #define TORQUE_DEADBAND       3.8f    // 所有电机角度死区(度)
 
 // 刚度系数 (Nm/deg) - 降低以避免延迟震荡
-#define TORQUE_K_P_DM4310     0.005f
-#define TORQUE_K_P_DM4340     0.005f
-#define TORQUE_K_P_M6020      0.004f
+#define TORQUE_K_P_DM4310     0.02f
+#define TORQUE_K_P_DM4340     0.02f
+#define TORQUE_K_P_M6020      0.012f
 
 // 阻尼系数 (Nm/(deg/s)) - 本地速度阻尼，抑制震荡
 #define TORQUE_K_D_DM4310     0.006f   
@@ -27,9 +27,9 @@
 #define TORQUE_K_D_M6020      0.003f   
 
 // 力反馈力矩限幅 (仅对力反馈部分限幅)
-#define MAX_FEEDBACK_TORQUE_DM4310  0.30f
-#define MAX_FEEDBACK_TORQUE_DM4340  0.30f
-#define MAX_FEEDBACK_TORQUE_M6020   0.18f
+#define MAX_FEEDBACK_TORQUE_DM4310  0.35f
+#define MAX_FEEDBACK_TORQUE_DM4340  0.35f
+#define MAX_FEEDBACK_TORQUE_M6020   0.20f
 
 // 力矩斜率限制 (Nm/cycle) - 缓解 10Hz 数据跳变
 #define MAX_TORQUE_STEP_DM          0.02f
@@ -140,16 +140,6 @@ static void CalculateFeedbackTorque(float feedback_torques[5])
     static uint32_t last_calc_time = 0;
     static bool feedback_state_inited = false;
 
-    // 方向系数：如果某轴越晃越厉害，尝试将该轴系数改为 -1.0f
-    // 注意：弹簧项和阻尼项都会乘以此系数，确保方向一致
-    static const float feedback_dir[5] = {
-        1.0f,   // yaw
-        1.0f,   // roll
-        1.0f,   // big pitch
-        1.0f,   // small pitch
-        1.0f    // small roll
-    };
-
     if (angle_controller == NULL) {
         for (int i = 0; i < 5; i++) feedback_torques[i] = 0.0f;
         feedback_state_inited = false;
@@ -242,9 +232,8 @@ static void CalculateFeedbackTorque(float feedback_torques[5])
         // 2. 阻尼项 (本地速度)
         float damping_torque = -kd * custom_vel;
 
-        // 3. 总力矩 = 方向系数 * (弹簧 + 阻尼)
-        // 这样如果某个轴符号反了，只改 feedback_dir[i] 就能同时修正弹簧和阻尼
-        float torque = feedback_dir[i] * (spring_torque + damping_torque);
+        // 3. 总力矩 = 弹簧 + 阻尼
+        float torque = spring_torque + damping_torque;
 
         // 4. 限幅
         torque = LimitFloat(torque, -max_torque, max_torque);
@@ -258,7 +247,7 @@ static void CalculateFeedbackTorque(float feedback_torques[5])
 }
 
 /**
- * @brief 应用总力矩控制（力反馈 + 重力补偿）
+ * @brief 应用总力矩控制（力反馈 + 重力补偿）或角度跟随
  */
 static void ApplyTotalTorque(void)
 {
@@ -266,6 +255,34 @@ static void ApplyTotalTorque(void)
         return;
     }
 
+    // mode=2: 角度跟随模式
+    if (angle_controller->robot_grab_mode == 2) {
+        const uint8_t motor_to_angle_map[5] = {
+            0,  // motors[0] (大yaw M6020)
+            1,  // motors[1] (大roll DM4340)
+            2,  // motors[2] (大pitch DM4310)
+            3,  // motors[3] (小pitch DM4310)
+            4   // motors[4] (小roll DM4310)
+        };
+
+        for (int i = 0; i < 5; i++) {
+            uint8_t angle_idx = motor_to_angle_map[i];
+            float target_angle = angle_controller->robot_arm_angles[angle_idx];
+
+            if (angle_controller->motors[i].dm_motor != NULL) {
+                // DM电机使用位置控制（弧度）
+                DMMotorSetPIDRef(angle_controller->motors[i].dm_motor, target_angle * (M_PI / 180.0f));
+            } else if (angle_controller->motors[i].dji_motor != NULL) {
+                // DJI电机（GM6020）使用位置控制（度），需要补回零点偏移
+                // zero_offset[0] = -96.5f，发送时减去了它，接收后要加回来
+                float actual_angle = target_angle + angle_controller->zero_offset[0];
+                DJIMotorSetPIDRef(angle_controller->motors[i].dji_motor, actual_angle);
+            }
+        }
+        return;
+    }
+
+    // mode=1 或其他: 力反馈模式
     float feedback_torques[5];
     float gravity_torques[5];
     float total_torques[5];

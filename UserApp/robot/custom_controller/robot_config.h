@@ -10,29 +10,34 @@
 #include "motor_task.h"
 #include "custom_controller.h"
 
+// ==================== 电机配置文件 (基于 debug 已调优参数) ====================
+// 默认使用双闭环配置，支持角度跟随；力反馈模式下直接下发力矩指令
+
 // 小roll电机 (DM4310) - ID: 0x01, MasterID: 0x11
 static Motor_Init_Config_s DM4310_config_1 = {
     .controller_param_init_config =
         {
-            .angle_PID = {.Kp = 0.0f,
-                          .Ki = 0.0f,
-                          .Kd = 0.0f,
-                          .IntegralLimit = 5.0f,
-                          .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                          .MaxOut = 20.0f},
-            .speed_PID = {.Kp = 0.0f,
-                          .Ki = 0.0f,
-                          .Kd = 0.0f,
-                          .IntegralLimit = 3000,
-                          .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                          .MaxOut = 12000},
+            .angle_PID = {.Kp = 10.0f,
+                          .Ki = 0.00f,
+                          .Kd = 0.00f,
+                          .MaxOut = 8.0f,
+                          .DeadBand = 0.01f,
+                          .Improve = PID_Integral_Limit,
+                          .IntegralLimit = 0.0f},
+            .speed_PID = {.Kp = 0.4f,
+                          .Ki = 0.05f,
+                          .Kd = 0.00f,
+                          .MaxOut = 8.0f,
+                          .DeadBand = 0.01f,
+                          .Improve = PID_Integral_Limit,
+                          .IntegralLimit = 0.5f},
         },
     .controller_setting_init_config =
         {
             .angle_feedback_source = MOTOR_FEED,
             .speed_feedback_source = MOTOR_FEED,
-            .outer_loop_type = OPEN_LOOP,      // 开环，直接输出力矩
-            .close_loop_type = OPEN_LOOP,       // 不使用闭环
+            .outer_loop_type = ANGLE_LOOP,
+            .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
             .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
             .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
         },
@@ -46,15 +51,15 @@ static Motor_Init_Config_s DM4310_config_1 = {
 static Motor_Init_Config_s DM4310_config_2 = {
     .controller_param_init_config =
         {
-            .angle_PID = {.Kp = 12.0f,
+            .angle_PID = {.Kp = 10.0f,
                           .Ki = 0.00f,
                           .Kd = 0.00f,
                           .MaxOut = 8.0f,
                           .DeadBand = 0.01f,
                           .Improve = PID_Integral_Limit,
                           .IntegralLimit = 0.0f},
-            .speed_PID = {.Kp = 0.5f,
-                          .Ki = 0.1f,
+            .speed_PID = {.Kp = 0.4f,
+                          .Ki = 0.05f,
                           .Kd = 0.00f,
                           .MaxOut = 8.0f,
                           .DeadBand = 0.01f,
@@ -65,8 +70,8 @@ static Motor_Init_Config_s DM4310_config_2 = {
         {
             .angle_feedback_source = MOTOR_FEED,
             .speed_feedback_source = MOTOR_FEED,
-            .outer_loop_type = OPEN_LOOP,
-            .close_loop_type = OPEN_LOOP,
+            .outer_loop_type = ANGLE_LOOP,
+            .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
             .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
             .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
         },
@@ -80,15 +85,15 @@ static Motor_Init_Config_s DM4310_config_2 = {
 static Motor_Init_Config_s DM4310_config_3 = {
     .controller_param_init_config =
         {
-            .angle_PID = {.Kp = 12.0f,
+            .angle_PID = {.Kp = 10.0f,
                           .Ki = 0.00f,
                           .Kd = 0.00f,
                           .MaxOut = 8.0f,
                           .DeadBand = 0.01f,
                           .Improve = PID_Integral_Limit,
                           .IntegralLimit = 0.0f},
-            .speed_PID = {.Kp = 0.5f,
-                          .Ki = 0.1f,
+            .speed_PID = {.Kp = 0.4f,
+                          .Ki = 0.05f,
                           .Kd = 0.00f,
                           .MaxOut = 8.0f,
                           .DeadBand = 0.01f,
@@ -99,8 +104,8 @@ static Motor_Init_Config_s DM4310_config_3 = {
         {
             .angle_feedback_source = MOTOR_FEED,
             .speed_feedback_source = MOTOR_FEED,
-            .outer_loop_type = OPEN_LOOP,
-            .close_loop_type = OPEN_LOOP,
+            .outer_loop_type = ANGLE_LOOP,
+            .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
             .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
             .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
         },
@@ -114,17 +119,17 @@ static Motor_Init_Config_s DM4310_config_3 = {
 static Motor_Init_Config_s DM4340_config = {
     .controller_param_init_config =
         {
-            .angle_PID = {.Kp = 12.0f,
+            .angle_PID = {.Kp = 8.0f,
                           .Ki = 0.00f,
                           .Kd = 0.00f,
                           .MaxOut = 8.0f,
                           .DeadBand = 0.01f,
                           .Improve = PID_Integral_Limit,
                           .IntegralLimit = 0.0f},
-            .speed_PID = {.Kp = 0.5f,
+            .speed_PID = {.Kp = 1.0f,
                           .Ki = 0.1f,
                           .Kd = 0.00f,
-                          .MaxOut = 8.0f,
+                          .MaxOut = 5.0f,
                           .DeadBand = 0.01f,
                           .Improve = PID_Integral_Limit,
                           .IntegralLimit = 0.5f},
@@ -133,8 +138,8 @@ static Motor_Init_Config_s DM4340_config = {
         {
             .angle_feedback_source = MOTOR_FEED,
             .speed_feedback_source = MOTOR_FEED,
-            .outer_loop_type = OPEN_LOOP,
-            .close_loop_type = OPEN_LOOP,
+            .outer_loop_type = ANGLE_LOOP,
+            .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
             .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
             .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
         },
@@ -148,32 +153,25 @@ static Motor_Init_Config_s DM4340_config = {
 static Motor_Init_Config_s M6020_config = {
     .controller_param_init_config =
         {
-            .angle_PID = {.Kp = 0.0f,
+            .angle_PID = {.Kp = 80.0f,
                           .Ki = 0.0f,
-                          .Kd = 0.0f,
-                          .IntegralLimit = 5.0f,
+                          .Kd = 1.0f,
+                          .IntegralLimit = 960.0f,
                           .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                          .MaxOut = 20.0f},
-            .speed_PID = {.Kp = 0.0f,
-                          .Ki = 0.0f,
+                          .MaxOut = 1500.0f},
+            .speed_PID = {.Kp = 4.0f,
+                          .Ki = 40.0f,
                           .Kd = 0.0f,
-                          .IntegralLimit = 3000,
+                          .IntegralLimit = 12500.0f,
                           .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                          .MaxOut = 12000},
-            .current_PID = {.Kp = 1.0f,     // 电流环P参数，需要根据实际调试
-                            .Ki = 0.0f,
-                            .Kd = 0.0f,
-                            .IntegralLimit = 5000,
-                            .Improve = PID_Integral_Limit,
-                            .MaxOut = 6000,
-                            .DeadBand = 100},  // 电流环死区：100
+                          .MaxOut = 20000.0f},
         },
     .controller_setting_init_config =
         {
             .angle_feedback_source = MOTOR_FEED,
             .speed_feedback_source = MOTOR_FEED,
-            .outer_loop_type = OPEN_LOOP,      // 开环，直接设置电流
-            .close_loop_type = CURRENT_LOOP,    // 只启用电流环
+            .outer_loop_type = ANGLE_LOOP,
+            .close_loop_type = SPEED_LOOP | ANGLE_LOOP,
             .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
             .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
         },
