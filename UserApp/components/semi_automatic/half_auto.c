@@ -44,7 +44,7 @@ static void Half_Auto_Smooth_Init(Grab_Ctrl_Cmd_s *cmd)
     sc_arm_lift.max_vel = 400.0f; sc_arm_lift.max_accel = 2000.0f; sc_arm_lift.max_jerk = 20000.0f;
 
     SCurvePlanner_Reset(&sc_arm_extend, cmd->arm_extend);
-    sc_arm_extend.max_vel = 800.0f; sc_arm_extend.max_accel = 5000.0f; sc_arm_extend.max_jerk = 50000.0f;
+    sc_arm_extend.max_vel = 800.0f; sc_arm_extend.max_accel = 5000.0f; sc_arm_extend.max_jerk = 10000.0f;
 
     scurve_inited = 1;
 }

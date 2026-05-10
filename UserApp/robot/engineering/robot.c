@@ -445,18 +445,30 @@ static void MouseKeySet()
     }
     else if (grab_control_mode == GRAB_CONTROL_CUSTOM)
     {
-        // 自定义控制器模式：直接根据自制控制器传来的开/关状态赋值
-        if (robot->self_control != NULL)
+        // 自定义控制器模式：键盘和自定义控制器都可以控制夹爪（任一触发即切换）
+
+        // 边缘检测：自定义控制器夹爪按键
+        static uint8_t last_custom_gripper = 0;
+        uint8_t curr_custom_gripper = (robot->self_control != NULL) ?
+            robot->self_control->unpacked_data.gripper_opened : 0;
+
+        // 边缘检测：键盘 Shift+Ctrl+C
+        static uint32_t last_c_count_custom = 0;
+
+        // 任一输入发生边沿变化，都切换夹爪状态
+        uint8_t custom_edge = (curr_custom_gripper != last_custom_gripper);
+        uint8_t keyboard_edge = (current_c_count != last_c_count_custom);
+
+        if (custom_edge || keyboard_edge)
         {
-            if (robot->self_control->unpacked_data.gripper_opened)
-            {
+            if (grab_ctrl_cmd->gripper_state == GRIPPER_CLOSE)
                 grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
-            }
             else
-            {
                 grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
-            }
         }
+
+        last_custom_gripper = curr_custom_gripper;
+        last_c_count_custom = current_c_count;
 
         // 强制同步键鼠的 C 键次数，防止切回键鼠模式时发生冲突
         if (grab_ctrl_cmd->gripper_state == GRIPPER_CLOSE)
@@ -719,15 +731,15 @@ static void SendArmMotorDataTask(void)
         return;
     }
 
-    // 获取机械臂5个关节角度
+    // 获取机械臂5个关节实际测量角度
     float motor_angles[5] = {0.0f};
     if (robot->grab != NULL && robot->grab->arm != NULL && robot->grab->actuator != NULL)
     {
-        motor_angles[0] = robot->grab->arm->base_joint;       // 基座关节
-        motor_angles[1] = robot->grab->arm->elbow_roll;       // 肘部滚转
-        motor_angles[2] = robot->grab->arm->elbow_pitch;      // 肘部俯仰
-        motor_angles[3] = robot->grab->actuator->wrist_pitch; // 腕部俯仰
-        motor_angles[4] = robot->grab->actuator->wrist_roll;  // 腕部滚转
+        motor_angles[0] = robot->grab->grab_measure.base_joint;    // 基座关节
+        motor_angles[1] = robot->grab->grab_measure.elbow_roll;    // 肘部滚转
+        motor_angles[2] = robot->grab->grab_measure.elbow_pitch;   // 肘部俯仰
+        motor_angles[3] = robot->grab->grab_measure.wrist_pitch;   // 腕部俯仰
+        motor_angles[4] = robot->grab->grab_measure.wrist_roll;    // 腕部滚转
     }
 
     // 获取当前机械臂控制模式并发送
