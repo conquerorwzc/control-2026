@@ -49,6 +49,15 @@ static float gravity_comp_scale_roll = 0.5f;   // Roll轴(J2)重力补偿比例
 static float gravity_comp_scale_pitch1 = 1.0f; // Pitch轴(J3)重力补偿比例
 static float gravity_comp_scale_pitch2 = 1.0f; // Pitch轴(J4)重力补偿比例
 
+// 角度跟随模式最大角速度限制 (deg/s) - 保护打印件
+static const float max_follow_speed_deg_s[5] = {
+    30.0f,  // [0] Yaw (大yaw M6020)
+    25.0f,  // [1] Roll (大roll DM4340)
+    25.0f,  // [2] Big Pitch (大pitch DM4310)
+    30.0f,  // [3] Small Pitch (小pitch DM4310)
+    40.0f   // [4] Small Roll (小roll DM4310)
+};
+
 // 自定义控制器实例
 static CustomController_t* angle_controller;
 
@@ -247,6 +256,85 @@ static void CalculateFeedbackTorque(float feedback_torques[5])
 }
 
 /**
+ * @brief 应用角度跟随位置控制（严格限速方案）
+ */
+static void ApplyFollowPositionControl(void)
+{
+    static float target_angles[5] = {0.0f};
+    static bool follow_inited = false;
+    static uint32_t last_follow_time = 0;
+
+    const uint8_t motor_to_angle_map[5] = {
+        0,  // motors[0] (大yaw M6020)
+        1,  // motors[1] (大roll DM4340)
+        2,  // motors[2] (大pitch DM4310)
+        3,  // motors[3] (小pitch DM4310)
+        4   // motors[4] (小roll DM4310)
+    };
+
+    if (angle_controller == NULL) {
+        follow_inited = false;
+        return;
+    }
+
+    if (angle_controller->robot_grab_mode != 2) {
+        follow_inited = false;
+        return;
+    }
+
+    if (!angle_controller->robot_data_valid ||
+        (HAL_GetTick() - angle_controller->last_robot_data_time) > 300) {
+        follow_inited = false;
+        return;
+    }
+
+    uint32_t now = HAL_GetTick();
+    float dt = 0.001f * (float)(now - last_follow_time);
+
+    // 初始化或时间异常时，将目标角度设为当前实际角度
+    if (!follow_inited || dt <= 0.0f || dt > 0.05f) {
+        for (int i = 0; i < 5; i++) {
+            target_angles[i] = angle_controller->motor_angles[i];
+        }
+        last_follow_time = now;
+        follow_inited = true;
+        return;
+    }
+
+    last_follow_time = now;
+
+    for (int i = 0; i < 5; i++) {
+        uint8_t angle_idx = motor_to_angle_map[i];
+        float raw_target = angle_controller->robot_arm_angles[angle_idx];
+
+        // 计算角度差值
+        float delta = raw_target - target_angles[i];
+        
+        // 根据最大角速度限制步长
+        float max_step = max_follow_speed_deg_s[i] * dt;
+
+        // 限幅：确保每周期移动不超过最大允许步长
+        if (delta > max_step) {
+            delta = max_step;
+        } else if (delta < -max_step) {
+            delta = -max_step;
+        }
+
+        target_angles[i] += delta;
+
+        if (angle_controller->motors[i].dm_motor != NULL) {
+            // DM电机使用位置控制（弧度）
+            DMMotorSetPIDRef(angle_controller->motors[i].dm_motor,
+                             target_angles[i] * (M_PI / 180.0f));
+        } else if (angle_controller->motors[i].dji_motor != NULL) {
+            // DJI电机（GM6020）使用位置控制（度），需要补回零点偏移
+            float actual_angle = target_angles[i] + angle_controller->zero_offset[0];
+            DJIMotorSetPIDRef(angle_controller->motors[i].dji_motor, actual_angle);
+        }
+    }
+}
+
+/**
  * @brief 应用总力矩控制（力反馈 + 重力补偿）或角度跟随
  */
 static void ApplyTotalTorque(void)
@@ -255,30 +343,9 @@ static void ApplyTotalTorque(void)
         return;
     }
 
-    // mode=2: 角度跟随模式
+    // mode=2: 角度跟随模式（严格限速）
     if (angle_controller->robot_grab_mode == 2) {
-        const uint8_t motor_to_angle_map[5] = {
-            0,  // motors[0] (大yaw M6020)
-            1,  // motors[1] (大roll DM4340)
-            2,  // motors[2] (大pitch DM4310)
-            3,  // motors[3] (小pitch DM4310)
-            4   // motors[4] (小roll DM4310)
-        };
-
-        for (int i = 0; i < 5; i++) {
-            uint8_t angle_idx = motor_to_angle_map[i];
-            float target_angle = angle_controller->robot_arm_angles[angle_idx];
-
-            if (angle_controller->motors[i].dm_motor != NULL) {
-                // DM电机使用位置控制（弧度）
-                DMMotorSetPIDRef(angle_controller->motors[i].dm_motor, target_angle * (M_PI / 180.0f));
-            } else if (angle_controller->motors[i].dji_motor != NULL) {
-                // DJI电机（GM6020）使用位置控制（度），需要补回零点偏移
-                // zero_offset[0] = -96.5f，发送时减去了它，接收后要加回来
-                float actual_angle = target_angle + angle_controller->zero_offset[0];
-                DJIMotorSetPIDRef(angle_controller->motors[i].dji_motor, actual_angle);
-            }
-        }
+        ApplyFollowPositionControl();
         return;
     }
 
