@@ -326,7 +326,11 @@ static void ChassisCtrlUpdate(void) {
   LQR_K_Calc(chassis->LQR_K, chassis->param.LQR_K_Coefficients, l_l, l_r);
 
   StateErrCalc();
-  PowerControl(chassis);
+  if (chassis_ctrl_cmd->chassis_mode == CHASSIS_PROSTRATE) {
+    PowerControl_Prostrate(chassis);
+  } else {
+    PowerControl(chassis);
+  }
 
   LocomotionController();
   LegController();

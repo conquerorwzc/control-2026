@@ -92,7 +92,7 @@ static float MotorEstimateCurrent(const float k[6], float P_target, float w, flo
 void PowerControl(ChassisInstance* chassis) {
   State_Var_t* sv = &chassis->state_var;
   Power_Ctrl_t* pc = power_ctrl;
-
+  // 1.获取力矩
   for (int i = 0; i < 2; i++) {
     pc->T_motion[i] = 0.0f;
     pc->T_balance[i] = 0.0f;
@@ -106,6 +106,7 @@ void PowerControl(ChassisInstance* chassis) {
     pc->T_balance[1] -= chassis->LQR_K[3][j] * chassis->state_err[j];
   }
 
+  // 2.估算功率和滤波
 #define I_FILTER_COEF 1.0f
 #define W_FILTER_COEF 0.05f
 #define P_FILTER_COEF 0.62f
@@ -134,6 +135,7 @@ void PowerControl(ChassisInstance* chassis) {
   // pc->P_total_ref = chassis->chassis_ctrl_cmd.max_power;
   pc->P_total_ref = 110.f;
 
+  // 3.功率控制逻辑
   if (pc->P_total > pc->P_total_ref) {
     for (int i = 0; i < 2; i++) {
       // 1) 按当前总功率占比分配每电机的许用总功率
@@ -161,6 +163,7 @@ void PowerControl(ChassisInstance* chassis) {
 
     // 两电机给出两个 scale, state_err 在两电机间共享, 取算术平均回写
     pc->scale_combined = (pc->scale_motion[0] + pc->scale_motion[1]) * 0.5f;  // todo: 取最小值还是平均？
+    pc->scale_combined = (pc->scale_motion[0] + pc->scale_motion[1]) * 0.5f;  // todo: 取最小值还是平均？
 
     chassis->state_err[1] *= pc->scale_combined;
     chassis->state_err[2] *= pc->scale_combined;
@@ -182,6 +185,79 @@ void PowerControl(ChassisInstance* chassis) {
       pc->I_ref[i] = pc->I[i];
       pc->T_motion_ref[i] = pc->T_motion[i];
     }
+  }
+}
+
+/**
+ * @brief prostrate模式功率控制
+ *
+ */
+void PowerControl_Prostrate(ChassisInstance* chassis) {
+  Power_Ctrl_t* pc = power_ctrl;
+  // 计算每个电机的功率贡献
+#define I_FILTER_COEF 1.0f
+#define W_FILTER_COEF 0.05f
+#define P_FILTER_COEF 0.02f
+  for (int i = 0; i < 2; i++) {
+    float current_I = chassis->leg[i]->wheel_motor->motor_controller.final_output;
+    // pc->I[i] = pc->I[i] * (1.0f - I_FILTER_COEF) + current_I * I_FILTER_COEF;
+    pc->I[i] = current_I;
+
+    // 对 w 应用一阶低通滤波 (当前不加滤波)
+    float current_w = chassis->leg[i]->wheel_motor->measure.speed_aps / 6.0f;
+    // pc->w[i] = pc->w[i] * (1.0f - W_FILTER_COEF) + current_w * W_FILTER_COEF;
+    pc->w[i] = current_w;
+
+    // 总功率用实际电机电流估算，并应用一阶低通滤波 (当前不加滤波)
+    float current_P = MotorEstimatePower(pc->k, pc->I[i] * DJI_CURRENT_SCALE,
+                                         pc->w[i] * RPM_2_RAD_PER_SEC);  // 使用原始 current_w 计算瞬态功率
+    // pc->P[i] = pc->P[i] * (1.0f - P_FILTER_COEF) + current_P * P_FILTER_COEF;
+    pc->P[i] = current_P;
+  }
+
+  pc->P_total = pc->P[0] + pc->P[1];
+  pc->P_total_ref = chassis->chassis_ctrl_cmd.max_power;
+  // pc->P_total_ref = 60.f;
+
+  // 功率超限时进行动态调整
+  if (pc->P_total > pc->P_total_ref) {
+    float power_scale = (float)pc->P_total_ref / pc->P_total;  // 削减功率比例
+    float scaled_give_power[2];
+    // 计算缩放后的功率目标
+    for (int i = 0; i < 2; i++) {
+      scaled_give_power[i] = pc->P[i] * power_scale;
+    }
+
+    // 重新计算每个电机的电流参考值
+    for (int i = 0; i < 2; i++) {
+      // 二次方程系数计算，参数
+      float a = pc->k[4] * DJI_CURRENT_SCALE * DJI_CURRENT_SCALE;
+      float b = pc->k[1] * DJI_CURRENT_SCALE + pc->k[3] * pc->w[i] * RPM_2_RAD_PER_SEC * DJI_CURRENT_SCALE;
+      float c = pc->k[2] * pc->w[i] * RPM_2_RAD_PER_SEC +
+                pc->k[5] * pc->w[i] * RPM_2_RAD_PER_SEC * pc->w[i] * RPM_2_RAD_PER_SEC - scaled_give_power[i] +
+                pc->k[0];
+      float discriminant = b * b - 4 * a * c;  // 判别式
+      if (discriminant >= 0) {
+        float sqrt_disc = sqrtf(discriminant);
+        float temp1 = (-b + sqrt_disc) / (2 * a);
+        float temp2 = (-b - sqrt_disc) / (2 * a);
+
+        // 选择最接近当前电流的解
+        if (pc->I[i] > 0) {
+          pc->I[i] =
+              (fabsf(temp1 - pc->I[i]) < fabsf(temp2 - pc->I[i])) ? fminf(16000.f, temp1) : fminf(16000.f, temp2);
+        } else {
+          pc->I[i] =
+              (fabsf(temp1 - pc->I[i]) < fabsf(temp2 - pc->I[i])) ? fmaxf(-16000.f, temp1) : fmaxf(-16000.f, temp2);
+        }
+      } else {
+        // 无解时归零
+        pc->I[i] = 0.0f;
+      }
+    }
+  }
+  for (int i = 0; i < 2; i++) {
+    chassis->leg[i]->wheel_motor->motor_controller.final_output = (int16_t)pc->I[i];
   }
 }
 
