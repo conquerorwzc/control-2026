@@ -5,8 +5,8 @@ set(SHOOT_TYPE shoot_standard)
 
 # 开发板类型定义,烧录时注意不要弄错对应功能;修改定义后需要重新CMake&编译,只能存在一个定义!
 # add_compile_definitions(ONE_BOARD)
-add_compile_definitions(GIMBAL_BOARD)
-# add_compile_definitions(CHASSIS_BOARD)
+#add_compile_definitions(GIMBAL_BOARD)
+ add_compile_definitions(CHASSIS_BOARD)
 
 # 控制链路选择
 # add_compile_definitions(USE_RC_CTRL) #遥控器链路

@@ -56,5 +56,6 @@ typedef struct Power_Ctrl_t {
   float scale_combined;   // 用于回写 chassis_ctrl_cmd 的合成缩放
 } Power_Ctrl_t;
 
+void PowerControl_Prostrate(ChassisInstance* chassis);
 void PowerControl(ChassisInstance* chassis);
 void PowerControlInit(ChassisInstance* chassis);
