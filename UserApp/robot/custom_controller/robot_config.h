@@ -17,14 +17,14 @@
 static Motor_Init_Config_s DM4310_config_1 = {
     .controller_param_init_config =
         {
-            .angle_PID = {.Kp = 10.0f,
+            .angle_PID = {.Kp = 9.5f,
                           .Ki = 0.00f,
                           .Kd = 0.00f,
                           .MaxOut = 8.0f,
                           .DeadBand = 0.01f,
                           .Improve = PID_Integral_Limit,
                           .IntegralLimit = 0.0f},
-            .speed_PID = {.Kp = 0.4f,
+            .speed_PID = {.Kp = 0.38f,
                           .Ki = 0.05f,
                           .Kd = 0.00f,
                           .MaxOut = 8.0f,
@@ -51,48 +51,14 @@ static Motor_Init_Config_s DM4310_config_1 = {
 static Motor_Init_Config_s DM4310_config_2 = {
     .controller_param_init_config =
         {
-            .angle_PID = {.Kp = 10.0f,
+            .angle_PID = {.Kp = 9.5f,
                           .Ki = 0.00f,
                           .Kd = 0.00f,
                           .MaxOut = 8.0f,
                           .DeadBand = 0.01f,
                           .Improve = PID_Integral_Limit,
                           .IntegralLimit = 0.0f},
-            .speed_PID = {.Kp = 0.4f,
-                          .Ki = 0.05f,
-                          .Kd = 0.00f,
-                          .MaxOut = 8.0f,
-                          .DeadBand = 0.01f,
-                          .Improve = PID_Integral_Limit,
-                          .IntegralLimit = 0.5f},
-        },
-    .controller_setting_init_config =
-        {
-            .angle_feedback_source = MOTOR_FEED,
-            .speed_feedback_source = MOTOR_FEED,
-            .outer_loop_type = ANGLE_LOOP,
-            .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
-            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
-            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
-        },
-    .motor_type = J4310,
-    .can_init_config.can_handle = &hcan1,
-    .can_init_config.tx_id = 0x02,
-    .can_init_config.rx_id = 0x12,
-};
-
-// 大pitch电机 (DM4310) - ID: 0x03, MasterID: 0x13
-static Motor_Init_Config_s DM4310_config_3 = {
-    .controller_param_init_config =
-        {
-            .angle_PID = {.Kp = 10.0f,
-                          .Ki = 0.00f,
-                          .Kd = 0.00f,
-                          .MaxOut = 8.0f,
-                          .DeadBand = 0.01f,
-                          .Improve = PID_Integral_Limit,
-                          .IntegralLimit = 0.0f},
-            .speed_PID = {.Kp = 0.4f,
+            .speed_PID = {.Kp = 0.38f,
                           .Ki = 0.05f,
                           .Kd = 0.00f,
                           .MaxOut = 8.0f,
@@ -108,6 +74,40 @@ static Motor_Init_Config_s DM4310_config_3 = {
             .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
             .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
             .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+        },
+    .motor_type = J4310,
+    .can_init_config.can_handle = &hcan1,
+    .can_init_config.tx_id = 0x02,
+    .can_init_config.rx_id = 0x12,
+};
+
+// 大pitch电机 (DM4310) - ID: 0x03, MasterID: 0x13
+static Motor_Init_Config_s DM4310_config_3 = {
+    .controller_param_init_config =
+        {
+            .angle_PID = {.Kp = 9.5f,
+                          .Ki = 0.00f,
+                          .Kd = 0.00f,
+                          .MaxOut = 8.0f,
+                          .DeadBand = 0.01f,
+                          .Improve = PID_Integral_Limit,
+                          .IntegralLimit = 0.0f},
+            .speed_PID = {.Kp = 0.38f,
+                          .Ki = 0.05f,
+                          .Kd = 0.00f,
+                          .MaxOut = 8.0f,
+                          .DeadBand = 0.01f,
+                          .Improve = PID_Integral_Limit,
+                          .IntegralLimit = 0.5f},
+        },
+    .controller_setting_init_config =
+        {
+            .angle_feedback_source = MOTOR_FEED,
+            .speed_feedback_source = MOTOR_FEED,
+            .outer_loop_type = ANGLE_LOOP,
+            .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
+            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
         },
     .motor_type = J4310,
     .can_init_config.can_handle = &hcan1,
@@ -153,18 +153,18 @@ static Motor_Init_Config_s DM4340_config = {
 static Motor_Init_Config_s M6020_config = {
     .controller_param_init_config =
         {
-            .angle_PID = {.Kp = 80.0f,
+            .angle_PID = {.Kp = 40.0f,
                           .Ki = 0.0f,
-                          .Kd = 1.0f,
-                          .IntegralLimit = 960.0f,
+                          .Kd = 1.3f,
+                          .IntegralLimit = 800.0f,
                           .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                           .MaxOut = 1500.0f},
-            .speed_PID = {.Kp = 4.0f,
+            .speed_PID = {.Kp = 3.0f,
                           .Ki = 40.0f,
                           .Kd = 0.0f,
-                          .IntegralLimit = 12500.0f,
+                          .IntegralLimit = 4650.0f,
                           .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                          .MaxOut = 20000.0f},
+                          .MaxOut = 13500.0f},
         },
     .controller_setting_init_config =
         {
