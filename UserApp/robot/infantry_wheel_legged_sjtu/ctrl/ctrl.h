@@ -20,6 +20,7 @@ typedef struct {
     float vy;               // 底盘 Y 向期望速度 (前后)，归一化 [-1.0, 1.0]
     float leg_length_delta; // 腿长增量
     float roll_delta;       // Roll(横滚/pike) 增量
+    float gimbal_yaw_ff;    // 云台 yaw 输入预判前馈 (deg), 叠加到 FOLLOW 的 target_yaw
 } Ctrl_Intent_s;
 
 /**

@@ -72,8 +72,6 @@ typedef struct {
   ShootInstance* shoot;
 
   Vision_Receive_s* vision_recv_data;
-  PIDInstance chassis_rotate_PID;
-  PIDInstance chassis_vx_PID;
 
 #ifndef ONE_BOARD
   Chassis_Upload_Data_s* chassis_upload_data;  // 此处chassis定义为chassis_board, 而非chassis模组, 故所有处理在robot中

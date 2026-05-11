@@ -68,7 +68,7 @@
 
 | 摇杆                      | 功能                             | 增益系数 |
 | ------------------------- | -------------------------------- | -------- |
-| 右摇杆 水平 (`rocker_r_`) | 云台 Yaw 增量                    | −0.00035 |
+| 右摇杆 水平 (`rocker_r_`) | 云台 Yaw 增量 + FOLLOW yaw 前馈  | −0.00035 |
 | 右摇杆 垂直 (`rocker_r1`) | 云台 Pitch 增量（仅右拨杆 ≠ 上） | −0.00006 |
 | 左摇杆 水平 (`rocker_l_`) | 底盘速度 X 分量（因模式而异）    | 见各模式 |
 | 左摇杆 垂直 (`rocker_l1`) | 底盘速度 Y 分量（因模式而异）    | 见各模式 |
@@ -83,10 +83,11 @@
    - `follow_err = atan2(vy, vx) − 90° − offset_angle`
    - 误差归一化到 ±180°
    - 倒车优化：`|err| > 90°` 时反向行驶并修正角度
-   - `target_yaw = IMU_yaw + follow_err`
+   - `yaw_ff = clamp(云台 yaw 输入增量 × 10.0, ±12°)`（右摇杆/鼠标 X 预判）
+   - `target_yaw = IMU_yaw + follow_err + yaw_ff`
    - 对齐衰减：`vx *= cos³(follow_err)`
 3. 无输入时：
-   - `target_yaw = IMU_yaw − offset_angle`（静止回正）
+   - `target_yaw = IMU_yaw − offset_angle + yaw_ff`（静止回正 + 云台输入预判）
 4. 速度限幅：±2.50 m/s
 5. `theta_ff = 0`（前馈关闭）
 
@@ -135,7 +136,7 @@
 
 | 操作            | 当前行为                                      | 最终生效位置  |
 | --------------- | --------------------------------------------- | ------------- |
-| 鼠标 X 移动     | `gimbal_ctrl_cmd->yaw += -mouse.x * 0.002`    | 本函数直接累加 |
+| 鼠标 X 移动     | `gimbal_ctrl_cmd->yaw += -mouse.x * 0.002`，并写入 `gimbal_yaw_ff` | 本函数直接累加 |
 | 鼠标 Y 移动     | `gimbal_ctrl_cmd->pitch += -mouse.y * 0.002`  | 本函数直接累加 |
 | 左键按住        | 摩擦轮开启时置 `mouse_fire = 1`               | `CtrlSolve()` |
 | 左键长按 > 0.3s | 摩擦轮开启时置 `mouse_burst = 1`              | `CtrlSolve()` |
@@ -143,7 +144,7 @@
 
 左键松开时会刷新 `mouse_trigger_time`，所以下一次按下从 0 开始计时。开火模式在 `CtrlSolve()` 中与遥控器扳机 OR 合并：连发优先，其次单发，否则停止拨弹。
 
-右键自瞄不是在 `MouseKeyCtrl()` 内直接改云台模式；它只设置请求 flag。`CtrlSolve()` 看到 `mk_request_vision` 后才把云台切到 `GIMBAL_VISION`，并用视觉 yaw/pitch 覆盖前面累加的手动云台输入。
+右键自瞄不是在 `MouseKeyCtrl()` 内直接改云台模式；它只设置请求 flag。`CtrlSolve()` 看到 `mk_request_vision` 后才把云台切到 `GIMBAL_VISION`，并用视觉 yaw/pitch 覆盖前面累加的手动云台输入，同时清零 `gimbal_yaw_ff`。
 
 ### 2.3 移动键 (WASD)
 

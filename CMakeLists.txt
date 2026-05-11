@@ -22,11 +22,6 @@ if(NOT DEFINED CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Debug")
 endif() # Debug Release RelWithDebInfo MinSizeRel
 
-if(NOT DEFINED MCU_TYPE)
-#    set(MCU_TYPE "stm32-f4")
-     set(MCU_TYPE "stm32-h7")
-endif()
-
 #set(ROBOT_TYPE "steering_infantry_gimbal")
 #set(ROBOT_TYPE "sentry_mecanum")
 #set(ROBOT_TYPE "engineering")
@@ -38,18 +33,6 @@ set(ROBOT_TYPE "infantry_wheel_legged_sjtu")
 #set(ROBOT_TYPE "infantry_mecanum")
 #set(ROBOT_TYPE "dart")
 #set(ROBOT_TYPE "debug")；
-
-include(${CMAKE_SOURCE_DIR}/Hardware/${MCU_TYPE}/${MCU_TYPE}.cmake)
-
-# Generic compiler settings for optimization and basic link lib
-add_compile_options(-pipe ${MCU_FLAGS} -Wall -fmessage-length=0 # basic options
-        -ffunction-sections -fdata-sections -fno-common # optimize options
-)
-add_link_options(-pipe ${MCU_FLAGS} -T${LINKER_SCRIPT} -Wl,--no-warn-rwx-segments # close RWX warning
-        -lm -lc # lib options
-        -Wl,--gc-sections -flto -specs=nano.specs # optimize options
-        -Wl,-Map=${PROJECT_BINARY_DIR}/${PROJECT_NAME}.map -Wl,--cref -Wl,--print-memory-usage # map options
-) # if your executable is too large , try option '-s' to strip symbols
 
 # 递归包含头文件的函数
 function(include_sub_directories_recursively root_dir)
@@ -66,19 +49,33 @@ function(include_sub_directories_recursively root_dir)
     endforeach ()
 endfunction()
 
+# robot.cmake 根据 BOARD_TYPE 设置 MCU_TYPE，因此必须在 hardware cmake 之前 include
+include(${CMAKE_SOURCE_DIR}/UserApp/robot/${ROBOT_TYPE}/robot.cmake)
+
+include(${CMAKE_SOURCE_DIR}/Hardware/${MCU_TYPE}/${MCU_TYPE}.cmake)
+
+# Generic compiler settings for optimization and basic link lib
+add_compile_options(-pipe ${MCU_FLAGS} -Wall -fmessage-length=0 # basic options
+        -ffunction-sections -fdata-sections -fno-common # optimize options
+)
+add_link_options(-pipe ${MCU_FLAGS} -T${LINKER_SCRIPT} -Wl,--no-warn-rwx-segments # close RWX warning
+        -lm -lc # lib options
+        -Wl,--gc-sections -flto -specs=nano.specs # optimize options
+        -Wl,-Map=${PROJECT_BINARY_DIR}/${PROJECT_NAME}.map -Wl,--cref -Wl,--print-memory-usage # map options
+) # if your executable is too large , try option '-s' to strip symbols
+
 include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/Hardware/${MCU_TYPE})
 include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/Bsp)
 include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/Modules)
 include_directories(${CMAKE_SOURCE_DIR}/UserApp)
 
-file(GLOB_RECURSE SOURCES
+file(GLOB_RECURSE BASE_SOURCES
         "Hardware/${MCU_TYPE}/*.c"
         "Bsp/*.c"
         "Modules/*.c"
         "UserApp/os_task.c"
 )
-
-include(${CMAKE_SOURCE_DIR}/UserApp/robot/${ROBOT_TYPE}/robot.cmake)
+list(APPEND SOURCES ${BASE_SOURCES})
 
 # Build types
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Release")

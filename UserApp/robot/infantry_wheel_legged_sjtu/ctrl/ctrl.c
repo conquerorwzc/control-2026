@@ -39,10 +39,10 @@ Ramp_Controller_t vx_ramp = {
     .max_v = 15.0f,
     .max_accel = 2.0f,
     .min_accel = 0.05f,
-    .accel_base_speed = 0.3f,
-    .max_decel = 3.7f,
-    .min_decel = 1.0f,
-    .decel_base_speed = 0.3f,
+    .accel_base_speed = 0.7f,
+    .max_decel = 4.7f,
+    .min_decel = 2.0f,
+    .decel_base_speed = 0.7f,
     .k_p_vel = 0.35f,
 };
 
@@ -58,11 +58,59 @@ Ramp_Controller_t wz_ramp = {
     .k_p_vel = 0.35f,
 };
 
+#define FOLLOW_TARGET_YAW_FF_GAIN 10.0f
+#define FOLLOW_TARGET_YAW_FF_MAX_DEG 12.0f
+
+static void ResetRampState(Ramp_Controller_t* ramp) {
+  if (ramp == NULL) return;
+  ramp->planning_v = 0.0f;
+  ramp->expected_a = 0.0f;
+}
+
+static void ResetChassisMotionMemory(RobotInstance* robot) {
+  ResetRampState(&vx_ramp);
+  ResetRampState(&wz_ramp);
+
+  if (robot == NULL || robot->chassis == NULL) return;
+
+  Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
+  chassis_ctrl_cmd->vx = 0.0f;
+  chassis_ctrl_cmd->wz = 0.0f;
+  chassis_ctrl_cmd->theta_ff = 0.0f;
+  chassis_ctrl_cmd->is_rotate = 0;
+  robot->chassis->state_var.x_b = 0.0f;
+  robot->chassis->last_state_var.x_b = 0.0f;
+}
+
+static uint8_t IsProstrateRobotMode(Robot_Mode_e mode) {
+  return mode == ROBOT_CHASSIS_PROSTRATE_FOLLOW || mode == ROBOT_CHASSIS_PROSTRATE_ROTATE;
+}
+
+static void ResetMotionMemoryOnPostureEdge(RobotInstance* robot) {
+  static uint8_t has_last_mode = 0;
+  static uint8_t was_prostrate = 0;
+
+  uint8_t is_prostrate = IsProstrateRobotMode(robot->robot_mode);
+  if (!has_last_mode || is_prostrate != was_prostrate || robot->robot_mode == ROBOT_POWER_OFF) {
+    ResetChassisMotionMemory(robot);
+  }
+
+  was_prostrate = is_prostrate;
+  has_last_mode = 1;
+}
+
+static float CalcFollowTargetYawFeedforward(float gimbal_yaw_delta_deg) {
+  float yaw_ff = gimbal_yaw_delta_deg * FOLLOW_TARGET_YAW_FF_GAIN;
+  VAL_LIMIT(yaw_ff, -FOLLOW_TARGET_YAW_FF_MAX_DEG, FOLLOW_TARGET_YAW_FF_MAX_DEG);
+  return yaw_ff;
+}
+
 // ==========================================
 // 统一的机器人运动解算层
 // ==========================================
 static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
   Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
+  ResetMotionMemoryOnPostureEdge(robot);
   float input_mag = sqrtf(intent->vx * intent->vx + intent->vy * intent->vy);
 
   // 小陀螺标志: 仅 LQR 平衡态下的 ROTATE 才使能 (PROSTRATE_ROTATE 走 ChassisProstrateMode, 不进 LQR)
@@ -76,7 +124,7 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
   switch (robot->robot_mode) {
     case ROBOT_CHASSIS_ROTATE: {
       // 小陀螺频率设置
-      float rotate_frequency = 6.0f;
+      float rotate_frequency = 60.0f;
       // 小陀螺原地旋转
       float rotate_omega = rotate_frequency * 2.0f * PI;
       // chassis_ctrl_cmd->target_yaw += rotate_omega * robot->dt;
@@ -96,9 +144,8 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
         follow_err = rear_err;
         if (has_move_input) input_mag = -input_mag;
       }
-      chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + follow_err * DEGREE_2_RAD;
-      // 跟随当前机体角速度 → state_err[3]=0, LQR d_phi 项不参与输出, 仅由 yaw 位置误差驱动转向
-      // chassis_ctrl_cmd->wz = robot->chassis->imu->Gyro[2];
+      chassis_ctrl_cmd->target_yaw =
+          robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + (follow_err + intent->gimbal_yaw_ff) * DEGREE_2_RAD;
       chassis_ctrl_cmd->wz = 0.0f;
 
       VAL_LIMIT(input_mag, -2.97f, 2.97f);
@@ -159,8 +206,8 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
         follow_err = rear_err;
         if (has_move_input) input_mag = -input_mag;
       }
-      chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + follow_err * DEGREE_2_RAD;
-      if (has_move_input) chassis_ctrl_cmd->wz = follow_err;  // 目标 yaw 角速度(rad/s) 前馈
+      chassis_ctrl_cmd->target_yaw =
+          robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + (follow_err + intent->gimbal_yaw_ff) * DEGREE_2_RAD;
 
       VAL_LIMIT(input_mag, -800.f, 800.f);
 
@@ -255,7 +302,9 @@ void JoyStickCtrl(RobotInstance* robot) {
 
   Gimbal_Ctrl_Cmd_s* gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-  gimbal_ctrl_cmd->yaw += -0.00035f * (float)rc_data[TEMP].rc.rocker_r_;
+  float gimbal_yaw_delta = -0.00035f * (float)rc_data[TEMP].rc.rocker_r_;
+  gimbal_ctrl_cmd->yaw += gimbal_yaw_delta;
+  intent.gimbal_yaw_ff += CalcFollowTargetYawFeedforward(gimbal_yaw_delta);
   gimbal_ctrl_cmd->pitch += -0.00006f * (float)rc_data[TEMP].rc.rocker_r1;
 
   if (robot->robot_mode == ROBOT_CHASSIS_ROTATE) {
@@ -319,7 +368,9 @@ void MouseKeyCtrl(RobotInstance* robot) {
     gimbal_ctrl_cmd->pitch = vision_recv_data->gimbal_receive.pitch;
   } else {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-    gimbal_ctrl_cmd->yaw += -(float)rc_data[TEMP].mouse.x * 0.002f;
+    float gimbal_yaw_delta = -(float)rc_data[TEMP].mouse.x * 0.002f;
+    gimbal_ctrl_cmd->yaw += gimbal_yaw_delta;
+    intent.gimbal_yaw_ff += CalcFollowTargetYawFeedforward(gimbal_yaw_delta);
     gimbal_ctrl_cmd->pitch += -(float)rc_data[TEMP].mouse.y * 0.002f;
 
     if (rc_data[TEMP].key[KEY_PRESS].x != x_key_last) {
@@ -440,10 +491,7 @@ void EmergencyHandler(RobotInstance* robot) {
     shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
     shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
-    vx_ramp.planning_v = 0.0f;
-    vx_ramp.expected_a = 0.0f;
-    wz_ramp.planning_v = 0.0f;
-    wz_ramp.expected_a = 0.0f;
+    ResetChassisMotionMemory(robot);
     LOGERROR("[CMD] emergency stop!");
   } else {
     LOGINFO("[CMD] reinstate, robot ready");
@@ -477,9 +525,10 @@ static uint8_t mk_jump_started_seen_active = 0;
 static float mk_jump_started_time = 0.0f;
 static uint8_t mk_stand_mode = 0;
 
-// 三档腿长: LOW=initial_leg_length, MID=(MAX+initial)/2, HIGH=LEG_MAX_LENGTH
-static const float LEG_TABLE[3] = {0.20f, 0.285f, 0.370f};
-static int leg_step = 0;
+// 四档腿长: MIN=LEG_MIN_LENGTH, DEFAULT=initial_leg_length, MID=(MAX+initial)/2, HIGH=LEG_MAX_LENGTH
+// 初始 leg_step=1 对应 initial_leg_length, 与 chassis 上电默认腿长一致.
+static const float LEG_TABLE[4] = {LEG_MIN_LENGTH, 0.20f, 0.285f, 0.370f};
+static int leg_step = 1;
 
 static uint8_t OcdIsStand(void) {
   return mk_stand_mode;
@@ -571,7 +620,9 @@ void JoyStickCtrl(RobotInstance* robot) {
   // 设置控制量
   Gimbal_Ctrl_Cmd_s* gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-  gimbal_ctrl_cmd->yaw += -0.00035f * (float)rc_data->rc.rocker_r_;
+  float gimbal_yaw_delta = -0.00035f * (float)rc_data->rc.rocker_r_;
+  gimbal_ctrl_cmd->yaw += gimbal_yaw_delta;
+  intent_shared.gimbal_yaw_ff += CalcFollowTargetYawFeedforward(gimbal_yaw_delta);
   if (!(is_stand && is_free)) {
     gimbal_ctrl_cmd->pitch += -0.00006f * (float)rc_data->rc.rocker_r1;
   }
@@ -622,7 +673,11 @@ void MouseKeyCtrl(RobotInstance* robot) {
   }
 
   // 鼠标手动云台增量 (与 JS 摇杆 += 加性叠加; 自瞄激活时 CtrlSolve 会覆盖)
-  gimbal_ctrl_cmd->yaw += -(float)rc_data->mouse_key.mouse.x * 0.002f;
+  float gimbal_yaw_delta = -(float)rc_data->mouse_key.mouse.x * 0.002f;
+  gimbal_ctrl_cmd->yaw += gimbal_yaw_delta;
+  if (!mk_request_vision) {
+    intent_shared.gimbal_yaw_ff += CalcFollowTargetYawFeedforward(gimbal_yaw_delta);
+  }
   gimbal_ctrl_cmd->pitch += -(float)rc_data->mouse_key.mouse.y * 0.002f;
 
   // X 边沿: 云台 +180 度掉头
@@ -654,7 +709,7 @@ void MouseKeyCtrl(RobotInstance* robot) {
   const uint8_t r_pressed = rc_data->mouse_key.keyboard.r && !rc_data_last.mouse_key.keyboard.r;
   const uint8_t f_pressed = rc_data->mouse_key.keyboard.f && !rc_data_last.mouse_key.keyboard.f;
   if (r_pressed) {
-    if (leg_step < 2) leg_step++;
+    if (leg_step < 3) leg_step++;
     mk_set_leg_length = 1;
     mk_leg_length_target = LEG_TABLE[leg_step];
   }
@@ -738,6 +793,7 @@ void CtrlSolve(RobotInstance* robot) {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_VISION;
     gimbal_ctrl_cmd->yaw = robot->vision_recv_data->gimbal_receive.yaw;
     gimbal_ctrl_cmd->pitch = robot->vision_recv_data->gimbal_receive.pitch;
+    intent_shared.gimbal_yaw_ff = 0.0f;
   }
 
   // 2. 开火 OR 合并 (沿用 six_wheel pattern)
@@ -809,20 +865,24 @@ void EmergencyHandler(RobotInstance* robot) {
   Gimbal_Ctrl_Cmd_s* gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   Shoot_Ctrl_Cmd_s* shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
 
-  if (switch_left(rc_data->rc.mode_switch) || rc_data == NULL) {
+  if (rc_data == NULL || switch_left(rc_data->rc.mode_switch)) {
     robot->robot_mode = ROBOT_POWER_OFF;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
     chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
     shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
     shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
+    mk_jump_ready = 0;
+    mk_jump_started = 0;
+    mk_jump_started_seen_active = 0;
+    ResetChassisMotionMemory(robot);
     LOGERROR("[CMD] emergency stop!");
   } else if ((robot_lost_control) && (chassis_ctrl_cmd->chassis_mode != CHASSIS_PROSTRATE)) {
     chassis_ctrl_cmd->chassis_mode = CHASSIS_RECOVERY;
   } else {
     LOGINFO("[CMD] reinstate, robot ready");
   }
-  if (switch_middle(rc_data->rc.mode_switch)) {
+  if (rc_data != NULL && switch_middle(rc_data->rc.mode_switch)) {
     shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
     shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;

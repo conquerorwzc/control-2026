@@ -42,32 +42,25 @@ void VOFATask() {
 #if defined(GIMBAL_BOARD)
   visualized_data[0] = robot->gimbal->gimbal_IMU_data->Yaw;
   visualized_data[1] = robot->gimbal->gimbal_IMU_data->Pitch;
-  visualized_data[2] = robot->shoot->friction_motor[0]->motor_controller.pid_ref;
-  visualized_data[3] = robot->shoot->friction_motor[0]->measure.speed_aps;
-  visualized_data[4] = robot->shoot->friction_motor[1]->motor_controller.pid_ref;
-  visualized_data[5] = robot->shoot->friction_motor[1]->measure.speed_aps;
-  visualized_data[6] = robot->shoot->shoot_ctrl_cmd.initial_speed;
-  visualized_data[7] = robot->shoot->loader_motor->measure.total_angle;
-  visualized_data[8] = robot->gimbal->pitch_motor->motor_controller.pid_ref;
-  visualized_data[9] = robot->gimbal->yaw_motor->motor_controller.pid_ref;
-  visualized_data[10] = robot->gimbal->pitch_motor->motor_controller.final_output;
-  visualized_data[11] = shoot_init_config.shoot_param.shooter_barrel_cooling_value;
-  visualized_data[12] = shoot_init_config.shoot_param.shooter_barrel_cooling_value;
-  visualized_data[13] = shoot_init_config.shoot_param.shooter_barrel_cooling_value;
+  visualized_data[2] = robot->gimbal->gimbal_IMU_data->Roll;
+
 #elif defined(ONE_BOARD) || defined(CHASSIS_BOARD)
+  // visualized_data[0] = robot->chassis->state_var.x_b;
+  // visualized_data[1] = robot->chassis->state_var.x_b_d;
+  // visualized_data[2] = robot->chassis->chassis_ctrl_cmd.vx;
+  // visualized_data[0] = robot->chassis->chassis_ctrl_cmd.wz;
+  // visualized_data[1] = robot->chassis->state_var.phi_d;
+  // visualized_data[2] = robot->chassis->chassis_ctrl_cmd.target_yaw;
+  // visualized_data[3] = robot->chassis->state_var.phi;
+  // visualized_data[4] = robot->chassis->state_var.theta_b * RAD_2_DEGREE;
+  // visualized_data[5] = robot->chassis->roll_PID.Ref * RAD_2_DEGREE;
+  // visualized_data[6] = robot->chassis->roll_PID.Measure * RAD_2_DEGREE;
   visualized_data[0] = robot->chassis->power_ctrl->P_total;
-  visualized_data[1] = robot->chassis->power_ctrl->P[0];
-  visualized_data[2] = robot->chassis->power_ctrl->P_total_ref;
-  visualized_data[3] = robot->chassis->power_ctrl->P_ref[0];
-  visualized_data[4] = robot->chassis->power_ctrl->T_motion[0];
-  visualized_data[5] = robot->chassis->power_ctrl->T_motion_ref[0];
-  visualized_data[6] = robot->chassis->power_ctrl->T_balance[0];
-  visualized_data[7] = robot->chassis->power_ctrl->I[0];
-  visualized_data[8] = robot->chassis->power_ctrl->I_ref[0];
-  visualized_data[9] = robot->chassis->power_ctrl->scale_combined;
-  visualized_data[10] = robot->chassis->power_ctrl->I[1];
-  visualized_data[11] = robot->chassis->power_ctrl->w[0];
-  visualized_data[12] = robot->chassis->power_ctrl->w[1];
+  visualized_data[1] = robot->chassis->power_ctrl->P_total_ref;
+  visualized_data[2] = robot->chassis->power_ctrl->scale_combined;
+  visualized_data[3] = robot->chassis->power_ctrl->P[0];
+  visualized_data[4] = robot->chassis->power_ctrl->I[0];
+  visualized_data[5] = robot->chassis->power_ctrl->w[0];
 #endif
   VOFAJustFloatSend(visualized_data, 20);
 }
@@ -212,8 +205,8 @@ static void CalcOffsetAngle() {
 
 /**
  * @brief 云台对齐底盘正方向
- * @note 每次进入 recovery 时，覆盖 gimbal yaw 指令将云台转向底盘正前方。
- * 对齐完成前持续强制 CHASSIS_RECOVERY；对齐后放行，恢复正常控制。
+ * @note 上电时先接管 gimbal yaw 指令，将云台转向当前底盘正前方；
+ * recovery 中也会接管 yaw，并在对齐前保持 CHASSIS_RECOVERY。
  * 必须在 CalcOffsetAngle() 之后调用。
  */
 static void GimbalAlignToChassisForward(void) {
@@ -268,6 +261,11 @@ void RobotCMDTask() {
 
 void RobotInit() {
   robot = (RobotInstance*)zmalloc(sizeof(RobotInstance));
+#if defined(GIMBAL_BOARD)
+  robot->update_flag.is_gimbal_aligned = 0;
+#elif defined(ONE_BOARD)
+  robot->update_flag.is_gimbal_aligned = 1;
+#endif
 #if !defined(CHASSIS_BOARD)
   // 遥控器初始化
 #if defined(STM32F4)
@@ -284,10 +282,6 @@ void RobotInit() {
   robot->rc_data = VT13RemoteInit(&huart5);  // Assuming VT13RemoteInit on H7
 #endif
 #endif
-#endif
-#if !defined(GIMBAL_BOARD)
-  PIDInit(&robot->chassis_rotate_PID, &chassis_rotate_PID_config);
-  PIDInit(&robot->chassis_vx_PID, &chassis_vx_PID_config);
 #endif
 #if !defined(GIMBAL_BOARD)
   robot->referee_data = RefereeInit(&huart7);  // 裁判系统初始化
@@ -316,16 +310,6 @@ void RobotTask() {
 #if !defined(GIMBAL_BOARD)
   float raw_vx = chassis_ctrl_cmd->vx;
   float raw_yaw = chassis_ctrl_cmd->target_yaw;
-
-  // 进 LQR 前叠加 PID 补偿，提升响应并消除稳态误差
-  if ((chassis_ctrl_cmd->chassis_mode == CHASSIS_ON || chassis_ctrl_cmd->chassis_mode == CHASSIS_JUMP_READY ||
-       chassis_ctrl_cmd->chassis_mode == CHASSIS_JUMP_START) &&
-      chassis_ctrl_cmd->chassis_mode != CHASSIS_PROSTRATE && robot->robot_mode != ROBOT_CHASSIS_ROTATE) {
-    // chassis_ctrl_cmd->target_yaw +=
-    // PIDCalculate(&robot->chassis_rotate_PID, robot->chassis->state_var.phi, chassis_ctrl_cmd->target_yaw);
-    // chassis_ctrl_cmd->vx += PIDCalculate(&robot->chassis_vx_PID, robot->chassis->state_var.x_b_d,
-    // chassis_ctrl_cmd->vx);
-  }
 
   ChassisTask();
 

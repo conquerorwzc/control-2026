@@ -26,6 +26,82 @@ static referee_info_t* referee_data;
 static float wheel_speed_ref[2];
 // 平衡 → 卧倒 平滑过渡标志：1 表示正在用 LQR 把腿降到最低，再切真正的卧倒控制
 static uint8_t descending_to_prostrate = 0;
+
+static void PIDRuntimeReset(PIDInstance* pid) {
+  if (pid == NULL) return;
+  pid->Measure = 0.0f;
+  pid->Last_Measure = 0.0f;
+  pid->Err = 0.0f;
+  pid->Last_Err = 0.0f;
+  pid->Last_ITerm = 0.0f;
+  pid->Pout = 0.0f;
+  pid->Iout = 0.0f;
+  pid->Dout = 0.0f;
+  pid->ITerm = 0.0f;
+  pid->Output = 0.0f;
+  pid->Last_Output = 0.0f;
+  pid->Last_Dout = 0.0f;
+  pid->Ref = 0.0f;
+  DWT_GetDeltaT(&pid->DWT_CNT);
+}
+
+static void KalmanRuntimeReset(KalmanFilter_t* kf) {
+  if (kf == NULL || kf->xhatSize == 0) return;
+
+  size_t state_size = sizeof(float) * kf->xhatSize;
+  if (kf->FilteredValue != NULL) memset(kf->FilteredValue, 0, state_size);
+  if (kf->xhat_data != NULL) memset(kf->xhat_data, 0, state_size);
+  if (kf->xhatminus_data != NULL) memset(kf->xhatminus_data, 0, state_size);
+
+  if (kf->zSize != 0) {
+    size_t measure_size = sizeof(float) * kf->zSize;
+    if (kf->MeasuredVector != NULL) memset(kf->MeasuredVector, 0, measure_size);
+    if (kf->z_data != NULL) memset(kf->z_data, 0, measure_size);
+  }
+}
+
+static void ResetLegMotorRuntime(LegInstance* leg_instance) {
+  if (leg_instance == NULL) return;
+
+  PIDRuntimeReset(&leg_instance->length_PID);
+  PIDRuntimeReset(&leg_instance->wheel_motor->motor_controller.speed_PID);
+  PIDRuntimeReset(&leg_instance->wheel_motor->motor_controller.angle_PID);
+  leg_instance->wheel_motor->motor_controller.final_output = 0.0f;
+
+  for (int i = 0; i < 2; i++) {
+    PIDRuntimeReset(&leg_instance->joint_motor[i]->motor_controller.angle_PID);
+    PIDRuntimeReset(&leg_instance->joint_motor[i]->motor_controller.speed_PID);
+    leg_instance->joint_motor[i]->motor_controller.final_output = 0.0f;
+  }
+}
+
+static void ResetChassisBalanceMemory(void) {
+  memset(&chassis->state_var, 0, sizeof(chassis->state_var));
+  memset(&chassis->last_state_var, 0, sizeof(chassis->last_state_var));
+  memset(chassis->state_err, 0, sizeof(chassis->state_err));
+  KalmanRuntimeReset(&chassis->vaEstimateKF);
+  PIDRuntimeReset(&chassis->roll_PID);
+  chassis->update_flag.is_restart = 1;
+
+  for (int i = 0; i < 2; i++) {
+    leg[i]->observer_var.w = 0.0f;
+    leg[i]->observer_var.vb = 0.0f;
+    leg[i]->real_model.T = 0.0f;
+    leg[i]->real_model.Tp_1 = 0.0f;
+    leg[i]->real_model.Tp_2 = 0.0f;
+    leg[i]->virtual_model.Tp = 0.0f;
+    ResetLegMotorRuntime(leg[i]);
+  }
+}
+
+static void ResetProstrateMemory(void) {
+  PIDRuntimeReset(&chassis->yaw_prostrate_PID);
+  wheel_speed_ref[0] = 0.0f;
+  wheel_speed_ref[1] = 0.0f;
+  for (int i = 0; i < 2; i++) {
+    ResetLegMotorRuntime(leg[i]);
+  }
+}
 /**
  * @brief  计算LQR增益矩阵K
  *
@@ -137,7 +213,7 @@ static void StateErrCalc(void) {
   chassis->state_err[1] = sv->x_b_d - chassis_ctrl_cmd->vx;
   VAL_LIMIT(chassis->state_err[1], -3.2f, 3.2f);
   chassis->state_err[2] = sv->phi - chassis_ctrl_cmd->target_yaw;
-  VAL_LIMIT(chassis->state_err[2], -0.52f, 0.52f);  // ±30°
+  VAL_LIMIT(chassis->state_err[2], -0.2f, 0.2f);  // ±25°
   chassis->state_err[3] = sv->phi_d - chassis_ctrl_cmd->wz;
   VAL_LIMIT(chassis->state_err[3], -3.14f, 3.14f);  // ±30°
   chassis->state_err[4] = sv->theta_l - chassis_ctrl_cmd->theta_ff;
@@ -202,6 +278,7 @@ static void LegController(void) {
   float f_gravity = 0.5f * chassis->param.body_mass * 9.81f;
   float f_inertial = 0.5f * chassis->param.body_mass * (l_avg / chassis->param.track_width) * chassis->state_var.phi_d *
                      chassis->state_var.x_b_d;
+  // float f_inertial = 0.0f;
   // 小陀螺时 phi_d/x_b_d 来自轮速差/和, f_inertial 会随转速近似线性扩张并把支撑力推飞, 直接关闭前馈
   // 退出小陀螺后可能仍有较高转速，加入转速阈值衰减，避免离心力补偿突变导致 roll 飞掉
   float phi_d_abs = fabsf(chassis->state_var.phi_d);
@@ -217,11 +294,11 @@ static void LegController(void) {
     f_inertial *= inertial_scale;
   }
 
-  leg[0]->virtual_model.F = -f_psi + f_l_r + f_gravity + f_inertial * 6.0f;
+  leg[0]->virtual_model.F = -f_psi + f_l_r + f_gravity + f_inertial * 1.0f;
   if (leg[0]->update_flag.is_off_ground) {
     leg[0]->virtual_model.F = -f_psi * 0.3f + f_l_r + f_gravity;
   }
-  leg[1]->virtual_model.F = f_psi + f_l_l + f_gravity - f_inertial * 6.0f;
+  leg[1]->virtual_model.F = f_psi + f_l_l + f_gravity - f_inertial * 1.0f;
   if (leg[1]->update_flag.is_off_ground) {
     leg[1]->virtual_model.F = f_psi * 0.3f + f_l_l + f_gravity;
   }
@@ -249,7 +326,7 @@ static void ChassisCtrlUpdate(void) {
   LQR_K_Calc(chassis->LQR_K, chassis->param.LQR_K_Coefficients, l_l, l_r);
 
   StateErrCalc();
-  // PowerControl(chassis);
+  PowerControl(chassis);
 
   LocomotionController();
   LegController();
@@ -285,11 +362,6 @@ static void ChassisCtrlUpdate(void) {
 }
 
 static void ChassisRecovery(void) {
-  // if ((fabsf(chassis->imu->Pitch) < 3.0f) && (fabsf(chassis->chassis_ctrl_cmd.target_yaw) < 10.0f * RAD_2_DEGREE)) {
-  //   chassis->update_flag.is_recovered = 1;
-  // } else {
-  //   chassis->update_flag.is_recovered = 0;
-  // }
   // 将target_yaw对齐到当前底盘航向，避免LQR启动时产生大yaw误差
   chassis_ctrl_cmd->target_yaw = chassis->imu->YawTotalAngle * DEGREE_2_RAD;
 
@@ -469,8 +541,6 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
 #else
   chassis_instance->update_flag.gimbal_aligned = 0;
 #endif
-  // chassis_instance->update_flag.is_recovered = 0;
-
   chassis = chassis_instance;
 
   leg[0] = chassis->leg[0];
@@ -501,10 +571,6 @@ void ChassisTask(void) {
     }
   }
 
-  // if (chassis->update_flag.is_recovered == 0) {
-  //   chassis->chassis_ctrl_cmd.chassis_mode = CHASSIS_RECOVERY;
-  // }
-
   // 平衡 → 卧倒 平滑过渡：若直接切到 ChassisProstrate 会因关节角度环目标突变
   // (-0.15/0.15) 而导致机身砸下；切入 PROSTRATE 时若腿仍然较长，则先用 LQR 把腿降到
   // leg_min_length，再放行进入真正的卧倒控制。基于实测腿长触发，避免依赖 CAN 时序观察
@@ -512,6 +578,25 @@ void ChassisTask(void) {
 
   static Chassis_Mode_e last_chassis_mode = CHASSIS_POWER_OFF;
   Chassis_Mode_e cur_mode = chassis->chassis_ctrl_cmd.chassis_mode;
+  if (cur_mode != last_chassis_mode) {
+    if (cur_mode == CHASSIS_PROSTRATE) {
+      ResetProstrateMemory();
+    } else if (last_chassis_mode == CHASSIS_PROSTRATE) {
+      ResetChassisBalanceMemory();
+      chassis_ctrl_cmd->vx = 0.0f;
+      chassis_ctrl_cmd->wz = 0.0f;
+      chassis_ctrl_cmd->theta_ff = 0.0f;
+      chassis_ctrl_cmd->target_yaw = chassis->imu->YawTotalAngle * DEGREE_2_RAD;
+    }
+
+    if (cur_mode == CHASSIS_POWER_OFF) {
+      ResetChassisBalanceMemory();
+      ResetProstrateMemory();
+      chassis->jump_state = JUMP_STATE_IDLE;
+      descending_to_prostrate = 0;
+    }
+  }
+
   if (last_chassis_mode != CHASSIS_PROSTRATE && cur_mode == CHASSIS_PROSTRATE) {
     float l_avg = (leg[0]->virtual_model.length + leg[1]->virtual_model.length) * 0.5f;
     if (l_avg > chassis->param.leg_min_length + 0.05f) {
