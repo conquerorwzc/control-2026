@@ -431,7 +431,7 @@ static void MouseKeySet()
     // ================= 5. 夹爪控制 (Shift + Ctrl + C 触发式) =================
     uint32_t current_c_count = rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C];
 
-    if (grab_control_mode == GRAB_CONTROL_KEYBOARD)
+    if (grab_control_mode == GRAB_CONTROL_KEYBOARD || grab_control_mode == GRAB_CONTROL_CUSTOM)
     {
         // 键鼠模式：根据按键奇偶次切换开关
         if (current_c_count % 2 == 1)
@@ -442,39 +442,6 @@ static void MouseKeySet()
         {
             grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
         }
-    }
-    else if (grab_control_mode == GRAB_CONTROL_CUSTOM)
-    {
-        // 自定义控制器模式：键盘和自定义控制器都可以控制夹爪（任一触发即切换）
-
-        // 边缘检测：自定义控制器夹爪按键
-        static uint8_t last_custom_gripper = 0;
-        uint8_t curr_custom_gripper = (robot->self_control != NULL) ?
-            robot->self_control->unpacked_data.gripper_opened : 0;
-
-        // 边缘检测：键盘 Shift+Ctrl+C
-        static uint32_t last_c_count_custom = 0;
-
-        // 任一输入发生边沿变化，都切换夹爪状态
-        uint8_t custom_edge = (curr_custom_gripper != last_custom_gripper);
-        uint8_t keyboard_edge = (current_c_count != last_c_count_custom);
-
-        if (custom_edge || keyboard_edge)
-        {
-            if (grab_ctrl_cmd->gripper_state == GRIPPER_CLOSE)
-                grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
-            else
-                grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
-        }
-
-        last_custom_gripper = curr_custom_gripper;
-        last_c_count_custom = current_c_count;
-
-        // 强制同步键鼠的 C 键次数，防止切回键鼠模式时发生冲突
-        if (grab_ctrl_cmd->gripper_state == GRIPPER_CLOSE)
-            rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C] = 1;
-        else
-            rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C] = 0;
     }
     else if (grab_control_mode == GRAB_CONTROL_HALF_AUTO)
     {
