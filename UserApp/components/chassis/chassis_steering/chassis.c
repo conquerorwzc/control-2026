@@ -16,7 +16,7 @@
 #include "rm_referee.h"
 // #include "robot_config.h"
 #include "user_lib.h"
-#define SQRT2_OVER_2  0.7071067811865476f   // √2 / 2
+#define SQRT2_OVER_2 0.7071067811865476f // √2 / 2
 #define MIN_WITH_WHEEL_MAX_SLEW_RATE(var) ((var) < (WHEEL_MAX_SLEW_RATE) ? (var) : (WHEEL_MAX_SLEW_RATE))
 static referee_info_t *referee_data;
 static ChassisInstance *chassis;
@@ -34,35 +34,43 @@ static float lf_radius;
 static float rf_radius;
 static float lb_radius;
 static float rb_radius;
-static PIDInstance follow_pid;
+static PIDInstance follow_pid;       // 跟随PID
+static PIDInstance Vx_pid;           // X轴速度PID
+static PIDInstance Vy_pid;           // Y轴速度PID
+static PIDInstance Wz_pid;           // Wz轴角速度PID
 static float k0, k1, k2, k3, k4, k5; // 中科大的功率模型
 static float k0r, k1r, k2r, k3r, k4r, k5r;
 static float r1, r2, r3, r4;
 static float power;
 static float omegaX[4];
 static float omegaY[4];
-static float FK_Vx, FK_Vy,FK_Wz;
+static float FK_Vx, FK_Vy, FK_Wz;
 /**
  * @brief 正向运动学解算用于估算当前底盘实际运动速度
  */
 static void ForwardKinematicCal()
 {
     float rudder_angle[4];
-    for (uint8_t i=0;i<4;i++)
+    for (uint8_t i = 0; i < 4; i++)
     {
-        rudder_angle[i]=chassis->rudder_motor[i]->measure.angle_single_round-(float)chassis->rudder_offset[i] * ECD_ANGLE_COEF_DJI;
-        if (rudder_angle[i]<0)
+        rudder_angle[i] = chassis->rudder_motor[i]->measure.angle_single_round -
+                          (float)chassis->rudder_offset[i] * ECD_ANGLE_COEF_DJI;
+        if (rudder_angle[i] < 0)
             rudder_angle[i] += 360.0f;
-        omegaX[i]=chassis->wheel_motor[i]->measure.speed_aps*arm_cos_f32(rudder_angle[i]);
-        omegaY[i]=chassis->wheel_motor[i]->measure.speed_aps*arm_sin_f32(rudder_angle[i]);
+        omegaX[i] = chassis->wheel_motor[i]->measure.speed_aps * arm_sin_f32(rudder_angle[i]);
+        omegaY[i] = chassis->wheel_motor[i]->measure.speed_aps * arm_cos_f32(rudder_angle[i]);
     }
-    FK_Vx= (omegaX[0] + omegaX[1] +omegaX[2] + omegaX[3]) / 4.f;
-    FK_Vy= (omegaY[0] + omegaY[1] +omegaY[2] + omegaY[3]) / 4.f;
-    FK_Wz= (-omegaX[0] + omegaY[0] - omegaX[1] - omegaY[1] + omegaX[2] - omegaY[2] + omegaX[3] + omegaY[3]) * SQRT2_OVER_2 /  4;
+    FK_Vx = (omegaX[0] + omegaX[1] + omegaX[2] + omegaX[3]) / 4.f;
+    FK_Vy = (omegaY[0] + omegaY[1] + omegaY[2] + omegaY[3]) / 4.f;
+    FK_Wz = (-omegaX[0] + omegaY[0] - omegaX[1] - omegaY[1] + omegaX[2] - omegaY[2] + omegaX[3] + omegaY[3]) *
+            SQRT2_OVER_2 / 4;
 }
+
+/**
+ * @brief 逆向动力学解算用于获取目标牵引力下的前馈力矩
+ */
 static void InverseDynamicCal()
 {
-
 }
 /**
  * @brief 角度标准化
@@ -213,7 +221,7 @@ static void SteeringCalculate()
                   powf(chassis_vx - chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2)); // rb
     vt_rf = sqrtf(powf(chassis_vy - chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), 2) +
                   powf(chassis_vx - chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2)); // rf
-    //无需动力时停止舵电机计算
+    // 无需动力时停止舵电机计算
     if (chassis_ctrl_cmd->vx != 0 || chassis_ctrl_cmd->vy != 0 || chassis_ctrl_cmd->wz != 0)
     {
         // 修改此处的角度计算，确保正确的方向
@@ -443,7 +451,9 @@ ChassisInstance *ChassisInit(Chassis_Init_Config_s *chassis_init_config)
                       (half_wheel_base + center_gimbal_offset_y) * (half_wheel_base + center_gimbal_offset_y)) *
                 DEGREE_2_RAD;
     PIDInit(&follow_pid, &chassis_init_config->follow_pid);
-
+    PIDInit(&Vx_pid, &chassis_init_config->planar_motion_pid_config);
+    PIDInit(&Vy_pid, &chassis_init_config->planar_motion_pid_config);
+    PIDInit(&Wz_pid, &chassis_init_config->rotate_pid_config);
     chassis_instance->super_cap = SuperCapInit(&chassis_init_config->super_cap_config);
 
     for (int i = 0; i < 4; i++)
@@ -462,8 +472,6 @@ ChassisInstance *ChassisInit(Chassis_Init_Config_s *chassis_init_config)
         chassis_init_config->rudder_motor_config[i].controller_setting_init_config.close_loop_type =
             SPEED_LOOP | ANGLE_LOOP;
         chassis_instance->rudder_motor[i] = DJIMotorInit(&chassis_init_config->rudder_motor_config[i]);
-
-
     }
     for (int i = 0; i < 4; i++)
     {
@@ -483,32 +491,28 @@ void ChassisTask()
     case SAFETY_MODE:
         if (chassis->super_cap->cap_msg.cap_v > 18.0f)
             chassis->super_cap_mode = PASSIVE_MODE;
-        chassis->chassis_ctrl_cmd.max_power =
-           200;//TODO:用超电记得改;
+        chassis->chassis_ctrl_cmd.max_power = 200; // TODO:用超电记得改;
         break;
     case FORCED_CHARGING_MODE:
         if (chassis->super_cap->cap_msg.cap_v < 8.0f)
             chassis->super_cap_mode = SAFETY_MODE;
         if (chassis->super_cap->cap_msg.cap_v > 18.0f)
             chassis->super_cap_mode = PASSIVE_MODE;
-        chassis->chassis_ctrl_cmd.max_power = (uint16_t) (referee_data->GameRobotState.chassis_power_limit-30);
+        chassis->chassis_ctrl_cmd.max_power = (uint16_t)(referee_data->GameRobotState.chassis_power_limit - 30);
         break;
     case CHARGING_MODE:
         if (chassis->super_cap->cap_msg.cap_v < 10.0f)
             chassis->super_cap_mode = FORCED_CHARGING_MODE;
         if (chassis->super_cap->cap_msg.cap_v > 18.0f)
             chassis->super_cap_mode = PASSIVE_MODE;
-        chassis->chassis_ctrl_cmd.max_power =
-            referee_data->GameRobotState.chassis_power_limit -
-            30;
+        chassis->chassis_ctrl_cmd.max_power = referee_data->GameRobotState.chassis_power_limit - 30;
         break;
     case PASSIVE_MODE:
         if (chassis_ctrl_cmd->SuperCapBoost == 1)
             chassis->super_cap_mode = ACTIVE_MODE;
         if (chassis->super_cap->cap_msg.cap_v < 12.0f)
             chassis->super_cap_mode = CHARGING_MODE;
-        chassis->chassis_ctrl_cmd.max_power =
-            referee_data->GameRobotState.chassis_power_limit+10;
+        chassis->chassis_ctrl_cmd.max_power = referee_data->GameRobotState.chassis_power_limit + 10;
         break;
     case ACTIVE_MODE:
         if (chassis->super_cap->cap_msg.cap_v < 12.0f)
@@ -555,7 +559,7 @@ void ChassisTask()
     chassis_vx = -chassis_ctrl_cmd->vx * cos_theta + chassis_ctrl_cmd->vy * sin_theta;
     chassis_vy = -chassis_ctrl_cmd->vx * sin_theta - chassis_ctrl_cmd->vy * cos_theta;
     // 根据电机的反馈速度和IMU(如果有)计算真实速度
-    //EstimateSpeed();
+    // EstimateSpeed();
     // 6020功率预测
     float total_power = 0;
     for (int i = 0; i < 4; i++)
@@ -571,10 +575,11 @@ void ChassisTask()
         ForwardKinematicCal();
     }
 
-    SuperCapSendMessage(chassis->super_cap,
-       (int16_t)((uint8_t)(referee_data->GameRobotState.chassis_power_limit)),//这里uint8转换确保发送给超电的功率不会超过255
-       referee_data->PowerHeatData.buffer_energy,
-       referee_data->GameRobotState.power_management_chassis_output);
+    SuperCapSendMessage(
+        chassis->super_cap,
+        (int16_t)((
+            uint8_t)(referee_data->GameRobotState.chassis_power_limit)), // 这里uint8转换确保发送给超电的功率不会超过255
+        referee_data->PowerHeatData.buffer_energy, referee_data->GameRobotState.power_management_chassis_output);
 
     // SuperCapSendMessage(chassis->super_cap, (int16_t), referee_data->PowerHeatData.buffer_energy,
     //                     referee_data->GameRobotState.power_management_chassis_output);

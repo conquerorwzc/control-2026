@@ -4,33 +4,34 @@
 
 #ifndef CONTROL_2026_CHASSIS_H
 #define CONTROL_2026_CHASSIS_H
- #include "ins_task.h"
+#include "ins_task.h"
 
-#endif  // CONTROL_2026_CHASSIS_H
+#endif // CONTROL_2026_CHASSIS_H
 #pragma once
-#include "super_cap.h"
 #include "dji_motor.h"
-#define DEG2R(x) ((x)*PI /180.0f)
-#define LF 0//数组内表示电机位置
+#include "super_cap.h"
+#define DEG2R(x) ((x) * PI / 180.0f)
+#define LF 0 // 数组内表示电机位置
 #define LB 1
 #define RB 2
 #define RF 3
 #define MAX_WHEEL_SPEED 40000.0f
-//底盘模式
-// typedef enum {
-//   CHASSIS_VECTOR_FOLLOW_GIMBAL_YAW,   //底盘跟随云台
-//   CHASSIS_VECTOR_FOLLOW_CHASSIS_YAW,  //底盘自主
-//   CHASSIS_VECTOR_SPIN,                //小陀螺
-//   CHASSIS_VECTOR_NO_FOLLOW_YAW,       //底盘不跟随
-//   CHASSIS_VECTOR_RAW,				  //底盘原始控制
-//   RUDDER_VECTOR_FOLLOW_GIMBAL_YAW,    //舵跟随云台
-// //  CHASSIC_TURN,						  //一键掉头
-// } Chassis_Mode_e;
-typedef enum {
-  CHASSIS_POWER_OFF = 0,    // 电流零输入
-  CHASSIS_ROTATE,            // 小陀螺模式
-  CHASSIS_FOLLOW,            // 跟随模式，底盘叠加角度环控制
-//  CHASSIC_TURN,						  //一键掉头
+// 底盘模式
+//  typedef enum {
+//    CHASSIS_VECTOR_FOLLOW_GIMBAL_YAW,   //底盘跟随云台
+//    CHASSIS_VECTOR_FOLLOW_CHASSIS_YAW,  //底盘自主
+//    CHASSIS_VECTOR_SPIN,                //小陀螺
+//    CHASSIS_VECTOR_NO_FOLLOW_YAW,       //底盘不跟随
+//    CHASSIS_VECTOR_RAW,				  //底盘原始控制
+//    RUDDER_VECTOR_FOLLOW_GIMBAL_YAW,    //舵跟随云台
+//  //  CHASSIC_TURN,						  //一键掉头
+//  } Chassis_Mode_e;
+typedef enum
+{
+    CHASSIS_POWER_OFF = 0, // 电流零输入
+    CHASSIS_ROTATE,        // 小陀螺模式
+    CHASSIS_FOLLOW,        // 跟随模式，底盘叠加角度环控制
+    //  CHASSIC_TURN,						  //一键掉头
 } Chassis_Mode_e;
 
 // 舵轮底盘模式
@@ -42,92 +43,99 @@ typedef enum {
 // } Chassis_Steering_Mode_e;
 #pragma pack(1)
 // 舵轮底盘控制命令
-typedef struct {
-  // 控制部分
-  float vx;            // 前进方向速度
-  float vy;            // 横移方向速度
-  float wz;            // 旋转速度
-  Chassis_Mode_e chassis_mode;
-  float offset_angle;  // 底盘和归中位置的夹角
-  int chassis_speed_buff;
-  uint16_t max_power;  // 最大功率限制
-  uint8_t SuperCapBoost;
-  // UI部分
-  //  ...
+typedef struct
+{
+    // 控制部分
+    float vx; // 前进方向速度
+    float vy; // 横移方向速度
+    float wz; // 旋转速度
+    Chassis_Mode_e chassis_mode;
+    float offset_angle; // 底盘和归中位置的夹角
+    int chassis_speed_buff;
+    uint16_t max_power; // 最大功率限制
+    uint8_t SuperCapBoost;
+    // UI部分
+    //  ...
 } Chassis_Ctrl_Cmd_s;
 #pragma pack()
-//超级电容策略结构体
+// 超级电容策略结构体
 
-typedef enum {
-  SAFETY_MODE=0,//安全模式，超电电压低于8伏时进入，大于18伏退出，底盘限制30W
-  PASSIVE_MODE,//被动模式，超电电压正常时的工作模式
-  ACTIVE_MODE,//，主动模式，主动使用超电能量
-  CHARGING_MODE,//充电模式，衰减底盘功率，保障电容电压健康
-  FORCED_CHARGING_MODE,//强制充电模式，更极端的功率衰减，强制超电快速充电
+typedef enum
+{
+    SAFETY_MODE = 0,      // 安全模式，超电电压低于8伏时进入，大于18伏退出，底盘限制30W
+    PASSIVE_MODE,         // 被动模式，超电电压正常时的工作模式
+    ACTIVE_MODE,          // ，主动模式，主动使用超电能量
+    CHARGING_MODE,        // 充电模式，衰减底盘功率，保障电容电压健康
+    FORCED_CHARGING_MODE, // 强制充电模式，更极端的功率衰减，强制超电快速充电
 } SuperCapMode;
 
-typedef struct {
-  float k0;
-  float k1;
-  float k2;
-  float k3;
-  float k4;
-  float k5;
-}Power_Param_3508_s ;
+typedef struct
+{
+    float k0;
+    float k1;
+    float k2;
+    float k3;
+    float k4;
+    float k5;
+} Power_Param_3508_s;
 
-typedef struct {
-  float k0;
-  float k1;
-  float k2;
-  float k3;
-  float k4;
-  float k5;
-}Power_Param_6020_s ;
+typedef struct
+{
+    float k0;
+    float k1;
+    float k2;
+    float k3;
+    float k4;
+    float k5;
+} Power_Param_6020_s;
 
 // 舵轮底盘参数，这一坨是从英雄的代码抄过来的，得改，但是逆解算用不上先不管
-typedef struct {
-  float wheel_base;                     // 纵向轴距(前进后退方向)
-  float track_width;                    // 横向轮距(左右平移方向)
-  float center_gimbal_offset_x;         // 云台旋转中心距底盘几何中心的距离,前后方向,云台位于正中心时默认设为0
-  float center_gimbal_offset_y;         // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
-  float wheel_radius;                   // 轮子半径
-  float wheel_reduction_ratio;          // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
-  Power_Param_3508_s power_param;       //3508功率模型参数，采用中科大的模型
-  Power_Param_6020_s power_param_6020;
-  uint16_t rudder_motor_offset[4];      // 6020舵电机零位偏移值，用于校准安装后的零偏
+typedef struct
+{
+    float wheel_base;               // 纵向轴距(前进后退方向)
+    float track_width;              // 横向轮距(左右平移方向)
+    float center_gimbal_offset_x;   // 云台旋转中心距底盘几何中心的距离,前后方向,云台位于正中心时默认设为0
+    float center_gimbal_offset_y;   // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
+    float wheel_radius;             // 轮子半径
+    float wheel_reduction_ratio;    // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
+    Power_Param_3508_s power_param; // 3508功率模型参数，采用中科大的模型
+    Power_Param_6020_s power_param_6020;
+    uint16_t rudder_motor_offset[4]; // 6020舵电机零位偏移值，用于校准安装后的零偏
 } Chassis_Param_s;
 
 // 舵轮底盘初始化配置
-typedef struct {
-  Chassis_Param_s chassis_param;
-  Motor_Init_Config_s rudder_motor_config[4];
-  Motor_Init_Config_s wheel_motor_config[4];
-  Motor_Init_Config_s yaw_motor_config;
-  PID_Init_Config_s rudder_angle_pid_config;
-  PID_Init_Config_s rudder_speed_pid_config;
-  PID_Init_Config_s driver_speed_pid_config;
-  PID_Init_Config_s follow_pid;
-  SuperCap_Init_Config_s super_cap_config;
+typedef struct
+{
+    Chassis_Param_s chassis_param;
+    Motor_Init_Config_s rudder_motor_config[4];
+    Motor_Init_Config_s wheel_motor_config[4];
+    Motor_Init_Config_s yaw_motor_config;
+    PID_Init_Config_s rudder_angle_pid_config;
+    PID_Init_Config_s rudder_speed_pid_config;
+    PID_Init_Config_s driver_speed_pid_config;
+    PID_Init_Config_s follow_pid;
+    PID_Init_Config_s planar_motion_pid_config;
+    PID_Init_Config_s rotate_pid_config;
+    SuperCap_Init_Config_s super_cap_config;
 } Chassis_Init_Config_s;
 
 // 舵轮底盘实例
 
-
-
-typedef struct {
-  Chassis_Ctrl_Cmd_s chassis_ctrl_cmd;
-  DJIMotorInstance *wheel_motor[4];
-  DJIMotorInstance *rudder_motor[4];
-  //DJIMotorInstance *yaw_motor;
-  uint16_t rudder_offset[4];
-  SuperCapInstance* super_cap;
-  SuperCapMode super_cap_mode;
+typedef struct
+{
+    Chassis_Ctrl_Cmd_s chassis_ctrl_cmd;
+    DJIMotorInstance *wheel_motor[4];
+    DJIMotorInstance *rudder_motor[4];
+    // DJIMotorInstance *yaw_motor;
+    uint16_t rudder_offset[4];
+    SuperCapInstance *super_cap;
+    SuperCapMode super_cap_mode;
 } ChassisInstance;
 /**
  * @brief 底盘应用初始化,请在开启rtos之前调用(目前会被RobotInit()调用)
  *
  */
-ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config);
+ChassisInstance *ChassisInit(Chassis_Init_Config_s *chassis_init_config);
 
 /**
  * @brief 底盘应用任务,放入实时系统以一定频率运行
