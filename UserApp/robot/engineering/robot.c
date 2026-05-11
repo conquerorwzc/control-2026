@@ -428,8 +428,8 @@ static void MouseKeySet()
         }
     }
 
-    // ================= 5. 夹爪控制 (Shift + Ctrl + C 触发式) =================
-    uint32_t current_c_count = rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C];
+    // ================= 5. 夹爪控制 (Shift  + C 触发式) =================
+    uint32_t current_c_count = rc_data[TEMP].key_count[KEY_PRESS_NORMAL][KEY_C];
 
     if (grab_control_mode == GRAB_CONTROL_KEYBOARD || grab_control_mode == GRAB_CONTROL_CUSTOM)
     {
