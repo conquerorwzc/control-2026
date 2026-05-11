@@ -141,12 +141,29 @@ static void RemoteControlSet() {
   //         gimbal_ctrl_cmd->pitch = new_min_pitch;
   //    }
   // 云台PITCH轴软件限位 todo:没在云台有点不好
-  if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
-    gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
-  } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
-    gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
+  float chassis_pitch =  robot->chassis->chassis_external_imu->roll ;
+
+  // 2. 直接叠加，算出云台在当前空间下的绝对限位墙
+   new_max_pitch   = chassis_pitch + PITCH_MAX_ANGLE;
+   new_min_pitch = chassis_pitch + PITCH_MIN_ANGLE;
+
+  // 【举个例子验算】：
+  // 假设车头往上抬了 10 度 (chassis_pitch = -10)
+  // dynamic_limit_up = -10 + (-35) = -45 度 (云台在绝对空间里可以压得更低了，逻辑完美)
+  // dynamic_limit_down = -10 + 20 = 10 度 (向下的极限也跟着收缩了，逻辑完美)
+
+  // 3. 极简越界保护 (注意：向上是更小的负数，所以超出上限是 '<')
+  if (gimbal_ctrl_cmd->pitch < new_max_pitch) {
+    gimbal_ctrl_cmd->pitch = new_max_pitch;
+  } else if (gimbal_ctrl_cmd->pitch > new_min_pitch) {
+    gimbal_ctrl_cmd->pitch = new_min_pitch;
   }
+  // if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
+  //   gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
+  // } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
+  //   gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
   // }
+  // // }
   // 底盘参数,系数需要调整
    vx_initial= 60.0f * (float)rc_data[TEMP].rc.rocker_l_;  // _水平方向
    vy_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // 1数值方向

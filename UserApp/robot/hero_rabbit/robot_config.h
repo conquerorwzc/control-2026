@@ -31,9 +31,9 @@
 // 云台参数
 #define YAW_CHASSIS_ALIGN_ECD 2220
 #define PITCH_HORIZON_ECD 490  // 云台处于水平位置时编码器值,若对云台有机械改动需要修改
-#define PITCH_MAX_ANGLE 14.7f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
-#define PITCH_MIN_ANGLE -34.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
-#define PITCH_HORIZON_ecd 4230
+#define PITCH_MAX_ANGLE 14.0f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define PITCH_MIN_ANGLE -35.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define PITCH_HORIZON_ecd 4290
 
 // 添加基于编码器的限位值定义
 #define PITCH_MAX_ECD 4365      // pitch轴最大编码器值限位
@@ -150,7 +150,7 @@
                       .Kd = 0.01,                                                                                 \
                                                                                                              \
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
-                      .MaxOut = 35.0,                                                                          \
+                      .MaxOut = 40.0,                                                                          \
                   },                                                                                           \
               .angle_PID =                                                                                     \
                   {                                                                                            \

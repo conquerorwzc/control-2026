@@ -83,6 +83,7 @@ const float VMC_STIFF_ROLL = 00.0f, VMC_STIFF_PITCH = 00.0f;
 const float VMC_DAMP_ROLL = 0.0f;  // Roll轴虚拟阻尼 (N/(rad/s))
 const float VMC_DAMP_PITCH = 00.0f;
 const float CTRL_DT = 0.002f; // 2ms 周期
+const float JACOBI_D_COEF = 0.001f;
 // ==================== 提取到外部的物理几何参数 ====================
 //连杆参数
 // 在全局坐标系下 (X正向朝车尾，Y正向朝地)
@@ -113,8 +114,8 @@ const GasSpringPoint_t gas_spring_table[GAS_SPRING_TABLE_SIZE] = {
 const float GAS_SPRING_FREE_LENGTH = 0.230f;
 // theta=0 时，主动杆 L2 绝对水平指向车头；向下压时 theta 为正。
 // 2026-05 最新实车物理标定零位 (水平为0，下压为正)
-#define LEFT_MOTOR_HORIZON_OFFSET  (2.587f) //
-#define RIGHT_MOTOR_HORIZON_OFFSET 1.319f  //
+#define LEFT_MOTOR_HORIZON_OFFSET  (1.5146f) //
+#define RIGHT_MOTOR_HORIZON_OFFSET 1.415f  //
 // 电机旋转方向系数 (如果往下压时编码器数值减小，则填 -1.0f，增大填 1.0f)
 #define LEFT_MOTOR_DIR   1.0f
 #define RIGHT_MOTOR_DIR  (-1.0f)
@@ -302,7 +303,7 @@ float Calc_Gas_Spring_Total_Force(float stroke_m, float vel_m_s) {
     // 假设粘性摩擦系数 C_v = 50.0 N/(m/s) (该参数需实车调参)
     const float C_v = 50.0f;
     float F_viscous = C_v * vel_m_s;
-    float final_force = (F_LUT + F_viscous) * 1.40f;
+    float final_force = (F_LUT + F_viscous) * 1.80f;
 
     // 最终输出推力
     spring_force=final_force;
@@ -340,6 +341,12 @@ static float Estimate_Contact_Force_Math(float t_real_math, float theta_math, fl
   return foot_force;
 }
 static void NewLegControl() {
+  if (chassis == NULL || chassis_ctrl_cmd == NULL) {
+    return;
+  }
+  if (chassis->leg_motor[0] == NULL || chassis->leg_motor[1] == NULL) {
+    return;
+  }
   static LegState_e left_leg_state = LEG_STATE_AIR_LOCK;
   static LegState_e right_leg_state = LEG_STATE_AIR_LOCK;
   static float p_des_math_l = UPPER_LIMIT_ANGLE;
@@ -1035,7 +1042,7 @@ static void TestLegControl_WithSafety() {
     if (final_tff_r > 40.0f) final_tff_r = 40.0f; if (final_tff_r < -40.0f) final_tff_r = -40.0f;
     DMMotorSetMITRef(chassis->leg_motor[1], (p_des_math_r * RIGHT_MOTOR_DIR) + RIGHT_MOTOR_HORIZON_OFFSET, v_des_math_r * RIGHT_MOTOR_DIR, actual_kp_r, actual_kd_r, final_tff_r);
 }
-static void legangleloopcontrol() {
+static void Leg_AngleLoop_Control() {
   if (chassis == NULL || chassis_ctrl_cmd == NULL) {
     return;
   }
@@ -1095,7 +1102,7 @@ static void legangleloopcontrol() {
         // 在正常上下限范围内时，即使力矩超标也不会停下，防止中途误触发。
         if (base_p_des_l < UPPER_LIMIT_ANGLE) {
             // 一旦进入穿透区且撞死点（力矩>=15Nm）
-            if (fabsf(t_real_math_l) >= 15.0f) {
+            if (fabsf(t_real_math_l) >= 25.0f) {
                 // 撤销这一帧的减法，目标指令被死死冻结，电机以恒定 15Nm 贴合机械挡块
                 base_p_des_l += 1.5f*LEG_RAMP_RATE;
             }
@@ -1112,7 +1119,7 @@ static void legangleloopcontrol() {
         base_p_des_r -= LEG_RAMP_RATE;
 
         if (base_p_des_r < UPPER_LIMIT_ANGLE) {
-            if (fabsf(t_real_math_r) >= 15.0f) {
+            if (fabsf(t_real_math_r) >= 25.0f) {
                 base_p_des_r += 1.5f*LEG_RAMP_RATE;
             }
         }
@@ -1146,7 +1153,7 @@ static void legangleloopcontrol() {
     float l_base_real = L_FRONT_TO_MOTOR + pos_l_ff.x;
     if(l_base_real <= 0.1f) l_base_real = 0.1f;
 
-    // 假设系统始终承担车身重力 (即使悬空，重力前馈也会一直存在，由 PID 强行拉住)
+    //动态中心分配
     float m_load_rear_total = M_TOTAL * ((L_F * arm_cos_f32(pitch_angle) + H_CG * arm_sin_f32(pitch_angle)) / l_base_real);
     float m_load_single = m_load_rear_total / NUM_REAR_LEGS;
     if (m_load_single < 0.0f) m_load_single = 0.0f;
@@ -1217,9 +1224,9 @@ static void legangleloopcontrol() {
     float final_tff_r = target_tff_r * RIGHT_MOTOR_DIR;
     if (final_tff_r > 40.0f) final_tff_r = 40.0f; if (final_tff_r < -40.0f) final_tff_r = -40.0f;
     if (theta_math_r < UPPER_LIMIT_ANGLE + 0.005 ) {final_tff_r = 0;}
-  if (chassis_ctrl_cmd->leg_mode!=LEG_MANUAL_DOWN){final_tff_r = 0.0f;}
+    if (chassis_ctrl_cmd->leg_mode!=LEG_MANUAL_DOWN){final_tff_r = 0.0f;}
     right_torque_feedforward = final_tff_r ;
-   debug_raw_r=p_des_raw_r;
+    debug_raw_r=p_des_raw_r;
     // 💡 接口调用：使用你的 PID 与前馈双轨下发
     DMMotorSetPIDRef(chassis->leg_motor[1], p_des_raw_r);
     chassis->leg_motor[1]->motor_controller.final_output+=final_tff_r;
@@ -1537,5 +1544,5 @@ void ChassisTask() {
   //LegControl();
   //NewLegControl();
   //TestLegControl_WithSafety();
-  legangleloopcontrol();
+  Leg_AngleLoop_Control();
 }
