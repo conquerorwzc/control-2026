@@ -80,7 +80,16 @@ static float GetFrictionFeedforward(int i) {
   return 0.0f;
 }
 
+static float LoaderSpeedFromDelay(float delta_angle, float delay_ms) {
+  if (delay_ms <= 0.0f) {
+    return 0.0f;
+  }
+  // Convert angle-per-shot to angle-per-second using ms delay.
+  return delta_angle / delay_ms * 1000.0f;
+}
+
 /**
+ *
  * @brief 弹速控制函数，根据实际弹速与目标弹速的差异动态调整摩擦轮转速,后续实际弹速从裁判系统中获取
  */
 void ShootBulletSpeedControl(void) {
@@ -184,6 +193,10 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
       DJIMotorOuterLoop(shoot->loader_motor, ANGLE_LOOP);  // 切换到角度环
       loader_set = shoot->loader_motor->measure.total_angle +
                    one_bullet_delta_angle * reduction_ratio_loader * loader_direction;  // 控制量增加一发弹丸的角度
+      // DJIMotorOuterLoop(shoot->loader_motor, SPEED_LOOP);  // 切换到速度环
+      // loader_set = LoaderSpeedFromDelay(
+      //     one_bullet_delta_angle * reduction_ratio_loader * (float)loader_direction,
+      //     deadtime_burstfire);
       if (shoot_ctrl_cmd->heat_mode == SIMULLATE_CONTROL) {
         shooter_barrel_heat += one_barrel_heat_value;//增加一发弹丸消耗热量，只在模拟控制中有效
       }
