@@ -419,6 +419,12 @@ void RobotTask() {
         // 应用总力矩控制（力反馈+重力补偿）
         ApplyTotalTorque();
         
-        CustomController_SendAllData(angle_controller);
+        // 以30Hz频率发送自定义控制器数据
+        static uint32_t last_send_time = 0;
+        uint32_t now = HAL_GetTick();
+        if (now - last_send_time >= 33) {
+            last_send_time = now;
+            CustomController_SendAllData(angle_controller);
+        }
     }
 }
