@@ -81,6 +81,7 @@ static void ResetChassisBalanceMemory(void) {
   memset(chassis->state_err, 0, sizeof(chassis->state_err));
   KalmanRuntimeReset(&chassis->vaEstimateKF);
   PIDRuntimeReset(&chassis->roll_PID);
+  PowerControlRuntimeReset(chassis);
   chassis->update_flag.is_restart = 1;
 
   for (int i = 0; i < 2; i++) {
@@ -96,6 +97,7 @@ static void ResetChassisBalanceMemory(void) {
 
 static void ResetProstrateMemory(void) {
   PIDRuntimeReset(&chassis->yaw_prostrate_PID);
+  PowerControlRuntimeReset(chassis);
   wheel_speed_ref[0] = 0.0f;
   wheel_speed_ref[1] = 0.0f;
   for (int i = 0; i < 2; i++) {
@@ -326,11 +328,8 @@ static void ChassisCtrlUpdate(void) {
   LQR_K_Calc(chassis->LQR_K, chassis->param.LQR_K_Coefficients, l_l, l_r);
 
   StateErrCalc();
-  if (chassis_ctrl_cmd->chassis_mode == CHASSIS_PROSTRATE) {
-    PowerControl_Prostrate(chassis);
-  } else {
-    PowerControl(chassis);
-  }
+  // ChassisCtrlUpdate 始终是 LQR 平衡输出路径；真实卧倒输出在 LimitChassisOutput() 中限功率。
+  PowerControl(chassis);
 
   LocomotionController();
   LegController();
@@ -491,6 +490,8 @@ static void LimitChassisOutput(void) {
       VAL_LIMIT(wheel_speed_ref[i], -50000.0f, 50000.0f);
       DJIMotorSetPIDRef(leg[i]->wheel_motor, wheel_speed_ref[i]);
     }
+    // 速度 PID 已生成 final_output, 此处再限流才能真正影响本帧 CAN 输出。
+    PowerControl_Prostrate(chassis);
     EnableJointMotor();
   } else {
     for (int i = 0; i < 2; i++) {
