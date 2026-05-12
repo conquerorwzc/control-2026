@@ -72,8 +72,8 @@ static Motor_Init_Config_s DM4310_config_2 = {
             .speed_feedback_source = MOTOR_FEED,
             .outer_loop_type = ANGLE_LOOP,
             .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
-            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
-            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
         },
     .motor_type = J4310,
     .can_init_config.can_handle = &hcan1,
@@ -106,8 +106,8 @@ static Motor_Init_Config_s DM4310_config_3 = {
             .speed_feedback_source = MOTOR_FEED,
             .outer_loop_type = ANGLE_LOOP,
             .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
-            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
-            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
+            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
         },
     .motor_type = J4310,
     .can_init_config.can_handle = &hcan1,
@@ -115,21 +115,21 @@ static Motor_Init_Config_s DM4310_config_3 = {
     .can_init_config.rx_id = 0x13,
 };
 
-// 大roll电机 (DM4340) - ID: 0x04, MasterID: 0x14
-static Motor_Init_Config_s DM4340_config = {
+// 大roll电机 (DM4310) - ID: 0x04, MasterID: 0x14
+static Motor_Init_Config_s DM4310_config_4 = {
     .controller_param_init_config =
         {
-            .angle_PID = {.Kp = 8.0f,
+            .angle_PID = {.Kp = 9.5f,
                           .Ki = 0.00f,
                           .Kd = 0.00f,
                           .MaxOut = 8.0f,
                           .DeadBand = 0.01f,
                           .Improve = PID_Integral_Limit,
                           .IntegralLimit = 0.0f},
-            .speed_PID = {.Kp = 1.0f,
-                          .Ki = 0.1f,
+            .speed_PID = {.Kp = 0.38f,
+                          .Ki = 0.05f,
                           .Kd = 0.00f,
-                          .MaxOut = 5.0f,
+                          .MaxOut = 8.0f,
                           .DeadBand = 0.01f,
                           .Improve = PID_Integral_Limit,
                           .IntegralLimit = 0.5f},
@@ -143,7 +143,7 @@ static Motor_Init_Config_s DM4340_config = {
             .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
             .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
         },
-    .motor_type = J4340,
+    .motor_type = J4310,
     .can_init_config.can_handle = &hcan1,
     .can_init_config.tx_id = 0x04,
     .can_init_config.rx_id = 0x14,

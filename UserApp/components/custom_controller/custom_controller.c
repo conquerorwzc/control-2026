@@ -57,8 +57,8 @@ CustomController_t* CustomControllerInit(CustomController_Init_Config_s* init_co
     controller->motors[0].dm_motor = NULL;
     controller->motors[0].dji_motor = DJIMotorInit(&init_config->m6020_config);
 
-    // motor[1] - 大roll电机 - DM4340 (索引1)
-    controller->motors[1].dm_motor = DMMotorInit(&init_config->dm4340_config);
+    // motor[1] - 大roll电机 - DM4310 (索引1)
+    controller->motors[1].dm_motor = DMMotorInit(&init_config->dm4310_config_4);
     controller->motors[1].dji_motor = NULL;
     
     // motor[2] - 大pitch电机 - DM4310 (索引2)
@@ -505,7 +505,7 @@ static bool CheckMotorOnlineStatus(CustomController_t* controller)
         controller->motor_online_status[0] = current_online;
     }
     
-    // 检查 DM4340/DM4310 电机 (索引 1-4)
+    // 检查 DM4310 电机 (索引 1-4)
     if (controller->motors[1].dm_motor != NULL) {
         bool current_online = (controller->motors[1].dm_motor->measure.state == 0);
         if (!controller->motor_online_status[1] && current_online) {

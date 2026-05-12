@@ -18,17 +18,14 @@
 
 // 刚度系数 (Nm/deg) - 降低以避免延迟震荡
 #define TORQUE_K_P_DM4310     0.02f
-#define TORQUE_K_P_DM4340     0.02f
 #define TORQUE_K_P_M6020      0.012f
 
 // 阻尼系数 (Nm/(deg/s)) - 本地速度阻尼，抑制震荡
 #define TORQUE_K_D_DM4310     0.006f   
-#define TORQUE_K_D_DM4340     0.006f   
 #define TORQUE_K_D_M6020      0.003f   
 
 // 力反馈力矩限幅 (仅对力反馈部分限幅)
 #define MAX_FEEDBACK_TORQUE_DM4310  0.35f
-#define MAX_FEEDBACK_TORQUE_DM4340  0.35f
 #define MAX_FEEDBACK_TORQUE_M6020   0.20f
 
 // 力矩斜率限制 (Nm/cycle) - 缓解 10Hz 数据跳变
@@ -37,7 +34,6 @@
 
 // 电机扭矩常数 (Nm/A)
 #define KT_DM4310             1.0f    // DM4310直接用力矩控制
-#define KT_DM4340             1.0f    // DM4340直接用力矩控制
 #define KT_M6020              0.741f   // M6020扭矩常数
 
 // GM6020 (M6020): 控制量 16384 对应 3A
@@ -52,7 +48,7 @@ static float gravity_comp_scale_pitch2 = 1.0f; // Pitch轴(J4)重力补偿比例
 // 角度跟随模式最大角速度限制 (deg/s) - 保护打印件
 static const float max_follow_speed_deg_s[5] = {
     30.0f,  // [0] Yaw (大yaw M6020)
-    25.0f,  // [1] Roll (大roll DM4340)
+    25.0f,  // [1] Roll (大roll DM4310)
     25.0f,  // [2] Big Pitch (大pitch DM4310)
     30.0f,  // [3] Small Pitch (小pitch DM4310)
     40.0f   // [4] Small Roll (小roll DM4310)
@@ -197,7 +193,7 @@ static void CalculateFeedbackTorque(float feedback_torques[5])
 
     const uint8_t motor_to_angle_map[5] = {
         0,  // motors[0] (大yaw M6020)
-        1,  // motors[1] (大roll DM4340)
+        1,  // motors[1] (大roll DM4310)
         2,  // motors[2] (大pitch DM4310)
         3,  // motors[3] (小pitch DM4310)
         4   // motors[4] (小roll DM4310)
@@ -216,13 +212,9 @@ static void CalculateFeedbackTorque(float feedback_torques[5])
         // 选择参数
         float kp, kd, max_torque, max_step;
         if (angle_controller->motors[i].dm_motor != NULL) {
-            if (angle_controller->motors[i].dm_motor->motor_type == J4340) {
-                kp = TORQUE_K_P_DM4340; kd = TORQUE_K_D_DM4340;
-                max_torque = MAX_FEEDBACK_TORQUE_DM4340;
-            } else {
-                kp = TORQUE_K_P_DM4310; kd = TORQUE_K_D_DM4310;
-                max_torque = MAX_FEEDBACK_TORQUE_DM4310;
-            }
+            // 所有DM电机都是DM4310，使用相同参数
+            kp = TORQUE_K_P_DM4310; kd = TORQUE_K_D_DM4310;
+            max_torque = MAX_FEEDBACK_TORQUE_DM4310;
             max_step = MAX_TORQUE_STEP_DM;
         } else {
             kp = TORQUE_K_P_M6020; kd = TORQUE_K_D_M6020;
@@ -266,7 +258,7 @@ static void ApplyFollowPositionControl(void)
 
     const uint8_t motor_to_angle_map[5] = {
         0,  // motors[0] (大yaw M6020)
-        1,  // motors[1] (大roll DM4340)
+        1,  // motors[1] (大roll DM4310)
         2,  // motors[2] (大pitch DM4310)
         3,  // motors[3] (小pitch DM4310)
         4   // motors[4] (小roll DM4310)
@@ -387,7 +379,7 @@ void RobotInit() {
         .dm4310_config_1 = DM4310_config_1,
         .dm4310_config_2 = DM4310_config_2,
         .dm4310_config_3 = DM4310_config_3,
-        .dm4340_config = DM4340_config,
+        .dm4310_config_4 = DM4310_config_4,  // 大roll电机改为DM4310
         .m6020_config = M6020_config
     };
 
