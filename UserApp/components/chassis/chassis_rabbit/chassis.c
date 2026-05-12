@@ -1077,6 +1077,7 @@ static void Leg_AngleLoop_Control() {
     float raw_angle_r = chassis->leg_motor[1]->measure.total_angle;
     float theta_math_l = (raw_angle_l - LEFT_MOTOR_HORIZON_OFFSET) * LEFT_MOTOR_DIR;
     float theta_math_r = (raw_angle_r - RIGHT_MOTOR_HORIZON_OFFSET) * RIGHT_MOTOR_DIR;
+    chassis->chassis_ctrl_cmd.leg_theta = (theta_math_l + theta_math_r) * 0.5f;
 
     if (is_first_run) {
         base_p_des_l = theta_math_l; base_p_des_r = theta_math_r;

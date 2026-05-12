@@ -93,6 +93,11 @@ typedef struct
     uint16_t last_fric_speed_mid;
     uint16_t last_fric_speed_right;
     float last_chassis_relative_angle;
+  // --- 新增：自定义右侧扇形仪表交互数据 ---
+    float custom_needle1_angle; // 蓝色指针的角度 (建议范围 280~360)
+    float custom_needle2_angle; // 绿色指针的角度
+    float last_custom_needle1_angle;
+    float last_custom_needle2_angle;
 } Referee_Interactive_info_t;
 /**
  * @brief 在referee task之前调用,添加在freertos.c中

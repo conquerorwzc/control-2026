@@ -235,18 +235,22 @@ chassis_ctrl_cmd->vx=vx_initial*chassis_ctrl_cmd->chassis_direction;
       gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
     }
   }
-  // 添加R键和F键控制腿部升降,腿在leg in air模式时这两个按键不起作用
-  // if (rc_data[TEMP].key[KEY_PRESS].r) {
-  //   // R键按下，腿部渐渐升起
-  //   chassis_ctrl_cmd->leg_mode = LEG_MANUAL_UP;
-  // } else if (rc_data[TEMP].key[KEY_PRESS].f) {
-  //   // F键按下，腿部渐渐降下
-  //   chassis_ctrl_cmd->leg_mode = LEG_MANUAL_DOWN;
-  // }
+  if (rc_data[TEMP].key[KEY_PRESS].r) {
+    // R键按下，腿部渐渐升起
+    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_UP;
+  } else if (rc_data[TEMP].key[KEY_PRESS].f) {
+    // F键按下，腿部渐渐降下
+    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_DOWN;
+  }
 
-  // 检测X键按下事件（从释放到按下），设置腿部为正常模式
-  if (!rc_data_last[TEMP].key[KEY_PRESS].x && rc_data[TEMP].key[KEY_PRESS].x) {
-    chassis_ctrl_cmd->leg_mode = LEG_NORMAL;
+  // 检测X键按下事件（从释放到按下），设置腿部动态限位
+  if (rc_data_last[TEMP].key[KEY_PRESS].x==0 && rc_data[TEMP].key[KEY_PRESS].x==1) {
+    if (chassis_ctrl_cmd->leg_limit == FIRST_STEP) {
+      chassis_ctrl_cmd->leg_limit = SECOND_STEP;
+    }
+    else if (chassis_ctrl_cmd->leg_limit == SECOND_STEP) {
+      chassis_ctrl_cmd->leg_limit = FIRST_STEP;
+    }
   }
 
   // // 检测ctrl键按下事件（从释放到按下），设置腿部为空中模式
@@ -418,13 +422,13 @@ chassis_ctrl_cmd->vx=vx_initial*chassis_ctrl_cmd->chassis_direction;
        shoot_ctrl_cmd->bullet_speed_mode=ENABLE_BULLET_SPEED;
        break;
      case 1:
-       shoot_ctrl_cmd->bullet_speed_mode=MANUAL_BULLET_SPEED;
-       if (rc_data[TEMP].key[KEY_PRESS].z==1&&rc_data_last[TEMP].key[KEY_PRESS].z==0) {
-         shoot_ctrl_cmd->friction_speed+=shoot_init_config.shoot_param.bullet_speed_adjustment;
-       }
-       else if (rc_data[TEMP].key[KEY_PRESS].x==1&&rc_data_last[TEMP].key[KEY_PRESS].x==0) {
-         shoot_ctrl_cmd->friction_speed-=shoot_init_config.shoot_param.bullet_speed_adjustment;
-       }
+       // shoot_ctrl_cmd->bullet_speed_mode=MANUAL_BULLET_SPEED;
+       // if (rc_data[TEMP].key[KEY_PRESS].z==1&&rc_data_last[TEMP].key[KEY_PRESS].z==0) {
+       //   shoot_ctrl_cmd->friction_speed+=shoot_init_config.shoot_param.bullet_speed_adjustment;
+       // }
+       // else if (rc_data[TEMP].key[KEY_PRESS].x==1&&rc_data_last[TEMP].key[KEY_PRESS].x==0) {
+       //   shoot_ctrl_cmd->friction_speed-=shoot_init_config.shoot_param.bullet_speed_adjustment;
+       // }
        break;
      case 2:
        shoot_ctrl_cmd->bullet_speed_mode=DISABLE_BULLET_SPEED;

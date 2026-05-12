@@ -82,7 +82,11 @@ static String_Data_t UI_fric_text_mid;      // 文字 "4"
 static String_Data_t UI_fric_text_up;       // 文字 "5"
 // 车头方向动态圆弧
 static Graph_Data_t UI_yaw_arc;  // 方向指示弧
-
+// --- 自定义右侧扇形仪表 UI 变量 ---
+static Graph_Data_t UI_custom_sector_lines[2]; // 扇形的上下两条直边
+static Graph_Data_t UI_custom_sector_arc;      // 扇形的外弧线
+static Graph_Data_t UI_custom_color_arc[2];    // 扇形外侧边缘的两个彩色区域
+static Graph_Data_t UI_custom_pointer[2];      // 两根动态指针 (例如:蓝、绿)
 // Vehicle side-view pitch indicator
 static Graph_Data_t UI_side_ground;
 static Graph_Data_t UI_side_ref_line[5];
@@ -110,9 +114,9 @@ static float UIClampFloat(float value, float min_value, float max_value) {
 static void DrawRabbitLegSideView(uint32_t x, uint32_t y, uint32_t width, uint32_t height, float pitch_deg,
                                   float left_leg_position, float right_leg_position, uint32_t graph_operate) {
   const float deg_to_rad = 0.0174532925f;
-  const float left_leg_horizontal = 2.922f;
+  const float left_leg_horizontal = 1.8636f;
   const float right_leg_horizontal = 1.008f;
-  const float left_leg_max = 3.651f;
+  const float left_leg_max = 2.5396f;
   const float right_leg_max = 0.332f;
   const float rear_leg_extension_display_scale = 0.6f;
   uint32_t ground_y = y + 35;
@@ -261,6 +265,13 @@ static void UIChangeCheck(Referee_Interactive_info_t *_Interactive_data) {
     _Interactive_data->Referee_Interactive_Flag.yaw_flag = 1;
     _Interactive_data->last_chassis_relative_angle = _Interactive_data->chassis_relative_angle;
   }
+  // 检测扇形仪表指针是否变化
+  if (fabsf(_Interactive_data->custom_needle1_angle - _Interactive_data->last_custom_needle1_angle) > 0.1f ||
+      fabsf(_Interactive_data->custom_needle2_angle - _Interactive_data->last_custom_needle2_angle) > 0.1f) {
+    _Interactive_data->Referee_Interactive_Flag.custom_gauge_flag = 1;
+    _Interactive_data->last_custom_needle1_angle = _Interactive_data->custom_needle1_angle;
+    _Interactive_data->last_custom_needle2_angle = _Interactive_data->custom_needle2_angle;
+      }
 }
 
 // UI更新函数
@@ -443,6 +454,34 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data) {
     DrawRabbitLegSideView(120, 730, 360, 145, interactive_data->side_pitch_angle, interactive_data->left_leg_position,
                           interactive_data->right_leg_position, UI_Graph_Change);
     interactive_data->Referee_Interactive_Flag.pitch_flag = 0;
+  }
+  // 刷新扇形仪表动态指针
+  if (interactive_data->Referee_Interactive_Flag.custom_gauge_flag == 1) {
+    uint32_t cx = 1556;
+    uint32_t cy = 500;
+    uint32_t needle_len = 115;
+    float to_rad = 0.0174532925f;
+
+    // 此时传入的角度应为 RM 角度，90是平，170是最底
+    float rm_ang1 = interactive_data->custom_needle1_angle;
+    float rm_ang2 = interactive_data->custom_needle2_angle;
+
+    // 限幅防指针越出边框 (90度~170度之间)
+    rm_ang1 = UIClampFloat(rm_ang1, 90.0f, 170.0f);
+    rm_ang2 = UIClampFloat(rm_ang2, 90.0f, 170.0f);
+
+    // 转换为 math.h 标准弧度
+    float rad1 = ((int)(450.0f - rm_ang1) % 360) * to_rad;
+    float rad2 = ((int)(450.0f - rm_ang2) % 360) * to_rad;
+
+    UILineDraw(&UI_custom_pointer[0], "cp0", UI_Graph_Change, 7, UI_Color_Cyan, 3,
+               cx, cy, cx + (int32_t)(needle_len * cosf(rad1)), cy + (int32_t)(needle_len * sinf(rad1)));
+
+    UILineDraw(&UI_custom_pointer[1], "cp1", UI_Graph_Change, 7, UI_Color_Green, 3,
+               cx, cy, cx + (int32_t)(needle_len * cosf(rad2)), cy + (int32_t)(needle_len * sinf(rad2)));
+
+    UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_custom_pointer[0], UI_custom_pointer[1]);
+    interactive_data->Referee_Interactive_Flag.custom_gauge_flag = 0;
   }
 }
 
@@ -690,6 +729,52 @@ void MyUIInit() {
     UIGraphRefresh(&referee_recv_info->referee_id, 1, Arc_DecoUp);
     UIArcDraw(&Arc_DecoDown, "ll2", UI_Graph_ADD, 6, UI_Color_White, 229, 230, 22, 960, 535, 370, 370);
     UIGraphRefresh(&referee_recv_info->referee_id, 1, Arc_DecoDown);
+
+  // ==========================================
+    // 绘制右侧自定义扇形仪表 (已修正坐标系映射)
+    // ==========================================
+    uint32_t cx = 1556;
+    uint32_t cy = 500;
+    uint32_t r = 130;
+    float to_rad = 0.0174532925f;
+
+    // 【统一定义角度】：使用 RM UI 角度系统
+    // 0度为正上方，顺时针增加。90度为正右，180度为正下
+    uint32_t arc_start = 90;  // 对应水平线 (up)
+    uint32_t arc_end = 170;   // 对应斜向下线 (down)
+
+    // 1. 绘制扇形基础外圈圆弧 (完美匹配 RM 坐标系)
+    UIArcDraw(&UI_custom_sector_arc, "ca0", UI_Graph_ADD, 5, UI_Color_White, arc_start, arc_end, 2, cx, cy, r, r);
+    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_custom_sector_arc);
+
+    // 2. 绘制外部彩色警告区域 (覆盖在基础圆弧上)
+    // 颜色段1：最下方 (155°~170°) - 对应你草图黄色的位置
+    UIArcDraw(&UI_custom_color_arc[0], "cc0", UI_Graph_ADD, 6, UI_Color_Yellow, 155, 170, 6, cx, cy, r, r);
+    // 颜色段2：靠下方 (140°~155°) - 对应你草图绿色的位置
+    UIArcDraw(&UI_custom_color_arc[1], "cc1", UI_Graph_ADD, 6, UI_Color_Green, 140, 155, 6, cx, cy, r, r);
+    UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_custom_color_arc[0], UI_custom_color_arc[1]);
+
+    // 3. 绘制扇形的上下两条静态直边 (通过转换公式适配 math.h)
+    // 转换公式: C语言数学弧度 = (450 - RM角度) % 360 * 弧度转换系数
+    float line_start_rad = ((450 - arc_start) % 360) * to_rad;
+    float line_end_rad   = ((450 - arc_end) % 360) * to_rad;
+
+    UILineDraw(&UI_custom_sector_lines[0], "cg0", UI_Graph_ADD, 5, UI_Color_White, 2,
+               cx, cy, cx + (int32_t)(r * cosf(line_start_rad)), cy + (int32_t)(r * sinf(line_start_rad)));
+    UILineDraw(&UI_custom_sector_lines[1], "cg1", UI_Graph_ADD, 5, UI_Color_White, 2,
+               cx, cy, cx + (int32_t)(r * cosf(line_end_rad)), cy + (int32_t)(r * sinf(line_end_rad)));
+    UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_custom_sector_lines[0], UI_custom_sector_lines[1]);
+
+    // 4. 初始化两根动态指针 (假设初始停在 110度 和 130度)
+    uint32_t needle_len = 115;
+    float p1_rad = ((450 - 110) % 360) * to_rad;
+    float p2_rad = ((450 - 130) % 360) * to_rad;
+
+    UILineDraw(&UI_custom_pointer[0], "cp0", UI_Graph_ADD, 7, UI_Color_Cyan, 3,
+               cx, cy, cx + (int32_t)(needle_len * cosf(p1_rad)), cy + (int32_t)(needle_len * sinf(p1_rad)));
+    UILineDraw(&UI_custom_pointer[1], "cp1", UI_Graph_ADD, 7, UI_Color_Green, 3,
+               cx, cy, cx + (int32_t)(needle_len * cosf(p2_rad)), cy + (int32_t)(needle_len * sinf(p2_rad)));
+    UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_custom_pointer[0], UI_custom_pointer[1]);
 }
 
 void UITask() {
@@ -735,7 +820,7 @@ void UITask() {
       robot->chassis->chassis_external_imu != NULL ? robot->chassis->chassis_external_imu->roll : 0.0f;
   interactive_data.chassis_relative_angle = robot->chassis->chassis_ctrl_cmd.offset_angle;  // 底盘朝向
   interactive_data.left_leg_position =
-      robot->chassis->leg_motor[0] != NULL ? robot->chassis->leg_motor[0]->measure.position : 2.922f;
+      robot->chassis->leg_motor[0] != NULL ? robot->chassis->leg_motor[0]->measure.position : 1.8636f;
   interactive_data.right_leg_position =
       robot->chassis->leg_motor[1] != NULL ? robot->chassis->leg_motor[1]->measure.position : 1.008f;
   interactive_data.bullet_left_real =
@@ -748,6 +833,20 @@ void UITask() {
   interactive_data.fric_speed_left = robot->shoot->friction_motor[0]->measure.speed_aps;
   interactive_data.fric_speed_mid = robot->shoot->friction_motor[1]->measure.speed_aps;
   interactive_data.fric_speed_right = robot->shoot->friction_motor[2]->measure.speed_aps;
+  // 【3】核心修复：必须把真实数据喂给 interactive_data...
+  // (接在你现有的赋值逻辑下面)
+
+  // 这里接入你的实际数据，并将数值映射到 90~170 度之间
+  if (robot->chassis->chassis_ctrl_cmd.leg_limit == FIRST_STEP) {
+    interactive_data.custom_needle1_angle = 170.0f ; // 测试数据：停在中间
+  }
+  if (robot->chassis->chassis_ctrl_cmd.leg_limit == SECOND_STEP) {
+    interactive_data.custom_needle1_angle = 140.0f ; // 测试数据：停在中间
+  }
+  float needle2_value = robot->chassis->chassis_ctrl_cmd.leg_theta;
+  if (needle2_value < 0.3f) needle2_value = 0.3f;
+  if (needle2_value > 1.0f) needle2_value = 1.0f;
+  interactive_data.custom_needle2_angle =  (needle2_value - 0.3f) * (80.0f / 0.7f) + 90.0f; // 测试数据：靠近下方彩色区
 
 
   // 检查是否有变化

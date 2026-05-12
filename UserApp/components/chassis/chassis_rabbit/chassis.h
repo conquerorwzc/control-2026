@@ -76,7 +76,10 @@ typedef enum {
   LEG_STATE_PROBING = 1,  // 寻地相 (软腿，往下试探)
   LEG_STATE_STANCE = 2    // 支撑相 (硬腿，完全承重)
 } LegState_e;
-
+typedef enum {
+  FIRST_STEP = 0, // 一级台阶限位
+  SECOND_STEP = 1,  // 二级台阶限位
+} LegLimit_e;
 // 定义双轨气弹簧数据点结构体
 typedef struct {
   float stroke_m;   // 压缩量 (米)
@@ -105,6 +108,8 @@ typedef struct {
   // UI部分
   //  ...
   uint8_t SuperCapBoost;
+  LegLimit_e leg_limit;
+  float leg_theta;
 } Chassis_Ctrl_Cmd_s;
 
 #pragma pack()
