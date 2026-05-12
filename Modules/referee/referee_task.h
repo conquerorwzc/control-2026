@@ -57,6 +57,9 @@ typedef struct
 
     Chassis_Power_Data_s Chassis_Power_Data; // 功率控制
     float pitch_angle; // 云台俯仰角
+    float side_pitch_angle; // chassis pitch for side-view UI
+    float left_leg_position; // left rear leg motor position for side-view UI
+    float right_leg_position; // right rear leg motor position for side-view UI
     uint8_t Shoot_heat;
     float Shoot_rate;
     uint8_t autoaim_mode;            // 当前自瞄模式 (0/1/2)
@@ -77,6 +80,9 @@ typedef struct
     lid_mode_e lid_last_mode;
     Chassis_Power_Data_s Chassis_last_Power_Data;
     float last_pitch_angle; // 上一次的俯仰角
+    float last_side_pitch_angle; // last chassis pitch for side-view UI
+    float last_left_leg_position; // last left rear leg motor position for side-view UI
+    float last_right_leg_position; // last right rear leg motor position for side-view UI
     uint8_t last_Shoot_heat;
     float last_Shoot_rate;
     uint8_t last_autoaim_mode;

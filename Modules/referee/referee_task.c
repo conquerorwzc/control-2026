@@ -11,10 +11,12 @@
 #include "referee_task.h"
 
 #include "cmsis_os.h"
+#include "math.h"
 #include "referee_UI.h"
 #include "rm_referee.h"
 #include "robot.h"
 #include "robot_config.h"
+#include "stdio.h"
 #include "string.h"
 
 static referee_info_t *referee_recv_info;  // 接收到的裁判系统数据
@@ -81,6 +83,17 @@ static String_Data_t UI_fric_text_up;       // 文字 "5"
 // 车头方向动态圆弧
 static Graph_Data_t UI_yaw_arc;  // 方向指示弧
 
+// Vehicle side-view pitch indicator
+static Graph_Data_t UI_side_ground;
+static Graph_Data_t UI_side_ref_line[5];
+static Graph_Data_t UI_side_body;
+static Graph_Data_t UI_side_front_link;
+static Graph_Data_t UI_side_leg[3];
+static Graph_Data_t UI_side_joint[3];
+static Graph_Data_t UI_side_front_wheel;
+static Graph_Data_t UI_side_rear_wheel;
+static String_Data_t UI_side_pitch_text;
+
 static Graph_Data_t Line_DecoMid;
 static Graph_Data_t Arc_DecoUp;
 static Graph_Data_t Arc_DecoDown;
@@ -88,6 +101,91 @@ static Graph_Data_t Arc_DecoDown;
 static Referee_Interactive_info_t interactive_data;
 
 // 检测UI变化的函数
+static float UIClampFloat(float value, float min_value, float max_value) {
+  if (value < min_value) return min_value;
+  if (value > max_value) return max_value;
+  return value;
+}
+
+static void DrawRabbitLegSideView(uint32_t x, uint32_t y, uint32_t width, uint32_t height, float pitch_deg,
+                                  float left_leg_position, float right_leg_position, uint32_t graph_operate) {
+  const float deg_to_rad = 0.0174532925f;
+  const float left_leg_horizontal = 2.922f;
+  const float right_leg_horizontal = 1.008f;
+  const float left_leg_max = 3.651f;
+  const float right_leg_max = 0.332f;
+  const float rear_leg_extension_display_scale = 0.6f;
+  uint32_t ground_y = y + 35;
+  uint32_t wheel_radius = 15;
+  int32_t front_body_x = x + width / 4;
+  int32_t rear_wheel_x = x + width * 3 / 4;
+  int32_t body_length = rear_wheel_x - front_body_x;
+  int32_t rear_wheel_y = ground_y + wheel_radius;
+  float left_leg_ratio = (left_leg_position - left_leg_horizontal) / (left_leg_max - left_leg_horizontal);
+  float right_leg_ratio = (right_leg_horizontal - right_leg_position) / (right_leg_horizontal - right_leg_max);
+  float rear_leg_ratio = UIClampFloat((left_leg_ratio + right_leg_ratio) * 0.5f, 0.0f, 1.0f);
+  int32_t front_body_gap = body_length * 15 / 40;
+  int32_t rear_body_x = rear_wheel_x;
+  int32_t rear_body_y =
+      rear_wheel_y + front_body_gap + (int32_t)(rear_leg_ratio * height * rear_leg_extension_display_scale);
+  float pitch_rad = pitch_deg * deg_to_rad;
+  front_body_x = rear_body_x - (int32_t)(body_length * cosf(pitch_rad));
+  int32_t front_body_y = rear_body_y - (int32_t)(body_length * sinf(pitch_rad));
+  int32_t front_wheel_x = front_body_x;
+  int32_t front_wheel_y = front_body_y - front_body_gap;
+  float leg_angle = (44.0f + rear_leg_ratio * 28.0f) * deg_to_rad;
+  float leg_len = (float)height * 0.28f;
+  int32_t knee_x = rear_wheel_x - (int32_t)(leg_len * cosf(leg_angle));
+  int32_t knee_y = (rear_body_y + rear_wheel_y) / 2 + (int32_t)(leg_len * sinf(leg_angle) * 0.25f);
+  uint32_t ref_y = rear_wheel_y + front_body_gap;
+
+  if (graph_operate == UI_Graph_ADD) {
+    uint32_t dash_len = width / 9;
+    UILineDraw(&UI_side_ground, "vg0", graph_operate, 4, UI_Color_Green, 2, x + 12, ground_y, x + width - 12, ground_y);
+    for (uint8_t i = 0; i < 5; i++) {
+      uint32_t dash_x = x + 22 + i * (dash_len + 18);
+      char name[3] = {'v', 'r', (char)('0' + i)};
+      UILineDraw(&UI_side_ref_line[i], name, graph_operate, 4, UI_Color_White, 1, dash_x, ref_y, dash_x + dash_len,
+                 ref_y);
+    }
+    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_side_ground);
+    UIGraphRefresh(&referee_recv_info->referee_id, 5, UI_side_ref_line[0], UI_side_ref_line[1], UI_side_ref_line[2],
+                   UI_side_ref_line[3], UI_side_ref_line[4]);
+  }
+
+  UILineDraw(&UI_side_body, "vb0", graph_operate, 5, UI_Color_Cyan, 5, front_body_x, front_body_y, rear_body_x,
+             rear_body_y);
+  UILineDraw(&UI_side_front_link, "vf0", graph_operate, 5, UI_Color_White, 1, front_body_x, front_body_y,
+             front_wheel_x, front_wheel_y);
+  UILineDraw(&UI_side_leg[0], "vl0", graph_operate, 5, UI_Color_Orange, 3, rear_body_x, rear_body_y, knee_x, knee_y);
+  UILineDraw(&UI_side_leg[1], "vl1", graph_operate, 5, UI_Color_Orange, 3, knee_x, knee_y, rear_wheel_x,
+             rear_wheel_y);
+  UILineDraw(&UI_side_leg[2], "vl2", graph_operate, 5, UI_Color_Orange, 1, rear_body_x, rear_body_y, rear_wheel_x,
+             rear_wheel_y);
+  UICircleDraw(&UI_side_front_wheel, "vw0", graph_operate, 5, UI_Color_White, 2, front_wheel_x, front_wheel_y,
+               wheel_radius);
+  UICircleDraw(&UI_side_rear_wheel, "vw1", graph_operate, 5, UI_Color_White, 2, rear_wheel_x, rear_wheel_y,
+               wheel_radius);
+  UICircleDraw(&UI_side_joint[0], "vj0", graph_operate, 5, UI_Color_Yellow, 2, rear_body_x, rear_body_y, 5);
+  UICircleDraw(&UI_side_joint[1], "vj1", graph_operate, 5, UI_Color_Yellow, 2, knee_x, knee_y, 5);
+  UICircleDraw(&UI_side_joint[2], "vj2", graph_operate, 5, UI_Color_Yellow, 2, rear_wheel_x, rear_wheel_y, 5);
+
+  int32_t pitch_tenth = (int32_t)(pitch_deg * 10.0f);
+  char pitch_sign = '+';
+  if (pitch_tenth < 0) {
+    pitch_sign = '-';
+    pitch_tenth = -pitch_tenth;
+  }
+  UICharDraw(&UI_side_pitch_text, "vp0", graph_operate, 5, UI_Color_White, 13, 2, x + 12, y + 10,
+             "Pitch:%c%d.%ddeg", pitch_sign, pitch_tenth / 10, pitch_tenth % 10);
+
+  UIGraphRefresh(&referee_recv_info->referee_id, 5, UI_side_body, UI_side_front_link, UI_side_leg[0], UI_side_leg[1],
+                 UI_side_leg[2]);
+  UIGraphRefresh(&referee_recv_info->referee_id, 5, UI_side_front_wheel, UI_side_rear_wheel, UI_side_joint[0],
+                 UI_side_joint[1], UI_side_joint[2]);
+  UICharRefresh(&referee_recv_info->referee_id, UI_side_pitch_text);
+}
+
 static void UIChangeCheck(Referee_Interactive_info_t *_Interactive_data) {
   if (_Interactive_data->gimbal_mode != _Interactive_data->gimbal_last_mode) {
     _Interactive_data->Referee_Interactive_Flag.gimbal_flag = 1;
@@ -120,6 +218,18 @@ static void UIChangeCheck(Referee_Interactive_info_t *_Interactive_data) {
   if (fabsf(_Interactive_data->pitch_angle - _Interactive_data->last_pitch_angle) > 0.1f) {
     _Interactive_data->Referee_Interactive_Flag.pitch_flag = 1;
     _Interactive_data->last_pitch_angle = _Interactive_data->pitch_angle;
+  }
+
+  if (fabsf(_Interactive_data->side_pitch_angle - _Interactive_data->last_side_pitch_angle) > 0.1f) {
+    _Interactive_data->Referee_Interactive_Flag.pitch_flag = 1;
+    _Interactive_data->last_side_pitch_angle = _Interactive_data->side_pitch_angle;
+  }
+
+  if (fabsf(_Interactive_data->left_leg_position - _Interactive_data->last_left_leg_position) > 0.01f ||
+      fabsf(_Interactive_data->right_leg_position - _Interactive_data->last_right_leg_position) > 0.01f) {
+    _Interactive_data->Referee_Interactive_Flag.pitch_flag = 1;
+    _Interactive_data->last_left_leg_position = _Interactive_data->left_leg_position;
+    _Interactive_data->last_right_leg_position = _Interactive_data->right_leg_position;
   }
 
   if (_Interactive_data->autoaim_mode != _Interactive_data->last_autoaim_mode) {
@@ -330,6 +440,8 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data) {
     UIArcDraw(&UI_pitch_needle, "pn0", UI_Graph_Change, 6, UI_Color_Pink, start_angle, end_angle, 38, 960, 540, 365,
               365);
     UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_pitch_needle);
+    DrawRabbitLegSideView(120, 730, 360, 145, interactive_data->side_pitch_angle, interactive_data->left_leg_position,
+                          interactive_data->right_leg_position, UI_Graph_Change);
     interactive_data->Referee_Interactive_Flag.pitch_flag = 0;
   }
 }
@@ -570,6 +682,7 @@ void MyUIInit() {
     // 绘制指针初始位置（指向90°）
     UIArcDraw(&UI_pitch_needle, "pn0", UI_Graph_ADD, 6, UI_Color_Pink, 90 - 1, 90 + 1, 45, 960, 540, 365, 365);
     UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_pitch_needle);
+    DrawRabbitLegSideView(120, 730, 360, 145, 0.0f, 2.922f, 1.008f, UI_Graph_ADD);
 
     UILineDraw(&Line_DecoMid, "ll0", UI_Graph_ADD, 6, UI_Color_White, 7, 577, 538, 606, 538);
     UIGraphRefresh(&referee_recv_info->referee_id, 1, Line_DecoMid);
@@ -618,7 +731,13 @@ void UITask() {
 
   // 动态数值（如果这里的变量名和你的底层解算名字不一致，请手动微调一下）
   interactive_data.pitch_angle = robot->gimbal->gimbal_ctrl_cmd.pitch;                      // 俯仰角
+  interactive_data.side_pitch_angle =
+      robot->chassis->chassis_external_imu != NULL ? robot->chassis->chassis_external_imu->roll : 0.0f;
   interactive_data.chassis_relative_angle = robot->chassis->chassis_ctrl_cmd.offset_angle;  // 底盘朝向
+  interactive_data.left_leg_position =
+      robot->chassis->leg_motor[0] != NULL ? robot->chassis->leg_motor[0]->measure.position : 2.922f;
+  interactive_data.right_leg_position =
+      robot->chassis->leg_motor[1] != NULL ? robot->chassis->leg_motor[1]->measure.position : 1.008f;
   interactive_data.bullet_left_real =
       referee_recv_info->ProjectileAllowance.projectile_allowance_17mm;  // 剩余金币或弹量
 
