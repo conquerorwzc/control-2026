@@ -238,7 +238,7 @@ static uint8_t VT13Decode(const uint8_t *buf, uint16_t len)
      * 若 ctrl 松开：清零 KEY_PRESS_WITH_CTRL 槽位（所有组合键视为释放）
      * shift 同理。
      * 这样上层只需检查 key_count[KEY_PRESS_WITH_CTRL][Key_X] 即可知道
-     * Ctrl+X 是否被按下，无需每次手动判断 ctrl 状态 */
+     * Ctrl 是否被按下，无需每次手动判断 ctrl 状态 */
     if (vt13_rc[TEMP].key[KEY_PRESS].ctrl)
         vt13_rc[TEMP].key[KEY_PRESS_WITH_CTRL] = vt13_rc[TEMP].key[KEY_PRESS];
     else

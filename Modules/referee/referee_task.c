@@ -19,7 +19,6 @@
 // #include "robot.c"
 
 static referee_info_t *referee_recv_info;            // 接收到的裁判系统数据
-RobotInstance* robotdata;
 uint8_t UI_Seq;                                      // 包序号，供整个referee文件使用
 // @todo 不应该使用全局变量
 
@@ -615,8 +614,7 @@ void UIPitchGaugeInit(uint32_t center_x,uint32_t center_y,uint32_t radius) {
 
 void MyUIInit()
 {
-  robotdata=RobotGet();
-  referee_recv_info=robotdata->referee_data;
+  referee_recv_info=RefereeInit(&huart6);
      // if (!referee_recv_info->init_flag)
      //     vTaskDelete(NULL); // 如果没有初始化裁判系统则直接删除ui任务
     while (referee_recv_info->GameRobotState.robot_id == 0)

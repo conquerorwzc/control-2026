@@ -133,7 +133,7 @@ static void DualBoardCtrlSet() {
     // interactive_data.cap_mode = robotdata->super_cap->cap_msg.status;
 
     //interactive_data.bullet_left_real = referee_recv_info->ProjectileAllowance.projectile_allowance_17mm; // 实体弹丸剩余
-
+    interactive_data->cap_voltage=robot->chassis->super_cap->cap_msg.cap_v;
     //interactive_data.fric_speed_left = (uint16_t)robotdata->shoot->friction_motor[0]->measure.speed_aps; // 左摩擦轮转速（取反使向上为正）
      interactive_data->fric_speed_left = cancomm_pack->friction_speed1; // 左摩擦轮转速（取反使向上为正）
     //interactive_data.fric_speed_right = (uint16_t)robotdata->shoot->friction_motor[1]->measure.speed_aps; // 右摩擦轮转速

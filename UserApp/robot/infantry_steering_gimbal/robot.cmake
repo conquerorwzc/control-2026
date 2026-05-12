@@ -4,6 +4,8 @@ set(CHASSIS_TYPE chassis_steering)
 set(GIMBAL_TYPE gimbal_standard)
 set(SHOOT_TYPE shoot_standard)
 add_compile_definitions(FRICTION_NUM=2)
+# 使用VT13新遥控器，注释此行则使用旧DR16遥控器
+#add_compile_definitions(USE_VT13)
 
 # Include directories for header file searching
 include_sub_directories_recursively(${CMAKE_CURRENT_LIST_DIR})

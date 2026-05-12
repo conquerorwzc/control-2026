@@ -7,6 +7,9 @@
 #include "user_lib.h"
 #include "rm_referee.h"
 #include "arm_math.h"
+#ifdef USE_UI
+#include "referee_task.h"
+#endif
 upload_data* upload;
 static RobotInstance *robot;
 Int16ToBytes transmit_data;
@@ -16,8 +19,13 @@ Int16ToBytes transmit_data;
 static Gimbal_Ctrl_Cmd_s *gimbal_ctrl_cmd;
 static Shoot_Ctrl_Cmd_s *shoot_ctrl_cmd;
 Vision_Receive_s* vision_recv_data;
+#ifdef USE_VT13
+static VT13_RC_t *rc_data;
+static VT13_RC_t *rc_data_last;  // VT13遥控器数据,初始化时返回
+#else
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
+#endif
 //static Chassis_Ctrl_CanComm* chassis_ctrl_can_comm;
 static CanComm_Pack* cancomm_pack;
 CANCommInstance* can_comm_instance = NULL;
@@ -102,6 +110,231 @@ static void CalcOffsetAngle() {
  * @brief 控制输入为遥控器(调试时)的模式和控制量设置
  *
  */
+#ifdef USE_VT13
+/* ======================== VT13 遥控器版本 ======================== */
+static void RemoteControlSet() {
+  // mode_switch: L=0 云台+底盘跟随, M=1 云台+射击准备, R=2 开火
+  if (switch_left(rc_data[TEMP].rc.mode_switch)) {
+    // 左: 云台+底盘跟随
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+    chassis_ctrl_cmd->SuperCapBoost = 0;
+    shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
+    shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
+    shoot_ctrl_cmd->load_mode = LOAD_STOP;
+    if (abs(rc_data[TEMP].rc.dial) > 20) {
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+    } else {
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+    }
+  } else if (switch_middle(rc_data[TEMP].rc.mode_switch)) {
+    // 中: 云台+摩擦轮启动+射击准备
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+    chassis_ctrl_cmd->SuperCapBoost = 0;
+    shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
+    shoot_ctrl_cmd->friction_mode = FRICTION_ON;
+    shoot_ctrl_cmd->load_mode = LOAD_STOP;
+    if (abs(rc_data[TEMP].rc.dial) > 20) {
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+    } else {
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+    }
+  } else if (switch_right(rc_data[TEMP].rc.mode_switch)) {
+    // 右: 超电+开火(根据trigger判断单发/连发)
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+    chassis_ctrl_cmd->SuperCapBoost = 1;
+    shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
+    shoot_ctrl_cmd->friction_mode = FRICTION_ON;
+    if (abs(rc_data[TEMP].rc.dial) > 20) {
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+    } else {
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+    }
+    // trigger按键判断单发/连发
+    if (rc_data[TEMP].rc.trigger) {
+      if (switch_middle(rc_data_last[TEMP].rc.mode_switch)) {
+        trigger_time = DWT_GetTimeline_s();
+      }
+      if (DWT_GetTimeline_s() - trigger_time > 1.0f) {
+        shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+      } else {
+        shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
+      }
+    } else {
+      shoot_ctrl_cmd->load_mode = LOAD_STOP;
+    }
+  }
+
+  // 云台使能,遥控器摇杆控制
+  if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
+    gimbal_ctrl_cmd->yaw += -0.0013f * (float)rc_data[TEMP].rc.rocker_r_;
+    gimbal_ctrl_cmd->pitch -= 0.0003f * (float)rc_data[TEMP].rc.rocker_r1;
+  }
+
+  // 云台PITCH轴软件限位
+  if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
+    gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
+  } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
+    gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
+  }
+
+  // 底盘参数
+  vx_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l_;
+  vy_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;
+  if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
+    chassis_ctrl_cmd->wz = 5000;
+  }
+  if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
+    chassis_ctrl_cmd->wz = (25.0f) * (float)rc_data[TEMP].rc.rocker_r_;
+  }
+
+  *rc_data_last = *rc_data;
+}
+
+static void MouseKeySet() {
+  vy_initial += (float)((rc_data[TEMP].key[KEY_PRESS].w) - rc_data[TEMP].key[KEY_PRESS].s) *
+                (float)chassis_ctrl_cmd->chassis_speed_buff;
+  vx_initial += (float)(rc_data[TEMP].key[KEY_PRESS].a - rc_data[TEMP].key[KEY_PRESS].d) *
+                (float)-chassis_ctrl_cmd->chassis_speed_buff;
+  if (rc_data[TEMP].key[KEY_PRESS].shift != 0 || abs(rc_data[TEMP].rc.dial) > 20) {
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+    chassis_ctrl_cmd->wz = 25000;
+  } else {
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+    chassis_ctrl_cmd->wz = (50.0f) * (float)rc_data[TEMP].mouse_key.mouse.x +
+                           (25.0f) * (float)rc_data[TEMP].rc.rocker_r_;
+  }
+  // 缓加速
+  if (abs(vx_initial) <= 10000) {
+    x_speed_time = DWT_GetTimeline_s();
+    chassis_ctrl_cmd->vx = vx_initial;
+  }
+  if (vx_initial > 10000) {
+    chassis_ctrl_cmd->vx = 10000 + (DWT_GetTimeline_s() - x_speed_time) * 10000;
+  }
+  if (vx_initial < -10000) {
+    chassis_ctrl_cmd->vx = -10000 - (DWT_GetTimeline_s() - x_speed_time) * 10000;
+  }
+  if (abs(vy_initial) <= 10000) {
+    y_speed_time = DWT_GetTimeline_s();
+    chassis_ctrl_cmd->vy = vy_initial;
+  }
+  if (vy_initial > 10000) {
+    chassis_ctrl_cmd->vy = 10000 + (DWT_GetTimeline_s() - y_speed_time) * 10000;
+  }
+  if (vy_initial < -10000) {
+    chassis_ctrl_cmd->vy = -10000 - (DWT_GetTimeline_s() - y_speed_time) * 10000;
+  }
+
+  if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
+    gimbal_ctrl_cmd->yaw -= (float)rc_data[TEMP].mouse_key.mouse.x * 0.003f;
+    gimbal_ctrl_cmd->pitch -= (float)rc_data[TEMP].mouse_key.mouse.y * 0.003f;
+  }
+
+  // 右键进入自瞄模式
+  switch (rc_data[TEMP].mouse_key.mouse.press_r % 2) {
+    case 1:
+      if (has_non_zero_data(vision_recv_data) == 1) {
+        gimbal_ctrl_cmd->gimbal_mode = GIMBAL_VISION;
+        gimbal_ctrl_cmd->yaw = vision_recv_data->gimbal_receive.yaw;
+        gimbal_ctrl_cmd->pitch = vision_recv_data->gimbal_receive.pitch;
+      } else {
+        gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+      }
+      break;
+    default:
+      break;
+  }
+
+  // 左键发射
+  switch (rc_data[TEMP].mouse_key.mouse.press_l % 2) {
+    case 0:
+      if (!switch_right(rc_data[TEMP].rc.mode_switch)) {
+        shoot_ctrl_cmd->load_mode = LOAD_STOP;
+        trigger_time = DWT_GetTimeline_s();
+      }
+      break;
+    default:
+      switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 2) {
+        case 0:
+          if (shoot_ctrl_cmd->friction_mode == FRICTION_ON) {
+            shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
+            if (DWT_GetTimeline_s() - trigger_time > 0.3f) {
+              shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+            }
+          }
+          break;
+        default:
+          if (shoot_ctrl_cmd->friction_mode == FRICTION_ON)
+            shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+          break;
+      }
+      break;
+  }
+
+  // C键设置底盘速度
+  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_C] % 4) {
+    case 0:
+      chassis_ctrl_cmd->chassis_speed_buff = 10000;
+      break;
+    case 1:
+      chassis_ctrl_cmd->chassis_speed_buff = 20000;
+      break;
+    case 2:
+      chassis_ctrl_cmd->chassis_speed_buff = 40000;
+      break;
+    default:
+      chassis_ctrl_cmd->chassis_speed_buff = 80000;
+      break;
+  }
+
+  if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
+    gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
+  } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
+    gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
+  }
+}
+
+static void EmergencyHandler() {
+  // VT13: pause按键 或 拨杆断连 触发急停
+  if (rc_data[TEMP].rc.pause) {
+    robot->robot_mode = ROBOT_POWER_ON;
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
+    shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
+    shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
+    shoot_ctrl_cmd->load_mode = LOAD_STOP;
+    for (int i = 0; i < 16; i++)
+      rc_data[TEMP].key_count[KEY_PRESS][i] = 0;
+    LOGERROR("[CMD] emergency stop!");
+    return;
+  }
+  LOGINFO("[CMD] reinstate, robot ready");
+
+  // mode_switch左: 底盘+发射失能
+  if (switch_left(rc_data[TEMP].rc.mode_switch)) {
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
+    shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
+    shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
+    shoot_ctrl_cmd->load_mode = LOAD_STOP;
+  }
+  // mode_switch中: 云台+射击使能
+  if (switch_middle(rc_data[TEMP].rc.mode_switch)) {
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+    shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
+    if (gimbal_ctrl_cmd->gimbal_mode != GIMBAL_VISION)
+      gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+  }
+  // mode_switch右: 全部使能+超电
+  if (switch_right(rc_data[TEMP].rc.mode_switch)) {
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+    shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
+    if (gimbal_ctrl_cmd->gimbal_mode != GIMBAL_VISION)
+      gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+  }
+}
+
+#else
+/* ======================== 旧DR16遥控器版本 ======================== */
 static void RemoteControlSet() {
   // 右[中]，云台
   if (switch_is_mid(rc_data[TEMP].rc.switch_right))
@@ -323,6 +556,7 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
     gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
   }
 }
+
 /**
  * @brief  紧急停止,包括遥控器左上侧拨轮打满/重要模块离线/双板通信失效等
  *         停止的阈值'300'待修改成合适的值,或改为开关控制.
@@ -367,6 +601,7 @@ static void EmergencyHandler() {
   }
   // 遥控器右侧开关为[上],恢复正常运行
 }
+#endif
 
 // void Steering_CANCommSend(CANCommInstance *can_comm_instance, RC_ctrl_t *rc_data)
 // {
@@ -406,13 +641,21 @@ static void EmergencyHandler() {
 void RobotInit() {
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
 
-#ifdef STM32F407xx
-  robot->rc_data = RemoteControlInit(&huart3);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
-#elifdef STM32H723XX
-  robot->rc_data = RemoteControlInit(&huart5);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
-#endif
-
+#ifdef USE_VT13
+  #ifdef STM32F407xx
+    robot->rc_data = VT13RemoteInit(&huart3);
+  #elifdef STM32H723XX
+    robot->rc_data = VT13RemoteInit(&huart5);
+  #endif
+  rc_data_last = (VT13_RC_t *)zmalloc(sizeof(VT13_RC_t));
+#else
+  #ifdef STM32F407xx
+    robot->rc_data = RemoteControlInit(&huart3);
+  #elifdef STM32H723XX
+    robot->rc_data = RemoteControlInit(&huart5);
+  #endif
   rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
+#endif
   *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
 
   // robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化

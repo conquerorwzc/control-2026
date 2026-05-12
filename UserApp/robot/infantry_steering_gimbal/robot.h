@@ -4,8 +4,11 @@
 #include "chassis.h"
 #include "gimbal.h"
 #include "shoot.h"
-#include "remote_control.h"
+#ifdef USE_VT13
 #include "new_RC_VT13.h"
+#else
+#include "remote_control.h"
+#endif
 #include "rm_referee.h"
 #include "super_cap.h"
 //#include "can_comm.h"
@@ -62,8 +65,11 @@ typedef struct {
 
 
 
-    RC_ctrl_t *rc_data;               // 遥控器数据,初始化时返回
-  VT13_RC_t *vt13_data;           // 用于获取VT13遥控器数据
+#ifdef USE_VT13
+  VT13_RC_t *rc_data;               // VT13遥控器数据,初始化时返回
+#else
+  RC_ctrl_t *rc_data;               // 遥控器数据,初始化时返回
+#endif
   referee_info_t* referee_data;     // 用于获取裁判系统的数据
   SuperCapInstance* super_cap;
   ChassisInstance* chassis;
