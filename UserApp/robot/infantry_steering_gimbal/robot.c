@@ -1,6 +1,5 @@
 #include "robot.h"
 
-#include "components/gimbal/gimbal_steering_infantry/gimbal.h"
 #include "general_def.h"
 #include "can_comm.h"
 #include "master_process.h"

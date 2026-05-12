@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include "main.h"
 #include "usart.h"
+#include "remote_control.h"
 
 /* ------------------- 帧格式常量 ------------------- */
 #define VT13_SOF_1       0xA9u  ///< 帧头第一字节
@@ -61,57 +62,6 @@
 #define VT13_KEY_C      (1u << 13)
 #define VT13_KEY_V      (1u << 14)
 #define VT13_KEY_B      (1u << 15)
-
-/* ------------------- 按键计次模式 ------------------- */
-#define LAST  1
-#define TEMP  0
-
-#define KEY_PRESS             0
-#define KEY_PRESS_WITH_CTRL   1
-#define KEY_PRESS_WITH_SHIFT  2
-
-/* ------------------- 键盘按键位索引（用于 key_count 数组）------------------- */
-#define Key_W     0
-#define Key_S     1
-#define Key_A     2
-#define Key_D     3
-#define Key_Shift 4
-#define Key_Ctrl  5
-#define Key_Q     6
-#define Key_E     7
-#define Key_R     8
-#define Key_F     9
-#define Key_G     10
-#define Key_Z     11
-#define Key_X     12
-#define Key_C     13
-#define Key_V     14
-#define Key_B     15
-
-/* ------------------- 键盘位域联合体 ------------------- */
-typedef union
-{
-    struct
-    {
-        uint16_t w     : 1;
-        uint16_t s     : 1;
-        uint16_t a     : 1;
-        uint16_t d     : 1;
-        uint16_t shift : 1;
-        uint16_t ctrl  : 1;
-        uint16_t q     : 1;
-        uint16_t e     : 1;
-        uint16_t r     : 1;
-        uint16_t f     : 1;
-        uint16_t g     : 1;
-        uint16_t z     : 1;
-        uint16_t x     : 1;
-        uint16_t c     : 1;
-        uint16_t v     : 1;
-        uint16_t b     : 1;
-    };
-    uint16_t keys;
-} Key_t;
 
 /* ================================================================
  *  VT13 原始帧有效载荷布局（供 Decode 内部使用，外部无需关心）

@@ -92,7 +92,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                     .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
                     .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
                 },
-            .motor_type = J4310,
+            .motor_type = GM6020,
             .can_init_config =
                 {
                     .can_handle = &hcan1,
