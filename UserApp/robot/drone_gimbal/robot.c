@@ -193,29 +193,20 @@ static void MouseKeySet() {
     }
 
     /****************** 右键自瞄切换 ******************/
-    static uint8_t right_pressed = 0;  // 记录右键按住状态
-    uint8_t right_mouse_state = rc_data[TEMP].mouse.press_r % 2;
-
-    if (right_mouse_state == 1 && !right_pressed) {  // 右键按下瞬间
-        right_pressed = 1;
-        if (vision_recv_data != NULL && has_non_zero_data(vision_recv_data)) {
-            gimbal_ctrl_cmd->gimbal_mode = GIMBAL_VISION;
-            gimbal_ctrl_cmd->yaw = vision_recv_data->gimbal_receive.yaw;
-            gimbal_ctrl_cmd->pitch = vision_recv_data->gimbal_receive.pitch;
-        } else {
-            gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-        }
-    } else if (right_mouse_state == 0 && right_pressed) {  // 右键释放瞬间
-        right_pressed = 0;
-        gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-    }
-
-    // 右键按住期间：若视觉数据突然无效，可切回手动
-    if (right_pressed && gimbal_ctrl_cmd->gimbal_mode == GIMBAL_VISION) {
-        if (vision_recv_data == NULL || !has_non_zero_data(vision_recv_data)) {
-            gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-        }
-    }
+  switch (rc_data[TEMP].mouse.press_r % 2) {  //右键进入自瞄预备模式
+      case 1:
+      if (has_non_zero_data(vision_recv_data)==1){
+        gimbal_ctrl_cmd->gimbal_mode=GIMBAL_VISION;    // 右键自瞄开启
+        gimbal_ctrl_cmd->yaw=vision_recv_data->gimbal_receive.yaw;
+        gimbal_ctrl_cmd->pitch=vision_recv_data->gimbal_receive.pitch;
+        //shoot_ctrl_cmd->load_mode=vision_recv_data->shoot_receive.fire_flag;
+      }
+      else
+        gimbal_ctrl_cmd->gimbal_mode=GIMBAL_ON;      //人工操控模式
+      break;
+      default:
+      break;
+  }
 
     /****************** 鼠标控制云台（仅手动模式） ******************/
     if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
