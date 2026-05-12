@@ -22,7 +22,7 @@ static void RequestUiForceRefresh(RobotInstance* robot) {
 
 #if !defined(ONE_BOARD)
   if (robot->chassis_fetch_data != NULL) {
-    robot->chassis_fetch_data->force_refresh_ui = 1;
+    robot->chassis_fetch_data->main.force_refresh_ui = 1;
   }
 #endif
 

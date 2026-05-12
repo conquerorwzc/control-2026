@@ -455,7 +455,7 @@ static float GetRelativeAngle(RobotInstance *robot) {
   float angle = robot->offset_angle;
 #if !defined(ONE_BOARD)
   if (robot->chassis_fetch_data) {
-    angle = (float)robot->chassis_fetch_data->ui_status.ui_chassis_relative_angle_deg_x10 * 0.1f;
+    angle = (float)robot->chassis_fetch_data->gamestate.ui_status.ui_chassis_relative_angle_deg_x10 * 0.1f;
   }
 #endif
   return angle;
@@ -533,7 +533,7 @@ static void SampleStatusData(RobotInstance *robot, Referee_Interactive_info_t *d
 
 #if !defined(ONE_BOARD)
   if (robot->chassis_fetch_data) {
-    const UI_Remote_Status_s *status = &robot->chassis_fetch_data->ui_status;
+    const UI_Remote_Status_s *status = &robot->chassis_fetch_data->gamestate.ui_status;
     data->robot_mode = (Robot_Mode_e)status->robot_mode;
     data->gimbal_mode = (Gimbal_Mode_e)status->gimbal_mode;
     data->friction_mode = (Friction_Mode_e)status->friction_mode;
