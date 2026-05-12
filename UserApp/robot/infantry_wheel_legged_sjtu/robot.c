@@ -14,6 +14,8 @@
 
 #include "robot.h"
 
+#include <math.h>
+
 #include "robot_config.h"
 
 // bsp
@@ -34,7 +36,6 @@ static RobotInstance* robot;
 static Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd;
 static Gimbal_Ctrl_Cmd_s* gimbal_ctrl_cmd;
 static Shoot_Ctrl_Cmd_s* shoot_ctrl_cmd;
-static Vision_Receive_s* vision_recv_data;
 // vofa数据
 float visualized_data[20];
 
@@ -65,119 +66,7 @@ void VOFATask() {
   VOFAJustFloatSend(visualized_data, 20);
 }
 
-// 双板通信
-#if !defined(ONE_BOARD)
-static Chassis_Upload_Data_s* chassis_upload_data;
-static Chassis_Fetch_Data_s* chassis_fetch_data;
-
-static void DoubleBoardCommsInit() {
-#if defined(GIMBAL_BOARD)
-  robot->gimbal = GimbalInit(&gimbal_init_config);
-  robot->shoot = ShootInit(&shoot_init_config);
-  gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
-  shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
-  shoot_ctrl_cmd->heat_mode = REFEREE_CONTROL;
-
-  // 视觉接收初始化
-  vision_recv_data = VisionInit(&gimbal_init_config.imu_init_config);
-  robot->vision_recv_data = vision_recv_data;  // Assign to robot instance for access in ctrl module
-
-  robot->chassis_upload_data = (Chassis_Upload_Data_s*)zmalloc(sizeof(Chassis_Upload_Data_s));
-  robot->chassis_fetch_data = (Chassis_Fetch_Data_s*)zmalloc(sizeof(Chassis_Fetch_Data_s));
-  chassis_upload_data = robot->chassis_upload_data;
-  chassis_fetch_data = robot->chassis_fetch_data;
-
-  robot->chassis = (ChassisInstance*)zmalloc(sizeof(ChassisInstance));
-  robot->chassis->imu = (INS_t*)zmalloc(sizeof(INS_t));
-  robot->chassis->super_cap = (SuperCapInstance*)zmalloc(sizeof(SuperCapInstance));
-  robot->can_comm = CANCommInit(&gimbal_comm_conf);
-  VOFAInit(&huart6);
-#endif
-#if defined(CHASSIS_BOARD)
-  chassis_ctrl_cmd->max_power = robot->referee_data->GameRobotState.chassis_power_limit;
-
-  robot->chassis_upload_data = (Chassis_Upload_Data_s*)zmalloc(sizeof(Chassis_Upload_Data_s));
-  robot->chassis_fetch_data = (Chassis_Fetch_Data_s*)zmalloc(sizeof(Chassis_Fetch_Data_s));
-  chassis_upload_data = robot->chassis_upload_data;
-  chassis_fetch_data = robot->chassis_fetch_data;
-  robot->can_comm = CANCommInit(&chassis_comm_conf);  // can comm初始化
-  VOFAInit(&huart1);
-#endif
-}
-
-static void DoubleBoardComms() {
-#if defined(GIMBAL_BOARD)
-  static SuperCap_Ctrl_Cmd_e last_local_cmd = NORMAL;
-  static float last_change_time = 0;
-
-  // 检测云台板本地（如按键）是否修改了超电状态
-  if (robot->chassis->super_cap->super_cap_ctrl_cmd != last_local_cmd) {
-    last_change_time = DWT_GetTimeline_ms();
-    last_local_cmd = robot->chassis->super_cap->super_cap_ctrl_cmd;
-  }
-
-  // 发送底盘控制指令
-  chassis_fetch_data->chassis_ctrl_cmd = *chassis_ctrl_cmd;
-  chassis_fetch_data->super_cap_ctrl_cmd = robot->chassis->super_cap->super_cap_ctrl_cmd;
-  chassis_fetch_data->gimbal_aligned = robot->update_flag.is_gimbal_aligned;
-  chassis_fetch_data->ui_status.ui_chassis_relative_angle_deg_x10 = (int16_t)(robot->offset_angle * 10.0f);
-  chassis_fetch_data->ui_status.robot_mode = (uint8_t)robot->robot_mode;
-  chassis_fetch_data->ui_status.gimbal_mode = (uint8_t)gimbal_ctrl_cmd->gimbal_mode;
-  chassis_fetch_data->ui_status.friction_mode = (uint8_t)shoot_ctrl_cmd->friction_mode;
-  chassis_fetch_data->ui_status.loader_mode = (uint8_t)shoot_ctrl_cmd->load_mode;
-  chassis_fetch_data->ui_status.fire_flag =
-      (uint8_t)(robot->vision_recv_data != NULL && robot->vision_recv_data->shoot_receive.fire_flag != 0);
-
-  // 接收底盘回传数据
-  *chassis_upload_data = *(Chassis_Upload_Data_s*)CANCommGet(robot->can_comm);
-  robot->chassis->imu->Pitch = chassis_upload_data->Pitch;
-  robot->chassis->imu->YawTotalAngle = chassis_upload_data->YawTotalAngle;
-  robot->chassis->imu->Gyro[2] = chassis_upload_data->yaw_speed;
-  shoot_ctrl_cmd->initial_speed = chassis_upload_data->bullet_speed;
-  shoot_ctrl_cmd->shooter_barrel_heat = chassis_upload_data->shooter_17mm_barrel_heat;
-  shoot_ctrl_cmd->shooter_barrel_heat_limit = chassis_upload_data->shoot_heat_limit;
-  VisionSetRefereeData(chassis_upload_data->bullet_speed, chassis_upload_data->robot_id);
-
-  // 延迟 500ms 接收底盘的覆盖（防止云台板刚按下的指令被底盘延迟发来的旧状态吃掉）
-  if (DWT_GetTimeline_ms() - last_change_time > 500.0f) {
-    robot->chassis->super_cap->super_cap_ctrl_cmd = chassis_upload_data->super_cap_ctrl_cmd;
-    last_local_cmd = chassis_upload_data->super_cap_ctrl_cmd;
-  }
-
-  CANCommSend(robot->can_comm, (void*)chassis_fetch_data);
-  // 重置标志位，避免重复发送
-  chassis_fetch_data->force_refresh_ui = 0;
-#elif defined(CHASSIS_BOARD)
-  // 发送底盘回传数据
-  chassis_upload_data->Pitch = robot->chassis->imu->Pitch;
-  chassis_upload_data->YawTotalAngle = robot->chassis->imu->YawTotalAngle;
-  chassis_upload_data->yaw_speed = robot->chassis->imu->Gyro[2];
-  chassis_upload_data->bullet_speed = robot->referee_data->ShootData.initial_speed;
-  chassis_upload_data->robot_id = robot->referee_data->GameRobotState.robot_id;
-  chassis_upload_data->shooter_17mm_barrel_heat = robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
-  chassis_upload_data->shoot_heat_limit = robot->referee_data->GameRobotState.shooter_barrel_heat_limit;
-  chassis_upload_data->super_cap_ctrl_cmd = robot->chassis->super_cap->super_cap_ctrl_cmd;
-  // 接收底盘控制指令
-  *chassis_fetch_data = *(Chassis_Fetch_Data_s*)CANCommGet(robot->can_comm);
-  robot->chassis->chassis_ctrl_cmd = chassis_fetch_data->chassis_ctrl_cmd;
-  robot->chassis->super_cap->super_cap_ctrl_cmd = chassis_fetch_data->super_cap_ctrl_cmd;
-  robot->update_flag.is_gimbal_aligned = chassis_fetch_data->gimbal_aligned;
-  robot->chassis->update_flag.gimbal_aligned = robot->update_flag.is_gimbal_aligned;
-
-  // 处理云台板传来的UI刷新标志
-  if (chassis_fetch_data->force_refresh_ui) {
-    Referee_Interactive_info_t* ui_data = getUI();
-    if (ui_data != NULL) {
-      ui_data->force_refresh_ui = 1;
-    }
-  }
-
-  CANCommSend(robot->can_comm, (void*)chassis_upload_data);
-#endif
-}
-
 RobotInstance* RobotGetInstance(void) { return robot; }
-#endif
 
 /**
  * @brief 根据gimbal app传回的当前电机角度计算和零位的误差
@@ -249,14 +138,7 @@ void RobotCMDTask() {
   EmergencyHandler(robot);  // 急停必须在 CAN 发送之前,确保 POWER_OFF 优先级最高
 #endif
 
-// 双板通信
-#if !defined(ONE_BOARD)
-  static float last_comm_time = 0.0f;
-  if (DWT_GetTimeline_ms() - last_comm_time >= 25.f) {
-    last_comm_time = DWT_GetTimeline_ms();
-    DoubleBoardComms();
-  }
-#endif
+  RobotCommTask(robot);
 }
 
 void RobotInit() {
@@ -285,11 +167,10 @@ void RobotInit() {
 #endif
 #if !defined(GIMBAL_BOARD)
   robot->referee_data = RefereeInit(&huart7);  // 裁判系统初始化
-  // robot->super_cap = SuperCapInit(&super_cap_config);
   robot->chassis = ChassisInit(&chassis_init_config);
 #endif
 #if !defined(ONE_BOARD)
-  DoubleBoardCommsInit();
+  RobotCommInit(robot);
 #endif
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   chassis_ctrl_cmd->leg_length = chassis_init_config.param.initial_leg_length;  // 初始腿长

@@ -2,6 +2,7 @@
 
 #include "VT13.h"
 #include "can_comm.h"
+#include "comm.h"
 #include "chassis.h"
 #include "gimbal.h"
 #include "master_process.h"
@@ -9,41 +10,6 @@
 #include "remote_control.h"
 #include "shoot.h"
 #include "super_cap.h"
-
-// todo: add vision_module
-
-#ifndef ONE_BOARD
-#pragma pack(1)
-typedef struct {
-  float Pitch;  // 俯仰角(绕Y轴旋转) 单位: °
-  float YawTotalAngle;
-  float yaw_speed;
-  float bullet_speed;
-  uint8_t robot_id;
-  int shooter_17mm_barrel_heat;
-  int shoot_heat_limit;
-  SuperCap_Ctrl_Cmd_e super_cap_ctrl_cmd;
-} Chassis_Upload_Data_s;  // means the Chassis board, not the component
-
-typedef struct {
-  uint8_t robot_mode;
-  uint8_t gimbal_mode;
-  uint8_t friction_mode;
-  uint8_t loader_mode;
-  uint8_t fire_flag;
-  int16_t ui_chassis_relative_angle_deg_x10;
-} UI_Remote_Status_s;
-
-typedef struct {
-  Chassis_Ctrl_Cmd_s chassis_ctrl_cmd;
-  SuperCap_Ctrl_Cmd_e super_cap_ctrl_cmd;
-  uint8_t force_refresh_ui;
-  uint8_t gimbal_aligned;  // 云台板告知底盘板：云台是否完成与底盘正方向对齐
-  UI_Remote_Status_s ui_status;
-} Chassis_Fetch_Data_s;  // means the Chassis board, not the component
-#pragma pack()
-
-#endif
 
 typedef enum {
   ROBOT_POWER_OFF = 0,
@@ -54,7 +20,7 @@ typedef enum {
   ROBOT_CHASSIS_PROSTRATE_FOLLOW,
 } Robot_Mode_e;
 
-typedef struct {
+typedef struct RobotInstance {
   Robot_Mode_e robot_mode;  // 机器人整体工作状态
 
 #ifdef USE_RC_CTRL
@@ -76,7 +42,9 @@ typedef struct {
 #ifndef ONE_BOARD
   Chassis_Upload_Data_s* chassis_upload_data;  // 此处chassis定义为chassis_board, 而非chassis模组, 故所有处理在robot中
   Chassis_Fetch_Data_s* chassis_fetch_data;
-  CANCommInstance* can_comm;
+  CANCommInstance* main_comm;
+  CANCommInstance* motion_comm;
+  CANCommInstance* gamestate_comm;
 #endif
 
   uint32_t DWT_CNT;
