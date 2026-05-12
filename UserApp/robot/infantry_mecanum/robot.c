@@ -382,7 +382,7 @@ void RobotInit() {
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;
   shoot_ctrl_cmd->bullet_speed_mode=MANUAL_BULLET_SPEED;
-  shoot_ctrl_cmd->heat_mode=SIMULLATE_CONTROL;
+  shoot_ctrl_cmd->heat_mode=REFEREE_CONTROL;
   vision_recv_data=VisionInit(&gimbal_init_config.imu_init_config);
   referee_power_limit = 118;
   buffer_energy = 60;
@@ -425,7 +425,7 @@ void RobotTask() {
   VisionSend();
   RobotCMDTask();
   GimbalTask();
-  ShootTask();
+  ShootTask(robot->referee_data->GameRobotState.shooter_barrel_cooling_value,robot->referee_data->GameRobotState.shooter_barrel_heat_limit);
 #endif
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)

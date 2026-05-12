@@ -88,4 +88,4 @@ ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config);
  * @brief 云台任务
  *
  */
-void ShootTask();
+void ShootTask(uint16_t cooling_value, uint16_t heat_limit);

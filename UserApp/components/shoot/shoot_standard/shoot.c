@@ -136,7 +136,9 @@ void HeatControl() {
 
 
 /* 机器人发射机构控制核心任务 */
-void ShootTask() {
+void ShootTask(uint16_t cooling_value, uint16_t heat_limit) {
+  shooter_barrel_cooling_value = cooling_value;
+  shooter_barrel_heat_limit = heat_limit;
   if (shoot->loader_motor->measure.total_angle!=0&&loader_init_angle==0) {
     loader_position_init=1;
   }
