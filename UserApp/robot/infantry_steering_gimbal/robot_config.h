@@ -51,7 +51,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
             .motor_type = GM6020,
             .can_init_config =
                 {
-                    .can_handle = &hcan2,
+                    .can_handle = &hcan1,
                     .tx_id = 1,
                 },
             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
@@ -95,7 +95,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
             .motor_type = GM6020,
             .can_init_config =
                 {
-                    .can_handle = &hcan1,
+                    .can_handle = &hcan2,
                     .tx_id = 0x01,      //0x01
                     .rx_id = 0x206,     //0x206Ò
                 },
@@ -172,8 +172,8 @@ static Shoot_Init_Config_s shoot_init_config = {
             .shooter_barrel_cooling_value = 30,//每秒冷却回复
             .shooter_barrel_heat_limit = 220,//热量上限
         },
-    .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan1, 8, MOTOR_DIRECTION_NORMAL),
-    .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan1, 4, MOTOR_DIRECTION_NORMAL),
+    .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan2, 8, MOTOR_DIRECTION_NORMAL),
+    .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan2, 4, MOTOR_DIRECTION_NORMAL),
 
     .loader_motor_config =
         {
@@ -216,7 +216,7 @@ static CANComm_Init_Config_s comm_config = {
   .send_data_len = 36,        // 发送数据长度，根据实际需求调整
   .daemon_count = 1000,      // 看门狗重载计数，根据实际需求调整
   .can_config = {
-    .can_handle = &hcan1,  // 假设使用CAN1，根据实际使用的CAN句柄调整
+    .can_handle = &hcan2,  // 假设使用CAN1，根据实际使用的CAN句柄调整
     .tx_id = BOARD_TX_ID,        // 发送ID，根据实际需求调整
     .rx_id = BOARD_RX_ID,        // 接收ID，根据实际需求调整
     .id = NULL                   // 将在CANCommInit中设置
@@ -225,7 +225,7 @@ static CANComm_Init_Config_s comm_config = {
 
 // CAN实例配置（用于数据存储）
 static CANInstance board_can_comm_data = {
-  .can_handle = &hcan2,
+  .can_handle = &hcan1,
   .tx_id = BOARD_TX_ID,          // 与comm_config中的ID保持一致
   .rx_id = BOARD_RX_ID,
   .txconf = {
