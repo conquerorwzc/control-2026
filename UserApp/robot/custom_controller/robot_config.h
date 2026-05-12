@@ -153,12 +153,12 @@ static Motor_Init_Config_s DM4310_config_4 = {
 static Motor_Init_Config_s M6020_config = {
     .controller_param_init_config =
         {
-            .angle_PID = {.Kp = 40.0f,
+            .angle_PID = {.Kp = 80.0f,
                           .Ki = 0.0f,
-                          .Kd = 1.3f,
-                          .IntegralLimit = 800.0f,
+                          .Kd = 0.3f,
+                          .IntegralLimit = 0.0f,
                           .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                          .MaxOut = 1500.0f},
+                          .MaxOut = 5000.0f},
             .speed_PID = {.Kp = 3.0f,
                           .Ki = 40.0f,
                           .Kd = 0.0f,
@@ -171,7 +171,7 @@ static Motor_Init_Config_s M6020_config = {
             .angle_feedback_source = MOTOR_FEED,
             .speed_feedback_source = MOTOR_FEED,
             .outer_loop_type = ANGLE_LOOP,
-            .close_loop_type = SPEED_LOOP | ANGLE_LOOP,
+            .close_loop_type = ANGLE_LOOP,
             .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
             .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
         },
