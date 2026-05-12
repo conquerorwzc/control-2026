@@ -17,16 +17,16 @@
 #define TORQUE_DEADBAND       3.8f    // 所有电机角度死区(度)
 
 // 刚度系数 (Nm/deg) - 降低以避免延迟震荡
-#define TORQUE_K_P_DM4310     0.02f
-#define TORQUE_K_P_M6020      0.012f
+#define TORQUE_K_P_DM4310     0.05f
+#define TORQUE_K_P_M6020      0.03f
 
 // 阻尼系数 (Nm/(deg/s)) - 本地速度阻尼，抑制震荡
 #define TORQUE_K_D_DM4310     0.006f   
 #define TORQUE_K_D_M6020      0.003f   
 
 // 力反馈力矩限幅 (仅对力反馈部分限幅)
-#define MAX_FEEDBACK_TORQUE_DM4310  0.35f
-#define MAX_FEEDBACK_TORQUE_M6020   0.20f
+#define MAX_FEEDBACK_TORQUE_DM4310  0.75f
+#define MAX_FEEDBACK_TORQUE_M6020   0.80f
 
 // 力矩斜率限制 (Nm/cycle) - 缓解 10Hz 数据跳变
 #define MAX_TORQUE_STEP_DM          0.02f
