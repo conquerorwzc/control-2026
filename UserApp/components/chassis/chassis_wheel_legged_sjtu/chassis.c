@@ -215,7 +215,7 @@ static void StateErrCalc(void) {
   chassis->state_err[1] = sv->x_b_d - chassis_ctrl_cmd->vx;
   VAL_LIMIT(chassis->state_err[1], -3.2f, 3.2f);
   chassis->state_err[2] = sv->phi - chassis_ctrl_cmd->target_yaw;
-  VAL_LIMIT(chassis->state_err[2], -0.2f, 0.2f);  // ±25°
+  // VAL_LIMIT(chassis->state_err[2], -0.5f, 0.5f);  // ±25°
   chassis->state_err[3] = sv->phi_d - chassis_ctrl_cmd->wz;
   VAL_LIMIT(chassis->state_err[3], -3.14f, 3.14f);  // ±30°
   chassis->state_err[4] = sv->theta_l - chassis_ctrl_cmd->theta_ff;
@@ -329,7 +329,7 @@ static void ChassisCtrlUpdate(void) {
 
   StateErrCalc();
   // ChassisCtrlUpdate 始终是 LQR 平衡输出路径；真实卧倒输出在 LimitChassisOutput() 中限功率。
-  PowerControl(chassis);
+  // PowerControl(chassis);
 
   LocomotionController();
   LegController();

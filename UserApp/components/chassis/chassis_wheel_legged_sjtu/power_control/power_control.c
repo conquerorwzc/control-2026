@@ -152,12 +152,12 @@ void PowerControl(ChassisInstance* chassis) {
     // float alpha = current_P > pc->P[i] ? 0.25f : 0.03f;
     // pc->P[i] += alpha * (current_P - pc->P[i]);
     pc->P[i] = pc->P[i] * (1.0f - P_FILTER_COEF) + current_P * P_FILTER_COEF;
-    pc->P[i] = current_P;
+    // pc->P[i] = current_P;
   }
 
   pc->P_total = pc->P[0] + pc->P[1];
   // pc->P_total_ref = chassis->chassis_ctrl_cmd.max_power;
-  pc->P_total_ref = 60.f;
+  pc->P_total_ref = 200.f;
 
   // 3.功率控制逻辑
   if (pc->P_total > pc->P_total_ref) {
@@ -223,65 +223,42 @@ void PowerControl_Prostrate(ChassisInstance* chassis) {
 #define W_FILTER_COEF 0.05f
 #define P_FILTER_COEF 0.02f
   for (int i = 0; i < 2; i++) {
-    float current_I = chassis->leg[i]->wheel_motor->motor_controller.final_output;
+    float current_I = chassis->leg[i]->wheel_motor->motor_controller.final_output * DJI_CURRENT_SCALE;
     // pc->I[i] = pc->I[i] * (1.0f - I_FILTER_COEF) + current_I * I_FILTER_COEF;
     pc->I[i] = current_I;
 
     // 对 w 应用一阶低通滤波 (当前不加滤波)
-    float current_w = chassis->leg[i]->wheel_motor->measure.speed_aps / 6.0f;
+    float current_w = chassis->leg[i]->wheel_motor->measure.speed_aps * DEGREE_2_RAD;
     // pc->w[i] = pc->w[i] * (1.0f - W_FILTER_COEF) + current_w * W_FILTER_COEF;
     pc->w[i] = current_w;
 
     // 总功率用实际电机电流估算，并应用一阶低通滤波 (当前不加滤波)
-    float current_P = MotorEstimatePower(pc->k, pc->I[i] * DJI_CURRENT_SCALE,
-                                         pc->w[i] * RPM_2_RAD_PER_SEC);  // 使用原始 current_w 计算瞬态功率
+    float current_P = MotorEstimatePower(pc->k, pc->I[i],
+                                         pc->w[i]);  // 使用原始 current_w 计算瞬态功率
     // pc->P[i] = pc->P[i] * (1.0f - P_FILTER_COEF) + current_P * P_FILTER_COEF;
     pc->P[i] = current_P;
   }
 
   pc->P_total = pc->P[0] + pc->P[1];
   // pc->P_total_ref = chassis->chassis_ctrl_cmd.max_power;
-  pc->P_total_ref = 60.f;
+  pc->P_total_ref = 200.f;
 
   // 功率超限时进行动态调整
   if (pc->P_total > pc->P_total_ref) {
-    float power_scale = (float)pc->P_total_ref / pc->P_total;  // 削减功率比例
-    float scaled_give_power[2];
-    // 计算缩放后的功率目标
-    for (int i = 0; i < 2; i++) {
-      scaled_give_power[i] = pc->P[i] * power_scale;
-    }
-
     // 重新计算每个电机的电流参考值
     for (int i = 0; i < 2; i++) {
-      // 二次方程系数计算，参数
-      float a = pc->k[4] * DJI_CURRENT_SCALE * DJI_CURRENT_SCALE;
-      float b = pc->k[1] * DJI_CURRENT_SCALE + pc->k[3] * pc->w[i] * RPM_2_RAD_PER_SEC * DJI_CURRENT_SCALE;
-      float c = pc->k[2] * pc->w[i] * RPM_2_RAD_PER_SEC +
-                pc->k[5] * pc->w[i] * RPM_2_RAD_PER_SEC * pc->w[i] * RPM_2_RAD_PER_SEC - scaled_give_power[i] +
-                pc->k[0];
-      float discriminant = b * b - 4 * a * c;  // 判别式
-      if (discriminant >= 0) {
-        float sqrt_disc = sqrtf(discriminant);
-        float temp1 = (-b + sqrt_disc) / (2 * a);
-        float temp2 = (-b - sqrt_disc) / (2 * a);
-
-        // 选择最接近当前电流的解
-        if (pc->I[i] > 0) {
-          pc->I[i] =
-              (fabsf(temp1 - pc->I[i]) < fabsf(temp2 - pc->I[i])) ? fminf(16000.f, temp1) : fminf(16000.f, temp2);
-        } else {
-          pc->I[i] =
-              (fabsf(temp1 - pc->I[i]) < fabsf(temp2 - pc->I[i])) ? fmaxf(-16000.f, temp1) : fmaxf(-16000.f, temp2);
-        }
-      } else {
-        // 无解时归零
-        pc->I[i] = 0.0f;
-      }
+      pc->P_ref[i] = pc->P[i] / pc->P_total * pc->P_total_ref;
+      pc->I_ref[i] = MotorEstimateCurrent(pc->k, pc->P_ref[i], pc->w[i], pc->I[i]);
+    }
+  } else {
+    // 不超限时透传实际电流, 写回 = no-op, 避免 I_ref 残值反推到 final_output
+    for (int i = 0; i < 2; i++) {
+      pc->P_ref[i] = pc->P[i];
+      pc->I_ref[i] = pc->I[i];
     }
   }
   for (int i = 0; i < 2; i++) {
-    chassis->leg[i]->wheel_motor->motor_controller.final_output = (int16_t)pc->I[i];
+    chassis->leg[i]->wheel_motor->motor_controller.final_output = (int16_t)(pc->I_ref[i] / DJI_CURRENT_SCALE);
   }
 }
 
