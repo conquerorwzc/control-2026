@@ -25,6 +25,7 @@
 #include "ins_task.h"
 #include "parallel_leg.h"
 #include "super_cap.h"
+#include "user_lib.h"
 // #include "power_control.h"
 
 typedef enum {
@@ -95,9 +96,22 @@ typedef struct {
   SuperCap_Init_Config_s super_cap_config;
 } Chassis_Init_Config_s;
 
+// 底盘 planner: 把上层 raw cmd (target_yaw/vx/wz) 在 chassis 时基 (200Hz) 内平滑.
+// 迁移自 ctrl 层 PlanYawByAcc + vx_ramp, 避免 50Hz CAN ZOH 把 LQR 参考切成阶梯.
+typedef struct {
+  Ramp_Controller_t wz_ramp;
+  Ramp_Controller_t vx_ramp;
+  float yaw_err_filt;  // yaw_err 一阶 LPF 输出
+  uint8_t snap_count;  // snap-to-target 滞回计数
+  float target_yaw;    // 规划态 yaw (rad), 每帧 += planned_wz * dt
+  float vx;            // 平滑 vx, 供 LQR state_err[1] 使用
+  float wz;            // 平滑 wz (= wz_ramp.planning_v), 调试用
+} ChassisPlanner_t;
+
 typedef struct {
   Jump_State_e jump_state;
   Chassis_Ctrl_Cmd_s chassis_ctrl_cmd;
+  ChassisPlanner_t planner;
   Chassis_Param_s param;
 
   INS_t* imu;

@@ -49,10 +49,17 @@ void VOFATask() {
   // visualized_data[0] = robot->chassis->state_var.x_b;
   // visualized_data[1] = robot->chassis->state_var.x_b_d;
   // visualized_data[2] = robot->chassis->chassis_ctrl_cmd.vx;
-  // visualized_data[0] = robot->chassis->chassis_ctrl_cmd.wz;
-  // visualized_data[1] = robot->chassis->state_var.phi_d;
+  visualized_data[0] = robot->chassis->chassis_ctrl_cmd.wz;
+  visualized_data[1] = robot->chassis->state_var.phi_d;
   visualized_data[2] = robot->chassis->chassis_ctrl_cmd.target_yaw;
   visualized_data[3] = robot->chassis->state_var.phi;
+  // === 双板通信调试 (定位 POWER_OFF 卡死) ===
+  // [10] chassis_mode: 0=POWER_OFF 1=RECOVERY 2=ON 3=JUMP_READY 4=JUMP_START 5=PROSTRATE
+  // [11] gimbal_aligned: 0=未对齐, 1=已对齐
+  // [12] cmd.vx (raw, 上层下发, 应跟随摇杆/WASD)
+  visualized_data[10] = (float)robot->chassis->chassis_ctrl_cmd.chassis_mode;
+  visualized_data[11] = (float)robot->chassis->update_flag.gimbal_aligned;
+  visualized_data[12] = robot->chassis->chassis_ctrl_cmd.vx;
   // visualized_data[4] = robot->chassis->state_var.theta_b * RAD_2_DEGREE;
   // visualized_data[5] = robot->chassis->roll_PID.Ref * RAD_2_DEGREE;
   // visualized_data[6] = robot->chassis->roll_PID.Measure * RAD_2_DEGREE;
@@ -174,6 +181,10 @@ void RobotInit() {
 #endif
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   chassis_ctrl_cmd->leg_length = chassis_init_config.param.initial_leg_length;  // 初始腿长
+#if defined(GIMBAL_BOARD)
+  gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
+  shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
+#endif
   DWT_GetDeltaT(&robot->DWT_CNT);
   // chassis_ctrl_cmd->max_power = 60;  // 测试用
 }

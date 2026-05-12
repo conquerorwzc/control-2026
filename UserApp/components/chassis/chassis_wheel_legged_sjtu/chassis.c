@@ -84,6 +84,17 @@ static void ResetChassisBalanceMemory(void) {
   PowerControlRuntimeReset(chassis);
   chassis->update_flag.is_restart = 1;
 
+  // planner: 规划态对齐当前 yaw, 速度/滤波/计数清零 (ramp 配置参数保持)
+  chassis->planner.target_yaw = chassis->imu->YawTotalAngle * DEGREE_2_RAD;
+  chassis->planner.vx = 0.0f;
+  chassis->planner.wz = 0.0f;
+  chassis->planner.vx_ramp.planning_v = 0.0f;
+  chassis->planner.vx_ramp.expected_a = 0.0f;
+  chassis->planner.wz_ramp.planning_v = 0.0f;
+  chassis->planner.wz_ramp.expected_a = 0.0f;
+  chassis->planner.yaw_err_filt = 0.0f;
+  chassis->planner.snap_count = 0;
+
   for (int i = 0; i < 2; i++) {
     leg[i]->observer_var.w = 0.0f;
     leg[i]->observer_var.vb = 0.0f;
@@ -122,22 +133,6 @@ static void LQR_K_Calc(float K[4][10], const float coef[40][6], float l_l, float
     K[row][col] = coef[n][0] + coef[n][1] * l_l + coef[n][2] * l_r + coef[n][3] * l_l * l_l + coef[n][4] * l_l * l_r +
                   coef[n][5] * l_r * l_r;
   }
-  // float K_static[4][10] = {
-  //     {-10.215290f, -8.848348f, -21.428168f, -4.233207f, 5.299104f, 0.213924f, -23.529793f, -2.118162f, 41.806390f,
-  //      3.236183f},  // T_r_to_b
-  //     {-10.215290f, -8.848348f, 21.428168f, 4.233207f, -23.529793f, -2.118162f, 5.299104f, 0.213924f, 41.806390f,
-  //      3.236183f},  // T_l_to_b
-  //     {3.816384f, 3.495197f, -5.392899f, -0.783657f, 4.301872f, 0.133936f, 8.740520f,
-  //     0.828690f, 11.190289f, 1.421862f},
-  //     // T_wr_to_r
-  //     {3.816384f, 3.495197f, 5.392899f, 0.783657f, 8.740520f, 0.828690f, 4.301872f, 0.133936f, 11.190289f, 1.421862f}
-  //     // T_wl_to_l
-  // };
-  // for (int i = 0; i < 4; i++) {
-  //   for (int j = 0; j < 10; j++) {
-  //     K[i][j] = K_static[i][j];
-  //   }
-  // }
 }
 
 static void SpeedEstimate(void) {
@@ -170,19 +165,24 @@ static void StateVarUpdate(void) {
   const uint8_t is_rotate = chassis_ctrl_cmd->is_rotate;
   const uint8_t off_ground = leg[0]->update_flag.is_off_ground || leg[1]->update_flag.is_off_ground;
 
+  // 小陀螺时 phi_d 来自轮速差, 低速段 SNR 差, 用一阶 LPF 抑制抖动. 进入 rotate 或冷启时对齐到 raw.
+  static float phi_d_filt = 0.0f;
+  static uint8_t last_is_rotate = 0;
+
   if (is_rotate) {
     // 小陀螺: 绕过 IMU yaw 陀螺/KF, 直接用左右轮体系速度算 x_b_d 与 phi_d.
     // phi_d 符号约定: phi_d>0 为左转 → 右轮(leg[0])线速度大于左轮(leg[1]).
     float vb_r = leg[0]->observer_var.vb;
     float vb_l = leg[1]->observer_var.vb;
-    sv->x_b_d = (vb_r + vb_l) * 0.5f;
-    sv->phi_d = (vb_r - vb_l) / chassis->param.track_width;
+    sv->x_b_d = sv->x_b_d * 0.8f + (0.2f * (vb_r + vb_l) * 0.5f);
+    sv->phi_d = sv->phi_d * 0.8f + (0.2f * (vb_r - vb_l) / chassis->param.track_width);
     // sv->x_b_d = chassis->vaEstimateKF.FilteredValue[0];
     // sv->phi_d = imu->Gyro[2];
   } else {
     sv->x_b_d = chassis->vaEstimateKF.FilteredValue[0];
     sv->phi_d = imu->Gyro[2];
   }
+  last_is_rotate = is_rotate;
 
   // 位移积分
   if (off_ground) {
@@ -208,15 +208,73 @@ static void StateVarUpdate(void) {
   chassis->last_state_var = *sv;
 }
 
+// 底盘 planner: 把上层 raw cmd 在 chassis 时基 (200Hz) 平滑.
+// 输入: chassis_ctrl_cmd.{target_yaw, vx, wz, is_rotate} (raw, 50Hz CAN ZOH 到达)
+// 输出: chassis->planner.{target_yaw, vx, wz} (200Hz 连续, LQR 实际跟踪对象)
+// is_rotate 时强制 yaw_err=0, 仅靠 cmd.wz 作 wz 期望 FF 推进 target_yaw, 避免 raw=imu 时残留 lag 项反向拉.
+static void ChassisPlannerUpdate(float dt) {
+  ChassisPlanner_t* p = &chassis->planner;
+
+  // 1. yaw 误差: ROTATE 模式置零, FOLLOW/FREE 用 raw - 规划态
+  float yaw_err_raw =
+      chassis_ctrl_cmd->is_rotate ? 0.0f : rad_format(chassis_ctrl_cmd->target_yaw - p->target_yaw);
+  const float kLpfTau = 0.008f;
+  float alpha = dt / (kLpfTau + dt);
+  p->yaw_err_filt += alpha * (yaw_err_raw - p->yaw_err_filt);
+  float yaw_err = p->yaw_err_filt;
+
+  // 2. 期望角速度: |err|<=eps 线性, >eps sqrt 制动律. 连接点 K = sqrt(2a/eps), C0 连续.
+  const float kEpsLin = 0.05f;
+  float abs_err = fabsf(yaw_err);
+  float desired_wz;
+  if (abs_err <= kEpsLin) {
+    float k_lin = sqrtf(2.0f * p->wz_ramp.max_accel / kEpsLin);
+    desired_wz = k_lin * yaw_err;
+  } else {
+    desired_wz = sqrtf(2.0f * p->wz_ramp.max_accel * abs_err);
+    if (yaw_err < 0.0f) desired_wz = -desired_wz;
+  }
+  VAL_LIMIT(desired_wz, -p->wz_ramp.max_v, p->wz_ramp.max_v);
+  desired_wz += chassis_ctrl_cmd->wz;  // wz_demand 作 FF (ROTATE: rotate_scale; FOLLOW/FREE: 0)
+
+  p->wz = ramp_controller_update(&p->wz_ramp, desired_wz, 0.0f, dt);
+  p->target_yaw += p->wz * dt;
+
+  // 3. snap-to-target 滞回, 仅 FOLLOW/FREE 启用 (ROTATE 期望持续移动)
+  if (!chassis_ctrl_cmd->is_rotate) {
+    float yaw_err_final = rad_format(chassis_ctrl_cmd->target_yaw - p->target_yaw);
+    if (fabsf(yaw_err_final) < 0.003f && fabsf(p->wz_ramp.planning_v) < 0.03f) {
+      if (p->snap_count < 5) {
+        p->snap_count++;
+      } else {
+        p->target_yaw = chassis_ctrl_cmd->target_yaw;
+        p->wz_ramp.planning_v = 0.0f;
+        p->wz_ramp.expected_a = 0.0f;
+        p->wz = 0.0f;
+      }
+    } else {
+      p->snap_count = 0;
+    }
+    p->wz *= 0.3f;
+  } else {
+    p->snap_count = 0;
+  }
+
+  // 4. vx ramp (使用本地 x_b_d 实测, 优于 gimbal 板的 stale 值)
+  p->vx = ramp_controller_update(&p->vx_ramp, chassis_ctrl_cmd->vx, chassis->state_var.x_b_d, dt);
+}
+
 static void StateErrCalc(void) {
   State_Var_t* sv = &chassis->state_var;
 
   chassis->state_err[0] = sv->x_b - 0.0f;
-  chassis->state_err[1] = sv->x_b_d - chassis_ctrl_cmd->vx;
+  chassis->state_err[1] = sv->x_b_d - chassis->planner.vx;
   VAL_LIMIT(chassis->state_err[1], -3.2f, 3.2f);
-  chassis->state_err[2] = sv->phi - chassis_ctrl_cmd->target_yaw;
+  chassis->state_err[2] = sv->phi - chassis->planner.target_yaw;
   // VAL_LIMIT(chassis->state_err[2], -0.5f, 0.5f);  // ±25°
-  chassis->state_err[3] = sv->phi_d - chassis_ctrl_cmd->wz;
+  // phi_d 参考 = planner.wz: ROTATE 下避免位置项推进/速度项阻尼相互打架形成极限环;
+  // FOLLOW/FREE 稳态 planner.wz≈0, 等价旧行为.
+  chassis->state_err[3] = sv->phi_d - chassis->planner.wz;
   VAL_LIMIT(chassis->state_err[3], -3.14f, 3.14f);  // ±30°
   chassis->state_err[4] = sv->theta_l - chassis_ctrl_cmd->theta_ff;
   chassis->state_err[5] = sv->theta_l_d;
@@ -327,6 +385,8 @@ static void ChassisCtrlUpdate(void) {
   float l_r = leg[0]->virtual_model.length;
   LQR_K_Calc(chassis->LQR_K, chassis->param.LQR_K_Coefficients, l_l, l_r);
 
+  // planner 平滑上层 raw cmd, StateErrCalc 实际跟踪 planner 输出
+  ChassisPlannerUpdate(chassis->dt);
   StateErrCalc();
   // ChassisCtrlUpdate 始终是 LQR 平衡输出路径；真实卧倒输出在 LimitChassisOutput() 中限功率。
   // PowerControl(chassis);
@@ -367,6 +427,12 @@ static void ChassisCtrlUpdate(void) {
 static void ChassisRecovery(void) {
   // 将target_yaw对齐到当前底盘航向，避免LQR启动时产生大yaw误差
   chassis_ctrl_cmd->target_yaw = chassis->imu->YawTotalAngle * DEGREE_2_RAD;
+  // planner 规划态同步, 避免恢复期间 planner.target_yaw 漂移导致放行时 LQR 起步剧动
+  chassis->planner.target_yaw = chassis_ctrl_cmd->target_yaw;
+  chassis->planner.wz_ramp.planning_v = 0.0f;
+  chassis->planner.vx_ramp.planning_v = 0.0f;
+  chassis->planner.yaw_err_filt = 0.0f;
+  chassis->planner.snap_count = 0;
 
   // 1. 清除状态并设置外环为角度环，参考值为 -0.1/0.1，准备复位
   chassis->update_flag.is_controlled = 0;
@@ -499,6 +565,7 @@ static void LimitChassisOutput(void) {
       VAL_LIMIT(leg[i]->real_model.Tp_2, -33.0f, 33.0f);
       // VAL_LIMIT(leg[i]->real_model.T, -2.45f, 2.45f);// 限制额定扭矩
       VAL_LIMIT(leg[i]->real_model.T, -4.92f, 4.92f);  // 限制峰值扭矩
+      // VAL_LIMIT(leg[i]->real_model.T, -4.2f, 4.2f);  // 限制峰值扭矩
       DMMotorSetRef(leg[i]->joint_motor[0], leg[i]->real_model.Tp_1);
       DMMotorSetRef(leg[i]->joint_motor[1], leg[i]->real_model.Tp_2);
       // DMMotorSetRef(leg[i]->joint_motor[0], 0);
@@ -534,6 +601,28 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   PowerControlInit(chassis_instance);
 
   chassis_instance->param = chassis_init_config->param;
+
+  // planner ramp 配置 (沿用旧 ctrl 层 vx_ramp / wz_ramp 参数)
+  chassis_instance->planner.vx_ramp = (Ramp_Controller_t){
+      .max_v = 2.97f,
+      .max_accel = 2.0f,
+      .min_accel = 0.05f,
+      .accel_base_speed = 0.7f,
+      .max_decel = 4.7f,
+      .min_decel = 2.0f,
+      .decel_base_speed = 0.7f,
+      .k_p_vel = 0.35f,
+  };
+  chassis_instance->planner.wz_ramp = (Ramp_Controller_t){
+      .max_v = 7.0f,
+      .max_accel = 35.0f,
+      .min_accel = 15.0f,
+      .accel_base_speed = 1.3f,
+      .max_decel = 35.0f,
+      .min_decel = 15.0f,
+      .decel_base_speed = 1.3f,
+      .k_p_vel = 0.0f,
+  };
 
   chassis_instance->jump_state = JUMP_STATE_IDLE;
 
@@ -592,6 +681,10 @@ void ChassisTask(void) {
       chassis_ctrl_cmd->wz = 0.0f;
       chassis_ctrl_cmd->theta_ff = 0.0f;
       chassis_ctrl_cmd->target_yaw = chassis->imu->YawTotalAngle * DEGREE_2_RAD;
+    } else if (last_chassis_mode == CHASSIS_POWER_OFF && cur_mode != CHASSIS_POWER_OFF) {
+      // POWER_OFF → balance: 必须把 planner.target_yaw 对齐当前 imu yaw,
+      // 否则 LQR state_err[2] = phi - 0 (zmalloc 初值) 暴增 → 输出饱和, 表现为底盘失控.
+      ResetChassisBalanceMemory();
     }
 
     if (cur_mode == CHASSIS_POWER_OFF) {
