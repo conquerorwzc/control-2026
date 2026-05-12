@@ -60,6 +60,20 @@ Ramp_Controller_t wz_ramp = {
 
 #define FOLLOW_TARGET_YAW_FF_GAIN 10.0f
 #define FOLLOW_TARGET_YAW_FF_MAX_DEG 12.0f
+#define ROTATE_DIAL_DEADZONE 20.0f
+#define ROTATE_DIAL_MAX 660.0f
+#define ROTATE_WZ_MAX 800.0f
+
+static float CalcRotateWzFromDial(int16_t dial, uint8_t shift_hold) {
+  float abs_dial = fabsf((float)dial);
+  if (abs_dial <= ROTATE_DIAL_DEADZONE) {
+    return shift_hold ? ROTATE_WZ_MAX : 0.0f;
+  }
+
+  float rotate_wz = ROTATE_WZ_MAX * abs_dial / ROTATE_DIAL_MAX;
+  VAL_LIMIT(rotate_wz, 0.0f, ROTATE_WZ_MAX);
+  return rotate_wz;
+}
 
 static void ResetRampState(Ramp_Controller_t* ramp) {
   if (ramp == NULL) return;
@@ -112,6 +126,7 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
   Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   ResetMotionMemoryOnPostureEdge(robot);
   float input_mag = sqrtf(intent->vx * intent->vx + intent->vy * intent->vy);
+  const float rotate_wz = (intent->rotate_wz > 0.0f) ? intent->rotate_wz : ROTATE_WZ_MAX;
 
   // 小陀螺标志: 仅 LQR 平衡态下的 ROTATE 才使能 (PROSTRATE_ROTATE 走 ChassisProstrateMode, 不进 LQR)
   chassis_ctrl_cmd->is_rotate = (robot->robot_mode == ROBOT_CHASSIS_ROTATE) ? 1 : 0;
@@ -123,14 +138,9 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
 
   switch (robot->robot_mode) {
     case ROBOT_CHASSIS_ROTATE: {
-      // 小陀螺频率设置
-      float rotate_frequency = 60.0f;
-      // 小陀螺原地旋转
-      float rotate_omega = rotate_frequency * 2.0f * PI;
-      // chassis_ctrl_cmd->target_yaw += rotate_omega * robot->dt;
+      // 小陀螺原地旋转, rotate_wz 由拨轮幅度缩放
       chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD;
-      // chassis_ctrl_cmd->wz = ramp_controller_update(&wz_ramp, rotate_omega, robot->chassis->imu->Gyro[2], robot->dt);
-      chassis_ctrl_cmd->wz = rotate_omega;;
+      chassis_ctrl_cmd->wz = rotate_wz;
       chassis_ctrl_cmd->vx = 0.0f;
       break;
     }
@@ -191,7 +201,7 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
       chassis_ctrl_cmd->roll = 0.0f;
       chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD;
       chassis_ctrl_cmd->vx = 0.0f;
-      chassis_ctrl_cmd->wz = 800.0f;
+      chassis_ctrl_cmd->wz = rotate_wz;
       break;
     }
     case ROBOT_CHASSIS_PROSTRATE_FOLLOW: {
@@ -250,17 +260,22 @@ void JoyStickCtrl(RobotInstance* robot) {
   }
 
   Ctrl_Intent_s intent = {0};
+  const uint8_t is_rotate_mode =
+      (abs(rc_data[TEMP].rc.dial) > ROTATE_DIAL_DEADZONE || rc_data[TEMP].key[KEY_PRESS].shift);
+  if (is_rotate_mode) {
+    intent.rotate_wz = CalcRotateWzFromDial(rc_data[TEMP].rc.dial, rc_data[TEMP].key[KEY_PRESS].shift);
+  }
 
   if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
     chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
-    if (abs(rc_data[TEMP].rc.dial) > 20 || rc_data[TEMP].key[KEY_PRESS].shift) {
+    if (is_rotate_mode) {
       robot->robot_mode = ROBOT_CHASSIS_ROTATE;
     } else {
       robot->robot_mode = ROBOT_CHASSIS_FOLLOW;
     }
   } else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
     chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
-    if (abs(rc_data[TEMP].rc.dial) > 20 || rc_data[TEMP].key[KEY_PRESS].shift) {
+    if (is_rotate_mode) {
       robot->robot_mode = ROBOT_CHASSIS_ROTATE;
     } else {
       robot->robot_mode = ROBOT_CHASSIS_FREE;
@@ -565,6 +580,11 @@ void JoyStickCtrl(RobotInstance* robot) {
   intent_shared = (Ctrl_Intent_s){0};
   joystick_fire = 0;
   joystick_burst = 0;
+  const uint8_t is_rotate_mode =
+      (abs(rc_data->rc.dial) > ROTATE_DIAL_DEADZONE || rc_data->mouse_key.keyboard.shift);
+  if (is_rotate_mode) {
+    intent_shared.rotate_wz = CalcRotateWzFromDial(rc_data->rc.dial, rc_data->mouse_key.keyboard.shift);
+  }
 
   // 状态机 (按当前输入纯映射):
   //   fn_1       (rising edge): toggles local stand/prostrate mode, initial=prostrate.

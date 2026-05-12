@@ -21,6 +21,7 @@ typedef struct {
     float leg_length_delta; // 腿长增量
     float roll_delta;       // Roll(横滚/pike) 增量
     float gimbal_yaw_ff;    // 云台 yaw 输入预判前馈 (deg), 叠加到 FOLLOW 的 target_yaw
+    float rotate_wz;        // 小陀螺 wz 指令, 由拨轮幅度缩放
 } Ctrl_Intent_s;
 
 /**

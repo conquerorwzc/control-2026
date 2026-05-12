@@ -24,6 +24,28 @@ static float MotorEstimatePower(float k[6], float I, float w) {
   return fmaxf(P, 0.0f);
 }
 
+void PowerControlRuntimeReset(ChassisInstance* chassis) {
+  if (chassis == NULL || chassis->power_ctrl == NULL) return;
+
+  Power_Ctrl_t* pc = chassis->power_ctrl;
+  for (int i = 0; i < 2; i++) {
+    pc->w[i] = 0.0f;
+    pc->T_motion[i] = 0.0f;
+    pc->T_balance[i] = 0.0f;
+    pc->I[i] = 0.0f;
+    pc->P[i] = 0.0f;
+    pc->P_ref[i] = 0.0f;
+    pc->I_ref[i] = 0.0f;
+    pc->T_ref[i] = 0.0f;
+    pc->T_motion_ref[i] = 0.0f;
+    pc->scale_motion[i] = 1.0f;
+  }
+
+  pc->P_total = 0.0f;
+  pc->P_total_ref = 0.0f;
+  pc->scale_combined = 1.0f;
+}
+
 /**
  * @brief  根据目标功率反解允许的最大电流（中科大模型，逆运算）
  *
@@ -96,7 +118,9 @@ void PowerControl(ChassisInstance* chassis) {
   for (int i = 0; i < 2; i++) {
     pc->T_motion[i] = 0.0f;
     pc->T_balance[i] = 0.0f;
+    pc->scale_motion[i] = 1.0f;
   }
+  pc->scale_combined = 1.0f;
   for (int j = 0; j < 4; j++) {
     pc->T_motion[0] -= chassis->LQR_K[2][j] * chassis->state_err[j];
     pc->T_motion[1] -= chassis->LQR_K[3][j] * chassis->state_err[j];
@@ -109,7 +133,7 @@ void PowerControl(ChassisInstance* chassis) {
   // 2.估算功率和滤波
 #define I_FILTER_COEF 1.0f
 #define W_FILTER_COEF 0.05f
-#define P_FILTER_COEF 0.62f
+#define P_FILTER_COEF 0.5f
   for (int i = 0; i < 2; i++) {
     // 实际电机电流 / 力矩 (来自上一拍 final_output)
     // float current_I = (float)chassis->leg[i]->wheel_motor->motor_controller.final_output * DJI_CURRENT_SCALE;
@@ -127,13 +151,13 @@ void PowerControl(ChassisInstance* chassis) {
     float current_P = MotorEstimatePower(pc->k, pc->I[i], pc->w[i]);  // 使用原始 current_w 计算瞬态功率
     // float alpha = current_P > pc->P[i] ? 0.25f : 0.03f;
     // pc->P[i] += alpha * (current_P - pc->P[i]);
-    // pc->P[i] = pc->P[i] * (1.0f - P_FILTER_COEF) + current_P * P_FILTER_COEF;
+    pc->P[i] = pc->P[i] * (1.0f - P_FILTER_COEF) + current_P * P_FILTER_COEF;
     pc->P[i] = current_P;
   }
 
   pc->P_total = pc->P[0] + pc->P[1];
   // pc->P_total_ref = chassis->chassis_ctrl_cmd.max_power;
-  pc->P_total_ref = 110.f;
+  pc->P_total_ref = 60.f;
 
   // 3.功率控制逻辑
   if (pc->P_total > pc->P_total_ref) {
@@ -156,7 +180,7 @@ void PowerControl(ChassisInstance* chassis) {
       // 4) motion 缩放系数
       if (fabsf(pc->T_motion[i]) > 1e-6f) {
         float s = pc->T_motion_ref[i] / pc->T_motion[i];
-        VAL_LIMIT(s, 0.0f, 1.0f);  // 不放大, 也不允许符号反转(反解奇异时)
+        // VAL_LIMIT(s, 0.0f, 1.0f);  / 不放大, 也不允许符号反转(反解奇异时)
         pc->scale_motion[i] = s;
       }
     }
@@ -216,8 +240,8 @@ void PowerControl_Prostrate(ChassisInstance* chassis) {
   }
 
   pc->P_total = pc->P[0] + pc->P[1];
-  pc->P_total_ref = chassis->chassis_ctrl_cmd.max_power;
-  // pc->P_total_ref = 60.f;
+  // pc->P_total_ref = chassis->chassis_ctrl_cmd.max_power;
+  pc->P_total_ref = 60.f;
 
   // 功率超限时进行动态调整
   if (pc->P_total > pc->P_total_ref) {

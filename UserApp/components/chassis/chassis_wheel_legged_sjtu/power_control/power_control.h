@@ -66,3 +66,4 @@ typedef struct Power_Ctrl_t {
 void PowerControl_Prostrate(ChassisInstance* chassis);
 void PowerControl(ChassisInstance* chassis);
 void PowerControlInit(ChassisInstance* chassis);
+void PowerControlRuntimeReset(ChassisInstance* chassis);
