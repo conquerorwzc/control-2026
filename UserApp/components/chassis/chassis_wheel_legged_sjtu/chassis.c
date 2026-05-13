@@ -216,8 +216,7 @@ static void ChassisPlannerUpdate(float dt) {
   ChassisPlanner_t* p = &chassis->planner;
 
   // 1. yaw 误差: ROTATE 模式置零, FOLLOW/FREE 用 raw - 规划态
-  float yaw_err_raw =
-      chassis_ctrl_cmd->is_rotate ? 0.0f : rad_format(chassis_ctrl_cmd->target_yaw - p->target_yaw);
+  float yaw_err_raw = chassis_ctrl_cmd->is_rotate ? 0.0f : rad_format(chassis_ctrl_cmd->target_yaw - p->target_yaw);
   const float kLpfTau = 0.008f;
   float alpha = dt / (kLpfTau + dt);
   p->yaw_err_filt += alpha * (yaw_err_raw - p->yaw_err_filt);
@@ -461,7 +460,8 @@ static void ChassisRecovery(void) {
     }
   }
 
-  if (all_in_position && chassis->update_flag.gimbal_aligned) {
+  // if (all_in_position && chassis->update_flag.gimbal_aligned) {
+  if (all_in_position ){
     ChassisCtrlUpdate();
   } else {
     // 3. 关节未到位或云台未对齐时挂零轮力输出，防止不稳定
@@ -507,13 +507,17 @@ static void ChassisJump(void) {
  *
  * 差速：右轮 = vx + wz，左轮 = vx - wz
  *
- * target_yaw 负责 yaw 闭环保持；wz 是卧倒差速转向前馈量, 不是 rad/s。
- * 小陀螺/自由转向如果不希望 yaw PID 参与, 上层需要把 target_yaw 对齐当前 yaw。
+ * 入参单位已与 stand 统一: chassis_ctrl_cmd->vx 为 m/s, chassis_ctrl_cmd->wz 为 rad/s;
+ * 此处做趴下特有的 m/s / rad/s → 电机 rpm 换算, 避开 LQR 路径.
+ * target_yaw 负责 yaw 闭环保持. 小陀螺/自由转向若不希望 yaw PID 参与, 上层需把 target_yaw 对齐当前 yaw.
  */
 void ChassisProstrate(void) {
-#define VX_TO_MOTOR (30000.0f / 660.0f)
+  // 与原始摇杆 ±660 满量等效峰值:
+  //   vx: 660 × (30000/660) = 30000 rpm  ↔ 站立 FOLLOW ±2.5 m/s → 12000
+  //   wz: 660 × (28000/660) = 28000 rpm-diff ↔ 站立 ROTATE ±15 rad/s → 28000/15
+#define VX_MPS_TO_MOTOR 12000.0f
 #define WZ_PID_TO_MOTOR 10000.0f
-#define WZ_FF_TO_MOTOR (28000.0f / 660.0f)  // 卧倒 wz 前馈量 -> 电机量
+#define WZ_RADPS_TO_MOTOR (28000.0f / 15.0f)
   float vx_motor = 0.0f;
 
   // 设置速度环
@@ -524,12 +528,9 @@ void ChassisProstrate(void) {
 
   float wz_pid = -PIDCalculate(&chassis->yaw_prostrate_PID, chassis->imu->YawTotalAngle * DEGREE_2_RAD,
                                chassis_ctrl_cmd->target_yaw);
-  vx_motor = chassis_ctrl_cmd->vx * VX_TO_MOTOR;
-  float wz_motor = wz_pid * WZ_PID_TO_MOTOR + chassis_ctrl_cmd->wz * WZ_FF_TO_MOTOR;
+  vx_motor = chassis_ctrl_cmd->vx * VX_MPS_TO_MOTOR;
+  float wz_motor = wz_pid * WZ_PID_TO_MOTOR + chassis_ctrl_cmd->wz * WZ_RADPS_TO_MOTOR;
 
-  // 调试用
-  // vx_motor = chassis_ctrl_cmd->vx * VX_TO_MOTOR;
-  // wz_motor = chassis_ctrl_cmd->wz * WZ_FF_TO_MOTOR;
   // 差速分配
   wheel_speed_ref[0] = -1.0f * (vx_motor - wz_motor);  // 右轮 leg[0]
   wheel_speed_ref[1] = -1.0f * (vx_motor + wz_motor);  // 左轮 leg[1]

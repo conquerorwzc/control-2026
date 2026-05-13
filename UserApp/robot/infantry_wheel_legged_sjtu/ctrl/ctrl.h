@@ -4,13 +4,11 @@
 #include "robot.h"
 #include "user_lib.h"
 
-#define robot_lost_control (fabsf(robot->chassis->imu->Pitch) > 13.0f)  //todo: 12?
-
 #define has_non_zero_data(data) \
     (data != NULL) && \
     (data->gimbal_receive.yaw != 0 || data->gimbal_receive.pitch != 0 || data->shoot_receive.fire_flag != 0)
 
-#define CTRL_SPEED_COFF 2.5f
+#define REVERSE_FOLLOW_EXIT_DEG 160.0f
 /**
  * @brief 抽象控制意图，隔离输入设备（遥控器/键鼠）与运动控制逻辑
  */
@@ -22,6 +20,7 @@ typedef struct {
     float roll_delta;       // Roll(横滚/pike) 增量
     float gimbal_yaw_ff;    // 云台 yaw 输入预判前馈 (deg), 叠加到 FOLLOW 的 target_yaw
     float rotate_scale;     // 小陀螺缩放系数 (-1..1), 符号决定转向; 0 = 不旋转
+    uint8_t reverse_follow; // 1 = X 掉头反向跟随激活 (FOLLOW 内复用 rear_err 路径反 vx, 同时锁 chassis yaw)
 } Ctrl_Intent_s;
 
 typedef enum {
@@ -46,6 +45,33 @@ typedef struct {
   uint8_t pending;  // 1 = 本帧待写一次绝对腿长 (CtrlSolve 消费后清零)
 } LegPreset_s;
 
+// 速度常量 (内化到 CtrlInstance, 上电时由静态初始化设定).
+// 单位已全姿态统一: vx = m/s, wz = rad/s. 趴下的 motor-rpm 换算在 chassis 层 (ChassisProstrate) 完成.
+typedef struct {
+  float vx;           // 默认平动 (WASD / 摇杆峰, stand 与 prostrate 通用)
+  float wz;           // 小陀螺角速度上限 (与 rotate_scale 相乘, stand 与 prostrate 通用)
+  float stair;  // 蹭台阶模式 (Z 切换, 慢速逼近台阶)
+  float vault;        // 跳台阶模式 (Ctrl+V) 速度
+} CtrlSpeed_s;
+
+// CHASSIS_RECOVERY 触发阈值 (deg). 蹭台阶模式下放宽 (7°), 让倾翻更早进入恢复, 避免硬怼台阶.
+typedef struct {
+  float pitch_default;  // 默认姿态 |Pitch| 阈值
+  float pitch_creep;    // 蹭台阶模式 |Pitch| 阈值 (更小, 更敏感)
+} RecoveryThresh_s;
+
+// 蹭台阶状态: 进入时把腿切到最高档并锁慢速, 退出恢复.
+typedef struct {
+  uint8_t active;         // 1 = 蹭台阶模式生效
+  int     saved_leg_idx;  // 进入前 leg.index 快照, 退出时恢复
+} Stair_s;
+
+// X 掉头反向跟随: 云台 +180° 后底盘不跟随云台, 直到云台已转过 130° 再回到正常 FOLLOW.
+typedef struct {
+  uint8_t active;     // 1 = 反向跟随进行中
+  float   start_yaw;  // 进入时云台 IMU YawTotalAngle 快照 (deg, 非缠绕)
+} ReverseFollow_s;
+
 typedef struct {
   // ---- 帧末合并意图 (送入 RobotMotionSolve) ----
   Ctrl_Intent_s intent;
@@ -64,8 +90,14 @@ typedef struct {
   uint8_t    mk_vision;       // 鼠标右键自瞄请求
 
   // ---- 帧间持久状态 (两路共写, 边沿驱动) ----
-  JumpFsm_s   jump;
-  LegPreset_s leg;
+  JumpFsm_s       jump;
+  LegPreset_s     leg;
+  Stair_s    stair;
+  ReverseFollow_s reverse;
+
+  // ---- 上电常量 (静态初始化设定, 运行时不变) ----
+  CtrlSpeed_s      speed;
+  RecoveryThresh_s recovery;
 } CtrlInstance;
 
 // 状态标志 (全部 is_xxx 风格):
