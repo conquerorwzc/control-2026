@@ -9,6 +9,7 @@
 #define SUPER_CAP_H
 
 #include "bsp_can.h"
+#include "daemon.h"
 
 // 超级电容策略结构体
 typedef enum {

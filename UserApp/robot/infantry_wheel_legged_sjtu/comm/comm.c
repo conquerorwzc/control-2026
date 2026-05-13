@@ -49,10 +49,6 @@ void RobotCommInit(RobotInstance* robot) {
 void RobotCommTask(RobotInstance* robot) {
   if (robot == NULL || robot->main_comm == NULL || robot->motion_comm == NULL || robot->gamestate_comm == NULL) return;
 
-  static float last_comm_time = 0.0f;
-  if (DWT_GetTimeline_ms() - last_comm_time < 20.f) return;
-  last_comm_time = DWT_GetTimeline_ms();
-
   Chassis_Upload_Data_s* chassis_upload_data = robot->chassis_upload_data;
   Chassis_Fetch_Data_s* chassis_fetch_data = robot->chassis_fetch_data;
   if (chassis_upload_data == NULL || chassis_fetch_data == NULL) return;

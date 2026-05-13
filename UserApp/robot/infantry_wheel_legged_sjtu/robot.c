@@ -49,8 +49,8 @@ void VOFATask() {
   // visualized_data[0] = robot->chassis->state_var.x_b;
   // visualized_data[1] = robot->chassis->state_var.x_b_d;
   // visualized_data[2] = robot->chassis->chassis_ctrl_cmd.vx;
-  visualized_data[0] = robot->chassis->chassis_ctrl_cmd.wz;
-  visualized_data[1] = robot->chassis->state_var.phi_d;
+  // visualized_data[0] = robot->chassis->chassis_ctrl_cmd.wz;
+  // visualized_data[1] = robot->chassis->state_var.phi_d;
   visualized_data[2] = robot->chassis->chassis_ctrl_cmd.target_yaw;
   visualized_data[3] = robot->chassis->state_var.phi;
   // === 双板通信调试 (定位 POWER_OFF 卡死) ===
@@ -63,12 +63,17 @@ void VOFATask() {
   // visualized_data[4] = robot->chassis->state_var.theta_b * RAD_2_DEGREE;
   // visualized_data[5] = robot->chassis->roll_PID.Ref * RAD_2_DEGREE;
   // visualized_data[6] = robot->chassis->roll_PID.Measure * RAD_2_DEGREE;
-  // visualized_data[0] = robot->chassis->power_ctrl->P_total;
-  // visualized_data[1] = robot->chassis->power_ctrl->P_total_ref;
+  visualized_data[0] = robot->chassis->power_ctrl->P_total;
+  visualized_data[1] = robot->chassis->power_ctrl->P_total_ref;
   // visualized_data[2] = robot->chassis->power_ctrl->scale_combined;
   // visualized_data[3] = robot->chassis->power_ctrl->P[0];
   // visualized_data[4] = robot->chassis->power_ctrl->I[0];
   // visualized_data[5] = robot->chassis->power_ctrl->w[0];
+  visualized_data[15] = robot->chassis->super_cap->cap_msg.cap_v;
+  visualized_data[16] = robot->chassis->super_cap->cap_msg.out_p;
+  visualized_data[17] = robot->chassis->super_cap->cap_msg.in_p;
+  visualized_data[18] = robot->chassis->super_cap->cap_msg.error_detect;
+
 #endif
   VOFAJustFloatSend(visualized_data, 20);
 }
@@ -145,7 +150,11 @@ void RobotCMDTask() {
   EmergencyHandler(robot);  // 急停必须在 CAN 发送之前,确保 POWER_OFF 优先级最高
 #endif
 
-  RobotCommTask(robot);
+  static float last_comm_time = 0.0f;
+  if (DWT_GetTimeline_ms() - last_comm_time >= 20.f) {
+    last_comm_time = DWT_GetTimeline_ms();
+    RobotCommTask(robot);
+  }
 }
 
 void RobotInit() {

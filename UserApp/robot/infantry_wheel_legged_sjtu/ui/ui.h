@@ -47,6 +47,12 @@ typedef struct {
   Loader_Mode_e loader_mode;
   Loader_Mode_e last_loader_mode;
 
+  /* Chassis attitude, deg */
+  float chassis_pitch;
+  float last_chassis_pitch;
+  float chassis_roll;
+  float last_chassis_roll;
+
   /* 超级电容 */
   SuperCap_Mode_e super_cap_mode;
   SuperCap_Mode_e last_super_cap_mode;
