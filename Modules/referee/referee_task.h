@@ -18,6 +18,20 @@
 // 弹量上限
 #define AMMO_UPPER 500
 
+// 自瞄相机画面框配置
+// 图传相机参数 (已知)
+#define TX_CAM_FOV_H        139.0f    // 图传相机水平FOV (度)
+#define TX_CAM_FOCAL_LEN    12.0f     // 图传相机等效焦距 (mm)
+
+// 自瞄相机参数 (需要根据实际配置修改)
+// 焦距越小，FOV越大，框越大
+#define AUTOAIM_CAM_FOCAL_LEN  8.0f  // 自瞄相机等效焦距 (mm)，需要根据实际配置修改
+#define AUTOAIM_CAM_PITCH_DEG  0.0f  // 自瞄相机相对图传相机的pitch安装角 (度)，正值表示自瞄相机朝上
+
+// 传感器假设 (16:9宽高比)
+#define SENSOR_RATIO_W      16.0f
+#define SENSOR_RATIO_H      9.0f
+
 // 圆心
 #define CENTER_X              960
 #define CENTER_Y              540

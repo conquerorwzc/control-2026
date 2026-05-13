@@ -44,7 +44,7 @@ static float r1, r2, r3, r4;
 static float power;
 static float omegaX[4];
 static float omegaY[4];
-static float FK_Vx, FK_Vy, FK_Wz;
+float FK_Vx, FK_Vy, FK_Wz;
 /**
  * @brief 正向运动学解算用于估算当前底盘实际运动速度
  */
@@ -62,7 +62,7 @@ static void ForwardKinematicCal()
     }
     FK_Vx = (omegaX[0] + omegaX[1] + omegaX[2] + omegaX[3]) / 4.f;
     FK_Vy = (omegaY[0] + omegaY[1] + omegaY[2] + omegaY[3]) / 4.f;
-    FK_Wz = (-omegaX[0] + omegaY[0] - omegaX[1] - omegaY[1] + omegaX[2] - omegaY[2] + omegaX[3] + omegaY[3]) *
+    FK_Wz = (+omegaX[0] - omegaY[0] + omegaX[1] + omegaY[1] - omegaX[2] + omegaY[2] - omegaX[3] - omegaY[3]) *
             SQRT2_OVER_2 / 4;
 }
 
@@ -214,13 +214,13 @@ static int8_t dir_lf = 1, dir_rf = 1, dir_lb = 1, dir_rb = 1;
 static void SteeringCalculate()
 {
     vt_lf = sqrtf(powf(chassis_vy - chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), 2) +
-                  powf(chassis_vx + chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2)); // lf
+                  powf(chassis_vx + chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2)); // lf0
     vt_lb = sqrtf(powf(chassis_vy + chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), 2) +
-                  powf(chassis_vx + chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2)); // lb
+                  powf(chassis_vx + chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2)); // lb1
     vt_rb = sqrtf(powf(chassis_vy + chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), 2) +
-                  powf(chassis_vx - chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2)); // rb
+                  powf(chassis_vx - chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2)); // rb2
     vt_rf = sqrtf(powf(chassis_vy - chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), 2) +
-                  powf(chassis_vx - chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2)); // rf
+                  powf(chassis_vx - chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2)); // rf3
     // 无需动力时停止舵电机计算
     if (chassis_ctrl_cmd->vx != 0 || chassis_ctrl_cmd->vy != 0 || chassis_ctrl_cmd->wz != 0)
     {

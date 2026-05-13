@@ -14,6 +14,7 @@
 #include "rm_referee.h"
 #include "referee_UI.h"
 #include "string.h"
+#include "math.h"
 #include "cmsis_os.h"
 #include "robot.h"
 // #include "robot.c"
@@ -85,6 +86,9 @@ static Graph_Data_t UI_yaw_arc;             // 方向指示弧
 static Graph_Data_t Line_DecoMid;
 static Graph_Data_t Arc_DecoUp;
 static Graph_Data_t Arc_DecoDown;
+
+// 自瞄画面框
+static Graph_Data_t UI_autoaim_box[4];  // 4条边构成矩形框
 
 
 
@@ -293,8 +297,8 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
       {
           float volt = interactive_data->cap_voltage;
           uint8_t mode = interactive_data->cap_mode;
-          // 计算弧长（假设电压范围 16V ~ 23V 对应 0~40度）
-          float bar = (volt - 16.0f) / (23.0f - 16.0f) * 40.0f;
+          // 计算弧长（假设电压范围 12V ~ 23V 对应 0~40度）
+          float bar = (volt - 12.0f) / (23.0f - 16.0f) * 40.0f;
           if (bar < 1) bar = 1;
           if (bar > 40) bar = 40;
           uint32_t end_angle = 270 + (uint32_t)bar;
@@ -622,6 +626,24 @@ void MyUIInit()
     DeterminRobotID();                                            // 确定ui要发送到的目标客户端
     UIDelete(&referee_recv_info->referee_id, UI_Data_Del_ALL, 0); // 清空UI
 
+    // 显示队标SRM
+    static String_Data_t UI_srm_logo;
+    static String_Data_t UI_srm_init;
+    static Graph_Data_t UI_srm_bg;
+    // 绘制背景矩形
+    UIRectangleDraw(&UI_srm_bg, "bg0", UI_Graph_ADD, 0, UI_Color_Pink, 5,
+                    CENTER_X - 250, CENTER_Y - 100, CENTER_X + 250, CENTER_Y + 100);
+    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_srm_bg);
+    // 绘制SRM文字 (超大字体，size=100)
+    UICharDraw(&UI_srm_logo, "sr0", UI_Graph_ADD, 0, UI_Color_Pink, 100, 3,
+               CENTER_X - 150, CENTER_Y - 30, "SRM");
+    UICharRefresh(&referee_recv_info->referee_id, UI_srm_logo);
+    // 绘制Initializing...文字 (小字，size=25)
+    UICharDraw(&UI_srm_init, "si0", UI_Graph_ADD, 0, UI_Color_White, 25, 1,
+               CENTER_X - 100, CENTER_Y - 70, "Initializing...");
+    UICharRefresh(&referee_recv_info->referee_id, UI_srm_init);
+    osDelay(200); // 短暂显示
+
     // 绘制发射基准线
     UILineDraw(&UI_shoot_line[0], "sl0", UI_Graph_ADD, 7, UI_Color_White, 2, CENTER_X - 300, CENTER_Y, CENTER_X + 300, CENTER_Y);
     UILineDraw(&UI_shoot_line[1], "sl1", UI_Graph_ADD, 7, UI_Color_White, 1, CENTER_X - 50, CENTER_Y + Aim_Line_1, CENTER_X + 50, CENTER_Y + Aim_Line_1);
@@ -751,6 +773,56 @@ void MyUIInit()
     UIGraphRefresh(&referee_recv_info->referee_id, 1, Arc_DecoUp);
     UIArcDraw(&Arc_DecoDown, "ll2", UI_Graph_ADD, 6, UI_Color_White, 229, 230, 22, 960, 535, 370, 370);
     UIGraphRefresh(&referee_recv_info->referee_id, 1, Arc_DecoDown);
+
+    // 自瞄画面框初始化
+    {
+      // 计算自瞄相机FOV (基于焦距比例)
+      // FOV_auto = 2 * atan(tan(FOV_tx/2) * f_tx / f_auto)
+      float fov_tx_rad = TX_CAM_FOV_H * 3.1415926535f / 180.0f;
+      float fov_auto_rad = 2.0f * atanf(tanf(fov_tx_rad / 2.0f) * TX_CAM_FOCAL_LEN / AUTOAIM_CAM_FOCAL_LEN);
+
+      // 计算垂直FOV (假设16:9比例)
+      float fov_auto_v_rad = 2.0f * atanf(tanf(fov_auto_rad / 2.0f) * SENSOR_RATIO_H / SENSOR_RATIO_W);
+      float fov_auto_v_deg = fov_auto_v_rad * 180.0f / 3.1415926535f;
+
+      // 计算框在屏幕上的尺寸
+      // 屏幕分辨率 1920x1080，图传FOV 139° 对应屏幕宽度
+      uint32_t box_width = (uint32_t)(1920.0f * tanf(fov_auto_rad / 2.0f) / tanf(fov_tx_rad / 2.0f));
+      uint32_t box_height = (uint32_t)(box_width * SENSOR_RATIO_H / SENSOR_RATIO_W);
+
+      // 计算固定pitch安装角偏移 (自瞄相机相对图传的安装角度差)
+      float pitch_offset_y = 1080.0f / fov_auto_v_deg * AUTOAIM_CAM_PITCH_DEG;
+
+      // 计算框的四个顶点 (以屏幕中心为基准，加上固定pitch偏移)
+      int32_t box_left = CENTER_X - (int32_t)(box_width / 2);
+      int32_t box_right = CENTER_X + (int32_t)(box_width / 2);
+      int32_t box_top = CENTER_Y - (int32_t)(box_height / 2) + (int32_t)pitch_offset_y;
+      int32_t box_bottom = CENTER_Y + (int32_t)(box_height / 2) + (int32_t)pitch_offset_y;
+
+      // 边界保护
+      if (box_left < 0) box_left = 0;
+      if (box_right > 1919) box_right = 1919;
+      if (box_top < 0) box_top = 0;
+      if (box_bottom > 1079) box_bottom = 1079;
+
+      // 绘制4条边 (矩形框)
+      UILineDraw(&UI_autoaim_box[0], "ab1", UI_Graph_ADD, 5, UI_Color_Cyan, 2,
+                 box_left, box_top, box_right, box_top);       // 上边
+      UILineDraw(&UI_autoaim_box[1], "ab2", UI_Graph_ADD, 5, UI_Color_Cyan, 2,
+                 box_left, box_bottom, box_right, box_bottom); // 下边
+      UILineDraw(&UI_autoaim_box[2], "ab3", UI_Graph_ADD, 5, UI_Color_Cyan, 2,
+                 box_left, box_top, box_left, box_bottom);     // 左边
+      UILineDraw(&UI_autoaim_box[3], "ab4", UI_Graph_ADD, 5, UI_Color_Cyan, 2,
+                 box_right, box_top, box_right, box_bottom);   // 右边
+
+      // 批量发送4条线
+      UIGraphRefresh(&referee_recv_info->referee_id, 4,
+                     UI_autoaim_box[0], UI_autoaim_box[1],
+                     UI_autoaim_box[2], UI_autoaim_box[3]);
+    }
+
+    // 删除队标SRM
+    UIDelete(&referee_recv_info->referee_id, UI_Data_Del_Layer, 0); // 删除图层0
 }
 
 // 实现缺失的UITask函数

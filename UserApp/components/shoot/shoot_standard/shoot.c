@@ -38,6 +38,14 @@ static int16_t  remain_heat;                   // 剩余热量
 static float shooter_barrel_heat;           // 计算的机器人当前射击热量，此变量只在模拟模式下使用
 static float  heat_cooling_time;               // 用于计算冷却时间，此变量只在模拟模式下使用
 
+static float LoaderSpeedFromDelay(float delta_angle, float delay_ms) {
+  if (delay_ms <= 0.0f) {
+    return 0.0f;
+  }
+  // Convert angle-per-shot to angle-per-second using ms delay.
+  return delta_angle / delay_ms * 1000.0f;
+}
+
 ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
   ShootInstance* shoot_instance = (ShootInstance*)zmalloc(sizeof(ShootInstance));
 
@@ -135,11 +143,8 @@ void HeatControl() {
 /* 机器人发射机构控制核心任务 */
 void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，因为之前哨兵是双枪管的，时代的眼泪
   if (shoot_ctrl_cmd->shoot_mode == SHOOT_OFF) {
-   // for (int j = 0; j < FRICTION_NUM; j++) DJIMotorStop(shoot->friction_motor[j]);
-    //friction_set=0;
+    for (int j = 0; j < FRICTION_NUM; j++) DJIMotorSetPIDRef(shoot->friction_motor[j], 0);
     DJIMotorStop(shoot->loader_motor);
-    for (int j = 0; j < FRICTION_NUM; j++)
-      DJIMotorSetPIDRef(shoot->friction_motor[j], 0);
   } else  // 恢复运行
   {
     for (int j = 0; j < FRICTION_NUM; j++) DJIMotorEnable(shoot->friction_motor[j]);
@@ -151,14 +156,15 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
       DJIMotorSetPIDRef(shoot->friction_motor[i], friction_coefficients[i] * friction_set);
     }
   }
+
   // 如果上一次触发单发或3发指令的时间加上不应期仍然大于当前时间(尚未休眠完毕),直接返回即可
   if (hibernate_time + dead_time > DWT_GetTimeline_ms()) return;
   ;
 
-  // if (shoot->loader_motor->motor_controller.speed_PID.ERRORHandler.ERRORType == PID_MOTOR_BLOCKED_ERROR) {
-  //   shoot->loader_motor->motor_controller.speed_PID.ERRORHandler.ERRORType = PID_ERROR_NONE;  // 清空标志位
-  //   shoot_ctrl_cmd->load_mode = LOAD_REVERSE;
-  // }
+  if (shoot->loader_motor->motor_controller.speed_PID.ERRORHandler.ERRORType == PID_MOTOR_BLOCKED_ERROR) {
+    shoot->loader_motor->motor_controller.speed_PID.ERRORHandler.ERRORType = PID_ERROR_NONE;  // 清空标志位
+    shoot_ctrl_cmd->load_mode = LOAD_REVERSE;
+  }
 
   // 若不在休眠状态,根据robotCMD传来的控制模式进行拨盘电机参考值设定和模式切换
   HeatControl();
@@ -172,10 +178,9 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
     case LOAD_1_BULLET:  // 激活能量机关/干扰对方用,英雄用.
       ShootBulletSpeedControl();
       DJIMotorOuterLoop(shoot->loader_motor, ANGLE_LOOP);  // 切换到角度环
-      loader_set = shoot->loader_motor->measure.total_angle +
-                   one_bullet_delta_angle * reduction_ratio_loader * loader_direction;  // 控制量增加一发弹丸的角度
+      loader_set = shoot->loader_motor->measure.total_angle + one_bullet_delta_angle * reduction_ratio_loader * (float)loader_direction;  // 控制量增加一发弹丸的角度
       if(shoot_ctrl_cmd->heat_mode==SIMULLATE_CONTROL) {
-        shooter_barrel_heat += one_barrel_heat_value;  // 增加一发弹丸消耗热量，只在模拟控制中有效
+        shooter_barrel_heat += (float)one_barrel_heat_value;  // 增加一发弹丸消耗热量，只在模拟控制中有效
       }
       hibernate_time = DWT_GetTimeline_ms();                                            // 记录触发指令的时间
       dead_time = deadtime_onebullet;                                                   // 完成1发弹丸发射的时间
@@ -183,11 +188,10 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
       // 连发模式,对位置闭环,射频根据dead_time改变；原版是速度闭环，可能会更柔和一些？
     case LOAD_BURSTFIRE:
       ShootBulletSpeedControl();
-      DJIMotorOuterLoop(shoot->loader_motor, ANGLE_LOOP);  // 切换到角度环
-      loader_set = shoot->loader_motor->measure.total_angle +
-                   one_bullet_delta_angle * reduction_ratio_loader * loader_direction;  // 控制量增加一发弹丸的角度
+      DJIMotorOuterLoop(shoot->loader_motor, SPEED_LOOP);  // 切换到速度环
+      loader_set = LoaderSpeedFromDelay(one_bullet_delta_angle * reduction_ratio_loader * (float)loader_direction,deadtime_burstfire);
       if (shoot_ctrl_cmd->heat_mode == SIMULLATE_CONTROL) {
-        shooter_barrel_heat += one_barrel_heat_value;//增加一发弹丸消耗热量，只在模拟控制中有效
+        shooter_barrel_heat += (float)one_barrel_heat_value;//增加一发弹丸消耗热量，只在模拟控制中有效
       }
       hibernate_time = DWT_GetTimeline_ms();                                            // 记录触发指令的时间
 

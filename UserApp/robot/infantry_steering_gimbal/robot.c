@@ -393,8 +393,8 @@ static void RemoteControlSet() {
   }
 
   // 底盘参数,系数需要调整
-  vx_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l_;  // l_水平方向
-  vy_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // l1竖直方向
+  vx_initial = -60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // l_水平方向
+  vy_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l_;  // l1竖直方向
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
     chassis_ctrl_cmd->wz =5000;
         //60.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量

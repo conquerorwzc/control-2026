@@ -171,7 +171,7 @@ static Chassis_Init_Config_s chassis_init_config = {
     // 跟随PID
     .follow_pid =
         {
-            .Kp = 250.0f,
+            .Kp = -250.0f,
             .Ki = 0.0f,
             .Kd = 0.0f,
             .IntegralLimit = 1000.0f,

@@ -66,7 +66,12 @@ Device-level drivers and utilities:
 ### UserApp (`UserApp/`)
 Robot application layer, organized as:
 
-- **`os_task.c`** — FreeRTOS task creation (MotorTask at highest priority for 1kHz IMU, DaemonTask at 100Hz, RobotTask at 200-500Hz, optional UITask)
+- **`os_task.c`** — FreeRTOS task creation and scheduling:
+  - `MotorTask`: 2ms cycle (500Hz), highest priority, motor control
+  - `DaemonTask`: 10ms cycle (100Hz), high priority, watchdog/buzzer
+  - `RobotTask`: 2ms cycle (500Hz), above normal priority, main control loop
+  - `UITask`: 30ms cycle (~33Hz), below normal priority, referee UI (conditional on `USE_UI`)
+  - All tasks use `osDelay()` for frequency control and include runtime monitoring that logs warnings if execution time exceeds cycle time
 - **`components/`** — Reusable robot components, each with per-kinematics implementations:
   - `chassis/` — `chassis_mecanum/`, `chassis_steering/`, `chassis_rabbit/`, `chassis_wheel_legged/`
   - `gimbal/` — `gimbal_standard/`, `gimbal_steering_infantry/`
