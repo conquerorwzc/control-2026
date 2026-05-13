@@ -18,7 +18,7 @@
 
 // 刚度系数 (Nm/deg) - 降低以避免延迟震荡
 #define TORQUE_K_P_DM4310     0.05f
-#define TORQUE_K_P_M6020      0.03f
+#define TORQUE_K_P_M6020      0.06f
 
 // 阻尼系数 (Nm/(deg/s)) - 本地速度阻尼，抑制震荡
 #define TORQUE_K_D_DM4310     0.006f   
@@ -26,7 +26,7 @@
 
 // 力反馈力矩限幅 (仅对力反馈部分限幅)
 #define MAX_FEEDBACK_TORQUE_DM4310  0.75f
-#define MAX_FEEDBACK_TORQUE_M6020   0.80f
+#define MAX_FEEDBACK_TORQUE_M6020   1.2f
 
 // 力矩斜率限制 (Nm/cycle) - 缓解 10Hz 数据跳变
 #define MAX_TORQUE_STEP_DM          0.02f
@@ -458,12 +458,25 @@ void RobotTask() {
         // 应用总力矩控制（力反馈+重力补偿）
         ApplyTotalTorque();
         
-        // 以30Hz频率发送自定义控制器数据
+        // 以30Hz频率发送自定义控制器数据（仅当所有电机在线时发送）
         static uint32_t last_send_time = 0;
         uint32_t now = HAL_GetTick();
         if (now - last_send_time >= 33) {
             last_send_time = now;
-            CustomController_SendAllData(angle_controller);
+            
+            // 检查所有电机是否在线
+            bool all_motors_online = true;
+            for (int i = 0; i < 5; i++) {
+                if (!angle_controller->motor_online_status[i]) {
+                    all_motors_online = false;
+                    break;
+                }
+            }
+            
+            // 只有所有电机都在线时才发送数据
+            if (all_motors_online) {
+                CustomController_SendAllData(angle_controller);
+            }
         }
     }
 }
