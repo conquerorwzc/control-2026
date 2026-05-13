@@ -36,6 +36,52 @@ static BuzzzerInstance *robot_buzzer;
  *        单圈绝对角度的范围是0~360,说明文档中有图示
  *
  */
+static void supercap_power() {
+  switch (robot->chassis->super_cap->cap_msg.error_detect){
+    case 0:
+      switch (robot->chassis->super_cap_mode)
+      {
+      case SAFETY_MODE:
+          if (chassis_ctrl_cmd->SuperCapBoost == 1)
+            robot->chassis->super_cap_mode = ACTIVE_MODE;
+          if (robot->chassis->super_cap->cap_msg.cap_v > 18.0f)
+            robot->chassis->super_cap_mode = PASSIVE_MODE;
+          robot->chassis->chassis_ctrl_cmd.max_power =robot->referee_data->GameRobotState.chassis_power_limit;//TODO:用超电记得改;
+          break;
+      case CHARGING_MODE:
+          if (robot->chassis->super_cap->cap_msg.cap_v > 18.0f)
+            robot->chassis->super_cap_mode = PASSIVE_MODE;
+          robot->chassis->chassis_ctrl_cmd.max_power =robot->referee_data->GameRobotState.chassis_power_limit-20;
+          break;
+      case PASSIVE_MODE:
+          if (chassis_ctrl_cmd->SuperCapBoost == 1)
+            robot->chassis->super_cap_mode = ACTIVE_MODE;
+          if (robot->chassis->super_cap->cap_msg.cap_v < 15.0f) {
+            robot->chassis->super_cap_mode = CHARGING_MODE;
+          }
+          else if (robot->chassis->super_cap->cap_msg.cap_v > 18.0f) {
+            robot->chassis->chassis_ctrl_cmd.max_power =robot->referee_data->GameRobotState.chassis_power_limit+20;
+          }
+          else if (robot->chassis->super_cap->cap_msg.cap_v >= 12.0f&&robot->chassis->super_cap->cap_msg.cap_v <= 18.0f) {
+            robot->chassis->super_cap_mode = SAFETY_MODE;
+          }
+          break;
+      case ACTIVE_MODE:
+          if (robot->chassis->super_cap->cap_msg.cap_v < 12.0f)
+            robot->chassis->super_cap_mode = CHARGING_MODE;
+          if (chassis_ctrl_cmd->SuperCapBoost != 1)
+            robot->chassis->super_cap_mode = PASSIVE_MODE;
+          robot->chassis->chassis_ctrl_cmd.max_power = robot->referee_data->GameRobotState.chassis_power_limit+40;
+          break;
+      default:
+          robot->chassis->super_cap_mode = SAFETY_MODE;
+      }
+      break;
+    default:
+      chassis_ctrl_cmd->max_power = robot->referee_data->GameRobotState.chassis_power_limit;
+      break;
+  }
+}
 uint8_t has_non_zero_data(const Vision_Receive_s* data) {
   // 空指针检查
   if (data == NULL) {
@@ -414,8 +460,8 @@ void RobotCMDTask() {
   shoot_ctrl_cmd->shooter_barrel_heat=robot->referee_data->PowerHeatData.shooter_42mm_barrel_heat;
   shoot_ctrl_cmd->shooter_barrel_heat_limit=robot->referee_data->GameRobotState.shooter_barrel_heat_limit;
   shoot_ctrl_cmd->shooter_barrel_cooling_value=robot->referee_data->GameRobotState.shooter_barrel_cooling_value;
-  chassis_ctrl_cmd->max_power=robot->referee_data->GameRobotState.chassis_power_limit;
-  referee_power_limit = chassis_ctrl_cmd->max_power+15;
+  referee_power_limit = robot->referee_data->GameRobotState.chassis_power_limit;
+  supercap_power();
   CalcOffsetAngle();
   RemoteControlSet();
   MouseKeySet();
