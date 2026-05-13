@@ -1,9 +1,13 @@
 #pragma once
-
+#define USE_DUAL_RC_NEW
 #include "chassis.h"
 #include "gimbal.h"
 #include "shoot.h"
+#ifdef USE_DUAL_RC_NEW
+#include "new_RC_VT13.h"
+#else
 #include "remote_control.h"
+#endif
  #include "rm_referee.h"
 #include "super_cap.h"
 // todo: add vision_module
@@ -14,10 +18,14 @@ typedef enum {
 } Robot_Mode_e;
 
 typedef struct {
-  Robot_Mode_e robot_mode;       // 机器人整体工作状态
+  Robot_Mode_e robot_mode;
 
-  RC_ctrl_t *rc_data;               // 遥控器数据,初始化时返回
-  referee_info_t* referee_data;     // 用于获取裁判系统的数据
+#ifdef USE_DUAL_RC_NEW
+  VT13_RC_t *vt13_rc_data;
+#else
+  RC_ctrl_t *rc_data;
+#endif
+  referee_info_t* referee_data;
 
   SuperCapInstance* super_cap;
   ChassisInstance* chassis;
