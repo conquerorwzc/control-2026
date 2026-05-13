@@ -459,7 +459,7 @@ static Grab_Init_Config_s
                     .base_joint_min = -28.0f,
                     .elbow_roll_max = 464.973602f,
                     .elbow_roll_min = -362.617554f,
-                    .arm_lift_max = 420.0f,
+                    .arm_lift_max = 320.0f,
 
                     // 物理传动比参数
                     .pulley_gear_ratio = 2.125f,

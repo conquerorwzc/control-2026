@@ -269,6 +269,14 @@ static void Wrist_Cali_Update(Calibration_t *self)
         break;
     }
     case 1: { // 阶段1：向上找最高限位
+        // 🛡️ 锁死DM大臂电机目标，防止外部输入干扰标定
+        grab_ctrl_cmd->base_joint = 10.0f;
+        grab_ctrl_cmd->elbow_pitch = 0.0f;
+        grab_ctrl_cmd->elbow_roll = 0.0f;
+        g_inst->arm->base_joint = 10.0f;
+        g_inst->arm->elbow_pitch = 0.0f;
+        g_inst->arm->elbow_roll = 0.0f;
+
         g_inst->actuator->M_target = total_angle_init_M;
         cali_pitch += grab_param.wrist_cali_speed;
 
@@ -320,6 +328,14 @@ static void Wrist_Cali_Update(Calibration_t *self)
         break;
     }
     case 2: { // 阶段2：向下找最低限位
+        // 🛡️ 锁死DM大臂电机目标，防止外部输入干扰标定
+        grab_ctrl_cmd->base_joint = 10.0f;
+        grab_ctrl_cmd->elbow_pitch = 0.0f;
+        grab_ctrl_cmd->elbow_roll = 0.0f;
+        g_inst->arm->base_joint = 10.0f;
+        g_inst->arm->elbow_pitch = 0.0f;
+        g_inst->arm->elbow_roll = 0.0f;
+
         g_inst->actuator->M_target = total_angle_init_M;
         cali_pitch -= grab_param.wrist_cali_speed;
 

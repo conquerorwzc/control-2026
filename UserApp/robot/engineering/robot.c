@@ -116,7 +116,12 @@ void RobotCMDTask()
 
     if (grab_control_mode == GRAB_CONTROL_CUSTOM)
     {
-        ProcessCustomControllerData();
+        // 🛡️ 标定进行中时，屏蔽自定义控制器对 grab_ctrl_cmd 的覆写，防止疯转
+        if (robot->grab->actuator->wrist_cali_obj.state == CALI_DONE &&
+            robot->grab->arm->extend_cali_obj.state == CALI_DONE)
+        {
+            ProcessCustomControllerData();
+        }
     }
     else if (grab_control_mode == GRAB_CONTROL_HALF_AUTO)
     {
