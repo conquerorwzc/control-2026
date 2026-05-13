@@ -646,12 +646,12 @@ void Leg_FSM()
         float rear_l_target = chassis->cali_state.init_angle[0] + stroke_rear_l;
         float rear_r_target = chassis->cali_state.init_angle[1] + stroke_rear_r;
 
-        // 🌟 护盾拦截：如果是烂路模式，强行把后腿目标折算成“撅屁股”比例！
-        if (chassis_ctrl_cmd->robot_mode == 4)
-        {
-            rear_l_target = chassis->cali_state.init_angle[0] + stroke_rear_l * chassis_param.climb_tilt_ratio;
-            rear_r_target = chassis->cali_state.init_angle[1] + stroke_rear_r * chassis_param.climb_tilt_ratio;
-        }
+        // // 🌟 护盾拦截：如果是烂路模式，强行把后腿目标折算成“撅屁股”比例！
+        // if (chassis_ctrl_cmd->robot_mode == 4)
+        // {
+        //     rear_l_target = chassis->cali_state.init_angle[0] + stroke_rear_l * chassis_param.climb_tilt_ratio;
+        //     rear_r_target = chassis->cali_state.init_angle[1] + stroke_rear_r * chassis_param.climb_tilt_ratio;
+        // }
 
         switch (chassis_ctrl_cmd->chassis_mode)
         {

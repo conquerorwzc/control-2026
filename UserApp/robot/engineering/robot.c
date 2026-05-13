@@ -169,7 +169,7 @@ static void MouseKeySet()
         robot->robot_mode = ROBOT_CLIMB_MODE;
         break;
     case 3:
-        robot->robot_mode = ROBOT_BUMPY_MODE; // 🌟 烂路模式
+        robot->robot_mode = ROBOT_DOWN_STAIRS_MODE;
         break;
     }
 
@@ -179,7 +179,7 @@ static void MouseKeySet()
         Half_auto_reset();
 
         // 场景：退出爬楼或烂路模式
-        if (last_robot_mode == ROBOT_CLIMB_MODE || last_robot_mode == ROBOT_BUMPY_MODE)
+        if (last_robot_mode == ROBOT_CLIMB_MODE || last_robot_mode == ROBOT_DOWN_STAIRS_MODE)
         {
             keyboard_climb_state = CHASSIS_CLIMB_IDLE;
         }
@@ -295,7 +295,7 @@ static void MouseKeySet()
                                 angle_rapid_buff);
             }
         }
-        else if (robot->robot_mode == ROBOT_CLIMB_MODE || robot->robot_mode == ROBOT_BUMPY_MODE) // 🌟 修复2：向烂路模式开放键盘微调权限
+        else if (robot->robot_mode == ROBOT_CLIMB_MODE || robot->robot_mode == ROBOT_DOWN_STAIRS_MODE) // 🌟 修复2：向烂路模式开放键盘微调权限
         {
             // 🛡️ 物理防翻车护盾：绝对禁止在双腿全伸出的高重心状态下旋转！
             // 只有在全收、后腿半伸、后腿全伸等低重心状态下，才允许微调姿态
@@ -326,7 +326,7 @@ static void MouseKeySet()
             if (chassis_ctrl_cmd->lift_ratio > 1.0f)
                 chassis_ctrl_cmd->lift_ratio = 1.0f;
         }
-        else if (robot->robot_mode == ROBOT_CLIMB_MODE || robot->robot_mode == ROBOT_BUMPY_MODE)
+        else if (robot->robot_mode == ROBOT_CLIMB_MODE || robot->robot_mode == ROBOT_DOWN_STAIRS_MODE)
         {
             // 【上台阶/烂路模式】：状态机离散触发 (防呆快速切换)
             uint8_t key_q = rc_data[TEMP].key[KEY_PRESS_NORMAL].q;
@@ -345,23 +345,28 @@ static void MouseKeySet()
                     stable_cnt++; // 防止累加溢出
 
                 // 维持同一个状态超过 10 帧 (10 * 5ms = 50ms) 才认为是真实意图
-                // 维持同一个状态超过 10 帧 (10 * 5ms = 50ms) 才认为是真实意图
                 if (stable_cnt == 10)
                 {
                     if (current_state == 3)
                         keyboard_climb_state = CHASSIS_CLIMB_BOTH_EXTEND;
                     else if (current_state == 2) // 🌟 仅按了 Q 键 (前收，后伸)
                     {
-                        // 两段式后伸逻辑：
-                        // 如果当前不是后腿半伸，则进入半伸 (50%)；
-                        // 如果已经是半伸了，再次按 Q 则进入全伸 (100%)。
-                        if (keyboard_climb_state != CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF &&
-                            keyboard_climb_state != CHASSIS_CLIMB_FRONT_RETRACT)
+                        if (robot->robot_mode == ROBOT_DOWN_STAIRS_MODE)
                         {
-                            keyboard_climb_state = CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF;
+                            // 【下台阶模式】：两段式后伸逻辑 (半伸 -> 全伸)
+                            if (keyboard_climb_state != CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF &&
+                                keyboard_climb_state != CHASSIS_CLIMB_FRONT_RETRACT)
+                            {
+                                keyboard_climb_state = CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF;
+                            }
+                            else if (keyboard_climb_state == CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF)
+                            {
+                                keyboard_climb_state = CHASSIS_CLIMB_FRONT_RETRACT;
+                            }
                         }
-                        else if (keyboard_climb_state == CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF)
+                        else
                         {
+                            // 【上台阶模式】：一段式逻辑 (直接全伸到位)
                             keyboard_climb_state = CHASSIS_CLIMB_FRONT_RETRACT;
                         }
                     }
@@ -519,7 +524,7 @@ static void RemoteControlSet()
         return;
     }
 
-    bool is_keyboard_climb = (robot->robot_mode == ROBOT_CLIMB_MODE || robot->robot_mode == ROBOT_BUMPY_MODE);
+    bool is_keyboard_climb = (robot->robot_mode == ROBOT_CLIMB_MODE || robot->robot_mode == ROBOT_DOWN_STAIRS_MODE);
 
     if (switch_is_mid(rc_data[TEMP].rc.switch_right))
     {

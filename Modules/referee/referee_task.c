@@ -210,8 +210,8 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
             snprintf(mode_buf, sizeof(mode_buf), "%-10s", "CLIMB");
             mode_color = UI_Color_Yellow;
             break;
-        case ROBOT_BUMPY_MODE:
-            snprintf(mode_buf, sizeof(mode_buf), "%-10s", "BUMPY");
+        case ROBOT_DOWN_STAIRS_MODE:
+            snprintf(mode_buf, sizeof(mode_buf), "%-10s", "DOWN_STAIRS");
             mode_color = UI_Color_Orange;
             break;
 
