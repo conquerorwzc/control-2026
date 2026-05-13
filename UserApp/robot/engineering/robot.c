@@ -399,10 +399,9 @@ static void MouseKeySet()
                     grab_param.arm_lift_sens_keyboard;
 
                 // 2. 前伸：Shift + Ctrl + V/B
-                float extend_speed = 4.0f; // 前伸速度
                 grab_ctrl_cmd->arm_extend += (float)(rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].v -
                                                      rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].b) *
-                                             extend_speed;
+                                             grab_param.arm_extend_sens_keyboard;
             }
 
             if (grab_control_mode == GRAB_CONTROL_KEYBOARD)

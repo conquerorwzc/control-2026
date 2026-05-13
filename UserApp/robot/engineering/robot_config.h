@@ -452,6 +452,7 @@ static Grab_Init_Config_s
                     .wrist_roll_sens_keyboard = 0.05,
                     .wrist_pitch_sens_keyboard = 0.05,
                     .arm_lift_sens_keyboard = 1.0,
+                    .arm_extend_sens_keyboard =1.0,
 
                     .elbow_pitch_max = 97.143158f,
                     .elbow_pitch_min = -106.869514f,
