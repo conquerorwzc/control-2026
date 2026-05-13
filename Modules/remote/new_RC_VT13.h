@@ -1,24 +1,31 @@
+/**
+ * @file new_RC_VT13.h
+ * @brief VT13 遥控器接收与解析驱动头文件
+ * @note 兼容老版大疆遥控器的键鼠状态机的逻辑 API，实现底层协议无缝切换
+ */
+
 #ifndef CONTROL_2026_NEW_REMOTE_CONTROL_VT13_H
 #define CONTROL_2026_NEW_REMOTE_CONTROL_VT13_H
 
 #include <stdint.h>
 #include "main.h"
 #include "usart.h"
-#include "remote_control.h" // 必须包含老版头文件以使用其枚举和结构体定义
+#include "remote_control.h" // 必须包含老版头文件以使用其枚举(KEY_PRESS_STATE_NUM等)和结构体定义
 
 /* ------------------- 帧格式常量 ------------------- */
-#define VT13_SOF_1       0xA9u
-#define VT13_SOF_2       0x53u
-#define VT13_FRAME_SIZE  21u
+#define VT13_SOF_1       0xA9u      // 帧头1
+#define VT13_SOF_2       0x53u      // 帧头2
+#define VT13_FRAME_SIZE  21u        // 数据帧总长度：2(帧头) + 8(摇杆拨杆) + 9(键鼠) + 2(CRC16)
 
 /* ------------------- 摇杆/拨轮量程 ------------------- */
-#define VT13_CH_MID      1024u
-#define VT13_CH_MIN      364u
-#define VT13_CH_MAX      1684u
+#define VT13_CH_MID      1024u      // 摇杆中值
+#define VT13_CH_MIN      364u       // 摇杆最小值
+#define VT13_CH_MAX      1684u      // 摇杆最大值
+// 宏：将 0~2047 的无符号摇杆原始值，转换为以 0 为中心的有符号值 (如 -660 ~ +660)
 #define VT13_CH_TO_SIGNED(raw)  ((int16_t)(raw) - (int16_t)VT13_CH_MID)
 
-/* ------------------- 键位转换宏 ------------------- */
-// 这里的宏定义与 remote_control.h 保持兼容，方便代码移植
+/* ------------------- 键位转换宏 (对齐老版) ------------------- */
+// 对应键盘位域中各个按键的 bit 偏移，用于边沿检测时的掩码计算
 #define VT13_KEY_W      (1u << 0)
 #define VT13_KEY_S      (1u << 1)
 #define VT13_KEY_A      (1u << 2)
@@ -36,20 +43,23 @@
 #define VT13_KEY_V      (1u << 14)
 #define VT13_KEY_B      (1u << 15)
 
-#pragma pack(push, 1)
+/* ------------------- 原始键鼠数据结构 ------------------- */
+#pragma pack(push, 1) // 强制 1 字节对齐，防止结构体填充导致 memcpy 错位
 typedef struct
 {
+    // 鼠标数据 (共 7 bytes)
     struct
     {
-        int16_t  x;           ///< 鼠标 X 轴移动速度
-        int16_t  y;           ///< 鼠标 Y 轴移动速度
-        int16_t  z;           ///< 鼠标滚轮移动速度
-        uint8_t press_l : 2; ///< 鼠标左键，1=按下
-        uint8_t press_r : 2; ///< 鼠标右键，1=按下
-        uint8_t press_m : 2; ///< 鼠标中键，1=按下
-        uint8_t _pad    : 2; ///< 对齐填充
+        int16_t  x;           ///< 鼠标 X 轴移动速度 (2 bytes)
+        int16_t  y;           ///< 鼠标 Y 轴移动速度 (2 bytes)
+        int16_t  z;           ///< 鼠标滚轮移动速度 (2 bytes)
+        uint8_t press_l : 2;  ///< 鼠标左键，1=按下
+        uint8_t press_r : 2;  ///< 鼠标右键，1=按下
+        uint8_t press_m : 2;  ///< 鼠标中键，1=按下
+        uint8_t _pad    : 2;  ///< 补齐凑满 1 byte
     } mouse;
 
+    // 键盘数据 (共 2 bytes，16个按键每个占 1 bit)
     struct
     {
         uint16_t w     : 1;
@@ -72,37 +82,39 @@ typedef struct
 } VT13_MouseKey_t;
 #pragma pack(pop)
 
+/* ------------------- 遥控器应用层总控结构体 ------------------- */
 typedef struct
 {
+    // 1. 摇杆、拨杆与按键 (解包后的有符号直观数据)
     struct
     {
         /* -------- 摇杆 / 拨轮 -------- */
-        int16_t rocker_l_;  
-        int16_t rocker_l1;  
-        int16_t rocker_r_;  
-        int16_t rocker_r1;  
-        int16_t dial;          
+        int16_t rocker_l_;      ///< 左摇杆水平
+        int16_t rocker_l1;      ///< 左摇杆竖直
+        int16_t rocker_r_;      ///< 右摇杆水平
+        int16_t rocker_r1;      ///< 右摇杆竖直
+        int16_t dial;           ///< 左侧拨轮
 
         /* -------- 拨杆 / 功能键 / 扳机 -------- */
-        uint8_t  mode_switch;   
-        uint8_t  pause;         
-        uint8_t  fn_1;          
-        uint8_t  fn_2;          
-        uint8_t  trigger;       
+        uint8_t  mode_switch;   ///< 左上角模式拨杆 (1=上, 3=中, 2=下)
+        uint8_t  pause;         ///< 暂停键
+        uint8_t  fn_1;          ///< 自定义功能键 1
+        uint8_t  fn_2;          ///< 自定义功能键 2
+        uint8_t  trigger;       ///< 扳机键
     } rc;
 
-    /* -------- 鼠标 + 键盘原始数据（数组化以支持边沿检测）-------- */
+    // 2. 鼠标+键盘底层缓冲数据 (用于保存当前帧[0]与上一帧[1])
     VT13_MouseKey_t mouse_key[2]; ///< [0]=TEMP, [1]=LAST
 
-    /* -------- 键盘按键跟踪（与 remote_control.h 结构完全对齐）-------- */
-    Key_t   key[KEY_PRESS_STATE_NUM];             ///< 当前键盘逻辑状态
-    Key_t   last_key[KEY_PRESS_STATE_NUM];        ///< 用于内部检测边沿
-    uint8_t key_count[KEY_PRESS_STATE_NUM][KEY_NUM_TOTAL]; ///< 键盘按键次数计数
+    // 3. 键盘状态分流与统计 (向下兼容核心)
+    Key_t   key[KEY_PRESS_STATE_NUM];             ///< 当前按键状态 (分摊到 Normal, Ctrl, Shift, Ctrl+Shift 四个数组中)
+    Key_t   last_key[KEY_PRESS_STATE_NUM];        ///< 上一次按键状态 (仅用于内部边沿检测对比)
+    uint8_t key_count[KEY_PRESS_STATE_NUM][KEY_NUM_TOTAL]; ///< 按键上升沿触发次数累加器
 
-    /* -------- 鼠标按键计数 [0]:左 [1]:右 [2]:中 -------- */
-    uint8_t mouse_count[3];
+    // 4. 鼠标按键计数
+    uint8_t mouse_count[3];                       ///< [0]:左键 [1]:右键 [2]:中键 的点击次数累加
 
-    /* -------- 按钮状态跟踪（VT13 硬件按键） -------- */
+    // 5. VT13 硬件按钮状态跟踪 (处理短按 Toggle 和 长按)
     struct {
         uint8_t  pause_flag;        
         uint8_t  fn_1_flag;         
@@ -130,7 +142,8 @@ typedef struct
     } button_status;
 } VT13_RC_t;
 
+/* ------------------- 外部接口申明 ------------------- */
 VT13_RC_t *VT13RemoteInit(UART_HandleTypeDef *huart);
 uint8_t VT13RemoteIsOnline(void);
 
-#endif
+#endif // CONTROL_2026_NEW_REMOTE_CONTROL_VT13_H
