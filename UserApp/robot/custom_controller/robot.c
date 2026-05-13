@@ -248,6 +248,47 @@ static void CalculateFeedbackTorque(float feedback_torques[5])
 }
 
 /**
+ * @brief 应用位置保持控制（grab_mode=0时保持当前位置）
+ */
+static void ApplyPositionHold(void)
+{
+    static float hold_angles[5] = {0.0f};
+    static bool hold_inited = false;
+
+    if (angle_controller == NULL) {
+        hold_inited = false;
+        return;
+    }
+
+    // 仅在 mode=0 时执行位置保持
+    if (angle_controller->robot_grab_mode != 0) {
+        hold_inited = false;
+        return;
+    }
+
+    // 初始化：记录当前角度作为保持目标
+    if (!hold_inited) {
+        for (int i = 0; i < 5; i++) {
+            hold_angles[i] = angle_controller->motor_angles[i];
+        }
+        hold_inited = true;
+    }
+
+    // 对每个电机应用位置保持
+    for (int i = 0; i < 5; i++) {
+        if (angle_controller->motors[i].dm_motor != NULL) {
+            // DM电机使用位置控制（弧度）
+            DMMotorSetPIDRef(angle_controller->motors[i].dm_motor,
+                             hold_angles[i] * (M_PI / 180.0f));
+        } else if (angle_controller->motors[i].dji_motor != NULL) {
+            // DJI电机（GM6020）使用位置控制（度），需要补回零点偏移
+            float actual_angle = hold_angles[i] + angle_controller->zero_offset[0];
+            DJIMotorSetPIDRef(angle_controller->motors[i].dji_motor, actual_angle);
+        }
+    }
+}
+
+/**
  * @brief 应用角度跟随位置控制（严格限速方案）
  */
 static void ApplyFollowPositionControl(void)
@@ -332,6 +373,12 @@ static void ApplyFollowPositionControl(void)
 static void ApplyTotalTorque(void)
 {
     if (angle_controller == NULL) {
+        return;
+    }
+
+    // mode=0: 位置保持模式
+    if (angle_controller->robot_grab_mode == 0) {
+        ApplyPositionHold();
         return;
     }
 
