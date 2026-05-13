@@ -69,6 +69,8 @@ void VOFATask() {
   // visualized_data[3] = robot->chassis->power_ctrl->P[0];
   // visualized_data[4] = robot->chassis->power_ctrl->I[0];
   // visualized_data[5] = robot->chassis->power_ctrl->w[0];
+  visualized_data[15] = robot->chassis->super_cap->cap_msg.cap_v;
+  visualized_data[16] = robot->chassis->super_cap->cap_msg.out_p;
 #endif
   VOFAJustFloatSend(visualized_data, 20);
 }
