@@ -162,10 +162,10 @@
                   {                                                                                                    \
                       .speed_PID =                                                                                     \
                           {                                                                                            \
-                              .Kp = 1.0,                                                                               \
-                              .Ki = 0.5,                                                                               \
+                              .Kp = 1.2,                                                                               \
+                              .Ki = 0.6,                                                                               \
                               .Kd = 0,                                                                                 \
-                              .IntegralLimit = 6000,                                                                   \
+                              .IntegralLimit = 8000,                                                                   \
                               .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
                               .MaxOut = 15000,                                                                         \
                           },                                                                                           \
@@ -295,11 +295,11 @@ static Chassis_Init_Config_s
                                      }},
             .yaw_prostrate_PID_config =
                 {
-                    .Kp = 3.0f,
+                    .Kp = 4.0f,
                     .Ki = 0.0f,
-                    .Kd = 0.02f,
+                    .Kd = 0.38f,
                     .MaxOut = 6.0f,
-                    .DeadBand = 0.01f,
+                    .DeadBand = 0.0f,
                     .IntegralLimit = 3.0f,
                 },
 };

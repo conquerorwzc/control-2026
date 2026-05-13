@@ -51,29 +51,40 @@ void VOFATask() {
   // visualized_data[2] = robot->chassis->chassis_ctrl_cmd.vx;
   // visualized_data[0] = robot->chassis->chassis_ctrl_cmd.wz;
   // visualized_data[1] = robot->chassis->state_var.phi_d;
-  visualized_data[2] = robot->chassis->chassis_ctrl_cmd.target_yaw;
-  visualized_data[3] = robot->chassis->state_var.phi;
+  // visualized_data[2] = robot->chassis->chassis_ctrl_cmd.target_yaw;
+  // visualized_data[3] = robot->chassis->state_var.phi;
   // === 双板通信调试 (定位 POWER_OFF 卡死) ===
   // [10] chassis_mode: 0=POWER_OFF 1=RECOVERY 2=ON 3=JUMP_READY 4=JUMP_START 5=PROSTRATE
   // [11] gimbal_aligned: 0=未对齐, 1=已对齐
   // [12] cmd.vx (raw, 上层下发, 应跟随摇杆/WASD)
-  visualized_data[10] = (float)robot->chassis->chassis_ctrl_cmd.chassis_mode;
-  visualized_data[11] = (float)robot->chassis->update_flag.gimbal_aligned;
-  visualized_data[12] = robot->chassis->chassis_ctrl_cmd.vx;
+  // visualized_data[10] = (float)robot->chassis->chassis_ctrl_cmd.chassis_mode;
+  // visualized_data[11] = (float)robot->chassis->update_flag.gimbal_aligned;
+  // visualized_data[12] = robot->chassis->chassis_ctrl_cmd.vx;
   // visualized_data[4] = robot->chassis->state_var.theta_b * RAD_2_DEGREE;
   // visualized_data[5] = robot->chassis->roll_PID.Ref * RAD_2_DEGREE;
   // visualized_data[6] = robot->chassis->roll_PID.Measure * RAD_2_DEGREE;
-  visualized_data[0] = robot->chassis->power_ctrl->P_total;
-  visualized_data[1] = robot->chassis->power_ctrl->P_total_ref;
+  // visualized_data[0] = robot->chassis->power_ctrl->P_total;
+  // visualized_data[1] = robot->chassis->power_ctrl->P_total_ref;
   // visualized_data[2] = robot->chassis->power_ctrl->scale_combined;
   // visualized_data[3] = robot->chassis->power_ctrl->P[0];
   // visualized_data[4] = robot->chassis->power_ctrl->I[0];
   // visualized_data[5] = robot->chassis->power_ctrl->w[0];
-  visualized_data[15] = robot->chassis->super_cap->cap_msg.cap_v;
-  visualized_data[16] = robot->chassis->super_cap->cap_msg.out_p;
-  visualized_data[17] = robot->chassis->super_cap->cap_msg.in_p;
-  visualized_data[18] = robot->chassis->super_cap->cap_msg.error_detect;
-
+  // visualized_data[0] = robot->chassis->super_cap->cap_msg.cap_v;
+  // visualized_data[1] = robot->chassis->super_cap->cap_msg.out_p;
+  // visualized_data[2] = robot->chassis->super_cap->cap_msg.in_p;
+  // visualized_data[3] = robot->chassis->super_cap->cap_msg.error_detect;
+  // visualized_data[0] = robot->chassis->chassis_ctrl_cmd.vx;
+  // visualized_data[1] = robot->chassis->vaEstimateKF.FilteredValue[0];
+  // visualized_data[2] = robot->chassis->chassis_ctrl_cmd.wz;
+  // visualized_data[3] = -1.0f * robot->chassis->imu->Gyro[2];
+  visualized_data[0] = robot->chassis->yaw_prostrate_PID.Ref;
+  visualized_data[1] = robot->chassis->yaw_prostrate_PID.Measure;
+  visualized_data[2] = robot->chassis->yaw_prostrate_PID.MaxOut;
+  visualized_data[3] = robot->chassis->yaw_prostrate_PID.Output;
+  visualized_data[4] = robot->chassis->leg[0]->wheel_motor->motor_controller.pid_ref;
+  visualized_data[5] = robot->chassis->leg[0]->wheel_motor->measure.speed_aps;
+  visualized_data[6] = robot->chassis->leg[0]->wheel_motor->motor_controller.speed_PID.MaxOut;
+  visualized_data[7] = robot->chassis->leg[0]->wheel_motor->motor_controller.speed_PID.Output;
 #endif
   VOFAJustFloatSend(visualized_data, 20);
 }
