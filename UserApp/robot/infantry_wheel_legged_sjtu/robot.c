@@ -77,6 +77,7 @@ void VOFATask() {
   // visualized_data[1] = robot->chassis->vaEstimateKF.FilteredValue[0];
   // visualized_data[2] = robot->chassis->chassis_ctrl_cmd.wz;
   // visualized_data[3] = -1.0f * robot->chassis->imu->Gyro[2];
+
   visualized_data[0] = robot->chassis->yaw_prostrate_PID.Ref;
   visualized_data[1] = robot->chassis->yaw_prostrate_PID.Measure;
   visualized_data[2] = robot->chassis->yaw_prostrate_PID.MaxOut;

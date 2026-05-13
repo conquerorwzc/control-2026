@@ -531,7 +531,7 @@ void ChassisProstrate(void) {
   //   wz: 660 × (28000/660) = 28000 rpm-diff ↔ 站立 ROTATE ±15 rad/s → 28000/15
 
 #define VX_MPS_TO_MOTOR 14000.0f
-#define WZ_PID_TO_MOTOR 35000.0f
+#define WZ_PID_TO_MOTOR 20000.0f
 #define WZ_RADPS_TO_MOTOR (54000.0f / 15.0f)
   float vx_motor = 0.0f;
 
@@ -541,14 +541,22 @@ void ChassisProstrate(void) {
     leg[i]->wheel_motor->motor_settings.outer_loop_type = SPEED_LOOP;
   }
 
-  float yaw_pid_output = PIDCalculate(&chassis->yaw_prostrate_PID, chassis->imu->YawTotalAngle * DEGREE_2_RAD,
-                                      chassis_ctrl_cmd->target_yaw);
-  yaw_prostrate_pid_output_lpf = FirstOrderLowPass(yaw_pid_output, yaw_prostrate_pid_output_lpf,
-                                                   chassis->yaw_prostrate_PID.dt,
-                                                   0.03f);
-  chassis->yaw_prostrate_PID.Output = yaw_prostrate_pid_output_lpf;
+  float wz_pid = 0.0f;
+  if (fabsf(chassis_ctrl_cmd->wz) > 0.01f) {
+    PIDRuntimeReset(&chassis->yaw_prostrate_PID);
+    yaw_prostrate_pid_output_lpf = 0.0f;
+  } else {
+    float yaw_pid_output = PIDCalculate(&chassis->yaw_prostrate_PID, chassis->imu->YawTotalAngle * DEGREE_2_RAD,
+                                        chassis_ctrl_cmd->target_yaw);
+    yaw_prostrate_pid_output_lpf = FirstOrderLowPass(yaw_pid_output, yaw_prostrate_pid_output_lpf,
+                                                     chassis->yaw_prostrate_PID.dt,
+                                                     0.02f);
+    chassis->yaw_prostrate_PID.Output = yaw_prostrate_pid_output_lpf;
+    wz_pid = -yaw_prostrate_pid_output_lpf;
+  }
 
-  float wz_pid = -yaw_prostrate_pid_output_lpf;
+  // float wz_pid = -PIDCalculate(&chassis->yaw_prostrate_PID, chassis->imu->YawTotalAngle * DEGREE_2_RAD,
+  //                                     chassis_ctrl_cmd->target_yaw);
   vx_motor = chassis_ctrl_cmd->vx * VX_MPS_TO_MOTOR;
   float wz_motor = wz_pid * WZ_PID_TO_MOTOR + chassis_ctrl_cmd->wz * WZ_RADPS_TO_MOTOR;
 

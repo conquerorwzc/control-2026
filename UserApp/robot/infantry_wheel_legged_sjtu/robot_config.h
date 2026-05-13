@@ -162,10 +162,10 @@
                   {                                                                                                    \
                       .speed_PID =                                                                                     \
                           {                                                                                            \
-                              .Kp = 1.2,                                                                               \
-                              .Ki = 0.6,                                                                               \
+                              .Kp = 1.5,                                                                               \
+                              .Ki = 0.5,                                                                               \
                               .Kd = 0,                                                                                 \
-                              .IntegralLimit = 8000,                                                                   \
+                              .IntegralLimit = 6000,                                                                   \
                               .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
                               .MaxOut = 15000,                                                                         \
                           },                                                                                           \
@@ -295,9 +295,9 @@ static Chassis_Init_Config_s
                                      }},
             .yaw_prostrate_PID_config =
                 {
-                    .Kp = 4.0f,
+                    .Kp = 3.5f,
                     .Ki = 0.0f,
-                    .Kd = 0.38f,
+                    .Kd = 0.3f,
                     .MaxOut = 6.0f,
                     .DeadBand = 0.0f,
                     .IntegralLimit = 3.0f,
