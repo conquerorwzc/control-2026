@@ -377,14 +377,12 @@ void RobotInit() {
 
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
-  chassis_ctrl_cmd->max_power = 100;  // 随便给一个初始功率，后面应该要从裁判系统获取
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;
   shoot_ctrl_cmd->bullet_speed_mode=MANUAL_BULLET_SPEED;
   shoot_ctrl_cmd->heat_mode=REFEREE_CONTROL;
   vision_recv_data=VisionInit(&gimbal_init_config.imu_init_config);
-  referee_power_limit = 118;
   buffer_energy = 60;
   chassis_output = 1;
   Buzzer_config_s buzzer_cfg = {
@@ -414,6 +412,10 @@ void RobotCMDTask() {
   //}
   shoot_ctrl_cmd->initial_speed=robot->referee_data->ShootData.initial_speed;
   shoot_ctrl_cmd->shooter_barrel_heat=robot->referee_data->PowerHeatData.shooter_42mm_barrel_heat;
+  shoot_ctrl_cmd->shooter_barrel_heat_limit=robot->referee_data->GameRobotState.shooter_barrel_heat_limit;
+  shoot_ctrl_cmd->shooter_barrel_cooling_value=robot->referee_data->GameRobotState.shooter_barrel_cooling_value;
+  chassis_ctrl_cmd->max_power=robot->referee_data->GameRobotState.chassis_power_limit;
+  referee_power_limit = chassis_ctrl_cmd->max_power+15;
   CalcOffsetAngle();
   RemoteControlSet();
   MouseKeySet();
@@ -425,7 +427,7 @@ void RobotTask() {
   VisionSend();
   RobotCMDTask();
   GimbalTask();
-  ShootTask(robot->referee_data->GameRobotState.shooter_barrel_cooling_value,robot->referee_data->GameRobotState.shooter_barrel_heat_limit);
+  ShootTask();
 #endif
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)

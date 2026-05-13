@@ -6,10 +6,24 @@
  * @LastEditTime: 2025-12-10
  */
 #include "super_cap.h"
+#include "bsp_log.h"
 #include "memory.h"
 #include "stdlib.h"
 
 static SuperCapInstance *super_cap_instance = NULL; // 可以由app保存此指针
+DaemonInstance *supercap_daemon_instance; // daemon实例，用于监测通信状态
+
+
+/**
+ * @brief 超级电容离线回调函数
+ *
+ * @param instance 超级电容实例指针
+ */
+static void SuperCapOfflineCallback()
+{
+    LOGWARNING("[supercap] supercap offline, restart communication.");
+    // 可以在这里添加离线处理逻辑，例如禁用超电输出等
+}
 
 static void DecodeSuperCap(CANInstance *_instance)
 {
@@ -29,15 +43,26 @@ static void DecodeSuperCap(CANInstance *_instance)
     // if (Msg->out_p < 0) {
     //   Msg->out_p = 0;
     // }
+
+    // 重载daemon，表示正常接收到数据
+    DaemonReload(supercap_daemon_instance);
 }
 
 SuperCapInstance *SuperCapInit(SuperCap_Init_Config_s *supercap_config)
 {
     super_cap_instance = (SuperCapInstance *)malloc(sizeof(SuperCapInstance));
     memset(super_cap_instance, 0, sizeof(SuperCapInstance));
-    
+
     supercap_config->can_config.can_module_callback = DecodeSuperCap;
     super_cap_instance->can_ins = CANRegister(&supercap_config->can_config);
+
+    Daemon_Init_Config_s daemon_config= {
+      .callback = SuperCapOfflineCallback, // 离线时调用的回调函数,会重启串口接收
+      .owner_id = NULL,
+      .reload_count = 5, // 50ms
+    };; // daemon配置
+    supercap_daemon_instance = DaemonRegister(&daemon_config);
+
     return super_cap_instance;
 }
 
@@ -60,9 +85,4 @@ void SuperCapSendMessage(SuperCapInstance *instance, int16_t power, uint16_t buf
     // 使用现有的CAN发送机制发送数据
     memcpy(instance->can_ins->tx_buff, tx_data, 8);
     CANTransmit(instance->can_ins, 1);
-}
-
-SuperCap_Measure_s SuperCapGet(SuperCapInstance *instance)
-{
-    return instance->cap_msg;
 }

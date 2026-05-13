@@ -107,7 +107,7 @@ void HeatControl() {
     case DISABLE:
       return;
     case REFEREE_CONTROL:
-        remain_heat = shooter_barrel_heat_limit-shoot_ctrl_cmd->shooter_barrel_heat;
+        remain_heat = shoot_ctrl_cmd->shooter_barrel_heat_limit-shoot_ctrl_cmd->shooter_barrel_heat;
       break;
     case SIMULLATE_CONTROL:
         bullet_num=(abs(shoot->loader_motor->measure.total_angle)-abs(loader_position_init))/(one_bullet_delta_angle * reduction_ratio_loader * loader_direction);
@@ -118,7 +118,7 @@ void HeatControl() {
       if (DWT_GetTimeline_ms() - heat_cooling_time >= 97)
       {
         heat_cooling_time = DWT_GetTimeline_ms();
-        shooter_barrel_heat-=(float)shooter_barrel_cooling_value/10;
+        shooter_barrel_heat-=(float)shoot_ctrl_cmd->shooter_barrel_cooling_value/10;
       }
       //热量范围控制
       if (shooter_barrel_heat<=0)
@@ -136,9 +136,7 @@ void HeatControl() {
 
 
 /* 机器人发射机构控制核心任务 */
-void ShootTask(uint16_t cooling_value, uint16_t heat_limit) {
-  shooter_barrel_cooling_value = cooling_value;
-  shooter_barrel_heat_limit = heat_limit;
+void ShootTask() {
   if (shoot->loader_motor->measure.total_angle!=0&&loader_init_angle==0) {
     loader_position_init=1;
   }

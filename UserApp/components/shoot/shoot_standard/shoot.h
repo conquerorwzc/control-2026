@@ -63,6 +63,8 @@ typedef struct {
   BULLET_Speed_Mode_e bullet_speed_mode;
   HEAT_Mode_e heat_mode;
   uint16_t shooter_barrel_heat;// 机器人当前射击热量,从裁判系统获取
+  uint16_t shooter_barrel_heat_limit;//
+  uint16_t shooter_barrel_cooling_value;//
   float initial_speed;  // 当前弹速
   float friction_speed; //摩擦轮转速
 } Shoot_Ctrl_Cmd_s;
@@ -88,4 +90,4 @@ ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config);
  * @brief 云台任务
  *
  */
-void ShootTask(uint16_t cooling_value, uint16_t heat_limit);
+void ShootTask();
