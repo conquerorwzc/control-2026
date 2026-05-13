@@ -79,9 +79,9 @@ static void JudgeReadData(uint8_t *buff) {
           case ID_buff_musk:  // 0x0204
             memcpy(&referee_info.BuffMusk, (buff + DATA_Offset), LEN_buff_musk);
             break;
-          // case ID_aerial_robot_energy: // 0x0205
-          // 	memcpy(&referee_info.AerialRobotEnergy, (buff + DATA_Offset), LEN_aerial_robot_energy);
-          // 	break;
+          case ID_aerial_robot_energy: // 0x0205
+            memcpy(&referee_info.AerialRobotEnergy, (buff + DATA_Offset), LEN_aerial_robot_energy);
+            break;
           case ID_robot_hurt:  // 0x0206
             memcpy(&referee_info.RobotHurt, (buff + DATA_Offset), LEN_robot_hurt);
             break;

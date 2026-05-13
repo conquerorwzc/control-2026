@@ -80,7 +80,7 @@ typedef enum {
   ID_power_heat_data = 0x0202,           // 实时功率热量数据
   ID_game_robot_pos = 0x0203,            // 机器人位置数据
   ID_buff_musk = 0x0204,                 // 机器人增益数据
-  // ID_aerial_robot_energy = 0x0205,	   // 空中机器人能量状态数据
+  ID_aerial_robot_energy = 0x0205,	   // 空中机器人能量状态数据
   ID_robot_hurt = 0x0206,           // 伤害状态数据
   ID_shoot_data = 0x0207,           // 实时射击数据
   ID_projectile_allowance = 0x208,  // 允许发弹量
@@ -102,7 +102,7 @@ typedef enum {
   LEN_power_heat_data = 14,          // 0x0202
   LEN_game_robot_pos = 16,           // 0x0203
   LEN_buff_musk = 8,                 // 0x0204
-  // LEN_aerial_robot_energy = 2,				 // 0x0205
+  LEN_aerial_robot_energy = 2,			// 0x0205
   LEN_robot_hurt = 1,                           // 0x0206
   LEN_shoot_data = 7,                           // 0x0207
   LEN_projectile_allowance = 6,                 // 0x208
@@ -238,6 +238,12 @@ typedef struct
  uint8_t remaining_energy;
 } ext_buff_musk_t;
 
+/* ID: 0x0205  Byte:  2    空中机器人能量状态数据 */
+typedef struct
+{
+  uint8_t attack_time; // 激光照射时间
+  uint8_t reserved;    // 保留位，凑齐2字节长度
+} ext_aerial_robot_energy_t;
 
 /* ID: 0x0206  Byte:  1    伤害状态数据 */
 /*bit 0-3：当扣血原因为装甲模块被弹丸攻击、受撞击或离线时，该4bit组成的数值为装甲模块或测速模块的ID编号；当其他原因导致扣血时，该数值为0 

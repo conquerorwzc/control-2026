@@ -37,3 +37,8 @@ void RobotInit();
  *
  */
 void RobotTask();
+
+/**
+ * @brief 声明出口函数，供其他文件（如 referee_task.c）调用
+ */
+RobotInstance* GetRobotInstance();

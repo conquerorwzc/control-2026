@@ -34,7 +34,7 @@ typedef struct
 	ext_power_heat_data_t PowerHeatData;				   // 0x0202
 	ext_game_robot_pos_t GameRobotPos;					   // 0x0203
 	ext_buff_musk_t BuffMusk;							   // 0x0204
-	//aerial_robot_energy_t AerialRobotEnergy;			   // 0x0205
+	ext_aerial_robot_energy_t AerialRobotEnergy;			   // 0x0205
 	ext_robot_hurt_t RobotHurt;							   // 0x0206
 	ext_shoot_data_t ShootData;							   // 0x0207
         ext_projectile_allowance_t ProjectileAllowance;                       //0x0208
@@ -50,12 +50,14 @@ typedef struct
 // 模式是否切换标志位，0为未切换，1为切换，static定义默认为0
 typedef struct
 {
-	uint32_t chassis_flag : 1;
+	//uint32_t chassis_flag : 1;
 	uint32_t gimbal_flag : 1;
 	uint32_t shoot_flag : 1;
-	uint32_t lid_flag : 1;
+	//uint32_t lid_flag : 1;
 	uint32_t friction_flag : 1;
-	uint32_t Power_flag : 1;
+        uint32_t laser_flag : 1;    // 新增：激光照射更新标志
+        uint32_t altitude_flag : 1; // 新增：高度更新标志
+	//uint32_t Power_flag : 1;
 } Referee_Interactive_Flag_t;
 
 

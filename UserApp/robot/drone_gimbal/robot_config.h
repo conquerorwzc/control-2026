@@ -35,22 +35,22 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 1.0f,
+                            .Kp = 1.2f,
                             .Ki = 0.0f,
                             .Kd = 0.004f,
                             .DeadBand = 0.0f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                             .IntegralLimit = 5.0f,
-                            .MaxOut = 5.0f,//25
+                            .MaxOut = 10.0f,//25
                         },
                     .speed_PID =
                         {
-                            .Kp = 2000.0f,  // 4000
+                            .Kp = 2400.0f,  // 4000
                             .Ki = 100.0f,   // 60
                             .Kd = 0.0f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                             .IntegralLimit = 12000.0f,
-                            .MaxOut = 5000.0f,  // 20000,测试的时候务必用低一点的maxout的,10000
+                            .MaxOut = 11000.0f,  // 20000,测试的时候务必用低一点的maxout的,10000
                         },
 
                 },
@@ -68,20 +68,20 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 0.6f,
+                            .Kp = 0.8f,
                             .Ki = 0.0f,
-                            .Kd = 0.005f,
-                            .MaxOut = 5.0f,//15
+                            .Kd = 0.0f,
+                            .MaxOut = 10.0f,//15
                             .DeadBand = 0.01f,
                             .Improve = PID_Integral_Limit,
-                            .IntegralLimit = 5.0f,
+                            .IntegralLimit = 3.0f,
                         },
                     .speed_PID =
                         {
-                            .Kp = 0.3f,
-                            .Ki = 0.5f,
+                            .Kp = 0.7f,
+                            .Ki = 0.05f,
                             .Kd = 0.0f,
-                            .MaxOut = 1.0f,//4
+                            .MaxOut = 2.4f,//4
                             .DeadBand = 0.01f,
                             .Improve = PID_Integral_Limit,
                             .IntegralLimit = 2.0f,

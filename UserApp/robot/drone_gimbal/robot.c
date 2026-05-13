@@ -9,6 +9,8 @@
 #include "master_process.h"
 #include "robot_config.h"
 #include "user_lib.h"
+#include "referee_task.h"
+
 static RobotInstance *robot;
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
 static Gimbal_Ctrl_Cmd_s *gimbal_ctrl_cmd;
@@ -192,6 +194,14 @@ static void MouseKeySet() {
         return;
     }
 
+  // 按下 Ctrl 键强制刷新 UI
+  if (!rc_data_last[TEMP].key[KEY_PRESS].ctrl && rc_data[TEMP].key[KEY_PRESS].ctrl) {
+    Referee_Interactive_info_t* ui_data = getUI();
+    if (ui_data != NULL) {
+      ui_data->force_refresh_ui = 1; // 置位刷新标志
+    }
+  }
+
     /****************** 右键自瞄切换 ******************/
   switch (rc_data[TEMP].mouse.press_r % 2) {  //右键进入自瞄预备模式
       case 1:
@@ -337,6 +347,14 @@ void RobotTask() {
   RobotCMDTask();
   GimbalTask();
   ShootTask();
+}
+
+/**
+ * @brief 获取机器人实例指针的出口函数
+ * @return RobotInstance* 返回全局机器人对象的地址
+ */
+RobotInstance* GetRobotInstance() {
+  return robot;
 }
 
 
