@@ -59,9 +59,14 @@
 #define UI_LEG_BASE_Y 480
 #define UI_LEG_TOP_BASE_Y 700
 #define UI_LEG_LABEL_X 1600
+#define UI_LEG_FRONT_LABEL_X 1810
 #define UI_LEG_LABEL_OFFSET_Y 20
 #define UI_LEG_LABEL_FONT_SIZE 15
 #define UI_LEG_LABEL_WIDTH 2
+#define UI_LEG_LENGTH_X 1640
+#define UI_LEG_LENGTH_OFFSET_Y -105
+#define UI_LEG_LENGTH_FONT_SIZE 14
+#define UI_LEG_LENGTH_WIDTH 2
 #define UI_LEG_SCALE 400.0f
 #define UI_LEG_ROD_WIDTH 5
 
@@ -73,7 +78,7 @@
 #define UI_STATUS_ROW_GAP 38
 #define UI_STATUS_FONT_SIZE 14
 #define UI_STATUS_WIDTH 2
-#define UI_STATUS_ROW_COUNT 6
+#define UI_STATUS_ROW_COUNT 8
 #define UI_STATUS_VALUE_CHARS 12
 
 /* 超级电容：左侧能量弧、数字电压和控制命令。 */
@@ -161,7 +166,8 @@ static Graph_Data_t UI_RelativeArc[2];
 
 /* 腿部，[0] 为左腿 UI，[1] 为右腿 UI。 */
 static Graph_Data_t UI_LegRods[2][5];
-static String_Data_t UI_LegLabel[2];
+static String_Data_t UI_LegLabel[4];
+static String_Data_t UI_LegLength[2];
 
 /* 瞄准框 */
 static Graph_Data_t UI_AimCross[2];
@@ -201,7 +207,7 @@ static const uint8_t UI_LegRodEdges[5][2] = {
     {4, 0},
 };
 static const char *const UI_StatusLabelText[UI_STATUS_ROW_COUNT] = {
-    "ROBOT:", "CHASSIS:", "GIMBAL:", "FRICTION:", "LOADER:", "SUPERCAP:"};
+    "ROBOT:", "CHASSIS:", "GIMBAL:", "FRICTION:", "LOADER:", "SUPERCAP:", "PITCH:", "ROLL:"};
 
 /* ===========================================================================
  * 小工具
@@ -498,6 +504,8 @@ static void SampleStatusData(RobotInstance *robot, Referee_Interactive_info_t *d
   data->gimbal_mode = GIMBAL_POWER_OFF;
   data->friction_mode = FRICTION_OFF;
   data->loader_mode = LOAD_STOP;
+  data->chassis_pitch = 0.0f;
+  data->chassis_roll = 0.0f;
   data->super_cap_mode = SAFETY_MODE;
   data->super_cap_ctrl_cmd = NORMAL;
   data->cap_voltage = 0.0f;
@@ -513,6 +521,10 @@ static void SampleStatusData(RobotInstance *robot, Referee_Interactive_info_t *d
   if (robot->chassis) {
     data->chassis_mode = robot->chassis->chassis_ctrl_cmd.chassis_mode;
     data->speed = robot->chassis->state_var.x_b_d;
+    if (robot->chassis->imu) {
+      data->chassis_pitch = robot->chassis->imu->Pitch;
+      data->chassis_roll = robot->chassis->imu->Roll;
+    }
   }
   if (robot->gimbal) {
     data->gimbal_mode = robot->gimbal->gimbal_ctrl_cmd.gimbal_mode;
@@ -642,25 +654,52 @@ static void DrawSingleLegPosture(const LegInstance *leg, uint8_t ui_index, int32
 }
 
 static void DrawLegLabels(uint32_t operate) {
-  UICharDraw(&UI_LegLabel[0], "llb", operate, UI_LEG_LAYER, UI_Color_White, UI_LEG_LABEL_FONT_SIZE, UI_LEG_LABEL_WIDTH,
-             UI_LEG_LABEL_X, UI_LEG_TOP_BASE_Y + UI_LEG_LABEL_OFFSET_Y, "LEFT");
+  UICharDraw(&UI_LegLabel[0], "lb0", operate, UI_LEG_LAYER, UI_Color_Cyan, UI_LEG_LABEL_FONT_SIZE, UI_LEG_LABEL_WIDTH,
+             UI_LEG_LABEL_X, UI_LEG_TOP_BASE_Y + UI_LEG_LABEL_OFFSET_Y, "BACK");
   UICharRefresh(&referee_recv_info->referee_id, UI_LegLabel[0]);
 
-  UICharDraw(&UI_LegLabel[1], "rlb", operate, UI_LEG_LAYER, UI_Color_White, UI_LEG_LABEL_FONT_SIZE, UI_LEG_LABEL_WIDTH,
-             UI_LEG_LABEL_X, UI_LEG_BASE_Y + UI_LEG_LABEL_OFFSET_Y, "RIGHT");
+  UICharDraw(&UI_LegLabel[1], "lf0", operate, UI_LEG_LAYER, UI_Color_Cyan, UI_LEG_LABEL_FONT_SIZE, UI_LEG_LABEL_WIDTH,
+             UI_LEG_FRONT_LABEL_X, UI_LEG_TOP_BASE_Y + UI_LEG_LABEL_OFFSET_Y, "FRONT");
   UICharRefresh(&referee_recv_info->referee_id, UI_LegLabel[1]);
+
+  UICharDraw(&UI_LegLabel[2], "lb1", operate, UI_LEG_LAYER, UI_Color_Cyan, UI_LEG_LABEL_FONT_SIZE, UI_LEG_LABEL_WIDTH,
+             UI_LEG_LABEL_X, UI_LEG_BASE_Y + UI_LEG_LABEL_OFFSET_Y, "BACK");
+  UICharRefresh(&referee_recv_info->referee_id, UI_LegLabel[2]);
+
+  UICharDraw(&UI_LegLabel[3], "lf1", operate, UI_LEG_LAYER, UI_Color_Cyan, UI_LEG_LABEL_FONT_SIZE, UI_LEG_LABEL_WIDTH,
+             UI_LEG_FRONT_LABEL_X, UI_LEG_BASE_Y + UI_LEG_LABEL_OFFSET_Y, "FRONT");
+  UICharRefresh(&referee_recv_info->referee_id, UI_LegLabel[3]);
+}
+
+static void DrawLegLengthValue(const LegInstance *leg, uint8_t ui_index, int32_t base_y, uint32_t operate) {
+  char name[4];
+  MakeUiName(name, 'l', ui_index);
+
+  if (leg == NULL) {
+    UICharDraw(&UI_LegLength[ui_index], name, operate, UI_LEG_LAYER, UI_Color_Black, UI_LEG_LENGTH_FONT_SIZE,
+               UI_LEG_LENGTH_WIDTH, UI_LEG_LENGTH_X, base_y + UI_LEG_LENGTH_OFFSET_Y, "L:---mm ");
+  } else {
+    int32_t length_mm = RoundToInt(leg->virtual_model.length * 1000.0f);
+    if (length_mm < 0) length_mm = 0;
+    UICharDraw(&UI_LegLength[ui_index], name, operate, UI_LEG_LAYER, UI_Color_Green, UI_LEG_LENGTH_FONT_SIZE,
+               UI_LEG_LENGTH_WIDTH, UI_LEG_LENGTH_X, base_y + UI_LEG_LENGTH_OFFSET_Y, "L:%3dmm ", (int)length_mm);
+  }
+
+  UICharRefresh(&referee_recv_info->referee_id, UI_LegLength[ui_index]);
 }
 
 static void DrawLegPosture(RobotInstance *robot, uint32_t operate) {
-  const LegInstance *left_leg = NULL;
-  const LegInstance *right_leg = NULL;
+  const LegInstance *top_leg = NULL;
+  const LegInstance *bottom_leg = NULL;
 
   if (robot->chassis) {
-    left_leg = robot->chassis->leg[1];
-    right_leg = robot->chassis->leg[0];
+    top_leg = robot->chassis->leg[1];
+    bottom_leg = robot->chassis->leg[0];
   }
-  DrawSingleLegPosture(left_leg, 0, UI_LEG_TOP_BASE_Y, operate);
-  DrawSingleLegPosture(right_leg, 1, UI_LEG_BASE_Y, operate);
+  DrawSingleLegPosture(top_leg, 0, UI_LEG_TOP_BASE_Y, operate);
+  DrawLegLengthValue(top_leg, 0, UI_LEG_TOP_BASE_Y, operate);
+  DrawSingleLegPosture(bottom_leg, 1, UI_LEG_BASE_Y, operate);
+  DrawLegLengthValue(bottom_leg, 1, UI_LEG_BASE_Y, operate);
 }
 
 /* ===========================================================================
@@ -689,6 +728,20 @@ static void DrawStatusValue(uint8_t row, uint32_t operate, const char *value_str
 }
 
 /** @brief 状态值作为一组刷新，保持面板一致。 */
+static void DrawStatusAngleValue(uint8_t row, uint32_t operate, float angle_deg) {
+  char name[4];
+  MakeUiName(name, 'v', row);
+
+  int32_t angle_x10 = RoundToInt(angle_deg * 10.0f);
+  int32_t abs_angle_x10 = angle_x10 >= 0 ? angle_x10 : -angle_x10;
+  const char sign = angle_x10 < 0 ? '-' : '+';
+
+  UICharDraw(&UI_StatusValue[row], name, operate, UI_STATUS_LAYER, UI_Color_Cyan, UI_STATUS_FONT_SIZE, UI_STATUS_WIDTH,
+             UI_STATUS_VALUE_X, UI_STATUS_BASE_Y - row * UI_STATUS_ROW_GAP, "%c%d.%ddeg  ", sign,
+             (int)(abs_angle_x10 / 10), (int)(abs_angle_x10 % 10));
+  UICharRefresh(&referee_recv_info->referee_id, UI_StatusValue[row]);
+}
+
 static void DrawStatusDynamic(Referee_Interactive_info_t *data, uint32_t operate) {
   DrawStatusValue(0, operate, RobotModeStr(data->robot_mode));
   DrawStatusValue(1, operate, ChassisModeStr(data->chassis_mode));
@@ -696,6 +749,8 @@ static void DrawStatusDynamic(Referee_Interactive_info_t *data, uint32_t operate
   DrawStatusValue(3, operate, FrictionModeStr(data->friction_mode));
   DrawStatusValue(4, operate, LoaderModeStr(data->loader_mode));
   DrawStatusValue(5, operate, SuperCapModeStr(data->super_cap_mode));
+  DrawStatusAngleValue(6, operate, data->chassis_pitch);
+  DrawStatusAngleValue(7, operate, data->chassis_roll);
 }
 
 /* ===========================================================================
@@ -860,7 +915,9 @@ static void UIChangeCheck(Referee_Interactive_info_t *data) {
   uint8_t status_changed =
       data->robot_mode != data->last_robot_mode || data->chassis_mode != data->last_chassis_mode ||
       data->gimbal_mode != data->last_gimbal_mode || data->friction_mode != data->last_friction_mode ||
-      data->loader_mode != data->last_loader_mode || data->super_cap_mode != data->last_super_cap_mode;
+      data->loader_mode != data->last_loader_mode || data->super_cap_mode != data->last_super_cap_mode ||
+      fabsf(data->chassis_pitch - data->last_chassis_pitch) > 0.1f ||
+      fabsf(data->chassis_roll - data->last_chassis_roll) > 0.1f;
   if (status_changed) {
     data->UI_Interactive_Flag.status_flag = 1;
     data->last_robot_mode = data->robot_mode;
@@ -869,6 +926,8 @@ static void UIChangeCheck(Referee_Interactive_info_t *data) {
     data->last_friction_mode = data->friction_mode;
     data->last_loader_mode = data->loader_mode;
     data->last_super_cap_mode = data->super_cap_mode;
+    data->last_chassis_pitch = data->chassis_pitch;
+    data->last_chassis_roll = data->chassis_roll;
   }
 
   /* 电压小幅抖动不刷新；错误和控制命令必须立即刷新。 */
@@ -943,6 +1002,8 @@ static void SyncLastValues(Referee_Interactive_info_t *d) {
   d->last_gimbal_mode = d->gimbal_mode;
   d->last_friction_mode = d->friction_mode;
   d->last_loader_mode = d->loader_mode;
+  d->last_chassis_pitch = d->chassis_pitch;
+  d->last_chassis_roll = d->chassis_roll;
   d->last_super_cap_mode = d->super_cap_mode;
   d->last_super_cap_ctrl_cmd = d->super_cap_ctrl_cmd;
 

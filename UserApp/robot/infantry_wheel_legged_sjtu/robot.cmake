@@ -4,8 +4,8 @@ set(GIMBAL_TYPE gimbal_standard)
 set(SHOOT_TYPE shoot_standard)
 
 #set(BOARD_TYPE "ONE_BOARD")
-set(BOARD_TYPE "GIMBAL_BOARD")
-#set(BOARD_TYPE "CHASSIS_BOARD")
+#set(BOARD_TYPE "GIMBAL_BOARD")
+set(BOARD_TYPE "CHASSIS_BOARD")
 
 # 开发板类型: 由 -DBOARD_TYPE 从外部传入 (tasks.json 的 boardType 选项)
 # 若未指定则默认为 CHASSIS_BOARD
