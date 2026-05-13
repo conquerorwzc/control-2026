@@ -147,7 +147,11 @@ void RobotCMDTask() {
   EmergencyHandler(robot);  // 急停必须在 CAN 发送之前,确保 POWER_OFF 优先级最高
 #endif
 
-  RobotCommTask(robot);
+  static float last_comm_time = 0.0f;
+  if (DWT_GetTimeline_ms() - last_comm_time >= 20.f) {
+    last_comm_time = DWT_GetTimeline_ms();
+    RobotCommTask(robot);
+  }
 }
 
 void RobotInit() {
