@@ -195,7 +195,7 @@ static void MouseKeySet() {
     }
 
   // 按下 Ctrl 键强制刷新 UI
-  if (!rc_data_last[TEMP].key[KEY_PRESS].ctrl && rc_data[TEMP].key[KEY_PRESS].ctrl) {
+  if (!rc_data_last[TEMP].key[KEY_PRESS].ctrl && rc_data[TEMP].key[KEY_PRESS].z) {
     Referee_Interactive_info_t* ui_data = getUI();
     if (ui_data != NULL) {
       ui_data->force_refresh_ui = 1; // 置位刷新标志
@@ -330,6 +330,7 @@ void RobotInit() {
   rc_data = robot->rc_data;
   vision_recv_data = VisionInit(&gimbal_init_config.imu_init_config);
   VOFAInit(&huart1);
+  robot->referee_data = RefereeInit(&huart6);
 }
 
 // /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
@@ -347,6 +348,7 @@ void RobotTask() {
   RobotCMDTask();
   GimbalTask();
   ShootTask();
+  UITask();
 }
 
 /**
