@@ -154,5 +154,5 @@ referee_info_t *GetReferee() {
  */
 void RefereeSend(uint8_t *send, uint16_t tx_len) {
   USARTSend(referee_usart_instance, send, tx_len, USART_TRANSFER_DMA);
-  osDelay(115);
+  osDelay(33);
 }

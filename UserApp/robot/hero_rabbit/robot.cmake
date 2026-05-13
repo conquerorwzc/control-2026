@@ -3,7 +3,9 @@ set(CHASSIS_TYPE chassis_rabbit)
 set(GIMBAL_TYPE gimbal_standard)
 set(SHOOT_TYPE shoot_standard)
 add_compile_definitions(FRICTION_NUM=3)
+#add_compile_definitions(USE_DUAL_RC)
 
+add_compile_definitions(USE_DUAL_RC_NEW)
 # Include directories for header file searching
 include_sub_directories_recursively(${CMAKE_CURRENT_LIST_DIR})
 include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/UserApp/components/shoot/${SHOOT_TYPE})

@@ -7,10 +7,16 @@
 #include "chassis.h"
 #include "gimbal.h"
 #include "shoot.h"
-#include "remote_control.h"
 #include "rm_referee.h"
 #include "super_cap.h"
 // todo: add vision_module
+
+// ---------------- 条件编译遥控器头文件 ----------------
+#if defined(USE_DUAL_RC_NEW)
+#include "new_RC_VT13.h"
+#elif defined(USE_DUAL_RC)
+#include "remote_control.h"
+#endif
 
 typedef enum {
   ROBOT_POWER_OFF = 0,
@@ -20,8 +26,16 @@ typedef enum {
 typedef struct {
   Robot_Mode_e robot_mode;       // 机器人整体工作状态
 
-  RC_ctrl_t *rc_data;               // 遥控器数据,初始化时返回
-   referee_info_t* referee_data;     // 用于获取裁判系统的数据
+  // ---------------- 条件编译遥控器数据指针类型 ----------------
+#if defined(USE_DUAL_RC_NEW)
+  VT13_RC_t *rc_data;               // VT13遥控器数据指针
+#elif defined(USE_DUAL_RC)
+  RC_ctrl_t *rc_data;               // 旧版DJI遥控器数据指针
+#else
+  void *rc_data;                    // 未定义宏时的缺省回退
+#endif
+
+  referee_info_t* referee_data;     // 用于获取裁判系统的数据
 
   SuperCapInstance* super_cap;
   ChassisInstance* chassis;
@@ -42,4 +56,5 @@ void RobotInit();
  *
  */
 void RobotTask();
+
 RobotInstance* getRobot();
