@@ -153,7 +153,7 @@ static Motor_Init_Config_s DM4310_config_4 = {
 static Motor_Init_Config_s M6020_config = {
     .controller_param_init_config =
         {
-            .angle_PID = {.Kp = 80.0f,
+            .angle_PID = {.Kp = 90.0f,
                           .Ki = 0.0f,
                           .Kd = 0.3f,
                           .IntegralLimit = 0.0f,

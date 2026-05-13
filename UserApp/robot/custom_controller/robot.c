@@ -17,20 +17,24 @@
 #define TORQUE_DEADBAND       3.8f    // 所有电机角度死区(度)
 
 // 刚度系数 (Nm/deg) - 降低以避免延迟震荡
-#define TORQUE_K_P_DM4310     0.05f
 #define TORQUE_K_P_M6020      0.06f
+// DM4310 独立刚度系数：索引 [1]=大Roll, [2]=大Pitch, [3]=小Pitch, [4]=小Roll
+static volatile float TORQUE_K_P_DM4310[5] = {0.0f, 0.05f, 0.04f, 0.03f, 0.01f};
 
 // 阻尼系数 (Nm/(deg/s)) - 本地速度阻尼，抑制震荡
-#define TORQUE_K_D_DM4310     0.006f   
 #define TORQUE_K_D_M6020      0.003f   
+// DM4310 独立阻尼系数：索引 [1]=大Roll, [2]=大Pitch, [3]=小Pitch, [4]=小Roll
+static volatile float TORQUE_K_D_DM4310[5] = {0.0f, 0.006f, 0.006f, 0.006f, 0.006f};
 
 // 力反馈力矩限幅 (仅对力反馈部分限幅)
-#define MAX_FEEDBACK_TORQUE_DM4310  0.75f
 #define MAX_FEEDBACK_TORQUE_M6020   1.2f
+// DM4310 独立限幅：索引 [1]=大Roll, [2]=大Pitch, [3]=小Pitch, [4]=小Roll
+static volatile float MAX_FEEDBACK_TORQUE_DM4310[5] = {0.0f, 0.75f, 0.75f, 0.75f, 0.75f};
 
 // 力矩斜率限制 (Nm/cycle) - 缓解 10Hz 数据跳变
-#define MAX_TORQUE_STEP_DM          0.02f
-#define MAX_TORQUE_STEP_M6020       0.005f
+#define MAX_TORQUE_STEP_M6020       0.04f
+// DM4310 独立斜率：索引 [1]=大Roll, [2]=大Pitch, [3]=小Pitch, [4]=小Roll
+static volatile float MAX_TORQUE_STEP_DM[5] = {0.0f, 0.03f, 0.023f, 0.12f, 0.012f};
 
 // 电机扭矩常数 (Nm/A)
 #define KT_DM4310             1.0f    // DM4310直接用力矩控制
@@ -53,6 +57,10 @@ static const float max_follow_speed_deg_s[5] = {
     30.0f,  // [3] Small Pitch (小pitch DM4310)
     40.0f   // [4] Small Roll (小roll DM4310)
 };
+
+// 共享目标角度数组：用于 Mode 2 随动和 Mode 0 位置保持的平滑切换
+static float shared_target_angles[5] = {0.0f};
+static bool shared_target_valid = false; // 显式标志，避免 0 度歧义
 
 // 自定义控制器实例
 static CustomController_t* angle_controller;
@@ -211,15 +219,18 @@ static void CalculateFeedbackTorque(float feedback_torques[5])
 
         // 选择参数
         float kp, kd, max_torque, max_step;
-        if (angle_controller->motors[i].dm_motor != NULL) {
-            // 所有DM电机都是DM4310，使用相同参数
-            kp = TORQUE_K_P_DM4310; kd = TORQUE_K_D_DM4310;
-            max_torque = MAX_FEEDBACK_TORQUE_DM4310;
-            max_step = MAX_TORQUE_STEP_DM;
-        } else {
-            kp = TORQUE_K_P_M6020; kd = TORQUE_K_D_M6020;
+        if (angle_controller->motors[i].dji_motor != NULL) {
+            // M6020 (索引 0)
+            kp = TORQUE_K_P_M6020; 
+            kd = TORQUE_K_D_M6020;
             max_torque = MAX_FEEDBACK_TORQUE_M6020;
             max_step = MAX_TORQUE_STEP_M6020;
+        } else {
+            // DM4310 根据索引直接从数组取值
+            kp = TORQUE_K_P_DM4310[i];
+            kd = TORQUE_K_D_DM4310[i];
+            max_torque = MAX_FEEDBACK_TORQUE_DM4310[i];
+            max_step = MAX_TORQUE_STEP_DM[i];
         }
 
         // 1. 弹簧项 (带死区)
@@ -248,50 +259,9 @@ static void CalculateFeedbackTorque(float feedback_torques[5])
 }
 
 /**
- * @brief 应用位置保持控制（grab_mode=0时保持当前位置）
+ * @brief 应用角度跟随控制（mode=0 和 mode=2 共用）
  */
-static void ApplyPositionHold(void)
-{
-    static float hold_angles[5] = {0.0f};
-    static bool hold_inited = false;
-
-    if (angle_controller == NULL) {
-        hold_inited = false;
-        return;
-    }
-
-    // 仅在 mode=0 时执行位置保持
-    if (angle_controller->robot_grab_mode != 0) {
-        hold_inited = false;
-        return;
-    }
-
-    // 初始化：记录当前角度作为保持目标
-    if (!hold_inited) {
-        for (int i = 0; i < 5; i++) {
-            hold_angles[i] = angle_controller->motor_angles[i];
-        }
-        hold_inited = true;
-    }
-
-    // 对每个电机应用位置保持
-    for (int i = 0; i < 5; i++) {
-        if (angle_controller->motors[i].dm_motor != NULL) {
-            // DM电机使用位置控制（弧度）
-            DMMotorSetPIDRef(angle_controller->motors[i].dm_motor,
-                             hold_angles[i] * (M_PI / 180.0f));
-        } else if (angle_controller->motors[i].dji_motor != NULL) {
-            // DJI电机（GM6020）使用位置控制（度），需要补回零点偏移
-            float actual_angle = hold_angles[i] + angle_controller->zero_offset[0];
-            DJIMotorSetPIDRef(angle_controller->motors[i].dji_motor, actual_angle);
-        }
-    }
-}
-
-/**
- * @brief 应用角度跟随位置控制（严格限速方案）
- */
-static void ApplyFollowPositionControl(void)
+static void ApplyFollowToRobotAngle(void)
 {
     static float target_angles[5] = {0.0f};
     static bool follow_inited = false;
@@ -310,7 +280,8 @@ static void ApplyFollowPositionControl(void)
         return;
     }
 
-    if (angle_controller->robot_grab_mode != 2) {
+    // 仅在 mode=0 或 mode=2 时执行
+    if (angle_controller->robot_grab_mode != 0 && angle_controller->robot_grab_mode != 2) {
         follow_inited = false;
         return;
     }
@@ -356,11 +327,9 @@ static void ApplyFollowPositionControl(void)
         target_angles[i] += delta;
 
         if (angle_controller->motors[i].dm_motor != NULL) {
-            // DM电机使用位置控制（弧度）
             DMMotorSetPIDRef(angle_controller->motors[i].dm_motor,
                              target_angles[i] * (M_PI / 180.0f));
         } else if (angle_controller->motors[i].dji_motor != NULL) {
-            // DJI电机（GM6020）使用位置控制（度），需要补回零点偏移
             float actual_angle = target_angles[i] + angle_controller->zero_offset[0];
             DJIMotorSetPIDRef(angle_controller->motors[i].dji_motor, actual_angle);
         }
@@ -376,15 +345,9 @@ static void ApplyTotalTorque(void)
         return;
     }
 
-    // mode=0: 位置保持模式
-    if (angle_controller->robot_grab_mode == 0) {
-        ApplyPositionHold();
-        return;
-    }
-
-    // mode=2: 角度跟随模式（严格限速）
-    if (angle_controller->robot_grab_mode == 2) {
-        ApplyFollowPositionControl();
+    // mode=0 或 mode=2: 角度跟随模式
+    if (angle_controller->robot_grab_mode == 0 || angle_controller->robot_grab_mode == 2) {
+        ApplyFollowToRobotAngle();
         return;
     }
 
@@ -445,6 +408,7 @@ void RobotInit() {
 }
 
 void RobotTask() {
+
     if (angle_controller != NULL) {
         CustomControllerTask(angle_controller);
         
@@ -454,7 +418,7 @@ void RobotTask() {
                 DMMotorEnable(angle_controller->motors[i].dm_motor);
             }
         }
-
+        DJIMotorEnable(angle_controller->motors[0].dji_motor);
         // 应用总力矩控制（力反馈+重力补偿）
         ApplyTotalTorque();
         
@@ -464,17 +428,8 @@ void RobotTask() {
         if (now - last_send_time >= 33) {
             last_send_time = now;
             
-            // 检查所有电机是否在线
-            bool all_motors_online = true;
-            for (int i = 0; i < 5; i++) {
-                if (!angle_controller->motor_online_status[i]) {
-                    all_motors_online = false;
-                    break;
-                }
-            }
-            
             // 只有所有电机都在线时才发送数据
-            if (all_motors_online) {
+            if (DaemonIsOnline(angle_controller->motors[0].dji_motor->daemon)) {
                 CustomController_SendAllData(angle_controller);
             }
         }
