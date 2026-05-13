@@ -101,7 +101,7 @@ void HeatControl() {
     case DISABLE:
       return;
     case REFEREE_CONTROL:
-        remain_heat=shooter_barrel_heat_limit-shoot_ctrl_cmd->shooter_barrel_heat;
+        remain_heat=shoot_ctrl_cmd->shooter_barrel_heat_limit-shoot_ctrl_cmd->shooter_barrel_heat;
       break;
     case SIMULLATE_CONTROL:
       //冷却恢复，每1s回24点

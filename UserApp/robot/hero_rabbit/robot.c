@@ -293,13 +293,7 @@ static void MouseKeySet() {
     default: break;
   }
 
-  // 8. 热量与弹速控制
-  switch (key_q_count % 3) {
-    case 0: shoot_ctrl_cmd->heat_mode = REFEREE_CONTROL; break;
-    case 1: shoot_ctrl_cmd->heat_mode = SIMULLATE_CONTROL; break;
-    case 2: shoot_ctrl_cmd->heat_mode = NO_CONTROL; break;
-    default: break;
-  }
+
 
   switch (key_g_count % 2) {
     case 0: chassis_ctrl_cmd->chassis_direction = 1.0f; break;
@@ -516,6 +510,7 @@ void RobotInit() {
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
 
   shoot_ctrl_cmd->bullet_speed_mode = ENABLE_BULLET_SPEED;
+  shoot_ctrl_cmd->heat_mode=REFEREE_CONTROL;
   vision_recv_data = VisionInit(&gimbal_init_config.imu_init_config);
 
   gpio_5V_EN = GPIORegister(&gpio_init_config_5v);
@@ -529,6 +524,7 @@ void RobotInit() {
 void RobotCMDTask() {
   shoot_ctrl_cmd->initial_speed = robot->referee_data->ShootData.initial_speed;
   shoot_ctrl_cmd->shooter_barrel_heat = robot->referee_data->PowerHeatData.shooter_42mm_barrel_heat;
+  shoot_ctrl_cmd->shooter_barrel_heat_limit=robot->referee_data->GameRobotState.shooter_barrel_heat_limit;
   chassis_ctrl_cmd->max_power = robot->referee_data->GameRobotState.chassis_power_limit;
 
   CalcOffsetAngle();
