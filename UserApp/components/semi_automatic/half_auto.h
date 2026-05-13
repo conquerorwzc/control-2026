@@ -12,8 +12,8 @@ typedef enum
 {
     Store_First_Energy_Unit =0,
     Store_Second_Energy_Unit,
-    Grab_First_Energy_Unit,
     Grab_Second_Energy_Unit,
+    Grab_First_Energy_Unit,
     Climb_Step_Prep,           // 👈 新增：上台阶预备姿态
 } Half_Control_List;
 
