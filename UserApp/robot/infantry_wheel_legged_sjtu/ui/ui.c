@@ -60,7 +60,7 @@
 #define UI_LEG_TOP_BASE_Y 700
 #define UI_LEG_LABEL_X 1600
 #define UI_LEG_FRONT_LABEL_X 1810
-#define UI_LEG_LABEL_OFFSET_Y 20
+#define UI_LEG_LABEL_OFFSET_Y 40
 #define UI_LEG_LABEL_FONT_SIZE 15
 #define UI_LEG_LABEL_WIDTH 2
 #define UI_LEG_LENGTH_X 1640
@@ -134,15 +134,6 @@
 #define UI_GUIDE_TOP_HALF_W 300     // 远端半宽
 #define UI_GUIDE_CENTER_X 960
 
-/* 横向刻度线数量。 */
-#define UI_GUIDE_RUNG_COUNT 3
-
-/* 屏幕下方水平基准线。 */
-#define UI_BOTTOM_LINE_Y 300
-#define UI_BOTTOM_LINE_X_LEFT 580
-#define UI_BOTTOM_LINE_X_RIGHT 1340
-#define UI_BOTTOM_LINE_WIDTH 2
-
 /* ===========================================================================
  * 文件级状态
  * =========================================================================*/
@@ -191,8 +182,6 @@ static String_Data_t UI_StatusValue[UI_STATUS_ROW_COUNT];
 
 /* 地面引导线 */
 static Graph_Data_t UI_GuideSide[2];
-static Graph_Data_t UI_GuideRung[UI_GUIDE_RUNG_COUNT];
-static Graph_Data_t UI_BottomLine;
 
 /* 腿部图元名称和连杆拓扑是常量，不参与运行时决策。 */
 static char UI_LegRodNameTable[2][5][4] = {
@@ -836,18 +825,6 @@ static void DrawSpeedDynamic(const Referee_Interactive_info_t *data, uint32_t op
  * Guide：地面透视引导线
  * =========================================================================*/
 
-static void RefreshGuideRungs(void) {
-  /* UIGraphRefresh 只支持 1/2/5/7 个图元，3 条横线必须拆包。 */
-#if UI_GUIDE_RUNG_COUNT == 3
-  UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_GuideRung[0], UI_GuideRung[1]);
-  UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_GuideRung[2]);
-#else
-  for (uint8_t i = 0; i < UI_GUIDE_RUNG_COUNT; i++) {
-    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_GuideRung[i]);
-  }
-#endif
-}
-
 /**
  * @brief 绘制地面透视线。
  *
@@ -867,27 +844,6 @@ static void DrawGuideLine(uint32_t operate) {
   UILineDraw(&UI_GuideSide[1], "gd1", operate, UI_GUIDE_LAYER, UI_GUIDE_COLOR, UI_GUIDE_LINE_WIDTH, cx + half_bot,
              y_bot, cx + half_top, y_top);
   UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_GuideSide[0], UI_GuideSide[1]);
-
-  /* 横向刻度越靠远端越密，增强纵深感。 */
-  for (uint8_t i = 0; i < UI_GUIDE_RUNG_COUNT; i++) {
-    float t = (float)(i + 1) / (float)(UI_GUIDE_RUNG_COUNT + 1);
-    float tp = powf(t, 1.6f);
-
-    int32_t y = y_bot + (int32_t)((y_top - y_bot) * tp);
-    int32_t half_w = half_bot + (int32_t)((half_top - half_bot) * tp);
-
-    char name[4];
-    MakeUiName(name, 'g', i + 2); /* 避开 gd0/gd1。 */
-
-    UILineDraw(&UI_GuideRung[i], name, operate, UI_GUIDE_LAYER, UI_GUIDE_COLOR, UI_GUIDE_LINE_WIDTH, cx - half_w, y,
-               cx + half_w, y);
-  }
-
-  RefreshGuideRungs();
-  /* 底部水平线给出近端基准。 */
-  UILineDraw(&UI_BottomLine, "gbl", operate, UI_GUIDE_LAYER, UI_GUIDE_COLOR, UI_BOTTOM_LINE_WIDTH,
-             UI_BOTTOM_LINE_X_LEFT, UI_BOTTOM_LINE_Y, UI_BOTTOM_LINE_X_RIGHT, UI_BOTTOM_LINE_Y);
-  UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_BottomLine);
 }
 
 /* ===========================================================================
