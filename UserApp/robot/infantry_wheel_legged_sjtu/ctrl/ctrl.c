@@ -31,7 +31,8 @@ static const float LEG_TABLE[4] = {0.117f, 0.20f, 0.285f, 0.370f};
 
 // 倾翻判定: |Pitch| > 当前模式阈值即视为失控, 触发 CHASSIS_RECOVERY. 蹭台阶模式下用更小阈值更早介入.
 static uint8_t IsRobotLostControl(RobotInstance* robot) {
-  const float thresh = ocd.stair.active ? ocd.recovery.pitch_creep : ocd.recovery.pitch_default;
+  const float thresh = robot->chassis->chassis_ctrl_cmd.chassis_mode == CHASSIS_STAIR ? ocd.recovery.pitch_creep
+                                                                                      : ocd.recovery.pitch_default;
   return fabsf(robot->chassis->imu->Pitch) > thresh;
 }
 
@@ -251,7 +252,7 @@ static void ApplyOcdMode(RobotInstance* robot) {
       break;
   }
 
-  cmd->chassis_mode = update_flag.is_stand ? CHASSIS_ON : CHASSIS_PROSTRATE;
+  cmd->chassis_mode = update_flag.is_stand ? (ocd.stair.active ? CHASSIS_STAIR : CHASSIS_ON) : CHASSIS_PROSTRATE;
 
   // 优先级: rotate > free > follow; stand 轴决定 stand / prostrate 变体.
   // 趴下时没有 LQR 平衡, FREE (解耦云台跟随 + roll/腿长微调) 没有实际意义;

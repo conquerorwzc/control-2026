@@ -54,7 +54,7 @@ void VOFATask() {
   visualized_data[2] = robot->chassis->chassis_ctrl_cmd.target_yaw;
   visualized_data[3] = robot->chassis->state_var.phi;
   // === 双板通信调试 (定位 POWER_OFF 卡死) ===
-  // [10] chassis_mode: 0=POWER_OFF 1=RECOVERY 2=ON 3=JUMP_READY 4=JUMP_START 5=PROSTRATE
+  // [10] chassis_mode: 0=POWER_OFF 1=RECOVERY 2=ON 3=JUMP_READY 4=JUMP_START 5=PROSTRATE 6=STAIR
   // [11] gimbal_aligned: 0=未对齐, 1=已对齐
   // [12] cmd.vx (raw, 上层下发, 应跟随摇杆/WASD)
   visualized_data[10] = (float)robot->chassis->chassis_ctrl_cmd.chassis_mode;

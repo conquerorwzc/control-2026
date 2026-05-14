@@ -726,6 +726,10 @@ void ChassisTask(void) {
         ChassisCtrlUpdate();
         chassis->jump_state = JUMP_STATE_IDLE;
         break;
+      case CHASSIS_STAIR:
+        ChassisCtrlUpdate();
+        chassis->jump_state = JUMP_STATE_IDLE;
+        break;
       case CHASSIS_JUMP_READY:
         if (chassis->jump_state == JUMP_STATE_IDLE || chassis->jump_state == JUMP_STATE_COMPRESS) {
           chassis->jump_state = JUMP_STATE_COMPRESS;

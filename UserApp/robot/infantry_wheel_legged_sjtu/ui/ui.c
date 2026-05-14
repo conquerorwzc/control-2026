@@ -278,6 +278,8 @@ static const char *ChassisModeStr(Chassis_Mode_e mode) {
       return "JUMP_START";
     case CHASSIS_PROSTRATE:
       return "PROSTRATE";
+    case CHASSIS_STAIR:
+      return "STAIR";
     default:
       return "UNK";
   }

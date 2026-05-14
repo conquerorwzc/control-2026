@@ -35,6 +35,7 @@ typedef enum {
   CHASSIS_JUMP_READY,
   CHASSIS_JUMP_START,
   CHASSIS_PROSTRATE,
+  CHASSIS_STAIR,
 } Chassis_Mode_e;
 
 typedef enum {
