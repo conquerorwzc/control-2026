@@ -233,6 +233,12 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
   }
 
   Gimbal_Ctrl_Cmd_s* gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
+  if (robot->robot_mode == ROBOT_CHASSIS_ROTATE || robot->robot_mode == ROBOT_CHASSIS_PROSTRATE_ROTATE) {
+    gimbal_ctrl_cmd->chassis_rotate_wz = -0.25f * robot->chassis->imu->Gyro[2];
+  } else {
+    gimbal_ctrl_cmd->chassis_rotate_wz = 0.0f;
+  }
+
   PIDSwitchConfig(&robot->gimbal->yaw_motor->motor_controller.angle_PID, gimbal_ctrl_cmd->gimbal_mode == GIMBAL_VISION
                                                                              ? &yaw_angle_PID_vision_config
                                                                              : &yaw_angle_PID_manual_config);

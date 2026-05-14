@@ -337,6 +337,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                     .tx_id = 6,
                 },
             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+            .controller_setting_init_config.feedforward_flag = SPEED_FEEDFORWARD,
         },
     .pitch_motor_config =
         {
