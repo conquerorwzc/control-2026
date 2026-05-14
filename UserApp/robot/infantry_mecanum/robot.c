@@ -46,7 +46,7 @@ static void supercap_power() {
             robot->chassis->super_cap_mode = ACTIVE_MODE;
           if (robot->chassis->super_cap->cap_msg.cap_v > 18.0f)
             robot->chassis->super_cap_mode = PASSIVE_MODE;
-          robot->chassis->chassis_ctrl_cmd.max_power =robot->referee_data->GameRobotState.chassis_power_limit-5;//TODO:用超电记得改;
+          robot->chassis->chassis_ctrl_cmd.max_power =robot->referee_data->GameRobotState.chassis_power_limit-2;
           break;
       case CHARGING_MODE:
           if (robot->chassis->super_cap->cap_msg.cap_v > 18.0f)
@@ -71,7 +71,7 @@ static void supercap_power() {
             robot->chassis->super_cap_mode = CHARGING_MODE;
           if (chassis_ctrl_cmd->SuperCapBoost != 1)
             robot->chassis->super_cap_mode = PASSIVE_MODE;
-          robot->chassis->chassis_ctrl_cmd.max_power = robot->referee_data->GameRobotState.chassis_power_limit+40;
+          robot->chassis->chassis_ctrl_cmd.max_power = 165;
           break;
       default:
           robot->chassis->super_cap_mode = SAFETY_MODE;
@@ -346,29 +346,20 @@ static void MouseKeySet() {
     chassis_ctrl_cmd->vx=vx_initial;
   }
   if (vx_initial > 10000&&chassis_ctrl_cmd->vx<= 60.0f * (float)rc_data[TEMP].rc.rocker_l_ ) {
-    chassis_ctrl_cmd->vx=10000+(DWT_GetTimeline_s()-x_speed_time)*10000;
+    chassis_ctrl_cmd->vx=10000+(DWT_GetTimeline_s()-x_speed_time)*12500;
   }
   if (vx_initial < -10000&&chassis_ctrl_cmd->vx>= 60.0f * (float)rc_data[TEMP].rc.rocker_l_) {
-    chassis_ctrl_cmd->vx=-10000-(DWT_GetTimeline_s()-x_speed_time)*10000;
+    chassis_ctrl_cmd->vx=-10000-(DWT_GetTimeline_s()-x_speed_time)*12500;
   }
   if (abs(vy_initial)<=10000) {
     y_speed_time=DWT_GetTimeline_s();
     chassis_ctrl_cmd->vy=vy_initial;
   }
   if (vy_initial > 10000&&chassis_ctrl_cmd->vy<= 60.0f * (float)rc_data[TEMP].rc.rocker_l1 ) {
-    chassis_ctrl_cmd->vy=10000+(DWT_GetTimeline_s()-y_speed_time)*10000;
+    chassis_ctrl_cmd->vy=10000+(DWT_GetTimeline_s()-y_speed_time)*12500;
   }
   if (vy_initial < -10000&&chassis_ctrl_cmd->vy>= 60.0f * (float)rc_data[TEMP].rc.rocker_l1) {
-    chassis_ctrl_cmd->vy=-10000-(DWT_GetTimeline_s()-y_speed_time)*10000;
-  }
-
-  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_V]%2) {
-    case 0:
-      robot->referee_data->GameRobotState.robot_id=103;
-      break;
-    case 1:
-      robot->referee_data->GameRobotState.robot_id=3;
-      break;
+    chassis_ctrl_cmd->vy=-10000-(DWT_GetTimeline_s()-y_speed_time)*12500;
   }
 
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
@@ -416,14 +407,11 @@ static void MouseKeySet() {
       break;
   }
 
-  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_C] % 4) {
+  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_C] % 3) {
     case 0:
-      chassis_ctrl_cmd->chassis_speed_buff = 15000;
-      break;
-    case 1:
       chassis_ctrl_cmd->chassis_speed_buff = 20000;
       break;
-    case 2:
+    case 1:
       chassis_ctrl_cmd->chassis_speed_buff = 30000;
       break;
     default:
@@ -459,6 +447,7 @@ static void MouseKeySet() {
 
   if (rc_data[TEMP].key[KEY_PRESS].shift) {
     chassis_ctrl_cmd->SuperCapBoost=1;
+    chassis_ctrl_cmd->chassis_speed_buff += 20000;
   }
   else {
     chassis_ctrl_cmd->SuperCapBoost=0;
@@ -611,7 +600,7 @@ void RobotTask() {
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   ChassisTask();
   SuperCapSendMessage(robot->super_cap,
-    robot->referee_data->GameRobotState.chassis_power_limit-5,
+    robot->referee_data->GameRobotState.chassis_power_limit-2,
     robot->referee_data->PowerHeatData.buffer_energy,
     robot->referee_data->GameRobotState.power_management_chassis_output);
 #endif
