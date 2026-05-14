@@ -132,6 +132,40 @@ void GrabTask()
     Wrist_Cali_Check();
 
     // =========================================================
+    // 🛡️ 机械臂断电护盾：检测核心大疆电机离线，强行剥夺标定状态
+    // =========================================================
+    // 1. 检查腕部电机是否中途掉线
+    if (grab->actuator->wrist_cali_obj.state == CALI_DONE)
+    {
+        uint8_t wrist_offline = 0;
+        if (grab_param.use_wrist_right_motor && !DaemonIsOnline(grab->actuator->grab_djimotor[0]->daemon))
+            wrist_offline = 1;
+        if (grab_param.use_wrist_left_motor && !DaemonIsOnline(grab->actuator->grab_djimotor[1]->daemon))
+            wrist_offline = 1;
+        if (!DaemonIsOnline(grab->actuator->grab_djimotor[2]->daemon))
+            wrist_offline = 1;
+
+        if (wrist_offline)
+        {
+            grab->actuator->wrist_cali_obj.state = CALI_ERROR; // 强行打回异常状态
+            cali_first_run = 1; // 强制要求重新记录初始角度
+            // 建议加个打印：LOGERROR("Wrist Motor Offline! Cali state reset.");
+        }
+    }
+
+    // 2. 检查前伸电机是否中途掉线 (3508掉电失忆，必须重新标定)
+    if (grab->arm->extend_cali_obj.state == CALI_DONE)
+    {
+        if (!DaemonIsOnline(grab->arm->arm_extend_motor->daemon))
+        {
+            grab->arm->extend_cali_obj.state = CALI_ERROR; // 强行打回异常状态
+            // 建议加个打印：LOGERROR("Extend Motor Offline! Cali state reset.");
+        }
+    }
+
+    // 注：DM电机(达妙)因为是绝对值编码器，自带多圈记忆，断电重启后角度不会丢。
+    // 如果你们的抬升(arm_lift_motor)也是大疆电机，并且需要防坠落或重定位，也要在这里加一样的逻辑。
+    // =========================================================
     // 💥 智能软重启：双 Down (急停掉电) 时的状态机维护
     // =========================================================
     if (grab_ctrl_cmd->grab_mode == GRAB_POWER_OFF)
