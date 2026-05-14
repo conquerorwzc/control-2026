@@ -237,9 +237,11 @@ void ChassisTask()
         chassis->cali_state.all_cali_done = 0;
         chassis->cali_state.is_max_calibrated = 0;
 
-        chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF; // 强制瘫痪软腿
+        for (int i = 0; i < 4; i++) {
+            chassis->cali_state.max_cali_done[i] = 0;
+        }
 
-        // 强烈建议加个报警打印，方便调试
+        chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
         LOGERROR("[Chassis] Shield Triggered: Motor Offline! Calibration memory cleared.");
     }
 
@@ -251,6 +253,7 @@ void ChassisTask()
         {
             cali_block_cnt[i] = 0;
             max_cali_block_cnt[i] = 0;
+            chassis->cali_state.max_cali_done[i] = 0;
         }
     }
     last_chassis_mode = chassis_ctrl_cmd->chassis_mode;

@@ -493,6 +493,9 @@ static void MouseKeySet()
         robot->chassis->cali_state.all_cali_done = 0;
         robot->chassis->cali_state.is_max_calibrated = 0;
         // 键盘直接下达标定指令，无视 has_calibrated_once 历史记录
+        for (int i = 0; i < 4; i++) {
+            robot->chassis->cali_state.max_cali_done[i] = 0;
+        }
         chassis_ctrl_cmd->chassis_mode = CHASSIS_CALIBRATING;
     }
     last_ctrl_x = curr_ctrl_x;
