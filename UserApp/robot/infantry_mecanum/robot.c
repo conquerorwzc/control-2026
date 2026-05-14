@@ -403,13 +403,13 @@ static void MouseKeySet() {
       case 0:
         if (shoot_ctrl_cmd->friction_mode==FRICTION_ON&&(vision_recv_data->shoot_receive.fire_flag||rc_data[TEMP].mouse.press_r % 2==0)) {
             shoot_ctrl_cmd->load_mode=LOAD_1_BULLET;
-          if (DWT_GetTimeline_s() - trigger_time > 1.0f) {
+          if (DWT_GetTimeline_s() - trigger_time > 0.20f) {
             shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
           }
           break;
           default:
           if (shoot_ctrl_cmd->friction_mode==FRICTION_ON)
-          shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+          shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
           break;
         }
     }
