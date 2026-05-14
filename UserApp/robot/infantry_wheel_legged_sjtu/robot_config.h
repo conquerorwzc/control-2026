@@ -484,7 +484,7 @@ static PID_Init_Config_s yaw_angle_PID_manual_config = {
 };
 
 static PID_Init_Config_s yaw_angle_PID_vision_config = {
-    .Kp = 2.0f,
+    .Kp = 2.2f,
     .Ki = 0.0f,
     .Kd = 0.03f,
     .DeadBand = 0.01f,
