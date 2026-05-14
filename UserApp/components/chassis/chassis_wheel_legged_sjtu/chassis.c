@@ -584,7 +584,7 @@ static void LimitChassisOutput(void) {
   // 平衡 → 卧倒 过渡期间仍走 LQR 力矩输出路径，不能切到卧倒的速度环 + 关节角度环
   if (chassis->chassis_ctrl_cmd.chassis_mode == CHASSIS_PROSTRATE && !descending_to_prostrate) {
     for (int i = 0; i < 2; i++) {
-      VAL_LIMIT(wheel_speed_ref[i], -50000.0f, 50000.0f);
+      VAL_LIMIT(wheel_speed_ref[i], -53000.0f, 53000.0f);
       DJIMotorSetPIDRef(leg[i]->wheel_motor, wheel_speed_ref[i]);
     }
     // 速度 PID 已生成 final_output, 此处再限流才能真正影响本帧 CAN 输出。
