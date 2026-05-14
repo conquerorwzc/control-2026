@@ -140,6 +140,7 @@ typedef struct
     float arm_extend_target;
     uint8_t wrist_roll_cali;
     uint8_t wrist_pitch_cali;
+    uint8_t arm_extend_cali;
 
     uint8_t is_climb_mode;
 

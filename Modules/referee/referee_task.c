@@ -57,7 +57,7 @@ RobotInstance *robotdata;
 static String_Data_t UI_engineer_mode_text[2];
 static String_Data_t UI_grab_control_text[2];
 static String_Data_t UI_gripper_status_text[2];
-static String_Data_t UI_cali_state_text[4];
+static String_Data_t UI_cali_state_text[8];
 static String_Data_t UI_motor_angle_name[5];
 static String_Data_t UI_motor_angle_value[5];
 static String_Data_t UI_arm_angle_value[5];
@@ -77,10 +77,15 @@ static Graph_Data_t UI_vehicle_width_line_right;
 typedef struct
 {
     Referee_Interactive_Flag_t Referee_Interactive_Flag;
-    uint8_t arm_cali_state;
-    uint8_t lift_cali_state;
-    uint8_t last_arm_cali_state;
-    uint8_t last_lift_cali_state;
+    uint8_t wrist_cali_state;
+    uint8_t extend_cali_state;
+    uint8_t lift_zero_state;
+    uint8_t lift_max_state;
+
+    uint8_t last_wrist_cali_state;
+    uint8_t last_extend_cali_state;
+    uint8_t last_lift_zero_state;
+    uint8_t last_lift_max_state;
     Robot_Mode_e robot_mode;
     GrabControlMode_e grab_control_mode;
     uint8_t gripper_opened;
@@ -102,15 +107,21 @@ static Referee_Interactive_info_t interactive_data;
 // 检测 UI 变化的函数
 static void UIChangeCheck(Referee_Interactive_info_t *_Interactive_data)
 {
-    if (_Interactive_data->arm_cali_state != _Interactive_data->last_arm_cali_state)
-    {
-        _Interactive_data->Referee_Interactive_Flag.arm_cali_flag = 1;
-        _Interactive_data->last_arm_cali_state = _Interactive_data->arm_cali_state;
+    if (_Interactive_data->wrist_cali_state != _Interactive_data->last_wrist_cali_state) {
+        _Interactive_data->Referee_Interactive_Flag.wrist_cali_flag = 1;
+        _Interactive_data->last_wrist_cali_state = _Interactive_data->wrist_cali_state;
     }
-    if (_Interactive_data->lift_cali_state != _Interactive_data->last_lift_cali_state)
-    {
-        _Interactive_data->Referee_Interactive_Flag.lift_cali_flag = 1;
-        _Interactive_data->last_lift_cali_state = _Interactive_data->lift_cali_state;
+    if (_Interactive_data->extend_cali_state != _Interactive_data->last_extend_cali_state) {
+        _Interactive_data->Referee_Interactive_Flag.extend_cali_flag = 1;
+        _Interactive_data->last_extend_cali_state = _Interactive_data->extend_cali_state;
+    }
+    if (_Interactive_data->lift_zero_state != _Interactive_data->last_lift_zero_state) {
+        _Interactive_data->Referee_Interactive_Flag.lift_zero_flag = 1;
+        _Interactive_data->last_lift_zero_state = _Interactive_data->lift_zero_state;
+    }
+    if (_Interactive_data->lift_max_state != _Interactive_data->last_lift_max_state) {
+        _Interactive_data->Referee_Interactive_Flag.lift_max_flag = 1;
+        _Interactive_data->last_lift_max_state = _Interactive_data->lift_max_state;
     }
     if (_Interactive_data->robot_mode != _Interactive_data->last_robot_mode)
     {
@@ -132,60 +143,45 @@ static void UIChangeCheck(Referee_Interactive_info_t *_Interactive_data)
 // UI 更新函数
 static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
 {
-    if (interactive_data->Referee_Interactive_Flag.arm_cali_flag == 1)
-    {
-        char arm_buf[20];
-        uint32_t arm_color;
-        switch (interactive_data->arm_cali_state)
-        {
-        case 0:
-            snprintf(arm_buf, sizeof(arm_buf), "%-14s", "Not Calib");
-            arm_color = UI_Color_Purplish_red;
-            break;
-        case 1:
-            snprintf(arm_buf, sizeof(arm_buf), "%-14s", "Calibrating");
-            arm_color = UI_Color_Yellow;
-            break;
-        case 2:
-            snprintf(arm_buf, sizeof(arm_buf), "%-14s", "Calib OK");
-            arm_color = UI_Color_Green;
-            break;
-        default:
-            snprintf(arm_buf, sizeof(arm_buf), "%-14s", "Unknown");
-            arm_color = UI_Color_White;
-            break;
-        }
-        UICharDraw(&UI_cali_state_text[1], "ac1", UI_Graph_Change, 7, arm_color, 16, 2, 350, 740, arm_buf);
+    // [UIRefresh] 🌟 刷新 4 个独立标定项的实时颜色与文字
+    if (interactive_data->Referee_Interactive_Flag.wrist_cali_flag) {
+        char buf[20]; uint32_t color;
+        if (interactive_data->wrist_cali_state == CALI_DONE) { snprintf(buf, sizeof(buf), "%-10s", "OK"); color = UI_Color_Green; }
+        else if (interactive_data->wrist_cali_state == CALI_RUNNING) { snprintf(buf, sizeof(buf), "%-10s", "RUNNING"); color = UI_Color_Yellow; }
+        else { snprintf(buf, sizeof(buf), "%-10s", "ERROR"); color = UI_Color_Purplish_red; }
+        UICharDraw(&UI_cali_state_text[1], "wc1", UI_Graph_Change, 7, color, 16, 2, 350, 740, buf);
         UICharRefresh(&referee_recv_info->referee_id, UI_cali_state_text[1]);
-        interactive_data->Referee_Interactive_Flag.arm_cali_flag = 0;
+        interactive_data->Referee_Interactive_Flag.wrist_cali_flag = 0;
     }
 
-    if (interactive_data->Referee_Interactive_Flag.lift_cali_flag == 1)
-    {
-        char lift_buf[20];
-        uint32_t lift_color;
-        switch (interactive_data->lift_cali_state)
-        {
-        case 0:
-            snprintf(lift_buf, sizeof(lift_buf), "%-14s", "Not Calib");
-            lift_color = UI_Color_Purplish_red;
-            break;
-        case 1:
-            snprintf(lift_buf, sizeof(lift_buf), "%-14s", "Calibrating");
-            lift_color = UI_Color_Yellow;
-            break;
-        case 2:
-            snprintf(lift_buf, sizeof(lift_buf), "%-14s", "Calib OK");
-            lift_color = UI_Color_Green;
-            break;
-        default:
-            snprintf(lift_buf, sizeof(lift_buf), "%-14s", "Unknown");
-            lift_color = UI_Color_White;
-            break;
-        }
-        UICharDraw(&UI_cali_state_text[3], "lc1", UI_Graph_Change, 7, lift_color, 16, 2, 350, 700, lift_buf);
+    if (interactive_data->Referee_Interactive_Flag.extend_cali_flag) {
+        char buf[20]; uint32_t color;
+        if (interactive_data->extend_cali_state == CALI_DONE) { snprintf(buf, sizeof(buf), "%-10s", "OK"); color = UI_Color_Green; }
+        else if (interactive_data->extend_cali_state == CALI_RUNNING) { snprintf(buf, sizeof(buf), "%-10s", "RUNNING"); color = UI_Color_Yellow; }
+        else { snprintf(buf, sizeof(buf), "%-10s", "ERROR"); color = UI_Color_Purplish_red; }
+        UICharDraw(&UI_cali_state_text[3], "ec1", UI_Graph_Change, 7, color, 16, 2, 350, 700, buf);
         UICharRefresh(&referee_recv_info->referee_id, UI_cali_state_text[3]);
-        interactive_data->Referee_Interactive_Flag.lift_cali_flag = 0;
+        interactive_data->Referee_Interactive_Flag.extend_cali_flag = 0;
+    }
+
+    if (interactive_data->Referee_Interactive_Flag.lift_zero_flag) {
+        char buf[20]; uint32_t color;
+        if (interactive_data->lift_zero_state == CALI_DONE) { snprintf(buf, sizeof(buf), "%-10s", "OK"); color = UI_Color_Green; }
+        else if (interactive_data->lift_zero_state == CALI_RUNNING) { snprintf(buf, sizeof(buf), "%-10s", "RUNNING"); color = UI_Color_Yellow; }
+        else { snprintf(buf, sizeof(buf), "%-10s", "ERROR"); color = UI_Color_Purplish_red; }
+        UICharDraw(&UI_cali_state_text[5], "lz1", UI_Graph_Change, 7, color, 16, 2, 350, 660, buf);
+        UICharRefresh(&referee_recv_info->referee_id, UI_cali_state_text[5]);
+        interactive_data->Referee_Interactive_Flag.lift_zero_flag = 0;
+    }
+
+    if (interactive_data->Referee_Interactive_Flag.lift_max_flag) {
+        char buf[20]; uint32_t color;
+        if (interactive_data->lift_max_state == CALI_DONE) { snprintf(buf, sizeof(buf), "%-10s", "OK"); color = UI_Color_Green; }
+        else if (interactive_data->lift_max_state == CALI_RUNNING) { snprintf(buf, sizeof(buf), "%-10s", "RUNNING"); color = UI_Color_Yellow; }
+        else { snprintf(buf, sizeof(buf), "%-10s", "ERROR"); color = UI_Color_Purplish_red; }
+        UICharDraw(&UI_cali_state_text[7], "lm1", UI_Graph_Change, 7, color, 16, 2, 350, 620, buf);
+        UICharRefresh(&referee_recv_info->referee_id, UI_cali_state_text[7]);
+        interactive_data->Referee_Interactive_Flag.lift_max_flag = 0;
     }
 
     if (interactive_data->Referee_Interactive_Flag.robot_mode_flag == 1)
@@ -363,15 +359,26 @@ void MyUIInit()
     UICharDraw(&UI_gripper_status_text[1], "gs1", UI_Graph_ADD, 7, UI_Color_Pink, 16, 2, 350, 780, "CLOSED");
     UICharRefresh(&referee_recv_info->referee_id, UI_gripper_status_text[1]);
 
-    UICharDraw(&UI_cali_state_text[0], "as0", UI_Graph_ADD, 7, UI_Color_White, 16, 2, 80, 740, "Arm State:");
+    // [UIInit] 🌟 绘制 4 个独立标定项的标题与初始值
+    UICharDraw(&UI_cali_state_text[0], "wc0", UI_Graph_ADD, 7, UI_Color_White, 16, 2, 80, 740, "Wrist Cali:");
     UICharRefresh(&referee_recv_info->referee_id, UI_cali_state_text[0]);
-    UICharDraw(&UI_cali_state_text[1], "ac1", UI_Graph_ADD, 7, UI_Color_Purplish_red, 16, 2, 350, 740, "Not Calib");
+    UICharDraw(&UI_cali_state_text[1], "wc1", UI_Graph_ADD, 7, UI_Color_Purplish_red, 16, 2, 350, 740, "ERROR");
     UICharRefresh(&referee_recv_info->referee_id, UI_cali_state_text[1]);
 
-    UICharDraw(&UI_cali_state_text[2], "ls0", UI_Graph_ADD, 7, UI_Color_White, 16, 2, 80, 700, "Lift State:");
+    UICharDraw(&UI_cali_state_text[2], "ec0", UI_Graph_ADD, 7, UI_Color_White, 16, 2, 80, 700, "Extend Cali:");
     UICharRefresh(&referee_recv_info->referee_id, UI_cali_state_text[2]);
-    UICharDraw(&UI_cali_state_text[3], "lc1", UI_Graph_ADD, 7, UI_Color_Purplish_red, 16, 2, 350, 700, "Not Calib");
+    UICharDraw(&UI_cali_state_text[3], "ec1", UI_Graph_ADD, 7, UI_Color_Purplish_red, 16, 2, 350, 700, "ERROR");
     UICharRefresh(&referee_recv_info->referee_id, UI_cali_state_text[3]);
+
+    UICharDraw(&UI_cali_state_text[4], "lz0", UI_Graph_ADD, 7, UI_Color_White, 16, 2, 80, 660, "Lift Zero:");
+    UICharRefresh(&referee_recv_info->referee_id, UI_cali_state_text[4]);
+    UICharDraw(&UI_cali_state_text[5], "lz1", UI_Graph_ADD, 7, UI_Color_Purplish_red, 16, 2, 350, 660, "ERROR");
+    UICharRefresh(&referee_recv_info->referee_id, UI_cali_state_text[5]);
+
+    UICharDraw(&UI_cali_state_text[6], "lm0", UI_Graph_ADD, 7, UI_Color_White, 16, 2, 80, 620, "Lift Max:");
+    UICharRefresh(&referee_recv_info->referee_id, UI_cali_state_text[6]);
+    UICharDraw(&UI_cali_state_text[7], "lm1", UI_Graph_ADD, 7, UI_Color_Purplish_red, 16, 2, 350, 620, "ERROR");
+    UICharRefresh(&referee_recv_info->referee_id, UI_cali_state_text[7]);
 
     const char *motor_names[] = {"Base", "E_Roll", "E_Pitch", "W_Pitch", "W_Roll"};
     for (int i = 0; i < 5; i++)
@@ -449,43 +456,54 @@ void UITask()
         if (referee_recv_info != NULL && referee_recv_info->GameRobotState.robot_id != 0)
         {
             MyUIInit();
-            interactive_data.Referee_Interactive_Flag.arm_cali_flag = 1;
-            interactive_data.Referee_Interactive_Flag.lift_cali_flag = 1;
+            interactive_data.Referee_Interactive_Flag.wrist_cali_flag = 1;
+            interactive_data.Referee_Interactive_Flag.extend_cali_flag = 1;
+            interactive_data.Referee_Interactive_Flag.lift_zero_flag = 1;
+            interactive_data.Referee_Interactive_Flag.lift_max_flag = 1;
             interactive_data.Referee_Interactive_Flag.robot_mode_flag = 1;
             interactive_data.Referee_Interactive_Flag.grab_control_flag = 1;
             interactive_data.Referee_Interactive_Flag.gripper_flag = 1;
             robotdata->ui_reset_flag = 0;
         }
     }
-
+    // ==============================================================
+    // 🌟 从底层精准抽取 4 个独立状态
+    // ==============================================================
+    // 1. 腕部状态提取
     if (robotdata->grab != NULL && robotdata->grab->actuator != NULL)
-    {
-        if (robotdata->grab->actuator->wrist_cali_obj.state == CALI_DONE)
-            interactive_data.arm_cali_state = 2;
-        else if (robotdata->grab->actuator->wrist_cali_obj.state == CALI_ERROR)
-            interactive_data.arm_cali_state = 0;
-        else
-            interactive_data.arm_cali_state = 1;
-    }
+        interactive_data.wrist_cali_state = robotdata->grab->actuator->wrist_cali_obj.state;
     else
-    {
-        interactive_data.arm_cali_state = 0;
+        interactive_data.wrist_cali_state = CALI_ERROR;
+
+    // 2. 前伸状态提取
+    if (robotdata->grab != NULL && robotdata->grab->arm != NULL)
+        interactive_data.extend_cali_state = robotdata->grab->arm->extend_cali_obj.state;
+    else
+        interactive_data.extend_cali_state = CALI_ERROR;
+
+    // 3. 底盘零点状态提取
+    if (robotdata->chassis != NULL) {
+        if (robotdata->chassis->cali_state.all_cali_done)
+            interactive_data.lift_zero_state = CALI_DONE;
+        else if (robotdata->chassis->chassis_ctrl_cmd.chassis_mode == CHASSIS_CALIBRATING)
+            interactive_data.lift_zero_state = CALI_RUNNING;
+        else
+            interactive_data.lift_zero_state = CALI_ERROR;
+    } else {
+        interactive_data.lift_zero_state = CALI_ERROR;
     }
 
-    if (robotdata->chassis != NULL)
-    {
-        uint8_t all_done = robotdata->chassis->cali_state.all_cali_done;
-        uint8_t max_cali = robotdata->chassis->cali_state.is_max_calibrated;
-        if (all_done && max_cali)
-            interactive_data.lift_cali_state = 2;
-        else if (!all_done && !max_cali)
-            interactive_data.lift_cali_state = 0;
+    // 4. 底盘最大行程状态提取
+    if (robotdata->chassis != NULL) {
+        if (robotdata->chassis->cali_state.is_max_calibrated)
+            interactive_data.lift_max_state = CALI_DONE;
+        else if (robotdata->chassis->chassis_ctrl_cmd.chassis_mode == CHASSIS_CLIMB_BOTH_EXTEND &&
+                 robotdata->chassis->cali_state.all_cali_done)
+            interactive_data.lift_max_state = CALI_RUNNING;
         else
-            interactive_data.lift_cali_state = 1;
-    }
-    else
-    {
-        interactive_data.lift_cali_state = 0;
+            interactive_data.lift_max_state = CALI_ERROR;
+    } else {
+        interactive_data.lift_max_state = CALI_ERROR;
     }
 
     if (robotdata->grab != NULL)

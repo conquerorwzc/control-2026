@@ -71,8 +71,10 @@ typedef struct
     uint32_t gripper_flag : 1;       // 夹爪状态变化
     uint32_t motor_angle_flag : 1;   // 自定义控制器电机角度变化
     uint32_t arm_angle_flag : 1;     // 机械臂关节角度变化
-    uint32_t arm_cali_flag : 1;      // 机械臂标定状态变化
-    uint32_t lift_cali_flag : 1;     // 底盘抬升标定状态变化
+    uint32_t wrist_cali_flag : 1;    // 腕部标定状态变化
+    uint32_t extend_cali_flag : 1;   // 前伸标定状态变化
+    uint32_t lift_zero_flag : 1;     // 底盘零点标定状态变化
+    uint32_t lift_max_flag : 1;      // 底盘最大行程标定状态变化
 #endif
 } Referee_Interactive_Flag_t;
 

@@ -144,8 +144,7 @@ static void MouseKeySet()
     if (rc_data == NULL)
         return;
 
-    // 屏蔽遥控器摇杆输入干扰
-    if (rc_data[TEMP].rc.dial != 0 || rc_data[TEMP].rc.rocker_l1 != 0 || rc_data[TEMP].rc.rocker_l_ != 0 ||
+    if (abs(rc_data[TEMP].rc.dial) > 20 || rc_data[TEMP].rc.rocker_l1 != 0 || rc_data[TEMP].rc.rocker_l_ != 0 ||
         rc_data[TEMP].rc.rocker_r1 != 0 || rc_data[TEMP].rc.rocker_r_ != 0)
     {
         return; // 有摇杆输入时不进行键鼠控制
@@ -295,12 +294,14 @@ static void MouseKeySet()
                                 angle_rapid_buff);
             }
         }
-        else if (robot->robot_mode == ROBOT_CLIMB_MODE || robot->robot_mode == ROBOT_DOWN_STAIRS_MODE) // 🌟 修复2：向烂路模式开放键盘微调权限
+        else if (robot->robot_mode == ROBOT_CLIMB_MODE ||
+                 robot->robot_mode == ROBOT_DOWN_STAIRS_MODE) // 🌟 修复2：向烂路模式开放键盘微调权限
         {
             // 🛡️ 物理防翻车护盾：绝对禁止在双腿全伸出的高重心状态下旋转！
             // 只有在全收、后腿半伸、后腿全伸等低重心状态下，才允许微调姿态
             if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_ALL_RETRACT ||
-                chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF || // 🌟 修复1：加上后腿半伸的旋转权限
+                chassis_ctrl_cmd->chassis_mode ==
+                    CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF || // 🌟 修复1：加上后腿半伸的旋转权限
                 chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_FRONT_RETRACT)
             {
                 set_angle +=
@@ -326,64 +327,60 @@ static void MouseKeySet()
             if (chassis_ctrl_cmd->lift_ratio > 1.0f)
                 chassis_ctrl_cmd->lift_ratio = 1.0f;
         }
-        else if (robot->robot_mode == ROBOT_CLIMB_MODE || robot->robot_mode == ROBOT_DOWN_STAIRS_MODE)
+   else if (robot->robot_mode == ROBOT_CLIMB_MODE || robot->robot_mode == ROBOT_DOWN_STAIRS_MODE)
         {
-            // 【上台阶/烂路模式】：状态机离散触发 (防呆快速切换)
-            uint8_t key_q = rc_data[TEMP].key[KEY_PRESS_NORMAL].q;
-            uint8_t key_e = rc_data[TEMP].key[KEY_PRESS_NORMAL].e;
+            // 【上台阶/烂路模式】：边沿触发状态机 (彻底告别组合键卡顿)
+            static uint8_t last_ctrl_w = 0, last_q = 0, last_e = 0;
 
-            // 🌟 核心修复：组合按键“时间窗”消抖算法
-            static uint8_t last_raw_state = 0;
-            static uint8_t stable_cnt = 0;
+            uint8_t curr_ctrl_w = rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].w; // 🌟 替代原来的 QE 齐按
+            uint8_t curr_q = rc_data[TEMP].key[KEY_PRESS_NORMAL].q;
+            uint8_t curr_e = rc_data[TEMP].key[KEY_PRESS_NORMAL].e;
 
-            // 状态编码：3(QE齐按), 2(只按Q), 1(只按E), 0(全松开)
-            uint8_t current_state = (key_q << 1) | key_e;
-
-            if (current_state == last_raw_state)
+            // 1. Ctrl + W：四腿全伸 (准备上台阶 / 最大行程顶出标定)
+            if (curr_ctrl_w && !last_ctrl_w)
             {
-                if (stable_cnt < 15)
-                    stable_cnt++; // 防止累加溢出
+                keyboard_climb_state = CHASSIS_CLIMB_BOTH_EXTEND;
+            }
 
-                // 维持同一个状态超过 10 帧 (10 * 5ms = 50ms) 才认为是真实意图
-                if (stable_cnt == 10)
+            // 2. Q 键：前腿收，后腿伸 (爬台阶核心动作)
+            if (curr_q && !last_q)
+            {
+                if (robot->robot_mode == ROBOT_DOWN_STAIRS_MODE)
                 {
-                    if (current_state == 3)
-                        keyboard_climb_state = CHASSIS_CLIMB_BOTH_EXTEND;
-                    else if (current_state == 2) // 🌟 仅按了 Q 键 (前收，后伸)
+                    // 【下台阶模式】：两段式后伸逻辑 (半伸 -> 全伸)
+                    if (keyboard_climb_state != CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF &&
+                        keyboard_climb_state != CHASSIS_CLIMB_FRONT_RETRACT)
                     {
-                        if (robot->robot_mode == ROBOT_DOWN_STAIRS_MODE)
-                        {
-                            // 【下台阶模式】：两段式后伸逻辑 (半伸 -> 全伸)
-                            if (keyboard_climb_state != CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF &&
-                                keyboard_climb_state != CHASSIS_CLIMB_FRONT_RETRACT)
-                            {
-                                keyboard_climb_state = CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF;
-                            }
-                            else if (keyboard_climb_state == CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF)
-                            {
-                                keyboard_climb_state = CHASSIS_CLIMB_FRONT_RETRACT;
-                            }
-                        }
-                        else
-                        {
-                            // 【上台阶模式】：一段式逻辑 (直接全伸到位)
-                            keyboard_climb_state = CHASSIS_CLIMB_FRONT_RETRACT;
-                        }
+                        keyboard_climb_state = CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF;
                     }
-                    else if (current_state == 1)
-                        keyboard_climb_state = CHASSIS_CLIMB_ALL_RETRACT;
+                    else if (keyboard_climb_state == CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF)
+                    {
+                        keyboard_climb_state = CHASSIS_CLIMB_FRONT_RETRACT;
+                    }
+                }
+                else
+                {
+                    // 【上台阶模式】：一段式逻辑 (直接全伸到位)
+                    keyboard_climb_state = CHASSIS_CLIMB_FRONT_RETRACT;
                 }
             }
-            else
-            {
-                stable_cnt = 0; // 只要有任何风吹草动（比如松手瞬间的错位），立刻打断重置
-            }
-            last_raw_state = current_state;
 
-            // 如果 Q 和 E 都不按，保持当前姿态不变
+            // 3. E 键：四腿全收 (上完台阶恢复底盘 / 物理原点)
+            if (curr_e && !last_e)
+            {
+                keyboard_climb_state = CHASSIS_CLIMB_ALL_RETRACT;
+            }
+
+            last_ctrl_w = curr_ctrl_w;
+            last_q = curr_q;
+            last_e = curr_e;
+
+            // 状态下发与护盾保护
             if (keyboard_climb_state != CHASSIS_CLIMB_IDLE)
             {
-                if (robot->chassis->cali_state.all_cali_done) {
+                // 只有在零点标定完全结束后，才允许执行爬楼姿态
+                if (robot->chassis->cali_state.all_cali_done)
+                {
                     chassis_ctrl_cmd->chassis_mode = keyboard_climb_state;
                 }
             }
@@ -485,6 +482,14 @@ static void MouseKeySet()
     {
         video_gimbal_ctrl_cmd->video_cali = 1;
     }
+    static uint8_t last_ctrl_z = 0;
+    uint8_t curr_ctrl_z = rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].z;
+
+    if (curr_ctrl_z && !last_ctrl_z)
+    {
+        grab_ctrl_cmd->arm_extend_cali = 1;
+    }
+    last_ctrl_z = curr_ctrl_z;
     // Ctrl+X：键盘拥有最高权限，强制重新触发底盘标定
     static uint8_t last_ctrl_x = 0;
     uint8_t curr_ctrl_x = rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].x;
@@ -495,7 +500,8 @@ static void MouseKeySet()
         robot->chassis->cali_state.all_cali_done = 0;
         robot->chassis->cali_state.is_max_calibrated = 0;
         // 键盘直接下达标定指令，无视 has_calibrated_once 历史记录
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 4; i++)
+        {
             robot->chassis->cali_state.max_cali_done[i] = 0;
         }
         chassis_ctrl_cmd->chassis_mode = CHASSIS_CALIBRATING;
@@ -529,33 +535,30 @@ static void EmergencyHandler()
 
 static void RemoteControlSet()
 {
+    // 进门第一步：永远清零 wz，杜绝无限累加（防疯转的核心）
     chassis_ctrl_cmd->wz = 0;
+
+    // 如果底盘还没有完成零点标定
     if (!robot->chassis->cali_state.all_cali_done)
     {
-        // 1. 紧急护盾（最高优先级）：无论什么情况，双下拨杆直接瘫痪
-        if (switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)) {
+        // 1. 紧急护盾（最高优先级）：真正的双下拨杆，全车彻底瘫痪
+        if (switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left))
+        {
             chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
             return;
         }
 
         if (RemoteControlIsOnline())
         {
-            // 2. 核心拦截：区分“初次上电”和“掉线复活”
+            // 2. 初次开机上电，老老实实去标定
             if (robot->chassis->cali_state.has_calibrated_once == 0)
             {
-                // 【初次上电】：恢复你原来的逻辑，遥控器在线就直接无脑进入标定
                 chassis_ctrl_cmd->chassis_mode = CHASSIS_CALIBRATING;
-            }
-            else
-            {
-                // 【掉线复活】：已经完成过首次标定，剥夺遥控器的自动标定权
-                // 除非键盘（Ctrl+X）强行把状态改成了 CHASSIS_CALIBRATING，否则死锁在断电状态
-                if (chassis_ctrl_cmd->chassis_mode != CHASSIS_CALIBRATING) {
-                    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
-                }
+                return; // 只有第一次开机时，才拦截后续操作
             }
         }
-        return; // 拦截所有行车和切模式指令，直到标定彻底完成
+        // 🚨 核心修复：把下面那个强制切 POWER_OFF 和 return 删掉！
+        // 如果是中途掉电复活 (has_calibrated_once == 1)，让代码直接往下跑，去接收摇杆的 vx, vy！
     }
 
     bool is_keyboard_climb = (robot->robot_mode == ROBOT_CLIMB_MODE || robot->robot_mode == ROBOT_DOWN_STAIRS_MODE);
@@ -588,10 +591,10 @@ static void RemoteControlSet()
         if (!is_keyboard_climb)
         {
             if (chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_IDLE &&
-              chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_BOTH_EXTEND &&
-              chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF && // 🌟 新增防打断
-              chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_FRONT_RETRACT &&
-              chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_ALL_RETRACT)
+                chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_BOTH_EXTEND &&
+                chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF && // 🌟 新增防打断
+                chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_FRONT_RETRACT &&
+                chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_ALL_RETRACT)
             {
                 chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_IDLE;
             }
@@ -644,8 +647,8 @@ static void RemoteControlSet()
     if (abs(rc_data[TEMP].rc.dial) > 20)
     {
         if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_ALL_RETRACT ||
-               chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF ||
-               chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_FRONT_RETRACT)
+            chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF ||
+            chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_FRONT_RETRACT)
         {
             set_angle += (rc_data[TEMP].rc.dial - 20) * 0.0001;
         }
@@ -664,16 +667,16 @@ static void ProcessCustomControllerData()
         {
             // motor[0] = 大yaw (M6020, ID:1)
             grab_ctrl_cmd->base_joint = SelfControlGetMotorAngle(robot->self_control, 0);
-            
+
             // motor[1] = 大roll (DM4340, ID:0x04, MasterID:0x14)
             grab_ctrl_cmd->elbow_roll = SelfControlGetMotorAngle(robot->self_control, 1);
-            
+
             // motor[2] = 大pitch (DM4310, ID:0x03, MasterID:0x13)
             grab_ctrl_cmd->elbow_pitch = SelfControlGetMotorAngle(robot->self_control, 2);
-            
+
             // motor[3] = 小pitch (DM4310, ID:0x02, MasterID:0x12)
             grab_ctrl_cmd->wrist_pitch = SelfControlGetMotorAngle(robot->self_control, 3);
-            
+
             // motor[4] = 小roll (DM4310, ID:0x01, MasterID:0x11)
             grab_ctrl_cmd->wrist_roll = SelfControlGetMotorAngle(robot->self_control, 4);
         }
@@ -750,20 +753,20 @@ static void SendArmMotorDataTask(void)
         if (grab_control_mode == GRAB_CONTROL_HALF_AUTO)
         {
             // 半自动模式：发送指令角度（目标位置）
-            motor_angles[0] = robot->grab->grab_ctrl_cmd.base_joint;    // 基座关节
-            motor_angles[1] = robot->grab->grab_ctrl_cmd.elbow_roll;    // 肘部滚转
-            motor_angles[2] = robot->grab->grab_ctrl_cmd.elbow_pitch;   // 肘部俯仰
-            motor_angles[3] = robot->grab->grab_ctrl_cmd.wrist_pitch;   // 腕部俯仰
-            motor_angles[4] = robot->grab->grab_ctrl_cmd.wrist_roll;    // 腕部滚转
+            motor_angles[0] = robot->grab->grab_ctrl_cmd.base_joint;  // 基座关节
+            motor_angles[1] = robot->grab->grab_ctrl_cmd.elbow_roll;  // 肘部滚转
+            motor_angles[2] = robot->grab->grab_ctrl_cmd.elbow_pitch; // 肘部俯仰
+            motor_angles[3] = robot->grab->grab_ctrl_cmd.wrist_pitch; // 腕部俯仰
+            motor_angles[4] = robot->grab->grab_ctrl_cmd.wrist_roll;  // 腕部滚转
         }
         else
         {
             // 自定义控制器模式：发送实时测量角度（实际位置）
-            motor_angles[0] = robot->grab->grab_measure.base_joint;    // 基座关节
-            motor_angles[1] = robot->grab->grab_measure.elbow_roll;    // 肘部滚转
-            motor_angles[2] = robot->grab->grab_measure.elbow_pitch;   // 肘部俯仰
-            motor_angles[3] = robot->grab->grab_measure.wrist_pitch;   // 腕部俯仰
-            motor_angles[4] = robot->grab->grab_measure.wrist_roll;    // 腕部滚转
+            motor_angles[0] = robot->grab->grab_measure.base_joint;  // 基座关节
+            motor_angles[1] = robot->grab->grab_measure.elbow_roll;  // 肘部滚转
+            motor_angles[2] = robot->grab->grab_measure.elbow_pitch; // 肘部俯仰
+            motor_angles[3] = robot->grab->grab_measure.wrist_pitch; // 腕部俯仰
+            motor_angles[4] = robot->grab->grab_measure.wrist_roll;  // 腕部滚转
         }
     }
 
