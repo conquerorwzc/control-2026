@@ -422,7 +422,7 @@ static void MouseKeySet() {
   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Q]%2||abs(rc_data[TEMP].rc.dial) > 20) {
     case 0:
       chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
-      chassis_ctrl_cmd->wz+=(float)rc_data[TEMP].mouse.x * 35.0f;
+      chassis_ctrl_cmd->wz+=(float)rc_data[TEMP].mouse.x * 70.0f;
       break;
     default:
       chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;

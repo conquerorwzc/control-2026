@@ -121,9 +121,9 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                     {
-                      .Kp = 2.6f,
+                      .Kp = 3.0f,
                       .Ki = 0.0f,
-                      .Kd = 0.09f,
+                      .Kd = 0.10f,
                       .DeadBand = 0.01f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                       .IntegralLimit = 5.0f,
@@ -227,7 +227,7 @@ static Shoot_Init_Config_s shoot_init_config = {
            .friction_num = 2,
            .friction_speed = 36000.0f,
            .friction_coefficients = {1.0f, -1.0f}, //摩擦轮速度比例系数
-           .deadtime_burstfire = 125,                 // 连发死时间
+           .deadtime_burstfire = 100,                 // 连发死时间
            .deadtime_onebullet =500,               // 单发死时间
            .target_speed = 22.0f,//目标弹速
            .bullet_speed_deadband = 0.5f,//弹速死区，hero小些，步兵可以大些

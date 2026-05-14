@@ -1,5 +1,5 @@
 /**
- * @file referee_UI.C
+ * @file referee_UI.c
  * @author kidneygood (you@domain.com)
  * @brief
  * @version 0.1
@@ -393,6 +393,9 @@ void UIGraphRefresh(referee_id_t *_id, int cnt, ...)
 	RefereeSend(buffer, temp_datalength);
 
 	va_end(ap); // 结束可变参数的获取
+
+    // 【修复 1】：添加包序号自增，防止因为 Seq 相同导致裁判系统客户端判定为重复包而丢弃
+    UI_Seq++;
 }
 
 /************************************************UI推送字符（使更改生效）*********************************/
@@ -416,6 +419,7 @@ void UICharRefresh(referee_id_t *_id, String_Data_t string_Data)
 
 	UI_CharReFresh_data.String_Data = string_Data;
 
+    // 【修复 2】：将原先的 get_CRC8_check_sum 改为 get_CRC16_check_sum，确保帧尾进行正确的 16 位 CRC 校验
 	UI_CharReFresh_data.frametail = get_CRC16_check_sum((uint8_t *)&UI_CharReFresh_data, LEN_HEADER + LEN_CMDID + temp_datalength, 0xFFFF);
 
 	RefereeSend((uint8_t *)&UI_CharReFresh_data, LEN_HEADER + LEN_CMDID + temp_datalength + LEN_TAIL); // 发送
