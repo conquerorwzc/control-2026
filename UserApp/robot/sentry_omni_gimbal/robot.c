@@ -318,10 +318,10 @@ static void RemoteControlSet() {
       search_start_flag = 0;
     }
     else if (time-NotFoundTime>1.25f){      //丢失目标超0.5秒，进入寻敌模式
-      const float search_center = 10.0f;
+      const float search_center = 5.0f;
       const float search_amp = 10.0f;
       const float search_omega = PI * 4.0f;  // 对应2Hz
-      if (robot->gimbal->yaw_motor->daemon->temp_count==2) gimbal_ctrl_cmd->yaw += 0.15f;
+      if (robot->gimbal->yaw_motor->daemon->temp_count==2) gimbal_ctrl_cmd->yaw += 0.1f;
       if (!search_start_flag) {
         const float normalized = ClampFloat((gimbal_ctrl_cmd->pitch - search_center) / search_amp, -1.0f, 1.0f);
         search_phase = asinf(normalized);  // 把当前pitch角度转化到相位
@@ -582,7 +582,7 @@ void RobotCMDTask() {
     if (chassis_motion->wz >= 0)gimbal_ctrl_cmd->chassis_rotate_wz = 0.00030f * chassis_motion->wz;
     if (chassis_motion->wz < 0)  gimbal_ctrl_cmd->chassis_rotate_wz = 0.00034f * chassis_motion->wz;
     RemoteControlSet();
-    // MouseKeySet();
+    MouseKeySet();
     PitchAngleLimit();
     EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
