@@ -216,6 +216,33 @@ void ChassisTask()
 {
     // 标定中断保护：如果从标定模式切走，复位标定状态，防止下次标定使用脏数据
     static uint8_t last_chassis_mode = CHASSIS_POWER_OFF;
+
+    uint8_t is_any_leg_offline = 0;
+
+    for (int i = 0; i < 2; i++) {
+        if (chassis->front_legs[i].motor != NULL &&
+            !DaemonIsOnline(chassis->front_legs[i].motor->daemon)) {
+            is_any_leg_offline = 1;
+            break;
+            }
+        if (chassis->rear_legs[i].motor != NULL &&
+            !DaemonIsOnline(chassis->rear_legs[i].motor->daemon)) {
+            is_any_leg_offline = 1;
+            break;
+            }
+    }
+
+    // 护盾触发：一旦任何一条腿报警掉线，且当前认为已经标定完成
+    if (is_any_leg_offline && chassis->cali_state.all_cali_done == 1) {
+        chassis->cali_state.all_cali_done = 0;
+        chassis->cali_state.is_max_calibrated = 0;
+
+        chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF; // 强制瘫痪软腿
+
+        // 强烈建议加个报警打印，方便调试
+        LOGERROR("[Chassis] Shield Triggered: Motor Offline! Calibration memory cleared.");
+    }
+
     if (last_chassis_mode == CHASSIS_CALIBRATING && chassis_ctrl_cmd->chassis_mode != CHASSIS_CALIBRATING)
     {
         first_run = 1;
@@ -785,6 +812,7 @@ static void ChassisCalibrationTask(void)
                                         chassis->cali_state.cali_done[2] && chassis->cali_state.cali_done[3];
     if (chassis->cali_state.all_cali_done)
     {
+        chassis->cali_state.has_calibrated_once = 1; // 永久记录机器人已经完成过首次标定
         chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
         first_run = 1;
         timeout_cnt = 0;

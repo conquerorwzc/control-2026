@@ -64,6 +64,7 @@ typedef enum
 
 typedef struct {
     uint8_t all_cali_done;     // 零点全部完成标志 (最重要的护盾判断条件)
+    uint8_t has_calibrated_once; // 记录是否完成过首次标定
     uint8_t cali_done[4];      // 各腿独立零点标志 [0后左, 1后右, 2前左, 3前右]
     float   init_angle[4];     // 零点真实物理坐标
 

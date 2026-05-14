@@ -483,7 +483,19 @@ static void MouseKeySet()
     {
         video_gimbal_ctrl_cmd->video_cali = 1;
     }
+    // Ctrl+X：键盘拥有最高权限，强制重新触发底盘标定
+    static uint8_t last_ctrl_x = 0;
+    uint8_t curr_ctrl_x = rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].x;
 
+    if (curr_ctrl_x && !last_ctrl_x) // 边沿触发，防止长按导致不断重置
+    {
+        // 主动剥夺标定完成标志位
+        robot->chassis->cali_state.all_cali_done = 0;
+        robot->chassis->cali_state.is_max_calibrated = 0;
+        // 键盘直接下达标定指令，无视 has_calibrated_once 历史记录
+        chassis_ctrl_cmd->chassis_mode = CHASSIS_CALIBRATING;
+    }
+    last_ctrl_x = curr_ctrl_x;
     // ================= 8. UI 重置（Ctrl+B）=================
     // Ctrl+B（Back to default/Reset UI）：边沿触发，按下一次触发一次
     static uint8_t last_ctrl_b = 0;
@@ -512,15 +524,33 @@ static void EmergencyHandler()
 
 static void RemoteControlSet()
 {
-    *rc_data_last = *rc_data;
+    // 如果底盘还没有完成零点标定
     if (!robot->chassis->cali_state.all_cali_done)
     {
-        if (RemoteControlIsOnline())
-            chassis_ctrl_cmd->chassis_mode = CHASSIS_CALIBRATING;
-
-        if (switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left))
+        // 1. 紧急护盾（最高优先级）：无论什么情况，双下拨杆直接瘫痪
+        if (switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)) {
             chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
-        return;
+            return;
+        }
+
+        if (RemoteControlIsOnline())
+        {
+            // 2. 核心拦截：区分“初次上电”和“掉线复活”
+            if (robot->chassis->cali_state.has_calibrated_once == 0)
+            {
+                // 【初次上电】：恢复你原来的逻辑，遥控器在线就直接无脑进入标定
+                chassis_ctrl_cmd->chassis_mode = CHASSIS_CALIBRATING;
+            }
+            else
+            {
+                // 【掉线复活】：已经完成过首次标定，剥夺遥控器的自动标定权
+                // 除非键盘（Ctrl+X）强行把状态改成了 CHASSIS_CALIBRATING，否则死锁在断电状态
+                if (chassis_ctrl_cmd->chassis_mode != CHASSIS_CALIBRATING) {
+                    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
+                }
+            }
+        }
+        return; // 拦截所有行车和切模式指令，直到标定彻底完成
     }
 
     bool is_keyboard_climb = (robot->robot_mode == ROBOT_CLIMB_MODE || robot->robot_mode == ROBOT_DOWN_STAIRS_MODE);
