@@ -383,7 +383,9 @@ static void MouseKeySet()
             // 如果 Q 和 E 都不按，保持当前姿态不变
             if (keyboard_climb_state != CHASSIS_CLIMB_IDLE)
             {
-                chassis_ctrl_cmd->chassis_mode = keyboard_climb_state;
+                if (robot->chassis->cali_state.all_cali_done) {
+                    chassis_ctrl_cmd->chassis_mode = keyboard_climb_state;
+                }
             }
         }
 
@@ -527,7 +529,7 @@ static void EmergencyHandler()
 
 static void RemoteControlSet()
 {
-    // 如果底盘还没有完成零点标定
+    chassis_ctrl_cmd->wz = 0;
     if (!robot->chassis->cali_state.all_cali_done)
     {
         // 1. 紧急护盾（最高优先级）：无论什么情况，双下拨杆直接瘫痪
