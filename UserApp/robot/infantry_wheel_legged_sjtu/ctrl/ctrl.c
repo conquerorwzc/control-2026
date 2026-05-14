@@ -1,3 +1,16 @@
+/**
+ * @file ctrl.c
+ * @brief 轮腿步兵的上层输入仲裁与模式控制。
+ *
+ * 控制链路分为三层：
+ * - 输入采样：JoyStickCtrl / MouseKeyCtrl 只把摇杆、键鼠转换成临时意图；
+ * - 意图仲裁：CtrlSolve 合并两路输入，并推进射击、自瞄、跳跃、腿长预设等离散状态；
+ * - 指令落地：RobotMotionSolve 根据 robot_mode 写入 chassis_ctrl_cmd / gimbal_ctrl_cmd。
+ *
+ * 这里不做底盘速度斜坡、yaw 轨迹规划或 LQR 参考滤波；这些连续控制逻辑在 chassis 层
+ * 按底盘本地时基执行。本文件输出的是 raw 目标，便于双板通信后由底盘侧统一平滑。
+ */
+
 #include "ctrl.h"
 
 #include <math.h>
@@ -6,7 +19,7 @@
 #include "robot_config.h"
 #include "ui.h"
 
-// Static variables for control state
+/* 当前编译只会启用一种输入链路。rc_data_last 用于按键边沿检测。 */
 #ifdef USE_RC_CTRL
 static RC_ctrl_t* rc_data;
 static RC_ctrl_t rc_data_last;
@@ -15,27 +28,27 @@ static VT13_RC_t* rc_data;
 static VT13_RC_t rc_data_last;
 #endif
 
-// 共享状态标志: RC 路径只用 is_first_update, OCD 路径全部使用
+/* 共享控制状态。RC 链路只使用 is_first_update，OCD 链路会使用全部字段。 */
 static UpdateFlag_s update_flag = {.is_first_update = 1};
 
 static CtrlInstance ocd = {
     .leg.index = 1,
-    // 速度常量: vx = m/s (默认平动, stand + prostrate 通用), wz = rad/s (小陀螺角速度上限);
-    //           stair / vault 仅用于键鼠 WASD 覆盖; 趴下由 chassis.ChassisProstrate 做 m/s → motor rpm 换算.
+    /* 速度配置。vx/stair/vault 为平移速度 m/s，wz 为小陀螺角速度 rad/s。 */
     .speed = {.vx = 2.5f, .wz = 15.0f, .stair = 2.2f, .vault = 1.8f},
-    // CHASSIS_RECOVERY 触发阈值: 默认 13°, 蹭台阶模式更敏感 (7°)
+    /* 倾倒恢复阈值。保留 default/creep 两套配置，便于后续按场景单独调参。 */
     .recovery = {.pitch_default = 13.0f, .pitch_creep = 13.0f},
 };
-// 四档腿长 (m): MIN, 默认 (与 chassis 上电一致), MID, MAX
+/* 四档腿长预设：最低、上电默认、中档、最高。单位 m。 */
 static const float LEG_TABLE[4] = {0.117f, 0.20f, 0.285f, 0.370f};
 
-// 倾翻判定: |Pitch| > 当前模式阈值即视为失控, 触发 CHASSIS_RECOVERY. 蹭台阶模式下用更小阈值更早介入.
+/** @brief 根据当前场景选择 Pitch 阈值，判断是否需要进入 CHASSIS_RECOVERY。 */
 static uint8_t IsRobotLostControl(RobotInstance* robot) {
   const float thresh = robot->chassis->chassis_ctrl_cmd.chassis_mode == CHASSIS_STAIR ? ocd.recovery.pitch_creep
                                                                                       : ocd.recovery.pitch_default;
   return fabsf(robot->chassis->imu->Pitch) > thresh;
 }
 
+/** @brief 请求裁判 UI 做一次全量重绘。双板时通过通信字段转发到底盘侧。 */
 static void RequestUiForceRefresh(RobotInstance* robot) {
   if (robot == NULL) return;
 
@@ -53,10 +66,12 @@ static void RequestUiForceRefresh(RobotInstance* robot) {
 #endif
 }
 
-// Ramp / yaw planner 已迁移到 chassis 层 (chassis.c::ChassisPlannerUpdate),
-// 在 chassis 时基 (200Hz) 平滑 cmd, 避免双板 50Hz CAN ZOH 把 LQR 参考切阶梯.
-// ctrl 层只负责生成 raw 期望 (target_yaw / vx / wz), 直写 chassis_ctrl_cmd.
-
+/**
+ * @brief 清空底盘运动相关的历史量。
+ *
+ * 用在急停、上下姿态切换和从 POWER_OFF 恢复等边沿。target_yaw 必须对齐当前 IMU yaw，
+ * 否则 LQR 恢复时会吃到历史 yaw 误差并瞬间给出大输出。
+ */
 static void ResetChassisMotionMemory(RobotInstance* robot) {
   if (robot == NULL || robot->chassis == NULL) return;
 
@@ -70,6 +85,10 @@ static void ResetChassisMotionMemory(RobotInstance* robot) {
   robot->chassis->last_state_var.x_b = 0.0f;
 }
 
+/**
+ * @brief 在姿态大状态边沿自动清空运动历史。
+ * @return 1 表示本帧执行过重置，调用方需要同步自己的局部参考量。
+ */
 static uint8_t ResetMotionMemoryOnPostureEdge(RobotInstance* robot) {
   static uint8_t has_last_mode = 0;
   static uint8_t was_prostrate = 0;
@@ -90,9 +109,14 @@ static uint8_t ResetMotionMemoryOnPostureEdge(RobotInstance* robot) {
   return did_reset;
 }
 
-// ==========================================
-// 统一的机器人运动解算层
-// ==========================================
+/* ------------------------- 运动指令生成 ------------------------- */
+
+/**
+ * @brief 将最终控制意图转换为底盘 raw 指令。
+ *
+ * 本函数只根据当前 robot_mode 写入 target_yaw / vx / wz / roll / leg_length 等目标。
+ * 连续量的平滑和限幅由 chassis 层完成。
+ */
 static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
   static float yaw_ref = 0.0f;
   Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
@@ -101,18 +125,17 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
   }
   float input_mag = sqrtf(intent->vx * intent->vx + intent->vy * intent->vy);
 
-  // 小陀螺标志: 仅 LQR 平衡态下的 ROTATE 才使能 (PROSTRATE_ROTATE 走 ChassisProstrateMode, 不进 LQR)
+  /* 只有站立平衡小陀螺需要通知 LQR 使用旋转状态估计；趴下旋转走 ChassisProstrate。 */
   chassis_ctrl_cmd->is_rotate = (robot->robot_mode == ROBOT_CHASSIS_ROTATE) ? 1 : 0;
 
   chassis_ctrl_cmd->roll = 0.0f;
-  // roll 前馈 = 底盘恒定偏置 + 云台 CoM 旋转分量. offset_angle 俯视 CW 为正 → 底盘系下 CoM 角 = α_g - offset_angle.
+  /* roll 前馈补偿底盘固有偏置和云台质心旋转带来的侧倾力矩。 */
   chassis_ctrl_cmd->roll_ff =
       ROLL_FF_BIAS + ROLL_FF_AMP * sinf((GIMBAL_COM_ANGLE_DEG - robot->offset_angle) * DEGREE_2_RAD);
 
   switch (robot->robot_mode) {
     case ROBOT_CHASSIS_ROTATE: {
-      // target_yaw 跟当前 imu, planner 见 is_rotate=1 后忽略 yaw_err, 单纯靠 cmd.wz FF 推进 target_yaw.
-      // 退出 ROTATE 瞬间 raw 即对齐当前姿态, 无 lurch.
+      /* 小陀螺模式下 target_yaw 跟随当前 yaw，旋转只由 wz 前馈推进，退出时不会残留 yaw 误差。 */
       chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD;
       chassis_ctrl_cmd->wz = intent->rotate_scale * ocd.speed.wz;  // 拨轮/shift 缩放 × ocd.speed.wz 上限
       chassis_ctrl_cmd->vx = 0.0f;
@@ -124,8 +147,7 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
       float move_angle_deg = has_move_input ? (atan2f(intent->vy, intent->vx) - PI / 2.0f) * RAD_2_DEGREE : 0.0f;
       float follow_err = wrap180(move_angle_deg - robot->offset_angle);
       float rear_err = wrap180(follow_err - 180.0f);
-      // X 掉头反向跟随: 强制走 rear 分支 (复用 input_mag 取反, 让 W = 后退);
-      // 同时把 follow_err 清零, chassis target_yaw 锁在当前姿态, 不跟随云台 — 直到 CtrlSolve 监测到云台已转过 130° 后清除标志.
+      /* 掉头反向跟随时底盘不转身，只把前进方向反过来，等待云台完成 180 度转向。 */
       if (intent->reverse_follow || fabsf(rear_err) < fabsf(follow_err)) {
         follow_err = rear_err;
         if (has_move_input) input_mag = -input_mag;
@@ -133,7 +155,6 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
       if (intent->reverse_follow) {
         follow_err = 0.0f;
       }
-      // intent->gimbal_yaw_ff = 0.0f;
       yaw_ref = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + (follow_err + intent->gimbal_yaw_ff) * DEGREE_2_RAD;
       chassis_ctrl_cmd->target_yaw = yaw_ref;  // raw, chassis planner 平滑
       chassis_ctrl_cmd->wz = 0.0f;
@@ -158,11 +179,10 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
         follow_err = rear_err;
         input_vy = -input_vy;
       }
-      // intent->gimbal_yaw_ff = 0.0f;
       yaw_ref = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + (follow_err + intent->gimbal_yaw_ff) * DEGREE_2_RAD;
 #endif
       chassis_ctrl_cmd->target_yaw = yaw_ref;  // raw, chassis planner 平滑
-      // 与 FOLLOW 一致: FREE 只用 target_yaw 位置误差收敛, 不叠加当前 gyro 前馈.
+      /* FREE 只给 yaw 位置目标，不额外叠加当前 gyro 前馈。 */
       chassis_ctrl_cmd->wz = 0.0f;
       chassis_ctrl_cmd->vx = input_vy;  // raw vx, chassis vx_ramp 平滑
       chassis_ctrl_cmd->theta_ff = 0.0f;
@@ -179,8 +199,7 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
     case ROBOT_CHASSIS_PROSTRATE_ROTATE: {
       chassis_ctrl_cmd->roll = 0.0f;
       chassis_ctrl_cmd->vx = 0.0f;
-      // yaw_prostrate_PID 不参与: target_yaw 跟踪当前 yaw, 仅靠 wz 前馈驱动旋转.
-      // 否则 target_yaw 不变, yaw 误差累积后 PID 会反向拽住, 转到一定角度就停.
+      /* 趴下小陀螺禁用 yaw 闭环位置误差，避免 PID 抵消持续旋转前馈。 */
       chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD;
       yaw_ref = chassis_ctrl_cmd->target_yaw;
       chassis_ctrl_cmd->wz = intent->rotate_scale * ocd.speed.wz;  // rad/s, chassis 层换算
@@ -190,7 +209,7 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
 #if (!defined(ONE_BOARD))
       chassis_ctrl_cmd->roll = 0.0f;
       chassis_ctrl_cmd->wz = 0.0f;
-      // 与 FOLLOW 一致的 m/s 判定阈值 (之前的 5.0 是原始摇杆量级残留).
+      /* 趴下跟随仍使用 m/s 量级输入，底盘层再换算到卧倒轮速。 */
       const uint8_t has_move_input = input_mag > 0.0005f;
       float move_angle_deg = has_move_input ? (atan2f(intent->vy, intent->vx) - PI / 2.0f) * RAD_2_DEGREE : 0.0f;
       float follow_err = wrap180(move_angle_deg - robot->offset_angle);
@@ -199,11 +218,9 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
         follow_err = rear_err;
         if (has_move_input) input_mag = -input_mag;
       }
-      // intent->gimbal_yaw_ff = 0.0f;
       yaw_ref = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + (follow_err + intent->gimbal_yaw_ff) * DEGREE_2_RAD;
       chassis_ctrl_cmd->target_yaw = yaw_ref;
 
-      // m/s 量级, 不再做原始摇杆 ±800 截断 (原数值对应 ~800/660 = 1.2×peak).
       float align_attenuation = cosf(follow_err * DEGREE_2_RAD);
       if (align_attenuation < 0) align_attenuation = 0;
       input_mag *= align_attenuation * align_attenuation * align_attenuation;
@@ -217,6 +234,12 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
   }
 
   Gimbal_Ctrl_Cmd_s* gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
+  if (robot->robot_mode == ROBOT_CHASSIS_ROTATE || robot->robot_mode == ROBOT_CHASSIS_PROSTRATE_ROTATE) {
+    gimbal_ctrl_cmd->chassis_rotate_wz = -0.25f * robot->chassis->imu->Gyro[2];
+  } else {
+    gimbal_ctrl_cmd->chassis_rotate_wz = 0.0f;
+  }
+
   PIDSwitchConfig(&robot->gimbal->yaw_motor->motor_controller.angle_PID, gimbal_ctrl_cmd->gimbal_mode == GIMBAL_VISION
                                                                              ? &yaw_angle_PID_vision_config
                                                                              : &yaw_angle_PID_manual_config);
@@ -227,15 +250,16 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
     gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
 }
 
-// ==========================================
-// 逻辑层与输入层 (OCD CTRL)
-// ==========================================
+/* ------------------------- OCD 图传链路 ------------------------- */
+
 #ifdef USE_OCD_CTRL
 
-// ==========================================
-// 模式推导 (CtrlSolve 调用一次, 是 robot_mode/chassis_mode 的唯一写入点)
-// RECOVERY 期间不覆盖任何模式字段, 让 GimbalAlign 走完对齐流程后置回 CHASSIS_ON.
-// ==========================================
+/**
+ * @brief 根据持久状态和跳跃状态机推导 robot_mode / chassis_mode。
+ *
+ * OCD 链路下模式集中在这里写入。RECOVERY 期间直接返回，避免覆盖云台对齐流程写入的
+ * CHASSIS_RECOVERY / CHASSIS_ON。
+ */
 static void ApplyOcdMode(RobotInstance* robot) {
   Chassis_Ctrl_Cmd_s* cmd = &robot->chassis->chassis_ctrl_cmd;
   if (cmd->chassis_mode == CHASSIS_RECOVERY) return;
@@ -254,10 +278,10 @@ static void ApplyOcdMode(RobotInstance* robot) {
 
   cmd->chassis_mode = update_flag.is_stand ? (ocd.stair.active ? CHASSIS_STAIR : CHASSIS_ON) : CHASSIS_PROSTRATE;
 
-  // 优先级: rotate > free > follow; stand 轴决定 stand / prostrate 变体.
-  // 趴下时没有 LQR 平衡, FREE (解耦云台跟随 + roll/腿长微调) 没有实际意义;
-  // 且 ChassisProstrate 期望 vx 为原始摇杆量级 (±660), ROBOT_CHASSIS_FREE 的 vx_ramp
-  // 输出是 m/s 量级 (±2.97), 量纲错配会让前后驱动接近 0, 故 prostrate 强制走 FOLLOW.
+  /*
+   * 模式优先级：rotate > free > follow。
+   * 趴下没有 LQR 平衡和腿长/roll 微调需求，因此不进入 FREE，统一走 PROSTRATE_FOLLOW。
+   */
   if (update_flag.is_rotate) {
     robot->robot_mode =
         update_flag.is_stand || update_flag.is_free ? ROBOT_CHASSIS_ROTATE : ROBOT_CHASSIS_PROSTRATE_ROTATE;
@@ -268,11 +292,12 @@ static void ApplyOcdMode(RobotInstance* robot) {
   }
 }
 
-// ==========================================
-// JoyStickCtrl: 摇杆 -> ocd.js_* / ocd.intent.{rotate_scale, roll_delta, leg_length_delta}
-//             + 直接积分 gimbal yaw/pitch 位置目标
-//             + 每帧刷新 update_flag (is_rotate 派生; is_stand/is_free 边沿翻转, 急停姿态锁定)
-// ==========================================
+/**
+ * @brief 采样图传遥控器摇杆域输入。
+ *
+ * 本函数只写 ocd.js_* 和少量持久状态，不直接做最终模式仲裁。键鼠域会在
+ * MouseKeyCtrl 中独立采样，最后由 CtrlSolve 合并。
+ */
 void JoyStickCtrl(RobotInstance* robot) {
   rc_data = robot->rc_data;
   if (update_flag.is_first_update) {
@@ -280,7 +305,7 @@ void JoyStickCtrl(RobotInstance* robot) {
     update_flag.is_first_update = 0;
   }
 
-  // 帧起始: JS 输入字段清零 (持久字段 jump/leg 保留)
+  /* 每帧清空瞬时摇杆意图，跳跃和腿长预设等持久状态保留。 */
   ocd.intent = (Ctrl_Intent_s){0};
   ocd.js_vx = 0.0f;
   ocd.js_vy = 0.0f;
@@ -292,10 +317,10 @@ void JoyStickCtrl(RobotInstance* robot) {
   Shoot_Ctrl_Cmd_s* shoot_cmd = &robot->shoot->shoot_ctrl_cmd;
   Gimbal_Ctrl_Cmd_s* gimbal_cmd = &robot->gimbal->gimbal_ctrl_cmd;
 
-  // is_on: 拨杆不在最左 = 非急停姿态 (mode_switch 是 JS 域输入, 由 JS 派生供 MK 读)
+  /* 左拨到底视为急停姿态；该状态也会约束键鼠侧的 toggle。 */
   update_flag.is_on = !switch_left(rc_data->rc.mode_switch);
 
-  // fn_1 边沿: 站立 <-> 趴下 (跳跃 ACTIVE / RECOVERY / 急停姿态时锁定)
+  /* fn_1 边沿切换站立/趴下；跳跃、恢复、急停期间禁止切换。 */
   const uint8_t fn_1_edge = rc_data->rc.fn_1 && !rc_data_last.rc.fn_1;
   if (fn_1_edge && update_flag.is_on && chassis_cmd->chassis_mode != CHASSIS_RECOVERY &&
       ocd.jump.phase != JUMP_ACTIVE) {
@@ -304,24 +329,24 @@ void JoyStickCtrl(RobotInstance* robot) {
     update_flag.is_stand = !update_flag.is_stand;
   }
 
-  // pause 按钮边沿: FREE <-> 非 FREE (急停姿态时锁定)
+  /* pause 边沿切换 FREE 模式。 */
   const uint8_t pause_edge = rc_data->rc.pause && !rc_data_last.rc.pause;
   if (pause_edge && update_flag.is_on) {
     update_flag.is_free = !update_flag.is_free;
   }
 
-  // RECOVERY 期间清空跳跃 FSM (避免对齐后残留 READY/ACTIVE 状态)
+  /* 恢复流程期间清空跳跃状态，避免对齐完成后继续执行旧的跳跃请求。 */
   if (chassis_cmd->chassis_mode == CHASSIS_RECOVERY) {
     ocd.jump.phase = JUMP_IDLE;
     ocd.jump.observed_active = 0;
   }
 
-  // 拨轮 -> JS 小陀螺缩放系数 (dial/660, -1..1, 符号决定转向; MK 的 shift 由 MouseKeyCtrl 独立处理)
+  /* 拨轮给出带符号的小陀螺缩放系数。 */
   if (abs(rc_data->rc.dial) > 20) {
     ocd.js_rotate_scale = (float)rc_data->rc.dial / 660.0f;
   }
 
-  // 右拨杆 -> 摩擦轮 / 扳机请求
+  /* 右拨杆开启发射系统；扳机短按单发，长按连发。 */
   static float trigger_t0 = 0;
   static uint8_t trigger_last = 0;
   if (switch_right(rc_data->rc.mode_switch)) {
@@ -341,7 +366,7 @@ void JoyStickCtrl(RobotInstance* robot) {
     shoot_cmd->load_mode = LOAD_STOP;
   }
 
-  // 云台 yaw / pitch (CtrlSolve 中自瞄请求生效时会覆盖)
+  /* 手动云台增量；如果本帧进入自瞄，CtrlSolve 会覆盖 yaw/pitch。 */
   gimbal_cmd->gimbal_mode = GIMBAL_ON;
   const float yaw_delta = -0.00035f * (float)rc_data->rc.rocker_r_;
   gimbal_cmd->yaw += yaw_delta;
@@ -351,29 +376,29 @@ void JoyStickCtrl(RobotInstance* robot) {
     gimbal_cmd->pitch += -0.00006f * (float)rc_data->rc.rocker_r1;
   }
 
-  // 摇杆 -> 运动输入 (全姿态 m/s, 趴下由 chassis 层换算到电机量)
+  /* 摇杆平移统一输出 m/s，趴下模式由 chassis 层换算为轮速指令。 */
   if (update_flag.is_stand && update_flag.is_free) {
-    // 站立 + FREE: 右摇杆纵向 = 前进; 左摇杆 = roll / 腿长 微调
+    /* FREE 模式保留右摇杆前进，左摇杆用于 roll / 腿长微调。 */
     ocd.js_vy = 0.003f * (float)rc_data->rc.rocker_r1;
     ocd.intent.roll_delta = 0.0003f * (float)rc_data->rc.rocker_l_ * (abs(rc_data->rc.rocker_l_) > 10);
     ocd.intent.leg_length_delta = 0.0000005f * (float)rc_data->rc.rocker_l1;
   } else {
-    // 站立 (FOLLOW / ROTATE) / 趴下 (PROSTRATE_FOLLOW / PROSTRATE_ROTATE / !stand+FREE): m/s 量级
-    // ROTATE 模式下 vx 不读, 写无害.
+    /* FOLLOW/ROTATE 使用左摇杆平移；ROTATE 下 vx/vy 最终会被忽略。 */
     ocd.js_vx = 0.003f * (float)rc_data->rc.rocker_l_;
     ocd.js_vy = 0.003f * (float)rc_data->rc.rocker_l1;
   }
 }
 
-// ==========================================
-// MouseKeyCtrl: 键鼠 -> ocd.mk_* (运动/开火/自瞄)
-//             + 边沿驱动 update_flag.is_stand (Ctrl+G, 急停姿态锁定) / ocd.jump / ocd.leg
-//             + 直接积分 gimbal yaw/pitch 位置目标
-// ==========================================
+/**
+ * @brief 采样图传键鼠域输入。
+ *
+ * 键鼠域负责 WASD、鼠标云台、开火、自瞄、跳跃、腿长预设和 UI 刷新等事件。
+ * 这里只记录请求，不直接决定最终底盘模式。
+ */
 void MouseKeyCtrl(RobotInstance* robot) {
   rc_data = robot->rc_data;
 
-  // 帧起始: MK 输入字段清零 (持久字段保留)
+  /* 每帧清空瞬时键鼠意图，跳跃/腿长/掉头等持久状态保留。 */
   ocd.mk_vx = 0.0f;
   ocd.mk_vy = 0.0f;
   ocd.mk_yaw_ff = 0.0f;
@@ -388,12 +413,12 @@ void MouseKeyCtrl(RobotInstance* robot) {
   const VT13_MouseKey_t* mk = &rc_data->mouse_key;
   const VT13_MouseKey_t* mk_last = &rc_data_last.mouse_key;
 
-  // shift 持续按住 -> MK 小陀螺缩放系数 = 1 (满速; JS 的拨轮独立处理, CtrlSolve 仲裁)
+  /* Shift 按住请求正向小陀螺；若拨轮也活跃，CtrlSolve 优先使用拨轮方向。 */
   if (mk->keyboard.shift) {
     ocd.mk_rotate_scale = 1.0f;
   }
 
-  // 鼠标左键 -> 开火请求 (按住超过 0.3s 转连发)
+  /* 鼠标左键发射：短按单发，按住超过 0.3s 连发。 */
   static float mouse_trigger_t0 = 0;
   if (mk->mouse.press_l) {
     if (shoot_cmd->friction_mode == FRICTION_ON) {
@@ -404,25 +429,25 @@ void MouseKeyCtrl(RobotInstance* robot) {
     mouse_trigger_t0 = DWT_GetTimeline_s();
   }
 
-  // 鼠标右键 + vision 有数据 -> 自瞄请求 (CtrlSolve 中应用)
+  /* 右键且视觉数据有效时请求自瞄。 */
   if (mk->mouse.press_r && has_non_zero_data(vision)) {
     ocd.mk_vision = 1;
   }
 
-  // 鼠标增量 -> 云台 yaw / pitch (自瞄请求时 yaw_ff 由 CtrlSolve 统一清零)
+  /* 鼠标增量直接积分到云台目标；自瞄生效时 CtrlSolve 会覆盖。 */
   const float yaw_delta = -(float)mk->mouse.x * 0.002f;
   gimbal_cmd->yaw += yaw_delta;
   ocd.mk_yaw_ff = yaw_delta * 10.0f;
   gimbal_cmd->pitch += -(float)mk->mouse.y * 0.002f;
 
-  // X 边沿: 云台 +180° 掉头 + 启动反向跟随 (chassis 不旋转, W 反向, 待云台转过 REVERSE_FOLLOW_EXIT_DEG 后 CtrlSolve 清零)
+  /* X：云台 180 度掉头，同时临时启用反向跟随。 */
   if (mk->keyboard.x && !mk_last->keyboard.x) {
     gimbal_cmd->yaw += 180.0f;
     ocd.reverse.active = 1;
     ocd.reverse.start_yaw = robot->gimbal->gimbal_IMU_data->YawTotalAngle;
   }
 
-  // Z 边沿: 蹭台阶模式切换 (仅 stand). 进入: 快照腿档 + 切最高档 + 慢速; 退出: 恢复腿档 + 默认速度.
+  /* Z：切换蹭台阶模式。进入时升到最高腿长并降低 WASD 速度，退出时恢复原腿长档。 */
   if (mk->keyboard.z && !mk_last->keyboard.z && update_flag.is_stand) {
     if (!ocd.stair.active) {
       ocd.stair.active = 1;
@@ -435,24 +460,24 @@ void MouseKeyCtrl(RobotInstance* robot) {
     ocd.leg.pending = 1;
   }
 
-  // B 边沿: 强制 UI 刷新
+  /* B：强制刷新裁判 UI。 */
   if (mk->keyboard.b && !mk_last->keyboard.b) {
     RequestUiForceRefresh(robot);
   }
 
-  // C 边沿: 超级电容 BOOST <-> NORMAL
+  /* C：切换超级电容控制命令。 */
   if (mk->keyboard.c && !mk_last->keyboard.c) {
     robot->chassis->super_cap->super_cap_ctrl_cmd =
         (robot->chassis->super_cap->super_cap_ctrl_cmd == BOOST) ? NORMAL : BOOST;
   }
 
-  // Q / E 持续按住 -> roll 增量 (与 JS rocker_l_ 加性叠加, 同速度量纲)
+  /* Q/E：持续微调 roll。 */
   if (mk->keyboard.q)
     ocd.intent.roll_delta -= 0.4f;
   else if (mk->keyboard.e)
     ocd.intent.roll_delta += 0.4f;
 
-  // R / F 边沿: 四档腿长升降 (绝对写入挂起, CtrlSolve 消费)
+  /* R/F：切换四档腿长预设，实际写入由 CtrlSolve 消费 pending 标志。 */
   if (mk->keyboard.r && !mk_last->keyboard.r) {
     if (ocd.leg.index < 3) ocd.leg.index++;
     ocd.leg.pending = 1;
@@ -462,7 +487,7 @@ void MouseKeyCtrl(RobotInstance* robot) {
     ocd.leg.pending = 1;
   }
 
-  // Ctrl+G 边沿: 站立 <-> 趴下 (跳跃 ACTIVE / RECOVERY / 急停姿态时锁定)
+  /* Ctrl+G：切换站立/趴下；跳跃、恢复、急停期间锁定。 */
   const uint8_t ctrl_g = mk->keyboard.ctrl && mk->keyboard.g;
   const uint8_t ctrl_g_last = mk_last->keyboard.ctrl && mk_last->keyboard.g;
   if (ctrl_g && !ctrl_g_last && update_flag.is_on && chassis_cmd->chassis_mode != CHASSIS_RECOVERY &&
@@ -472,8 +497,7 @@ void MouseKeyCtrl(RobotInstance* robot) {
     update_flag.is_stand = !update_flag.is_stand;
   }
 
-  // Ctrl+V 边沿: jump.phase IDLE <-> READY
-  // V (无 Ctrl) 边沿: READY -> ACTIVE 起跳
+  /* Ctrl+V 进入/退出跳跃准备；准备状态下单按 V 起跳。 */
   const uint8_t ctrl_v = mk->keyboard.ctrl && mk->keyboard.v;
   const uint8_t ctrl_v_last = mk_last->keyboard.ctrl && mk_last->keyboard.v;
   const uint8_t v_edge = mk->keyboard.v && !mk_last->keyboard.v;
@@ -486,8 +510,7 @@ void MouseKeyCtrl(RobotInstance* robot) {
     ocd.jump.observed_active = 0;
   }
 
-  // WASD -> ocd.mk_vx/mk_vy (全姿态 m/s 单位, 趴下由 chassis 层换算到电机量)
-  // 速度优先级 (高到低): vault (跳台阶) > stair (蹭台阶) > 默认 vx.
+  /* WASD 平移速度优先级：跳台阶限速 > 蹭台阶限速 > 默认速度。 */
   float wasd_scale;
   const uint8_t in_vault = (ocd.jump.phase == JUMP_READY) || (ocd.jump.phase == JUMP_ACTIVE);
   if (in_vault) {
@@ -503,31 +526,31 @@ void MouseKeyCtrl(RobotInstance* robot) {
   if (mk->keyboard.a) ocd.mk_vx -= wasd_scale;
 }
 
-// ==========================================
-// CtrlSolve: 仲裁 -> ApplyOcdMode -> RobotMotionSolve -> Jump FSM 推进
-// 仲裁策略:
-//   运动 (vx/vy):  JS 离中位时优先, 否则 MK 接管 (避免叠加爆冲)
-//   yaw 前馈:       JS + MK 加性 (velocity 性质, 两手并用更快)
-//   开火:           OR 合并 (任一路触发都射)
-//   自瞄/跳跃/腿长:  单源 (MK 写, 无冲突)
-// ==========================================
+/**
+ * @brief 合并摇杆和键鼠意图，并推进一次上层控制状态。
+ *
+ * 仲裁原则：
+ * - 平移输入：摇杆优先，摇杆回中后键鼠接管；
+ * - yaw 前馈：摇杆和鼠标可以叠加；
+ * - 发射：任一路触发都有效；
+ * - 自瞄、跳跃、腿长预设：只由键鼠事件驱动，避免重复触发。
+ */
 void CtrlSolve(RobotInstance* robot) {
   Chassis_Ctrl_Cmd_s* chassis_cmd = &robot->chassis->chassis_ctrl_cmd;
   Gimbal_Ctrl_Cmd_s* gimbal_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   Shoot_Ctrl_Cmd_s* shoot_cmd = &robot->shoot->shoot_ctrl_cmd;
 
-  // 1. 运动轴: JS 优先 / MK 兜底
+  /* 1. 平移输入仲裁。 */
   const uint8_t js_owns = (fabsf(ocd.js_vx) > 1e-3f) || (fabsf(ocd.js_vy) > 1e-3f);
   ocd.intent.vx = js_owns ? ocd.js_vx : ocd.mk_vx;
   ocd.intent.vy = js_owns ? ocd.js_vy : ocd.mk_vy;
 
-  // 2. 小陀螺缩放系数: JS 拨轮带符号 (-1..1), MK shift 仅正向 (0 或 +1).
-  //    JS 拨轮活跃时优先 (保留转向); 否则 MK shift 接管, 避免符号被丢失.
+  /* 2. 小陀螺仲裁。拨轮带方向，优先级高于键盘 Shift。 */
   const uint8_t js_rotate_active = fabsf(ocd.js_rotate_scale) > 0.0f;
   ocd.intent.rotate_scale = js_rotate_active ? ocd.js_rotate_scale : ocd.mk_rotate_scale;
   update_flag.is_rotate = (fabsf(ocd.intent.rotate_scale) > 0.0f);
 
-  // 3. 云台 yaw 前馈: 加性合并; 自瞄请求生效时覆盖云台目标, 清空底盘前馈
+  /* 3. 云台 yaw 前馈。自瞄生效时覆盖云台目标并清空底盘前馈。 */
   ocd.intent.gimbal_yaw_ff = ocd.js_yaw_ff + ocd.mk_yaw_ff;
   if (ocd.mk_vision) {
     gimbal_cmd->gimbal_mode = GIMBAL_VISION;
@@ -536,29 +559,28 @@ void CtrlSolve(RobotInstance* robot) {
     ocd.intent.gimbal_yaw_ff = 0.0f;
   }
 
-  // 4. 开火: OR 合并 (任一路触发都射)
+  /* 4. 发射请求合并。 */
   if (shoot_cmd->shoot_mode == SHOOT_ON && shoot_cmd->friction_mode == FRICTION_ON) {
     const uint8_t burst = ocd.js_shoot.burst || ocd.mk_shoot.burst;
     const uint8_t fire = ocd.js_shoot.fire || ocd.mk_shoot.fire;
     shoot_cmd->load_mode = burst ? LOAD_BURSTFIRE : fire ? LOAD_1_BULLET : LOAD_STOP;
   }
 
-  // 5. 模式推导 (含 Jump FSM 状态映射, 读 update_flag.is_rotate)
+  /* 5. 根据持久状态和跳跃 FSM 写入 robot_mode / chassis_mode。 */
   ApplyOcdMode(robot);
 
-  // 5. 腿长预设: R/F 边沿挂起的绝对写入 (JS leg_length_delta 由 RobotMotionSolve 叠加)
+  /* 6. 消费腿长预设事件。摇杆腿长微调稍后在 RobotMotionSolve 中叠加。 */
   if (ocd.leg.pending) {
     chassis_cmd->leg_length = LEG_TABLE[ocd.leg.index];
     ocd.leg.pending = 0;
   }
 
-  // 5b. 跳台阶模式 (Ctrl+V 后 JUMP_READY / JUMP_ACTIVE): 强制云台 pitch = 0 (水平),
-  //     覆盖 MK 鼠标增量 / JS 摇杆增量 / 自瞄写入, 在 RobotMotionSolve 钳位之前生效.
+  /* 7. 跳跃准备/执行期间强制云台水平，避免鼠标或自瞄覆盖 pitch。 */
   if (ocd.jump.phase == JUMP_READY || ocd.jump.phase == JUMP_ACTIVE) {
     gimbal_cmd->pitch = 0.0f;
   }
 
-  // 5c. X 掉头反向跟随: 监视云台已转过角度, 达 REVERSE_FOLLOW_EXIT_DEG 后清除标志, 自动回正常 FOLLOW.
+  /* 8. 掉头反向跟随到角度后自动退出。 */
   if (ocd.reverse.active) {
     const float gimbal_delta = fabsf(robot->gimbal->gimbal_IMU_data->YawTotalAngle - ocd.reverse.start_yaw);
     if (gimbal_delta >= REVERSE_FOLLOW_EXIT_DEG) {
@@ -567,10 +589,10 @@ void CtrlSolve(RobotInstance* robot) {
   }
   ocd.intent.reverse_follow = ocd.reverse.active;
 
-  // 6. 解算运动 (rotate_scale 只推进 yaw 轨迹, 不再直写 wz)
+  /* 9. 将最终意图落到底盘 raw 指令。 */
   RobotMotionSolve(robot, &ocd.intent);
 
-  // 7. Jump FSM 推进: ACTIVE 状态等 chassis->jump_state 回 IDLE 或 1.2s 超时
+  /* 10. 跳跃 FSM 收尾：等待底盘跳跃状态回 IDLE，或超时保护退出。 */
   if (ocd.jump.phase == JUMP_ACTIVE) {
     if (robot->chassis->jump_state != JUMP_STATE_IDLE) {
       ocd.jump.observed_active = 1;
@@ -580,14 +602,20 @@ void CtrlSolve(RobotInstance* robot) {
     if (state_done || timeout) {
       ocd.jump.phase = JUMP_IDLE;
       ocd.jump.observed_active = 0;
-      ApplyOcdMode(robot);  // 立即回正常模式, 不等下一帧
+      ApplyOcdMode(robot);  // 立即回正常模式，不等下一帧。
     }
   }
 
-  // 8. 帧末快照: 供下一帧边沿检测
+  /* 11. 保存输入快照，供下一帧边沿检测。 */
   rc_data_last = *rc_data;
 }
 
+/**
+ * @brief 处理急停、倾倒恢复和发射禁用。
+ *
+ * 急停会直接断开底盘、云台、发射输出并清空跳跃状态。倾倒检测只把底盘切到
+ * CHASSIS_RECOVERY，让下层恢复流程接管。
+ */
 void EmergencyHandler(RobotInstance* robot) {
   rc_data = robot->rc_data;
   Chassis_Ctrl_Cmd_s* chassis_cmd = &robot->chassis->chassis_ctrl_cmd;
@@ -617,10 +645,15 @@ void EmergencyHandler(RobotInstance* robot) {
 }
 #endif
 
-// ==========================================
-// 逻辑层与输入层 (RC CTRL)
-// ==========================================
+/* ------------------------- 传统遥控器链路 ------------------------- */
+
 #ifdef USE_RC_CTRL
+
+/**
+ * @brief 传统遥控器链路的摇杆控制。
+ *
+ * 该分支保留旧遥控器输入方式，当前工程默认使用 OCD 图传链路。
+ */
 void JoyStickCtrl(RobotInstance* robot) {
   rc_data = robot->rc_data;
   Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
@@ -633,7 +666,7 @@ void JoyStickCtrl(RobotInstance* robot) {
   }
 
   Ctrl_Intent_s intent = {0};
-  // 拨轮活跃时缩放系数 = dial/660 (保留符号, 决定转向); 仅按 shift 时取 +1
+  /* 拨轮给出带方向的小陀螺缩放；仅按 Shift 时使用正向满速。 */
   const int16_t dial = rc_data[TEMP].rc.dial;
   const uint8_t is_rotate_mode = (abs(dial) > 20 || rc_data[TEMP].key[KEY_PRESS].shift);
   if (is_rotate_mode) {
@@ -662,8 +695,6 @@ void JoyStickCtrl(RobotInstance* robot) {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_JUMP_START;
       chassis_ctrl_cmd->jump_force = JUMP_FORCE;
     }
-  } else {
-    // Other mode?
   }
 
   if (!switch_is_up(rc_data[TEMP].rc.switch_right)) {
@@ -713,6 +744,9 @@ void JoyStickCtrl(RobotInstance* robot) {
   rc_data_last = rc_data[TEMP];
 }
 
+/**
+ * @brief 传统遥控器链路下的键鼠辅助控制。
+ */
 void MouseKeyCtrl(RobotInstance* robot) {
   rc_data = robot->rc_data;
   Shoot_Ctrl_Cmd_s* shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
@@ -793,7 +827,7 @@ void MouseKeyCtrl(RobotInstance* robot) {
 
   if (rc_data[TEMP].key[KEY_PRESS].f != f_key_last) {
     if (rc_data[TEMP].key[KEY_PRESS].f) {
-      // 切换飞坡参数 待添加...
+      /* 预留：切换飞坡参数。 */
     }
     f_key_last = rc_data[TEMP].key[KEY_PRESS].f;
   }
@@ -862,6 +896,9 @@ void MouseKeyCtrl(RobotInstance* robot) {
   rc_data_last = rc_data[TEMP];
 }
 
+/**
+ * @brief 传统遥控器链路下的急停与恢复处理。
+ */
 void EmergencyHandler(RobotInstance* robot) {
   rc_data = robot->rc_data;
   Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;

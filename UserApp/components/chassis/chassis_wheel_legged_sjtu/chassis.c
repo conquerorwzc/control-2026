@@ -24,8 +24,21 @@ static LegInstance* leg[2];
 static Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd;
 static referee_info_t* referee_data;
 static float wheel_speed_ref[2];
+static float yaw_prostrate_pid_output_lpf = 0.0f;
 // 平衡 → 卧倒 平滑过渡标志：1 表示正在用 LQR 把腿降到最低，再切真正的卧倒控制
 static uint8_t descending_to_prostrate = 0;
+
+static float FirstOrderLowPass(float input, float last_output, float dt, float rc) {
+  if (rc <= 0.0f) {
+    return input;
+  }
+  if (dt <= 0.0f) {
+    return last_output;
+  }
+
+  float alpha = dt / (rc + dt);
+  return last_output + alpha * (input - last_output);
+}
 
 static void PIDRuntimeReset(PIDInstance* pid) {
   if (pid == NULL) return;
@@ -111,6 +124,7 @@ static void ResetProstrateMemory(void) {
   PowerControlRuntimeReset(chassis);
   wheel_speed_ref[0] = 0.0f;
   wheel_speed_ref[1] = 0.0f;
+  yaw_prostrate_pid_output_lpf = 0.0f;
   for (int i = 0; i < 2; i++) {
     ResetLegMotorRuntime(leg[i]);
   }
@@ -515,9 +529,10 @@ void ChassisProstrate(void) {
   // 与原始摇杆 ±660 满量等效峰值:
   //   vx: 660 × (30000/660) = 30000 rpm  ↔ 站立 FOLLOW ±2.5 m/s → 12000
   //   wz: 660 × (28000/660) = 28000 rpm-diff ↔ 站立 ROTATE ±15 rad/s → 28000/15
-#define VX_MPS_TO_MOTOR 12000.0f
-#define WZ_PID_TO_MOTOR 10000.0f
-#define WZ_RADPS_TO_MOTOR (28000.0f / 15.0f)
+
+#define VX_MPS_TO_MOTOR 14000.0f
+#define WZ_PID_TO_MOTOR 20000.0f
+#define WZ_RADPS_TO_MOTOR (54000.0f / 15.0f)
   float vx_motor = 0.0f;
 
   // 设置速度环
@@ -526,14 +541,29 @@ void ChassisProstrate(void) {
     leg[i]->wheel_motor->motor_settings.outer_loop_type = SPEED_LOOP;
   }
 
-  float wz_pid = -PIDCalculate(&chassis->yaw_prostrate_PID, chassis->imu->YawTotalAngle * DEGREE_2_RAD,
-                               chassis_ctrl_cmd->target_yaw);
+  float wz_pid = 0.0f;
+  if (fabsf(chassis_ctrl_cmd->wz) > 0.01f) {
+    PIDRuntimeReset(&chassis->yaw_prostrate_PID);
+    yaw_prostrate_pid_output_lpf = 0.0f;
+  } else {
+    float yaw_pid_output = PIDCalculate(&chassis->yaw_prostrate_PID, chassis->imu->YawTotalAngle * DEGREE_2_RAD,
+                                        chassis_ctrl_cmd->target_yaw);
+    yaw_prostrate_pid_output_lpf = FirstOrderLowPass(yaw_pid_output, yaw_prostrate_pid_output_lpf,
+                                                     chassis->yaw_prostrate_PID.dt,
+                                                     0.02f);
+    chassis->yaw_prostrate_PID.Output = yaw_prostrate_pid_output_lpf;
+    wz_pid = -yaw_prostrate_pid_output_lpf;
+  }
+
+  // float wz_pid = -PIDCalculate(&chassis->yaw_prostrate_PID, chassis->imu->YawTotalAngle * DEGREE_2_RAD,
+  //                                     chassis_ctrl_cmd->target_yaw);
   vx_motor = chassis_ctrl_cmd->vx * VX_MPS_TO_MOTOR;
   float wz_motor = wz_pid * WZ_PID_TO_MOTOR + chassis_ctrl_cmd->wz * WZ_RADPS_TO_MOTOR;
 
   // 差速分配
   wheel_speed_ref[0] = -1.0f * (vx_motor - wz_motor);  // 右轮 leg[0]
   wheel_speed_ref[1] = -1.0f * (vx_motor + wz_motor);  // 左轮 leg[1]
+  chassis->yaw_prostrate_PID.Last_Output = yaw_prostrate_pid_output_lpf;
 }
 /**
  * @brief 卧倒模式缩关节
@@ -554,7 +584,7 @@ static void LimitChassisOutput(void) {
   // 平衡 → 卧倒 过渡期间仍走 LQR 力矩输出路径，不能切到卧倒的速度环 + 关节角度环
   if (chassis->chassis_ctrl_cmd.chassis_mode == CHASSIS_PROSTRATE && !descending_to_prostrate) {
     for (int i = 0; i < 2; i++) {
-      VAL_LIMIT(wheel_speed_ref[i], -50000.0f, 50000.0f);
+      VAL_LIMIT(wheel_speed_ref[i], -53000.0f, 53000.0f);
       DJIMotorSetPIDRef(leg[i]->wheel_motor, wheel_speed_ref[i]);
     }
     // 速度 PID 已生成 final_output, 此处再限流才能真正影响本帧 CAN 输出。
@@ -758,9 +788,9 @@ void ChassisTask(void) {
 
   static float last_super_cap_send_time = 0.0f;
   float now_ms = DWT_GetTimeline_ms();
-  if (now_ms - last_super_cap_send_time >= 20.0f) {
+  if (now_ms - last_super_cap_send_time >= 10.0f) {
     last_super_cap_send_time = now_ms;
-    SuperCapSendMessage(chassis->super_cap, (int16_t)(referee_data->GameRobotState.chassis_power_limit * (13.0f / 14.0f)),
+    SuperCapSendMessage(chassis->super_cap, (int16_t)(referee_data->GameRobotState.chassis_power_limit ),
                         referee_data->PowerHeatData.buffer_energy,
                         referee_data->GameRobotState.power_management_chassis_output);
   }

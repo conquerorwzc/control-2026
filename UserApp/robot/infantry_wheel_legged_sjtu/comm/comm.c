@@ -12,6 +12,19 @@
 #include "can_comm.h"
 
 #if !defined(ONE_BOARD)
+#define COMM_PERIOD_100HZ_MS 10.0f
+#define COMM_PERIOD_50HZ_MS 20.0f
+#define COMM_PERIOD_20HZ_MS 50.0f
+
+static uint8_t CommPeriodElapsed(float now_ms, float* last_ms, float period_ms) {
+  if (now_ms - *last_ms < period_ms) {
+    return 0;
+  }
+
+  *last_ms = now_ms;
+  return 1;
+}
+
 void RobotCommInit(RobotInstance* robot) {
   if (robot == NULL) return;
 
@@ -53,16 +66,21 @@ void RobotCommTask(RobotInstance* robot) {
   Chassis_Fetch_Data_s* chassis_fetch_data = robot->chassis_fetch_data;
   if (chassis_upload_data == NULL || chassis_fetch_data == NULL) return;
 
+  float now_ms = DWT_GetTimeline_ms();
+
 #if defined(GIMBAL_BOARD)
   static SuperCap_Ctrl_Cmd_e last_local_cmd = NORMAL;
   static float last_change_time = 0;
+  static float last_fetch_main_send_time = -COMM_PERIOD_50HZ_MS;
+  static float last_fetch_motion_send_time = -COMM_PERIOD_20HZ_MS;
+  static float last_fetch_gamestate_send_time = -COMM_PERIOD_20HZ_MS;
 
   Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   Gimbal_Ctrl_Cmd_s* gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   Shoot_Ctrl_Cmd_s* shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
 
   if (robot->chassis->super_cap->super_cap_ctrl_cmd != last_local_cmd) {
-    last_change_time = DWT_GetTimeline_ms();
+    last_change_time = now_ms;
     last_local_cmd = robot->chassis->super_cap->super_cap_ctrl_cmd;
   }
 
@@ -88,16 +106,26 @@ void RobotCommTask(RobotInstance* robot) {
   shoot_ctrl_cmd->shooter_barrel_heat_limit = chassis_upload_data->gamestate.shoot_heat_limit;
   VisionSetRefereeData(chassis_upload_data->gamestate.bullet_speed, chassis_upload_data->gamestate.robot_id);
 
-  if (DWT_GetTimeline_ms() - last_change_time > 500.0f) {
+  if (now_ms - last_change_time > 500.0f) {
     robot->chassis->super_cap->super_cap_ctrl_cmd = chassis_upload_data->main.super_cap_ctrl_cmd;
     last_local_cmd = chassis_upload_data->main.super_cap_ctrl_cmd;
   }
 
-  CANCommSend(robot->main_comm, (uint8_t*)&chassis_fetch_data->main);
-  CANCommSend(robot->motion_comm, (uint8_t*)&chassis_fetch_data->motion);
-  CANCommSend(robot->gamestate_comm, (uint8_t*)&chassis_fetch_data->gamestate);
-  chassis_fetch_data->main.force_refresh_ui = 0;
+  if (CommPeriodElapsed(now_ms, &last_fetch_main_send_time, COMM_PERIOD_50HZ_MS)) {
+    CANCommSend(robot->main_comm, (uint8_t*)&chassis_fetch_data->main);
+    chassis_fetch_data->main.force_refresh_ui = 0;
+  }
+  if (CommPeriodElapsed(now_ms, &last_fetch_motion_send_time, COMM_PERIOD_20HZ_MS)) {
+    CANCommSend(robot->motion_comm, (uint8_t*)&chassis_fetch_data->motion);
+  }
+  if (CommPeriodElapsed(now_ms, &last_fetch_gamestate_send_time, COMM_PERIOD_20HZ_MS)) {
+    CANCommSend(robot->gamestate_comm, (uint8_t*)&chassis_fetch_data->gamestate);
+  }
 #elif defined(CHASSIS_BOARD)
+  static float last_upload_main_send_time = -COMM_PERIOD_20HZ_MS;
+  static float last_upload_motion_send_time = -COMM_PERIOD_100HZ_MS;
+  static float last_upload_gamestate_send_time = -COMM_PERIOD_20HZ_MS;
+
   memcpy(&chassis_fetch_data->main, CANCommGet(robot->main_comm), sizeof(chassis_fetch_data->main));
   memcpy(&chassis_fetch_data->motion, CANCommGet(robot->motion_comm), sizeof(chassis_fetch_data->motion));
   memcpy(&chassis_fetch_data->gamestate, CANCommGet(robot->gamestate_comm), sizeof(chassis_fetch_data->gamestate));
@@ -124,9 +152,15 @@ void RobotCommTask(RobotInstance* robot) {
     }
   }
 
-  CANCommSend(robot->main_comm, (uint8_t*)&chassis_upload_data->main);
-  CANCommSend(robot->motion_comm, (uint8_t*)&chassis_upload_data->motion);
-  CANCommSend(robot->gamestate_comm, (uint8_t*)&chassis_upload_data->gamestate);
+  if (CommPeriodElapsed(now_ms, &last_upload_main_send_time, COMM_PERIOD_20HZ_MS)) {
+    CANCommSend(robot->main_comm, (uint8_t*)&chassis_upload_data->main);
+  }
+  if (CommPeriodElapsed(now_ms, &last_upload_motion_send_time, COMM_PERIOD_100HZ_MS)) {
+    CANCommSend(robot->motion_comm, (uint8_t*)&chassis_upload_data->motion);
+  }
+  if (CommPeriodElapsed(now_ms, &last_upload_gamestate_send_time, COMM_PERIOD_20HZ_MS)) {
+    CANCommSend(robot->gamestate_comm, (uint8_t*)&chassis_upload_data->gamestate);
+  }
 #endif
 }
 #else

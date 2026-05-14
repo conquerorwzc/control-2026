@@ -156,8 +156,9 @@ void PowerControl(ChassisInstance* chassis) {
   }
 
   pc->P_total = pc->P[0] + pc->P[1];
-  // pc->P_total_ref = chassis->chassis_ctrl_cmd.max_power;
-  pc->P_total_ref = 200.f;
+  pc->P_total_ref = chassis->chassis_ctrl_cmd.max_power;
+  // pc->P_total_ref = 180.f;
+  // pc->P_total_ref = 50.f;
 
   // 3.功率控制逻辑
   if (pc->P_total > pc->P_total_ref) {
@@ -240,8 +241,9 @@ void PowerControl_Prostrate(ChassisInstance* chassis) {
   }
 
   pc->P_total = pc->P[0] + pc->P[1];
-  // pc->P_total_ref = chassis->chassis_ctrl_cmd.max_power;
-  pc->P_total_ref = 200.f;
+  pc->P_total_ref = chassis->chassis_ctrl_cmd.max_power;
+  // pc->P_total_ref = 180.f;
+  // pc->P_total_ref = 50.f;
 
   // 功率超限时进行动态调整
   if (pc->P_total > pc->P_total_ref) {

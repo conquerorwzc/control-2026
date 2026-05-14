@@ -162,7 +162,7 @@
                   {                                                                                                    \
                       .speed_PID =                                                                                     \
                           {                                                                                            \
-                              .Kp = 1.0,                                                                               \
+                              .Kp = 1.5,                                                                               \
                               .Ki = 0.5,                                                                               \
                               .Kd = 0,                                                                                 \
                               .IntegralLimit = 6000,                                                                   \
@@ -289,17 +289,17 @@ static Chassis_Init_Config_s
                 },
             .super_cap_config = {.can_config =
                                      {
-                                         .can_handle = &hcan2,
+                                         .can_handle = &hcan1,
                                          .tx_id = 0x210,  // 超级电容默认接收id
                                          .rx_id = 0x211,  // 超级电容默认发送id,注意tx和rx在其他人看来是反的
                                      }},
             .yaw_prostrate_PID_config =
                 {
-                    .Kp = 3.0f,
+                    .Kp = 3.5f,
                     .Ki = 0.0f,
-                    .Kd = 0.02f,
+                    .Kd = 0.3f,
                     .MaxOut = 6.0f,
-                    .DeadBand = 0.01f,
+                    .DeadBand = 0.0f,
                     .IntegralLimit = 3.0f,
                 },
 };
@@ -337,6 +337,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                     .tx_id = 6,
                 },
             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+            .controller_setting_init_config.feedforward_flag = SPEED_FEEDFORWARD,
         },
     .pitch_motor_config =
         {
