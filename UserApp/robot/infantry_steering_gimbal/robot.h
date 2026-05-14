@@ -36,8 +36,7 @@ typedef struct {
   uint8_t SuperCapBoost;
   //int chassis_speed_buff;
   //uint16_t max_power;  // 最大功率限制
-  // UI部分
-  //  ...
+
 } Chassis_Ctrl_CanComm;
 //#pragma pack()
 

@@ -484,6 +484,12 @@ ChassisInstance *ChassisInit(Chassis_Init_Config_s *chassis_init_config)
 }
 
 /* 机器人底盘控制核心任务 */
+/* 角度误差归一化到[-180,180]，解决offset_angle在±180°边界处的不连续问题 */
+static float AngleErrorNormalize(float error) {
+    while (error > 180.0f) error -= 360.0f;
+    while (error < -180.0f) error += 360.0f;
+    return error;
+}
 void ChassisTask()
 {
     switch (chassis->super_cap_mode)
@@ -543,7 +549,13 @@ void ChassisTask()
     switch (chassis_ctrl_cmd->chassis_mode)
     {
     case CHASSIS_FOLLOW: // 跟随云台,不单独设置pid,以误差角度平方为速度输出
-        chassis_ctrl_cmd->wz += PIDCalculate(&follow_pid, chassis_ctrl_cmd->offset_angle, 0);
+        chassis_ctrl_cmd->wz += PIDCalculate(&follow_pid, AngleErrorNormalize(chassis_ctrl_cmd->offset_angle - 0), 0);
+        break;
+    case CHASSIS_FOLLOW_DIAGONAL: // 斜45度跟随，底盘与云台保持45度夹角
+        chassis_ctrl_cmd->wz += PIDCalculate(&follow_pid, AngleErrorNormalize(chassis_ctrl_cmd->offset_angle - 45.0f), 0);
+        break;
+    case CHASSIS_FOLLOW_TURN: // 一键掉头，底盘与云台保持180度夹角
+        chassis_ctrl_cmd->wz += PIDCalculate(&follow_pid, AngleErrorNormalize(chassis_ctrl_cmd->offset_angle - 180.0f), 0);
         break;
     case CHASSIS_ROTATE: // 自旋,同时保持全向机动;当前wz维持定值,后续增加不规则的变速策略
         chassis_ctrl_cmd->offset_angle += 0.0005f * chassis_ctrl_cmd->wz;

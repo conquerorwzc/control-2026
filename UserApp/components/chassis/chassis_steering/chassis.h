@@ -31,6 +31,8 @@ typedef enum
     CHASSIS_POWER_OFF = 0, // 电流零输入
     CHASSIS_ROTATE,        // 小陀螺模式
     CHASSIS_FOLLOW,        // 跟随模式，底盘叠加角度环控制
+    CHASSIS_FOLLOW_DIAGONAL, // 斜45度跟随模式，底盘保持与云台45度夹角
+    CHASSIS_FOLLOW_TURN,     // 一键掉头模式，底盘保持与云台180度夹角
     //  CHASSIC_TURN,						  //一键掉头
 } Chassis_Mode_e;
 

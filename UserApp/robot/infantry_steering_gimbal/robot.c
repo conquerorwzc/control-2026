@@ -287,6 +287,60 @@ static void MouseKeySet() {
       break;
   }
 
+  // ---- Q/F 键：斜45度 + 一键掉头，两个独立标志位 ----
+  static uint8_t diagonal_mode = 0;   // 0=正常follow, 1=斜45度
+  static uint8_t turn_state = 0;      // 0=正常, 1=已掉头
+  static uint8_t prev_f_count = 0;
+  static Chassis_Mode_e prev_chassis_mode = CHASSIS_FOLLOW;
+
+  // 外部改模式(遥控器拨杆切ROTATE等)：重置两个标志位
+  if (prev_chassis_mode != chassis_ctrl_cmd->chassis_mode) {
+    if (chassis_ctrl_cmd->chassis_mode != CHASSIS_FOLLOW &&
+        chassis_ctrl_cmd->chassis_mode != CHASSIS_FOLLOW_TURN &&
+        chassis_ctrl_cmd->chassis_mode != CHASSIS_FOLLOW_DIAGONAL) {
+      diagonal_mode = 0;
+      turn_state = 0;
+    }
+    // 从非follow切回follow：只保留diagonal_mode，turn_state重置
+    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
+      turn_state = 0;
+    }
+  }
+  prev_chassis_mode = chassis_ctrl_cmd->chassis_mode;
+
+  // Q键：在所有follow模式间切换斜45度
+  if (rc_data[TEMP].key_count[KEY_PRESS][Key_Q] % 2) {
+    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW ||
+        chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW_TURN ||
+        chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW_DIAGONAL) {
+      diagonal_mode = !diagonal_mode;
+    }
+  }
+
+  // F键：在所有follow模式间切换掉头
+  if (rc_data[TEMP].key_count[KEY_PRESS][Key_F] != prev_f_count) {
+    prev_f_count = rc_data[TEMP].key_count[KEY_PRESS][Key_F];
+    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW ||
+        chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW_TURN ||
+        chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW_DIAGONAL) {
+      gimbal_ctrl_cmd->yaw += (turn_state == 0) ? 180.0f : -180.0f;
+      turn_state = !turn_state;
+    }
+  }
+
+  // 由两个标志位组合决定最终chassis_mode
+  if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW ||
+      chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW_TURN ||
+      chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW_DIAGONAL) {
+    if (diagonal_mode) {
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW_DIAGONAL;
+    } else if (turn_state) {
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW_TURN;
+    } else {
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+    }
+  }
+
   if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
     gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
   } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
@@ -527,17 +581,54 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
       chassis_ctrl_cmd->chassis_speed_buff = 80000;
       break;
   }
-  // switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Q]%2) //新增Q自旋开启
-  // {
-  //   case 0:
-  //     chassis_ctrl_cmd-> chassis_mode = CHASSIS_FOLLOW ;
-  //     chassis_ctrl_cmd->wz+=(float)rc_data[TEMP].mouse.x * 30.0f; //主动跟随量
-  //     break;
-  //   default:
-  //     chassis_ctrl_cmd-> chassis_mode = CHASSIS_ROTATE ;
-  //     chassis_ctrl_cmd->wz+=5000;
-  //     break;
-  // }
+  // ---- Q/G 键：斜45度 + 一键掉头，两个独立标志位 ----
+  static uint8_t diagonal_mode = 0;
+  static uint8_t turn_state = 0;
+  static uint8_t prev_g_count = 0;
+  static Chassis_Mode_e prev_chassis_mode = CHASSIS_FOLLOW;
+
+  if (prev_chassis_mode != chassis_ctrl_cmd->chassis_mode) {
+    if (chassis_ctrl_cmd->chassis_mode != CHASSIS_FOLLOW &&
+        chassis_ctrl_cmd->chassis_mode != CHASSIS_FOLLOW_TURN &&
+        chassis_ctrl_cmd->chassis_mode != CHASSIS_FOLLOW_DIAGONAL) {
+      diagonal_mode = 0;
+      turn_state = 0;
+    }
+    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
+      turn_state = 0;
+    }
+  }
+  prev_chassis_mode = chassis_ctrl_cmd->chassis_mode;
+
+  if (rc_data[TEMP].key_count[KEY_PRESS][Key_Q] % 2) {
+    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW ||
+        chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW_TURN ||
+        chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW_DIAGONAL) {
+      diagonal_mode = !diagonal_mode;
+    }
+  }
+
+  if (rc_data[TEMP].key_count[KEY_PRESS][Key_G] != prev_g_count) {
+    prev_g_count = rc_data[TEMP].key_count[KEY_PRESS][Key_G];
+    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW ||
+        chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW_TURN ||
+        chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW_DIAGONAL) {
+      gimbal_ctrl_cmd->yaw += (turn_state == 0) ? 180.0f : -180.0f;
+      turn_state = !turn_state;
+    }
+  }
+
+  if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW ||
+      chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW_TURN ||
+      chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW_DIAGONAL) {
+    if (diagonal_mode) {
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW_DIAGONAL;
+    } else if (turn_state) {
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW_TURN;
+    } else {
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+    }
+  }
 
   switch (rc_data[TEMP].key[KEY_PRESS].shift)  // 待添加 按shift允许超功率 消耗缓冲能量
   {
