@@ -46,7 +46,7 @@ static void supercap_power() {
             robot->chassis->super_cap_mode = ACTIVE_MODE;
           if (robot->chassis->super_cap->cap_msg.cap_v > 18.0f)
             robot->chassis->super_cap_mode = PASSIVE_MODE;
-          robot->chassis->chassis_ctrl_cmd.max_power =robot->referee_data->GameRobotState.chassis_power_limit;//TODO:用超电记得改;
+          robot->chassis->chassis_ctrl_cmd.max_power =robot->referee_data->GameRobotState.chassis_power_limit-5;//TODO:用超电记得改;
           break;
       case CHARGING_MODE:
           if (robot->chassis->super_cap->cap_msg.cap_v > 18.0f)
@@ -78,7 +78,7 @@ static void supercap_power() {
       }
       break;
     default:
-      chassis_ctrl_cmd->max_power = robot->referee_data->GameRobotState.chassis_power_limit;
+      chassis_ctrl_cmd->max_power = robot->referee_data->GameRobotState.chassis_power_limit-5;
       break;
   }
 }
@@ -589,8 +589,8 @@ void RobotInit() {
 
 void RobotCMDTask() {
   shoot_ctrl_cmd->initial_speed=robot->referee_data->ShootData.initial_speed;
-  shoot_ctrl_cmd->shooter_barrel_heat=robot->referee_data->PowerHeatData.shooter_42mm_barrel_heat;
-  shoot_ctrl_cmd->shooter_barrel_heat_limit=robot->referee_data->GameRobotState.shooter_barrel_heat_limit;
+  shoot_ctrl_cmd->shooter_barrel_heat=robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
+  shoot_ctrl_cmd->shooter_barrel_heat_limit=robot->referee_data->GameRobotState.shooter_barrel_heat_limit-10;
   shoot_ctrl_cmd->shooter_barrel_cooling_value=robot->referee_data->GameRobotState.shooter_barrel_cooling_value;
   supercap_power();
   CalcOffsetAngle();
@@ -611,7 +611,7 @@ void RobotTask() {
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   ChassisTask();
   SuperCapSendMessage(robot->super_cap,
-    robot->referee_data->GameRobotState.chassis_power_limit,
+    robot->referee_data->GameRobotState.chassis_power_limit-5,
     robot->referee_data->PowerHeatData.buffer_energy,
     robot->referee_data->GameRobotState.power_management_chassis_output);
 #endif

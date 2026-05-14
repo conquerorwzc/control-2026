@@ -75,7 +75,7 @@ ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
  * @brief 弹速控制函数，根据实际弹速与目标弹速的差异动态调整摩擦轮转速,后续实际弹速从裁判系统中获取
  */
 void ShootBulletSpeedControl(void) {
-  switch (shoot_ctrl_cmd->heat_mode) {
+  switch (shoot_ctrl_cmd->bullet_speed_mode) {
     case DISABLE:
       return;
     case MANUAL_BULLET_SPEED:

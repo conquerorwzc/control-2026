@@ -1,5 +1,5 @@
 #pragma once
-#define USE_DUAL_RC_NEW
+// #define USE_DUAL_RC_NEW
 #include "chassis.h"
 #include "gimbal.h"
 #include "shoot.h"
