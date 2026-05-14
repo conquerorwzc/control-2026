@@ -1294,11 +1294,64 @@ static void PowerControl() {
   }
   // 功率超限时进行动态调整
   if (initial_total_power > (float)chassis_ctrl_cmd->max_power) {
-    float power_scale = (float)chassis_ctrl_cmd->max_power / initial_total_power;  // 削减功率比例
+    float power_scale = (float)chassis_ctrl_cmd->max_power / initial_total_power;  // 基础削减比例
+
+    // 1. 分别统计前轮(索引0, 3)和后轮(索引1, 2)的初始正向需求功率
+    float initial_front_power = 0.0f;
+    float initial_rear_power = 0.0f;
+    for (int i = 0; i < 4; i++) {
+      if (initial_give_power[i] > 0) {
+        if (i == 0 || i == 1) { // ！！！修改点：1号和4号电机为前轮
+          initial_front_power += initial_give_power[i];
+        } else {
+          initial_rear_power += initial_give_power[i];
+        }
+      }
+    }
+
+    // 2. 计算按原比例分配的配额
+    float alloc_front = initial_front_power * power_scale;
+    float alloc_rear  = initial_rear_power * power_scale;
+
+    // 3. 计算前轮还能“吃下”多少功率（最多到原始需求）
+    float front_margin = initial_front_power - alloc_front;
+
+    // 4. 定义前轮优先偏置系数 (0.0 ~ 1.0)
+    // 4. 动态计算前轮优先偏置系数 (Dynamic Front Bias)
+    float current_max_power = (float)chassis_ctrl_cmd->max_power;
+    float front_bias = 0.0f;
+
+    // 定义功率区间阈值（你需要根据你的底盘实际情况微调这四个参数）
+    float power_low_thresh  = 45.0f;  // 低功率阈值：低于此值时，启用最大偏置
+    float power_high_thresh = 75.0f;  // 高功率阈值：高于此值时，启用最小偏置
+    float bias_max = 0.3f;            // 低功率下的最大偏置权重
+    float bias_min = 0.2f;            // 高功率下的最小偏置权重 (也可以设为0)
+
+    if (current_max_power <= power_low_thresh) {
+      front_bias = bias_max;
+    } else if (current_max_power >= power_high_thresh) {
+      front_bias = bias_min;
+    } else {
+      // 在低功率和高功率之间，进行一次函数线性插值，平滑过渡
+      float ratio = (current_max_power - power_low_thresh) / (power_high_thresh - power_low_thresh);
+      front_bias = bias_max - ratio * (bias_max - bias_min);
+    }
+
+    // 5. 计算转移功率：取前轮缺口和后轮可用配额的最小值
+    float shift_power = fminf(front_margin, alloc_rear) * front_bias;
+
+    // 6. 计算新的独立缩放比例
+    float front_scale = initial_front_power > 0 ? (alloc_front + shift_power) / initial_front_power : 0.0f;
+    float rear_scale  = initial_rear_power > 0  ? (alloc_rear - shift_power) / initial_rear_power   : 0.0f;
+
     float scaled_give_power[4];
     // 计算缩放后的功率目标
     for (int i = 0; i < 4; i++) {
-      scaled_give_power[i] = initial_give_power[i] * power_scale;
+      if (i == 0 || i == 1) { // ！！！修改点：1号和4号电机为前轮
+        scaled_give_power[i] = initial_give_power[i] * front_scale;
+      } else {
+        scaled_give_power[i] = initial_give_power[i] * rear_scale;
+      }
       chassis->wheel_motor[i]->scaled_give_power = scaled_give_power[i];
     }
 

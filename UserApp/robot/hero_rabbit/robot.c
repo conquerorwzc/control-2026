@@ -205,7 +205,7 @@ static void MouseKeySet() {
       gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
     }
   }
-
+  chassis_ctrl_cmd->leg_mode = LEG_HOLD;
   // 3. 按键边缘检测 (捕获上升沿)
   if (rc_data->mouse_key.keyboard.g && !rc_data_last->mouse_key.keyboard.g) key_g_count++;
   if (rc_data->mouse_key.keyboard.b && !rc_data_last->mouse_key.keyboard.b) key_b_count++;
@@ -214,10 +214,48 @@ static void MouseKeySet() {
   if (rc_data->mouse_key.keyboard.v && !rc_data_last->mouse_key.keyboard.v) key_v_count++;
 
   // 4. 键盘事件处理
-  if (rc_data->mouse_key.keyboard.r) chassis_ctrl_cmd->leg_mode = LEG_MANUAL_UP;
-  else if (rc_data->mouse_key.keyboard.f) chassis_ctrl_cmd->leg_mode = LEG_MANUAL_DOWN;
-  else if (rc_data_last->mouse_key.keyboard.r || rc_data_last->mouse_key.keyboard.f) {
-    chassis_ctrl_cmd->leg_mode = LEG_HOLD; // 或者你的底盘停止宏
+  if (rc_data->mouse_key.keyboard.r && !rc_data_last->mouse_key.keyboard.r) {
+
+    // 按下 R 的时候，检查 Ctrl 是否已经被按住了
+    if (rc_data->mouse_key.keyboard.ctrl) {
+      // 触发组合键：Ctrl + R
+
+      // shoot_ctrl_cmd->load_mode = LOAD_REVERSE; // 假设的反转拨弹功能
+
+    } else {
+      // 触发单键：单纯按下 R
+      chassis_ctrl_cmd->leg_mode = LEG_MANUAL_UP;
+    }
+  }
+  if (rc_data->mouse_key.keyboard.f && !rc_data_last->mouse_key.keyboard.f) {
+
+    // 按下 R 的时候，检查 Ctrl 是否已经被按住了
+    if (rc_data->mouse_key.keyboard.ctrl) {
+      // 触发组合键：Ctrl + F
+
+      // shoot_ctrl_cmd->load_mode = LOAD_REVERSE; // 假设的反转拨弹功能
+
+    } else {
+      // 触发单键：单纯按下 R
+      chassis_ctrl_cmd->leg_mode = LEG_MANUAL_DOWN;
+    }
+  }
+
+
+  // ==================== 处理 G 键及 Ctrl+G ====================
+  // 捕获 G 键的上升沿（刚刚按下的那一瞬间）
+  if (rc_data->mouse_key.keyboard.g && !rc_data_last->mouse_key.keyboard.g) {
+
+    // 按下 G 的时候，检查 Ctrl 是否已经被按住了
+    if (rc_data->mouse_key.keyboard.ctrl) {
+      // 触发组合键：Ctrl + G
+      // chassis_ctrl_cmd->power_distribute = 2.0f; // 假设的功率重分配
+
+    } else {
+      // 触发单键：单纯按下 G
+      // 走原来的单键逻辑：累加计数器，交给后面的 switch 处理单发/连发或底盘方向
+      key_g_count++;
+    }
   }
 
   if (rc_data_last->mouse_key.keyboard.x == 0 && rc_data->mouse_key.keyboard.x == 1) {
@@ -526,6 +564,7 @@ void RobotCMDTask() {
   shoot_ctrl_cmd->shooter_barrel_heat = robot->referee_data->PowerHeatData.shooter_42mm_barrel_heat;
   shoot_ctrl_cmd->shooter_barrel_heat_limit=robot->referee_data->GameRobotState.shooter_barrel_heat_limit;
   chassis_ctrl_cmd->max_power = robot->referee_data->GameRobotState.chassis_power_limit;
+  //chassis_ctrl_cmd->max_power = 180;
 
   CalcOffsetAngle();
   RemoteControlSet();
