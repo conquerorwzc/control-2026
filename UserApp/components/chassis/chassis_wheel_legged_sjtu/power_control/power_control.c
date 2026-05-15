@@ -190,16 +190,16 @@ void PowerControl(ChassisInstance* chassis) {
     pc->scale_combined = (pc->scale_motion[0] + pc->scale_motion[1]) * 0.5f;  // todo: 取最小值还是平均？
     pc->scale_combined = (pc->scale_motion[0] + pc->scale_motion[1]) * 0.5f;  // todo: 取最小值还是平均？
 
-    chassis->state_err[1] *= pc->scale_combined;
-    chassis->state_err[2] *= pc->scale_combined;
-    chassis->state_err[3] *= pc->scale_combined;
+    // chassis->state_err[1] *= pc->scale_combined;
+    // chassis->state_err[2] *= pc->scale_combined;
+    // chassis->state_err[3] *= pc->scale_combined;
 
     // x_ref_j = x_j - state_err[j] * scale_combined
     // x_b 的 ref 恒为 0, 不回写;
     // x_b_d -> vx, phi -> target_yaw, phi_d -> wz
-    chassis->chassis_ctrl_cmd.vx = sv->x_b_d - chassis->state_err[1];
-    chassis->chassis_ctrl_cmd.target_yaw = sv->phi - chassis->state_err[2];
-    chassis->chassis_ctrl_cmd.wz = sv->phi_d - chassis->state_err[3];
+    // chassis->chassis_ctrl_cmd.vx = sv->x_b_d - chassis->state_err[1];
+    // chassis->chassis_ctrl_cmd.target_yaw = sv->phi - chassis->state_err[2];
+    // chassis->chassis_ctrl_cmd.wz = sv->phi_d - chassis->state_err[3];
   } else {
     // 默认无缩放
     pc->scale_motion[0] = 1.0f;
