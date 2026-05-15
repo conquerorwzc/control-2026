@@ -114,15 +114,15 @@ const GasSpringPoint_t gas_spring_table[GAS_SPRING_TABLE_SIZE] = {
 const float GAS_SPRING_FREE_LENGTH = 0.230f;
 // theta=0 时，主动杆 L2 绝对水平指向车头；向下压时 theta 为正。
 // 2026-05 最新实车物理标定零位 (水平为0，下压为正)
-#define LEFT_MOTOR_HORIZON_OFFSET  (1.5146f) //
-#define RIGHT_MOTOR_HORIZON_OFFSET 1.415f  //
+#define LEFT_MOTOR_HORIZON_OFFSET  (1.532f) //
+#define RIGHT_MOTOR_HORIZON_OFFSET 1.3325f  //
 // 电机旋转方向系数 (如果往下压时编码器数值减小，则填 -1.0f，增大填 1.0f)
 #define LEFT_MOTOR_DIR   1.0f
 #define RIGHT_MOTOR_DIR  (-1.0f)
 // 在文件顶部定义位置缓变速率和极限角度 (均为标准数学弧度)
 #define LEG_RAMP_RATE       0.001f  // 腿长变化速度 (弧度/ms)，数值越小动作越慢
-#define UPPER_LIMIT_ANGLE   0.280f   // 上方机械限位角度 (几乎水平)
-#define LOWER_LIMIT_ANGLE   1.0f   // 下方最大伸展角度 (防止顶死或奇异点)
+#define UPPER_LIMIT_ANGLE   0.350f   // 上方机械限位角度 (几乎水平)
+static float LOWER_LIMIT_ANGLE  = 1.1f;   // 下方最大伸展角度 (防止顶死或奇异点)
                                    //单位都为弧度，车辆坐标系
 // ==============================================================
 float rad_to_deg(float encoder_val) {
@@ -1084,7 +1084,16 @@ static void Leg_AngleLoop_Control() {
         last_base_p_des_l = theta_math_l; last_base_p_des_r = theta_math_r;
         is_first_run = 0;
     }
-
+    switch (chassis_ctrl_cmd->leg_limit) {
+      case FIRST_STEP:
+        LOWER_LIMIT_ANGLE = 1.1f;
+        break;
+      case SECOND_STEP:
+        LOWER_LIMIT_ANGLE = 0.95f;
+        break;
+      default:
+        LOWER_LIMIT_ANGLE = 1.1f;
+    }
   // =========================================================================
     // [模块 A] 区间精细化控制：穿透式收腿与定点离合保护
     // =========================================================================
@@ -1189,8 +1198,10 @@ static void Leg_AngleLoop_Control() {
     float p_des_raw_l = (base_p_des_l * LEFT_MOTOR_DIR) + LEFT_MOTOR_HORIZON_OFFSET;
     float final_tff_l = target_tff_l * LEFT_MOTOR_DIR;
     if (final_tff_l > 40.0f) final_tff_l = 40.0f; if (final_tff_l < -40.0f) final_tff_l = -40.0f;
-    if (theta_math_l < UPPER_LIMIT_ANGLE + 0.005 ) {final_tff_l = 0;}
-    if (chassis_ctrl_cmd->leg_mode!=LEG_MANUAL_DOWN){final_tff_l = 0.0f;}
+    if (theta_math_l < UPPER_LIMIT_ANGLE + 0.0025||base_p_des_l < UPPER_LIMIT_ANGLE + 0.005 ) {
+      final_tff_l = 0;
+    }
+    if (chassis_ctrl_cmd->leg_mode==LEG_MANUAL_UP){final_tff_l = 0.0f;}
     left_torque_feedforward = final_tff_l;
 
     // 💡 接口调用：使用你的 PID 与前馈双轨下发
@@ -1224,8 +1235,10 @@ static void Leg_AngleLoop_Control() {
     float p_des_raw_r = (base_p_des_r * RIGHT_MOTOR_DIR) + RIGHT_MOTOR_HORIZON_OFFSET;
     float final_tff_r = target_tff_r * RIGHT_MOTOR_DIR;
     if (final_tff_r > 40.0f) final_tff_r = 40.0f; if (final_tff_r < -40.0f) final_tff_r = -40.0f;
-    if (theta_math_r < UPPER_LIMIT_ANGLE + 0.005 ) {final_tff_r = 0;}
-    if (chassis_ctrl_cmd->leg_mode!=LEG_MANUAL_DOWN){final_tff_r = 0.0f;}
+    if (theta_math_r < UPPER_LIMIT_ANGLE + 0.0025||base_p_des_r < UPPER_LIMIT_ANGLE + 0.005 ) {
+      final_tff_r = 0;
+    }
+    if (chassis_ctrl_cmd->leg_mode==LEG_MANUAL_UP){final_tff_r = 0.0f;}
     right_torque_feedforward = final_tff_r ;
     debug_raw_r=p_des_raw_r;
     // 💡 接口调用：使用你的 PID 与前馈双轨下发

@@ -49,8 +49,7 @@ static float vy_initial;        // y轴输入控制量
 static float angle;
 float new_max_pitch=0.0f;
 float new_min_pitch=0.0f;
-static float f_power_boost_timer = 0.0f;  // 前轮功率提升定时器
-static uint8_t f_power_boost_active = 0;  // 前轮功率提升状态标志
+static uint8_t leg_up_latch = 0;
 external_imu_t *external_imu_instance;
 
 static GPIOInstance *gpio_5V_EN;
@@ -135,6 +134,15 @@ static void RemoteControlSet() {
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
     chassis_ctrl_cmd->wz = 40.0f * (float)rc_data->rc.rocker_r_;
   }
+  if (rc_data->rc.fn_1) {
+    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_UP;
+  }
+  else if (rc_data->rc.fn_2) {
+    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_DOWN;
+  }
+  else {
+    chassis_ctrl_cmd->leg_mode = LEG_HOLD;
+  }
 
 #elif defined(USE_DUAL_RC)
   // ===================== 旧 DJI 标准遥控器逻辑 =====================
@@ -205,7 +213,6 @@ static void MouseKeySet() {
       gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
     }
   }
-  chassis_ctrl_cmd->leg_mode = LEG_HOLD;
   // 3. 按键边缘检测 (捕获上升沿)
   if (rc_data->mouse_key.keyboard.g && !rc_data_last->mouse_key.keyboard.g) key_g_count++;
   if (rc_data->mouse_key.keyboard.b && !rc_data_last->mouse_key.keyboard.b) key_b_count++;
@@ -213,32 +220,50 @@ static void MouseKeySet() {
   if (rc_data->mouse_key.keyboard.e && !rc_data_last->mouse_key.keyboard.e) key_e_count++;
   if (rc_data->mouse_key.keyboard.v && !rc_data_last->mouse_key.keyboard.v) key_v_count++;
 
-  // 4. 键盘事件处理
-  if (rc_data->mouse_key.keyboard.r && !rc_data_last->mouse_key.keyboard.r) {
+  // ==================== 腿部控制与高度限位逻辑 ====================
 
-    // 按下 R 的时候，检查 Ctrl 是否已经被按住了
-    if (rc_data->mouse_key.keyboard.ctrl) {
-      // 触发组合键：Ctrl + R
+  // 1. 提取当前与上一帧按键状态，简化代码判断
+  uint8_t r_now = rc_data->mouse_key.keyboard.r;
+  uint8_t r_last = rc_data_last->mouse_key.keyboard.r;
+  uint8_t f_now = rc_data->mouse_key.keyboard.f;
+  uint8_t f_last = rc_data_last->mouse_key.keyboard.f;
+  uint8_t ctrl_now = rc_data->mouse_key.keyboard.ctrl;
 
-      // shoot_ctrl_cmd->load_mode = LOAD_REVERSE; // 假设的反转拨弹功能
-
-    } else {
-      // 触发单键：单纯按下 R
-      chassis_ctrl_cmd->leg_mode = LEG_MANUAL_UP;
-    }
+  // 2. 组合键：捕获 Ctrl + R 上升沿 -> 开启持续上升锁存
+  if (r_now && !r_last && ctrl_now) {
+    leg_up_latch = 1;
   }
-  if (rc_data->mouse_key.keyboard.f && !rc_data_last->mouse_key.keyboard.f) {
 
-    // 按下 R 的时候，检查 Ctrl 是否已经被按住了
-    if (rc_data->mouse_key.keyboard.ctrl) {
-      // 触发组合键：Ctrl + F
-
-      // shoot_ctrl_cmd->load_mode = LOAD_REVERSE; // 假设的反转拨弹功能
-
+  // 3. 组合键：捕获 Ctrl + F 上升沿 -> 循环切换高度限位
+  if (f_now && !f_last && ctrl_now) {
+    if (chassis_ctrl_cmd->leg_limit == FIRST_STEP) {
+      chassis_ctrl_cmd->leg_limit = SECOND_STEP;
     } else {
-      // 触发单键：单纯按下 R
-      chassis_ctrl_cmd->leg_mode = LEG_MANUAL_DOWN;
+      chassis_ctrl_cmd->leg_limit = FIRST_STEP;
     }
+    // 注意：如果你希望按 Ctrl+F 切换限位的同时也打断上升锁存，
+    // 可以解除下一行的注释：
+    // leg_up_latch = 0;
+  }
+
+  // 4. 互斥判断与动作执行 (优先级：单键操作 > 锁存状态 > 松开停止)
+  if (r_now && !ctrl_now) {
+    // 单按 R：清除锁存，跟随物理按压上升
+    leg_up_latch = 0;
+    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_UP;
+  }
+  else if (f_now && !ctrl_now) {
+    // 单按 F：清除锁存，跟随物理按压下降
+    leg_up_latch = 0;
+    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_DOWN;
+  }
+  else if (leg_up_latch) {
+    // 锁存标志为 1 期间：无视手指状态，持续上升
+    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_UP;
+  }
+  else if ((r_last && !r_now) || (f_last && !f_now)) {
+    // 下降沿检测：如果没有触发锁存，且刚好松开了 R 或 F，则停止
+    chassis_ctrl_cmd->leg_mode = LEG_HOLD;
   }
 
 
