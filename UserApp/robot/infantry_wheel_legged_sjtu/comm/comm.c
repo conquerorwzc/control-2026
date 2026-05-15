@@ -9,12 +9,87 @@
 #include "ui.h"
 #include "user_lib.h"
 #include "vofa.h"
-#include "can_comm.h"
 
 #if !defined(ONE_BOARD)
 #define COMM_PERIOD_100HZ_MS 10.0f
 #define COMM_PERIOD_50HZ_MS 20.0f
 #define COMM_PERIOD_20HZ_MS 50.0f
+
+static CommLostMonitor_s comm_lost_monitor;
+
+static Buzzer_Beep_Config_s LineMakeBeep(CommLostId_e id) {
+  static const uint16_t freq[COMM_LOST_ID_NUM] = {
+      [COMM_LOST_UP_MAIN] = DoFreq,
+      [COMM_LOST_FETCH_MAIN] = ReFreq,
+      [COMM_LOST_UP_MOTION] = MiFreq,
+      [COMM_LOST_FETCH_MOTION] = FaFreq,
+      [COMM_LOST_UP_GAMESTATE] = SoFreq,
+      [COMM_LOST_FETCH_GAMESTATE] = LaFreq,
+  };
+
+  Buzzer_Beep_Config_s beep = {
+      .frequency = SoFreq,
+      .count = COMM_LOST_BEEP_NUM,
+      .loudness = COMM_LOST_BEEP_LOUDNESS,
+  };
+
+  if (id < COMM_LOST_ID_NUM) {
+    beep.frequency = freq[id];
+  }
+  return beep;
+}
+
+static void LineInit(CommLostLine_s* line, const CommLostLineConfig_s* config) {
+  if (line == NULL || config == NULL) return;
+
+  line->comm = config->comm;
+  line->id = config->id;
+  line->beep = LineMakeBeep(config->id);
+  line->armed = 0;
+  line->last_online = 0;
+}
+
+static void MonitorInit(CommLostMonitor_s* monitor, const CommLostLineConfig_s* configs) {
+  if (monitor == NULL || configs == NULL) return;
+
+  for (size_t i = 0; i < COMM_LOST_LOCAL_LINE_NUM; i++) {
+    LineInit(&monitor->lines[i], &configs[i]);
+  }
+}
+
+static uint8_t LineNotifyLost(CommLostLine_s* line) {
+  if (line == NULL) return 0;
+  return BuzzerBeepWithConfig(&line->beep);
+}
+
+static void LineTask(CommLostLine_s* line) {
+  if (line == NULL || line->comm == NULL) return;
+
+  if (!line->armed) {
+    if (!CANCommHasReceived(line->comm)) return;
+
+    line->armed = 1;
+    line->last_online = 1;
+  }
+
+  uint8_t is_online = CANCommIsOnline(line->comm);
+  if (is_online) {
+    line->last_online = 1;
+    return;
+  }
+
+  if (line->last_online && LineNotifyLost(line)) {
+    line->last_online = 0;
+  }
+}
+
+static void MonitorTask(CommLostMonitor_s* monitor) {
+  if (monitor == NULL) return;
+
+  for (size_t i = 0; i < sizeof(monitor->lines) / sizeof(monitor->lines[0]); i++) {
+    LineTask(&monitor->lines[i]);
+  }
+}
 
 static uint8_t CommPeriodElapsed(float now_ms, float* last_ms, float period_ms) {
   if (now_ms - *last_ms < period_ms) {
@@ -44,6 +119,12 @@ void RobotCommInit(RobotInstance* robot) {
   robot->main_comm = CANCommInit(&gimbal_main_comm_conf);
   robot->motion_comm = CANCommInit(&gimbal_motion_comm_conf);
   robot->gamestate_comm = CANCommInit(&gimbal_gamestate_comm_conf);
+  const CommLostLineConfig_s gimbal_lost_configs[COMM_LOST_LOCAL_LINE_NUM] = {
+      {robot->main_comm, COMM_LOST_UP_MAIN},
+      {robot->motion_comm, COMM_LOST_UP_MOTION},
+      {robot->gamestate_comm, COMM_LOST_UP_GAMESTATE},
+  };
+  MonitorInit(&comm_lost_monitor, gimbal_lost_configs);
   VOFAInit(&huart6);
 #endif
 
@@ -55,6 +136,12 @@ void RobotCommInit(RobotInstance* robot) {
   robot->main_comm = CANCommInit(&chassis_main_comm_conf);
   robot->motion_comm = CANCommInit(&chassis_motion_comm_conf);
   robot->gamestate_comm = CANCommInit(&chassis_gamestate_comm_conf);
+  const CommLostLineConfig_s chassis_lost_configs[COMM_LOST_LOCAL_LINE_NUM] = {
+      {robot->main_comm, COMM_LOST_FETCH_MAIN},
+      {robot->motion_comm, COMM_LOST_FETCH_MOTION},
+      {robot->gamestate_comm, COMM_LOST_FETCH_GAMESTATE},
+  };
+  MonitorInit(&comm_lost_monitor, chassis_lost_configs);
   VOFAInit(&huart1);
 #endif
 }
@@ -67,6 +154,7 @@ void RobotCommTask(RobotInstance* robot) {
   if (chassis_upload_data == NULL || chassis_fetch_data == NULL) return;
 
   float now_ms = DWT_GetTimeline_ms();
+  MonitorTask(&comm_lost_monitor);
 
 #if defined(GIMBAL_BOARD)
   static SuperCap_Ctrl_Cmd_e last_local_cmd = NORMAL;

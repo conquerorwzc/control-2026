@@ -59,6 +59,8 @@ typedef struct {
   uint8_t cur_recv_len;  // 当前已经接收到的数据长度(包括帧头帧尾datalen和校验和)
   uint8_t update_flag;   // 数据更新标志位,当接收到新数据时,会将此标志位置1,调用CANCommGet()后会将此标志位置0
 
+  uint8_t has_received;
+
   DaemonInstance *comm_daemon;
 } CANCommInstance;
 #pragma pack()
@@ -106,5 +108,6 @@ void *CANCommGet(CANCommInstance *instance);
  * @return uint8_t
  */
 uint8_t CANCommIsOnline(CANCommInstance *instance);
+uint8_t CANCommHasReceived(CANCommInstance *instance);
 
 #endif  // !CAN_COMM_H
