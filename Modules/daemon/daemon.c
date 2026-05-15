@@ -70,8 +70,8 @@ void DaemonTask()
         if (DWT_GetTimeline_ms()-time_stamp>(boom_time>10?boom_time:10))
         {
 
-            boom_time*=0.95f;
-           // AlarmSetStatus(buzzer, buzzer->alarm_state=buzzer->alarm_state?ALARM_OFF:ALARM_ON);
+            //boom_time*=0.95f;
+            AlarmSetStatus(buzzer, buzzer->alarm_state=buzzer->alarm_state?ALARM_OFF:ALARM_ON);
             time_stamp=DWT_GetTimeline_ms();
         }
     }

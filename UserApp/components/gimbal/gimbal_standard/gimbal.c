@@ -96,10 +96,10 @@ void GimbalTask() {
     //gimbal_ctrl_cmd->yaw= 30.0f*2.0f/3.14f*asinf(sinf(10*DWT_GetTimeline_s()));
     DJIMotorSetPIDRef(gimbal->yaw_motor, gimbal_ctrl_cmd->yaw);  // yaw和pitch会在robot_cmd中处理好多圈和单圈
     DJIMotorSetPIDRef(gimbal->pitch_motor, gimbal_ctrl_cmd->pitch);
-    last_yaw_cmd = gimbal_ctrl_cmd->yaw;
+
   }
   gimbal_mode_last = gimbal_ctrl_cmd->gimbal_mode;
-
+    last_yaw_cmd = gimbal_ctrl_cmd->yaw;
   // 在合适的地方添加pitch重力补偿前馈力矩
   // 根据IMU姿态/pitch电机角度反馈计算出当前配重下的重力矩
   // ...

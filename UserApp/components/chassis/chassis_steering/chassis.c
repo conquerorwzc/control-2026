@@ -221,8 +221,8 @@ static void SteeringCalculate()
                   powf(chassis_vx - chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2)); // rb2
     vt_rf = sqrtf(powf(chassis_vy - chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)), 2) +
                   powf(chassis_vx - chassis_ctrl_cmd->wz * arm_sin_f32(DEG2R(45)), 2)); // rf3
-    // 无需动力时停止舵电机计算
-    if (chassis_ctrl_cmd->vx != 0 || chassis_ctrl_cmd->vy != 0 || chassis_ctrl_cmd->wz != 0)
+    // 无显著动力时跳过舵向计算，避免follow PID微小的wz残留导致舵机误转45°
+    if (fabsf(chassis_ctrl_cmd->vx) > 0.5f || fabsf(chassis_ctrl_cmd->vy) > 0.5f || fabsf(chassis_ctrl_cmd->wz) > 0.5f)
     {
         // 修改此处的角度计算，确保正确的方向
         st_lf = RAD_2_DEGREE * atan2f(chassis_vy - chassis_ctrl_cmd->wz * arm_cos_f32(DEG2R(45)),
@@ -490,6 +490,7 @@ static float AngleErrorNormalize(float error) {
     while (error < -180.0f) error += 360.0f;
     return error;
 }
+
 void ChassisTask()
 {
     switch (chassis->super_cap_mode)
@@ -497,7 +498,7 @@ void ChassisTask()
     case SAFETY_MODE:
         if (chassis->super_cap->cap_msg.cap_v > 18.0f)
             chassis->super_cap_mode = PASSIVE_MODE;
-        chassis->chassis_ctrl_cmd.max_power = 200; // TODO:用超电记得改;
+        chassis->chassis_ctrl_cmd.max_power = 80; // TODO:用超电记得改;
         break;
     case FORCED_CHARGING_MODE:
         if (chassis->super_cap->cap_msg.cap_v < 8.0f)
@@ -514,7 +515,7 @@ void ChassisTask()
         chassis->chassis_ctrl_cmd.max_power = referee_data->GameRobotState.chassis_power_limit - 30;
         break;
     case PASSIVE_MODE:
-        if (chassis_ctrl_cmd->SuperCapBoost == 1)
+        if (chassis_ctrl_cmd->SuperCapBoost & 1)
             chassis->super_cap_mode = ACTIVE_MODE;
         if (chassis->super_cap->cap_msg.cap_v < 12.0f)
             chassis->super_cap_mode = CHARGING_MODE;
@@ -523,9 +524,9 @@ void ChassisTask()
     case ACTIVE_MODE:
         if (chassis->super_cap->cap_msg.cap_v < 12.0f)
             chassis->super_cap_mode = CHARGING_MODE;
-        if (chassis_ctrl_cmd->SuperCapBoost != 1)
+        if (!(chassis_ctrl_cmd->SuperCapBoost & 1))
             chassis->super_cap_mode = PASSIVE_MODE;
-        chassis->chassis_ctrl_cmd.max_power = 200;
+        chassis->chassis_ctrl_cmd.max_power = 150;
         break;
     default:
         chassis->super_cap_mode = SAFETY_MODE;
@@ -548,17 +549,14 @@ void ChassisTask()
     // 根据控制模式设定旋转速度
     switch (chassis_ctrl_cmd->chassis_mode)
     {
-    case CHASSIS_FOLLOW: // 跟随云台,不单独设置pid,以误差角度平方为速度输出
+    case CHASSIS_FOLLOW:
         chassis_ctrl_cmd->wz += PIDCalculate(&follow_pid, AngleErrorNormalize(chassis_ctrl_cmd->offset_angle - 0), 0);
         break;
-    case CHASSIS_FOLLOW_DIAGONAL: // 斜45度跟随，底盘与云台保持45度夹角
+    case CHASSIS_FOLLOW_DIAGONAL:
         chassis_ctrl_cmd->wz += PIDCalculate(&follow_pid, AngleErrorNormalize(chassis_ctrl_cmd->offset_angle - 45.0f), 0);
         break;
-    case CHASSIS_FOLLOW_TURN: // 一键掉头，底盘与云台保持180度夹角
-        chassis_ctrl_cmd->wz += PIDCalculate(&follow_pid, AngleErrorNormalize(chassis_ctrl_cmd->offset_angle - 180.0f), 0);
-        break;
     case CHASSIS_ROTATE: // 自旋,同时保持全向机动;当前wz维持定值,后续增加不规则的变速策略
-        chassis_ctrl_cmd->offset_angle += 0.0005f * chassis_ctrl_cmd->wz;
+        chassis_ctrl_cmd->offset_angle -= 0.001f * chassis_ctrl_cmd->wz;
         break;
     default:
         break;
@@ -566,8 +564,8 @@ void ChassisTask()
     // 根据云台和底盘的角度offset将控制量映射到底盘坐标系上
     // 底盘逆时针旋转为角度正方向;云台命令的方向以云台指向的方向为x,采用右手系(x指向正北时y在正东)
     static float sin_theta, cos_theta;
-    cos_theta = arm_cos_f32(chassis_ctrl_cmd->offset_angle * DEGREE_2_RAD);
-    sin_theta = arm_sin_f32(chassis_ctrl_cmd->offset_angle * DEGREE_2_RAD);
+    cos_theta = arm_cos_f32(-chassis_ctrl_cmd->offset_angle * DEGREE_2_RAD);
+    sin_theta = arm_sin_f32(-chassis_ctrl_cmd->offset_angle * DEGREE_2_RAD);
     chassis_vx = -chassis_ctrl_cmd->vx * cos_theta + chassis_ctrl_cmd->vy * sin_theta;
     chassis_vy = -chassis_ctrl_cmd->vx * sin_theta - chassis_ctrl_cmd->vy * cos_theta;
     // 根据电机的反馈速度和IMU(如果有)计算真实速度

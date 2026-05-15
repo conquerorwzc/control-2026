@@ -25,7 +25,7 @@
 
 // 自瞄相机参数 (需要根据实际配置修改)
 // 焦距越小，FOV越大，框越大
-#define AUTOAIM_CAM_FOCAL_LEN  8.0f  // 自瞄相机等效焦距 (mm)，需要根据实际配置修改
+#define AUTOAIM_CAM_FOCAL_LEN  35.0f  // 自瞄相机等效焦距 (mm)，需要根据实际配置修改
 #define AUTOAIM_CAM_PITCH_DEG  0.0f  // 自瞄相机相对图传相机的pitch安装角 (度)，正值表示自瞄相机朝上
 
 // 传感器假设 (16:9宽高比)
@@ -49,6 +49,14 @@ typedef enum
     LID_OPEN
 } lid_mode_e;
 
+typedef enum
+{
+    POWEROFF = 0,
+    FOLLOW,
+    FOLLOW_45,
+    ROTATE,
+} chassis_mode_e;
+
 typedef struct
 {
     float chassis_power_mx; // 最大功率限制
@@ -60,6 +68,7 @@ typedef struct
  */
 typedef struct
 {
+    uint16_t ui_init;
     Referee_Interactive_Flag_t Referee_Interactive_Flag;
     // 为UI绘制以及交互数据所用
     Chassis_Mode_e chassis_mode;    // 底盘模式

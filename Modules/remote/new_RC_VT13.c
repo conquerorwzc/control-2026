@@ -231,7 +231,7 @@ static uint8_t VT13Decode(const uint8_t *buf, uint16_t len)
     /* ---- 5. 键盘位域 → Key_t 格式转换 ----
      * mouse_key.keyboard 是 packed 位域结构体，Key_t 是独立联合体
      * 两者均为 16bit，通过 uint16_t 指针直接复制 */
-    *(uint16_t *)&vt13_rc[TEMP].key[KEY_PRESS] = *(uint16_t *)&vt13_rc[TEMP].mouse_key.keyboard;
+    memcpy(&vt13_rc[TEMP].key[KEY_PRESS].keys, &vt13_rc[TEMP].mouse_key.keyboard, sizeof(uint16_t));
 
     /* ---- 6. ctrl / shift 组合键传播 ----
      * 若 ctrl 按下：当前键盘状态完整复制到 KEY_PRESS_WITH_CTRL 槽位

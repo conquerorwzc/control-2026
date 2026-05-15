@@ -84,6 +84,13 @@ static void DualBoardCtrlSet() {
     //robot->chassis->chassis_ctrl_cmd.chassis_speed_buff=cchassis_ctrl_can_comm->chassis_speed_buff;
     robot->chassis->chassis_ctrl_cmd.offset_angle = cancomm_pack->chassis_ctrl_can_comm.offset_angle;
     robot->chassis->chassis_ctrl_cmd.SuperCapBoost = cancomm_pack->chassis_ctrl_can_comm.SuperCapBoost;
+    // R键上升沿检测 (SuperCapBoost bit1: 0→1 触发UI重初始化)
+    static uint8_t prev_r_bit = 0;
+    uint8_t cur_r_bit = (robot->chassis->chassis_ctrl_cmd.SuperCapBoost >> 1) & 1;
+    if (cur_r_bit && !prev_r_bit) {
+        interactive_data->ui_init = 1;
+    }
+    prev_r_bit = cur_r_bit;
     // robot->gimbal->gimbal_ctrl_cmd.gimbal_mode = cancomm_pack->gimbal_mode;
     // robot->shoot->shoot_ctrl_cmd.shoot_mode = cancomm_pack->shoot_mode;
     // robot->shoot->shoot_ctrl_cmd.friction_mode = cancomm_pack->friction_mode;
@@ -111,7 +118,7 @@ static void DualBoardCtrlSet() {
     interactive_data->Chassis_Power_Data.chassis_power_mx = robot->chassis->chassis_ctrl_cmd.max_power; // 示例功率值
    //
    //  //interactive_data.pitch_angle = robotdata->gimbal->gimbal_ctrl_cmd.pitch;
-      interactive_data->pitch_angle = -(float)cancomm_pack->pitch;
+      interactive_data->pitch_angle = (float)cancomm_pack->pitch;
     //
     // // interactive_data.Shoot_heat = robotdata->shoot->shoot_ctrl_cmd.rest_heat;
       interactive_data->Shoot_heat = cancomm_pack->rest_heat;

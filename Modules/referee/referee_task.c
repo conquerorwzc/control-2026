@@ -18,9 +18,10 @@
 #include "cmsis_os.h"
 #include "robot.h"
 // #include "robot.c"
-
+static uint8_t GETRCDATA;
 static referee_info_t *referee_recv_info;            // 接收到的裁判系统数据
 uint8_t UI_Seq;                                      // 包序号，供整个referee文件使用
+static Referee_Interactive_info_t interactive_data;
 // @todo 不应该使用全局变量
 
 /**
@@ -104,7 +105,7 @@ static Graph_Data_t UI_autoaim_box[4];  // 4条边构成矩形框
 
 
 
-static Referee_Interactive_info_t interactive_data;
+
 
 // 检测UI变化的函数
 static void UIChangeCheck(Referee_Interactive_info_t *_Interactive_data)
@@ -133,10 +134,10 @@ static void UIChangeCheck(Referee_Interactive_info_t *_Interactive_data)
         _Interactive_data->friction_last_mode = _Interactive_data->friction_mode;
     }
 
-    if (_Interactive_data->lid_mode != _Interactive_data->lid_last_mode)
+    if (_Interactive_data->chassis_mode != _Interactive_data->chassis_last_mode)
     {
-        _Interactive_data->Referee_Interactive_Flag.lid_flag = 1;
-        _Interactive_data->lid_last_mode = _Interactive_data->lid_mode;
+        _Interactive_data->Referee_Interactive_Flag.chassis_flag = 1;
+        _Interactive_data->chassis_last_mode = _Interactive_data->chassis_mode;
     }
 
     if (_Interactive_data->Chassis_Power_Data.chassis_power_mx != _Interactive_data->Chassis_last_Power_Data.chassis_power_mx)
@@ -255,12 +256,32 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
     }
 
     // 更新弹舱盖状态
-    if (interactive_data->Referee_Interactive_Flag.lid_flag == 1)
+    if (interactive_data->Referee_Interactive_Flag.chassis_flag == 1)
     {
-        char *lid_str = interactive_data->lid_mode == LID_OPEN ? "open " : "close";
-        UICharDraw(&UI_State_dyn[4], "sd4", UI_Graph_Change, 8, UI_Color_Pink, 15, 2, 270, 550, lid_str);
+        char *chassis_str;
+        //char *lid_str = interactive_data->lid_mode == LOPEN ? "open " : "close";
+        switch(interactive_data->chassis_mode)
+        {
+
+        case CHASSIS_POWER_OFF:
+            chassis_str = "PowerOff";
+            break;
+        case CHASSIS_ROTATE:
+            chassis_str = "rotate  ";
+            break;
+        case CHASSIS_FOLLOW:
+            chassis_str = "follow  ";
+            break;
+        case CHASSIS_FOLLOW_DIAGONAL:
+            chassis_str = "follow45 ";
+            break;
+        default:
+            chassis_str = "error";
+            break;
+        }
+        UICharDraw(&UI_State_dyn[4], "sd4", UI_Graph_Change, 8, UI_Color_Pink, 15, 2, 270, 550, chassis_str);
         UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[4]);
-        interactive_data->Referee_Interactive_Flag.lid_flag = 0;
+        interactive_data->Referee_Interactive_Flag.chassis_flag = 0;
     }
 
     // 更新功率显示
@@ -304,8 +325,8 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
           uint32_t end_angle = 270 + (uint32_t)bar;
           uint32_t color;
           switch (mode) {
-              case 0: color = UI_Color_Pink; break;   // 关闭
-              case 1: color = UI_Color_Green; break;  // 开启
+              case 0: color = UI_Color_Green; break;   // 关闭
+              case 1: color = UI_Color_Pink; break;  // 开启
               case 2: color = UI_Color_Cyan; break;   // 超级电容
               default: color = UI_Color_Orange; break;
           }
@@ -621,7 +642,7 @@ void MyUIInit()
   referee_recv_info=RefereeInit(&huart6);
      // if (!referee_recv_info->init_flag)
      //     vTaskDelete(NULL); // 如果没有初始化裁判系统则直接删除ui任务
-    while (referee_recv_info->GameRobotState.robot_id == 0)
+    while (referee_recv_info->GameState.game_progress == 0)
         osDelay(100); // 若还未收到裁判系统数据,等待一段时间后再检查
     DeterminRobotID();                                            // 确定ui要发送到的目标客户端
     UIDelete(&referee_recv_info->referee_id, UI_Data_Del_ALL, 0); // 清空UI
@@ -629,18 +650,19 @@ void MyUIInit()
     // 显示队标SRM
     static String_Data_t UI_srm_logo;
     static String_Data_t UI_srm_init;
+    static String_Data_t UI_srm_type;
     static Graph_Data_t UI_srm_bg;
     // 绘制背景矩形
-    UIRectangleDraw(&UI_srm_bg, "bg0", UI_Graph_ADD, 0, UI_Color_Pink, 5,
-                    CENTER_X - 250, CENTER_Y - 100, CENTER_X + 250, CENTER_Y + 100);
-    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_srm_bg);
+    // UIRectangleDraw(&UI_srm_bg, "bg0", UI_Graph_ADD, 0, UI_Color_Pink, 5,
+    //                 CENTER_X - 250, CENTER_Y - 100, CENTER_X + 250, CENTER_Y + 100);
+    // UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_srm_bg);
     // 绘制SRM文字 (超大字体，size=100)
-    UICharDraw(&UI_srm_logo, "sr0", UI_Graph_ADD, 0, UI_Color_Pink, 100, 3,
-               CENTER_X - 150, CENTER_Y - 30, "SRM");
+    UICharDraw(&UI_srm_logo, "sr0", UI_Graph_ADD, 0, UI_Color_Pink, 200, 10,
+               CENTER_X -260, CENTER_Y+80, "SRM");
     UICharRefresh(&referee_recv_info->referee_id, UI_srm_logo);
     // 绘制Initializing...文字 (小字，size=25)
     UICharDraw(&UI_srm_init, "si0", UI_Graph_ADD, 0, UI_Color_White, 25, 1,
-               CENTER_X - 100, CENTER_Y - 70, "Initializing...");
+               CENTER_X - 150, CENTER_Y - 170, "Initializing...");
     UICharRefresh(&referee_recv_info->referee_id, UI_srm_init);
     osDelay(200); // 短暂显示
 
@@ -674,7 +696,7 @@ void MyUIInit()
     UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[2]);
     UICharDraw(&UI_State_sta[3], "ss3", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 600, "frict:");
     UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[3]);
-    UICharDraw(&UI_State_sta[4], "ss4", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 550, "lid:");
+    UICharDraw(&UI_State_sta[4], "ss4", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 550, "chassis:");
     UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[4]);
 
     // 绘制车辆状态标志，动态
@@ -687,7 +709,7 @@ void MyUIInit()
     UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[2]);
     UICharDraw(&UI_State_dyn[3], "sd3", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 270, 600, "off");
     UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[3]);
-    UICharDraw(&UI_State_dyn[4], "sd4", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 270, 550, "close ");
+    UICharDraw(&UI_State_dyn[4], "sd4", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 270, 550, "PowerOff");
     UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[4]);
 
     //绘制枪口热度，射频指示
@@ -823,16 +845,24 @@ void MyUIInit()
 
     // 删除队标SRM
     UIDelete(&referee_recv_info->referee_id, UI_Data_Del_Layer, 0); // 删除图层0
+    UICharDraw(&UI_srm_type, "sr0", UI_Graph_ADD, 0, UI_Color_Main, 15, 2,
+               CENTER_X -200, CENTER_Y-500, "SRM:ICU RUDDER WHEEL INFANTRY");
+    UICharRefresh(&referee_recv_info->referee_id, UI_srm_type);
 }
 
 // 实现缺失的UITask函数
 void UITask()
 {
+    //if (interactive_data.chassis_mode!=CHASSIS_POWER_OFF)
     // 首次运行时初始化指针
     // if (referee_recv_info == NULL) {
     //     referee_recv_info = RefereeInit(&huart6); // 假设使用默认串口
     // }
-
+    if (interactive_data.ui_init==1)
+    {
+        MyUIInit();
+        interactive_data.ui_init=0;
+    }
     // 更新交互数据（模拟从系统其他部分获取数据）
     // 这些值应该从实际的机器人系统中获取
 
