@@ -283,7 +283,22 @@ static  uint8_t send_joint_state(UART_HandleTypeDef* huart, const joint_state_t*
                         PKT_ID_JOINT_STATE, 10);
 }
 
+/**
+ * @brief 发送实时功率热量数据
+ * @param huart UART句柄
+ * @param power_heat_data 功率热量数据结构体指针
+ * @return 发送成功返回1，失败返回0
+ */
+static uint8_t send_power_heat_data(UART_HandleTypeDef* huart, const ext_power_heat_data_t* power_heat_data)
+{
+    if (huart == NULL || power_heat_data == NULL) return 0;
 
+    uint32_t timestamp = HAL_GetTick();
+    return protocol_send(huart, timestamp,
+                        (uint8_t*)power_heat_data,
+                        sizeof(ext_power_heat_data_t),
+                        PKT_ID_POWER_HEAT_DATA, 10);
+}
 
 // void update_senddata(void) {
 //   send_data.game_status.game_type=0x0A;
@@ -312,7 +327,7 @@ void navigator_send(UART_HandleTypeDef *instance,referee_info_t* referee_data) {
   // send_robot_motion(instance,&send_data.robot_motion);
   // send_robot_state_info(instance,&send_data.state_info);
    send_robot_status(instance,&referee_data->GameRobotState);
-
+   send_power_heat_data(instance,&referee_data->PowerHeatData);
 }
 
 static void DecodeNavigator() {
@@ -370,11 +385,12 @@ static void DecodeNavigator() {
             }
 
             // 校验通过，处理数据包
-            uint16_t data_index = index + PROTOCOL_HEADER_LEN; // 跳过帧头和时间戳
-            uint8_t check_len=sizeof(navigator_recv_t)-6;
-            if (header->len == (check_len)) {
-                memcpy(&recv_data, &buffer[data_index], check_len);
+            uint16_t data_index = index + PROTOCOL_HEADER_LEN;
+            uint16_t expected_data_len = sizeof(robot_cmd_t);
+            if (header->len == expected_data_len) {
+                memcpy(&recv_data.robot_cmd, &buffer[data_index], expected_data_len);
                 recv_data.last_update_time=DWT_GetTimeline_ms()/1000;
+                recv_data.data_valid = 1;
             }
             // 移动索引到下一帧
             index += total_frame_len;

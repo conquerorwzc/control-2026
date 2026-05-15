@@ -34,6 +34,7 @@
 #define PKT_ID_RFID_STATUS        0x0A
 #define PKT_ID_ROBOT_STATUS       0x0B
 #define PKT_ID_JOINT_STATE        0x0C
+#define PKT_ID_POWER_HEAT_DATA    0x0D
 
 // MiniPC发送的数据包
 #define PKT_ID_ROBOT_CMD          0x01
@@ -200,7 +201,7 @@ typedef struct {
     float wz;
     // 决策状态：0=正常巡逻，1=回血中
   } __attribute__((__packed__)) speed_vector;
-  uint8_t is_recovering;
+
 //   // 底盘控制
 //   struct {
 //     float roll;
