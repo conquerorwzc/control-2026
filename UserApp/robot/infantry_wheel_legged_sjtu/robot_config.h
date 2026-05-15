@@ -71,6 +71,8 @@
 #define REDUCTION_RATIO_LOADER 90.0f  // 2006拨盘电机的减速比,英雄需要修改为3508的19.0f
 #define NUM_PER_CIRCLE 10             // 拨盘一圈的装载量
 
+#define DOUBLE_BOARD_COMM_LOST_DAEMON_COUNT 30
+
 // delta_h = 0.380 - 0.112 = 0.268;
 // target_h = 0.3
 // m = 5
@@ -503,6 +505,7 @@ static CANComm_Init_Config_s gimbal_main_comm_conf = {
         },
     .recv_data_len = sizeof(((Chassis_Upload_Data_s*)0)->main),
     .send_data_len = sizeof(((Chassis_Fetch_Data_s*)0)->main),
+    .daemon_count = DOUBLE_BOARD_COMM_LOST_DAEMON_COUNT,
 };
 
 static CANComm_Init_Config_s gimbal_motion_comm_conf = {
@@ -514,6 +517,7 @@ static CANComm_Init_Config_s gimbal_motion_comm_conf = {
         },
     .recv_data_len = sizeof(((Chassis_Upload_Data_s*)0)->motion),
     .send_data_len = sizeof(((Chassis_Fetch_Data_s*)0)->motion),
+    .daemon_count = DOUBLE_BOARD_COMM_LOST_DAEMON_COUNT,
 };
 
 static CANComm_Init_Config_s gimbal_gamestate_comm_conf = {
@@ -525,6 +529,7 @@ static CANComm_Init_Config_s gimbal_gamestate_comm_conf = {
         },
     .recv_data_len = sizeof(((Chassis_Upload_Data_s*)0)->gamestate),
     .send_data_len = sizeof(((Chassis_Fetch_Data_s*)0)->gamestate),
+    .daemon_count = DOUBLE_BOARD_COMM_LOST_DAEMON_COUNT,
 };
 
 #endif
@@ -538,6 +543,7 @@ static CANComm_Init_Config_s chassis_main_comm_conf = {
         },
     .recv_data_len = sizeof(((Chassis_Fetch_Data_s*)0)->main),
     .send_data_len = sizeof(((Chassis_Upload_Data_s*)0)->main),
+    .daemon_count = DOUBLE_BOARD_COMM_LOST_DAEMON_COUNT,
 };
 
 static CANComm_Init_Config_s chassis_motion_comm_conf = {
@@ -549,6 +555,7 @@ static CANComm_Init_Config_s chassis_motion_comm_conf = {
         },
     .recv_data_len = sizeof(((Chassis_Fetch_Data_s*)0)->motion),
     .send_data_len = sizeof(((Chassis_Upload_Data_s*)0)->motion),
+    .daemon_count = DOUBLE_BOARD_COMM_LOST_DAEMON_COUNT,
 };
 
 static CANComm_Init_Config_s chassis_gamestate_comm_conf = {
@@ -560,5 +567,6 @@ static CANComm_Init_Config_s chassis_gamestate_comm_conf = {
         },
     .recv_data_len = sizeof(((Chassis_Fetch_Data_s*)0)->gamestate),
     .send_data_len = sizeof(((Chassis_Upload_Data_s*)0)->gamestate),
+    .daemon_count = DOUBLE_BOARD_COMM_LOST_DAEMON_COUNT,
 };
 #endif
