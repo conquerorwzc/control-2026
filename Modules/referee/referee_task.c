@@ -87,6 +87,11 @@ static Graph_Data_t UI_custom_sector_lines[2]; // 扇形的上下两条直边
 static Graph_Data_t UI_custom_sector_arc;      // 扇形的外弧线
 static Graph_Data_t UI_custom_color_arc[2];    // 扇形外侧边缘的两个彩色区域
 static Graph_Data_t UI_custom_pointer[2];      // 两根动态指针 (例如:蓝、绿)
+static String_Data_t UI_leg_labels;      // 第一行：LEGL    LEGR
+static String_Data_t UI_leg_state_L;     // 第二行左：1/0
+static String_Data_t UI_leg_state_R;     // 第二行右：1/0
+static Graph_Data_t  UI_leg_value_L;     // 第三行左：数字
+static Graph_Data_t  UI_leg_value_R;     // 第三行右：数字
 // Vehicle side-view pitch indicator
 static Graph_Data_t UI_side_ground;
 static Graph_Data_t UI_side_ref_line[5];
@@ -264,6 +269,17 @@ static void UIChangeCheck(Referee_Interactive_info_t *_Interactive_data) {
   if (fabsf(_Interactive_data->chassis_relative_angle - _Interactive_data->last_chassis_relative_angle) > 0.01f) {
     _Interactive_data->Referee_Interactive_Flag.yaw_flag = 1;
     _Interactive_data->last_chassis_relative_angle = _Interactive_data->chassis_relative_angle;
+  }
+  if (_Interactive_data->legl_flag != _Interactive_data->last_legl_flag ||
+        _Interactive_data->legr_flag != _Interactive_data->last_legr_flag ||
+        fabsf(_Interactive_data->legl_val - _Interactive_data->last_legl_val) > 0.01f ||
+        fabsf(_Interactive_data->legr_val - _Interactive_data->last_legr_val) > 0.01f)
+  {
+    _Interactive_data->Referee_Interactive_Flag.leg_status_flag = 1; // 需在头文件定义此flag
+    _Interactive_data->last_legl_flag = _Interactive_data->legl_flag;
+    _Interactive_data->last_legr_flag = _Interactive_data->legr_flag;
+    _Interactive_data->last_legl_val = _Interactive_data->legl_val;
+    _Interactive_data->last_legr_val = _Interactive_data->legr_val;
   }
   // 检测扇形仪表指针是否变化
   if (fabsf(_Interactive_data->custom_needle1_angle - _Interactive_data->last_custom_needle1_angle) > 0.1f ||
@@ -455,10 +471,38 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data) {
                           interactive_data->right_leg_position, UI_Graph_Change);
     interactive_data->Referee_Interactive_Flag.pitch_flag = 0;
   }
+  if (interactive_data->Referee_Interactive_Flag.leg_status_flag == 1) {
+    uint32_t text_x_base = 1556;
+    uint32_t text_y_base = 440;
+    uint32_t offset_x = 65;
+
+    // 更新左腿 1/0 颜色和字符
+    uint32_t color_l = (interactive_data->legl_flag == 1) ? UI_Color_Green : UI_Color_Purplish_red;
+    UICharDraw(&UI_leg_state_L, "ls0", UI_Graph_Change, 8, color_l, 20, 3,
+               text_x_base - offset_x - 5, text_y_base - 35, "%d", interactive_data->legl_flag);
+
+    // 更新右腿 1/0 颜色和字符
+    uint32_t color_r = (interactive_data->legr_flag == 1) ? UI_Color_Green : UI_Color_Purplish_red;
+    UICharDraw(&UI_leg_state_R, "ls1", UI_Graph_Change, 8, color_r, 20, 3,
+               text_x_base + offset_x - 5, text_y_base - 35, "%d", interactive_data->legr_flag);
+
+    // 更新第三行数值 (乘以1000是因为 UIFloatDraw 内部通常会除以1000处理)
+    UIFloatDraw(&UI_leg_value_L, "lv0", UI_Graph_Change, 8, UI_Color_White, 18, 2, 2,
+                text_x_base - offset_x - 20, text_y_base - 70, (int32_t)(interactive_data->legl_val * 1000));
+    UIFloatDraw(&UI_leg_value_R, "lv1", UI_Graph_Change, 8, UI_Color_White, 18, 2, 2,
+                text_x_base + offset_x - 20, text_y_base - 70, (int32_t)(interactive_data->legr_val * 1000));
+
+    // 推送更新
+    UICharRefresh(&referee_recv_info->referee_id, UI_leg_state_L);
+    UICharRefresh(&referee_recv_info->referee_id, UI_leg_state_R);
+    UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_leg_value_L, UI_leg_value_R);
+
+    interactive_data->Referee_Interactive_Flag.leg_status_flag = 0;
+  }
   // 刷新扇形仪表动态指针
   if (interactive_data->Referee_Interactive_Flag.custom_gauge_flag == 1) {
     uint32_t cx = 1556;
-    uint32_t cy = 500;
+    uint32_t cy = 600;
     uint32_t needle_len = 115;
     float to_rad = 0.0174532925f;
 
@@ -707,7 +751,30 @@ void MyUIInit() {
     UICharRefresh(&referee_recv_info->referee_id, UI_ammo_text_full);
     UICharDraw(&UI_ammo_text_mid, "am0", UI_Graph_ADD, 6, UI_Color_White, 12, 2, 630, 420, "250");
     UICharRefresh(&referee_recv_info->referee_id, UI_ammo_text_mid);
+  // --- 腿部状态面板初始化 ---
+  uint32_t text_x_base = 1556;
+  uint32_t text_y_base = 440; // 位于扇形下方
+  uint32_t offset_x = 65;     // 左右间距偏移
 
+  // 第一行：静态标签
+  UICharDraw(&UI_leg_labels, "ll0", UI_Graph_ADD, 8, UI_Color_White, 15, 2,
+             text_x_base - 75, text_y_base, "LEGL      LEGR");
+  UICharRefresh(&referee_recv_info->referee_id, UI_leg_labels);
+
+  // 第二行：标志位初始状态（默认红色0）
+  UICharDraw(&UI_leg_state_L, "ls0", UI_Graph_ADD, 8, UI_Color_Purplish_red, 20, 3,
+             text_x_base - offset_x - 5, text_y_base - 35, "0");
+  UICharDraw(&UI_leg_state_R, "ls1", UI_Graph_ADD, 8, UI_Color_Purplish_red, 20, 3,
+             text_x_base + offset_x - 5, text_y_base - 35, "0");
+  UICharRefresh(&referee_recv_info->referee_id, UI_leg_state_L);
+  UICharRefresh(&referee_recv_info->referee_id, UI_leg_state_R);
+
+  // 第三行：数值初始状态（使用 Float 类型减少带宽消耗）
+  UIFloatDraw(&UI_leg_value_L, "lv0", UI_Graph_ADD, 8, UI_Color_White, 18, 2, 2,
+              text_x_base - offset_x - 20, text_y_base - 70, 0);
+  UIFloatDraw(&UI_leg_value_R, "lv1", UI_Graph_ADD, 8, UI_Color_White, 18, 2, 2,
+              text_x_base + offset_x - 20, text_y_base - 70, 0);
+  UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_leg_value_L, UI_leg_value_R);
     // 摩擦轮转速指示器
   // 初始化显示左侧摩擦轮转速
   UICharDraw(&UI_fric_text_down, "fs0", UI_Graph_ADD, 6, UI_Color_White, 18, 2, 1556, 850, "frispeed:0");
@@ -734,7 +801,7 @@ void MyUIInit() {
     // 绘制右侧自定义扇形仪表 (已修正坐标系映射)
     // ==========================================
     uint32_t cx = 1556;
-    uint32_t cy = 500;
+    uint32_t cy = 600;
     uint32_t r = 130;
     float to_rad = 0.0174532925f;
 
@@ -833,9 +900,11 @@ void UITask() {
   interactive_data.fric_speed_left = robot->shoot->friction_motor[0]->measure.speed_aps;
   interactive_data.fric_speed_mid = robot->shoot->friction_motor[1]->measure.speed_aps;
   interactive_data.fric_speed_right = robot->shoot->friction_motor[2]->measure.speed_aps;
-  // 【3】核心修复：必须把真实数据喂给 interactive_data...
   // (接在你现有的赋值逻辑下面)
-
+  interactive_data.legl_flag = robot->chassis->leg_motor[0]->measure.state==1;
+  interactive_data.legr_flag = robot->chassis->leg_motor[1]->measure.state==1;
+  interactive_data.legl_val = robot->chassis->leg_motor[0]->measure.torque;
+  interactive_data.legr_val = robot->chassis->leg_motor[1]->measure.torque;
   // 这里接入你的实际数据，并将数值映射到 90~170 度之间
   if (robot->chassis->chassis_ctrl_cmd.leg_limit == FIRST_STEP) {
     interactive_data.custom_needle1_angle = 170.0f ; // 测试数据：停在中间
@@ -844,9 +913,9 @@ void UITask() {
     interactive_data.custom_needle1_angle = 140.0f ; // 测试数据：停在中间
   }
   float needle2_value = robot->chassis->chassis_ctrl_cmd.leg_theta;
-  if (needle2_value < 0.3f) needle2_value = 0.3f;
-  if (needle2_value > 1.0f) needle2_value = 1.0f;
-  interactive_data.custom_needle2_angle =  (needle2_value - 0.3f) * (80.0f / 0.7f) + 90.0f; // 测试数据：靠近下方彩色区
+  if (needle2_value < 0.35f) needle2_value = 0.35f;
+  if (needle2_value > 1.1f) needle2_value = 1.1f;
+  interactive_data.custom_needle2_angle =  (needle2_value - 0.35f) * (80.0f / 0.75f) + 90.0f; // 测试数据：靠近下方彩色区
 
 
   // 检查是否有变化

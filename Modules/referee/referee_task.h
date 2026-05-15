@@ -98,6 +98,16 @@ typedef struct
     float custom_needle2_angle; // 绿色指针的角度
     float last_custom_needle1_angle;
     float last_custom_needle2_angle;
+  // --- 新增：腿部状态显示数据 ---
+  uint8_t legl_flag;    // 左腿 1/0 标志
+  uint8_t legr_flag;    // 右腿 1/0 标志
+  float legl_val;       // 左腿数值
+  float legr_val;       // 右腿数值
+
+  uint8_t last_legl_flag;
+  uint8_t last_legr_flag;
+  float last_legl_val;
+  float last_legr_val;
 } Referee_Interactive_info_t;
 /**
  * @brief 在referee task之前调用,添加在freertos.c中

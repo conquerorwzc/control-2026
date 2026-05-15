@@ -269,28 +269,36 @@ static void MouseKeySet() {
 
   // ==================== 处理 G 键及 Ctrl+G ====================
   // 捕获 G 键的上升沿（刚刚按下的那一瞬间）
-  if (rc_data->mouse_key.keyboard.g && !rc_data_last->mouse_key.keyboard.g) {
+  // if (rc_data->mouse_key.keyboard.g && !rc_data_last->mouse_key.keyboard.g) {
+  //
+  //   // 按下 G 的时候，检查 Ctrl 是否已经被按住了
+  //   if (rc_data->mouse_key.keyboard.ctrl) {
+  //     // 触发组合键：Ctrl + G
+  //     // chassis_ctrl_cmd->power_distribute = 2.0f; // 假设的功率重分配
+  //
+  //   } else {
+  //     // 触发单键：单纯按下 G
+  //     // 走原来的单键逻辑：累加计数器，交给后面的 switch 处理单发/连发或底盘方向
+  //     key_g_count++;
+  //   }
+  // }
+  // ==================== 【 C 键与 Ctrl+C 组合逻辑 】 ====================
+  // 捕获 C 键的上升沿（刚刚按下的那一瞬间）
+  if (rc_data->mouse_key.keyboard.c && !rc_data_last->mouse_key.keyboard.c) {
 
-    // 按下 G 的时候，检查 Ctrl 是否已经被按住了
+    // 判断此时 Ctrl 键是否已经被按住
     if (rc_data->mouse_key.keyboard.ctrl) {
-      // 触发组合键：Ctrl + G
-      // chassis_ctrl_cmd->power_distribute = 2.0f; // 假设的功率重分配
+      chassis_ctrl_cmd->leg_clear_error = LEG_CLEAR_ERROR;
 
-    } else {
-      // 触发单键：单纯按下 G
-      // 走原来的单键逻辑：累加计数器，交给后面的 switch 处理单发/连发或底盘方向
-      key_g_count++;
     }
-  }
+    else {
 
-  if (rc_data_last->mouse_key.keyboard.x == 0 && rc_data->mouse_key.keyboard.x == 1) {
-    if (chassis_ctrl_cmd->leg_limit == FIRST_STEP) chassis_ctrl_cmd->leg_limit = SECOND_STEP;
-    else if (chassis_ctrl_cmd->leg_limit == SECOND_STEP) chassis_ctrl_cmd->leg_limit = FIRST_STEP;
-  }
+      // 触发：单按 C 键
+      Referee_Interactive_info_t* ui_data = getUI();
+      if (ui_data != NULL) ui_data->force_refresh_ui = 1;
+      // 例如进行状态翻转计数：key_c_count++;
 
-  if (!rc_data_last->mouse_key.keyboard.ctrl && rc_data->mouse_key.keyboard.ctrl) {
-    Referee_Interactive_info_t* ui_data = getUI();
-    if (ui_data != NULL) ui_data->force_refresh_ui = 1;
+    }
   }
   
   switch (rc_data->mouse_key.mouse.press_r) {
@@ -366,7 +374,14 @@ static void MouseKeySet() {
 
   switch (key_e_count % 3) {
     case 0: shoot_ctrl_cmd->bullet_speed_mode = ENABLE_BULLET_SPEED; break;
-    case 1: break; // 待填
+    case 1: shoot_ctrl_cmd->bullet_speed_mode = MANUAL_BULLET_SPEED;
+      if (!rc_data_last->mouse_key.keyboard.z &&rc_data->mouse_key.keyboard.z ) {
+        shoot_ctrl_cmd->friction_speed += 300.0f;
+      }
+      else if (!rc_data_last->mouse_key.keyboard.x &&rc_data->mouse_key.keyboard.x) {
+        shoot_ctrl_cmd->friction_speed -= 300.0f;
+      }
+      break; // 待填
     case 2: shoot_ctrl_cmd->bullet_speed_mode = DISABLE_BULLET_SPEED; break;
     default: break;
   }

@@ -24,6 +24,7 @@ static float uint_to_float(int x_int, float x_min, float x_max, int bits) {
   float offset = x_min;
   return ((float)x_int) * span / ((float)((1 << bits) - 1)) + offset;
 }
+
 void DMMotorSetMITRef(DMMotorInstance* motor, float pos, float vel, float kp, float kd, float torq) {
   motor->mit_pos = pos;
   motor->mit_vel = vel;
@@ -127,7 +128,18 @@ static void DMMotorLostCallback(void* motor_ptr) {
   osDelay(100);
   // DWT_Delay(0.0001f);
 }
+void DMMotorClearErrorAndEnable(DMMotorInstance* motor) {
+  // 1. 发送清除错误指令 (0xFB)
+  DMMotorSetMode(DM_CMD_CLEAR_ERROR, motor);
+  osDelay(2); // 延时等待驱动板处理
 
+  // 2. 发送进入电机模式指令 (0xFC)
+  DMMotorSetMode(DM_CMD_MOTOR_MODE, motor);
+  osDelay(2); // 延时等待驱动板响应
+
+  // 3. 恢复软件层面的使能标志位
+  DMMotorEnable(motor);
+}
 void DMMotorCaliEncoder(DMMotorInstance* motor) {
   DMMotorSetMode(DM_CMD_ZERO_POSITION, motor);
   DWT_Delay(0.3);

@@ -39,6 +39,9 @@ static float debug_pos_r=0.0f;
 static float debug_footforce_l=0.0f;
 static float debug_footforce_r=0.0f;
 static float debug_theta=0.0f;
+static float debug_thetar=0.0f;
+static float debug_thetal=0.0f;
+
 static float debug_angle=0.0f;
 static float vmc_target_l=0.0f;
 static float debug_raw_r=0.0f;
@@ -114,14 +117,14 @@ const GasSpringPoint_t gas_spring_table[GAS_SPRING_TABLE_SIZE] = {
 const float GAS_SPRING_FREE_LENGTH = 0.230f;
 // theta=0 时，主动杆 L2 绝对水平指向车头；向下压时 theta 为正。
 // 2026-05 最新实车物理标定零位 (水平为0，下压为正)
-#define LEFT_MOTOR_HORIZON_OFFSET  (1.532f) //
-#define RIGHT_MOTOR_HORIZON_OFFSET 1.3325f  //
+#define LEFT_MOTOR_HORIZON_OFFSET  (1.562f) //
+#define RIGHT_MOTOR_HORIZON_OFFSET 1.363f  //
 // 电机旋转方向系数 (如果往下压时编码器数值减小，则填 -1.0f，增大填 1.0f)
 #define LEFT_MOTOR_DIR   1.0f
 #define RIGHT_MOTOR_DIR  (-1.0f)
 // 在文件顶部定义位置缓变速率和极限角度 (均为标准数学弧度)
 #define LEG_RAMP_RATE       0.001f  // 腿长变化速度 (弧度/ms)，数值越小动作越慢
-#define UPPER_LIMIT_ANGLE   0.350f   // 上方机械限位角度 (几乎水平)
+#define UPPER_LIMIT_ANGLE   0.360f   // 上方机械限位角度 (几乎水平)
 static float LOWER_LIMIT_ANGLE  = 1.1f;   // 下方最大伸展角度 (防止顶死或奇异点)
                                    //单位都为弧度，车辆坐标系
 // ==============================================================
@@ -1077,6 +1080,8 @@ static void Leg_AngleLoop_Control() {
     float raw_angle_r = chassis->leg_motor[1]->measure.total_angle;
     float theta_math_l = (raw_angle_l - LEFT_MOTOR_HORIZON_OFFSET) * LEFT_MOTOR_DIR;
     float theta_math_r = (raw_angle_r - RIGHT_MOTOR_HORIZON_OFFSET) * RIGHT_MOTOR_DIR;
+    debug_thetal=theta_math_l;
+    debug_thetar=theta_math_r;
     chassis->chassis_ctrl_cmd.leg_theta = (theta_math_l + theta_math_r) * 0.5f;
 
     if (is_first_run) {
@@ -1084,6 +1089,19 @@ static void Leg_AngleLoop_Control() {
         last_base_p_des_l = theta_math_l; last_base_p_des_r = theta_math_r;
         is_first_run = 0;
     }
+   if (chassis_ctrl_cmd->leg_clear_error == LEG_CLEAR_ERROR) {
+    for (int i = 0; i < 2; i++) {
+      if (chassis->leg_motor[i]->measure.state!=1) {
+        DMMotorClearErrorAndEnable(chassis->leg_motor[i]);
+        base_p_des_l = theta_math_l;
+        base_p_des_r = theta_math_r;
+        last_base_p_des_l = theta_math_l;
+        last_base_p_des_r = theta_math_r;
+      }
+    }
+    chassis_ctrl_cmd->leg_clear_error = NORMAL;
+  }
+
     switch (chassis_ctrl_cmd->leg_limit) {
       case FIRST_STEP:
         LOWER_LIMIT_ANGLE = 1.1f;
@@ -1198,7 +1216,7 @@ static void Leg_AngleLoop_Control() {
     float p_des_raw_l = (base_p_des_l * LEFT_MOTOR_DIR) + LEFT_MOTOR_HORIZON_OFFSET;
     float final_tff_l = target_tff_l * LEFT_MOTOR_DIR;
     if (final_tff_l > 40.0f) final_tff_l = 40.0f; if (final_tff_l < -40.0f) final_tff_l = -40.0f;
-    if (theta_math_l < UPPER_LIMIT_ANGLE + 0.0025||base_p_des_l < UPPER_LIMIT_ANGLE + 0.005 ) {
+    if (theta_math_l < UPPER_LIMIT_ANGLE + 0.005||base_p_des_l < UPPER_LIMIT_ANGLE + 0.005 ) {
       final_tff_l = 0;
     }
     if (chassis_ctrl_cmd->leg_mode==LEG_MANUAL_UP){final_tff_l = 0.0f;}
@@ -1235,7 +1253,7 @@ static void Leg_AngleLoop_Control() {
     float p_des_raw_r = (base_p_des_r * RIGHT_MOTOR_DIR) + RIGHT_MOTOR_HORIZON_OFFSET;
     float final_tff_r = target_tff_r * RIGHT_MOTOR_DIR;
     if (final_tff_r > 40.0f) final_tff_r = 40.0f; if (final_tff_r < -40.0f) final_tff_r = -40.0f;
-    if (theta_math_r < UPPER_LIMIT_ANGLE + 0.0025||base_p_des_r < UPPER_LIMIT_ANGLE + 0.005 ) {
+    if (theta_math_r < UPPER_LIMIT_ANGLE + 0.005||base_p_des_r < UPPER_LIMIT_ANGLE + 0.005 ) {
       final_tff_r = 0;
     }
     if (chassis_ctrl_cmd->leg_mode==LEG_MANUAL_UP){final_tff_r = 0.0f;}

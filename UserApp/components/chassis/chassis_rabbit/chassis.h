@@ -77,6 +77,11 @@ typedef enum {
   LEG_STATE_STANCE = 2    // 支撑相 (硬腿，完全承重)
 } LegState_e;
 typedef enum {
+  NORMAL = 0,
+  LEG_CLEAR_ERROR = 1,
+
+} LegClearError_e;
+typedef enum {
   FIRST_STEP = 0, // 一级台阶限位
   SECOND_STEP = 1,  // 二级台阶限位
 } LegLimit_e;
@@ -110,6 +115,7 @@ typedef struct {
   uint8_t SuperCapBoost;
   LegLimit_e leg_limit;
   float leg_theta;
+  LegClearError_e   leg_clear_error;
 } Chassis_Ctrl_Cmd_s;
 
 #pragma pack()

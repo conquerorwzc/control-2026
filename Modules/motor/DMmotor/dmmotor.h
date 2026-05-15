@@ -107,7 +107,7 @@ void DMMotorCaliEncoder(DMMotorInstance* motor);
 void DMMotorSetPIDRef(DMMotorInstance* motor, float pid_ref);
 
 void DMMotorTask(void const* argument);
-
+void DMMotorClearErrorAndEnable(DMMotorInstance* motor);
 void DMMotorTaskInit();
 void DMMotorSetMITRef(DMMotorInstance* motor, float pos, float vel, float kp, float kd, float torq);
 #endif  // !DMMOTOR

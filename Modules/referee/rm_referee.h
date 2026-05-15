@@ -63,6 +63,8 @@ typedef struct
     uint32_t fric_flag : 1;
     uint32_t yaw_flag : 1;
     uint32_t custom_gauge_flag : 1; // 扇形仪表更新标志位
+    uint32_t leg_status_flag : 1; // 扇形仪表更新标志位
+
 } Referee_Interactive_Flag_t;
 
 
