@@ -34,7 +34,9 @@
 #define PKT_ID_RFID_STATUS        0x0A
 #define PKT_ID_ROBOT_STATUS       0x0B
 #define PKT_ID_JOINT_STATE        0x0C
-#define PKT_ID_POWER_HEAT_DATA    0x0D
+#define PKT_ID_OUTPOST_STATE      0x0D
+// 允许发弹量数据包（来自裁判系统 0x0208），发给 MiniPC 的包 ID
+#define PKT_ID_PROJECTILE_ALLOWANCE 0x0208
 
 // MiniPC发送的数据包
 #define PKT_ID_ROBOT_CMD          0x01

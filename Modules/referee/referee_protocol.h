@@ -214,8 +214,8 @@ typedef struct
   uint16_t reserved_2;       //保留位
   float reserved_3;          //保留位
   uint16_t buffer_energy;    //缓冲能量
-  uint16_t shooter_17mm_barrel_heat;   //17mm弹丸允许发弹量
-  uint16_t shooter_42mm_barrel_heat;   //42mm弹丸允许发弹量
+  uint16_t shooter_17mm_barrel_heat;
+  uint16_t shooter_42mm_barrel_heat;
 } ext_power_heat_data_t;
 
 /* ID: 0x0203  Byte: 16    机器人位置数据 */

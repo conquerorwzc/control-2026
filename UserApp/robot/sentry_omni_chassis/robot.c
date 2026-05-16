@@ -465,12 +465,13 @@ void RobotCMDTask() {
   static uint8_t rc_dualboard_first_run = 1;
   static float last_heat_limit_time = 0.0f;
   time = DWT_GetTimeline_s();
-  // 双板数据按100Hz更新，其他安全逻辑维持高频
+  // 双板数据更新，其他安全逻辑维持高频
   if (rc_dualboard_first_run || (time - last_rc_dualboard_time) >= 0.012f) {
     rc_dualboard_first_run = 0;
     last_rc_dualboard_time = time;
     Chassis_CANCommSend();
     Chassis_CANCommSendMotion();
+    navigator_send(&huart1, robot->referee_data);
     if (time - last_heat_limit_time >= 1.0f) {
       last_heat_limit_time = time;
       Chassis_CANCommSendHeatLimit();
@@ -489,7 +490,6 @@ void RobotTask() {
   GimbalTask();
 #endif
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
-  navigator_send(&huart1, robot->referee_data);
   RobotCMDTask();
   // SuperCapControl();
   chassis_ctrl_cmd->max_power = robot->referee_data->GameRobotState.chassis_power_limit;

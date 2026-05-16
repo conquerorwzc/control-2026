@@ -267,6 +267,40 @@ static uint8_t send_robot_status(UART_HandleTypeDef* huart, const ext_game_robot
                         PKT_ID_ROBOT_STATUS, 10);
 }
 
+  /**
+ * @brief 发送允许发弹量数据
+ * @param huart UART句柄
+ * @param allowance 裁判系统的 ext_projectile_allowance_t 指针
+ * @return 发送成功返回1，失败返回0
+ */
+static uint8_t send_projectile_allowance(UART_HandleTypeDef* huart, const ext_projectile_allowance_t* allowance)
+{
+    if (huart == NULL || allowance == NULL) return 0;
+
+    uint32_t timestamp = HAL_GetTick();
+    return protocol_send(huart, timestamp,
+                        (uint8_t*)allowance,
+                        sizeof(ext_projectile_allowance_t),
+                        PKT_ID_PROJECTILE_ALLOWANCE, 10);
+}
+
+/**
+ * @brief 发送前哨站状态
+ * @param huart UART句柄
+ * @param outpost_state 前哨站状态，1=比赛剩余时间大于180s，0=180s及以下
+ * @return 发送成功返回1，失败返回0
+ */
+static uint8_t send_outpost_state(UART_HandleTypeDef* huart, const uint8_t* outpost_state)
+{
+    if (huart == NULL || outpost_state == NULL) return 0;
+
+    uint32_t timestamp = HAL_GetTick();
+    return protocol_send(huart, timestamp,
+                        outpost_state,
+                        sizeof(uint8_t),
+                        PKT_ID_OUTPOST_STATE, 10);
+}
+
 /**
  * @brief 发送云台关节状态
  * @param huart UART句柄
@@ -283,22 +317,7 @@ static  uint8_t send_joint_state(UART_HandleTypeDef* huart, const joint_state_t*
                         PKT_ID_JOINT_STATE, 10);
 }
 
-/**
- * @brief 发送实时功率热量数据
- * @param huart UART句柄
- * @param power_heat_data 功率热量数据结构体指针
- * @return 发送成功返回1，失败返回0
- */
-static uint8_t send_power_heat_data(UART_HandleTypeDef* huart, const ext_power_heat_data_t* power_heat_data)
-{
-    if (huart == NULL || power_heat_data == NULL) return 0;
 
-    uint32_t timestamp = HAL_GetTick();
-    return protocol_send(huart, timestamp,
-                        (uint8_t*)power_heat_data,
-                        sizeof(ext_power_heat_data_t),
-                        PKT_ID_POWER_HEAT_DATA, 10);
-}
 
 // void update_senddata(void) {
 //   send_data.game_status.game_type=0x0A;
@@ -320,14 +339,16 @@ void navigator_send(UART_HandleTypeDef *instance,referee_info_t* referee_data) {
   // update_senddata();
   //send_all_robot_hp(instance,&referee_data->GameRobotHP);
   // send_event_data(instance,&send_data.event_data);
-  send_game_status(instance,&referee_data->GameState);
+  // send_game_status(instance,&referee_data->GameState);
   // send_ground_robot_position(instance,&send_data.ground_robot_position);
   // send_joint_state(instance,&send_data.joint_state);
   // send_rfid_status(instance,&send_data.rfid_status);
   // send_robot_motion(instance,&send_data.robot_motion);
   // send_robot_state_info(instance,&send_data.state_info);
    send_robot_status(instance,&referee_data->GameRobotState);
-   send_power_heat_data(instance,&referee_data->PowerHeatData);
+   uint8_t outpost_state = (referee_data->GameState.stage_remain_time > 180U) ? 1U : 0U;
+   send_outpost_state(instance, &outpost_state);
+   send_projectile_allowance(instance,&referee_data->ProjectileAllowance);
 }
 
 static void DecodeNavigator() {
