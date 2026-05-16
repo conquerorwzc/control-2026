@@ -108,8 +108,8 @@ static float MotorEstimateCurrent(const float k[6], float P_target, float w, flo
  *        T_ref_motion_xj_i = T_motion_xj_i / T_motion_i * T_motion_ref_i
  *      由 x_ref_j = x_j + T_ref_motion_xj_i / K[i][j] 反推, 化简为
  *        state_err_new[j]_i = state_err[j] * scale_i,  scale_i = T_motion_ref_i / T_motion_i
- *   4. 两电机给出两个 scale, 取算术平均后回写 chassis_ctrl_cmd.{vx,target_yaw,wz}。
- *      x_b 的 ref 恒为 0, 不回写。
+ *   4. 两电机给出两个 scale, 取较小值后缩放本帧 LQR motion state_err。
+ *      raw chassis_ctrl_cmd 仍保持上层命令，只回写 chassis planner 参考，避免和 ramp 抢写。
  */
 void PowerControl(ChassisInstance* chassis) {
   State_Var_t* sv = &chassis->state_var;
@@ -151,13 +151,13 @@ void PowerControl(ChassisInstance* chassis) {
     float current_P = MotorEstimatePower(pc->k, pc->I[i], pc->w[i]);  // 使用原始 current_w 计算瞬态功率
     // float alpha = current_P > pc->P[i] ? 0.25f : 0.03f;
     // pc->P[i] += alpha * (current_P - pc->P[i]);
-    pc->P[i] = pc->P[i] * (1.0f - P_FILTER_COEF) + current_P * P_FILTER_COEF;
-    // pc->P[i] = current_P;
+    // pc->P[i] = pc->P[i] * (1.0f - P_FILTER_COEF) + current_P * P_FILTER_COEF;
+    pc->P[i] = current_P;
   }
 
   pc->P_total = pc->P[0] + pc->P[1];
-  pc->P_total_ref = chassis->chassis_ctrl_cmd.max_power;
-  // pc->P_total_ref = 180.f;
+  // pc->P_total_ref = chassis->chassis_ctrl_cmd.max_power;
+  pc->P_total_ref = 60.f;
   // pc->P_total_ref = 50.f;
 
   // 3.功率控制逻辑
@@ -181,25 +181,30 @@ void PowerControl(ChassisInstance* chassis) {
       // 4) motion 缩放系数
       if (fabsf(pc->T_motion[i]) > 1e-6f) {
         float s = pc->T_motion_ref[i] / pc->T_motion[i];
-        // VAL_LIMIT(s, 0.0f, 1.0f);  / 不放大, 也不允许符号反转(反解奇异时)
+        VAL_LIMIT(s, 0.0f, 1.0f);  // 不放大, 也不允许符号反转(反解奇异时)
         pc->scale_motion[i] = s;
       }
     }
 
     // 两电机给出两个 scale, state_err 在两电机间共享, 取算术平均回写
     pc->scale_combined = (pc->scale_motion[0] + pc->scale_motion[1]) * 0.5f;  // todo: 取最小值还是平均？
-    pc->scale_combined = (pc->scale_motion[0] + pc->scale_motion[1]) * 0.5f;  // todo: 取最小值还是平均？
 
-    // chassis->state_err[1] *= pc->scale_combined;
-    // chassis->state_err[2] *= pc->scale_combined;
-    // chassis->state_err[3] *= pc->scale_combined;
+    chassis->state_err[1] *= pc->scale_combined;
+    chassis->state_err[2] *= pc->scale_combined;
+    chassis->state_err[3] *= pc->scale_combined;
 
     // x_ref_j = x_j - state_err[j] * scale_combined
-    // x_b 的 ref 恒为 0, 不回写;
-    // x_b_d -> vx, phi -> target_yaw, phi_d -> wz
-    // chassis->chassis_ctrl_cmd.vx = sv->x_b_d - chassis->state_err[1];
-    // chassis->chassis_ctrl_cmd.target_yaw = sv->phi - chassis->state_err[2];
-    // chassis->chassis_ctrl_cmd.wz = sv->phi_d - chassis->state_err[3];
+    // x_b 的 ref 恒为 0, 不回写; raw chassis_ctrl_cmd 保持上层命令, 只同步 planner
+    chassis->chassis_ctrl_cmd.vx = sv->x_b_d - chassis->state_err[1];
+    chassis->chassis_ctrl_cmd.target_yaw = sv->phi - chassis->state_err[2];
+    chassis->chassis_ctrl_cmd.wz = sv->phi_d - chassis->state_err[3];
+    // chassis->planner.vx = sv->x_b_d - chassis->state_err[1];
+    // chassis->planner.target_yaw = sv->phi - chassis->state_err[2];
+    // chassis->planner.wz = sv->phi_d - chassis->state_err[3];
+    // chassis->planner.vx_ramp.planning_v = chassis->planner.vx;
+    // chassis->planner.wz_ramp.planning_v = chassis->planner.wz;
+    // VAL_LIMIT(chassis->planner.vx_ramp.planning_v, -chassis->planner.vx_ramp.max_v, chassis->planner.vx_ramp.max_v);
+    // VAL_LIMIT(chassis->planner.wz_ramp.planning_v, -chassis->planner.wz_ramp.max_v, chassis->planner.wz_ramp.max_v);
   } else {
     // 默认无缩放
     pc->scale_motion[0] = 1.0f;
@@ -211,6 +216,9 @@ void PowerControl(ChassisInstance* chassis) {
       pc->T_motion_ref[i] = pc->T_motion[i];
     }
   }
+#undef I_FILTER_COEF
+#undef W_FILTER_COEF
+#undef P_FILTER_COEF
 }
 
 /**
@@ -262,6 +270,9 @@ void PowerControl_Prostrate(ChassisInstance* chassis) {
   for (int i = 0; i < 2; i++) {
     chassis->leg[i]->wheel_motor->motor_controller.final_output = (int16_t)(pc->I_ref[i] / DJI_CURRENT_SCALE);
   }
+#undef I_FILTER_COEF
+#undef W_FILTER_COEF
+#undef P_FILTER_COEF
 }
 
 void PowerControlInit(ChassisInstance* chassis) {

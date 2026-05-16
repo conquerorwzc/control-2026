@@ -34,7 +34,7 @@ static UpdateFlag_s update_flag = {.is_first_update = 1};
 static CtrlInstance ocd = {
     .leg.index = 1,
     /* 速度配置。vx/stair/vault 为平移速度 m/s，wz 为小陀螺角速度 rad/s。 */
-    .speed = {.vx = 2.5f, .wz = 10.0f, .stair = 2.2f, .vault = 1.8f},
+    .speed = {.vx = 2.5f, .wz = 12.0f, .stair = 2.2f, .vault = 1.8f},
     /* 倾倒恢复阈值。保留 default/creep 两套配置，便于后续按场景单独调参。 */
     .recovery = {.pitch_default = 13.0f, .pitch_creep = 13.0f},
 };

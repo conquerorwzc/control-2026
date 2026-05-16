@@ -399,10 +399,10 @@ static void ChassisCtrlUpdate(void) {
   LQR_K_Calc(chassis->LQR_K, chassis->param.LQR_K_Coefficients, l_l, l_r);
 
   // planner 平滑上层 raw cmd, StateErrCalc 实际跟踪 planner 输出
-  ChassisPlannerUpdate(chassis->dt);
   StateErrCalc();
   // ChassisCtrlUpdate 始终是 LQR 平衡输出路径；真实卧倒输出在 LimitChassisOutput() 中限功率。
   PowerControl(chassis);
+  ChassisPlannerUpdate(chassis->dt);
 
   LocomotionController();
   LegController();
@@ -645,7 +645,7 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
       .k_p_vel = 0.35f,
   };
   chassis_instance->planner.wz_ramp = (Ramp_Controller_t){
-      .max_v = 9.0f,
+      .max_v = 11.0f,
       .max_accel = 35.0f,
       .min_accel = 15.0f,
       .accel_base_speed = 1.3f,

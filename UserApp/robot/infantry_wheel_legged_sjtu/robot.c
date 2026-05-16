@@ -75,11 +75,12 @@ void VOFATask() {
   visualized_data[3] = robot->chassis->power_ctrl->P[0];
   visualized_data[4] = robot->chassis->power_ctrl->I[0];
   visualized_data[5] = robot->chassis->power_ctrl->w[0];
+  visualized_data[6] = robot->chassis->state_var.phi_d;
 
-  visualized_data[6]= robot->chassis->super_cap->cap_msg.cap_v;
-  visualized_data[7] = robot->chassis->super_cap->cap_msg.out_p;
-  visualized_data[8] = robot->chassis->super_cap->cap_msg.in_p;
-  visualized_data[9] = robot->chassis->super_cap->cap_msg.error_detect;
+  // visualized_data[6]= robot->chassis->super_cap->cap_msg.cap_v;
+  // visualized_data[7] = robot->chassis->super_cap->cap_msg.out_p;
+  // visualized_data[8] = robot->chassis->super_cap->cap_msg.in_p;
+  // visualized_data[9] = robot->chassis->super_cap->cap_msg.error_detect;
 
   // visualized_data[0] = robot->chassis->chassis_ctrl_cmd.vx;
   // visualized_data[1] = robot->chassis->vaEstimateKF.FilteredValue[0];
