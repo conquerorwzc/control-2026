@@ -228,10 +228,6 @@ static void EmergencyHandler() {
   } else
     LOGINFO("[CMD]DualBoardComm is Online");
 
-  if (robot->navigator_data->robot_cmd.is_recovering==1 && robot->referee_data->GameRobotState.current_HP<robot->referee_data->GameRobotState.maximum_HP*0.8) {
-    chassis_ctrl_cmd->chassis_mode=CHASSIS_POWER_OFF;
-  }
-
 #ifdef USE_DUAL_RC
 
   if (switch_is_down(rc_data[TEMP].rc.switch_left))  // 底盘失能

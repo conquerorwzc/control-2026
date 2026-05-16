@@ -114,7 +114,7 @@ void SentryTask() {
   sentry_interaction_data->data_cmd_id=ID_sentry_cmd;
   sentry_interaction_data->FrameHeader.SOF=REFEREE_SOF;
   sentry_interaction_data->receiver_id=0x8080;
-  sentry_interaction_data->sender_id=7;
+  sentry_interaction_data->sender_id=referee_recv_info->GameRobotState.robot_id;
   sentry_interaction_data->FrameHeader.DataLength=LEN_sentry_cmd_id + LEN_receiver + LEN_sender + LEN_sentry_cmd_data;
   memcpy(sentry_interaction_data->user_data, sentry_info->raw_data,sizeof(sentry_interaction_data->user_data));
   sentry_interaction_data->FrameHeader.Seq=Sentry_Seq;
