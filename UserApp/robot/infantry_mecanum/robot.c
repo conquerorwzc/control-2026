@@ -278,6 +278,7 @@ static void MouseKeySet() {
 #else
 
 static void RemoteControlSet() {
+  // 右[中]，云台
   if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
@@ -285,6 +286,7 @@ static void RemoteControlSet() {
     } else
       chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
   }
+  // 右[上]，超电，保持底盘跟随云台
   else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
@@ -293,13 +295,16 @@ static void RemoteControlSet() {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
   }
 
+  // 左[中],云台启动，摩擦轮启动，拨弹盘启动，准备射击
   if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
     shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
+    // 待添加,视觉会发来和目标的误差,同样将其转化为total angle的增量进行控制
   }
-  else if (switch_is_up(rc_data[TEMP].rc.switch_left)) {
+  else if (switch_is_up(rc_data[TEMP].rc.switch_left))  // 开火，发射，根据时间判断单发或者连发
+  {
     shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
@@ -314,75 +319,82 @@ static void RemoteControlSet() {
     }
   }
 
-  if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
+  // 云台使能,或视觉未识别到目标,纯遥控器拨杆控制
+  if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {  // 按照摇杆的输出大小进行角度增量,增益系数需调整
     gimbal_ctrl_cmd->yaw += -0.0016f * (float)rc_data[TEMP].rc.rocker_r_;
     gimbal_ctrl_cmd->pitch -= 0.0003f * (float)rc_data[TEMP].rc.rocker_r1;
   }
 
+  // 云台PITCH轴软件限位 todo:没在云台有点不好
   if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
     gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
   } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
     gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
   }
 
-  vx_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l_;
-  vy_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;
+  // 底盘参数,系数需要调整
+  vx_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l_;  // l_水平方向
+  vy_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;  // l1竖直方向
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
-    chassis_ctrl_cmd->wz = 15.0f * (float)rc_data[TEMP].rc.dial;
+    chassis_ctrl_cmd->wz = 15.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
   }
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
-    chassis_ctrl_cmd->wz = 15.0f * (float)rc_data[TEMP].rc.rocker_r_;
+    chassis_ctrl_cmd->wz = 15.0f * (float)rc_data[TEMP].rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
   }
+
+  // 射频控制,固定每秒1发,后续可以根据左侧拨轮的值大小切换射频,
 }
 
 static void MouseKeySet() {
   vy_initial += (float)((rc_data[TEMP].key[KEY_PRESS].w) - rc_data[TEMP].key[KEY_PRESS].s) *
-                         (float) chassis_ctrl_cmd->chassis_speed_buff;
+                         (float) (chassis_ctrl_cmd->chassis_speed_buff+chassis_ctrl_cmd->max_power*200);
   vx_initial += (float)(rc_data[TEMP].key[KEY_PRESS].a - rc_data[TEMP].key[KEY_PRESS].d) *
                          (float) -chassis_ctrl_cmd->chassis_speed_buff;
 
+  //缓加速
   if (abs(vx_initial)<=10000) {
     x_speed_time=DWT_GetTimeline_s();
     chassis_ctrl_cmd->vx=vx_initial;
-  }
+  }//速度绝对值在10000以下输出控制量=输入控制量
   if (vx_initial > 10000&&chassis_ctrl_cmd->vx<= 60.0f * (float)rc_data[TEMP].rc.rocker_l_ ) {
     chassis_ctrl_cmd->vx=10000+(DWT_GetTimeline_s()-x_speed_time)*12500;
   }
   if (vx_initial < -10000&&chassis_ctrl_cmd->vx>= 60.0f * (float)rc_data[TEMP].rc.rocker_l_) {
     chassis_ctrl_cmd->vx=-10000-(DWT_GetTimeline_s()-x_speed_time)*12500;
-  }
+  }//速度绝对值在10000以上输出控制量=10000+10000t(s)
   if (abs(vy_initial)<=10000) {
     y_speed_time=DWT_GetTimeline_s();
     chassis_ctrl_cmd->vy=vy_initial;
-  }
+  }//速度绝对值在10000以下输出控制量=输入控制量
   if (vy_initial > 10000&&chassis_ctrl_cmd->vy<= 60.0f * (float)rc_data[TEMP].rc.rocker_l1 ) {
     chassis_ctrl_cmd->vy=10000+(DWT_GetTimeline_s()-y_speed_time)*12500;
   }
   if (vy_initial < -10000&&chassis_ctrl_cmd->vy>= 60.0f * (float)rc_data[TEMP].rc.rocker_l1) {
     chassis_ctrl_cmd->vy=-10000-(DWT_GetTimeline_s()-y_speed_time)*12500;
-  }
+  }//速度绝对值在10000以上输出控制量=10000+10000t(s)
 
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
-    gimbal_ctrl_cmd->yaw -= (float)rc_data[TEMP].mouse.x * 0.007f;
-    gimbal_ctrl_cmd->pitch -= (float)rc_data[TEMP].mouse.y * 0.003f;
+    gimbal_ctrl_cmd->yaw -= (float)rc_data[TEMP].mouse.x * 0.007f;  // 横向灵敏度调节
+    gimbal_ctrl_cmd->pitch -= (float)rc_data[TEMP].mouse.y * 0.003f; // 纵向灵敏度调节 (负号反转Y轴)
   }
 
-  switch (rc_data[TEMP].mouse.press_r % 2) {
+  switch (rc_data[TEMP].mouse.press_r % 2) {  //右键进入自瞄预备模式
   case 1:
       if (has_non_zero_data(vision_recv_data)==1){
-        gimbal_ctrl_cmd->gimbal_mode=GIMBAL_VISION;
+        gimbal_ctrl_cmd->gimbal_mode=GIMBAL_VISION;    // 右键自瞄开启
         gimbal_ctrl_cmd->yaw=1.0f*vision_recv_data->gimbal_receive.yaw+0.0f*last_yaw;
         last_yaw=vision_recv_data->gimbal_receive.yaw;
         gimbal_ctrl_cmd->pitch=vision_recv_data->gimbal_receive.pitch;
+        //shoot_ctrl_cmd->load_mode=vision_recv_data->shoot_receive.fire_flag;
       }
       else
-        gimbal_ctrl_cmd->gimbal_mode=GIMBAL_ON;
+        gimbal_ctrl_cmd->gimbal_mode=GIMBAL_ON;      //人工操控模式
       break;
   default:
       break;
   }
 
-  switch (rc_data[TEMP].mouse.press_l % 2) {
+  switch (rc_data[TEMP].mouse.press_l % 2) {  // 左键发射
   case 0:
       if (!switch_is_up(rc_data[TEMP].rc.switch_left)) {
         shoot_ctrl_cmd->load_mode=LOAD_STOP;
@@ -390,15 +402,15 @@ static void MouseKeySet() {
       }
       break;
   default:
-    switch (rc_data[TEMP].key_count[KEY_PRESS][Key_G] % 2) {
-      case 0:
-        if (shoot_ctrl_cmd->friction_mode==FRICTION_ON&&(vision_recv_data->shoot_receive.fire_flag||rc_data[TEMP].mouse.press_r % 2==0)) {
+    switch (rc_data[TEMP].key_count[KEY_PRESS][Key_G] % 2) {  // G键设置发射模式
+      case 0:  //单发+长按连发
+        if (shoot_ctrl_cmd->friction_mode==FRICTION_ON&&(vision_recv_data->shoot_receive.fire_flag||rc_data[TEMP].mouse.press_r % 2==0)) {  //需预先开启摩擦轮
             shoot_ctrl_cmd->load_mode=LOAD_1_BULLET;
-          if (DWT_GetTimeline_s() - trigger_time > 0.20f) {
+          if (DWT_GetTimeline_s() - trigger_time > 0.20f) {  //长按检测，1秒
             shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
           }
           break;
-          default:
+          default:  //连发
           if (shoot_ctrl_cmd->friction_mode==FRICTION_ON)
           shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
           break;
@@ -407,7 +419,7 @@ static void MouseKeySet() {
       break;
   }
 
-  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_C] % 3) {
+  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_C] % 3) {  // C键设置底盘速度
     case 0:
       chassis_ctrl_cmd->chassis_speed_buff = 20000;
       break;
@@ -419,14 +431,14 @@ static void MouseKeySet() {
       break;
   }
 
-  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Q]%2||abs(rc_data[TEMP].rc.dial) > 20) {
+  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Q]%2||abs(rc_data[TEMP].rc.dial) > 20) {  //Q定速小陀螺
     case 0:
       chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
-      chassis_ctrl_cmd->wz+=(float)rc_data[TEMP].mouse.x * 70.0f;
+      chassis_ctrl_cmd->wz+=(float)rc_data[TEMP].mouse.x * 70.0f;  //主动跟随量
       break;
     default:
       chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
-      chassis_ctrl_cmd->wz=6000;
+      chassis_ctrl_cmd->wz=(float)chassis_ctrl_cmd->max_power*50.0f+3000.f;
       break;
   }
 
@@ -488,6 +500,7 @@ static void EmergencyHandler() {
       gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
   }
 #else
+  // 两switch都在下断电
   if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left))||
       switch_is_off(rc_data[TEMP].rc.switch_left)||switch_is_off(rc_data[TEMP].rc.switch_right)) {
     robot->robot_mode = ROBOT_POWER_ON;
@@ -501,21 +514,22 @@ static void EmergencyHandler() {
     LOGINFO("[CMD] reinstate, robot ready");
   }
 
-  if (switch_is_down(rc_data[TEMP].rc.switch_right)||switch_is_off(rc_data[TEMP].rc.switch_right)) {
+  if (switch_is_down(rc_data[TEMP].rc.switch_right)||switch_is_off(rc_data[TEMP].rc.switch_right)) {  // 底盘失能
     chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
   } else {
     gimbal_ctrl_cmd->gimbal_mode=GIMBAL_ON;
   }
 
-  if (switch_is_down(rc_data[TEMP].rc.switch_left)||switch_is_off(rc_data[TEMP].rc.switch_left)) {
+  if (switch_is_down(rc_data[TEMP].rc.switch_left)||switch_is_off(rc_data[TEMP].rc.switch_left)) {  // 发射失能
     shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
     shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
   } else {
     shoot_ctrl_cmd->shoot_mode= SHOOT_ON;
-    if (gimbal_ctrl_cmd->gimbal_mode!=GIMBAL_VISION)
+    if (gimbal_ctrl_cmd->gimbal_mode!=GIMBAL_VISION)  //增加自瞄状态的优先级
       gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
   }
+  // 遥控器右侧开关为[上],恢复正常运行
 #endif
 }
 
@@ -531,12 +545,12 @@ void RobotInit() {
   vt13_rc_data = robot->vt13_rc_data;
 #else
 #ifdef STM32F407xx
-  robot->rc_data = RemoteControlInit(&huart3);
+  robot->rc_data = RemoteControlInit(&huart3);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
 #elifdef STM32H723XX
-  robot->rc_data = RemoteControlInit(&huart5);
+  robot->rc_data = RemoteControlInit(&huart5);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
 #endif
   rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
-  *rc_data_last = *robot->rc_data;
+  *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
   rc_data = robot->rc_data;
 #endif
 
@@ -571,12 +585,13 @@ void RobotInit() {
     AlarmSetStatus(robot_buzzer, ALARM_ON);
     HAL_Delay(200);
     AlarmSetStatus(robot_buzzer, ALARM_OFF);
-    HAL_Delay(30);//用os_delay时间不稳定
+    HAL_Delay(30);  //用os_delay时间不稳定
     i++;
   }
 }
 
 void RobotCMDTask() {
+  // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
   shoot_ctrl_cmd->initial_speed=robot->referee_data->ShootData.initial_speed;
   shoot_ctrl_cmd->shooter_barrel_heat=robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
   shoot_ctrl_cmd->shooter_barrel_heat_limit=robot->referee_data->GameRobotState.shooter_barrel_heat_limit-10;
@@ -585,7 +600,7 @@ void RobotCMDTask() {
   CalcOffsetAngle();
   RemoteControlSet();
   MouseKeySet();
-  EmergencyHandler();
+  EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
