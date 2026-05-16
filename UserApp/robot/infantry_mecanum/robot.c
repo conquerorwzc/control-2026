@@ -160,31 +160,10 @@ static void RemoteControlSet() {
 }
 
 static void MouseKeySet() {
-  vy_initial += (float)(vt13_rc_data->mouse_key[0].keyboard.w - vt13_rc_data->mouse_key[0].keyboard.s) *
+  chassis_ctrl_cmd->vy += (float)(vt13_rc_data->mouse_key[0].keyboard.w - vt13_rc_data->mouse_key[0].keyboard.s) *
                          (float)chassis_ctrl_cmd->chassis_speed_buff;
-  vx_initial += (float)(vt13_rc_data->mouse_key[0].keyboard.a - vt13_rc_data->mouse_key[0].keyboard.d) *
+  chassis_ctrl_cmd->vx += (float)(vt13_rc_data->mouse_key[0].keyboard.a - vt13_rc_data->mouse_key[0].keyboard.d) *
                          (float)-chassis_ctrl_cmd->chassis_speed_buff;
-
-  if (abs(vx_initial)<=10000) {
-    x_speed_time=DWT_GetTimeline_s();
-    chassis_ctrl_cmd->vx=vx_initial;
-  }
-  if (vx_initial > 10000&&chassis_ctrl_cmd->vx<= 60.0f * (float)vt13_rc_data->rc.rocker_l_) {
-    chassis_ctrl_cmd->vx=10000+(DWT_GetTimeline_s()-x_speed_time)*10000;
-  }
-  if (vx_initial < -10000&&chassis_ctrl_cmd->vx>= 60.0f * (float)vt13_rc_data->rc.rocker_l_) {
-    chassis_ctrl_cmd->vx=-10000-(DWT_GetTimeline_s()-x_speed_time)*10000;
-  }
-  if (abs(vy_initial)<=10000) {
-    y_speed_time=DWT_GetTimeline_s();
-    chassis_ctrl_cmd->vy=vy_initial;
-  }
-  if (vy_initial > 10000&&chassis_ctrl_cmd->vy<= 60.0f * (float)vt13_rc_data->rc.rocker_l1) {
-    chassis_ctrl_cmd->vy=10000+(DWT_GetTimeline_s()-y_speed_time)*10000;
-  }
-  if (vy_initial < -10000&&chassis_ctrl_cmd->vy>= 60.0f * (float)vt13_rc_data->rc.rocker_l1) {
-    chassis_ctrl_cmd->vy=-10000-(DWT_GetTimeline_s()-y_speed_time)*10000;
-  }
 
   switch (vt13_rc_data->button_status.mouse_r_count % 2) {
   case 1:
@@ -347,7 +326,7 @@ static void RemoteControlSet() {
 
 static void MouseKeySet() {
   vy_initial += (float)((rc_data[TEMP].key[KEY_PRESS].w) - rc_data[TEMP].key[KEY_PRESS].s) *
-                         (float) (chassis_ctrl_cmd->chassis_speed_buff+chassis_ctrl_cmd->max_power*200);
+                         (float) chassis_ctrl_cmd->chassis_speed_buff;
   vx_initial += (float)(rc_data[TEMP].key[KEY_PRESS].a - rc_data[TEMP].key[KEY_PRESS].d) *
                          (float) -chassis_ctrl_cmd->chassis_speed_buff;
 
@@ -356,21 +335,25 @@ static void MouseKeySet() {
     x_speed_time=DWT_GetTimeline_s();
     chassis_ctrl_cmd->vx=vx_initial;
   }//速度绝对值在10000以下输出控制量=输入控制量
-  if (vx_initial > 10000&&chassis_ctrl_cmd->vx<= 60.0f * (float)rc_data[TEMP].rc.rocker_l_ ) {
-    chassis_ctrl_cmd->vx=10000+(DWT_GetTimeline_s()-x_speed_time)*12500;
+  if (vx_initial > 10000&&chassis_ctrl_cmd->vx<= 50.0f * (float)rc_data[TEMP].rc.rocker_l_ +(float)(rc_data[TEMP].key[KEY_PRESS].a - rc_data[TEMP].key[KEY_PRESS].d) *
+                         (float) -chassis_ctrl_cmd->chassis_speed_buff) {
+    chassis_ctrl_cmd->vx=10000+(DWT_GetTimeline_s()-x_speed_time)*(4500+(float)chassis_ctrl_cmd->max_power*25);
   }
-  if (vx_initial < -10000&&chassis_ctrl_cmd->vx>= 60.0f * (float)rc_data[TEMP].rc.rocker_l_) {
-    chassis_ctrl_cmd->vx=-10000-(DWT_GetTimeline_s()-x_speed_time)*12500;
+  if (vx_initial < -10000&&chassis_ctrl_cmd->vx>= 50.0f * (float)rc_data[TEMP].rc.rocker_l_+(float)(rc_data[TEMP].key[KEY_PRESS].a - rc_data[TEMP].key[KEY_PRESS].d) *
+                         (float) -chassis_ctrl_cmd->chassis_speed_buff) {
+    chassis_ctrl_cmd->vx=-10000-(DWT_GetTimeline_s()-x_speed_time)*(4500+(float)chassis_ctrl_cmd->max_power*25);
   }//速度绝对值在10000以上输出控制量=10000+10000t(s)
   if (abs(vy_initial)<=10000) {
     y_speed_time=DWT_GetTimeline_s();
     chassis_ctrl_cmd->vy=vy_initial;
   }//速度绝对值在10000以下输出控制量=输入控制量
-  if (vy_initial > 10000&&chassis_ctrl_cmd->vy<= 60.0f * (float)rc_data[TEMP].rc.rocker_l1 ) {
-    chassis_ctrl_cmd->vy=10000+(DWT_GetTimeline_s()-y_speed_time)*12500;
+  if (vy_initial > 10000&&chassis_ctrl_cmd->vy<= (40.0f+(float)chassis_ctrl_cmd->max_power*0.2f )* (float)rc_data[TEMP].rc.rocker_l1+(float)((rc_data[TEMP].key[KEY_PRESS].w) - rc_data[TEMP].key[KEY_PRESS].s) *
+                         (float) chassis_ctrl_cmd->chassis_speed_buff ) {
+    chassis_ctrl_cmd->vy=10000+(DWT_GetTimeline_s()-y_speed_time)*(4000+(float)chassis_ctrl_cmd->max_power*25);
   }
-  if (vy_initial < -10000&&chassis_ctrl_cmd->vy>= 60.0f * (float)rc_data[TEMP].rc.rocker_l1) {
-    chassis_ctrl_cmd->vy=-10000-(DWT_GetTimeline_s()-y_speed_time)*12500;
+  if (vy_initial < -10000&&chassis_ctrl_cmd->vy>= (40.0f+(float)chassis_ctrl_cmd->max_power*0.2f) * (float)rc_data[TEMP].rc.rocker_l1+(float)((rc_data[TEMP].key[KEY_PRESS].w) - rc_data[TEMP].key[KEY_PRESS].s) *
+                         (float) chassis_ctrl_cmd->chassis_speed_buff ) {
+    chassis_ctrl_cmd->vy=-10000-(DWT_GetTimeline_s()-y_speed_time)*(4000+(float)chassis_ctrl_cmd->max_power*25);
   }//速度绝对值在10000以上输出控制量=10000+10000t(s)
 
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
@@ -419,15 +402,12 @@ static void MouseKeySet() {
       break;
   }
 
-  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_C] % 3) {  // C键设置底盘速度
+  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_C] % 2) {  // C键设置底盘速度
     case 0:
-      chassis_ctrl_cmd->chassis_speed_buff = 20000;
-      break;
-    case 1:
-      chassis_ctrl_cmd->chassis_speed_buff = 30000;
+      chassis_ctrl_cmd->chassis_speed_buff = 40000;
       break;
     default:
-      chassis_ctrl_cmd->chassis_speed_buff = 40000;
+      chassis_ctrl_cmd->chassis_speed_buff = 50000;
       break;
   }
 
