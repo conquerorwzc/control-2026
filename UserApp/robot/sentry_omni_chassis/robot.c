@@ -255,14 +255,15 @@ static void SentryCmd() {
       robot->sentry_mode=DEFENSE_POSE;    //弹丸不足时进入防御姿态
       // robot->chassis->chassis_ctrl_cmd.wz=-2500;
     }
-    else if ((robot->chassis->chassis_ctrl_cmd.vx==0&&robot->chassis->chassis_ctrl_cmd.vy==0)
+    else if ((abs(robot->chassis->chassis_ctrl_cmd.vx)<=8000&&abs(robot->chassis->chassis_ctrl_cmd.vy)<=8000&&time-pose_time>=0.5f)
       ||RFID->RFID1_t.fields.own_fortress_boost) {
       pose_time=time;
       robot->sentry_mode=OFFENSE_POSE;    //不移动或低速移动开始进攻
       // robot->chassis->chassis_ctrl_cmd.wz=-5000;
     }
     else {
-      if (time-pose_time>=1) {                          //避免姿态频繁切换
+      if (time-pose_time>=0.5f) {                          //避免姿态频繁切换
+        pose_time=time;
         robot->sentry_mode=MOBILITY_POSE;
         // robot->chassis->chassis_ctrl_cmd.wz=-1500;
       }
