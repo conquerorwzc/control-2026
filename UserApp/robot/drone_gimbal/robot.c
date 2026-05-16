@@ -327,6 +327,8 @@ void RobotInit() {
 
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
+  shoot_ctrl_cmd->heat_mode=REFEREE_CONTROL;
+  shoot_ctrl_cmd->bullet_speed_mode=ENABLE_BULLET_SPEED;
   rc_data = robot->rc_data;
   vision_recv_data = VisionInit(&gimbal_init_config.imu_init_config);
   VOFAInit(&huart1);
@@ -337,6 +339,9 @@ void RobotInit() {
 void RobotCMDTask() {
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
   shoot_ctrl_cmd->initial_speed = robot->referee_data->ShootData.initial_speed;
+  shoot_ctrl_cmd->shooter_barrel_heat=robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
+  shoot_ctrl_cmd->shooter_barrel_heat_limit=robot->referee_data->GameRobotState.shooter_barrel_heat_limit-10;
+  shoot_ctrl_cmd->shooter_barrel_cooling_value=robot->referee_data->GameRobotState.shooter_barrel_cooling_value;
   RemoteControlSet();
   MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
@@ -348,7 +353,6 @@ void RobotTask() {
   RobotCMDTask();
   GimbalTask();
   ShootTask();
-  UITask();
 }
 
 /**

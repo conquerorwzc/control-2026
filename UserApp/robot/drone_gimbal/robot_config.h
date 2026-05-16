@@ -25,8 +25,8 @@
 #define GYRO2GIMBAL_DIR_ROLL 1   // 陀螺仪数据相较于云台的roll的方向,1为相同,-1为相反
 
 #define MOUSE_DEADBAND     5      // 鼠标死区阈值
-#define YAW_MOUSE_SENS     0.007f // 云台偏航鼠标灵敏度
-#define PITCH_MOUSE_SENS   0.003f // 云台俯仰鼠标灵敏度
+#define YAW_MOUSE_SENS     0.002f // 云台偏航鼠标灵敏度
+#define PITCH_MOUSE_SENS   0.0005f // 云台俯仰鼠标灵敏度
 
 static Gimbal_Init_Config_s gimbal_init_config = {
     .yaw_motor_config =
@@ -41,7 +41,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                             .DeadBand = 0.0f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                             .IntegralLimit = 5.0f,
-                            .MaxOut = 10.0f,//25
+                            .MaxOut = 10.0f,
                         },
                     .speed_PID =
                         {
@@ -71,7 +71,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                             .Kp = 0.7f,
                             .Ki = 0.0f,
                             .Kd = 0.0f,
-                            .MaxOut = 10.0f,//15
+                            .MaxOut = 10.0f,//10.0
                             .DeadBand = 0.01f,
                             .Improve = PID_Integral_Limit,
                             .IntegralLimit = 3.0f,
@@ -81,7 +81,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                             .Kp = 0.7f,
                             .Ki = 0.05f,
                             .Kd = 0.0f,
-                            .MaxOut = 2.4f,//4
+                            .MaxOut = 2.4f,//2.4
                             .DeadBand = 0.01f,
                             .Improve = PID_Integral_Limit,
                             .IntegralLimit = 2.0f,
@@ -118,12 +118,12 @@ static Gimbal_Init_Config_s gimbal_init_config = {
           {                                          \
               .speed_PID =                           \
                   {                                  \
-                      .Kp = 1.5f,                    \
+                      .Kp = 0.45f,                    \
                       .Ki = 0.0f,                   \
                       .Kd = 0.0f,                     \
                       .Improve = PID_Integral_Limit, \
                       .IntegralLimit = 100.0f,     \
-                      .MaxOut = 10000.0f,            \
+                      .MaxOut = 8000.0f,            \
                   },                                 \
           },                                         \
       .controller_setting_init_config =              \
@@ -151,12 +151,16 @@ static Shoot_Init_Config_s shoot_init_config = {
             .num_per_circle = 7,                    // 拨盘一圈的装载量6
             .loader_direction = 1,                  // 拨盘旋转方向,1为正向，-1为反向
             .friction_num = 2,                      // 摩擦轮数量
-            .friction_speed = 35000.0f,             // 摩擦轮速度
+            .friction_speed = 37000.0f,             // 摩擦轮速度
             .friction_coefficients = {1.0f, -1.0f},  // 摩擦轮速度比例系数
             .deadtime_burstfire = 100,
             .deadtime_onebullet = 500,  // 弹丸发射间隔
-            .target_speed = 22.0f,
-            .bullet_speed_adjustment = 0.0f,
+            .target_speed = 22.0f,//目标弹速
+            .bullet_speed_deadband = 0.5f,//弹速死区，hero小些，步兵可以大些
+           .bullet_speed_adjustment = 400.0f,
+            .one_barrel_heat_value = 10,//一发弹丸所需热量
+            .shooter_barrel_cooling_value = 12,//每秒冷却回复
+            .shooter_barrel_heat_limit =72,//热量上限
 
         },
     .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan2, 4, MOTOR_DIRECTION_NORMAL),
