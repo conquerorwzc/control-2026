@@ -347,12 +347,14 @@ static void MouseKeySet() {
     y_speed_time=DWT_GetTimeline_s();
     chassis_ctrl_cmd->vy=vy_initial;
   }//速度绝对值在10000以下输出控制量=输入控制量
-  if (vy_initial > 10000&&chassis_ctrl_cmd->vy<= (40.0f+(float)chassis_ctrl_cmd->max_power*0.2f )* (float)rc_data[TEMP].rc.rocker_l1+(float)((rc_data[TEMP].key[KEY_PRESS].w) - rc_data[TEMP].key[KEY_PRESS].s) *
-                         (float) chassis_ctrl_cmd->chassis_speed_buff ) {
+  if (vy_initial > 10000&&chassis_ctrl_cmd->vy<= (40.0f+(float)chassis_ctrl_cmd->max_power*0.2f) * (float)rc_data[TEMP].rc.rocker_l1
+    +(float)(rc_data[TEMP].key[KEY_PRESS].w - rc_data[TEMP].key[KEY_PRESS].s)
+    *(float) chassis_ctrl_cmd->chassis_speed_buff*(0.66f+(float)chassis_ctrl_cmd->max_power*0.0033f)) {
     chassis_ctrl_cmd->vy=10000+(DWT_GetTimeline_s()-y_speed_time)*(4000+(float)chassis_ctrl_cmd->max_power*25);
   }
-  if (vy_initial < -10000&&chassis_ctrl_cmd->vy>= (40.0f+(float)chassis_ctrl_cmd->max_power*0.2f) * (float)rc_data[TEMP].rc.rocker_l1+(float)((rc_data[TEMP].key[KEY_PRESS].w) - rc_data[TEMP].key[KEY_PRESS].s) *
-                         (float) chassis_ctrl_cmd->chassis_speed_buff ) {
+  if (vy_initial < -10000&&chassis_ctrl_cmd->vy>= (40.0f+(float)chassis_ctrl_cmd->max_power*0.2f) * (float)rc_data[TEMP].rc.rocker_l1
+    +(float)(rc_data[TEMP].key[KEY_PRESS].w - rc_data[TEMP].key[KEY_PRESS].s)
+    *(float) chassis_ctrl_cmd->chassis_speed_buff*(0.66f+(float)chassis_ctrl_cmd->max_power*0.0033f)) {
     chassis_ctrl_cmd->vy=-10000-(DWT_GetTimeline_s()-y_speed_time)*(4000+(float)chassis_ctrl_cmd->max_power*25);
   }//速度绝对值在10000以上输出控制量=10000+10000t(s)
 
@@ -407,7 +409,7 @@ static void MouseKeySet() {
       chassis_ctrl_cmd->chassis_speed_buff = 40000;
       break;
     default:
-      chassis_ctrl_cmd->chassis_speed_buff = 50000;
+      chassis_ctrl_cmd->chassis_speed_buff = 40000;
       break;
   }
 
@@ -439,7 +441,6 @@ static void MouseKeySet() {
 
   if (rc_data[TEMP].key[KEY_PRESS].shift) {
     chassis_ctrl_cmd->SuperCapBoost=1;
-    chassis_ctrl_cmd->chassis_speed_buff += 20000;
   }
   else {
     chassis_ctrl_cmd->SuperCapBoost=0;
