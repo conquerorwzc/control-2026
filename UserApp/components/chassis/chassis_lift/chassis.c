@@ -356,6 +356,7 @@ void ChassisTask()
     case CHASSIS_FOLLOW:
     case CHASSIS_CLIMB_ALL_RETRACT:
     case CHASSIS_CLIMB_FRONT_RETRACT:
+    case CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF:
         chassis_ctrl_cmd->wz += PIDCalculate(&follow_pid, chassis_ctrl_cmd->offset_angle, 0);
         break;
     default:
