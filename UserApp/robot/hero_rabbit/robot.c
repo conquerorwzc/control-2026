@@ -35,6 +35,8 @@ static uint8_t key_g_count = 0;
 static uint8_t key_q_count = 0;
 static uint8_t key_e_count = 0;
 static uint8_t key_v_count = 0;
+static uint8_t key_r_count = 0;
+static uint8_t key_f_count = 0;
 #elif defined(USE_DUAL_RC)
 static RC_ctrl_t *rc_data;
 static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
@@ -50,6 +52,7 @@ static float angle;
 float new_max_pitch=0.0f;
 float new_min_pitch=0.0f;
 static uint8_t leg_up_latch = 0;
+static uint8_t leg_down_latch = 0;
 external_imu_t *external_imu_instance;
 
 static GPIOInstance *gpio_5V_EN;
@@ -128,21 +131,18 @@ static void RemoteControlSet() {
   vy_initial = 60.0f * (float)rc_data->rc.rocker_l1;
 
   // 底盘特殊模式计算
-  if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
-    chassis_ctrl_cmd->wz = 25.0f * (float)rc_data->rc.dial; // 利用拨轮控制小陀螺
-  }
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
     chassis_ctrl_cmd->wz = 40.0f * (float)rc_data->rc.rocker_r_;
   }
-  if (rc_data->rc.fn_1) {
-    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_UP;
-  }
-  else if (rc_data->rc.fn_2) {
-    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_DOWN;
-  }
-  else {
-    chassis_ctrl_cmd->leg_mode = LEG_HOLD;
-  }
+  // if (rc_data->rc.fn_1) {
+  //   chassis_ctrl_cmd->leg_mode = LEG_MANUAL_UP;
+  // }
+  // else if (rc_data->rc.fn_2) {
+  //   chassis_ctrl_cmd->leg_mode = LEG_MANUAL_DOWN;
+  // }
+  // else {
+  //   chassis_ctrl_cmd->leg_mode = LEG_HOLD;
+  // }
 
 #elif defined(USE_DUAL_RC)
   // ===================== 旧 DJI 标准遥控器逻辑 =====================
@@ -215,6 +215,8 @@ static void MouseKeySet() {
   }
   // 3. 按键边缘检测 (捕获上升沿)
   if (rc_data->mouse_key.keyboard.g && !rc_data_last->mouse_key.keyboard.g) key_g_count++;
+  if (rc_data->mouse_key.keyboard.r && !rc_data_last->mouse_key.keyboard.r) key_r_count++;
+  if (rc_data->mouse_key.keyboard.f && !rc_data_last->mouse_key.keyboard.f) key_f_count++;
   if (rc_data->mouse_key.keyboard.b && !rc_data_last->mouse_key.keyboard.b) key_b_count++;
   if (rc_data->mouse_key.keyboard.q && !rc_data_last->mouse_key.keyboard.q) key_q_count++;
   if (rc_data->mouse_key.keyboard.e && !rc_data_last->mouse_key.keyboard.e) key_e_count++;
@@ -229,10 +231,8 @@ static void MouseKeySet() {
   uint8_t f_last = rc_data_last->mouse_key.keyboard.f;
   uint8_t ctrl_now = rc_data->mouse_key.keyboard.ctrl;
 
-  // 2. 组合键：捕获 Ctrl + R 上升沿 -> 开启持续上升锁存
-  if (r_now && !r_last && ctrl_now) {
-    leg_up_latch = 1;
-  }
+
+
 
   // 3. 组合键：捕获 Ctrl + F 上升沿 -> 循环切换高度限位
   if (f_now && !f_last && ctrl_now) {
@@ -245,25 +245,23 @@ static void MouseKeySet() {
     // 可以解除下一行的注释：
     // leg_up_latch = 0;
   }
+  if (rc_data->mouse_key.keyboard.r && !rc_data_last->mouse_key.keyboard.r) {
+    // 如果当前已经是上升状态，就取消它（HOLD）；否则切换为上升
+    if (chassis_ctrl_cmd->leg_mode == LEG_MANUAL_UP) {
+      chassis_ctrl_cmd->leg_mode = LEG_HOLD;
+    } else {
+      chassis_ctrl_cmd->leg_mode = LEG_MANUAL_UP;
+    }
+  }
 
-  // 4. 互斥判断与动作执行 (优先级：单键操作 > 锁存状态 > 松开停止)
-  if (r_now && !ctrl_now) {
-    // 单按 R：清除锁存，跟随物理按压上升
-    leg_up_latch = 0;
-    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_UP;
-  }
-  else if (f_now && !ctrl_now) {
-    // 单按 F：清除锁存，跟随物理按压下降
-    leg_up_latch = 0;
-    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_DOWN;
-  }
-  else if (leg_up_latch) {
-    // 锁存标志为 1 期间：无视手指状态，持续上升
-    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_UP;
-  }
-  else if ((r_last && !r_now) || (f_last && !f_now)) {
-    // 下降沿检测：如果没有触发锁存，且刚好松开了 R 或 F，则停止
-    chassis_ctrl_cmd->leg_mode = LEG_HOLD;
+  // 捕获 F 键刚按下的瞬间（上升沿）
+  else if (rc_data->mouse_key.keyboard.f && !rc_data_last->mouse_key.keyboard.f&&!ctrl_now) {
+    // 如果当前已经是下降状态，就取消它（HOLD）；否则切换为下降
+    if (chassis_ctrl_cmd->leg_mode == LEG_MANUAL_DOWN) {
+      chassis_ctrl_cmd->leg_mode = LEG_HOLD;
+    } else {
+      chassis_ctrl_cmd->leg_mode = LEG_MANUAL_DOWN;
+    }
   }
 
 
@@ -587,7 +585,7 @@ void RobotInit() {
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
 
-  shoot_ctrl_cmd->bullet_speed_mode = ENABLE_BULLET_SPEED;
+  shoot_ctrl_cmd->bullet_speed_mode = DISABLE_BULLET_SPEED;
   shoot_ctrl_cmd->heat_mode=REFEREE_CONTROL;
   vision_recv_data = VisionInit(&gimbal_init_config.imu_init_config);
 
