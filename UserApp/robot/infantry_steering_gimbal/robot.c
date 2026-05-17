@@ -101,9 +101,9 @@ static void CalcOffsetAngle() {
   } else if (delta <= -180.0f) {
     delta += 360.0f;
   }
-  if (abs(delta) < 2.0f) {
-    delta =0.0f;
-  }
+  // if (abs(delta) < 2.0f) {
+  //   delta =0.0f;
+  // }
    chassis_ctrl_cmd->offset_angle = delta;
 }
 /**
@@ -151,7 +151,7 @@ static void RemoteControlSet() {
           if (abs(rc_data[TEMP].rc.dial) > 20) {
               chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
           } else {
-              chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+              chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW_DIAGONAL;
               diagonal_mode=0;
           }
       } else if (switch_right(rc_data[TEMP].rc.mode_switch)) {
@@ -217,11 +217,11 @@ static void MouseKeySet()
                       (float)chassis_ctrl_cmd->chassis_speed_buff;
         vy_initial += (float)(rc_data[TEMP].key[KEY_PRESS].a - rc_data[TEMP].key[KEY_PRESS].d) *
                       (float)-chassis_ctrl_cmd->chassis_speed_buff;
-        if (rc_data[TEMP].key[KEY_PRESS].shift != 0 || abs(rc_data[TEMP].rc.dial) > 20) {
-            chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
-            chassis_ctrl_cmd->wz = 25000;
+
+        // wz基于当前底盘模式
+        if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
+            chassis_ctrl_cmd->wz = 15000;
         } else {
-            //chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
             chassis_ctrl_cmd->wz = (50.0f) * (float)rc_data[TEMP].mouse_key.mouse.x +
                                    (25.0f) * (float)rc_data[TEMP].rc.rocker_r_;
         }
@@ -275,7 +275,7 @@ static void MouseKeySet()
             trigger_time=DWT_GetTimeline_s();
             break;
         default:
-            switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 2) {
+            switch (rc_data[TEMP].key_count[KEY_PRESS][Key_G] % 2) {  // G键切换单发/连发
         case 0:
                 if (shoot_ctrl_cmd->friction_mode == FRICTION_ON) {
                     shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
@@ -292,49 +292,58 @@ static void MouseKeySet()
             break;
         }
 
-        // C键设置底盘速度
-        switch (rc_data[TEMP].key_count[KEY_PRESS][Key_C] % 4) {
-        case 0:
-            chassis_ctrl_cmd->chassis_speed_buff = 10000;
-            break;
-        case 1:
-            chassis_ctrl_cmd->chassis_speed_buff = 20000;
-            break;
-        case 2:
+        // // C键设置底盘速度
+        // switch (rc_data[TEMP].key_count[KEY_PRESS][Key_C] % 4) {
+        // case 0:
+        //     chassis_ctrl_cmd->chassis_speed_buff = 10000;
+        //     break;
+        // case 1:
+        //     chassis_ctrl_cmd->chassis_speed_buff = 20000;
+        //     break;
+        // case 2:
             chassis_ctrl_cmd->chassis_speed_buff = 40000;
-            break;
-        default:
-            chassis_ctrl_cmd->chassis_speed_buff = 80000;
-            break;
-        }
+        //     break;
+        // default:
+        //     chassis_ctrl_cmd->chassis_speed_buff = 80000;
+        //     break;
+        // }
 
-        // ---- Q 键：斜45度 ----
-        static uint8_t prev_q_count = 0;
-        static Chassis_Mode_e prev_chassis_mode = CHASSIS_FOLLOW;
-
-        // 外部改模式(遥控器拨杆切ROTATE等)：重置标志位
-        if (prev_chassis_mode != chassis_ctrl_cmd->chassis_mode) {
-            if (chassis_ctrl_cmd->chassis_mode != CHASSIS_FOLLOW &&
-                chassis_ctrl_cmd->chassis_mode != CHASSIS_FOLLOW_DIAGONAL) {
-                diagonal_mode = 0;
-                }
-        }
-        prev_chassis_mode = chassis_ctrl_cmd->chassis_mode;
-
-        // Q键：在follow模式间切换斜45度（边沿检测，每次按下翻转一次）
-        if (rc_data[TEMP].key_count[KEY_PRESS][Key_Q] %2) {
-            if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW ||
-                chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW_DIAGONAL) {
-                diagonal_mode = !diagonal_mode;
-                }
-        }
-
-        // 由标志位决定最终chassis_mode
-        if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW ||
-            chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW_DIAGONAL) {
-            chassis_ctrl_cmd->chassis_mode = diagonal_mode ? CHASSIS_FOLLOW_DIAGONAL: CHASSIS_FOLLOW;
-            chassis_ctrl_cmd->SuperCapBoost= diagonal_mode;
+        // ---- B 键：切换 FOLLOW / FOLLOW_DIAGONAL（ROTATE模式下B键无效） ----
+        static uint8_t prev_b_count = 0;
+        if (rc_data[TEMP].key_count[KEY_PRESS][Key_B] != prev_b_count) {
+            prev_b_count = rc_data[TEMP].key_count[KEY_PRESS][Key_B];
+            if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
+                chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW_DIAGONAL;
+                //chassis_ctrl_cmd->SuperCapBoost = 0;
+            } else if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW_DIAGONAL) {
+                chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+                //chassis_ctrl_cmd->SuperCapBoost = 0;
             }
+        }
+
+        // ---- Q 键：切换 ROTATE 模式（唯一能退出ROTATE的方式） ----
+        static uint8_t prev_q_count = 0;
+        static uint8_t rotate_mode_active = 0;
+        static Chassis_Mode_e saved_chassis_mode = CHASSIS_FOLLOW_DIAGONAL;
+
+        if (rc_data[TEMP].key_count[KEY_PRESS][Key_Q] != prev_q_count) {
+            prev_q_count = rc_data[TEMP].key_count[KEY_PRESS][Key_Q];
+            if (!rotate_mode_active) {
+                saved_chassis_mode = chassis_ctrl_cmd->chassis_mode;
+                chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+                rotate_mode_active = 1;
+            } else {
+                chassis_ctrl_cmd->chassis_mode = saved_chassis_mode;
+                rotate_mode_active = 0;
+            }
+        }
+        // Shift: 按下开启超级电容，松开关闭（不改变底盘模式）
+        chassis_ctrl_cmd->SuperCapBoost |= rc_data[TEMP].key[KEY_PRESS].shift ? 1 : 0;
+
+        // 强制保持ROTATE模式（只有Q能退出）
+        if (rotate_mode_active) {
+            chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+        }
 
         if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
             gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
@@ -380,7 +389,7 @@ static void RemoteControlSet() {
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
     } else
-        chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+        chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW_DIAGONAL;
       diagonal_mode=0;
   }
   // 右[上]，超电，保持底盘跟随云台
@@ -452,20 +461,14 @@ static void MouseKeySet() {
                 (float)chassis_ctrl_cmd->chassis_speed_buff;
   vx_initial += (float)(rc_data[TEMP].key[KEY_PRESS].a - rc_data[TEMP].key[KEY_PRESS].d) *
                 (float)-chassis_ctrl_cmd->chassis_speed_buff;
-    if (rc_data[TEMP].key[KEY_PRESS].shift!=0||abs(rc_data[TEMP].rc.dial) > 20)
-    {
-        chassis_ctrl_cmd->chassis_mode=CHASSIS_ROTATE;
-        chassis_ctrl_cmd->wz =  15000;
-        //chassis_ctrl_cmd->wz =  7000*sinf(DWT_GetTimeline_s()*8.f)+20000;
-        //chassis_ctrl_cmd->wz =  3500*chaos_func(DWT_GetTimeline_s()*4.f)+20000;
-        //chassis_ctrl_cmd->wz =  40000*powf(sinf(DWT_GetTimeline_s()*8.0f),3.f);
-       // chassis_ctrl_cmd->SuperCapBoost=1;
-       // (float)chassis_ctrl_cmd->chassis_speed_buff+60.0f * (float)rc_data[TEMP].rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
-    }
-    else
-    {
-        //chassis_ctrl_cmd->chassis_mode=CHASSIS_FOLLOW;
-        chassis_ctrl_cmd->wz =(50.0f) *(float)rc_data[TEMP].mouse.x+(25.0f) *(float)rc_data[TEMP].rc.rocker_r_;
+    // Shift: 按下开启超级电容，松开关闭（不改变底盘模式）
+    chassis_ctrl_cmd->SuperCapBoost |= rc_data[TEMP].key[KEY_PRESS].shift ? 1 : 0;
+
+    // wz基于当前底盘模式
+    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
+        chassis_ctrl_cmd->wz = 15000;
+    } else {
+        chassis_ctrl_cmd->wz = (50.0f) * (float)rc_data[TEMP].mouse.x + (25.0f) * (float)rc_data[TEMP].rc.rocker_r_;
     }
   // 缓加速
   if (abs(vx_initial)<=10000) {
@@ -530,7 +533,7 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
       }
       break;
   default:
-    switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 2)  // E键设置发射模式
+    switch (rc_data[TEMP].key_count[KEY_PRESS][Key_G] % 2)  // G键切换单发/连发
     {
       case 0:                                              //单发+长按连发
         if (shoot_ctrl_cmd->friction_mode==FRICTION_ON)   //需预先开启摩擦轮，F键
@@ -565,41 +568,39 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
       chassis_ctrl_cmd->chassis_speed_buff = 80000;
       break;
   }
-  // ---- Q 键：斜45度 ----
-
-  static uint8_t prev_q_count = 0;
-  static Chassis_Mode_e prev_chassis_mode = CHASSIS_FOLLOW;
-
-  if (prev_chassis_mode != chassis_ctrl_cmd->chassis_mode) {
-    if (chassis_ctrl_cmd->chassis_mode != CHASSIS_FOLLOW &&
-        chassis_ctrl_cmd->chassis_mode != CHASSIS_FOLLOW_DIAGONAL) {
-      diagonal_mode = 0;
+  // ---- B 键：切换 FOLLOW / FOLLOW_DIAGONAL（ROTATE模式下B键无效） ----
+  static uint8_t prev_b_count = 0;
+  if (rc_data[TEMP].key_count[KEY_PRESS][Key_B] != prev_b_count) {
+    prev_b_count = rc_data[TEMP].key_count[KEY_PRESS][Key_B];
+    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW_DIAGONAL;
+      chassis_ctrl_cmd->SuperCapBoost = 1;
+    } else if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW_DIAGONAL) {
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+      chassis_ctrl_cmd->SuperCapBoost = 0;
     }
   }
-  prev_chassis_mode = chassis_ctrl_cmd->chassis_mode;
+
+  // ---- Q 键：切换 ROTATE 模式（唯一能退出ROTATE的方式） ----
+  static uint8_t prev_q_count = 0;
+  static uint8_t rotate_mode_active = 0;
+  static Chassis_Mode_e saved_chassis_mode = CHASSIS_FOLLOW_DIAGONAL;
 
   if (rc_data[TEMP].key_count[KEY_PRESS][Key_Q] != prev_q_count) {
     prev_q_count = rc_data[TEMP].key_count[KEY_PRESS][Key_Q];
-    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW ||
-        chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW_DIAGONAL) {
-      diagonal_mode = !diagonal_mode;
+    if (!rotate_mode_active) {
+      saved_chassis_mode = chassis_ctrl_cmd->chassis_mode;
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+      rotate_mode_active = 1;
+    } else {
+      chassis_ctrl_cmd->chassis_mode = saved_chassis_mode;
+      rotate_mode_active = 0;
     }
   }
 
-  if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW ||
-      chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW_DIAGONAL) {
-    chassis_ctrl_cmd->chassis_mode = diagonal_mode ? CHASSIS_FOLLOW_DIAGONAL : CHASSIS_FOLLOW;
-  }
-
-  switch (rc_data[TEMP].key[KEY_PRESS].shift)  // 待添加 按shift允许超功率 消耗缓冲能量
-  {
-    case 1:
-
-      break;
-
-    default:
-
-      break;
+  // 强制保持ROTATE模式（只有Q能退出）
+  if (rotate_mode_active) {
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
   }
  // shoot_ctrl_cmd->shoot_rate = 8;// 射频控制,固定每秒1发,后续可以根据左侧拨轮的值大小切换射频,
   if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {

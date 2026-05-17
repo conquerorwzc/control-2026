@@ -106,7 +106,7 @@
                         .Kp = 9,                                                                                       \
                         .Ki = 26,                                                                                      \
                         .Kd = 0,                                                                                       \
-                        .IntegralLimit = 12500,                                                                        \
+                        .IntegralLimit = 1000,                                                                        \
                         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,       \
                         .MaxOut = 25000,                                                                               \
                     },                                                                                                 \
@@ -157,7 +157,7 @@ static Chassis_Init_Config_s chassis_init_config = {
             .power_param_6020.k5 = 7.632464718194001f,
 
             // 6020舵机电机零位偏移值，用于校准安装后的零偏
-            .rudder_motor_offset = {6844, 3443, 13, 3388} // 根据实际安装情况设置每个舵机的零偏值LFLBRBRF
+            .rudder_motor_offset = {17, 3443, 13, 3388} // 根据实际安装情况设置每个舵机的零偏值LFLBRBRF
         },
     .wheel_motor_config[0] = WHEEL_MOTOR_CONFIG(&hcan1, 1, MOTOR_DIRECTION_REVERSE),
     .wheel_motor_config[2] = WHEEL_MOTOR_CONFIG(&hcan1, 4, MOTOR_DIRECTION_REVERSE),
@@ -177,7 +177,7 @@ static Chassis_Init_Config_s chassis_init_config = {
             .IntegralLimit = 1000.0f,
             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
             .MaxOut = 40000.0f,
-            .DeadBand = 0.0f,
+            .DeadBand = 2.0f,
 
         },
     .planar_motion_pid_config =

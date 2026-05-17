@@ -12,7 +12,7 @@
 #define YAW_CHASSIS_ALIGN_ECD 3859
 #define PITCH_HORIZON_ECD 5748  // 云台处于水平位置时编码器值,若对云台有机械改动需要修改
 #define PITCH_MAX_ANGLE 30.0f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
-#define PITCH_MIN_ANGLE -25.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define PITCH_MIN_ANGLE -16.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
 
 // 私有宏,自动将编码器转换成角度值
 #define YAW_ALIGN_ANGLE (YAW_CHASSIS_ALIGN_ECD * ECD_ANGLE_COEF_DJI)
@@ -64,7 +64,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
             {
                 .Kp = 1.5f,  //0.8
                 .Ki = 0.0f,
-                .Kd = 0.01f,
+                .Kd = 0.001f,
                 .DeadBand = 0.0f,
                   // .Derivative_LPF_RC=0.00085f,
                   .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement|PID_DerivativeFilter,
@@ -73,7 +73,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
             },
               .speed_PID =
               {
-                  .Kp = 5500.0f,   //6000
+                  .Kp = 5000.0f,   //6000
                   .Ki = 200.0f,   //10
                   .Kd = 0.0f,
                   .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
@@ -96,7 +96,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
       .flag = 1,
       .offset_flag = 1,
       .scale = {1.0f, 1.0f, 1.0f},
-      .Yaw = 90.0f,
+      .Yaw = 86.5f,
       .Pitch = 0.0f,
       .Roll = 0.0f,
     .GyroOffset = {0.00253310893f, 0.00196733163f, 0.000239364381f},
