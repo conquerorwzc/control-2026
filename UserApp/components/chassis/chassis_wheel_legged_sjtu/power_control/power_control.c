@@ -130,38 +130,34 @@ void PowerControl(ChassisInstance* chassis) {
     pc->T_balance[1] -= chassis->LQR_K[3][j] * chassis->state_err[j];
   }
 
-  // 2.估算功率和滤波
-#define I_FILTER_COEF 1.0f
-#define W_FILTER_COEF 0.05f
-#define P_FILTER_COEF 0.5f
+  // 2.估算功率
+  float P_motion_mech = 0.0f;
   for (int i = 0; i < 2; i++) {
     // 实际电机电流 / 力矩 (来自上一拍 final_output)
     // float current_I = (float)chassis->leg[i]->wheel_motor->motor_controller.final_output * DJI_CURRENT_SCALE;
     // 实际电机电流 / 力矩 (来自当前拍 T)
     float current_I = t2i(pc->T_motion[i] + pc->T_balance[i]);
-    // pc->I[i] = pc->I[i] * (1.0f - I_FILTER_COEF) + current_I * I_FILTER_COEF;
     pc->I[i] = current_I;
 
     // 对 w 应用一阶低通滤波 (当前不加滤波)
     float current_w = chassis->leg[i]->wheel_motor->measure.speed_aps * DEGREE_2_RAD;
-    // pc->w[i] = pc->w[i] * (1.0f - W_FILTER_COEF) + current_w * W_FILTER_COEF;
     pc->w[i] = current_w;
+
+    // speed_aps 与底盘前进方向相反; P_motion_mech < 0 表示 motion 净刹车/回收, 不参与限功率缩放。
+    P_motion_mech += pc->T_motion[i] * -pc->w[i];
 
     // 总功率用实际电机电流估算，并应用一阶低通滤波 (当前不加滤波)
     float current_P = MotorEstimatePower(pc->k, pc->I[i], pc->w[i]);  // 使用原始 current_w 计算瞬态功率
-    // float alpha = current_P > pc->P[i] ? 0.25f : 0.03f;
-    // pc->P[i] += alpha * (current_P - pc->P[i]);
-    // pc->P[i] = pc->P[i] * (1.0f - P_FILTER_COEF) + current_P * P_FILTER_COEF;
     pc->P[i] = current_P;
   }
 
   pc->P_total = pc->P[0] + pc->P[1];
-  // pc->P_total_ref = chassis->chassis_ctrl_cmd.max_power;
-  pc->P_total_ref = 200.f;
+  pc->P_total_ref = chassis->chassis_ctrl_cmd.max_power;
+  // pc->P_total_ref = 200.f;
   // pc->P_total_ref = 50.f;
 
   // 3.功率控制逻辑
-  if (pc->P_total > pc->P_total_ref) {
+  if (pc->P_total > pc->P_total_ref && P_motion_mech >= -1e-3f) {
     for (int i = 0; i < 2; i++) {
       // 1) 按当前总功率占比分配每电机的许用总功率
       pc->P_ref[i] = pc->P[i] / pc->P_total * pc->P_total_ref;
@@ -216,9 +212,6 @@ void PowerControl(ChassisInstance* chassis) {
       pc->T_motion_ref[i] = pc->T_motion[i];
     }
   }
-#undef I_FILTER_COEF
-#undef W_FILTER_COEF
-#undef P_FILTER_COEF
 }
 
 /**
@@ -228,23 +221,18 @@ void PowerControl(ChassisInstance* chassis) {
 void PowerControl_Prostrate(ChassisInstance* chassis) {
   Power_Ctrl_t* pc = power_ctrl;
   // 计算每个电机的功率贡献
-#define I_FILTER_COEF 1.0f
-#define W_FILTER_COEF 0.05f
-#define P_FILTER_COEF 0.02f
+
   for (int i = 0; i < 2; i++) {
     float current_I = chassis->leg[i]->wheel_motor->motor_controller.final_output * DJI_CURRENT_SCALE;
-    // pc->I[i] = pc->I[i] * (1.0f - I_FILTER_COEF) + current_I * I_FILTER_COEF;
     pc->I[i] = current_I;
 
     // 对 w 应用一阶低通滤波 (当前不加滤波)
     float current_w = chassis->leg[i]->wheel_motor->measure.speed_aps * DEGREE_2_RAD;
-    // pc->w[i] = pc->w[i] * (1.0f - W_FILTER_COEF) + current_w * W_FILTER_COEF;
     pc->w[i] = current_w;
 
     // 总功率用实际电机电流估算，并应用一阶低通滤波 (当前不加滤波)
     float current_P = MotorEstimatePower(pc->k, pc->I[i],
                                          pc->w[i]);  // 使用原始 current_w 计算瞬态功率
-    // pc->P[i] = pc->P[i] * (1.0f - P_FILTER_COEF) + current_P * P_FILTER_COEF;
     pc->P[i] = current_P;
   }
 
@@ -270,9 +258,6 @@ void PowerControl_Prostrate(ChassisInstance* chassis) {
   for (int i = 0; i < 2; i++) {
     chassis->leg[i]->wheel_motor->motor_controller.final_output = (int16_t)(pc->I_ref[i] / DJI_CURRENT_SCALE);
   }
-#undef I_FILTER_COEF
-#undef W_FILTER_COEF
-#undef P_FILTER_COEF
 }
 
 void PowerControlInit(ChassisInstance* chassis) {

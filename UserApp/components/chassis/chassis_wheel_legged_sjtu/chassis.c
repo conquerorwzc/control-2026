@@ -401,8 +401,9 @@ static void ChassisCtrlUpdate(void) {
   // planner 平滑上层 raw cmd, StateErrCalc 实际跟踪 planner 输出
   StateErrCalc();
   // ChassisCtrlUpdate 始终是 LQR 平衡输出路径；真实卧倒输出在 LimitChassisOutput() 中限功率。
-  PowerControl(chassis);
+  // PowerControl(chassis);
   ChassisPlannerUpdate(chassis->dt);
+  StateErrCalc();
 
   LocomotionController();
   LegController();
@@ -786,14 +787,14 @@ void ChassisTask(void) {
   chassis_ctrl_cmd->max_power =
       SuperCapModeControl(chassis->super_cap, referee_data->GameRobotState.chassis_power_limit);
 
-  // static float last_super_cap_send_time = 0.0f;
-  // float now_ms = DWT_GetTimeline_ms();
-  // if (now_ms - last_super_cap_send_time >= 10.0f) {
-  //   last_super_cap_send_time = now_ms;
-  //   SuperCapSendMessage(chassis->super_cap, (int16_t)(referee_data->GameRobotState.chassis_power_limit ),
-  //                       referee_data->PowerHeatData.buffer_energy,
-  //                       referee_data->GameRobotState.power_management_chassis_output);
-  // }
+  static float last_super_cap_send_time = 0.0f;
+  float now_ms = DWT_GetTimeline_ms();
+  if (now_ms - last_super_cap_send_time >= 10.0f) {
+    last_super_cap_send_time = now_ms;
+    SuperCapSendMessage(chassis->super_cap, (int16_t)(referee_data->GameRobotState.chassis_power_limit ),
+                        referee_data->PowerHeatData.buffer_energy,
+                        referee_data->GameRobotState.power_management_chassis_output);
+  }
 
   LimitChassisOutput();
 }

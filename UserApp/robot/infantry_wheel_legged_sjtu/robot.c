@@ -87,14 +87,6 @@ void VOFATask() {
   // visualized_data[2] = robot->chassis->chassis_ctrl_cmd.wz;
   // visualized_data[3] = -1.0f * robot->chassis->imu->Gyro[2];
 
-  // visualized_data[0] = robot->chassis->yaw_prostrate_PID.Ref;
-  // visualized_data[1] = robot->chassis->yaw_prostrate_PID.Measure;
-  // visualized_data[2] = robot->chassis->yaw_prostrate_PID.MaxOut;
-  // visualized_data[3] = robot->chassis->yaw_prostrate_PID.Output;
-  // visualized_data[4] = robot->chassis->leg[0]->wheel_motor->motor_controller.pid_ref;
-  // visualized_data[5] = robot->chassis->leg[0]->wheel_motor->measure.speed_aps;
-  // visualized_data[6] = robot->chassis->leg[0]->wheel_motor->motor_controller.speed_PID.MaxOut;
-  // visualized_data[7] = robot->chassis->leg[0]->wheel_motor->motor_controller.speed_PID.Output;
 #endif
   VOFAJustFloatSend(visualized_data, 20);
 }
