@@ -436,7 +436,7 @@ static void MouseKeySet()
         }
     }
 
-    // ================= 5. 夹爪控制 (Shift  + C 触发式) =================
+    // ================= 5. 夹爪控制 (C 触发式) =================
     uint32_t current_c_count = rc_data[TEMP].key_count[KEY_PRESS_NORMAL][KEY_C];
 
     if (grab_control_mode == GRAB_CONTROL_KEYBOARD || grab_control_mode == GRAB_CONTROL_CUSTOM)
@@ -455,9 +455,9 @@ static void MouseKeySet()
     {
         // 半自动模式下同步键鼠状态
         if (grab_ctrl_cmd->gripper_state == GRIPPER_CLOSE)
-            rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C] = 1;
+            rc_data[TEMP].key_count[KEY_PRESS_NORMAL][KEY_C] = 1;
         else
-            rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C] = 0;
+            rc_data[TEMP].key_count[KEY_PRESS_NORMAL][KEY_C] = 0;
     }
     // ================= 6. 图传 Yaw/Pitch 控制 =================
     video_gimbal_ctrl_cmd->video_pitch =
@@ -628,17 +628,17 @@ static void RemoteControlSet()
     if (rc_data[TEMP].rc.rocker_r1 > 300)
     {
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
-        if (rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C] % 2 == 0)
+        if (rc_data[TEMP].key_count[KEY_PRESS_NORMAL][KEY_C] % 2 == 0)
         {
-            rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C]++;
+            rc_data[TEMP].key_count[KEY_PRESS_NORMAL][KEY_C]++;
         }
     }
     else if (rc_data[TEMP].rc.rocker_r1 < -300)
     {
         grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
-        if (rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C] % 2 == 1)
+        if (rc_data[TEMP].key_count[KEY_PRESS_NORMAL][KEY_C] % 2 == 1)
         {
-            rc_data[TEMP].key_count[KEY_PRESS_WITH_CTRL_SHIFT][KEY_C]++;
+            rc_data[TEMP].key_count[KEY_PRESS_NORMAL][KEY_C]++;
         }
     }
     chassis_ctrl_cmd->vx = 60.0f * (float)rc_data[TEMP].rc.rocker_l_;
