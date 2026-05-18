@@ -386,6 +386,8 @@ void UITask()
             interactive_data.Referee_Interactive_Flag.lift_zero_flag = 1;
             interactive_data.Referee_Interactive_Flag.lift_max_flag = 1;
             interactive_data.Referee_Interactive_Flag.robot_mode_flag = 1;
+            interactive_data.Referee_Interactive_Flag.grab_control_flag = 1;
+            interactive_data.Referee_Interactive_Flag.gripper_flag = 1;
             robotdata->ui_reset_flag = 0;
         }
     }
@@ -476,7 +478,10 @@ void UITask()
 
     interactive_data.robot_mode = robotdata->robot_mode;
     interactive_data.grab_control_mode = GetGrabControlMode();
-    interactive_data.gripper_opened = (robotdata->grab->grab_ctrl_cmd.gripper_state == GRIPPER_OPEN) ? 1 : 0;
+    if (robotdata->grab != NULL)
+        interactive_data.gripper_opened = (robotdata->grab->grab_ctrl_cmd.gripper_state == GRIPPER_OPEN) ? 1 : 0;
+    else
+        interactive_data.gripper_opened = 0;
 
     UIChangeCheck(&interactive_data);
     MyUIRefresh(&interactive_data);
