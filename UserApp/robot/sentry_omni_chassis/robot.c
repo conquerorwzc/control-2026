@@ -91,7 +91,7 @@ static void RemoteControlSet() {
     chassis_ctrl_cmd->chassis_mode = CHASSIS_HOLD;
   }
 
-  if ((switch_is_up(rc_data[TEMP].rc.switch_right)||switch_is_off(rc_data[TEMP].rc.switch_right))&&robot->referee_data->GameState.game_progress == 4)//除了右拨杆在上机器人使用导航数据，其余都正常人为控制
+  if (switch_is_up(rc_data[TEMP].rc.switch_right))//除了右拨杆在上机器人使用导航数据，其余都正常人为控制
   {
     robot->control_mode=NAVIGATOR_MODE;
   }
@@ -115,7 +115,7 @@ static void RemoteControlSet() {
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
       chassis_ctrl_cmd->wz = (2.0f) * (float)rc_data->rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
     }
-  } else if (robot->control_mode == NAVIGATOR_MODE)  // 自动控制，直接收上位机控制量
+  } else  // 自动控制，直接收上位机控制量
   {
     chassis_ctrl_cmd->chassis_mode = CHASSIS_HOLD;
     vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vy * 10000;
@@ -230,13 +230,17 @@ static void EmergencyHandler() {
 
 #ifdef USE_DUAL_RC
 
-  if (switch_is_down(rc_data[TEMP].rc.switch_left))  // 底盘失能
+  if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left))
+    //||(switch_is_mid(rc_data[TEMP].rc.switch_left)&&switch_is_mid(rc_data[TEMP].rc.switch_right)) //自瞄时底盘失能
+    ||(switch_is_off(rc_data[TEMP].rc.switch_left)&&switch_is_off(rc_data[TEMP].rc.switch_right)))  // 底盘失能
   {
     robot->robot_mode = ROBOT_POWER_ON;
     chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
   }
-  if (switch_is_mid(rc_data[TEMP].rc.switch_left)&&switch_is_mid(rc_data[TEMP].rc.switch_right)) {
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
+  if (robot->referee_data->GameState.game_progress == 4)//开比赛自动置位
+  {
+    robot->control_mode=NAVIGATOR_MODE;
+    chassis_ctrl_cmd->chassis_mode = CHASSIS_HOLD;
   }
 
 #elifdef USE_DUAL_RC_NEW

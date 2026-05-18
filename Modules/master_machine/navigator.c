@@ -346,7 +346,10 @@ void navigator_send(UART_HandleTypeDef *instance,referee_info_t* referee_data) {
   // send_robot_motion(instance,&send_data.robot_motion);
   // send_robot_state_info(instance,&send_data.state_info);
    send_robot_status(instance,&referee_data->GameRobotState);
-   uint8_t outpost_state = (referee_data->GameState.stage_remain_time > 180U) ? 1U : 0U;
+  uint8_t outpost_state;
+   if (referee_data->GameState.stage_remain_time > 180U && referee_data->GameState.game_progress == 4) {
+     outpost_state = 1;
+   }
    send_outpost_state(instance, &outpost_state);
    send_projectile_allowance(instance,&referee_data->ProjectileAllowance);
 }
