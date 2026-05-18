@@ -110,7 +110,7 @@ uint16_t SuperCapModeControl(SuperCapInstance* super_cap, uint16_t power_limit) 
     case SAFETY_MODE:
       if (ctrl_cmd == BOOST) {
         super_cap->super_cap_mode = ACTIVE_MODE;
-        max_power = 180;
+        max_power = 200;
       } else if (super_cap->cap_msg.cap_v > 18.0f) {
         super_cap->super_cap_mode = PASSIVE_MODE;
         max_power = power_limit + 40;
@@ -155,7 +155,7 @@ uint16_t SuperCapModeControl(SuperCapInstance* super_cap, uint16_t power_limit) 
         super_cap->super_cap_mode = PASSIVE_MODE;
         max_power = (super_cap->cap_msg.cap_v > 18.0f) ? (power_limit + 40) : power_limit;
       } else {
-        max_power = 180;  // 主动模式放宽到180W
+        max_power = 200;  // 主动模式放宽到180W
       }
       break;
 
