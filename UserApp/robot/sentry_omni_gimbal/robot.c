@@ -135,13 +135,11 @@ static void RemoteControlSet() {
 
     if (switch_is_down(rc_data[TEMP].rc.switch_right))//手动控制，遥控器控制量
     {
-      search_start_flag = 0;
+      search_start_flag = 0;//这个是0代表没在扫头，等于1代表正在扫
     }
     else if (switch_is_mid(rc_data[TEMP].rc.switch_right)||switch_is_up(rc_data[TEMP].rc.switch_right)) // 自动控制，直接接收上位机控制量
     {
       gimbal_ctrl_cmd->gimbal_mode=GIMBAL_VISION;           //自瞄开启
-    } else {
-      search_start_flag = 0;
     }
 
     if (gimbal_ctrl_cmd->gimbal_mode==GIMBAL_VISION) {
@@ -161,7 +159,7 @@ static void RemoteControlSet() {
       }
       else if (time-NotFoundTime>1.25f){      //丢失目标超0.5秒，进入寻敌模式
         const float search_center = 5.0f;
-        const float search_amp = 10.0f;
+        const float search_amp = 15.0f;
         const float search_omega = PI * 4.0f;  // 对应2Hz
         if (robot->gimbal->yaw_motor->daemon->temp_count==2) gimbal_ctrl_cmd->yaw += 0.1f;
         if (!search_start_flag) {
@@ -435,6 +433,7 @@ static void EmergencyHandler() {
     } else {
       LOGINFO("[CMD] reinstate, robot ready");
     }
+    if (switch_is_mid(rc_data[TEMP].rc.switch_right)&&switch_is_down(rc_data[TEMP].rc.switch_left))shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
 
 # elifdef USE_DUAL_RC_NEW
   // 新VT13遥控器紧急处理逻辑
@@ -589,7 +588,7 @@ void RobotCMDTask() {
     if (chassis_motion->wz >= 0)gimbal_ctrl_cmd->chassis_rotate_wz = 0.00030f * chassis_motion->wz;
     if (chassis_motion->wz < 0)  gimbal_ctrl_cmd->chassis_rotate_wz = 0.00034f * chassis_motion->wz;
     RemoteControlSet();
-    MouseKeySet();
+    // MouseKeySet();
     PitchAngleLimit();
     EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
