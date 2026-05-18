@@ -38,10 +38,10 @@ static uint8_t* protocol_packed(const uint8_t* data_ptr, uint16_t pack_id, uint1
   tx_buff[current_index++] = PROTOCOL_SOF;                  // sof
   tx_buff[current_index++] = data_len&0xFF;
   tx_buff[current_index++]=(data_len>>8) &0xFF;
-  tx_buff[current_index++] = data_id;                       // 包序号
+  tx_buff[current_index++] = data_id;                       // 包序号，在导航那边解包出来是seq，不会进行判断的
   tx_buff[current_index++] = get_CRC8_check_sum(&tx_buff[0], 4, PROTOCOL_CRC8_INIT); // crc
 
-  // 4.填充包序号
+  // 4.填充包id，这个是真正做判断发的是哪个包用的包id。
   tx_buff[current_index++] = (pack_id >> 0)  & 0xFF;
   tx_buff[current_index++] = (pack_id >> 8)  & 0xFF;
   // tx_buff[current_index++] = (time_stamp >> 16) & 0xFF;
