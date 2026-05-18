@@ -381,7 +381,7 @@ static void MouseKeySet() {
       break;
     default:
       // 发射逻辑
-        if (shoot_ctrl_cmd->friction_mode == FRICTION_ON) {
+        if (shoot_ctrl_cmd->friction_mode == FRICTION_ON&&vision_recv_data->shoot_receive.fire_flag) {
           if (time - trigger_time > 1.0f) {
             shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;  // 连发
           } else {
