@@ -278,7 +278,7 @@ static uint8_t send_projectile_allowance(UART_HandleTypeDef* huart, const ext_pr
     if (huart == NULL || allowance == NULL) return 0;
 
     uint32_t timestamp = HAL_GetTick();
-    return protocol_send(huart, timestamp,
+    return protocol_send(huart, 0x00E,
                         (uint8_t*)allowance,
                         sizeof(ext_projectile_allowance_t),
                         PKT_ID_PROJECTILE_ALLOWANCE, 10);
@@ -292,10 +292,10 @@ static uint8_t send_projectile_allowance(UART_HandleTypeDef* huart, const ext_pr
  */
 static uint8_t send_outpost_state(UART_HandleTypeDef* huart, const uint8_t* outpost_state)
 {
-    if (huart == NULL || outpost_state == NULL) return 0;
+    if (huart == NULL) return 0;
 
     uint32_t timestamp = HAL_GetTick();
-    return protocol_send(huart, timestamp,
+    return protocol_send(huart, 0X00D,
                         outpost_state,
                         sizeof(uint8_t),
                         PKT_ID_OUTPOST_STATE, 10);
