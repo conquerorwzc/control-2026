@@ -108,6 +108,9 @@ typedef struct
   uint8_t last_legr_flag;
   float last_legl_val;
   float last_legr_val;
+  // --- 新增：扇形右侧状态指示 (UP/HOLD/DOWN) ---
+  uint8_t custom_state;      // 0:UP, 1:HOLD, 2:DOWN (或其他你喜欢的枚举)
+  uint8_t last_custom_state;
 } Referee_Interactive_info_t;
 /**
  * @brief 在referee task之前调用,添加在freertos.c中

@@ -106,6 +106,9 @@ static String_Data_t UI_side_pitch_text;
 static Graph_Data_t Line_DecoMid;
 static Graph_Data_t Arc_DecoUp;
 static Graph_Data_t Arc_DecoDown;
+static String_Data_t UI_state_up;
+static String_Data_t UI_state_hold;
+static String_Data_t UI_state_down;
 
 static Referee_Interactive_info_t interactive_data;
 
@@ -288,6 +291,11 @@ static void UIChangeCheck(Referee_Interactive_info_t *_Interactive_data) {
     _Interactive_data->last_custom_needle1_angle = _Interactive_data->custom_needle1_angle;
     _Interactive_data->last_custom_needle2_angle = _Interactive_data->custom_needle2_angle;
       }
+  // 检测右侧状态指示是否变化
+  if (_Interactive_data->custom_state != _Interactive_data->last_custom_state) {
+    _Interactive_data->Referee_Interactive_Flag.custom_state_flag = 1; // 记得在头文件定义这个flag
+    _Interactive_data->last_custom_state = _Interactive_data->custom_state;
+  }
 }
 
 // UI更新函数
@@ -526,6 +534,27 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data) {
 
     UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_custom_pointer[0], UI_custom_pointer[1]);
     interactive_data->Referee_Interactive_Flag.custom_gauge_flag = 0;
+  }
+  // 刷新右侧状态指示 (UP / HOLD / DOWN)
+  if (interactive_data->Referee_Interactive_Flag.custom_state_flag == 1) {
+    uint32_t state_x = 1556 + 160;
+    uint32_t state_y = 750;
+
+    // 根据 interactive_data->custom_state 决定颜色 (假设 0:UP, 1:HOLD, 2:DOWN)
+    uint32_t color_up   = (interactive_data->custom_state == 0) ? UI_Color_Green : UI_Color_White;
+    uint32_t color_hold = (interactive_data->custom_state == 1) ? UI_Color_Green : UI_Color_White;
+    uint32_t color_down = (interactive_data->custom_state == 2) ? UI_Color_Green : UI_Color_White;
+
+    UICharDraw(&UI_state_up,   "su0", UI_Graph_Change, 8, color_up,   18, 2, state_x, state_y + 40, "UP");
+    UICharDraw(&UI_state_hold, "sh0", UI_Graph_Change, 8, color_hold, 18, 2, state_x, state_y,      "HOLD");
+    UICharDraw(&UI_state_down, "sd0", UI_Graph_Change, 8, color_down, 18, 2, state_x, state_y - 40, "DOWN");
+
+    // 推送更新
+    UICharRefresh(&referee_recv_info->referee_id, UI_state_up);
+    UICharRefresh(&referee_recv_info->referee_id, UI_state_hold);
+    UICharRefresh(&referee_recv_info->referee_id, UI_state_down);
+
+    interactive_data->Referee_Interactive_Flag.custom_state_flag = 0;
   }
 }
 
@@ -842,6 +871,17 @@ void MyUIInit() {
     UILineDraw(&UI_custom_pointer[1], "cp1", UI_Graph_ADD, 7, UI_Color_Green, 3,
                cx, cy, cx + (int32_t)(needle_len * cosf(p2_rad)), cy + (int32_t)(needle_len * sinf(p2_rad)));
     UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_custom_pointer[0], UI_custom_pointer[1]);
+  uint32_t state_x = cx + 160; // 扇形圆心是 1556，放在它右边 160 像素处 (1716)
+  uint32_t state_y = cy;       // 基准高度和扇形圆心 (750) 平齐
+
+  // 初始化三行文字，全部为白色
+  UICharDraw(&UI_state_up,   "su0", UI_Graph_ADD, 8, UI_Color_White, 18, 2, state_x, state_y + 40, "UP");
+  UICharDraw(&UI_state_hold, "sh0", UI_Graph_ADD, 8, UI_Color_White, 18, 2, state_x, state_y,      "HOLD");
+  UICharDraw(&UI_state_down, "sd0", UI_Graph_ADD, 8, UI_Color_White, 18, 2, state_x, state_y - 40, "DOWN");
+
+  UICharRefresh(&referee_recv_info->referee_id, UI_state_up);
+  UICharRefresh(&referee_recv_info->referee_id, UI_state_hold);
+  UICharRefresh(&referee_recv_info->referee_id, UI_state_down);
 }
 
 void UITask() {
@@ -905,6 +945,11 @@ void UITask() {
   interactive_data.legr_flag = robot->chassis->leg_motor[1]->measure.state==1;
   interactive_data.legl_val = robot->chassis->leg_motor[0]->measure.torque;
   interactive_data.legr_val = robot->chassis->leg_motor[1]->measure.torque;
+  static  uint8_t custom_leg_state ;
+  if (robot->chassis->chassis_ctrl_cmd.leg_mode==LEG_MANUAL_DOWN) custom_leg_state = 2;
+  if (robot->chassis->chassis_ctrl_cmd.leg_mode==LEG_MANUAL_UP) custom_leg_state = 0;
+  if (robot->chassis->chassis_ctrl_cmd.leg_mode==LEG_HOLD) custom_leg_state = 1;
+  interactive_data.custom_state = custom_leg_state;
   // 这里接入你的实际数据，并将数值映射到 90~170 度之间
   if (robot->chassis->chassis_ctrl_cmd.leg_limit == FIRST_STEP) {
     interactive_data.custom_needle1_angle = 170.0f ; // 测试数据：停在中间
