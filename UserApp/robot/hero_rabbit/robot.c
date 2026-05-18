@@ -134,6 +134,9 @@ static void RemoteControlSet() {
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
     chassis_ctrl_cmd->wz = 40.0f * (float)rc_data->rc.rocker_r_;
   }
+
+
+
   // if (rc_data->rc.fn_1) {
   //   chassis_ctrl_cmd->leg_mode = LEG_MANUAL_UP;
   // }
@@ -199,7 +202,7 @@ static void MouseKeySet() {
   // ===================== VT13 键鼠控制逻辑 =====================
   // 1. 键盘提取
   if (chassis_ctrl_cmd->leg_mode == LEG_MANUAL_UP) {
-    vy_initial+=2000.0f;
+    vy_initial+=1500.0f;
   }
   vy_initial += (float)((rc_data->mouse_key.keyboard.w) - rc_data->mouse_key.keyboard.s) * (float)chassis_ctrl_cmd->chassis_speed_buff;
   vx_initial += (float)(rc_data->mouse_key.keyboard.a - rc_data->mouse_key.keyboard.d) * (float)-chassis_ctrl_cmd->chassis_speed_buff;
@@ -217,7 +220,6 @@ static void MouseKeySet() {
     }
   }
   // 3. 按键边缘检测 (捕获上升沿)
-  if (rc_data->mouse_key.keyboard.g && !rc_data_last->mouse_key.keyboard.g) key_g_count++;
   if (rc_data->mouse_key.keyboard.r && !rc_data_last->mouse_key.keyboard.r) key_r_count++;
   if (rc_data->mouse_key.keyboard.f && !rc_data_last->mouse_key.keyboard.f) key_f_count++;
   if (rc_data->mouse_key.keyboard.b && !rc_data_last->mouse_key.keyboard.b) key_b_count++;
@@ -269,20 +271,20 @@ static void MouseKeySet() {
 
 
   // ==================== 处理 G 键及 Ctrl+G ====================
-  // 捕获 G 键的上升沿（刚刚按下的那一瞬间）
-  // if (rc_data->mouse_key.keyboard.g && !rc_data_last->mouse_key.keyboard.g) {
-  //
-  //   // 按下 G 的时候，检查 Ctrl 是否已经被按住了
-  //   if (rc_data->mouse_key.keyboard.ctrl) {
-  //     // 触发组合键：Ctrl + G
-  //     // chassis_ctrl_cmd->power_distribute = 2.0f; // 假设的功率重分配
-  //
-  //   } else {
-  //     // 触发单键：单纯按下 G
-  //     // 走原来的单键逻辑：累加计数器，交给后面的 switch 处理单发/连发或底盘方向
-  //     key_g_count++;
-  //   }
-  // }
+  //捕获 G 键的上升沿（刚刚按下的那一瞬间）
+  if (rc_data->mouse_key.keyboard.g && !rc_data_last->mouse_key.keyboard.g) {
+
+    // 按下 G 的时候，检查 Ctrl 是否已经被按住了
+    if (rc_data->mouse_key.keyboard.ctrl) {
+      if (shoot_ctrl_cmd->fire_mode == MANUAL_FIRE) shoot_ctrl_cmd->fire_mode = VISION_FIRE;
+      else if (shoot_ctrl_cmd->fire_mode == VISION_FIRE) shoot_ctrl_cmd->fire_mode = MANUAL_FIRE;
+
+    } else {
+      // 触发单键：单纯按下 G
+      // 走原来的单键逻辑：累加计数器，交给后面的 switch 处理单发/连发或底盘方向
+      key_g_count++;
+    }
+  }
   // ==================== 【 C 键与 Ctrl+C 组合逻辑 】 ====================
   // 捕获 C 键的上升沿（刚刚按下的那一瞬间）
   if (rc_data->mouse_key.keyboard.c && !rc_data_last->mouse_key.keyboard.c) {
@@ -326,14 +328,22 @@ static void MouseKeySet() {
       }
       break;
     default:
-
-          if (shoot_ctrl_cmd->friction_mode == FRICTION_ON) {
-            shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
-            if (DWT_GetTimeline_s() - trigger_time > 1.0f) {
-              shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+          switch (shoot_ctrl_cmd->fire_mode) {
+      case MANUAL_FIRE:
+            if (shoot_ctrl_cmd->friction_mode == FRICTION_ON) {
+              shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
+              if (DWT_GetTimeline_s() - trigger_time > 1.0f) {
+                shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+              }
             }
-          }
+              break;
+      case VISION_FIRE:
+              if (shoot_ctrl_cmd->friction_mode == FRICTION_ON&&vision_recv_data->shoot_receive.fire_flag==1) {
+                shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
+              }
 
+               break;
+          }
       break;
   }
 
@@ -391,6 +401,12 @@ static void MouseKeySet() {
   }
   else {
     chassis_ctrl_cmd->SuperCapBoost=0;
+  }
+  //调试用补丁
+  if (rc_data->rc.trigger&&!rc_data_last->rc.trigger) {
+    if (shoot_ctrl_cmd->friction_mode == FRICTION_ON) {
+      shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
+    }
   }
   // 保存这一帧状态
   *rc_data_last = *rc_data;
@@ -590,6 +606,7 @@ void RobotInit() {
 
   shoot_ctrl_cmd->bullet_speed_mode = DISABLE_BULLET_SPEED;
   shoot_ctrl_cmd->heat_mode=REFEREE_CONTROL;
+  shoot_ctrl_cmd->fire_mode=MANUAL_FIRE;
   vision_recv_data = VisionInit(&gimbal_init_config.imu_init_config);
 
   gpio_5V_EN = GPIORegister(&gpio_init_config_5v);

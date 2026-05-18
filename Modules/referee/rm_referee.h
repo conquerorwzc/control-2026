@@ -65,6 +65,7 @@ typedef struct
     uint32_t custom_gauge_flag : 1; // 扇形仪表更新标志位
     uint32_t leg_status_flag : 1; // 扇形仪表更新标志位
     uint32_t custom_state_flag : 1; // 扇形仪表更新标志位
+    uint32_t fire_mode_flag : 1; // 开火模式更新标志位
 
 } Referee_Interactive_Flag_t;
 

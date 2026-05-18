@@ -111,6 +111,8 @@ typedef struct
   // --- 新增：扇形右侧状态指示 (UP/HOLD/DOWN) ---
   uint8_t custom_state;      // 0:UP, 1:HOLD, 2:DOWN (或其他你喜欢的枚举)
   uint8_t last_custom_state;
+  uint8_t fire_mode;         // 0: MANUAL FIRE 变绿, 1: VISION FIRE 变绿
+  uint8_t last_fire_mode;
 } Referee_Interactive_info_t;
 /**
  * @brief 在referee task之前调用,添加在freertos.c中

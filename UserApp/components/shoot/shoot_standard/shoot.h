@@ -11,6 +11,11 @@ typedef enum {
 } Shoot_Mode_e;
 
 typedef enum {
+  MANUAL_FIRE = 0,
+  VISION_FIRE,
+} Fire_Mode_e;
+
+typedef enum {
   FRICTION_OFF = 0,  // 摩擦轮关闭
   FRICTION_ON,       // 摩擦轮开启
 } Friction_Mode_e;
@@ -66,6 +71,7 @@ typedef struct {
   uint16_t shooter_barrel_heat_limit;     // 机器人射击热量上限
   float initial_speed;  // 当前弹速
   float friction_speed; //摩擦轮转速
+  Fire_Mode_e fire_mode;
 
 } Shoot_Ctrl_Cmd_s;
 

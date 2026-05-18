@@ -109,7 +109,8 @@ static Graph_Data_t Arc_DecoDown;
 static String_Data_t UI_state_up;
 static String_Data_t UI_state_hold;
 static String_Data_t UI_state_down;
-
+static String_Data_t UI_fire_manual;
+static String_Data_t UI_fire_vision;
 static Referee_Interactive_info_t interactive_data;
 
 // 检测UI变化的函数
@@ -283,6 +284,10 @@ static void UIChangeCheck(Referee_Interactive_info_t *_Interactive_data) {
     _Interactive_data->last_legr_flag = _Interactive_data->legr_flag;
     _Interactive_data->last_legl_val = _Interactive_data->legl_val;
     _Interactive_data->last_legr_val = _Interactive_data->legr_val;
+  }
+  if (_Interactive_data->fire_mode != _Interactive_data->last_fire_mode) {
+    _Interactive_data->Referee_Interactive_Flag.fire_mode_flag = 1;
+    _Interactive_data->last_fire_mode = _Interactive_data->fire_mode;
   }
   // 检测扇形仪表指针是否变化
   if (fabsf(_Interactive_data->custom_needle1_angle - _Interactive_data->last_custom_needle1_angle) > 0.1f ||
@@ -535,19 +540,37 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data) {
     UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_custom_pointer[0], UI_custom_pointer[1]);
     interactive_data->Referee_Interactive_Flag.custom_gauge_flag = 0;
   }
+  if (interactive_data->Referee_Interactive_Flag.fire_mode_flag == 1) {
+    uint32_t fire_x = 895;
+    uint32_t fire_y = 180;
+
+    // 变色逻辑：0代表手动变绿，1代表视觉变绿
+    uint32_t color_manual = (interactive_data->fire_mode == 0) ? UI_Color_Green : UI_Color_White;
+    uint32_t color_vision = (interactive_data->fire_mode == 1) ? UI_Color_Green : UI_Color_White;
+
+    // 保持字号22，线宽2，操作码改为 UI_Graph_Change
+    UICharDraw(&UI_fire_manual, "mfi", UI_Graph_Change, 8, color_manual, 22, 2, fire_x, fire_y,      "MANUAL FIRE");
+    UICharDraw(&UI_fire_vision, "vfi", UI_Graph_Change, 8, color_vision, 22, 2, fire_x, fire_y - 40, "VISION FIRE");
+
+    // 推送更改
+    UICharRefresh(&referee_recv_info->referee_id, UI_fire_manual);
+    UICharRefresh(&referee_recv_info->referee_id, UI_fire_vision);
+
+    interactive_data->Referee_Interactive_Flag.fire_mode_flag = 0;
+  }
   // 刷新右侧状态指示 (UP / HOLD / DOWN)
   if (interactive_data->Referee_Interactive_Flag.custom_state_flag == 1) {
     uint32_t state_x = 1556 + 160;
-    uint32_t state_y = 750;
+    uint32_t state_y = 600;
 
     // 根据 interactive_data->custom_state 决定颜色 (假设 0:UP, 1:HOLD, 2:DOWN)
     uint32_t color_up   = (interactive_data->custom_state == 0) ? UI_Color_Green : UI_Color_White;
     uint32_t color_hold = (interactive_data->custom_state == 1) ? UI_Color_Green : UI_Color_White;
     uint32_t color_down = (interactive_data->custom_state == 2) ? UI_Color_Green : UI_Color_White;
 
-    UICharDraw(&UI_state_up,   "su0", UI_Graph_Change, 8, color_up,   18, 2, state_x, state_y + 40, "UP");
-    UICharDraw(&UI_state_hold, "sh0", UI_Graph_Change, 8, color_hold, 18, 2, state_x, state_y,      "HOLD");
-    UICharDraw(&UI_state_down, "sd0", UI_Graph_Change, 8, color_down, 18, 2, state_x, state_y - 40, "DOWN");
+    UICharDraw(&UI_state_up,   "su0", UI_Graph_Change, 8, color_up,   18, 2, state_x, state_y , "UP");
+    UICharDraw(&UI_state_hold, "sh0", UI_Graph_Change, 8, color_hold, 18, 2, state_x, state_y - 40,      "HOLD");
+    UICharDraw(&UI_state_down, "sd0", UI_Graph_Change, 8, color_down, 18, 2, state_x, state_y - 80, "DOWN");
 
     // 推送更新
     UICharRefresh(&referee_recv_info->referee_id, UI_state_up);
@@ -690,8 +713,11 @@ void MyUIInit() {
     UILineDraw(&UI_shoot_line[3], "sl3", UI_Graph_ADD, 7, UI_Color_White, 1, CENTER_X - 120, CENTER_Y + Aim_Line_3, CENTER_X + 120, CENTER_Y + Aim_Line_3);
     UILineDraw(&UI_shoot_line[4], "sl4", UI_Graph_ADD, 7, UI_Color_White, 1, CENTER_X - 200, CENTER_Y + Aim_Line_4, CENTER_X + 200, CENTER_Y + Aim_Line_4);
     UILineDraw(&UI_shoot_line[5], "sl5", UI_Graph_ADD, 7, UI_Color_White, 1, CENTER_X, 300, CENTER_X, 650);
+    UILineDraw(&UI_shoot_line[6], "sl8", UI_Graph_ADD, 7, UI_Color_White, 2,
+             CENTER_X - 120, CENTER_Y + Aim_Line_4 - 75,
+             CENTER_X + 120, CENTER_Y + Aim_Line_4 - 75);
     UIGraphRefresh(&referee_recv_info->referee_id, 5, UI_shoot_line[0], UI_shoot_line[1], UI_shoot_line[2], UI_shoot_line[3], UI_shoot_line[4]);
-    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_shoot_line[5]);
+    UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_shoot_line[5], UI_shoot_line[6]);
 
     // 绘制车辆示宽线
     UILineDraw(&UI_drone_width_line[0], "sl6", UI_Graph_ADD, 7, UI_Color_Green, 2, 960 - WIDTHLINE_UP, 320, 960 - WIDTHLINE_DOWN, 0);
@@ -808,7 +834,15 @@ void MyUIInit() {
   // 初始化显示左侧摩擦轮转速
   UICharDraw(&UI_fric_text_down, "fs0", UI_Graph_ADD, 6, UI_Color_White, 18, 2, 1556, 850, "frispeed:0");
   UICharRefresh(&referee_recv_info->referee_id, UI_fric_text_down);
+  uint32_t fire_x = 895; // 11个字符居中所需的起始X坐标 (1920/2 = 960中心点)
+  uint32_t fire_y = 180; // 靠近屏幕底部的位置
 
+  // 初始化为白色，字号22，线宽2，名称为 "mfi" 和 "vfi"
+  UICharDraw(&UI_fire_manual, "mfi", UI_Graph_ADD, 8, UI_Color_White, 22, 2, fire_x, fire_y,      "MANUAL FIRE");
+  UICharDraw(&UI_fire_vision, "vfi", UI_Graph_ADD, 8, UI_Color_White, 22, 2, fire_x, fire_y - 40, "VISION FIRE");
+
+  UICharRefresh(&referee_recv_info->referee_id, UI_fire_manual);
+  UICharRefresh(&referee_recv_info->referee_id, UI_fire_vision);
     // 车头方向动态圆弧
     UIArcDraw(&UI_yaw_arc, "yd0", UI_Graph_ADD, 6, UI_Color_Main, 15, 345, 23, 1556, 721, 88, 88);
     UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_yaw_arc);
@@ -875,9 +909,9 @@ void MyUIInit() {
   uint32_t state_y = cy;       // 基准高度和扇形圆心 (750) 平齐
 
   // 初始化三行文字，全部为白色
-  UICharDraw(&UI_state_up,   "su0", UI_Graph_ADD, 8, UI_Color_White, 18, 2, state_x, state_y + 40, "UP");
-  UICharDraw(&UI_state_hold, "sh0", UI_Graph_ADD, 8, UI_Color_White, 18, 2, state_x, state_y,      "HOLD");
-  UICharDraw(&UI_state_down, "sd0", UI_Graph_ADD, 8, UI_Color_White, 18, 2, state_x, state_y - 40, "DOWN");
+  UICharDraw(&UI_state_up,   "su0", UI_Graph_ADD, 8, UI_Color_White, 18, 2, state_x, state_y , "UP");
+  UICharDraw(&UI_state_hold, "sh0", UI_Graph_ADD, 8, UI_Color_White, 18, 2, state_x, state_y - 40,      "HOLD");
+  UICharDraw(&UI_state_down, "sd0", UI_Graph_ADD, 8, UI_Color_White, 18, 2, state_x, state_y - 80, "DOWN");
 
   UICharRefresh(&referee_recv_info->referee_id, UI_state_up);
   UICharRefresh(&referee_recv_info->referee_id, UI_state_hold);
@@ -961,7 +995,7 @@ void UITask() {
   if (needle2_value < 0.35f) needle2_value = 0.35f;
   if (needle2_value > 1.1f) needle2_value = 1.1f;
   interactive_data.custom_needle2_angle =  (needle2_value - 0.35f) * (80.0f / 0.75f) + 90.0f; // 测试数据：靠近下方彩色区
-
+  interactive_data.fire_mode = robot->shoot->shoot_ctrl_cmd.fire_mode;
 
   // 检查是否有变化
   UIChangeCheck(&interactive_data);
