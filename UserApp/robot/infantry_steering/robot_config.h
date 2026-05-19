@@ -362,7 +362,7 @@ static Chassis_Init_Config_s chassis_init_config = {
 #define BOARD_RX_ID 0x219
 #else
 // 接收板配置
-#define BOARD_TX_ID 0x311
+#define BOARD_TX_ID 0x212
 #define BOARD_RX_ID 0x10
 #endif
 

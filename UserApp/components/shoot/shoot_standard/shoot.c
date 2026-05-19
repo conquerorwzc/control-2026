@@ -31,8 +31,8 @@ static float bullet_speed_adjustment;//弹速调整系数
 static float bullet_speed_deadband;//弹速死区
 
 //只在模拟时启用这些参数，正常控制直接从裁判系统读取就好
-static uint16_t shooter_barrel_cooling_value;  // 机器人射击热量每秒冷却值，此变量只在模拟模式下使用
-static uint16_t shooter_barrel_heat_limit;     // 机器人射击热量上限，此变量只在模拟模式下使用
+ uint16_t shooter_barrel_cooling_value;  // 机器人射击热量每秒冷却值，此变量只在模拟模式下使用
+ uint16_t shooter_barrel_heat_limit;     // 机器人射击热量上限，此变量只在模拟模式下使用
 static uint16_t one_barrel_heat_value;         // 发射一个弹丸的热量
 static int16_t  remain_heat;                   // 剩余热量
 static float shooter_barrel_heat;           // 计算的机器人当前射击热量，此变量只在模拟模式下使用
@@ -84,7 +84,7 @@ ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
  * @brief 弹速控制函数，根据实际弹速与目标弹速的差异动态调整摩擦轮转速,后续实际弹速从裁判系统中获取
  */
 void ShootBulletSpeedControl(void) {
-  switch (shoot_ctrl_cmd->heat_mode) {
+  switch (shoot_ctrl_cmd->bullet_speed_mode) {
     case DISABLE:
       return;
     case MANUAL_BULLET_SPEED:
@@ -116,7 +116,7 @@ void HeatControl() {
     case DISABLE:
       return;
     case REFEREE_CONTROL:
-        remain_heat = shooter_barrel_heat_limit-shoot_ctrl_cmd->shooter_barrel_heat;
+        remain_heat = shoot_ctrl_cmd->remain_heat;
       break;
     case SIMULLATE_CONTROL:
       //冷却恢复，每1s回24点
@@ -135,7 +135,7 @@ void HeatControl() {
     default:
       break;
     }
-     if (remain_heat < one_barrel_heat_value) shoot_ctrl_cmd->load_mode = LOAD_STOP;
+     if (remain_heat < 5*one_barrel_heat_value) shoot_ctrl_cmd->load_mode = LOAD_STOP;
 }
 
 

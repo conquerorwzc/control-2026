@@ -498,35 +498,35 @@ void ChassisTask()
     case SAFETY_MODE:
         if (chassis->super_cap->cap_msg.cap_v > 18.0f)
             chassis->super_cap_mode = PASSIVE_MODE;
-        chassis->chassis_ctrl_cmd.max_power = 80; // TODO:用超电记得改;
+        chassis->chassis_ctrl_cmd.max_power = (uint8_t)35;// TODO:用超电记得改;
         break;
     case FORCED_CHARGING_MODE:
-        if (chassis->super_cap->cap_msg.cap_v < 8.0f)
+        if (chassis->super_cap->cap_msg.cap_v < 12.5f)
             chassis->super_cap_mode = SAFETY_MODE;
         if (chassis->super_cap->cap_msg.cap_v > 18.0f)
             chassis->super_cap_mode = PASSIVE_MODE;
         chassis->chassis_ctrl_cmd.max_power = (uint16_t)(referee_data->GameRobotState.chassis_power_limit - 30);
         break;
     case CHARGING_MODE:
-        if (chassis->super_cap->cap_msg.cap_v < 10.0f)
+        if (chassis->super_cap->cap_msg.cap_v < 13.0f)
             chassis->super_cap_mode = FORCED_CHARGING_MODE;
         if (chassis->super_cap->cap_msg.cap_v > 18.0f)
             chassis->super_cap_mode = PASSIVE_MODE;
-        chassis->chassis_ctrl_cmd.max_power = referee_data->GameRobotState.chassis_power_limit - 30;
+        chassis->chassis_ctrl_cmd.max_power = referee_data->GameRobotState.chassis_power_limit - 20;
         break;
     case PASSIVE_MODE:
         if (chassis_ctrl_cmd->SuperCapBoost & 1)
             chassis->super_cap_mode = ACTIVE_MODE;
-        if (chassis->super_cap->cap_msg.cap_v < 12.0f)
+        if (chassis->super_cap->cap_msg.cap_v < 14.0f)
             chassis->super_cap_mode = CHARGING_MODE;
         chassis->chassis_ctrl_cmd.max_power = referee_data->GameRobotState.chassis_power_limit + 10;
         break;
     case ACTIVE_MODE:
-        if (chassis->super_cap->cap_msg.cap_v < 12.0f)
+        if (chassis->super_cap->cap_msg.cap_v < 14.0f)
             chassis->super_cap_mode = CHARGING_MODE;
         if (!(chassis_ctrl_cmd->SuperCapBoost & 1))
             chassis->super_cap_mode = PASSIVE_MODE;
-        chassis->chassis_ctrl_cmd.max_power = 150;
+        chassis->chassis_ctrl_cmd.max_power = 130;
         break;
     default:
         chassis->super_cap_mode = SAFETY_MODE;

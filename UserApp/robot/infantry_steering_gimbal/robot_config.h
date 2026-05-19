@@ -6,7 +6,7 @@
 #include "can_comm.h"
 #include "HI05.h"
 #define BOARD_TX_ID 0x10
-#define BOARD_RX_ID 0x311
+#define BOARD_RX_ID 0x212
 
 // 云台参数
 #define YAW_CHASSIS_ALIGN_ECD 3859
@@ -28,19 +28,19 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                     {
-                      .Kp = 2.3f,  //0.8
+                      .Kp = 2.5f,  //0.8
                       .Ki = 0.0f,
-                      .Kd = 0.03f,
+                      .Kd = 0.04f,
                       .DeadBand = 0.0f,
-                         .Derivative_LPF_RC=0.00085f,
-                        .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement|PID_DerivativeFilter,
+                       //  .Derivative_LPF_RC=0.00085f,
+                        .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                       .IntegralLimit = 5.0f,
                       .MaxOut = 25.0f,
                   },
                     .speed_PID =
                     {
                       .Kp = 6000.0f,   //6000
-                      .Ki = 100.0f,   //10
+                      .Ki = 200.0f,   //10
                       .Kd = 0.0f,
                       .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                       .IntegralLimit = 12000.0f,
@@ -139,10 +139,10 @@ static Shoot_Init_Config_s shoot_init_config = {
             .num_per_circle = 10,                      // 拨盘一圈的装载量6
             .loader_direction = 1,                    // 拨盘旋转方向,1为正向，-1为反向
             .friction_num = 2,                        //摩擦轮数量
-            .friction_speed = 40000.0f,               //摩擦轮速度
+            .friction_speed = 38000.0f,               //摩擦轮速度
             .friction_coefficients = {1.f, -1.0f}, //摩擦轮速度比例系数
-            .deadtime_burstfire = 50,
-            .deadtime_onebullet = 400,               //弹丸发射间隔
+            .deadtime_burstfire = 75,
+            .deadtime_onebullet = 300,               //弹丸发射间隔
             .target_speed = 22.0f,
             .bullet_speed_adjustment = 50.0f,
 
@@ -178,7 +178,7 @@ static Shoot_Init_Config_s shoot_init_config = {
                         },
                     .speed_PID =
                         {
-                            .Kp = 2.0f,
+                            .Kp = 2.2f,
                             .Ki = 0.4f,
                             .Kd = 0.0f,
                             .Improve = PID_Integral_Limit | PID_ErrorHandle,
@@ -227,12 +227,14 @@ static CANInstance board_can_comm_data = {
 };
 #pragma pack(1)
 typedef struct {
-  float bullet_speed;
-  uint16_t HP;
-  uint16_t Heat;
-    float power;
+    float bullet_speed;
+    uint16_t HP;
+    // uint16_t Heat;
+    //   uint16_t heat_limt;
+    int16_t Remain_Heat;
+    //float power;
     float cap_v;
-    uint8_t error_detect;
+    //uint8_t error_code;
     uint8_t color;
 } upload_data;
 #pragma pack()

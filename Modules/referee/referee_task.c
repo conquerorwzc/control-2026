@@ -319,7 +319,7 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
           float volt = interactive_data->cap_voltage;
           uint8_t mode = interactive_data->cap_mode;
           // 计算弧长（假设电压范围 12V ~ 23V 对应 0~40度）
-          float bar = (volt - 12.0f) / (23.0f - 16.0f) * 40.0f;
+          float bar = (volt - 14.0f) / (23.0f - 14.0f) * 40.0f;
           if (bar < 1) bar = 1;
           if (bar > 40) bar = 40;
           uint32_t end_angle = 270 + (uint32_t)bar;
@@ -335,22 +335,25 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
           interactive_data->Referee_Interactive_Flag.cap_flag = 0;
       }
 
-      // 弹量圆弧
-      if (interactive_data->Referee_Interactive_Flag.ammo_flag == 1)
-      {
-          uint16_t bullet = interactive_data->bullet_left_real;
-          if (bullet > 500) bullet = 500; // 上限500发
-          float bar = (float)bullet / 500.0f * 40.0f;
-          uint32_t start_angle = 270 - (uint32_t)bar;
-          uint32_t color;
-          if (bullet > 80) color = UI_Color_Green;
-          else if (bullet > 30) color = UI_Color_Yellow;
-          else if (bullet > 0) color = UI_Color_Orange;
-          else color = UI_Color_Black;
-          UIArcDraw(&UI_ammo_arc, "aa0", UI_Graph_Change, 6, color, start_angle, 270, 22, 960, 535, 370, 370);
-          UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_ammo_arc);
-          interactive_data->Referee_Interactive_Flag.ammo_flag = 0;
-      }
+  // 弹量圆弧
+  if (interactive_data->Referee_Interactive_Flag.ammo_flag == 1) {
+    uint16_t bullet = interactive_data->bullet_left_real;
+    if (bullet > 500) bullet = 500;
+    float bar = (float)bullet / 500.0f * 40.0f;
+    uint32_t start_angle = 270 - (uint32_t)bar;
+    uint32_t color;
+    if (bullet > 80)
+      color = UI_Color_Green;
+    else if (bullet > 30)
+      color = UI_Color_Yellow;
+    else if (bullet > 0)
+      color = UI_Color_Orange;
+    else
+      color = UI_Color_Black;
+    UIArcDraw(&UI_ammo_arc, "aa0", UI_Graph_Change, 6, color, start_angle, 270, 22, 960, 535, 370, 370);
+    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_ammo_arc);
+    interactive_data->Referee_Interactive_Flag.ammo_flag = 0;
+  }
 
       // 摩擦轮指针
       if (interactive_data->Referee_Interactive_Flag.fric_flag == 1)
@@ -642,8 +645,8 @@ void MyUIInit()
   referee_recv_info=RefereeInit(&huart6);
      // if (!referee_recv_info->init_flag)
      //     vTaskDelete(NULL); // 如果没有初始化裁判系统则直接删除ui任务
-    while (referee_recv_info->GameState.game_progress == 0)
-        osDelay(100); // 若还未收到裁判系统数据,等待一段时间后再检查
+    // while (referee_recv_info->GameState.game_progress == 0)
+    //     osDelay(100); // 若还未收到裁判系统数据,等待一段时间后再检查
     DeterminRobotID();                                            // 确定ui要发送到的目标客户端
     UIDelete(&referee_recv_info->referee_id, UI_Data_Del_ALL, 0); // 清空UI
 
@@ -692,7 +695,7 @@ void MyUIInit()
     // UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[0]);
     UICharDraw(&UI_State_sta[1], "ss1", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 700, "gimbal:");
     UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[1]);
-    UICharDraw(&UI_State_sta[2], "ss2", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 650, "shoot:");
+    UICharDraw(&UI_State_sta[2], "ss2", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 650, "loader:");
     UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[2]);
     UICharDraw(&UI_State_sta[3], "ss3", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 600, "frict:");
     UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[3]);

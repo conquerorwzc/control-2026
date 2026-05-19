@@ -7,14 +7,17 @@
 #include "user_lib.h"
 #include "stdlib.h"
 #define USECANREMOTE 1 //是否使用云台板的遥控数据
+#define U16TOI16(u)((u)>32767?32767:(int16_t)(u))
 #pragma pack(1)
 typedef struct {
   float bullet_speed;
   uint16_t HP;
-  uint16_t Heat;
-    float power;
+  // uint16_t Heat;
+  //   uint16_t heat_limt;
+    int16_t Remain_Heat;
+    //float power;
     float cap_v;
-    uint8_t error_code;
+    //uint8_t error_code;
     uint8_t color;
 } upload_data;
 #pragma pack()
@@ -141,6 +144,14 @@ static void DualBoardCtrlSet() {
 
     //interactive_data.bullet_left_real = referee_recv_info->ProjectileAllowance.projectile_allowance_17mm; // 实体弹丸剩余
     interactive_data->cap_voltage=robot->chassis->super_cap->cap_msg.cap_v;
+      if (robot->chassis->super_cap->cap_msg.error_detect==0)
+      {
+          if (robot->chassis->chassis_ctrl_cmd.SuperCapBoost & 1)
+              interactive_data->cap_mode=2;
+          else
+              interactive_data->cap_mode=1;
+      }
+      else interactive_data->cap_mode=0;
     //interactive_data.fric_speed_left = (uint16_t)robotdata->shoot->friction_motor[0]->measure.speed_aps; // 左摩擦轮转速（取反使向上为正）
      interactive_data->fric_speed_left = cancomm_pack->friction_speed1; // 左摩擦轮转速（取反使向上为正）
     //interactive_data.fric_speed_right = (uint16_t)robotdata->shoot->friction_motor[1]->measure.speed_aps; // 右摩擦轮转速
@@ -319,10 +330,12 @@ void RobotCMDTask() {
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
   upload.bullet_speed=robot->referee_data->ShootData.initial_speed;
   upload.HP=robot->referee_data->GameRobotState.current_HP;
-  upload.Heat=robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
-    upload.power=robot->chassis->super_cap->cap_msg.out_p;
+    upload.Remain_Heat=U16TOI16(robot->referee_data->GameRobotState.shooter_barrel_heat_limit-robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat);
+  //upload.Heat=robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
+    //upload.heat_limt=robot->referee_data->GameRobotState.shooter_barrel_heat_limit;
+    //upload.power=robot->chassis->super_cap->cap_msg.out_p;
     upload.cap_v=robot->chassis->super_cap->cap_msg.cap_v;
-    upload.error_code=robot->chassis->super_cap->cap_msg.error_detect;
+    //upload.error_code=robot->chassis->super_cap->cap_msg.error_detect;
     upload.color=robot->referee_data->GameRobotState.robot_id;
   CANCommSend(can_comm_instance,(uint8_t *)&upload);
 }
@@ -348,6 +361,7 @@ void RobotTask() {
 
     //底盘接收板控制任务
     RobotCMDTask();
+
     //超级电容自动控制
     // switch (supercap_mode) {
     //   case SAFETY_MODE:

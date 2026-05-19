@@ -32,11 +32,13 @@ CANCommInstance* can_comm_instance = NULL;
 static uint8_t diagonal_mode = 0;
 /* Intermediate variables calculated by private functions */
 static float trigger_time = 0;  // 触发时间
+static float trigger1_time = 0;  // 触发时间
 static float x_speed_time=0;  //x方向加速触发时间
 static float y_speed_time=0;  //y方向加速触发时间
 static float vx_initial;   //x轴输入控制量
 static float vy_initial;   //y轴输入控制量
 static float angle;
+static uint8_t rotate_mode_active = 0;
 // static  DJIMotorInstance* debug_motor;
 // float noise_05(void)
 // {
@@ -149,6 +151,7 @@ static void RemoteControlSet() {
           gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
           shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
           if (abs(rc_data[TEMP].rc.dial) > 20) {
+              rotate_mode_active=1;
               chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
           } else {
               chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW_DIAGONAL;
@@ -160,9 +163,10 @@ static void RemoteControlSet() {
           gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
           shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
           if (abs(rc_data[TEMP].rc.dial) > 20) {
+              rotate_mode_active=1;
               chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
           } else {
-              chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW_DIAGONAL;
+              chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
               diagonal_mode=1;
           }
       }
@@ -171,9 +175,9 @@ static void RemoteControlSet() {
       if (shoot_ctrl_cmd->friction_mode==FRICTION_ON){
           if (rc_data[TEMP].rc.trigger) {
               if (!rc_data_last[TEMP].rc.trigger) {
-                  trigger_time = DWT_GetTimeline_s();
+                  trigger1_time = DWT_GetTimeline_s();
               }
-              if (DWT_GetTimeline_s() - trigger_time > 1.0f) {
+              if (DWT_GetTimeline_s() - trigger1_time > 1.0f) {
                   shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
               } else {
                   shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
@@ -201,7 +205,7 @@ static void RemoteControlSet() {
   vx_initial = -60.0f * (float)rc_data[TEMP].rc.rocker_l1;
   vy_initial = 60.0f * (float)rc_data[TEMP].rc.rocker_l_;
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
-    chassis_ctrl_cmd->wz = 5000;
+    chassis_ctrl_cmd->wz = 15000;
   }
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW || chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW_DIAGONAL) {
     chassis_ctrl_cmd->wz = 25.0f * (float)rc_data[TEMP].rc.rocker_r_;
@@ -220,7 +224,7 @@ static void MouseKeySet()
 
         // wz基于当前底盘模式
         if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
-            chassis_ctrl_cmd->wz = 15000;
+            chassis_ctrl_cmd->wz = 25000;
         } else {
             chassis_ctrl_cmd->wz = (50.0f) * (float)rc_data[TEMP].mouse_key.mouse.x +
                                    (25.0f) * (float)rc_data[TEMP].rc.rocker_r_;
@@ -249,48 +253,9 @@ static void MouseKeySet()
         if (chassis_ctrl_cmd->vx>vx_initial) chassis_ctrl_cmd->vx = vx_initial;
         if (chassis_ctrl_cmd->vy>vy_initial) chassis_ctrl_cmd->vy = vy_initial;
 
-        if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
-            gimbal_ctrl_cmd->yaw -= (float)rc_data[TEMP].mouse_key.mouse.x * 0.003f;
-            gimbal_ctrl_cmd->pitch += (float)rc_data[TEMP].mouse_key.mouse.y * 0.003f;
-        }
 
-        // 右键进入自瞄模式
-        switch (rc_data[TEMP].mouse_key.mouse.press_r % 2) {
-        case 1:
-            if (has_non_zero_data(vision_recv_data) == 1) {
-                gimbal_ctrl_cmd->gimbal_mode = GIMBAL_VISION;
-                gimbal_ctrl_cmd->yaw = vision_recv_data->gimbal_receive.yaw;
-                gimbal_ctrl_cmd->pitch = vision_recv_data->gimbal_receive.pitch;
-            } else {
-                gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-            }
-            break;
-        default:
-            break;
-        }
 
-        // 左键发射
-        switch (rc_data[TEMP].mouse_key.mouse.press_l % 2) {
-        case 0:
-            trigger_time=DWT_GetTimeline_s();
-            break;
-        default:
-            switch (rc_data[TEMP].key_count[KEY_PRESS][Key_G] % 2) {  // G键切换单发/连发
-        case 0:
-                if (shoot_ctrl_cmd->friction_mode == FRICTION_ON) {
-                    shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
-                    if (DWT_GetTimeline_s() - trigger_time > 0.3f) {
-                        shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
-                    }
-                }
-                break;
-        default:
-                if (shoot_ctrl_cmd->friction_mode == FRICTION_ON)
-                    shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
-                break;
-            }
-            break;
-        }
+
 
         // // C键设置底盘速度
         // switch (rc_data[TEMP].key_count[KEY_PRESS][Key_C] % 4) {
@@ -309,40 +274,76 @@ static void MouseKeySet()
         // }
 
         // ---- B 键：切换 FOLLOW / FOLLOW_DIAGONAL（ROTATE模式下B键无效） ----
-        static uint8_t prev_b_count = 0;
-        if (rc_data[TEMP].key_count[KEY_PRESS][Key_B] != prev_b_count) {
-            prev_b_count = rc_data[TEMP].key_count[KEY_PRESS][Key_B];
-            if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
+        // static uint8_t prev_b_count = 0;
+        if (rc_data[TEMP].key_count[KEY_PRESS][Key_B] %2 == 1) {
+            if (chassis_ctrl_cmd->chassis_mode==CHASSIS_FOLLOW_DIAGONAL)
+            chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+            } else {
+                if (chassis_ctrl_cmd->chassis_mode==CHASSIS_FOLLOW )
                 chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW_DIAGONAL;
                 //chassis_ctrl_cmd->SuperCapBoost = 0;
-            } else if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW_DIAGONAL) {
-                chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
-                //chassis_ctrl_cmd->SuperCapBoost = 0;
             }
         }
+    if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
+        gimbal_ctrl_cmd->yaw -= (float)rc_data[TEMP].mouse_key.mouse.x * 0.003f;
+        gimbal_ctrl_cmd->pitch += (float)rc_data[TEMP].mouse_key.mouse.y * 0.003f;
+    }
+    // 右键进入自瞄模式
+    switch (rc_data[TEMP].mouse_key.mouse.press_r % 2) {
+    case 1:
+        if (has_non_zero_data(vision_recv_data) == 1) {
+            gimbal_ctrl_cmd->gimbal_mode = GIMBAL_VISION;
+            gimbal_ctrl_cmd->yaw = vision_recv_data->gimbal_receive.yaw;
+            gimbal_ctrl_cmd->pitch = vision_recv_data->gimbal_receive.pitch;
+        } else {
+            gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+        }
+        break;
+    default:
+        break;
+    }
 
+    // 左键发射
+    switch (rc_data[TEMP].mouse_key.mouse.press_l % 2) {
+    case 0:
+        trigger_time=DWT_GetTimeline_s();
+        break;
+    default:
+        switch (rc_data[TEMP].key_count[KEY_PRESS][Key_G] % 2) {  // G键切换单发/连发
+    case 0:
+            if (shoot_ctrl_cmd->friction_mode == FRICTION_ON) {
+                shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
+                if (DWT_GetTimeline_s() - trigger_time > 0.3f) {
+                    shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+                }
+            }
+            break;
+    default:
+            if (shoot_ctrl_cmd->friction_mode == FRICTION_ON)
+                shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+            break;
+        }
+        break;
+    }
         // ---- Q 键：切换 ROTATE 模式（唯一能退出ROTATE的方式） ----
         static uint8_t prev_q_count = 0;
-        static uint8_t rotate_mode_active = 0;
+
         static Chassis_Mode_e saved_chassis_mode = CHASSIS_FOLLOW_DIAGONAL;
 
-        if (rc_data[TEMP].key_count[KEY_PRESS][Key_Q] != prev_q_count) {
-            prev_q_count = rc_data[TEMP].key_count[KEY_PRESS][Key_Q];
-            if (!rotate_mode_active) {
-                saved_chassis_mode = chassis_ctrl_cmd->chassis_mode;
-                chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+        if (rc_data[TEMP].key_count[KEY_PRESS][Key_Q] %2 == 1) {
+                //chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
                 rotate_mode_active = 1;
             } else {
-                chassis_ctrl_cmd->chassis_mode = saved_chassis_mode;
+                //chassis_ctrl_cmd->chassis_mode = saved_chassis_mode;
                 rotate_mode_active = 0;
             }
-        }
         // Shift: 按下开启超级电容，松开关闭（不改变底盘模式）
         chassis_ctrl_cmd->SuperCapBoost |= rc_data[TEMP].key[KEY_PRESS].shift ? 1 : 0;
 
         // 强制保持ROTATE模式（只有Q能退出）
         if (rotate_mode_active) {
             chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+            chassis_ctrl_cmd->wz=25000;
         }
 
         if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
@@ -350,7 +351,7 @@ static void MouseKeySet()
         } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
             gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
         }
-    }
+
 
         // ---- R 键：将状态通过SuperCapBoost第二位传递到底盘板 (CAN) ----
         if (rc_data[TEMP].key[KEY_PRESS].r) {
@@ -385,7 +386,7 @@ static void RemoteControlSet() {
   if (switch_is_mid(rc_data[TEMP].rc.switch_right))
   {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-    chassis_ctrl_cmd->SuperCapBoost =0;
+    chassis_ctrl_cmd->SuperCapBoost =1;
     if (abs(rc_data[TEMP].rc.dial) > 20) {
       chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
     } else
@@ -733,7 +734,7 @@ void RobotInit() {
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;
-//  vision_recv_data=VisionInit(&gimbal_init_config.imu_init_config);
+  vision_recv_data=VisionInit(&gimbal_init_config.imu_init_config);
     shoot_ctrl_cmd->heat_mode=REFEREE_CONTROL;
     shoot_ctrl_cmd->bullet_speed_mode=ENABLE_BULLET_SPEED;
   can_comm_instance = CANCommInit(&comm_config);
@@ -747,7 +748,9 @@ void RobotCMDTask() {
   ///if (rc_data->rc.rocker_l1==0&&rc_data->rc.rocker_r1==0&&rc_data->rc.rocker_l_==0&&rc_data->rc.rocker_r_==0)
     MouseKeySet();
     shoot_ctrl_cmd->initial_speed = upload->bullet_speed;
-    shoot_ctrl_cmd->shooter_barrel_heat=upload->Heat;
+    shoot_ctrl_cmd->remain_heat=upload->Remain_Heat;
+    shoot_ctrl_cmd->initial_speed=upload->bullet_speed;
+  //  shoot_ctrl_cmd->shooter_heat_limit=upload->heat_limt;
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
 
@@ -757,11 +760,9 @@ void RobotTask() {
   robot->referee_data->ShootData.initial_speed=upload->bullet_speed;
     robot->referee_data->GameRobotState.robot_id=upload->color;
 
- // VisionSend();
+  VisionSend();
   RobotCMDTask();
   GimbalTask();
-    if (chassis_ctrl_cmd->chassis_mode==CHASSIS_ROTATE)
-        robot->gimbal->yaw_motor->motor_controller.final_output+=3.5135f*robot->gimbal->yaw_motor->measure.speed_aps;
   ShootTask();
   //Steering_CANCommSend(can_comm_instance, rc_data);
   // transmit_data.value = rc_data->rc.rocker_l_;
