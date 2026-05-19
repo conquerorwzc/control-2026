@@ -96,7 +96,7 @@ typedef struct
         int16_t dial;           ///< 左侧拨轮
 
         /* -------- 拨杆 / 功能键 / 扳机 -------- */
-        uint8_t  mode_switch;   ///< 左上角模式拨杆 (1=上, 3=中, 2=下)
+        uint8_t  mode_switch;   ///< 左上角模式拨杆 (0=左, 1=中, 2=右)
         uint8_t  pause;         ///< 暂停键
         uint8_t  fn_1;          ///< 自定义功能键 1
         uint8_t  fn_2;          ///< 自定义功能键 2

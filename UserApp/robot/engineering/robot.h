@@ -3,7 +3,6 @@
 #include "chassis.h"
 #include "grab.h"
 #include "gimbal_video.h"
-#include "remote_control.h"
 #include "new_RC_VT13.h"
 #include "selfcontrol.h"
 #include "rm_referee.h"
@@ -22,7 +21,7 @@ typedef struct
 {
     Robot_Mode_e robot_mode; // 机器人整体工作状态
     INS_t *ins_data;
-    VT13_RC_t *rc_data; // 遥控器数据,初始化时返回
+    VT13_RC_t *vt13_data; // 遥控器数据(VT13),初始化时返回
     referee_info_t* referee_data;     // 用于获取裁判系统的数据
     SuperCapInstance *super_cap;
     ChassisInstance *chassis;

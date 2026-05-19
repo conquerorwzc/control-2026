@@ -25,8 +25,7 @@ static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
 static Grab_Ctrl_Cmd_s *grab_ctrl_cmd;
 
 static VideoGimbal_Ctrl_Cmd_s *video_gimbal_ctrl_cmd;
-static RC_ctrl_t *rc_data;
-static RC_ctrl_t *rc_data_last; // 遥控器数据,初始化时返回
+static VT13_RC_t *vt13_data;
 static float set_angle = 0;
 static int save_point_trigger = 0;
 static Grab_Param_s grab_param;
@@ -58,14 +57,12 @@ void RobotInit()
     robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
     robot->referee_data = RefereeInit(&huart1); // 裁判系统初始化
 #ifdef STM32F4
-    robot->rc_data = RemoteControlInit(&huart3); // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
+    robot->vt13_data = VT13RemoteInit(&huart7); // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
 #elifdef STM32H7
-    robot->rc_data = RemoteControlInit(&huart5); // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
+    robot->vt13_data = VT13RemoteInit(&huart7); // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
     robot->self_control = SelfControlInit(&huart7); // 初始化自定义控制器
 #endif
 
-    rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
-    *rc_data_last = *robot->rc_data; // 记录上一次遥控器的状态
     robot->ins_data = INS_Init(&imu_init_config);
     robot->grab = GrabInit(&grab_init_config);
     robot->video_gimbal = VideoGimbalInit(&video_gimbal_init_config);
@@ -82,7 +79,7 @@ void RobotInit()
 
     grab_param = grab_init_config.Grab_param;
 
-    rc_data = robot->rc_data;
+    vt13_data = robot->vt13_data;
     gpio_5V_EN = GPIORegister(&gpio_init_config_5v);
     GPIOSet(gpio_5V_EN);
 
@@ -125,8 +122,11 @@ void RobotCMDTask()
     }
     else if (grab_control_mode == GRAB_CONTROL_HALF_AUTO)
     {
-        Half_auto_update(grab_ctrl_cmd, chassis_ctrl_cmd, rc_data->mouse.press_l, rc_data_last->mouse.press_l,
-                         rc_data->mouse.press_r, rc_data_last->mouse.press_r);
+        if (vt13_data != NULL)
+        {
+            Half_auto_update(grab_ctrl_cmd, chassis_ctrl_cmd, vt13_data->mouse_key[TEMP].mouse.press_l, vt13_data->mouse_key[LAST].mouse.press_l,
+                             vt13_data->mouse_key[TEMP].mouse.press_r, vt13_data->mouse_key[LAST].mouse.press_r);
+        }
     }
     CalcOffsetAngle();
     RemoteControlSet();
@@ -141,11 +141,11 @@ void RobotCMDTask()
  */
 static void MouseKeySet()
 {
-    if (rc_data == NULL)
+    if (vt13_data == NULL)
         return;
 
-    if (abs(rc_data[TEMP].rc.dial) > 20 || rc_data[TEMP].rc.rocker_l1 != 0 || rc_data[TEMP].rc.rocker_l_ != 0 ||
-        rc_data[TEMP].rc.rocker_r1 != 0 || rc_data[TEMP].rc.rocker_r_ != 0)
+    if (abs(vt13_data->rc.dial) > 20 || vt13_data->rc.rocker_l1 != 0 || vt13_data->rc.rocker_l_ != 0 ||
+        vt13_data->rc.rocker_r1 != 0 || vt13_data->rc.rocker_r_ != 0)
     {
         return; // 有摇杆输入时不进行键鼠控制
     }
@@ -156,7 +156,7 @@ static void MouseKeySet()
     static uint8_t last_robot_mode = ROBOT_POWER_OFF;
 
     // ================= 1. 大模式切换 (按 G 键循环切换) =================
-    switch (rc_data[TEMP].key_count[KEY_PRESS_NORMAL][KEY_G] % 4)
+    switch (vt13_data->key_count[KEY_PRESS_NORMAL][KEY_G] % 4)
     {
     case 0:
         robot->robot_mode = ROBOT_POWER_ON;
@@ -200,11 +200,11 @@ static void MouseKeySet()
         if (robot->robot_mode == ROBOT_EXCHANGE_MODE || robot->robot_mode == ROBOT_CLIMB_MODE)
         {
             // 状态1：只按了 F 键 (此时 Ctrl 和 Shift 绝对没按)
-            uint8_t curr_f_only = rc_data[TEMP].key[KEY_PRESS_NORMAL].f;
+            uint8_t curr_f_only = vt13_data->key[KEY_PRESS_NORMAL].f;
             static uint8_t last_f_only = 0;
 
             // 状态2：按了 Ctrl + F (此时 Shift 绝对没按)
-            uint8_t curr_ctrl_f = rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].f;
+            uint8_t curr_ctrl_f = vt13_data->key[KEY_PRESS_WITH_CTRL].f;
             static uint8_t last_ctrl_f = 0;
 
             // 场景 1：按下 Ctrl + F -> 无脑切入【半自动模式】
@@ -235,34 +235,34 @@ static void MouseKeySet()
         float speed_buff = 20000;
 
         // 提取 R 键的状态：0 为正向，1 为反向
-        uint8_t r_state = rc_data[TEMP].key_count[KEY_PRESS_NORMAL][KEY_R] % 2;
+        uint8_t r_state = vt13_data->key_count[KEY_PRESS_NORMAL][KEY_R] % 2;
 
         if (r_state == 1)
         {
             // 反向平移
             chassis_ctrl_cmd->vx =
-                -(float)(rc_data[TEMP].key[KEY_PRESS_NORMAL].w - rc_data[TEMP].key[KEY_PRESS_NORMAL].s) * speed_buff;
+                -(float)(vt13_data->key[KEY_PRESS_NORMAL].w - vt13_data->key[KEY_PRESS_NORMAL].s) * speed_buff;
             chassis_ctrl_cmd->vy =
-                (float)(rc_data[TEMP].key[KEY_PRESS_NORMAL].d - rc_data[TEMP].key[KEY_PRESS_NORMAL].a) * speed_buff;
+                (float)(vt13_data->key[KEY_PRESS_NORMAL].d - vt13_data->key[KEY_PRESS_NORMAL].a) * speed_buff;
         }
         else
         {
             // 正向平移
             chassis_ctrl_cmd->vx =
-                (float)(rc_data[TEMP].key[KEY_PRESS_NORMAL].d - rc_data[TEMP].key[KEY_PRESS_NORMAL].a) * speed_buff;
+                (float)(vt13_data->key[KEY_PRESS_NORMAL].d - vt13_data->key[KEY_PRESS_NORMAL].a) * speed_buff;
             chassis_ctrl_cmd->vy =
-                (float)(rc_data[TEMP].key[KEY_PRESS_NORMAL].w - rc_data[TEMP].key[KEY_PRESS_NORMAL].s) * speed_buff;
+                (float)(vt13_data->key[KEY_PRESS_NORMAL].w - vt13_data->key[KEY_PRESS_NORMAL].s) * speed_buff;
         }
 
         // ================= 新增：Shift+R 图传云台一键回正 =================
         static uint8_t last_shift_r = 0;
-        uint8_t current_shift_r = rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].r;
+        uint8_t current_shift_r = vt13_data->key[KEY_PRESS_WITH_SHIFT].r;
 
         // 边沿检测，按下的瞬间触发
         if (current_shift_r && !last_shift_r)
         {
             // 提取 R 键的状态：0 为正向，1 为侧向
-            uint8_t r_state = rc_data[TEMP].key_count[KEY_PRESS_NORMAL][KEY_R] % 2;
+            uint8_t r_state = vt13_data->key_count[KEY_PRESS_NORMAL][KEY_R] % 2;
 
             // 获取图传云台当前的累积相对角度
             float current_video_yaw = robot->video_gimbal->Video_yaw;
@@ -288,9 +288,9 @@ static void MouseKeySet()
             if (chassis_ctrl_cmd->lift_ratio - 0.1f < 0.01f)
             {
                 set_angle +=
-                    (float)((rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].q - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].e) *
+                    (float)((vt13_data->key[KEY_PRESS_WITH_SHIFT].q - vt13_data->key[KEY_PRESS_WITH_SHIFT].e) *
                                 angle_buff +
-                            (rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].a - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].d) *
+                            (vt13_data->key[KEY_PRESS_WITH_SHIFT].a - vt13_data->key[KEY_PRESS_WITH_SHIFT].d) *
                                 angle_rapid_buff);
             }
         }
@@ -305,9 +305,9 @@ static void MouseKeySet()
                 chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_FRONT_RETRACT)
             {
                 set_angle +=
-                    (float)((rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].q - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].e) *
+                    (float)((vt13_data->key[KEY_PRESS_WITH_SHIFT].q - vt13_data->key[KEY_PRESS_WITH_SHIFT].e) *
                                 angle_buff +
-                            (rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].a - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].d) *
+                            (vt13_data->key[KEY_PRESS_WITH_SHIFT].a - vt13_data->key[KEY_PRESS_WITH_SHIFT].d) *
                                 angle_rapid_buff);
             }
         }
@@ -320,7 +320,7 @@ static void MouseKeySet()
             // 【兑换模式】：使用平滑无级调节 (长按 QE)
             float step_size = 1.0f / (12.0f * 200.0f);
             chassis_ctrl_cmd->lift_ratio +=
-                (float)(rc_data[TEMP].key[KEY_PRESS_NORMAL].q - rc_data[TEMP].key[KEY_PRESS_NORMAL].e) * step_size;
+                (float)(vt13_data->key[KEY_PRESS_NORMAL].q - vt13_data->key[KEY_PRESS_NORMAL].e) * step_size;
 
             if (chassis_ctrl_cmd->lift_ratio < 0.0f)
                 chassis_ctrl_cmd->lift_ratio = 0.0f;
@@ -332,9 +332,9 @@ static void MouseKeySet()
             // 【上台阶/烂路模式】：边沿触发状态机 (彻底告别组合键卡顿)
             static uint8_t last_ctrl_w = 0, last_q = 0, last_e = 0;
 
-            uint8_t curr_ctrl_w = rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].w; // 🌟 替代原来的 QE 齐按
-            uint8_t curr_q = rc_data[TEMP].key[KEY_PRESS_NORMAL].q;
-            uint8_t curr_e = rc_data[TEMP].key[KEY_PRESS_NORMAL].e;
+            uint8_t curr_ctrl_w = vt13_data->key[KEY_PRESS_WITH_CTRL].w;
+            uint8_t curr_q = vt13_data->key[KEY_PRESS_NORMAL].q;
+            uint8_t curr_e = vt13_data->key[KEY_PRESS_NORMAL].e;
 
             // 1. Ctrl + W：四腿全伸 (准备上台阶 / 最大行程顶出标定)
             if (curr_ctrl_w && !last_ctrl_w)
@@ -394,12 +394,12 @@ static void MouseKeySet()
             {
                 // 1. 抬升：Shift + W/S
                 grab_ctrl_cmd->arm_lift +=
-                    (float)(rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].w - rc_data[TEMP].key[KEY_PRESS_WITH_SHIFT].s) *
+                    (float)(vt13_data->key[KEY_PRESS_WITH_SHIFT].w - vt13_data->key[KEY_PRESS_WITH_SHIFT].s) *
                     grab_param.arm_lift_sens_keyboard;
 
                 // 2. 前伸：Shift + Ctrl + V/B
-                grab_ctrl_cmd->arm_extend += (float)(rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].v -
-                                                     rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].b) *
+                grab_ctrl_cmd->arm_extend += (float)(vt13_data->key[KEY_PRESS_WITH_CTRL_SHIFT].v -
+                                                     vt13_data->key[KEY_PRESS_WITH_CTRL_SHIFT].b) *
                                              grab_param.arm_extend_sens_keyboard;
             }
 
@@ -409,35 +409,35 @@ static void MouseKeySet()
                 float arm_speed = 0.08f; // 机械臂键盘微调步长
 
                 // 1. 大 Yaw (基座旋转 base_joint) -> Q/W
-                grab_ctrl_cmd->base_joint += (float)(rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].q -
-                                                     rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].w) *
+                grab_ctrl_cmd->base_joint += (float)(vt13_data->key[KEY_PRESS_WITH_CTRL_SHIFT].q -
+                                                     vt13_data->key[KEY_PRESS_WITH_CTRL_SHIFT].w) *
                                              arm_speed;
 
                 // 2. 大 Roll (肘部旋转 elbow_roll) -> E/R
-                grab_ctrl_cmd->elbow_roll += (float)(rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].e -
-                                                     rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].r) *
+                grab_ctrl_cmd->elbow_roll += (float)(vt13_data->key[KEY_PRESS_WITH_CTRL_SHIFT].e -
+                                                     vt13_data->key[KEY_PRESS_WITH_CTRL_SHIFT].r) *
                                              arm_speed;
 
                 // 3. 大 Pitch (肘部俯仰 elbow_pitch) -> A/S
-                grab_ctrl_cmd->elbow_pitch += (float)(rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].a -
-                                                      rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].s) *
+                grab_ctrl_cmd->elbow_pitch += (float)(vt13_data->key[KEY_PRESS_WITH_CTRL_SHIFT].a -
+                                                      vt13_data->key[KEY_PRESS_WITH_CTRL_SHIFT].s) *
                                               arm_speed;
 
                 // 4. 小 Pitch (腕部俯仰 wrist_pitch) -> D/F
-                grab_ctrl_cmd->wrist_pitch += (float)(rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].d -
-                                                      rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].f) *
+                grab_ctrl_cmd->wrist_pitch += (float)(vt13_data->key[KEY_PRESS_WITH_CTRL_SHIFT].d -
+                                                      vt13_data->key[KEY_PRESS_WITH_CTRL_SHIFT].f) *
                                               arm_speed;
 
                 // 5. 小 Roll (腕部旋转 wrist_roll) -> Z/X
-                grab_ctrl_cmd->wrist_roll += (float)(rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].z -
-                                                     rc_data[TEMP].key[KEY_PRESS_WITH_CTRL_SHIFT].x) *
+                grab_ctrl_cmd->wrist_roll += (float)(vt13_data->key[KEY_PRESS_WITH_CTRL_SHIFT].z -
+                                                     vt13_data->key[KEY_PRESS_WITH_CTRL_SHIFT].x) *
                                              arm_speed;
             }
         }
     }
 
     // ================= 5. 夹爪控制 (C 触发式) =================
-    uint32_t current_c_count = rc_data[TEMP].key_count[KEY_PRESS_NORMAL][KEY_C];
+    uint32_t current_c_count = vt13_data->key_count[KEY_PRESS_NORMAL][KEY_C];
 
     if (grab_control_mode == GRAB_CONTROL_KEYBOARD || grab_control_mode == GRAB_CONTROL_CUSTOM)
     {
@@ -455,35 +455,35 @@ static void MouseKeySet()
     {
         // 半自动模式下同步键鼠状态
         if (grab_ctrl_cmd->gripper_state == GRIPPER_CLOSE)
-            rc_data[TEMP].key_count[KEY_PRESS_NORMAL][KEY_C] = 1;
+            vt13_data->key_count[KEY_PRESS_NORMAL][KEY_C] = 1;
         else
-            rc_data[TEMP].key_count[KEY_PRESS_NORMAL][KEY_C] = 0;
+            vt13_data->key_count[KEY_PRESS_NORMAL][KEY_C] = 0;
     }
     // ================= 6. 图传 Yaw/Pitch 控制 =================
     video_gimbal_ctrl_cmd->video_pitch =
-        (float)(rc_data[TEMP].key[KEY_PRESS_NORMAL].x - rc_data[TEMP].key[KEY_PRESS_NORMAL].z) -
-        (float)rc_data[TEMP].mouse.y * VIDEO_MOUSE_PITCH_SENS;
+        (float)(vt13_data->key[KEY_PRESS_NORMAL].x - vt13_data->key[KEY_PRESS_NORMAL].z) -
+        (float)vt13_data->mouse_key[TEMP].mouse.y * VIDEO_MOUSE_PITCH_SENS;
 
     video_gimbal_ctrl_cmd->video_yaw =
-        (float)(rc_data[TEMP].key[KEY_PRESS_NORMAL].b - rc_data[TEMP].key[KEY_PRESS_NORMAL].v) +
-        (float)rc_data[TEMP].mouse.x * VIDEO_MOUSE_YAW_SENS;
+        (float)(vt13_data->key[KEY_PRESS_NORMAL].b - vt13_data->key[KEY_PRESS_NORMAL].v) +
+        (float)vt13_data->mouse_key[TEMP].mouse.x * VIDEO_MOUSE_YAW_SENS;
 
     // ================= 7. 机械臂与图传标定 =================
-    if (rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].q)
+    if (vt13_data->key[KEY_PRESS_WITH_CTRL].q)
     {
         grab_ctrl_cmd->wrist_roll_cali = 1;
     }
-    else if (rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].e)
+    else if (vt13_data->key[KEY_PRESS_WITH_CTRL].e)
     {
         grab_ctrl_cmd->wrist_pitch_cali = 1;
     }
     // Ctrl+V：触发图传 Pitch 双向堵转标定
-    else if (rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].v)
+    else if (vt13_data->key[KEY_PRESS_WITH_CTRL].v)
     {
         video_gimbal_ctrl_cmd->video_cali = 1;
     }
     static uint8_t last_ctrl_z = 0;
-    uint8_t curr_ctrl_z = rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].z;
+    uint8_t curr_ctrl_z = vt13_data->key[KEY_PRESS_WITH_CTRL].z;
 
     if (curr_ctrl_z && !last_ctrl_z)
     {
@@ -492,7 +492,7 @@ static void MouseKeySet()
     last_ctrl_z = curr_ctrl_z;
     // Ctrl+X：键盘拥有最高权限，强制重新触发底盘标定
     static uint8_t last_ctrl_x = 0;
-    uint8_t curr_ctrl_x = rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].x;
+    uint8_t curr_ctrl_x = vt13_data->key[KEY_PRESS_WITH_CTRL].x;
 
     if (curr_ctrl_x && !last_ctrl_x) // 边沿触发，防止长按导致不断重置
     {
@@ -510,7 +510,7 @@ static void MouseKeySet()
     // ================= 8. UI 重置（Ctrl+B）=================
     // Ctrl+B（Back to default/Reset UI）：边沿触发，按下一次触发一次
     static uint8_t last_ctrl_b = 0;
-    uint8_t curr_ctrl_b = rc_data[TEMP].key[KEY_PRESS_WITH_CTRL].b;
+    uint8_t curr_ctrl_b = vt13_data->key[KEY_PRESS_WITH_CTRL].b;
 
     if (curr_ctrl_b && !last_ctrl_b) // 检测上升沿（按下瞬间）
     {
@@ -522,8 +522,8 @@ static void MouseKeySet()
 
 static void EmergencyHandler()
 {
-    if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)) ||
-        !RemoteControlIsOnline())
+    // VT13: mode_switch==0 (左) 或 1 (中) => 急停
+    if (vt13_data->rc.mode_switch == 0 || vt13_data->rc.mode_switch == 1 || !VT13RemoteIsOnline())
     {
         robot->robot_mode = ROBOT_EMERGENCY_STOP;
         chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
@@ -535,20 +535,22 @@ static void EmergencyHandler()
 
 static void RemoteControlSet()
 {
+    if (vt13_data == NULL)
+        return;
     // 进门第一步：永远清零 wz，杜绝无限累加（防疯转的核心）
     chassis_ctrl_cmd->wz = 0;
 
     // 如果底盘还没有完成零点标定
     if (!robot->chassis->cali_state.all_cali_done)
     {
-        // 1. 紧急护盾（最高优先级）：真正的双下拨杆，全车彻底瘫痪
-        if (switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left))
+        // 1. 紧急护盾（最高优先级）：mode_switch==0 (左) 或 1 (中) 全车彻底瘫痪
+        if (vt13_data->rc.mode_switch == 0 || vt13_data->rc.mode_switch == 1)
         {
             chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
             return;
         }
 
-        if (RemoteControlIsOnline())
+        if (VT13RemoteIsOnline())
         {
             // 2. 初次开机上电，老老实实去标定
             if (robot->chassis->cali_state.has_calibrated_once == 0)
@@ -563,7 +565,7 @@ static void RemoteControlSet()
 
     bool is_keyboard_climb = (robot->robot_mode == ROBOT_CLIMB_MODE || robot->robot_mode == ROBOT_DOWN_STAIRS_MODE);
 
-    if (switch_is_mid(rc_data[TEMP].rc.switch_right))
+    if (vt13_data->rc.mode_switch == 2) // 右: 遥控器模式(正常工作)
     {
         // 【修改点】：键盘处于爬台阶/过烂路模式时，遥控器不要强制切回 FOLLOW
         if (!is_keyboard_climb)
@@ -571,92 +573,82 @@ static void RemoteControlSet()
             chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
         }
 
-        if (abs(rc_data[TEMP].rc.dial) > 20)
+        if (abs(vt13_data->rc.dial) > 20)
         {
             chassis_ctrl_cmd->wz = 0;
-            set_angle += (rc_data[TEMP].rc.dial - 20) * 0.0001;
+            set_angle += (vt13_data->rc.dial - 20) * 0.0001;
         }
     }
-    else if (switch_is_down(rc_data[TEMP].rc.switch_right))
+    else // mode_switch==0 (左) 或 1 (中): 急停
     {
-        // 【修改点】：键盘爬台阶时，防止误触右拨杆导致底盘下电
         if (!is_keyboard_climb)
         {
             chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
         }
     }
-    else if (switch_is_up(rc_data[TEMP].rc.switch_right))
-    {
-        // 【修改点】：如果键鼠在控制上台阶，彻底屏蔽遥控器左拨杆的上台阶逻辑，防止相互覆盖
-        if (!is_keyboard_climb)
-        {
-            if (chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_IDLE &&
-                chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_BOTH_EXTEND &&
-                chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF && // 🌟 新增防打断
-                chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_FRONT_RETRACT &&
-                chassis_ctrl_cmd->chassis_mode != CHASSIS_CLIMB_ALL_RETRACT)
-            {
-                chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_IDLE;
-            }
+    chassis_ctrl_cmd->vx = 60.0f * (float)vt13_data->rc.rocker_l_;
+    chassis_ctrl_cmd->vy = 60.0f * (float)vt13_data->rc.rocker_l1;
 
-            uint8_t current_switch = rc_data[TEMP].rc.switch_left;
-            static uint8_t last_switch = 0;
-            static uint32_t switch_stable_cnt = 0;
-
-            if (current_switch == last_switch)
-            {
-                switch_stable_cnt++;
-                if (switch_stable_cnt >= SWITCH_STABLE_TICKS)
-                {
-                    if (switch_is_up(current_switch))
-                        chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_BOTH_EXTEND;
-                    else if (switch_is_mid(current_switch))
-                        chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_FRONT_RETRACT;
-                    else if (switch_is_down(current_switch))
-                        chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_ALL_RETRACT;
-                    switch_stable_cnt = SWITCH_STABLE_TICKS;
-                }
-            }
-            else
-            {
-                last_switch = current_switch;
-                switch_stable_cnt = 0;
-            }
-        }
-    }
-    // rocker_r1：向上推大于 300 夹紧，向下推小于 -300 松开
-    if (rc_data[TEMP].rc.rocker_r1 > 300)
-    {
-        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
-        if (rc_data[TEMP].key_count[KEY_PRESS_NORMAL][KEY_C] % 2 == 0)
-        {
-            rc_data[TEMP].key_count[KEY_PRESS_NORMAL][KEY_C]++;
-        }
-    }
-    else if (rc_data[TEMP].rc.rocker_r1 < -300)
-    {
-        grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
-        if (rc_data[TEMP].key_count[KEY_PRESS_NORMAL][KEY_C] % 2 == 1)
-        {
-            rc_data[TEMP].key_count[KEY_PRESS_NORMAL][KEY_C]++;
-        }
-    }
-    chassis_ctrl_cmd->vx = 60.0f * (float)rc_data[TEMP].rc.rocker_l_;
-    chassis_ctrl_cmd->vy = 60.0f * (float)rc_data[TEMP].rc.rocker_l1;
-
-    if (abs(rc_data[TEMP].rc.dial) > 20)
+    if (abs(vt13_data->rc.dial) > 20)
     {
         if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_ALL_RETRACT ||
             chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF ||
             chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_FRONT_RETRACT)
         {
-            set_angle += (rc_data[TEMP].rc.dial - 20) * 0.0001;
+            set_angle += (vt13_data->rc.dial - 20) * 0.0001;
         }
         chassis_ctrl_cmd->wz = 0;
     }
 
     chassis_ctrl_cmd->wz = 0;
-    *rc_data_last = *rc_data;
+
+    // ================= 【VT13 按钮控制】 =================
+    // 仅在 mode_switch==2 (右, 正常工作) 时生效
+    // fn_1: 标定最大尺寸 (双腿伸出 + 机械臂最大前伸)
+    // fn_2: 最小/全收 (双腿收回 + 机械臂收回)
+    // trigger: 夹抓开/关
+    if (vt13_data->rc.mode_switch == 2)
+    {
+        static uint8_t last_fn1 = 0;
+        static uint8_t last_fn2 = 0;
+        static uint8_t last_trigger = 0;
+        
+        uint8_t curr_fn1 = vt13_data->button_status.fn_1_flag;
+        uint8_t curr_fn2 = vt13_data->button_status.fn_2_flag;
+        uint8_t curr_trigger = vt13_data->button_status.trigger_flag;
+        
+        // fn_1 rising edge: 标定最大尺寸
+        if (curr_fn1 && !last_fn1)
+        {
+            // 双腿伸出
+            chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_BOTH_EXTEND;
+            // 机械臂最大前伸
+            if (robot->grab != NULL && robot->grab->arm != NULL)
+            {
+                grab_ctrl_cmd->arm_extend = robot->grab->arm->max_extend;
+            }
+        }
+        
+        // fn_2 rising edge: 最小/全收
+        if (curr_fn2 && !last_fn2)
+        {
+            // 双腿收回
+            chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_ALL_RETRACT;
+            // 机械臂收回
+            grab_ctrl_cmd->arm_extend = 0.0f;
+        }
+        
+        // trigger rising edge: 夹抓开/关
+        if (curr_trigger && !last_trigger)
+        {
+            grab_ctrl_cmd->gripper_state = 
+                (grab_ctrl_cmd->gripper_state == GRIPPER_CLOSE) ? GRIPPER_OPEN : GRIPPER_CLOSE;
+        }
+        
+        last_fn1 = curr_fn1;
+        last_fn2 = curr_fn2;
+        last_trigger = curr_trigger;
+    }
 }
 
 static void ProcessCustomControllerData()
