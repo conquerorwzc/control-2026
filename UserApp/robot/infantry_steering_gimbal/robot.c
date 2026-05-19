@@ -313,9 +313,9 @@ static void MouseKeySet()
     case 0:
             if (shoot_ctrl_cmd->friction_mode == FRICTION_ON) {
                 shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
-                if (DWT_GetTimeline_s() - trigger_time > 0.3f) {
-                    shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
-                }
+                // if (DWT_GetTimeline_s() - trigger_time > 0.5f) {
+                //     shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+                // }
             }
             break;
     default:

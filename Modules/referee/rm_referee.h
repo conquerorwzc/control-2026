@@ -53,7 +53,7 @@ typedef struct
 	// uint32_t chassis_flag : 1;
 	uint32_t gimbal_flag : 1;
 	uint32_t shoot_flag : 1;
-	uint32_t lid_flag : 1;
+	uint32_t load_flag : 1;
     uint32_t chassis_flag : 1;
 	uint32_t friction_flag : 1;
 	uint32_t Power_flag : 1;

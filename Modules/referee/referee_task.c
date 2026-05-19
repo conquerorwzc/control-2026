@@ -122,10 +122,10 @@ static void UIChangeCheck(Referee_Interactive_info_t *_Interactive_data)
         _Interactive_data->gimbal_last_mode = _Interactive_data->gimbal_mode;
     }
 
-    if (_Interactive_data->shoot_mode != _Interactive_data->shoot_last_mode)
+    if (_Interactive_data->load_mode != _Interactive_data->load_last_mode)
     {
-        _Interactive_data->Referee_Interactive_Flag.shoot_flag = 1;
-        _Interactive_data->shoot_last_mode = _Interactive_data->shoot_mode;
+        _Interactive_data->Referee_Interactive_Flag.load_flag = 1;
+        _Interactive_data->load_last_mode = _Interactive_data->load_mode;
     }
 
     if (_Interactive_data->friction_mode != _Interactive_data->friction_last_mode)
@@ -190,28 +190,31 @@ static void UIChangeCheck(Referee_Interactive_info_t *_Interactive_data)
 static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
 {
     // 更新底盘状态
-    // if (interactive_data->Referee_Interactive_Flag.chassis_flag == 1)
-    // {
-    //     char *chassis_str;
-    //     switch(interactive_data->chassis_mode)
-    //     {
-    //         case CHASSIS_POWER_OFF:
-    //             chassis_str = "PowerOff";
-    //             break;
-    //         case CHASSIS_ROTATE:
-    //             chassis_str = "Rotate";
-    //             break;
-    //         case CHASSIS_FOLLOW:
-    //             chassis_str = "Follow";
-    //             break;
-    //         default:
-    //             chassis_str = "unknown";
-    //             break;
-    //     }
-    //     UICharDraw(&UI_State_dyn[0], "sd0", UI_Graph_Change, 8, UI_Color_Main, 15, 2, 270, 750, chassis_str);
-    //     UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[0]);
-    //     interactive_data->Referee_Interactive_Flag.chassis_flag = 0;
-    // }
+    if (interactive_data->Referee_Interactive_Flag.load_flag == 1)
+    {
+        char *load_str;
+        switch(interactive_data->load_mode)
+        {
+            case LOAD_STOP:
+                load_str = "LOAD_STOP";
+                break;
+            case LOAD_1_BULLET:
+                load_str = "LOAD_1_BULLET";
+                break;
+            case LOAD_BURSTFIRE:
+                load_str = "LOAD_BURSTFIRE";
+                break;
+              case LOAD_REVERSE:
+            load_str = "LOAD_REVERSE";
+            break;
+            default:
+                load_str= "error";
+                break;
+        }
+        UICharDraw(&UI_State_dyn[2], "sd2", UI_Graph_Change, 8, UI_Color_Orange, 15, 2, 270, 650, load_str);
+        UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[2]);
+        interactive_data->Referee_Interactive_Flag.shoot_flag = 0;
+    }
 
     // 更新云台状态
     if (interactive_data->Referee_Interactive_Flag.gimbal_flag == 1)
@@ -238,13 +241,13 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
     }
 
     // 更新射击状态
-    if (interactive_data->Referee_Interactive_Flag.shoot_flag == 1)
-    {
-        char *shoot_str = interactive_data->shoot_mode == SHOOT_ON ? "on " : "off";
-        UICharDraw(&UI_State_dyn[2], "sd2", UI_Graph_Change, 8, UI_Color_Orange, 15, 2, 270, 650, shoot_str);
-        UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[2]);
-        interactive_data->Referee_Interactive_Flag.shoot_flag = 0;
-    }
+    // if (interactive_data->Referee_Interactive_Flag.shoot_flag == 1)
+    // {
+    //     char *shoot_str = interactive_data->shoot_mode == SHOOT_ON ? "on " : "off";
+    //     UICharDraw(&UI_State_dyn[2], "sd2", UI_Graph_Change, 8, UI_Color_Orange, 15, 2, 270, 650, shoot_str);
+    //     UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[2]);
+    //     interactive_data->Referee_Interactive_Flag.shoot_flag = 0;
+    // }
 
     // 更新摩擦轮状态
     if (interactive_data->Referee_Interactive_Flag.friction_flag == 1)

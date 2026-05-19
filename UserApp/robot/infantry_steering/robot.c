@@ -116,7 +116,7 @@ static void DualBoardCtrlSet() {
       interactive_data->friction_mode = cancomm_pack->friction_mode;
    //
    //  //interactive_data.lid_mode = robotdata->shoot->shoot_ctrl_cmd.load_mode;
-      interactive_data->lid_mode = cancomm_pack->load_mode;
+      interactive_data->load_mode = cancomm_pack->load_mode;
    //
     interactive_data->Chassis_Power_Data.chassis_power_mx = robot->chassis->chassis_ctrl_cmd.max_power; // 示例功率值
    //
