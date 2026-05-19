@@ -231,8 +231,8 @@ static void EmergencyHandler() {
 #ifdef USE_DUAL_RC
 
   if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left))
-    //||(switch_is_mid(rc_data[TEMP].rc.switch_left)&&switch_is_mid(rc_data[TEMP].rc.switch_right)) //自瞄时底盘失能，移动炮台模式
-    ||(switch_is_off(rc_data[TEMP].rc.switch_left)&&switch_is_off(rc_data[TEMP].rc.switch_right)))  // 底盘失能
+    ||(switch_is_off(rc_data[TEMP].rc.switch_left)&&switch_is_off(rc_data[TEMP].rc.switch_right))
+    ||(switch_is_mid(rc_data[TEMP].rc.switch_left)&&switch_is_mid(rc_data[TEMP].rc.switch_right))) //自瞄时底盘失能，移动炮台模式
   {
     robot->robot_mode = ROBOT_POWER_ON;
     chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
