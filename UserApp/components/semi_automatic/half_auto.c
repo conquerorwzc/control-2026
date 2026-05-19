@@ -25,7 +25,7 @@ static void Half_Auto_Smooth_Init(Grab_Ctrl_Cmd_s *cmd)
 {
     // 角度类关节 (度/秒, 度/秒², 度/秒³)
     SCurvePlanner_Reset(&sc_base, cmd->base_joint);
-    sc_base.max_vel = 300.0f; sc_base.max_accel = 1500.0f; sc_base.max_jerk = 15000.0f;
+    sc_base.max_vel = 40.0f; sc_base.max_accel = 200.0f; sc_base.max_jerk = 300.0f;
 
     SCurvePlanner_Reset(&sc_elbow_roll, cmd->elbow_roll);
     sc_elbow_roll.max_vel = 300.0f; sc_elbow_roll.max_accel = 1500.0f; sc_elbow_roll.max_jerk = 15000.0f;
@@ -127,7 +127,7 @@ void Half_auto_update(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_Cmd_s *chassi
     // 左键推进取矿进度
     if (press_l && !press_l_last)
     {
-        if (normal_step < 20) normal_step++; // 上限20 (store_second_energy_unit最大case)
+        if (normal_step < 30) normal_step++; // 上限更新为27
     }
 
     // 执行对应的常规半自动
@@ -139,11 +139,11 @@ void Half_auto_update(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_Cmd_s *chassi
     case Store_Second_Energy_Unit:
         store_second_energy_unit(grab_ctrl_cmd, normal_step);
         break;
-    case Grab_Six_Oclock_Energy_Unit:
-        grab_six_oclock_energy_unit(grab_ctrl_cmd, chassis_ctrl_cmd, normal_step);
+    case Grab_First_Energy_Unit:
+        grab_first_energy_unit(grab_ctrl_cmd, chassis_ctrl_cmd, normal_step);
         break;
-    case Grab_Four_Oclock_Energy_Unit:
-        grab_four_oclock_energy_unit(grab_ctrl_cmd, chassis_ctrl_cmd, normal_step);
+    case Grab_Second_Energy_Unit:
+        grab_second_energy_unit(grab_ctrl_cmd, chassis_ctrl_cmd, normal_step);
         break;
     default:
         break;
@@ -295,580 +295,745 @@ void climb_step_prep(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, uint8_t step)
 }
 
 // ========================================================
-// 模式 0：存第一个能量单元 (共 7 步)
+// 模式 0：存第一个能量单元 (共 24 步)
 // ========================================================
 void store_first_energy_unit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, uint8_t step)
 {
     switch (step)
     {
     case 0:
-        grab_ctrl_cmd->base_joint = -1.80f;
-        grab_ctrl_cmd->elbow_roll = 1.69f;
-        grab_ctrl_cmd->elbow_pitch = -13.93f;
-        grab_ctrl_cmd->wrist_pitch = 82.26f;
-        grab_ctrl_cmd->wrist_roll = -5.27f;
+        grab_ctrl_cmd->base_joint = 8.92f;
+        grab_ctrl_cmd->elbow_roll = 7.55f;
+        grab_ctrl_cmd->elbow_pitch = 15.88f;
+        grab_ctrl_cmd->wrist_pitch = 10.22f;
+        grab_ctrl_cmd->wrist_roll = 0.40f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
     case 1:
-        grab_ctrl_cmd->base_joint = -1.80f;
-        grab_ctrl_cmd->elbow_roll = 1.69f;
-        grab_ctrl_cmd->elbow_pitch = -13.93f;
-        grab_ctrl_cmd->wrist_pitch = 82.26f;
-        grab_ctrl_cmd->wrist_roll = -5.27f;
+        grab_ctrl_cmd->base_joint = 8.96f;
+        grab_ctrl_cmd->elbow_roll = 25.50f;
+        grab_ctrl_cmd->elbow_pitch = 20.64f;
+        grab_ctrl_cmd->wrist_pitch = 14.09f;
+        grab_ctrl_cmd->wrist_roll = 1.06f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
-    case 2: // custom_trajectory[1]
-        grab_ctrl_cmd->base_joint = -3.51f;
-        grab_ctrl_cmd->elbow_roll = 54.19f;
-        grab_ctrl_cmd->elbow_pitch = 8.90f;
-        grab_ctrl_cmd->wrist_pitch = 80.72f;
-        grab_ctrl_cmd->wrist_roll = -32.25f;
+    case 2:
+        grab_ctrl_cmd->base_joint = 9.71f;
+        grab_ctrl_cmd->elbow_roll = 48.25f;
+        grab_ctrl_cmd->elbow_pitch = 22.48f;
+        grab_ctrl_cmd->wrist_pitch = 20.78f;
+        grab_ctrl_cmd->wrist_roll = 1.06f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
-    case 3: // custom_trajectory[2]
-        grab_ctrl_cmd->base_joint = -8.34f;
-        grab_ctrl_cmd->elbow_roll = 63.17f;
-        grab_ctrl_cmd->elbow_pitch = 11.39f;
-        grab_ctrl_cmd->wrist_pitch = 86.13f;
-        grab_ctrl_cmd->wrist_roll = -55.81f;
+    case 3:
+        grab_ctrl_cmd->base_joint = 11.38f;
+        grab_ctrl_cmd->elbow_roll = 75.05f;
+        grab_ctrl_cmd->elbow_pitch = 31.79f;
+        grab_ctrl_cmd->wrist_pitch = 20.82f;
+        grab_ctrl_cmd->wrist_roll = -11.57f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
-    case 4: // custom_trajectory[3]
-        grab_ctrl_cmd->base_joint = -4.87f;
-        grab_ctrl_cmd->elbow_roll = 72.42f;
-        grab_ctrl_cmd->elbow_pitch = 22.93f;
-        grab_ctrl_cmd->wrist_pitch = 87.45f;
-        grab_ctrl_cmd->wrist_roll = -59.85f;
+    case 4:
+        grab_ctrl_cmd->base_joint = 15.02f;
+        grab_ctrl_cmd->elbow_roll = 81.80f;
+        grab_ctrl_cmd->elbow_pitch = 53.95f;
+        grab_ctrl_cmd->wrist_pitch = 41.78f;
+        grab_ctrl_cmd->wrist_roll = -11.62f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
-    case 5: // custom_trajectory[4]
-        grab_ctrl_cmd->base_joint = -4.17f;
-        grab_ctrl_cmd->elbow_roll = 76.02f;
-        grab_ctrl_cmd->elbow_pitch = 27.24f;
-        grab_ctrl_cmd->wrist_pitch = 71.01f;
-        grab_ctrl_cmd->wrist_roll = -56.02f;
+    case 5:
+        grab_ctrl_cmd->base_joint = 14.50f;
+        grab_ctrl_cmd->elbow_roll = 87.15f;
+        grab_ctrl_cmd->elbow_pitch = 60.80f;
+        grab_ctrl_cmd->wrist_pitch = 43.29f;
+        grab_ctrl_cmd->wrist_roll = -22.96f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
-    case 6: // custom_trajectory[5]
-        grab_ctrl_cmd->base_joint = -6.63f;
-        grab_ctrl_cmd->elbow_roll = 79.65f;
-        grab_ctrl_cmd->elbow_pitch = 27.94f;
-        grab_ctrl_cmd->wrist_pitch = 75.14f;
-        grab_ctrl_cmd->wrist_roll = -53.56f;
+    case 6:
+        grab_ctrl_cmd->base_joint = 10.32f;
+        grab_ctrl_cmd->elbow_roll = 88.60f;
+        grab_ctrl_cmd->elbow_pitch = 64.93f;
+        grab_ctrl_cmd->wrist_pitch = 42.83f;
+        grab_ctrl_cmd->wrist_roll = -33.63f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
-    case 7: // custom_trajectory[6]
-        grab_ctrl_cmd->base_joint = 3.42f;
-        grab_ctrl_cmd->elbow_roll = 86.84f;
-        grab_ctrl_cmd->elbow_pitch = 47.33f;
-        grab_ctrl_cmd->wrist_pitch = 67.36f;
-        grab_ctrl_cmd->wrist_roll = -62.09f;
+    case 7:
+        grab_ctrl_cmd->base_joint = 9.35f;
+        grab_ctrl_cmd->elbow_roll = 86.04f;
+        grab_ctrl_cmd->elbow_pitch = 69.65f;
+        grab_ctrl_cmd->wrist_pitch = 42.83f;
+        grab_ctrl_cmd->wrist_roll = -50.90f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
-    case 8: // custom_trajectory[7]
-        grab_ctrl_cmd->base_joint = 6.59f;
-        grab_ctrl_cmd->elbow_roll = 90.08f;
-        grab_ctrl_cmd->elbow_pitch = 48.94f;
-        grab_ctrl_cmd->wrist_pitch = 71.01f;
-        grab_ctrl_cmd->wrist_roll = -61.74f;
+    case 8:
+        grab_ctrl_cmd->base_joint = 6.85f;
+        grab_ctrl_cmd->elbow_roll = 87.39f;
+        grab_ctrl_cmd->elbow_pitch = 70.52f;
+        grab_ctrl_cmd->wrist_pitch = 41.32f;
+        grab_ctrl_cmd->wrist_roll = -59.00f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
-    case 9: // custom_trajectory[7]
-        grab_ctrl_cmd->base_joint = 6.59f;
-        grab_ctrl_cmd->elbow_roll = 90.08f;
-        grab_ctrl_cmd->elbow_pitch = 48.94f;
-        grab_ctrl_cmd->wrist_pitch = 71.01f;
-        grab_ctrl_cmd->wrist_roll = -61.74f;
+    case 9:
+        grab_ctrl_cmd->base_joint = 8.87f;
+        grab_ctrl_cmd->elbow_roll = 93.03f;
+        grab_ctrl_cmd->elbow_pitch = 73.10f;
+        grab_ctrl_cmd->wrist_pitch = 41.36f;
+        grab_ctrl_cmd->wrist_roll = -53.77f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        break;
+    case 10:
+        grab_ctrl_cmd->base_joint = 9.44f;
+        grab_ctrl_cmd->elbow_roll = 96.07f;
+        grab_ctrl_cmd->elbow_pitch = 75.53f;
+        grab_ctrl_cmd->wrist_pitch = 41.32f;
+        grab_ctrl_cmd->wrist_roll = -52.00f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        break;
+    case 11:
+        grab_ctrl_cmd->base_joint = 8.78f;
+        grab_ctrl_cmd->elbow_roll = 99.18f;
+        grab_ctrl_cmd->elbow_pitch = 77.12f;
+        grab_ctrl_cmd->wrist_pitch = 41.32f;
+        grab_ctrl_cmd->wrist_roll = -41.17f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        break;
+    case 12:
+        grab_ctrl_cmd->base_joint = 12.65f;
+        grab_ctrl_cmd->elbow_roll = 99.18f;
+        grab_ctrl_cmd->elbow_pitch = 81.49f;
+        grab_ctrl_cmd->wrist_pitch = 41.32f;
+        grab_ctrl_cmd->wrist_roll = -40.67f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        break;
+    case 13:
+        grab_ctrl_cmd->base_joint = 14.28f;
+        grab_ctrl_cmd->elbow_roll = 99.98f;
+        grab_ctrl_cmd->elbow_pitch = 83.74f;
+        grab_ctrl_cmd->wrist_pitch = 39.81f;
+        grab_ctrl_cmd->wrist_roll = -39.86f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        break;
+    case 14: // 🌟 此处夹爪状态由 1 变 0，开始松开
+        grab_ctrl_cmd->base_joint = 11.11f;
+        grab_ctrl_cmd->elbow_roll = 99.04f;
+        grab_ctrl_cmd->elbow_pitch = 79.05f;
+        grab_ctrl_cmd->wrist_pitch = 39.86f;
+        grab_ctrl_cmd->wrist_roll = -39.00f;
         grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
         break;
-    case 10: // custom_trajectory[8]
-        grab_ctrl_cmd->base_joint = 14.41f;
-        grab_ctrl_cmd->elbow_roll = 90.19f;
-        grab_ctrl_cmd->elbow_pitch = 51.04f;
-        grab_ctrl_cmd->wrist_pitch = 72.06f;
-        grab_ctrl_cmd->wrist_roll = -62.05f;
+    case 15:
+        grab_ctrl_cmd->base_joint = 25.53f;
+        grab_ctrl_cmd->elbow_roll = 100.27f;
+        grab_ctrl_cmd->elbow_pitch = 80.14f;
+        grab_ctrl_cmd->wrist_pitch = 39.90f;
+        grab_ctrl_cmd->wrist_roll = -39.00f;
         grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
         break;
-    case 11: // custom_trajectory[9]
-        grab_ctrl_cmd->base_joint = 18.98f;
-        grab_ctrl_cmd->elbow_roll = 89.90f;
-        grab_ctrl_cmd->elbow_pitch = 48.24f;
-        grab_ctrl_cmd->wrist_pitch = 68.94f;
-        grab_ctrl_cmd->wrist_roll = -61.17f;
+    case 16:
+        grab_ctrl_cmd->base_joint = 32.78f;
+        grab_ctrl_cmd->elbow_roll = 94.91f;
+        grab_ctrl_cmd->elbow_pitch = 79.48f;
+        grab_ctrl_cmd->wrist_pitch = 39.86f;
+        grab_ctrl_cmd->wrist_roll = -36.98f;
         grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
         break;
-    case 12: // custom_trajectory[10]
-        grab_ctrl_cmd->base_joint = 19.37f;
-        grab_ctrl_cmd->elbow_roll = 87.56f;
-        grab_ctrl_cmd->elbow_pitch = 39.13f;
-        grab_ctrl_cmd->wrist_pitch = 62.66f;
-        grab_ctrl_cmd->wrist_roll = -60.24f;
+    case 17:
+        grab_ctrl_cmd->base_joint = 36.20f;
+        grab_ctrl_cmd->elbow_roll = 75.72f;
+        grab_ctrl_cmd->elbow_pitch = 78.37f;
+        grab_ctrl_cmd->wrist_pitch = 39.86f;
+        grab_ctrl_cmd->wrist_roll = -36.46f;
         grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
         break;
-    case 13: // custom_trajectory[11]
-        grab_ctrl_cmd->base_joint = 12.34f;
-        grab_ctrl_cmd->elbow_roll = 76.09f;
-        grab_ctrl_cmd->elbow_pitch = 26.93f;
-        grab_ctrl_cmd->wrist_pitch = 25.70f;
-        grab_ctrl_cmd->wrist_roll = -35.24f;
+    case 18:
+        grab_ctrl_cmd->base_joint = 29.66f;
+        grab_ctrl_cmd->elbow_roll = 58.70f;
+        grab_ctrl_cmd->elbow_pitch = 69.21f;
+        grab_ctrl_cmd->wrist_pitch = 39.83f;
+        grab_ctrl_cmd->wrist_roll = -30.26f;
         grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
         break;
-    case 14: // custom_trajectory[12]
-        grab_ctrl_cmd->base_joint = 2.72f;
-        grab_ctrl_cmd->elbow_roll = 16.33f;
-        grab_ctrl_cmd->elbow_pitch = -8.53f;
-        grab_ctrl_cmd->wrist_pitch = 9.97f;
-        grab_ctrl_cmd->wrist_roll = -20.25f;
+    case 19:
+        grab_ctrl_cmd->base_joint = 23.59f;
+        grab_ctrl_cmd->elbow_roll = 46.09f;
+        grab_ctrl_cmd->elbow_pitch = 61.63f;
+        grab_ctrl_cmd->wrist_pitch = 39.83f;
+        grab_ctrl_cmd->wrist_roll = -25.21f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
+        break;
+    case 20:
+        grab_ctrl_cmd->base_joint = 18.50f;
+        grab_ctrl_cmd->elbow_roll = 31.35f;
+        grab_ctrl_cmd->elbow_pitch = 60.36f;
+        grab_ctrl_cmd->wrist_pitch = 39.88f;
+        grab_ctrl_cmd->wrist_roll = -15.65f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
+        break;
+    case 21:
+        grab_ctrl_cmd->base_joint = 7.38f;
+        grab_ctrl_cmd->elbow_roll = 18.44f;
+        grab_ctrl_cmd->elbow_pitch = 31.42f;
+        grab_ctrl_cmd->wrist_pitch = 39.90f;
+        grab_ctrl_cmd->wrist_roll = -7.91f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
+        break;
+    case 22:
+        grab_ctrl_cmd->base_joint = 0.52f;
+        grab_ctrl_cmd->elbow_roll = 13.80f;
+        grab_ctrl_cmd->elbow_pitch = 17.26f;
+        grab_ctrl_cmd->wrist_pitch = 39.90f;
+        grab_ctrl_cmd->wrist_roll = -5.73f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
+        break;
+    case 23:
+        grab_ctrl_cmd->base_joint = -0.75f;
+        grab_ctrl_cmd->elbow_roll = 5.41f;
+        grab_ctrl_cmd->elbow_pitch = -6.13f;
+        grab_ctrl_cmd->wrist_pitch = 39.83f;
+        grab_ctrl_cmd->wrist_roll = -5.55f;
         grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
         break;
     default:
-        // 安全停止或保持最后状态
-        grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
+        // 结束时保持松开并停止
         break;
     }
 }
 
 // ========================================================
-// 模式 1：存第二个能量单元 (共 15 步)
+// 模式 1：存第二个能量单元 (共 21 步)
 // ========================================================
 void store_second_energy_unit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, uint8_t step)
 {
     switch (step)
     {
     case 0:
-        grab_ctrl_cmd->base_joint = -1.58f;
-        grab_ctrl_cmd->elbow_roll = -3.31f;
-        grab_ctrl_cmd->elbow_pitch = 12.60f;
-        grab_ctrl_cmd->wrist_pitch = 72.42f;
-        grab_ctrl_cmd->wrist_roll = 3.16f;
+        grab_ctrl_cmd->base_joint = -4.36f;
+        grab_ctrl_cmd->elbow_roll = 5.04f;
+        grab_ctrl_cmd->elbow_pitch = 18.02f;
+        grab_ctrl_cmd->wrist_pitch = 18.33f;
+        grab_ctrl_cmd->wrist_roll = 7.88f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
     case 1:
-        grab_ctrl_cmd->base_joint = -1.58f;
-        grab_ctrl_cmd->elbow_roll = -3.31f;
-        grab_ctrl_cmd->elbow_pitch = 12.60f;
-        grab_ctrl_cmd->wrist_pitch = 72.42f;
-        grab_ctrl_cmd->wrist_roll = 3.16f;
+        grab_ctrl_cmd->base_joint = 0.48f;
+        grab_ctrl_cmd->elbow_roll = 44.75f;
+        grab_ctrl_cmd->elbow_pitch = 16.47f;
+        grab_ctrl_cmd->wrist_pitch = 36.01f;
+        grab_ctrl_cmd->wrist_roll = 7.03f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
     case 2:
-        grab_ctrl_cmd->base_joint = -0.17f;
-        grab_ctrl_cmd->elbow_roll = 58.69f;
-        grab_ctrl_cmd->elbow_pitch = -0.01f;
-        grab_ctrl_cmd->wrist_pitch = 79.01f;
-        grab_ctrl_cmd->wrist_roll = -18.32f;
+        grab_ctrl_cmd->base_joint = 13.84f;
+        grab_ctrl_cmd->elbow_roll = 74.65f;
+        grab_ctrl_cmd->elbow_pitch = 24.21f;
+        grab_ctrl_cmd->wrist_pitch = 36.03f;
+        grab_ctrl_cmd->wrist_roll = 2.11f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
     case 3:
-        grab_ctrl_cmd->base_joint = 12.87f;
-        grab_ctrl_cmd->elbow_roll = 76.70f;
-        grab_ctrl_cmd->elbow_pitch = 7.52f;
-        grab_ctrl_cmd->wrist_pitch = 99.40f;
-        grab_ctrl_cmd->wrist_roll = -33.84f;
+        grab_ctrl_cmd->base_joint = 27.94f;
+        grab_ctrl_cmd->elbow_roll = 77.91f;
+        grab_ctrl_cmd->elbow_pitch = 48.21f;
+        grab_ctrl_cmd->wrist_pitch = 50.76f;
+        grab_ctrl_cmd->wrist_roll = -8.62f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
     case 4:
-        grab_ctrl_cmd->base_joint = 15.29f;
-        grab_ctrl_cmd->elbow_roll = 84.16f;
-        grab_ctrl_cmd->elbow_pitch = 28.73f;
-        grab_ctrl_cmd->wrist_pitch = 74.09f;
-        grab_ctrl_cmd->wrist_roll = -30.93f;
+        grab_ctrl_cmd->base_joint = 34.36f;
+        grab_ctrl_cmd->elbow_roll = 83.77f;
+        grab_ctrl_cmd->elbow_pitch = 63.26f;
+        grab_ctrl_cmd->wrist_pitch = 50.76f;
+        grab_ctrl_cmd->wrist_roll = -17.19f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
     case 5:
-        grab_ctrl_cmd->base_joint = 25.48f;
-        grab_ctrl_cmd->elbow_roll = 87.98f;
-        grab_ctrl_cmd->elbow_pitch = 58.67f;
-        grab_ctrl_cmd->wrist_pitch = 46.88f;
-        grab_ctrl_cmd->wrist_roll = -32.30f;
+        grab_ctrl_cmd->base_joint = 34.93f;
+        grab_ctrl_cmd->elbow_roll = 83.79f;
+        grab_ctrl_cmd->elbow_pitch = 76.55f;
+        grab_ctrl_cmd->wrist_pitch = 42.83f;
+        grab_ctrl_cmd->wrist_roll = -24.71f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
     case 6:
-        grab_ctrl_cmd->base_joint = 28.34f;
-        grab_ctrl_cmd->elbow_roll = 88.00f;
-        grab_ctrl_cmd->elbow_pitch = 67.76f;
-        grab_ctrl_cmd->wrist_pitch = 44.82f;
-        grab_ctrl_cmd->wrist_roll = -34.49f;
+        grab_ctrl_cmd->base_joint = 35.15f;
+        grab_ctrl_cmd->elbow_roll = 86.17f;
+        grab_ctrl_cmd->elbow_pitch = 85.86f;
+        grab_ctrl_cmd->wrist_pitch = 35.27f;
+        grab_ctrl_cmd->wrist_roll = -32.16f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
     case 7:
-        grab_ctrl_cmd->base_joint = 28.74f;
-        grab_ctrl_cmd->elbow_roll = 88.66f;
-        grab_ctrl_cmd->elbow_pitch = 74.54f;
-        grab_ctrl_cmd->wrist_pitch = 37.96f;
-        grab_ctrl_cmd->wrist_roll = -39.20f;
+        grab_ctrl_cmd->base_joint = 35.63f;
+        grab_ctrl_cmd->elbow_roll = 86.78f;
+        grab_ctrl_cmd->elbow_pitch = 90.45f;
+        grab_ctrl_cmd->wrist_pitch = 30.76f;
+        grab_ctrl_cmd->wrist_roll = -38.44f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
     case 8:
-        grab_ctrl_cmd->base_joint = 31.64f;
-        grab_ctrl_cmd->elbow_roll = 89.73f;
-        grab_ctrl_cmd->elbow_pitch = 79.70f;
-        grab_ctrl_cmd->wrist_pitch = 37.88f;
-        grab_ctrl_cmd->wrist_roll = -40.51f;
+        grab_ctrl_cmd->base_joint = 35.50f;
+        grab_ctrl_cmd->elbow_roll = 89.06f;
+        grab_ctrl_cmd->elbow_pitch = 94.76f;
+        grab_ctrl_cmd->wrist_pitch = 30.79f;
+        grab_ctrl_cmd->wrist_roll = -41.63f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
     case 9:
-        grab_ctrl_cmd->base_joint = 35.06f;
-        grab_ctrl_cmd->elbow_roll = 91.70f;
-        grab_ctrl_cmd->elbow_pitch = 84.35f;
-        grab_ctrl_cmd->wrist_pitch = 42.89f;
-        grab_ctrl_cmd->wrist_roll = -38.76f;
+        grab_ctrl_cmd->base_joint = 30.32f;
+        grab_ctrl_cmd->elbow_roll = 93.76f;
+        grab_ctrl_cmd->elbow_pitch = 102.28f;
+        grab_ctrl_cmd->wrist_pitch = 31.27f;
+        grab_ctrl_cmd->wrist_roll = -43.83f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
     case 10:
-        grab_ctrl_cmd->base_joint = 33.66f;
-        grab_ctrl_cmd->elbow_roll = 93.47f;
-        grab_ctrl_cmd->elbow_pitch = 84.94f;
-        grab_ctrl_cmd->wrist_pitch = 50.40f;
-        grab_ctrl_cmd->wrist_roll = -36.25f;
+        grab_ctrl_cmd->base_joint = 30.67f;
+        grab_ctrl_cmd->elbow_roll = 97.19f;
+        grab_ctrl_cmd->elbow_pitch = 103.00f;
+        grab_ctrl_cmd->wrist_pitch = 41.39f;
+        grab_ctrl_cmd->wrist_roll = -50.13f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
     case 11:
-        grab_ctrl_cmd->base_joint = 33.74f;
-        grab_ctrl_cmd->elbow_roll = 94.27f;
-        grab_ctrl_cmd->elbow_pitch = 84.44f;
-        grab_ctrl_cmd->wrist_pitch = 50.84f;
-        grab_ctrl_cmd->wrist_roll = -38.36f;
-        grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
+        grab_ctrl_cmd->base_joint = 37.08f;
+        grab_ctrl_cmd->elbow_roll = 101.73f;
+        grab_ctrl_cmd->elbow_pitch = 103.09f;
+        grab_ctrl_cmd->wrist_pitch = 49.36f;
+        grab_ctrl_cmd->wrist_roll = -46.94f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
-    case 12:
-        grab_ctrl_cmd->base_joint = 46.49f;
-        grab_ctrl_cmd->elbow_roll = 94.25f;
-        grab_ctrl_cmd->elbow_pitch = 78.17f;
-        grab_ctrl_cmd->wrist_pitch = 52.95f;
-        grab_ctrl_cmd->wrist_roll = -37.97f;
+    case 12: // 🌟 此处为放矿点，夹爪开始松开
+        grab_ctrl_cmd->base_joint = 35.02f;
+        grab_ctrl_cmd->elbow_roll = 101.10f;
+        grab_ctrl_cmd->elbow_pitch = 99.35f;
+        grab_ctrl_cmd->wrist_pitch = 49.32f;
+        grab_ctrl_cmd->wrist_roll = -47.59f;
         grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
         break;
     case 13:
-        grab_ctrl_cmd->base_joint = 45.35f;
-        grab_ctrl_cmd->elbow_roll = 94.27f;
-        grab_ctrl_cmd->elbow_pitch = 68.70f;
-        grab_ctrl_cmd->wrist_pitch = 56.90f;
-        grab_ctrl_cmd->wrist_roll = -37.79f;
+        grab_ctrl_cmd->base_joint = 42.53f;
+        grab_ctrl_cmd->elbow_roll = 104.31f;
+        grab_ctrl_cmd->elbow_pitch = 97.67f;
+        grab_ctrl_cmd->wrist_pitch = 52.36f;
+        grab_ctrl_cmd->wrist_roll = -47.35f;
         grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
         break;
     case 14:
-        grab_ctrl_cmd->base_joint = 42.36f;
-        grab_ctrl_cmd->elbow_roll = 92.66f;
-        grab_ctrl_cmd->elbow_pitch = 49.77f;
-        grab_ctrl_cmd->wrist_pitch = 39.98f;
-        grab_ctrl_cmd->wrist_roll = -33.04f;
+        grab_ctrl_cmd->base_joint = 46.09f;
+        grab_ctrl_cmd->elbow_roll = 103.44f;
+        grab_ctrl_cmd->elbow_pitch = 91.68f;
+        grab_ctrl_cmd->wrist_pitch = 52.34f;
+        grab_ctrl_cmd->wrist_roll = -47.33f;
         grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
         break;
     case 15:
-        grab_ctrl_cmd->base_joint = 27.99f;
-        grab_ctrl_cmd->elbow_roll = 61.56f;
-        grab_ctrl_cmd->elbow_pitch = 15.44f;
-        grab_ctrl_cmd->wrist_pitch = 35.33f;
-        grab_ctrl_cmd->wrist_roll = -26.67f;
+        grab_ctrl_cmd->base_joint = 49.21f;
+        grab_ctrl_cmd->elbow_roll = 100.62f;
+        grab_ctrl_cmd->elbow_pitch = 78.56f;
+        grab_ctrl_cmd->wrist_pitch = 52.36f;
+        grab_ctrl_cmd->wrist_roll = -46.89f;
         grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
         break;
     case 16:
-        grab_ctrl_cmd->base_joint = 24.91f;
-        grab_ctrl_cmd->elbow_roll = 46.10f;
-        grab_ctrl_cmd->elbow_pitch = -2.30f;
-        grab_ctrl_cmd->wrist_pitch = 36.69f;
-        grab_ctrl_cmd->wrist_roll = -26.50f;
+        grab_ctrl_cmd->base_joint = 48.20f;
+        grab_ctrl_cmd->elbow_roll = 79.33f;
+        grab_ctrl_cmd->elbow_pitch = 70.67f;
+        grab_ctrl_cmd->wrist_pitch = 52.27f;
+        grab_ctrl_cmd->wrist_roll = -34.72f;
         grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
         break;
     case 17:
-        grab_ctrl_cmd->base_joint = 12.78f;
-        grab_ctrl_cmd->elbow_roll = -5.03f;
-        grab_ctrl_cmd->elbow_pitch = -3.61f;
-        grab_ctrl_cmd->wrist_pitch = 18.85f;
-        grab_ctrl_cmd->wrist_roll = -25.71f;
+        grab_ctrl_cmd->base_joint = 41.57f;
+        grab_ctrl_cmd->elbow_roll = 81.06f;
+        grab_ctrl_cmd->elbow_pitch = 43.24f;
+        grab_ctrl_cmd->wrist_pitch = 35.73f;
+        grab_ctrl_cmd->wrist_roll = -34.68f;
         grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
         break;
     case 18:
-        grab_ctrl_cmd->base_joint = -9.18f;
-        grab_ctrl_cmd->elbow_roll = -15.52f;
-        grab_ctrl_cmd->elbow_pitch = -7.28f;
-        grab_ctrl_cmd->wrist_pitch = 16.34f;
-        grab_ctrl_cmd->wrist_roll = -20.52f;
+        grab_ctrl_cmd->base_joint = 26.45f;
+        grab_ctrl_cmd->elbow_roll = 33.93f;
+        grab_ctrl_cmd->elbow_pitch = 19.51f;
+        grab_ctrl_cmd->wrist_pitch = 32.32f;
+        grab_ctrl_cmd->wrist_roll = -11.49f;
         grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
         break;
     case 19:
-        grab_ctrl_cmd->base_joint = -8.08f;
-        grab_ctrl_cmd->elbow_roll = -15.48f;
-        grab_ctrl_cmd->elbow_pitch = 0.57f;
-        grab_ctrl_cmd->wrist_pitch = 30.71f;
-        grab_ctrl_cmd->wrist_roll = -2.41f;
+        grab_ctrl_cmd->base_joint = 18.36f;
+        grab_ctrl_cmd->elbow_roll = 14.33f;
+        grab_ctrl_cmd->elbow_pitch = 7.03f;
+        grab_ctrl_cmd->wrist_pitch = 46.50f;
+        grab_ctrl_cmd->wrist_roll = -8.34f;
         grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
         break;
     case 20:
-        grab_ctrl_cmd->base_joint = -7.16f;
-        grab_ctrl_cmd->elbow_roll = -15.46f;
-        grab_ctrl_cmd->elbow_pitch = 1.89f;
-        grab_ctrl_cmd->wrist_pitch = 28.03f;
-        grab_ctrl_cmd->wrist_roll = -2.24f;
+        grab_ctrl_cmd->base_joint = -2.73f;
+        grab_ctrl_cmd->elbow_roll = -0.58f;
+        grab_ctrl_cmd->elbow_pitch = -0.03f;
+        grab_ctrl_cmd->wrist_pitch = 39.38f;
+        grab_ctrl_cmd->wrist_roll = 2.57f;
         grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
         break;
     default:
-        grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
         break;
     }
 }
 
 // ========================================================
-// 模式 2：夹六点钟的能量单元 (共 18 步，底盘高度 0%)
+// 模式 2：取第一个能量单元 (共 20 步)
 // ========================================================
-void grab_six_oclock_energy_unit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd, uint8_t step)
+void grab_first_energy_unit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd, uint8_t step)
 {
-    // 整个六点钟夹取动作中，底盘高度锁定为 0% (完全收回状态)
+    // 取矿动作，底盘高度锁定为 0%
     chassis_ctrl_cmd->lift_ratio = 0.0f;
 
     switch (step)
     {
     case 0:
-        grab_ctrl_cmd->base_joint = 9.62f;
-        grab_ctrl_cmd->elbow_roll = -4.79f;
-        grab_ctrl_cmd->elbow_pitch = 4.68f;
-        grab_ctrl_cmd->wrist_pitch = 45.48f;
-        grab_ctrl_cmd->wrist_roll = -2.10f;
-        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        grab_ctrl_cmd->base_joint = -0.31f;
+        grab_ctrl_cmd->elbow_roll = 10.02f;
+        grab_ctrl_cmd->elbow_pitch = 9.19f;
+        grab_ctrl_cmd->wrist_pitch = 8.78f;
+        grab_ctrl_cmd->wrist_roll = 7.27f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
         break;
     case 1:
-        grab_ctrl_cmd->base_joint = 42.93f;
-        grab_ctrl_cmd->elbow_roll = -4.79f;
-        grab_ctrl_cmd->elbow_pitch = -2.30f;
-        grab_ctrl_cmd->wrist_pitch = 46.53f;
-        grab_ctrl_cmd->wrist_roll = -2.59f;
+        grab_ctrl_cmd->base_joint = 0.48f;
+        grab_ctrl_cmd->elbow_roll = 41.65f;
+        grab_ctrl_cmd->elbow_pitch = 6.59f;
+        grab_ctrl_cmd->wrist_pitch = 8.97f;
+        grab_ctrl_cmd->wrist_roll = 5.58f;
         grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
         break;
     case 2:
-        grab_ctrl_cmd->base_joint = 53.08f;
-        grab_ctrl_cmd->elbow_roll = -4.79f;
-        grab_ctrl_cmd->elbow_pitch = 56.27f;
-        grab_ctrl_cmd->wrist_pitch = -43.76f;
-        grab_ctrl_cmd->wrist_roll = -2.46f;
+        grab_ctrl_cmd->base_joint = 23.90f;
+        grab_ctrl_cmd->elbow_roll = 66.72f;
+        grab_ctrl_cmd->elbow_pitch = 43.11f;
+        grab_ctrl_cmd->wrist_pitch = 25.69f;
+        grab_ctrl_cmd->wrist_roll = 0.43f;
         grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
         break;
     case 3:
-        grab_ctrl_cmd->base_joint = 69.34f;
-        grab_ctrl_cmd->elbow_roll = -4.79f;
-        grab_ctrl_cmd->elbow_pitch = 88.37f;
-        grab_ctrl_cmd->wrist_pitch = -88.15f;
-        grab_ctrl_cmd->wrist_roll = -2.19f;
+        grab_ctrl_cmd->base_joint = 29.22f;
+        grab_ctrl_cmd->elbow_roll = 78.15f;
+        grab_ctrl_cmd->elbow_pitch = 62.13f;
+        grab_ctrl_cmd->wrist_pitch = 28.69f;
+        grab_ctrl_cmd->wrist_roll = -2.20f;
         grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
         break;
     case 4:
-        grab_ctrl_cmd->base_joint = 84.63f;
-        grab_ctrl_cmd->elbow_roll = -4.79f;
-        grab_ctrl_cmd->elbow_pitch = 81.31f;
-        grab_ctrl_cmd->wrist_pitch = -82.00f;
-        grab_ctrl_cmd->wrist_roll = -2.06f;
+        grab_ctrl_cmd->base_joint = 29.96f;
+        grab_ctrl_cmd->elbow_roll = 86.37f;
+        grab_ctrl_cmd->elbow_pitch = 75.22f;
+        grab_ctrl_cmd->wrist_pitch = 28.69f;
+        grab_ctrl_cmd->wrist_roll = -5.21f;
         grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
         break;
     case 5:
-        grab_ctrl_cmd->base_joint = 84.06f;
-        grab_ctrl_cmd->elbow_roll = -4.79f;
-        grab_ctrl_cmd->elbow_pitch = 61.14f;
-        grab_ctrl_cmd->wrist_pitch = -54.97f;
-        grab_ctrl_cmd->wrist_roll = -2.10f;
+        grab_ctrl_cmd->base_joint = 28.51f;
+        grab_ctrl_cmd->elbow_roll = 91.59f;
+        grab_ctrl_cmd->elbow_pitch = 82.48f;
+        grab_ctrl_cmd->wrist_pitch = 27.88f;
+        grab_ctrl_cmd->wrist_roll = -16.97f;
         grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
         break;
     case 6:
-        grab_ctrl_cmd->base_joint = 77.29f;
-        grab_ctrl_cmd->elbow_roll = -4.79f;
-        grab_ctrl_cmd->elbow_pitch = 57.14f;
-        grab_ctrl_cmd->wrist_pitch = -51.63f;
-        grab_ctrl_cmd->wrist_roll = -2.02f;
+        grab_ctrl_cmd->base_joint = 26.93f;
+        grab_ctrl_cmd->elbow_roll = 97.12f;
+        grab_ctrl_cmd->elbow_pitch = 88.84f;
+        grab_ctrl_cmd->wrist_pitch = 27.88f;
+        grab_ctrl_cmd->wrist_roll = -28.12f;
         grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
         break;
     case 7:
-        grab_ctrl_cmd->base_joint = 82.00f;
-        grab_ctrl_cmd->elbow_roll = -4.79f;
-        grab_ctrl_cmd->elbow_pitch = 49.32f;
-        grab_ctrl_cmd->wrist_pitch = -40.73f;
-        grab_ctrl_cmd->wrist_roll = -2.28f;
+        grab_ctrl_cmd->base_joint = 28.78f;
+        grab_ctrl_cmd->elbow_roll = 99.15f;
+        grab_ctrl_cmd->elbow_pitch = 94.24f;
+        grab_ctrl_cmd->wrist_pitch = 27.86f;
+        grab_ctrl_cmd->wrist_roll = -32.21f;
         grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
         break;
     case 8:
-        grab_ctrl_cmd->base_joint = 80.55f;
-        grab_ctrl_cmd->elbow_roll = -4.77f;
-        grab_ctrl_cmd->elbow_pitch = 54.21f;
-        grab_ctrl_cmd->wrist_pitch = -45.83f;
-        grab_ctrl_cmd->wrist_roll = -2.24f;
+        grab_ctrl_cmd->base_joint = 16.08f;
+        grab_ctrl_cmd->elbow_roll = 99.13f;
+        grab_ctrl_cmd->elbow_pitch = 88.58f;
+        grab_ctrl_cmd->wrist_pitch = 27.86f;
+        grab_ctrl_cmd->wrist_roll = -34.98f;
         grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
         break;
     case 9:
-        grab_ctrl_cmd->base_joint = 79.32f;
-        grab_ctrl_cmd->elbow_roll = -4.77f;
-        grab_ctrl_cmd->elbow_pitch = 51.22f;
-        grab_ctrl_cmd->wrist_pitch = -44.03f;
-        grab_ctrl_cmd->wrist_roll = -2.15f;
-        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        grab_ctrl_cmd->base_joint = 6.54f;
+        grab_ctrl_cmd->elbow_roll = 100.25f;
+        grab_ctrl_cmd->elbow_pitch = 85.14f;
+        grab_ctrl_cmd->wrist_pitch = 27.83f;
+        grab_ctrl_cmd->wrist_roll = -34.94f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
         break;
     case 10:
-        grab_ctrl_cmd->base_joint = 78.92f;
-        grab_ctrl_cmd->elbow_roll = -4.75f;
-        grab_ctrl_cmd->elbow_pitch = 48.03f;
-        grab_ctrl_cmd->wrist_pitch = -49.83f;
-        grab_ctrl_cmd->wrist_roll = -2.46f;
-        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        grab_ctrl_cmd->base_joint = 5.79f;
+        grab_ctrl_cmd->elbow_roll = 100.06f;
+        grab_ctrl_cmd->elbow_pitch = 81.36f;
+        grab_ctrl_cmd->wrist_pitch = 27.86f;
+        grab_ctrl_cmd->wrist_roll = -34.96f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
         break;
-    case 11:
-        grab_ctrl_cmd->base_joint = 77.65f;
-        grab_ctrl_cmd->elbow_roll = -4.77f;
-        grab_ctrl_cmd->elbow_pitch = 48.22f;
-        grab_ctrl_cmd->wrist_pitch = -65.08f;
-        grab_ctrl_cmd->wrist_roll = -2.19f;
+    case 11: // 🌟 此处夹爪状态由 0 变 1，执行抓取
+        grab_ctrl_cmd->base_joint = 5.84f;
+        grab_ctrl_cmd->elbow_roll = 100.03f;
+        grab_ctrl_cmd->elbow_pitch = 81.38f;
+        grab_ctrl_cmd->wrist_pitch = 27.88f;
+        grab_ctrl_cmd->wrist_roll = -34.94f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
     case 12:
-        grab_ctrl_cmd->base_joint = 71.45f;
-        grab_ctrl_cmd->elbow_roll = -4.77f;
-        grab_ctrl_cmd->elbow_pitch = 48.22f;
-        grab_ctrl_cmd->wrist_pitch = -66.92f;
-        grab_ctrl_cmd->wrist_roll = -2.15f;
+        grab_ctrl_cmd->base_joint = 8.92f;
+        grab_ctrl_cmd->elbow_roll = 93.60f;
+        grab_ctrl_cmd->elbow_pitch = 73.01f;
+        grab_ctrl_cmd->wrist_pitch = 27.86f;
+        grab_ctrl_cmd->wrist_roll = -34.94f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
     case 13:
-        grab_ctrl_cmd->base_joint = 45.70f;
-        grab_ctrl_cmd->elbow_roll = -2.85f;
-        grab_ctrl_cmd->elbow_pitch = 41.47f;
-        grab_ctrl_cmd->wrist_pitch = -54.09f;
-        grab_ctrl_cmd->wrist_roll = -2.06f;
+        grab_ctrl_cmd->base_joint = 9.05f;
+        grab_ctrl_cmd->elbow_roll = 85.54f;
+        grab_ctrl_cmd->elbow_pitch = 68.05f;
+        grab_ctrl_cmd->wrist_pitch = 27.86f;
+        grab_ctrl_cmd->wrist_roll = -38.39f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
     case 14:
-        grab_ctrl_cmd->base_joint = 22.19f;
-        grab_ctrl_cmd->elbow_roll = -2.85f;
-        grab_ctrl_cmd->elbow_pitch = 37.60f;
-        grab_ctrl_cmd->wrist_pitch = -45.39f;
-        grab_ctrl_cmd->wrist_roll = -2.32f;
+        grab_ctrl_cmd->base_joint = 9.88f;
+        grab_ctrl_cmd->elbow_roll = 72.77f;
+        grab_ctrl_cmd->elbow_pitch = 63.77f;
+        grab_ctrl_cmd->wrist_pitch = 27.86f;
+        grab_ctrl_cmd->wrist_roll = -32.75f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
     case 15:
-        grab_ctrl_cmd->base_joint = 6.37f;
-        grab_ctrl_cmd->elbow_roll = -3.52f;
-        grab_ctrl_cmd->elbow_pitch = 23.09f;
-        grab_ctrl_cmd->wrist_pitch = 0.57f;
-        grab_ctrl_cmd->wrist_roll = -2.02f;
+        grab_ctrl_cmd->base_joint = 10.67f;
+        grab_ctrl_cmd->elbow_roll = 58.24f;
+        grab_ctrl_cmd->elbow_pitch = 46.81f;
+        grab_ctrl_cmd->wrist_pitch = 27.88f;
+        grab_ctrl_cmd->wrist_roll = -22.44f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
-    case 16: 
-        grab_ctrl_cmd->base_joint = -1.01f;
-        grab_ctrl_cmd->elbow_roll = -3.48f;
-        grab_ctrl_cmd->elbow_pitch = 3.55f;
-        grab_ctrl_cmd->wrist_pitch = 77.47f;
-        grab_ctrl_cmd->wrist_roll = -2.24f;
+    case 16:
+        grab_ctrl_cmd->base_joint = 7.64f;
+        grab_ctrl_cmd->elbow_roll = 49.28f;
+        grab_ctrl_cmd->elbow_pitch = 34.89f;
+        grab_ctrl_cmd->wrist_pitch = 27.88f;
+        grab_ctrl_cmd->wrist_roll = -1.17f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
-    case 17: 
-        grab_ctrl_cmd->base_joint = -1.53f;
-        grab_ctrl_cmd->elbow_roll = -3.48f;
-        grab_ctrl_cmd->elbow_pitch = 3.55f;
-        grab_ctrl_cmd->wrist_pitch = 77.65f;
-        grab_ctrl_cmd->wrist_roll = -2.24f;
+    case 17:
+        grab_ctrl_cmd->base_joint = 1.36f;
+        grab_ctrl_cmd->elbow_roll = 36.69f;
+        grab_ctrl_cmd->elbow_pitch = 21.69f;
+        grab_ctrl_cmd->wrist_pitch = 27.88f;
+        grab_ctrl_cmd->wrist_roll = 4.56f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        break;
+    case 18:
+        grab_ctrl_cmd->base_joint = -2.25f;
+        grab_ctrl_cmd->elbow_roll = 13.52f;
+        grab_ctrl_cmd->elbow_pitch = 1.45f;
+        grab_ctrl_cmd->wrist_pitch = 31.33f;
+        grab_ctrl_cmd->wrist_roll = 10.72f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        break;
+    case 19:
+        grab_ctrl_cmd->base_joint = -2.77f;
+        grab_ctrl_cmd->elbow_roll = 13.52f;
+        grab_ctrl_cmd->elbow_pitch = 1.43f;
+        grab_ctrl_cmd->wrist_pitch = 31.55f;
+        grab_ctrl_cmd->wrist_roll = 10.72f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        break;
+    default:
+        break;
+    }
+}
+// ========================================================
+// 模式 3：取第二个能量单元 (共 21 步)
+// ========================================================
+void grab_second_energy_unit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd, uint8_t step)
+{
+    // 取矿动作，底盘高度锁定为 0%
+    chassis_ctrl_cmd->lift_ratio = 0.0f;
+
+    switch (step)
+    {
+    case 0:
+        grab_ctrl_cmd->base_joint = 1.84f;
+        grab_ctrl_cmd->elbow_roll = 6.31f;
+        grab_ctrl_cmd->elbow_pitch = 5.93f;
+        grab_ctrl_cmd->wrist_pitch = 8.95f;
+        grab_ctrl_cmd->wrist_roll = 6.00f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
+        break;
+    case 1:
+        grab_ctrl_cmd->base_joint = 9.84f;
+        grab_ctrl_cmd->elbow_roll = 45.12f;
+        grab_ctrl_cmd->elbow_pitch = 10.35f;
+        grab_ctrl_cmd->wrist_pitch = 28.29f;
+        grab_ctrl_cmd->wrist_roll = 6.00f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
+        break;
+    case 2:
+        grab_ctrl_cmd->base_joint = 17.79f;
+        grab_ctrl_cmd->elbow_roll = 50.74f;
+        grab_ctrl_cmd->elbow_pitch = 18.22f;
+        grab_ctrl_cmd->wrist_pitch = 50.59f;
+        grab_ctrl_cmd->wrist_roll = 1.89f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
+        break;
+    case 3:
+        grab_ctrl_cmd->base_joint = 29.88f;
+        grab_ctrl_cmd->elbow_roll = 73.25f;
+        grab_ctrl_cmd->elbow_pitch = 46.54f;
+        grab_ctrl_cmd->wrist_pitch = 66.02f;
+        grab_ctrl_cmd->wrist_roll = -6.68f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
+        break;
+    case 4:
+        grab_ctrl_cmd->base_joint = 38.31f;
+        grab_ctrl_cmd->elbow_roll = 83.79f;
+        grab_ctrl_cmd->elbow_pitch = 68.10f;
+        grab_ctrl_cmd->wrist_pitch = 65.76f;
+        grab_ctrl_cmd->wrist_roll = -13.13f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
+        break;
+    case 5:
+        grab_ctrl_cmd->base_joint = 44.69f;
+        grab_ctrl_cmd->elbow_roll = 95.22f;
+        grab_ctrl_cmd->elbow_pitch = 82.59f;
+        grab_ctrl_cmd->wrist_pitch = 56.27f;
+        grab_ctrl_cmd->wrist_roll = -27.31f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
+        break;
+    case 6:
+        grab_ctrl_cmd->base_joint = 45.52f;
+        grab_ctrl_cmd->elbow_roll = 99.18f;
+        grab_ctrl_cmd->elbow_pitch = 91.68f;
+        grab_ctrl_cmd->wrist_pitch = 50.24f;
+        grab_ctrl_cmd->wrist_roll = -32.99f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
+        break;
+    case 7:
+        grab_ctrl_cmd->base_joint = 42.40f;
+        grab_ctrl_cmd->elbow_roll = 102.63f;
+        grab_ctrl_cmd->elbow_pitch = 94.72f;
+        grab_ctrl_cmd->wrist_pitch = 48.77f;
+        grab_ctrl_cmd->wrist_roll = -41.28f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
+        break;
+    case 8:
+        grab_ctrl_cmd->base_joint = 37.66f;
+        grab_ctrl_cmd->elbow_roll = 102.85f;
+        grab_ctrl_cmd->elbow_pitch = 104.03f;
+        grab_ctrl_cmd->wrist_pitch = 40.93f;
+        grab_ctrl_cmd->wrist_roll = -39.09f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
+        break;
+    case 9:
+        grab_ctrl_cmd->base_joint = 31.24f;
+        grab_ctrl_cmd->elbow_roll = 102.80f;
+        grab_ctrl_cmd->elbow_pitch = 101.75f;
+        grab_ctrl_cmd->wrist_pitch = 41.23f;
+        grab_ctrl_cmd->wrist_roll = -37.93f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
+        break;
+    case 10:
+        grab_ctrl_cmd->base_joint = 28.08f;
+        grab_ctrl_cmd->elbow_roll = 103.24f;
+        grab_ctrl_cmd->elbow_pitch = 103.13f;
+        grab_ctrl_cmd->wrist_pitch = 34.02f;
+        grab_ctrl_cmd->wrist_roll = -37.93f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
+        break;
+    case 11: // 🌟 此处夹爪状态由 0 变 1，执行抓取
+        grab_ctrl_cmd->base_joint = 28.51f;
+        grab_ctrl_cmd->elbow_roll = 102.59f;
+        grab_ctrl_cmd->elbow_pitch = 100.42f;
+        grab_ctrl_cmd->wrist_pitch = 33.98f;
+        grab_ctrl_cmd->wrist_roll = -37.95f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        break;
+    case 12:
+        grab_ctrl_cmd->base_joint = 27.28f;
+        grab_ctrl_cmd->elbow_roll = 97.32f;
+        grab_ctrl_cmd->elbow_pitch = 88.40f;
+        grab_ctrl_cmd->wrist_pitch = 33.80f;
+        grab_ctrl_cmd->wrist_roll = -38.61f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        break;
+    case 13:
+        grab_ctrl_cmd->base_joint = 25.57f;
+        grab_ctrl_cmd->elbow_roll = 90.59f;
+        grab_ctrl_cmd->elbow_pitch = 84.25f;
+        grab_ctrl_cmd->wrist_pitch = 33.82f;
+        grab_ctrl_cmd->wrist_roll = -39.88f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        break;
+    case 14:
+        grab_ctrl_cmd->base_joint = 28.60f;
+        grab_ctrl_cmd->elbow_roll = 79.29f;
+        grab_ctrl_cmd->elbow_pitch = 76.58f;
+        grab_ctrl_cmd->wrist_pitch = 33.82f;
+        grab_ctrl_cmd->wrist_roll = -39.88f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        break;
+    case 15:
+        grab_ctrl_cmd->base_joint = 18.28f;
+        grab_ctrl_cmd->elbow_roll = 58.19f;
+        grab_ctrl_cmd->elbow_pitch = 65.23f;
+        grab_ctrl_cmd->wrist_pitch = 33.80f;
+        grab_ctrl_cmd->wrist_roll = -22.90f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        break;
+    case 16:
+        grab_ctrl_cmd->base_joint = 12.87f;
+        grab_ctrl_cmd->elbow_roll = 35.40f;
+        grab_ctrl_cmd->elbow_pitch = 55.46f;
+        grab_ctrl_cmd->wrist_pitch = 33.80f;
+        grab_ctrl_cmd->wrist_roll = -19.88f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        break;
+    case 17:
+        grab_ctrl_cmd->base_joint = 7.46f;
+        grab_ctrl_cmd->elbow_roll = 18.98f;
+        grab_ctrl_cmd->elbow_pitch = 40.93f;
+        grab_ctrl_cmd->wrist_pitch = 33.82f;
+        grab_ctrl_cmd->wrist_roll = -19.68f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        break;
+    case 18:
+        grab_ctrl_cmd->base_joint = 2.76f;
+        grab_ctrl_cmd->elbow_roll = 8.38f;
+        grab_ctrl_cmd->elbow_pitch = 27.92f;
+        grab_ctrl_cmd->wrist_pitch = 33.85f;
+        grab_ctrl_cmd->wrist_roll = -15.75f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        break;
+    case 19:
+        grab_ctrl_cmd->base_joint = -1.68f;
+        grab_ctrl_cmd->elbow_roll = 5.34f;
+        grab_ctrl_cmd->elbow_pitch = 4.82f;
+        grab_ctrl_cmd->wrist_pitch = 34.46f;
+        grab_ctrl_cmd->wrist_roll = -4.67f;
+        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
+        break;
+    case 20:
+        grab_ctrl_cmd->base_joint = -0.75f;
+        grab_ctrl_cmd->elbow_roll = 5.34f;
+        grab_ctrl_cmd->elbow_pitch = 7.73f;
+        grab_ctrl_cmd->wrist_pitch = 18.31f;
+        grab_ctrl_cmd->wrist_roll = 4.71f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
         break;
     default:
         // 结束时保持最后抓紧的状态
-        break;
-    }
-}
-
-// ========================================================
-// 模式 3：取四点钟方向的能量单元 (共 11 步，底盘高度 0%)
-// ========================================================
-void grab_four_oclock_energy_unit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd, uint8_t step)
-{
-    // 锁定底盘高度为 0%
-    chassis_ctrl_cmd->lift_ratio = 0.0f;
-
-    switch (step)
-    {
-    case 0:
-        grab_ctrl_cmd->base_joint = 2.46f;
-        grab_ctrl_cmd->elbow_roll = -4.36f;
-        grab_ctrl_cmd->elbow_pitch = 3.79f;
-        grab_ctrl_cmd->wrist_pitch = 38.36f;
-        grab_ctrl_cmd->wrist_roll = -0.79f;
         grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
-        break;
-    case 1:
-        grab_ctrl_cmd->base_joint = 47.94f;
-        grab_ctrl_cmd->elbow_roll = -4.38f;
-        grab_ctrl_cmd->elbow_pitch = -3.87f;
-        grab_ctrl_cmd->wrist_pitch = 40.12f;
-        grab_ctrl_cmd->wrist_roll = 1.97f;
-        grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
-        break;
-    case 2:
-        grab_ctrl_cmd->base_joint = 56.24f;
-        grab_ctrl_cmd->elbow_roll = -24.53f;
-        grab_ctrl_cmd->elbow_pitch = 31.72f;
-        grab_ctrl_cmd->wrist_pitch = 1.58f;
-        grab_ctrl_cmd->wrist_roll = 11.33f;
-        grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
-        break;
-    case 3:
-        grab_ctrl_cmd->base_joint = 61.17f;
-        grab_ctrl_cmd->elbow_roll = -29.84f;
-        grab_ctrl_cmd->elbow_pitch = 63.15f;
-        grab_ctrl_cmd->wrist_pitch = -30.71f;
-        grab_ctrl_cmd->wrist_roll = 5.75f;
-        grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
-        break;
-    case 4:
-        grab_ctrl_cmd->base_joint = 68.24f;
-        grab_ctrl_cmd->elbow_roll = -9.89f;
-        grab_ctrl_cmd->elbow_pitch = 59.37f;
-        grab_ctrl_cmd->wrist_pitch = -34.62f;
-        grab_ctrl_cmd->wrist_roll = 28.47f;
-        grab_ctrl_cmd->gripper_state = GRIPPER_OPEN;
-        break;
-    case 5: // 🚩 夹取点：由开合改变状态
-        grab_ctrl_cmd->base_joint = 70.97f;
-        grab_ctrl_cmd->elbow_roll = -9.89f;
-        grab_ctrl_cmd->elbow_pitch = 59.37f;
-        grab_ctrl_cmd->wrist_pitch = -34.98f;
-        grab_ctrl_cmd->wrist_roll = 28.52f;
-        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
-        break;
-    case 6: //
-        grab_ctrl_cmd->base_joint = 59.23f;
-        grab_ctrl_cmd->elbow_roll = -13.95f;
-        grab_ctrl_cmd->elbow_pitch = 54.23f;
-        grab_ctrl_cmd->wrist_pitch = -43.90f;
-        grab_ctrl_cmd->wrist_roll = 31.55f;
-        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
-        break;
-    case 7:
-        grab_ctrl_cmd->base_joint = 55.41f;
-        grab_ctrl_cmd->elbow_roll = -13.93f;
-        grab_ctrl_cmd->elbow_pitch = 54.67f;
-        grab_ctrl_cmd->wrist_pitch = -43.06f;
-        grab_ctrl_cmd->wrist_roll = 28.47f;
-        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
-        break;
-    case 8: //
-        grab_ctrl_cmd->base_joint = 37.44f;
-        grab_ctrl_cmd->elbow_roll = -13.75f;
-        grab_ctrl_cmd->elbow_pitch = 51.11f;
-        grab_ctrl_cmd->wrist_pitch = -41.26f;
-        grab_ctrl_cmd->wrist_roll = 12.12f;
-        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
-        break;
-    case 9:
-        grab_ctrl_cmd->base_joint = 14.50f;
-        grab_ctrl_cmd->elbow_roll = -13.75f;
-        grab_ctrl_cmd->elbow_pitch = 34.39f;
-        grab_ctrl_cmd->wrist_pitch = -17.84f;
-        grab_ctrl_cmd->wrist_roll = -1.75f;
-        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
-        break;
-    case 10:
-        grab_ctrl_cmd->base_joint = -5.00f;
-        grab_ctrl_cmd->elbow_roll = -13.71f;
-        grab_ctrl_cmd->elbow_pitch = 12.03f;
-        grab_ctrl_cmd->wrist_pitch = 57.04f;
-        grab_ctrl_cmd->wrist_roll = -8.26f;
-        grab_ctrl_cmd->gripper_state = GRIPPER_CLOSE;
-        break;
-    default:
-        // 结束时保持最后抓着矿的状态
         break;
     }
 }

@@ -132,27 +132,69 @@ void GrabTask()
     Wrist_Cali_Check();
 
     // =========================================================
-    // 💥 智能软重启：双 Down (急停掉电) 时的状态机维护
+    // 🛡️ 机械臂断电护盾：检测核心大疆电机离线，强行剥夺标定状态
     // =========================================================
-    if (grab_ctrl_cmd->grab_mode == GRAB_POWER_OFF)
+    // 1. 检查腕部电机是否中途掉线
+    if (grab->actuator->wrist_cali_obj.state == CALI_DONE)
     {
-        // 1. 腕部：如果之前是 ERROR 状态，则帮它复位到 RUNNING 等待上电重试
-        if (grab->actuator->wrist_cali_obj.state == CALI_ERROR)
-        {
-            grab->actuator->wrist_cali_obj.state = CALI_RUNNING;
-            cali_first_run = 1; // 让腕部也重新进入初始化状态
-        }
+        uint8_t wrist_offline = 0;
+        if (grab_param.use_wrist_right_motor && !DaemonIsOnline(grab->actuator->grab_djimotor[0]->daemon))
+            wrist_offline = 1;
+        if (grab_param.use_wrist_left_motor && !DaemonIsOnline(grab->actuator->grab_djimotor[1]->daemon))
+            wrist_offline = 1;
+        if (!DaemonIsOnline(grab->actuator->grab_djimotor[2]->daemon))
+            wrist_offline = 1;
 
-        // 2. 前伸：如果之前是 ERROR 状态，则帮它复位到 RUNNING 等待上电重试
-        if (grab->arm->extend_cali_obj.state == CALI_ERROR)
+        if (wrist_offline)
         {
-            grab->arm->extend_cali_obj.state = CALI_RUNNING;
+            grab->actuator->wrist_cali_obj.state = CALI_ERROR; // 强行打回异常状态
+            cali_first_run = 1;                                // 强制要求重新记录初始角度
+            // 建议加个打印：LOGERROR("Wrist Motor Offline! Cali state reset.");
         }
-
-        // 💡 重点：如果它们是 CALI_DONE，上面这两条 if 都不会进！
-        // 等操作手重新推拨杆上电时，它们会瞬间恢复战斗力！
     }
 
+    // 2. 检查前伸电机是否中途掉线 (3508掉电失忆，必须重新标定)
+    if (grab->arm->extend_cali_obj.state == CALI_DONE)
+    {
+        if (!DaemonIsOnline(grab->arm->arm_extend_motor->daemon))
+        {
+            grab->arm->extend_cali_obj.state = CALI_ERROR; // 强行打回异常状态
+            // 建议加个打印：LOGERROR("Extend Motor Offline! Cali state reset.");
+        }
+    }
+
+    // 注：DM电机(达妙)因为是绝对值编码器，自带多圈记忆，断电重启后角度不会丢。
+    // 如果你们的抬升(arm_lift_motor)也是大疆电机，并且需要防坠落或重定位，也要在这里加一样的逻辑。
+    // =========================================================
+    // 🛡️ 机械臂断电护盾 (纯手动复活版：掉电死锁，等键盘唤醒)
+    // =========================================================
+
+    // 1. 腕部掉线检测
+    uint8_t wrist_now_offline = 0;
+    if (grab_param.use_wrist_right_motor && !DaemonIsOnline(grab->actuator->grab_djimotor[0]->daemon))
+        wrist_now_offline = 1;
+    if (grab_param.use_wrist_left_motor && !DaemonIsOnline(grab->actuator->grab_djimotor[1]->daemon))
+        wrist_now_offline = 1;
+    if (!DaemonIsOnline(grab->actuator->grab_djimotor[2]->daemon))
+        wrist_now_offline = 1;
+
+    // 只要掉线，且原本是标定好的，立刻剥夺合法身份打入 ERROR
+    if (wrist_now_offline && grab->actuator->wrist_cali_obj.state == CALI_DONE)
+    {
+        grab->actuator->wrist_cali_obj.state = CALI_ERROR;
+        // 彻底死锁，除非操作手按 Ctrl + Q/E
+    }
+
+    // 2. 前伸掉线检测
+    uint8_t extend_now_offline = !DaemonIsOnline(grab->arm->arm_extend_motor->daemon);
+
+    // 只要掉线，打入 ERROR
+    if (extend_now_offline && grab->arm->extend_cali_obj.state == CALI_DONE)
+    {
+        grab->arm->extend_cali_obj.state = CALI_ERROR;
+        // 彻底死锁，除非操作手按 Ctrl + Z
+    }
+    // =========================================================
     if (error_clear_trigger == 1)
     {
         GrabClearError();
@@ -553,9 +595,9 @@ static void GrabCmdTask()
         // }
 
         if (grab_ctrl_cmd->arm_extend > grab->arm->max_extend)
-                grab_ctrl_cmd->arm_extend = grab->arm->max_extend;
-                else if (grab_ctrl_cmd->arm_extend < grab->arm->min_extend)
-                        grab_ctrl_cmd->arm_extend = grab->arm->min_extend;
+            grab_ctrl_cmd->arm_extend = grab->arm->max_extend;
+        else if (grab_ctrl_cmd->arm_extend < grab->arm->min_extend)
+            grab_ctrl_cmd->arm_extend = grab->arm->min_extend;
         // 0自动归位
         if (grab_ctrl_cmd->arm_extend <= 0.01f && !extend_switch_broken)
         {
@@ -785,5 +827,11 @@ static void Wrist_Cali_Check()
         grab->actuator->wrist_cali_obj.state = CALI_RUNNING;
         cali_first_run = 1;
         grab_ctrl_cmd->wrist_pitch_cali = 0;
+    }
+    if (grab_ctrl_cmd->arm_extend_cali == 1)
+    {
+        grab->arm->extend_cali_obj.internal_step = 0;
+        grab->arm->extend_cali_obj.state = CALI_RUNNING; // 满血复活！
+        grab_ctrl_cmd->arm_extend_cali = 0;
     }
 }

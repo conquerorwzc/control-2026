@@ -76,6 +76,7 @@ typedef struct
     float wrist_roll_sens_keyboard;
     float wrist_pitch_sens_keyboard;
     float arm_lift_sens_keyboard;
+    float arm_extend_sens_keyboard;
 
     float elbow_pitch_max;
     float elbow_pitch_min;
@@ -139,6 +140,7 @@ typedef struct
     float arm_extend_target;
     uint8_t wrist_roll_cali;
     uint8_t wrist_pitch_cali;
+    uint8_t arm_extend_cali;
 
     uint8_t is_climb_mode;
 

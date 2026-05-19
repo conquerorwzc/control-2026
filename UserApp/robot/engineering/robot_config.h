@@ -171,7 +171,7 @@ static Chassis_Init_Config_s chassis_init_config = {
             .forward_lift_out = 13000.0f,
             .backward_lift_in = 1500.0f,
             .backward_lift_out = 313280.938f,
-             .climb_tilt_ratio = 0.30f,
+            .climb_tilt_ratio = 0.30f,
         },
     .wheel_motor_config[0] =
         {
@@ -452,6 +452,7 @@ static Grab_Init_Config_s
                     .wrist_roll_sens_keyboard = 0.05,
                     .wrist_pitch_sens_keyboard = 0.05,
                     .arm_lift_sens_keyboard = 1.0,
+                    .arm_extend_sens_keyboard = 1.0,
 
                     .elbow_pitch_max = 97.143158f,
                     .elbow_pitch_min = -106.869514f,
@@ -626,12 +627,12 @@ static Grab_Init_Config_s
                         {
                             .angle_PID =
                                 {
-                                    .Kp = 30.0f,
+                                    .Kp = 20.0f,
                                     .Ki = 0.0f,
                                     .Kd = 0.0f,
                                     .MaxOut = 15000.0f,
                                 },
-                            .speed_PID = {.Kp = 2.0f,
+                            .speed_PID = {.Kp = 1.0f,
                                           .Ki = 0.0f,
                                           .Kd = 0.0f,
                                           .Improve = PID_Integral_Limit | PID_ErrorHandle,
@@ -661,12 +662,12 @@ static Grab_Init_Config_s
                         {
                             .angle_PID =
                                 {
-                                    .Kp = 30.0f,
+                                    .Kp = 20.0f,
                                     .Ki = 0.0f,
                                     .Kd = 0.0f,
                                     .MaxOut = 15000.0f,
                                 },
-                            .speed_PID = {.Kp = 2.0f,
+                            .speed_PID = {.Kp = 1.0f,
                                           .Ki = 0.0f,
                                           .Kd = 0.0f,
                                           .Improve = PID_Integral_Limit | PID_ErrorHandle,
@@ -749,12 +750,12 @@ static Grab_Init_Config_s
                         {
                             .angle_PID =
                                 {
-                                    .Kp = 30.0f,
+                                    .Kp = 20.0f,
                                     .Ki = 0.0f,
                                     .Kd = 0.0f,
                                     .MaxOut = 13000.0f,
                                 },
-                            .speed_PID = {.Kp = 2.0f,
+                            .speed_PID = {.Kp = 1.0f,
                                           .Ki = 0.0f,
                                           .Kd = 0.0f,
                                           .Improve = PID_Integral_Limit | PID_ErrorHandle,
@@ -849,7 +850,7 @@ static Grab_Init_Config_s
                             .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
                             .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
                         },
-                    .motor_type = M3508,//前伸电机
+                    .motor_type = M3508, // 前伸电机
                     .can_init_config =
                         {
                             .can_handle = &hcan3, // 建议挂在CAN3上，ID设为7以避开底盘和云台
@@ -895,7 +896,7 @@ static VideoGimbal_Init_Config_s video_gimbal_init_config = {
             .motor_type = GM6020,
             .can_init_config =
                 {
-                    .can_handle = &hcan2,//云台yaw
+                    .can_handle = &hcan2, // 云台yaw
                     .tx_id = 3,
                 },
         },
@@ -935,8 +936,8 @@ static VideoGimbal_Init_Config_s video_gimbal_init_config = {
             .motor_type = M3508,
             .can_init_config =
                 {
-                    .can_handle = &hcan3,//云台pitch
-                    .tx_id = 6, // pitch
+                    .can_handle = &hcan3, // 云台pitch
+                    .tx_id = 6,           // pitch
                 },
         },
 

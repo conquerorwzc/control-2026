@@ -40,8 +40,8 @@
 
 // ==================== 【标定行为期望 (物理参数)】 ====================
 // 前后腿独立的标定堵转电流阈值 (满载为 16384)
-#define FRONT_CALI_STALL_CURRENT 3000.0f // 前腿(齿条)：机械优势小，给大点电流才能判定撞墙
-#define REAR_CALI_STALL_CURRENT 5000.0f  // 后腿(丝杠)：推力极其恐怖，阈值给小一点，撞墙瞬间温柔停机防损坏
+#define FRONT_CALI_STALL_CURRENT 2800.0f // 前腿(齿条)：机械优势小，给大点电流才能判定撞墙
+#define REAR_CALI_STALL_CURRENT 4000.0f  // 后腿(丝杠)：推力极其恐怖，阈值给小一点，撞墙瞬间温柔停机防损坏
 
 #define SPEED_RETRACT_REAR_DEG 1200.0f
 #define SPEED_EXTEND_REAR_DEG 1200.0f
@@ -216,6 +216,38 @@ void ChassisTask()
 {
     // 标定中断保护：如果从标定模式切走，复位标定状态，防止下次标定使用脏数据
     static uint8_t last_chassis_mode = CHASSIS_POWER_OFF;
+
+    uint8_t is_any_leg_offline = 0;
+
+    for (int i = 0; i < 2; i++)
+    {
+        if (chassis->front_legs[i].motor != NULL && !DaemonIsOnline(chassis->front_legs[i].motor->daemon))
+        {
+            is_any_leg_offline = 1;
+            break;
+        }
+        if (chassis->rear_legs[i].motor != NULL && !DaemonIsOnline(chassis->rear_legs[i].motor->daemon))
+        {
+            is_any_leg_offline = 1;
+            break;
+        }
+    }
+
+    // 护盾触发：一旦任何一条腿报警掉线，且当前认为已经标定完成
+    if (is_any_leg_offline && chassis->cali_state.all_cali_done == 1)
+    {
+        chassis->cali_state.all_cali_done = 0;
+        chassis->cali_state.is_max_calibrated = 0;
+
+        for (int i = 0; i < 4; i++)
+        {
+            chassis->cali_state.max_cali_done[i] = 0;
+        }
+
+        chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
+        LOGERROR("[Chassis] Shield Triggered: Motor Offline! Calibration memory cleared.");
+    }
+
     if (last_chassis_mode == CHASSIS_CALIBRATING && chassis_ctrl_cmd->chassis_mode != CHASSIS_CALIBRATING)
     {
         first_run = 1;
@@ -224,10 +256,14 @@ void ChassisTask()
         {
             cali_block_cnt[i] = 0;
             max_cali_block_cnt[i] = 0;
+            chassis->cali_state.max_cali_done[i] = 0;
         }
     }
     last_chassis_mode = chassis_ctrl_cmd->chassis_mode;
 
+    // ==============================================================================
+    // 🌟 替换掉原来的绝对屏障，只在【正在标定】时拦截底层
+    // ==============================================================================
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CALIBRATING)
     {
         for (int i = 0; i < 4; i++)
@@ -238,7 +274,7 @@ void ChassisTask()
             DJIMotorEnable(chassis->rear_legs[i].motor);
         }
         ChassisCalibrationTask();
-        return;
+        return; // 只有在乖乖收腿标定的时候，才不许轮子乱动
     }
 
     if (!chassis->cali_state.is_max_calibrated && chassis->cali_state.all_cali_done)
@@ -292,12 +328,26 @@ void ChassisTask()
     }
     else
     {
+        // 🚀 只要不是急停，麦克纳姆轮永远坚强运转，提供逃生能力！
         for (int i = 0; i < 4; i++)
             DJIMotorEnable(chassis->wheel_motor[i]);
-        for (int i = 0; i < 2; i++)
+
+        // 🦵 腿部防护：只有在标定健康时才允许发力；失忆了就软腿趴窝，绝不乱动！
+        if (chassis->cali_state.all_cali_done)
         {
-            DJIMotorEnable(chassis->front_legs[i].motor);
-            DJIMotorEnable(chassis->rear_legs[i].motor);
+            for (int i = 0; i < 2; i++)
+            {
+                DJIMotorEnable(chassis->front_legs[i].motor);
+                DJIMotorEnable(chassis->rear_legs[i].motor);
+            }
+        }
+        else
+        {
+            for (int i = 0; i < 2; i++)
+            {
+                DJIMotorStop(chassis->front_legs[i].motor);
+                DJIMotorStop(chassis->rear_legs[i].motor);
+            }
         }
     }
 
@@ -306,6 +356,7 @@ void ChassisTask()
     case CHASSIS_FOLLOW:
     case CHASSIS_CLIMB_ALL_RETRACT:
     case CHASSIS_CLIMB_FRONT_RETRACT:
+    case CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF:
         chassis_ctrl_cmd->wz += PIDCalculate(&follow_pid, chassis_ctrl_cmd->offset_angle, 0);
         break;
     default:
@@ -646,12 +697,12 @@ void Leg_FSM()
         float rear_l_target = chassis->cali_state.init_angle[0] + stroke_rear_l;
         float rear_r_target = chassis->cali_state.init_angle[1] + stroke_rear_r;
 
-        // 🌟 护盾拦截：如果是烂路模式，强行把后腿目标折算成“撅屁股”比例！
-        if (chassis_ctrl_cmd->robot_mode == 4)
-        {
-            rear_l_target = chassis->cali_state.init_angle[0] + stroke_rear_l * chassis_param.climb_tilt_ratio;
-            rear_r_target = chassis->cali_state.init_angle[1] + stroke_rear_r * chassis_param.climb_tilt_ratio;
-        }
+        // // 🌟 护盾拦截：如果是烂路模式，强行把后腿目标折算成“撅屁股”比例！
+        // if (chassis_ctrl_cmd->robot_mode == 4)
+        // {
+        //     rear_l_target = chassis->cali_state.init_angle[0] + stroke_rear_l * chassis_param.climb_tilt_ratio;
+        //     rear_r_target = chassis->cali_state.init_angle[1] + stroke_rear_r * chassis_param.climb_tilt_ratio;
+        // }
 
         switch (chassis_ctrl_cmd->chassis_mode)
         {
@@ -785,6 +836,7 @@ static void ChassisCalibrationTask(void)
                                         chassis->cali_state.cali_done[2] && chassis->cali_state.cali_done[3];
     if (chassis->cali_state.all_cali_done)
     {
+        chassis->cali_state.has_calibrated_once = 1; // 永久记录机器人已经完成过首次标定
         chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
         first_run = 1;
         timeout_cnt = 0;
@@ -892,7 +944,7 @@ static void MaxExtensionCalibrationTask(uint8_t abort_flag)
                 }
                 else
                 {
-                    motor->motor_controller.speed_PID.MaxOut = 7000.0f;
+                    motor->motor_controller.speed_PID.MaxOut = 9000.0f;
                 }
             }
 
@@ -961,33 +1013,44 @@ static void MaxExtensionCalibrationTask(uint8_t abort_flag)
 
         chassis->cali_state.is_max_calibrated = 1;
         first_run = 1;
-    }
-}
-
-/**
- * @brief 预测电机功率并进行限制
- */
-static void LimitChassisOutput()
-{
-    DJIMotorSetPIDRef(chassis->wheel_motor[0], vt_lf);
-    DJIMotorSetPIDRef(chassis->wheel_motor[1], vt_rf);
-    DJIMotorSetPIDRef(chassis->wheel_motor[2], vt_lb);
-    DJIMotorSetPIDRef(chassis->wheel_motor[3], vt_rb);
-
-    if (chassis->cali_state.all_cali_done && chassis->cali_state.is_max_calibrated)
-    {
+        // ==============================================================================
+        // 🌟 核心修复：标定结束瞬间，强制给规划器“洗脑”，告诉它当前已经在最高点了！
+        // ==============================================================================
         for (int i = 0; i < 2; i++)
         {
-            LiftLeg_Execute(&chassis->front_legs[i]);
-            LiftLeg_Execute(&chassis->rear_legs[i]);
+            // 同步前腿
+            chassis->front_legs[i].planner.current_ref = chassis->front_legs[i].motor->measure.total_angle;
+            chassis->front_legs[i].planner.target_pos = chassis->front_legs[i].motor->measure.total_angle;
+            // 同步后腿
+            chassis->rear_legs[i].planner.current_ref = chassis->rear_legs[i].motor->measure.total_angle;
+            chassis->rear_legs[i].planner.target_pos = chassis->rear_legs[i].motor->measure.total_angle;
         }
     }
-    PowerControl();
 }
+    /**
+     * @brief 预测电机功率并进行限制
+     */
+    static void LimitChassisOutput()
+    {
+        DJIMotorSetPIDRef(chassis->wheel_motor[0], vt_lf);
+        DJIMotorSetPIDRef(chassis->wheel_motor[1], vt_rf);
+        DJIMotorSetPIDRef(chassis->wheel_motor[2], vt_lb);
+        DJIMotorSetPIDRef(chassis->wheel_motor[3], vt_rb);
 
-/**
- * @brief 根据每个轮子的速度反馈,计算底盘的实际运动速度,逆运动解算
- */
-static void EstimateSpeed()
-{
-}
+        if (chassis->cali_state.all_cali_done && chassis->cali_state.is_max_calibrated)
+        {
+            for (int i = 0; i < 2; i++)
+            {
+                LiftLeg_Execute(&chassis->front_legs[i]);
+                LiftLeg_Execute(&chassis->rear_legs[i]);
+            }
+        }
+        PowerControl();
+    }
+
+    /**
+     * @brief 根据每个轮子的速度反馈,计算底盘的实际运动速度,逆运动解算
+     */
+    static void EstimateSpeed()
+    {
+    }
