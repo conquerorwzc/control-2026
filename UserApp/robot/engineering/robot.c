@@ -115,8 +115,7 @@ void RobotCMDTask()
     if (grab_control_mode == GRAB_CONTROL_CUSTOM)
     {
         // 🛡️ 标定进行中时，屏蔽自定义控制器对 grab_ctrl_cmd 的覆写，防止疯转
-        if (robot->grab->actuator->wrist_cali_obj.state == CALI_DONE &&
-            robot->grab->arm->extend_cali_obj.state == CALI_DONE)
+        if (robot->grab->actuator->wrist_cali_obj.state == CALI_DONE)
         {
             ProcessCustomControllerData();
         }
@@ -145,11 +144,9 @@ static void MouseKeySet()
     if (vt13_data == NULL)
         return;
 
-    if (abs(vt13_data->rc.dial) > 20 || vt13_data->rc.rocker_l1 != 0 || vt13_data->rc.rocker_l_ != 0 ||
-        vt13_data->rc.rocker_r1 != 0 || vt13_data->rc.rocker_r_ != 0)
-    {
-        return; // 有摇杆输入时不进行键鼠控制
-    }
+    uint8_t rc_joystick_active = (abs(vt13_data->rc.dial) > 20 ||
+                                   abs(vt13_data->rc.rocker_l1) > 20 || abs(vt13_data->rc.rocker_l_) > 20 ||
+                                   abs(vt13_data->rc.rocker_r1) > 20 || abs(vt13_data->rc.rocker_r_) > 20);
 
     // 1. 把爬楼状态机变量提升到函数开头，方便全局复位
     static uint8_t keyboard_climb_state = CHASSIS_CLIMB_IDLE;
@@ -219,8 +216,6 @@ static void MouseKeySet()
             {
                 if (grab_control_mode == GRAB_CONTROL_KEYBOARD)
                     grab_control_mode = GRAB_CONTROL_CUSTOM;
-                else
-                    grab_control_mode = GRAB_CONTROL_KEYBOARD; // 优先保底
             }
 
             last_f_only = curr_f_only;
@@ -232,27 +227,19 @@ static void MouseKeySet()
             grab_control_mode = GRAB_CONTROL_KEYBOARD;
         }
 
-        // ================= 3. 底盘平移 (WASD 全局生效) =================
-        float speed_buff = 20000;
+       uint8_t  r_state = vt13_data->key_count.arr[KEY_PRESS_NORMAL][KEY_R] % 2;
 
-        // 提取 R 键的状态：0 为正向，1 为反向
-        uint8_t r_state = vt13_data->key_count.arr[KEY_PRESS_NORMAL][KEY_R] % 2;
+        if (!rc_joystick_active)
+        {
+            float speed_buff = 20000;
 
-        if (r_state == 1)
-        {
-            // 反向平移
-            chassis_ctrl_cmd->vx =
-                -(float)(vt13_data->key.arr[KEY_PRESS_NORMAL].w - vt13_data->key.arr[KEY_PRESS_NORMAL].s) * speed_buff;
-            chassis_ctrl_cmd->vy =
-                (float)(vt13_data->key.arr[KEY_PRESS_NORMAL].d - vt13_data->key.arr[KEY_PRESS_NORMAL].a) * speed_buff;
-        }
-        else
-        {
-            // 正向平移
-            chassis_ctrl_cmd->vx =
-                (float)(vt13_data->key.arr[KEY_PRESS_NORMAL].d - vt13_data->key.arr[KEY_PRESS_NORMAL].a) * speed_buff;
-            chassis_ctrl_cmd->vy =
-                (float)(vt13_data->key.arr[KEY_PRESS_NORMAL].w - vt13_data->key.arr[KEY_PRESS_NORMAL].s) * speed_buff;
+            if (r_state == 1) {
+                chassis_ctrl_cmd->vx = -(float)(vt13_data->key.arr[KEY_PRESS_NORMAL].w - vt13_data->key.arr[KEY_PRESS_NORMAL].s) * speed_buff;
+                chassis_ctrl_cmd->vy = (float)(vt13_data->key.arr[KEY_PRESS_NORMAL].d - vt13_data->key.arr[KEY_PRESS_NORMAL].a) * speed_buff;
+            } else {
+                chassis_ctrl_cmd->vx = (float)(vt13_data->key.arr[KEY_PRESS_NORMAL].d - vt13_data->key.arr[KEY_PRESS_NORMAL].a) * speed_buff;
+                chassis_ctrl_cmd->vy = (float)(vt13_data->key.arr[KEY_PRESS_NORMAL].w - vt13_data->key.arr[KEY_PRESS_NORMAL].s) * speed_buff;
+            }
         }
 
         // ================= 新增：Shift+R 图传云台一键回正 =================
@@ -567,15 +554,21 @@ static void RemoteControlSet()
     // ================= 2. 全局使能状态（Switch == 右） =================
     if (vt13_data->rc.mode_switch == 2)
     {
-        // 1. 底盘大模式切权：键盘处于爬台阶/过烂路模式时，不强制切回 FOLLOW
+        // 🌟 核心修复1：引入遥控器专属的底层调试状态变量
+        static Chassis_Mode_e rc_debug_chassis_mode = CHASSIS_FOLLOW;
+
+        // 1. 底盘大模式切权：键盘没有接管爬楼时，使用遥控器的调试状态
         if (!is_keyboard_climb)
         {
-            chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
+            chassis_ctrl_cmd->chassis_mode = rc_debug_chassis_mode;
         }
 
-        // 2. 遥控器物理摇杆映射
-        chassis_ctrl_cmd->vx = 60.0f * (float)vt13_data->rc.rocker_l_;
-        chassis_ctrl_cmd->vy = 60.0f * (float)vt13_data->rc.rocker_l1;
+        // 2. 遥控器物理摇杆映射（爬楼模式下跳过，键盘独占底盘平移控制）
+        if (!is_keyboard_climb)
+        {
+            chassis_ctrl_cmd->vx = 60.0f * (float)vt13_data->rc.rocker_l_;
+            chassis_ctrl_cmd->vy = 60.0f * (float)vt13_data->rc.rocker_l1;
+        }
 
         // 3. 拨轮微调（应用对称死区优化）
         int16_t dial_raw = vt13_data->rc.dial;
@@ -592,7 +585,7 @@ static void RemoteControlSet()
                 chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF ||
                 chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_FRONT_RETRACT)
             {
-                set_angle += dial_processed * 0.0001f;
+                set_angle -= dial_processed * 0.0001f;
             }
         }
 
@@ -605,28 +598,32 @@ static void RemoteControlSet()
         uint8_t curr_fn2 = vt13_data->rc.fn_2;
         uint8_t curr_trigger = vt13_data->rc.trigger;
 
-        // fn_1 rising edge: 标定最大尺寸
-        if (curr_fn1 && !last_fn1)
+        // 🌟 核心修复2：防覆盖护盾。键盘介入高级模式时，屏蔽遥控器调试按键！
+        if (!is_keyboard_climb && robot->robot_mode != ROBOT_EXCHANGE_MODE)
         {
-            chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_BOTH_EXTEND;
-            if (robot->grab != NULL && robot->grab->arm != NULL) {
-                grab_ctrl_cmd->arm_extend = robot->grab->arm->max_extend;
+            // fn_1 rising edge: 调试用 - 伸展极限标定 (点按切换：伸长 <-> 取消)
+            if (curr_fn1 && !last_fn1)
+            {
+                rc_debug_chassis_mode = (rc_debug_chassis_mode == CHASSIS_CLIMB_BOTH_EXTEND) ? CHASSIS_FOLLOW : CHASSIS_CLIMB_BOTH_EXTEND;
+            }
 
+            // fn_2 rising edge: 调试用 - 收回零点测试 (点按切换：收回 <-> 取消)
+            if (curr_fn2 && !last_fn2)
+            {
+                rc_debug_chassis_mode = (rc_debug_chassis_mode == CHASSIS_CLIMB_ALL_RETRACT) ? CHASSIS_FOLLOW : CHASSIS_CLIMB_ALL_RETRACT;
             }
         }
-
-        // fn_2 rising edge: 最小/全收
-        if (curr_fn2 && !last_fn2)
+        else
         {
-            chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_ALL_RETRACT;
-            grab_ctrl_cmd->arm_extend = 0.0f;
+            // 一旦键盘接管，强制把遥控器的调试状态清空，防止下次断开键盘时车子抽风
+            rc_debug_chassis_mode = CHASSIS_FOLLOW;
         }
 
-        // trigger rising edge: 夹抓开/关
+        // trigger rising edge: 夹爪开/关 (保留该功能用于测试机械臂抓取)
         if (curr_trigger && !last_trigger)
         {
-            grab_ctrl_cmd->gripper_state =
-                (grab_ctrl_cmd->gripper_state == GRIPPER_CLOSE) ? GRIPPER_OPEN : GRIPPER_CLOSE;
+            vt13_data->key_count.arr[KEY_PRESS_NORMAL][KEY_C]++;
+
         }
 
         last_fn1 = curr_fn1;
@@ -641,7 +638,6 @@ static void RemoteControlSet()
         chassis_ctrl_cmd->vy = 0.0f;
     }
 }
-
 static void ProcessCustomControllerData()
 {
     if (robot->self_control != NULL)

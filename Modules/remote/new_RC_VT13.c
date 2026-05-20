@@ -99,13 +99,24 @@ static void VT13UpdateKeyboardMouseStatus(void)
 
     // 3. 修饰键分流：NORMAL 始终写入原始按键（保证底盘 WASD 等基础功能永远有数据），
     //    同时按修饰键时额外写入对应通道（供 Shift+R、Ctrl+Shift+V 等组合键使用）
-    vt13_rc.key.arr[KEY_PRESS_NORMAL].keys = raw_keys;
+    // 3. 严格互斥的修饰键分流：保证按了修饰键时，NORMAL 通道绝对干净！
     if (is_ctrl && is_shift)
+    {
         vt13_rc.key.arr[KEY_PRESS_WITH_CTRL_SHIFT].keys = raw_keys;
+    }
     else if (is_ctrl)
+    {
         vt13_rc.key.arr[KEY_PRESS_WITH_CTRL].keys = raw_keys;
+    }
     else if (is_shift)
+    {
         vt13_rc.key.arr[KEY_PRESS_WITH_SHIFT].keys = raw_keys;
+    }
+    else
+    {
+        // 🌟 只有在没有任何修饰键按下时，NORMAL 才有资格获取按键状态！
+        vt13_rc.key.arr[KEY_PRESS_NORMAL].keys = raw_keys;
+    }
     for (uint8_t state = 0; state < KEY_PRESS_STATE_NUM; state++)
     {
         uint16_t now  = vt13_rc.key.arr[state].keys;

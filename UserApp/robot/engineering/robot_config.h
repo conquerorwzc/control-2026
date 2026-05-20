@@ -499,10 +499,10 @@ static Grab_Init_Config_s
                         {
                             .angle_PID =
                                 {
-                                    .Kp = 90.0f,
-                                    .Ki = 6.00f,
+                                    .Kp = 70.0f,
+                                    .Ki = 15.00f,
                                     .Kd = 0.01f,
-                                    .MaxOut = 6.0f,
+                                    .MaxOut = 10.0f,
                                     .DeadBand = 0.01f,
                                     .Improve = PID_Integral_Limit,
                                     .IntegralLimit = 0.0f,
