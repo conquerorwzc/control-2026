@@ -100,6 +100,8 @@
 #define UI_CAP_F_Y 775
 #define UI_CAP_VOLTAGE_X 480
 #define UI_CAP_VOLTAGE_Y 660
+#define UI_CAP_ERROR_X UI_CAP_VOLTAGE_X
+#define UI_CAP_ERROR_Y 620
 #define UI_CAP_CTRL_X UI_CAP_VOLTAGE_X
 #define UI_CAP_CTRL_Y 700
 #define UI_CAP_CTRL_TEXT_SIZE UI_CAP_TEXT_SIZE
@@ -170,6 +172,7 @@ static Graph_Data_t UI_CapArc;
 static String_Data_t UI_CapTextE;
 static String_Data_t UI_CapTextF;
 static String_Data_t UI_CapVoltage;
+static String_Data_t UI_CapErrDetect;
 static String_Data_t UI_CapCtrlCmd;
 
 /* 速度 */
@@ -788,6 +791,11 @@ static void DrawCapDynamic(const Referee_Interactive_info_t *data, uint32_t oper
   UICharDraw(&UI_CapVoltage, "cv0", operate, UI_CAP_LAYER, UI_Color_Cyan, UI_CAP_TEXT_SIZE, UI_CAP_TEXT_WIDTH,
              UI_CAP_VOLTAGE_X, UI_CAP_VOLTAGE_Y, "%2d.%dV   ", (int)(voltage_x10 / 10), (int)(voltage_x10 % 10));
   UICharRefresh(&referee_recv_info->referee_id, UI_CapVoltage);
+
+  UICharDraw(&UI_CapErrDetect, "cd0", operate, UI_CAP_LAYER,
+             data->cap_error == 0 ? UI_Color_Green : UI_Color_Purplish_red, UI_CAP_TEXT_SIZE, UI_CAP_TEXT_WIDTH,
+             UI_CAP_ERROR_X, UI_CAP_ERROR_Y, "ERR:%3u ", (unsigned)data->cap_error);
+  UICharRefresh(&referee_recv_info->referee_id, UI_CapErrDetect);
 
   /* 控制命令。 */
   UICharDraw(&UI_CapCtrlCmd, "cc0", operate, UI_CAP_LAYER, SuperCapCtrlCmdColor(data->super_cap_ctrl_cmd),
