@@ -382,6 +382,12 @@ static void MouseKeySet() {
     case 1: chassis_ctrl_cmd->chassis_direction = -1.0f; break;
     default: break;
   }
+  switch (key_q_count % 3) {
+    case 0: shoot_ctrl_cmd->heat_mode = REFEREE_CONTROL; break;
+    case 1: shoot_ctrl_cmd->heat_mode = SIMULLATE_CONTROL; break;
+    case 2: shoot_ctrl_cmd->heat_mode = NO_CONTROL; break;
+    default: break;
+  }
 
   switch (key_e_count % 3) {
     case 0: shoot_ctrl_cmd->bullet_speed_mode = DISABLE_BULLET_SPEED; break;

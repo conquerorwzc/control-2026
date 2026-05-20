@@ -117,14 +117,14 @@ const GasSpringPoint_t gas_spring_table[GAS_SPRING_TABLE_SIZE] = {
 const float GAS_SPRING_FREE_LENGTH = 0.230f;
 // theta=0 时，主动杆 L2 绝对水平指向车头；向下压时 theta 为正。
 // 2026-05 最新实车物理标定零位 (水平为0，下压为正)
-#define LEFT_MOTOR_HORIZON_OFFSET  (1.562f) //
-#define RIGHT_MOTOR_HORIZON_OFFSET 1.330f  //
+#define LEFT_MOTOR_HORIZON_OFFSET  (1.542f) //
+#define RIGHT_MOTOR_HORIZON_OFFSET 1.390f  //
 // 电机旋转方向系数 (如果往下压时编码器数值减小，则填 -1.0f，增大填 1.0f)
 #define LEFT_MOTOR_DIR   1.0f
 #define RIGHT_MOTOR_DIR  (-1.0f)
 // 在文件顶部定义位置缓变速率和极限角度 (均为标准数学弧度)
 #define LEG_RAMP_RATE       0.002f  // 腿长变化速度 (弧度/ms)，数值越小动作越慢
-#define UPPER_LIMIT_ANGLE   0.360f   // 上方机械限位角度 (几乎水平)
+#define UPPER_LIMIT_ANGLE   0.370f   // 上方机械限位角度 (几乎水平)
 static float LOWER_LIMIT_ANGLE  = 1.1f;   // 下方最大伸展角度 (防止顶死或奇异点)
                                    //单位都为弧度，车辆坐标系
 // ==============================================================
@@ -1125,7 +1125,7 @@ static void Leg_AngleLoop_Control() {
     }
     else if (chassis_ctrl_cmd->leg_mode == LEG_MANUAL_UP) {
         // 先无条件执行向上收腿指令
-        base_p_des_l -= LEG_RAMP_RATE;
+        base_p_des_l -= LEG_RAMP_RATE*0.3f;
 
         //  只有进入“穿透区”后，才开启堵转离合！
         // 在正常上下限范围内时，即使力矩超标也不会停下，防止中途误触发。
@@ -1133,7 +1133,7 @@ static void Leg_AngleLoop_Control() {
             // 一旦进入穿透区且撞死点（力矩>=15Nm）
             if (fabsf(t_real_math_l) >= 25.0f) {
                 // 撤销这一帧的减法，目标指令被死死冻结，电机以恒定 15Nm 贴合机械挡块
-                base_p_des_l += 1.5f*LEG_RAMP_RATE;
+                base_p_des_l += 0.6f*LEG_RAMP_RATE;
             }
         }
     }
@@ -1145,11 +1145,11 @@ static void Leg_AngleLoop_Control() {
         }
     }
     else if (chassis_ctrl_cmd->leg_mode == LEG_MANUAL_UP) {
-        base_p_des_r -= LEG_RAMP_RATE;
+        base_p_des_r -= 0.3f*LEG_RAMP_RATE;
 
         if (base_p_des_r < UPPER_LIMIT_ANGLE) {
             if (fabsf(t_real_math_r) >= 25.0f) {
-                base_p_des_r += 1.5f*LEG_RAMP_RATE;
+                base_p_des_r += 0.6f*LEG_RAMP_RATE;
             }
         }
     }
