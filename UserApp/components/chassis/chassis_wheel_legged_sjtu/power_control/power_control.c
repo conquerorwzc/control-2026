@@ -131,7 +131,6 @@ void PowerControl(ChassisInstance* chassis) {
   }
 
   // 2.估算功率
-  float P_motion_mech = 0.0f;
   for (int i = 0; i < 2; i++) {
     // 实际电机电流 / 力矩 (来自上一拍 final_output)
     // float current_I = (float)chassis->leg[i]->wheel_motor->motor_controller.final_output * DJI_CURRENT_SCALE;
@@ -144,7 +143,6 @@ void PowerControl(ChassisInstance* chassis) {
     pc->w[i] = current_w;
 
     // speed_aps 与底盘前进方向相反; P_motion_mech < 0 表示 motion 净刹车/回收, 不参与限功率缩放。
-    P_motion_mech += pc->T_motion[i] * -pc->w[i];
 
     // 总功率用实际电机电流估算，并应用一阶低通滤波 (当前不加滤波)
     float current_P = MotorEstimatePower(pc->k, pc->I[i], pc->w[i]);  // 使用原始 current_w 计算瞬态功率
@@ -152,12 +150,12 @@ void PowerControl(ChassisInstance* chassis) {
   }
 
   pc->P_total = pc->P[0] + pc->P[1];
-  pc->P_total_ref = chassis->chassis_ctrl_cmd.max_power;
-  // pc->P_total_ref = 200.f;
+  // pc->P_total_ref = chassis->chassis_ctrl_cmd.max_power;
+  pc->P_total_ref = 250.f;
   // pc->P_total_ref = 50.f;
 
   // 3.功率控制逻辑
-  if (pc->P_total > pc->P_total_ref && P_motion_mech >= -1e-3f) {
+  if (pc->P_total > pc->P_total_ref) {
     for (int i = 0; i < 2; i++) {
       // 1) 按当前总功率占比分配每电机的许用总功率
       pc->P_ref[i] = pc->P[i] / pc->P_total * pc->P_total_ref;

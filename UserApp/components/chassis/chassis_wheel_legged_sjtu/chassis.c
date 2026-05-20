@@ -680,7 +680,20 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   return chassis_instance;
 }
 
+static uint8_t AllMotorsOnline(void) {
+  for (int i = 0; i < 2; i++) {
+    if (!DaemonIsOnline(leg[i]->joint_motor[0]->daemon)) return 0;
+    if (!DaemonIsOnline(leg[i]->joint_motor[1]->daemon)) return 0;
+    if (!DaemonIsOnline(leg[i]->wheel_motor->daemon)) return 0;
+  }
+  return 1;
+}
+
 void ChassisTask(void) {
+  if (!AllMotorsOnline()) {
+    chassis->chassis_ctrl_cmd.chassis_mode = CHASSIS_POWER_OFF;
+  }
+
   if (chassis->chassis_ctrl_cmd.chassis_mode == CHASSIS_POWER_OFF) {
     for (int i = 0; i < 2; i++) {
       DMMotorStop(chassis->leg[i]->joint_motor[0]);

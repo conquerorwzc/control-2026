@@ -266,12 +266,12 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
 /**
  * @brief 根据持久状态和跳跃状态机推导 robot_mode / chassis_mode。
  *
- * OCD 链路下模式集中在这里写入。RECOVERY 期间直接返回，避免覆盖云台对齐流程写入的
- * CHASSIS_RECOVERY / CHASSIS_ON。
+ * OCD 链路下模式集中在这里写入。站立目标的 RECOVERY 期间直接返回，避免覆盖云台对齐流程；
+ * 目标已经切到卧倒时则允许直接落到 CHASSIS_PROSTRATE。
  */
 static void ApplyOcdMode(RobotInstance* robot) {
   Chassis_Ctrl_Cmd_s* cmd = &robot->chassis->chassis_ctrl_cmd;
-  if (cmd->chassis_mode == CHASSIS_RECOVERY) return;
+  if (cmd->chassis_mode == CHASSIS_RECOVERY && update_flag.is_stand) return;
 
   switch (ocd.jump.phase) {
     case JUMP_ACTIVE:
@@ -292,8 +292,7 @@ static void ApplyOcdMode(RobotInstance* robot) {
    * 趴下没有 LQR 平衡和腿长/roll 微调需求，因此不进入 FREE，统一走 PROSTRATE_FOLLOW。
    */
   if (update_flag.is_rotate) {
-    robot->robot_mode =
-        update_flag.is_stand || update_flag.is_free ? ROBOT_CHASSIS_ROTATE : ROBOT_CHASSIS_PROSTRATE_ROTATE;
+    robot->robot_mode = update_flag.is_stand ? ROBOT_CHASSIS_ROTATE : ROBOT_CHASSIS_PROSTRATE_ROTATE;
   } else if (update_flag.is_free && update_flag.is_stand) {
     robot->robot_mode = ROBOT_CHASSIS_FREE;
   } else {
@@ -329,10 +328,11 @@ void JoyStickCtrl(RobotInstance* robot) {
   /* 左拨到底视为急停姿态；该状态也会约束键鼠侧的 toggle。 */
   update_flag.is_on = !switch_left(rc_data->rc.mode_switch);
 
-  /* fn_1 边沿切换站立/趴下；跳跃、恢复、急停期间禁止切换。 */
+  /* fn_1 边沿切换站立/趴下；recovery 期间只允许从站立切到趴下。 */
   const uint8_t fn_1_edge = rc_data->rc.fn_1 && !rc_data_last.rc.fn_1;
-  if (fn_1_edge && update_flag.is_on && chassis_cmd->chassis_mode != CHASSIS_RECOVERY &&
-      ocd.jump.phase != JUMP_ACTIVE) {
+  const uint8_t can_toggle_posture = update_flag.is_on && ocd.jump.phase != JUMP_ACTIVE &&
+                                     (chassis_cmd->chassis_mode != CHASSIS_RECOVERY || update_flag.is_stand);
+  if (fn_1_edge && can_toggle_posture) {
     ocd.jump.phase = JUMP_IDLE;
     ocd.jump.observed_active = 0;
     update_flag.is_stand = !update_flag.is_stand;
@@ -387,10 +387,12 @@ void JoyStickCtrl(RobotInstance* robot) {
 
   /* 摇杆平移统一输出 m/s，趴下模式由 chassis 层换算为轮速指令。 */
   if (update_flag.is_stand && update_flag.is_free) {
-    /* FREE 模式保留右摇杆前进，左摇杆用于 roll / 腿长微调。 */
+    /* FREE 模式保留右摇杆前进；蹭台阶时锁住腿长，只保留 roll 微调。 */
     ocd.js_vy = 0.003f * (float)rc_data->rc.rocker_r1;
     ocd.intent.roll_delta = 0.0003f * (float)rc_data->rc.rocker_l_ * (abs(rc_data->rc.rocker_l_) > 10);
-    ocd.intent.leg_length_delta = 0.0000005f * (float)rc_data->rc.rocker_l1;
+    if (!ocd.stair.active) {
+      ocd.intent.leg_length_delta = 0.0000005f * (float)rc_data->rc.rocker_l1;
+    }
   } else {
     /* FOLLOW/ROTATE 使用左摇杆平移；ROTATE 下 vx/vy 最终会被忽略。 */
     ocd.js_vx = 0.003f * (float)rc_data->rc.rocker_l_;
@@ -486,21 +488,22 @@ void MouseKeyCtrl(RobotInstance* robot) {
   else if (mk->keyboard.e)
     ocd.intent.roll_delta += 0.4f;
 
-  /* R/F：切换四档腿长预设，实际写入由 CtrlSolve 消费 pending 标志。 */
-  if (mk->keyboard.r && !mk_last->keyboard.r) {
+  /* R/F：非蹭台阶时切换四档腿长预设，实际写入由 CtrlSolve 消费 pending 标志。 */
+  if (!ocd.stair.active && mk->keyboard.r && !mk_last->keyboard.r) {
     if (ocd.leg.index < 3) ocd.leg.index++;
     ocd.leg.pending = 1;
   }
-  if (mk->keyboard.f && !mk_last->keyboard.f) {
+  if (!ocd.stair.active && mk->keyboard.f && !mk_last->keyboard.f) {
     if (ocd.leg.index > 0) ocd.leg.index--;
     ocd.leg.pending = 1;
   }
 
-  /* Ctrl+G：切换站立/趴下；跳跃、恢复、急停期间锁定。 */
+  /* Ctrl+G：切换站立/趴下；recovery 期间只允许从站立切到趴下。 */
   const uint8_t ctrl_g = mk->keyboard.ctrl && mk->keyboard.g;
   const uint8_t ctrl_g_last = mk_last->keyboard.ctrl && mk_last->keyboard.g;
-  if (ctrl_g && !ctrl_g_last && update_flag.is_on && chassis_cmd->chassis_mode != CHASSIS_RECOVERY &&
-      ocd.jump.phase != JUMP_ACTIVE) {
+  const uint8_t can_toggle_posture = update_flag.is_on && ocd.jump.phase != JUMP_ACTIVE &&
+                                     (chassis_cmd->chassis_mode != CHASSIS_RECOVERY || update_flag.is_stand);
+  if (ctrl_g && !ctrl_g_last && can_toggle_posture) {
     ocd.jump.phase = JUMP_IDLE;
     ocd.jump.observed_active = 0;
     update_flag.is_stand = !update_flag.is_stand;
@@ -583,6 +586,10 @@ void CtrlSolve(RobotInstance* robot) {
     chassis_cmd->leg_length = LEG_TABLE[ocd.leg.index];
     ocd.leg.pending = 0;
   }
+  /* 蹭台阶期间只允许 Z 进入/退出时的绝对腿长写入。 */
+  if (ocd.stair.active) {
+    ocd.intent.leg_length_delta = 0.0f;
+  }
 
   /* 7. 跳跃准备/执行期间强制云台水平，避免鼠标或自瞄覆盖 pitch。 */
   if (ocd.jump.phase == JUMP_READY || ocd.jump.phase == JUMP_ACTIVE) {
@@ -622,7 +629,7 @@ void CtrlSolve(RobotInstance* robot) {
 /**
  * @brief 处理急停、倾倒恢复和发射禁用。
  *
- * 急停会直接断开底盘、云台、发射输出并清空跳跃状态。倾倒检测只把底盘切到
+ * 急停会直接断开底盘、云台、发射输出并清空跳跃状态。倾倒检测只在站立目标下把底盘切到
  * CHASSIS_RECOVERY，让下层恢复流程接管。
  */
 void EmergencyHandler(RobotInstance* robot) {
@@ -642,7 +649,7 @@ void EmergencyHandler(RobotInstance* robot) {
     ocd.jump.observed_active = 0;
     ResetChassisMotionMemory(robot);
     LOGERROR("[CMD] emergency stop!");
-  } else if (IsRobotLostControl(robot) && chassis_cmd->chassis_mode != CHASSIS_PROSTRATE) {
+  } else if (update_flag.is_stand && IsRobotLostControl(robot)) {
     chassis_cmd->chassis_mode = CHASSIS_RECOVERY;
   }
 

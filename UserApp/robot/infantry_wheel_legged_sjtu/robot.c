@@ -120,7 +120,8 @@ static void CalcOffsetAngle() {
 /**
  * @brief 云台对齐底盘正方向
  * @note 上电时先接管 gimbal yaw 指令，将云台转向当前底盘正前方；
- * recovery 中也会接管 yaw，并在对齐前保持 CHASSIS_RECOVERY。
+ * recovery 中也会接管 yaw；站立目标在对齐前保持 CHASSIS_RECOVERY，卧倒目标直接放行
+ * CHASSIS_PROSTRATE。
  * 必须在 CalcOffsetAngle() 之后调用。
  */
 static void GimbalAlignToChassisForward(void) {
@@ -134,10 +135,9 @@ static void GimbalAlignToChassisForward(void) {
   if (!robot->update_flag.is_gimbal_aligned) {
     uint8_t target_is_prostrate = robot->robot_mode == ROBOT_CHASSIS_PROSTRATE_FOLLOW ||
                                   robot->robot_mode == ROBOT_CHASSIS_PROSTRATE_ROTATE;
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_RECOVERY;
+    chassis_ctrl_cmd->chassis_mode = target_is_prostrate ? CHASSIS_PROSTRATE : CHASSIS_RECOVERY;
     gimbal_ctrl_cmd->yaw = robot->gimbal->gimbal_IMU_data->YawTotalAngle + robot->offset_angle;
-    // 5°误差内认为对齐完成；同时把 chassis_mode 一次性切到当前目标姿态，
-    // 让 JoyStickCtrl 的 != CHASSIS_RECOVERY 门控放行。
+    // 5°误差内认为对齐完成；同时把 chassis_mode 一次性切到当前目标姿态。
     if (fabsf(robot->offset_angle) < 5.0f) {
       robot->update_flag.is_gimbal_aligned = 1;
       chassis_ctrl_cmd->chassis_mode = target_is_prostrate ? CHASSIS_PROSTRATE : CHASSIS_ON;

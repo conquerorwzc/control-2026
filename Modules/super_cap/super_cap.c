@@ -166,5 +166,3 @@ uint16_t SuperCapModeControl(SuperCapInstance* super_cap, uint16_t power_limit) 
   }
   return max_power;
 }
-
-

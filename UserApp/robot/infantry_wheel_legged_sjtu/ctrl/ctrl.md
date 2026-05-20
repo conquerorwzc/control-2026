@@ -72,7 +72,7 @@
 
 `ApplyOcdMode()` 根据持久状态写入 `robot_mode` 和 `chassis_mode`。优先级如下：
 
-1. `CHASSIS_RECOVERY` 期间直接返回，不覆盖下层恢复流程。
+1. 站立目标的 `CHASSIS_RECOVERY` 期间直接返回，不覆盖下层恢复流程；若目标已切到卧倒，则允许进入 `CHASSIS_PROSTRATE`。
 2. `JUMP_ACTIVE` 强制 `CHASSIS_JUMP_START`，写入 `jump_force = JUMP_FORCE`。
 3. `JUMP_READY` 强制 `CHASSIS_JUMP_READY`。
 4. 根据 `is_stand` 选择 `CHASSIS_ON` 或 `CHASSIS_PROSTRATE`。
@@ -80,7 +80,7 @@
 6. 站立且 `is_free` 时进入 `ROBOT_CHASSIS_FREE`。
 7. 其他情况进入站立 FOLLOW 或卧倒 FOLLOW。
 
-当前实现里 rotate 分支条件是 `update_flag.is_stand || update_flag.is_free` 时进入 `ROBOT_CHASSIS_ROTATE`，否则进入 `ROBOT_CHASSIS_PROSTRATE_ROTATE`。也就是说，`is_free` 会影响 rotate 姿态判断；如果后续要让卧倒 FREE toggle 完全无效，这里应该改成只看 `is_stand`。
+rotate 分支只看 `is_stand`：站立进入 `ROBOT_CHASSIS_ROTATE`，卧倒进入 `ROBOT_CHASSIS_PROSTRATE_ROTATE`；`is_free` 在卧倒下不改变姿态。
 
 ## 运动解算
 
@@ -147,7 +147,7 @@ FREE 只在站立下生效：
 - `mode_switch` 右侧：发射系统开启。
 - `fn_1` 上升沿：站立/卧倒切换。
 - `pause` 上升沿：FREE toggle。
-- recovery 或 `JUMP_ACTIVE` 期间禁止站立/卧倒切换。
+- recovery 期间允许从站立切到卧倒；`JUMP_ACTIVE` 期间禁止站立/卧倒切换。
 
 ### 小陀螺
 
@@ -274,7 +274,7 @@ WASD 写入 `mk_vx / mk_vy`。如果摇杆本帧有平移输入，`CtrlSolve()` 
   - `friction_mode = FRICTION_OFF`
   - `load_mode = LOAD_STOP`
   - 清空 jump 状态和底盘运动记忆
-- pitch 绝对值超过阈值时进入 `CHASSIS_RECOVERY`，但 `CHASSIS_PROSTRATE` 卧倒模式除外。
+- pitch 绝对值超过阈值时，只有站立目标会进入 `CHASSIS_RECOVERY`；卧倒目标/`CHASSIS_PROSTRATE` 不触发 recovery。
 - `mode_switch` 中间时强制关闭发射系统。
 
 恢复阈值当前为：
