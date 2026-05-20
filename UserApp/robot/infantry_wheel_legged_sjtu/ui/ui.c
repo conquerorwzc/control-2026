@@ -100,7 +100,7 @@
 #define UI_CAP_F_Y 775
 #define UI_CAP_VOLTAGE_X 480
 #define UI_CAP_VOLTAGE_Y 660
-#define UI_CAP_ERROR_X UI_CAP_VOLTAGE_X
+#define UI_CAP_ERROR_X 450
 #define UI_CAP_ERROR_Y 620
 #define UI_CAP_CTRL_X UI_CAP_VOLTAGE_X
 #define UI_CAP_CTRL_Y 700
@@ -794,7 +794,7 @@ static void DrawCapDynamic(const Referee_Interactive_info_t *data, uint32_t oper
 
   UICharDraw(&UI_CapErrDetect, "cd0", operate, UI_CAP_LAYER,
              data->cap_error == 0 ? UI_Color_Green : UI_Color_Purplish_red, UI_CAP_TEXT_SIZE, UI_CAP_TEXT_WIDTH,
-             UI_CAP_ERROR_X, UI_CAP_ERROR_Y, "ERR:%3u ", (unsigned)data->cap_error);
+             UI_CAP_ERROR_X, UI_CAP_ERROR_Y, "ERR:%1u ", (unsigned)data->cap_error);
   UICharRefresh(&referee_recv_info->referee_id, UI_CapErrDetect);
 
   /* 控制命令。 */
