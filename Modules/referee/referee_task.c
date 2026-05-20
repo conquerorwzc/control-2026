@@ -208,7 +208,7 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data) {
   }
 
 
-    char *cap_str = interactive_data->cap_msg.error_detect == 0? "good " : "bad";
+    char *cap_str = (interactive_data->cap_msg.error_detect==0&&interactive_data->cap_msg.cap_v!=0) == 0? "good " : "bad";
     UICharDraw(&UI_State_dyn[4], "sd4", UI_Graph_Change, 8, UI_Color_Pink, 15, 2, 270, 550, cap_str);
     UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[4]);
     interactive_data->Referee_Interactive_Flag.lid_flag = 0;
@@ -457,6 +457,7 @@ void MyUIInit() {
   referee_recv_info = robot->referee_data;
 
   while (referee_recv_info->GameRobotState.robot_id == 0) osDelay(100);
+  while (robot->chassis==NULL||robot->gimbal==NULL||robot->shoot==NULL)osDelay(50);
   DeterminRobotID();
   UIDelete(&referee_recv_info->referee_id, UI_Data_Del_ALL, 0);
    // 绘制发射基准线

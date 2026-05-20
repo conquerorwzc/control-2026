@@ -62,6 +62,7 @@ typedef struct {
   Friction_Mode_e friction_mode;
   BULLET_Speed_Mode_e bullet_speed_mode;
   HEAT_Mode_e heat_mode;
+  uint8_t auto_vision_mode;
   uint16_t shooter_barrel_heat;// 机器人当前射击热量,从裁判系统获取
   uint16_t shooter_barrel_heat_limit;//
   uint16_t shooter_barrel_cooling_value;//

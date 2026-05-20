@@ -413,6 +413,22 @@ static void MouseKeySet() {
       chassis_ctrl_cmd->chassis_speed_buff = 40000;
       break;
   }
+  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_V] % 2) {
+    case 0:
+      shoot_ctrl_cmd->auto_vision_mode=1;//自瞄
+      break;
+    case 1:
+      shoot_ctrl_cmd->auto_vision_mode=2;//小符
+      break;
+    case 2:
+      shoot_ctrl_cmd->auto_vision_mode=3;//大符
+      break;
+    case 3:
+      shoot_ctrl_cmd->auto_vision_mode=0;//空闲
+      break;
+    default:
+      break;
+  }
 
   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Q]%2||abs(rc_data[TEMP].rc.dial) > 20) {  //Q定速小陀螺
     case 0:

@@ -16,6 +16,7 @@
 #include "srm_protocol.h"
 #include "ins_task.h"
 #include  "HI05.h"
+#include "robot.h"
 #include "rm_referee.h"
 #define VISION_USE_VCP
 
@@ -51,11 +52,11 @@ void InitParam(void) {
 void UpdateGimbalAttitude(Vision_Send_s *vision_send) {
 
 
-
+  RobotInstance *robot = RobotGet();
   vision_send->gimbal_send.yaw=current_attitude_Cboard->Yaw;
   vision_send->gimbal_send.pitch = current_attitude_Cboard->Pitch;
   vision_send->gimbal_send.roll = current_attitude_Cboard->Roll;
-  vision_send->gimbal_send.mode=0;
+  vision_send->gimbal_send.mode=robot->shoot->shoot_ctrl_cmd.auto_vision_mode;
   vision_send->gimbal_send.color=referee_info->GameRobotState.robot_id;
   vision_send->shoot_send.bullet_speed=referee_info->ShootData.initial_speed;
 
