@@ -117,6 +117,7 @@ __attribute__((noreturn)) void StartROBOTTASK(void const *argument) {
 // #if 0
 __attribute__((noreturn)) void StartUITASK(void const *argument) {
   LOGINFO("[freeRTOS] UI Task Start");
+  osDelay(10000);
   MyUIInit();
   LOGINFO("[freeRTOS] UI Init Done, communication with ref has established");
   for (;;) {

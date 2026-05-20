@@ -4,6 +4,7 @@
 #include "buzzer.h"
 #include "general_def.h"
 #include "master_process.h"
+#include "referee_task.h"
 #include "rm_referee.h"
 #include "robot_config.h"
 #include "user_lib.h"
@@ -445,7 +446,10 @@ static void MouseKeySet() {
   else {
     chassis_ctrl_cmd->SuperCapBoost=0;
   }
-
+  if (rc_data[TEMP].key[KEY_PRESS].r) {
+    Referee_Interactive_info_t *ui_data=getUI();
+    ui_data->force_refresh_ui=1;
+  }
   *rc_data_last = *rc_data;
 }
 
@@ -540,11 +544,12 @@ void RobotInit() {
   robot->super_cap = SuperCapInit(&super_cap_config);
 
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
-  robot->gimbal = GimbalInit(&gimbal_init_config);
+
   robot->shoot = ShootInit(&shoot_init_config);
 #endif
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   robot->chassis = ChassisInit(&chassis_init_config);
+  robot->gimbal = GimbalInit(&gimbal_init_config);
   robot->chassis->super_cap=robot->super_cap;
 #endif
 

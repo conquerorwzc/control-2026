@@ -628,7 +628,6 @@ void UITask() {
   // TODO: 摩擦轮真实转速需要你从电机 measure 里拿，这里暂时用给定的指令值代替演示，你可以自己换成真实反馈值
   interactive_data.fric_speed_left = robot->shoot->friction_motor[0]->measure.speed_aps;
   interactive_data.fric_speed_mid = robot->shoot->friction_motor[1]->measure.speed_aps;
-  interactive_data.fric_speed_right = robot->shoot->friction_motor[2]->measure.speed_aps;
 
 
   // 检查是否有变化
