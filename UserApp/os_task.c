@@ -129,7 +129,7 @@ __attribute__((noreturn)) void StartUITASK(void const *argument) {
     if (ui_robot != NULL && ui_robot->referee_data != NULL) {
       UITask(ui_robot);
     }
-    osDelay(1);
+    osDelay(30);
   }
 #else
   for (;;) {

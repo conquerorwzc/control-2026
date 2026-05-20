@@ -28,12 +28,18 @@
 
 /* UI 任务按固定周期运行，所有刷新间隔都折算成 tick。 */
 #define UI_TASK_PERIOD_MS 30
-#define UI_AUTO_REFRESH_PERIOD_MS 10000  // 客户端丢图兜底
-#define UI_LEG_REFRESH_PERIOD_MS 100     // 腿部姿态变化快，定期重发
-#define UI_STATUS_REFRESH_PERIOD_MS 300  // 状态类图元定期保活
+#define UI_AUTO_REFRESH_PERIOD_MS 30000     // 客户端丢图兜底
+#define UI_LEG_REFRESH_PERIOD_MS 300        // 腿部姿态定期重发
+#define UI_LEG_LENGTH_REFRESH_PERIOD_MS 1000
+#define UI_STATUS_REFRESH_PERIOD_MS 10000   // 状态类图元定期保活
+
+#define UI_RELATIVE_REFRESH_EPS_DEG 0.5f
+#define UI_LEG_REFRESH_EPS_RAD 0.02f
 
 #define UI_AUTO_REFRESH_INTERVAL_TICKS ((UI_AUTO_REFRESH_PERIOD_MS + UI_TASK_PERIOD_MS - 1) / UI_TASK_PERIOD_MS)
 #define UI_LEG_REFRESH_INTERVAL_TICKS ((UI_LEG_REFRESH_PERIOD_MS + UI_TASK_PERIOD_MS - 1) / UI_TASK_PERIOD_MS)
+#define UI_LEG_LENGTH_REFRESH_INTERVAL_TICKS \
+  ((UI_LEG_LENGTH_REFRESH_PERIOD_MS + UI_TASK_PERIOD_MS - 1) / UI_TASK_PERIOD_MS)
 #define UI_STATUS_REFRESH_INTERVAL_TICKS ((UI_STATUS_REFRESH_PERIOD_MS + UI_TASK_PERIOD_MS - 1) / UI_TASK_PERIOD_MS)
 
 /* 底盘相对云台角度：中心小圆环 + 方向弧。 */
@@ -100,7 +106,7 @@
 #define UI_CAP_F_Y 775
 #define UI_CAP_VOLTAGE_X 480
 #define UI_CAP_VOLTAGE_Y 660
-#define UI_CAP_ERROR_X 450
+#define UI_CAP_ERROR_X 480
 #define UI_CAP_ERROR_Y 620
 #define UI_CAP_CTRL_X UI_CAP_VOLTAGE_X
 #define UI_CAP_CTRL_Y 700
@@ -585,7 +591,9 @@ static void DrawRelativePosition(float offset_angle, uint32_t operate) {
               UI_RELATIVE_ARC_WIDTH, cx, cy, UI_RELATIVE_RADIUS, UI_RELATIVE_RADIUS);
   }
 
-  UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_RelativeRing);
+  if (operate == UI_Graph_ADD) {
+    UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_RelativeRing);
+  }
   UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_RelativeArc[0], UI_RelativeArc[1]);
 }
 
@@ -682,6 +690,18 @@ static void DrawLegLengthValue(const LegInstance *leg, uint8_t ui_index, int32_t
   UICharRefresh(&referee_recv_info->referee_id, UI_LegLength[ui_index]);
 }
 
+static void DrawLegLengthValues(RobotInstance *robot, uint32_t operate) {
+  const LegInstance *top_leg = NULL;
+  const LegInstance *bottom_leg = NULL;
+
+  if (robot->chassis) {
+    top_leg = robot->chassis->leg[1];
+    bottom_leg = robot->chassis->leg[0];
+  }
+  DrawLegLengthValue(top_leg, 0, UI_LEG_TOP_BASE_Y, operate);
+  DrawLegLengthValue(bottom_leg, 1, UI_LEG_BASE_Y, operate);
+}
+
 static void DrawLegPosture(RobotInstance *robot, uint32_t operate) {
   const LegInstance *top_leg = NULL;
   const LegInstance *bottom_leg = NULL;
@@ -691,9 +711,10 @@ static void DrawLegPosture(RobotInstance *robot, uint32_t operate) {
     bottom_leg = robot->chassis->leg[0];
   }
   DrawSingleLegPosture(top_leg, 0, UI_LEG_TOP_BASE_Y, operate);
-  DrawLegLengthValue(top_leg, 0, UI_LEG_TOP_BASE_Y, operate);
   DrawSingleLegPosture(bottom_leg, 1, UI_LEG_BASE_Y, operate);
-  DrawLegLengthValue(bottom_leg, 1, UI_LEG_BASE_Y, operate);
+  if (operate == UI_Graph_ADD) {
+    DrawLegLengthValues(robot, operate);
+  }
 }
 
 /* ===========================================================================
@@ -736,15 +757,55 @@ static void DrawStatusAngleValue(uint8_t row, uint32_t operate, float angle_deg)
   UICharRefresh(&referee_recv_info->referee_id, UI_StatusValue[row]);
 }
 
-static void DrawStatusDynamic(Referee_Interactive_info_t *data, uint32_t operate) {
+static void DrawStatusModeDynamic(Referee_Interactive_info_t *data, uint32_t operate) {
   DrawStatusValue(0, operate, RobotModeStr(data->robot_mode));
   DrawStatusValue(1, operate, ChassisModeStr(data->chassis_mode));
   DrawStatusValue(2, operate, GimbalModeStr(data->gimbal_mode));
   DrawStatusValue(3, operate, FrictionModeStr(data->friction_mode));
   DrawStatusValue(4, operate, LoaderModeStr(data->loader_mode));
   DrawStatusValue(5, operate, SuperCapModeStr(data->super_cap_mode));
+}
+
+static void DrawStatusAttitudeDynamic(Referee_Interactive_info_t *data, uint32_t operate) {
   DrawStatusAngleValue(6, operate, data->chassis_pitch);
   DrawStatusAngleValue(7, operate, data->chassis_roll);
+}
+
+static void DrawStatusDynamic(Referee_Interactive_info_t *data, uint32_t operate) {
+  DrawStatusModeDynamic(data, operate);
+  DrawStatusAttitudeDynamic(data, operate);
+}
+
+static uint8_t DrawStatusModeDynamicStep(Referee_Interactive_info_t *data, uint32_t operate) {
+  static uint8_t row = 0;
+
+  switch (row) {
+    case 0:
+      DrawStatusValue(0, operate, RobotModeStr(data->robot_mode));
+      break;
+    case 1:
+      DrawStatusValue(1, operate, ChassisModeStr(data->chassis_mode));
+      break;
+    case 2:
+      DrawStatusValue(2, operate, GimbalModeStr(data->gimbal_mode));
+      break;
+    case 3:
+      DrawStatusValue(3, operate, FrictionModeStr(data->friction_mode));
+      break;
+    case 4:
+      DrawStatusValue(4, operate, LoaderModeStr(data->loader_mode));
+      break;
+    default:
+      DrawStatusValue(5, operate, SuperCapModeStr(data->super_cap_mode));
+      break;
+  }
+
+  row++;
+  if (row >= 6) {
+    row = 0;
+    return 1;
+  }
+  return 0;
 }
 
 /* ===========================================================================
@@ -794,7 +855,7 @@ static void DrawCapDynamic(const Referee_Interactive_info_t *data, uint32_t oper
 
   UICharDraw(&UI_CapErrDetect, "cd0", operate, UI_CAP_LAYER,
              data->cap_error == 0 ? UI_Color_Green : UI_Color_Purplish_red, UI_CAP_TEXT_SIZE, UI_CAP_TEXT_WIDTH,
-             UI_CAP_ERROR_X, UI_CAP_ERROR_Y, "ERR:%1u ", (unsigned)data->cap_error);
+             UI_CAP_ERROR_X, UI_CAP_ERROR_Y, "ERR %-3u ", (unsigned)data->cap_error);
   UICharRefresh(&referee_recv_info->referee_id, UI_CapErrDetect);
 
   /* 控制命令。 */
@@ -862,13 +923,21 @@ static void DrawGuideLine(uint32_t operate) {
 
 static void UIChangeCheck(Referee_Interactive_info_t *data) {
   /* 相对角度需要即时响应，不做死区。 */
-  if (data->chassis_relative_angle != data->last_chassis_relative_angle) {
+  if (fabsf(data->chassis_relative_angle - data->last_chassis_relative_angle) > UI_RELATIVE_REFRESH_EPS_DEG) {
     data->UI_Interactive_Flag.relative_flag = 1;
     data->last_chassis_relative_angle = data->chassis_relative_angle;
   }
 
   /* 腿部是连续运动图元，只要数据有效就持续推送。 */
-  if (data->leg_valid != data->last_leg_valid || data->leg_valid) {
+  uint8_t leg_changed = data->leg_valid != data->last_leg_valid;
+  if (data->leg_valid &&
+      (fabsf(data->leg_phi1 - data->last_leg_phi1) > UI_LEG_REFRESH_EPS_RAD ||
+       fabsf(data->leg_phi2 - data->last_leg_phi2) > UI_LEG_REFRESH_EPS_RAD ||
+       fabsf(data->leg_phi3 - data->last_leg_phi3) > UI_LEG_REFRESH_EPS_RAD ||
+       fabsf(data->leg_phi4 - data->last_leg_phi4) > UI_LEG_REFRESH_EPS_RAD)) {
+    leg_changed = 1;
+  }
+  if (leg_changed) {
     data->UI_Interactive_Flag.leg_flag = 1;
     data->last_leg_valid = data->leg_valid;
     data->last_leg_phi1 = data->leg_phi1;
@@ -881,9 +950,7 @@ static void UIChangeCheck(Referee_Interactive_info_t *data) {
   uint8_t status_changed =
       data->robot_mode != data->last_robot_mode || data->chassis_mode != data->last_chassis_mode ||
       data->gimbal_mode != data->last_gimbal_mode || data->friction_mode != data->last_friction_mode ||
-      data->loader_mode != data->last_loader_mode || data->super_cap_mode != data->last_super_cap_mode ||
-      fabsf(data->chassis_pitch - data->last_chassis_pitch) > 0.1f ||
-      fabsf(data->chassis_roll - data->last_chassis_roll) > 0.1f;
+      data->loader_mode != data->last_loader_mode || data->super_cap_mode != data->last_super_cap_mode;
   if (status_changed) {
     data->UI_Interactive_Flag.status_flag = 1;
     data->last_robot_mode = data->robot_mode;
@@ -892,6 +959,11 @@ static void UIChangeCheck(Referee_Interactive_info_t *data) {
     data->last_friction_mode = data->friction_mode;
     data->last_loader_mode = data->loader_mode;
     data->last_super_cap_mode = data->super_cap_mode;
+  }
+
+  if (fabsf(data->chassis_pitch - data->last_chassis_pitch) > 0.5f ||
+      fabsf(data->chassis_roll - data->last_chassis_roll) > 0.5f) {
+    data->UI_Interactive_Flag.attitude_flag = 1;
     data->last_chassis_pitch = data->chassis_pitch;
     data->last_chassis_roll = data->chassis_roll;
   }
@@ -928,25 +1000,68 @@ static void MyUIRefresh(RobotInstance *robot, Referee_Interactive_info_t *data) 
     DrawRelativePosition(data->chassis_relative_angle, UI_Graph_Change);
     data->UI_Interactive_Flag.relative_flag = 0;
   }
-  if (data->UI_Interactive_Flag.leg_flag) {
-    DrawLegPosture(robot, UI_Graph_Change);
-    data->UI_Interactive_Flag.leg_flag = 0;
-  }
-  if (data->UI_Interactive_Flag.status_flag) {
-    DrawStatusDynamic(data, UI_Graph_Change);
-    data->UI_Interactive_Flag.status_flag = 0;
-  }
-  if (data->UI_Interactive_Flag.cap_flag) {
-    DrawCapDynamic(data, UI_Graph_Change);
-    data->UI_Interactive_Flag.cap_flag = 0;
-  }
-  if (data->UI_Interactive_Flag.speed_flag) {
-    DrawSpeedDynamic(data, UI_Graph_Change);
-    data->UI_Interactive_Flag.speed_flag = 0;
-  }
-  if (data->UI_Interactive_Flag.aim_flag) {
-    DrawAimIndicator(data->aim_target_flag, UI_Graph_Change);
-    data->UI_Interactive_Flag.aim_flag = 0;
+
+  static uint8_t refresh_slot = 0;
+  for (uint8_t i = 0; i < 7; i++) {
+    switch (refresh_slot) {
+      case 0:
+        refresh_slot = 1;
+        if (data->UI_Interactive_Flag.leg_flag) {
+          DrawLegPosture(robot, UI_Graph_Change);
+          data->UI_Interactive_Flag.leg_flag = 0;
+          return;
+        }
+        break;
+      case 1:
+        refresh_slot = 2;
+        if (data->UI_Interactive_Flag.leg_length_flag) {
+          DrawLegLengthValues(robot, UI_Graph_Change);
+          data->UI_Interactive_Flag.leg_length_flag = 0;
+          return;
+        }
+        break;
+      case 2:
+        refresh_slot = 3;
+        if (data->UI_Interactive_Flag.attitude_flag) {
+          DrawStatusAttitudeDynamic(data, UI_Graph_Change);
+          data->UI_Interactive_Flag.attitude_flag = 0;
+          return;
+        }
+        break;
+      case 3:
+        refresh_slot = 4;
+        if (data->UI_Interactive_Flag.speed_flag) {
+          DrawSpeedDynamic(data, UI_Graph_Change);
+          data->UI_Interactive_Flag.speed_flag = 0;
+          return;
+        }
+        break;
+      case 4:
+        refresh_slot = 5;
+        if (data->UI_Interactive_Flag.cap_flag) {
+          DrawCapDynamic(data, UI_Graph_Change);
+          data->UI_Interactive_Flag.cap_flag = 0;
+          return;
+        }
+        break;
+      case 5:
+        refresh_slot = 6;
+        if (data->UI_Interactive_Flag.aim_flag) {
+          DrawAimIndicator(data->aim_target_flag, UI_Graph_Change);
+          data->UI_Interactive_Flag.aim_flag = 0;
+          return;
+        }
+        break;
+      default:
+        refresh_slot = 0;
+        if (data->UI_Interactive_Flag.status_flag) {
+          if (DrawStatusModeDynamicStep(data, UI_Graph_Change)) {
+            data->UI_Interactive_Flag.status_flag = 0;
+          }
+          return;
+        }
+        break;
+    }
   }
 }
 
@@ -1008,6 +1123,7 @@ void MyUIInit(RobotInstance *robot) {
   SampleLegPosture(robot, &interactive_data);
   SampleStatusData(robot, &interactive_data);
   SyncLastValues(&interactive_data);
+  interactive_data.UI_Interactive_Flag = (UI_Interactive_Flag_t){0};
 
   DrawRelativePosition(interactive_data.chassis_relative_angle, UI_Graph_ADD);
   DrawAimIndicator(interactive_data.aim_target_flag, UI_Graph_ADD);
@@ -1062,10 +1178,17 @@ void UITask(RobotInstance *robot) {
     interactive_data.UI_Interactive_Flag.leg_flag = 1;
   }
 
+  static uint16_t leg_length_refresh_counter = 0;
+  if (++leg_length_refresh_counter >= UI_LEG_LENGTH_REFRESH_INTERVAL_TICKS) {
+    leg_length_refresh_counter = 0;
+    interactive_data.UI_Interactive_Flag.leg_length_flag = 1;
+  }
+
   static uint16_t status_refresh_counter = 0;
   if (++status_refresh_counter >= UI_STATUS_REFRESH_INTERVAL_TICKS) {
     status_refresh_counter = 0;
     interactive_data.UI_Interactive_Flag.status_flag = 1;
+    interactive_data.UI_Interactive_Flag.attitude_flag = 1;
     interactive_data.UI_Interactive_Flag.cap_flag = 1;
     interactive_data.UI_Interactive_Flag.speed_flag = 1;
     interactive_data.UI_Interactive_Flag.aim_flag = 1;

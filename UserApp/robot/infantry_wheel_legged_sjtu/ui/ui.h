@@ -9,7 +9,9 @@
 typedef struct {
   uint32_t relative_flag : 1;
   uint32_t leg_flag : 1;
+  uint32_t leg_length_flag : 1;
   uint32_t status_flag : 1;
+  uint32_t attitude_flag : 1;
   uint32_t cap_flag : 1;
   uint32_t aim_flag : 1;
   uint32_t speed_flag : 1;
