@@ -513,7 +513,8 @@ static void PowerControl()
             k3 * motor_current_list[i] / (16384.0f / 20.0f) * motor_speed_fdb[i] * (2.0f * PI / 60.0f) +
             k4 * motor_current_list[i] / (16384.0f / 20.0f) * motor_current_list[i] / (16384.0f / 20.0f) +
             k5 * motor_speed_fdb[i] * (2.0f * PI / 60.0f) * motor_speed_fdb[i] * (2.0f * PI / 60.0f);
-
+        // motor_speed_fdb是转速（每分钟转多少圈）/60转化成秒，2pi转化成角度
+        // 只累加正向功率
         if (initial_give_power[i] > 0)
         {
             initial_total_power += initial_give_power[i];
