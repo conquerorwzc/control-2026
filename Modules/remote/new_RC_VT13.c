@@ -94,23 +94,23 @@ static void VT13UpdateKeyboardMouseStatus(void)
     uint8_t is_shift = (raw_keys & VT13_KEY_SHIFT) ? 1 : 0;
 
     // 2. 拷贝保存上一次解析好的键盘状态矩阵，并清空当前的矩阵以备分配
-    memcpy(vt13_rc.last_key, vt13_rc.key, sizeof(vt13_rc.key));
-    memset(vt13_rc.key, 0, sizeof(vt13_rc.key));
+    memcpy(vt13_rc.last_key, &vt13_rc.key, sizeof(vt13_rc.key));
+    memset(&vt13_rc.key, 0, sizeof(vt13_rc.key));
 
     // 3. 互斥分流：根据按下的修饰键，将其他普通按键投递到对应的“状态通道”中
     if (is_ctrl && is_shift)
-        vt13_rc.key[KEY_PRESS_WITH_CTRL_SHIFT].keys = raw_keys;
+        vt13_rc.key.arr[KEY_PRESS_WITH_CTRL_SHIFT].keys = raw_keys;
     else if (is_ctrl)
-        vt13_rc.key[KEY_PRESS_WITH_CTRL].keys = raw_keys;
+        vt13_rc.key.arr[KEY_PRESS_WITH_CTRL].keys = raw_keys;
     else if (is_shift)
-        vt13_rc.key[KEY_PRESS_WITH_SHIFT].keys = raw_keys;
+        vt13_rc.key.arr[KEY_PRESS_WITH_SHIFT].keys = raw_keys;
     else
-        vt13_rc.key[KEY_PRESS_NORMAL].keys = raw_keys;
+        vt13_rc.key.arr[KEY_PRESS_NORMAL].keys = raw_keys;
 
     // 4. 矩阵式边沿检测 (用于处理按键的"单击"触发，如切换模式)
     for (uint8_t state = 0; state < KEY_PRESS_STATE_NUM; state++)
     {
-        uint16_t now  = vt13_rc.key[state].keys;
+        uint16_t now  = vt13_rc.key.arr[state].keys;
         uint16_t last = vt13_rc.last_key[state].keys;
 
         // 遍历这 16 个按键位
@@ -121,7 +121,7 @@ static void VT13UpdateKeyboardMouseStatus(void)
 
             // 如果某位从 0 变成了 1 (即按下瞬间)
             if ((now & j) && !(last & j)) {
-                vt13_rc.key_count[state][i]++; // 对应状态通道的按键计数器 +1
+                vt13_rc.key_count.arr[state][i]++; // 对应状态通道的按键计数器 +1
             }
         }
     }
@@ -240,6 +240,33 @@ VT13_RC_t *VT13RemoteInit(UART_HandleTypeDef *huart)
     vt13_usart = USARTRegister(&usart_conf);
 
     // 2. 注册 Daemon 离线监控（假设后台任务周期是1ms，70代表 70ms 没收到包就算掉线）
+    Daemon_Init_Config_s daemon_conf = {
+        .reload_count = 70,
+        .callback     = VT13LostCallback,
+        .owner_id     = NULL,
+    };
+    vt13_daemon = DaemonRegister(&daemon_conf);
+
+    // 3. 数据与状态位清空
+    memset(&vt13_rc, 0, sizeof(vt13_rc));
+    vt13_init_flag = 1;
+
+    return &vt13_rc;
+}
+
+/**
+ * @brief 以共享串口方式初始化VT13遥控器(用于两个模块共用同一串口的场景)
+ *        不注册新串口,而是作为 secondary callback 挂载到已有实例
+ */
+VT13_RC_t *VT13RemoteInitShared(USARTInstance *shared_instance)
+{
+    if (shared_instance == NULL)
+        while (1); // 传入空指针,死循环报错
+
+    // 1. 挂载 secondary callback,共享 recv_buff
+    vt13_usart = USARTAddSecondaryCallback(shared_instance->usart_handle, VT13RxCallback);
+
+    // 2. 注册 Daemon 离线监控
     Daemon_Init_Config_s daemon_conf = {
         .reload_count = 70,
         .callback     = VT13LostCallback,

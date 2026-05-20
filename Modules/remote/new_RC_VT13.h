@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include "main.h"
 #include "usart.h"
+#include "bsp_usart.h"
 #include "remote_control.h" // 必须包含老版头文件以使用其枚举(KEY_PRESS_STATE_NUM等)和结构体定义
 
 /* ------------------- 帧格式常量 ------------------- */
@@ -107,9 +108,21 @@ typedef struct
     VT13_MouseKey_t mouse_key[2]; ///< [0]=TEMP, [1]=LAST
 
     // 3. 键盘状态分流与统计 (向下兼容核心)
-    Key_t   key[KEY_PRESS_STATE_NUM];             ///< 当前按键状态 (分摊到 Normal, Ctrl, Shift, Ctrl+Shift 四个数组中)
+    //  使用 union 让 Ozone 调试器直接显示 key_normal / key_ctrl 等符号名
+    struct {
+        union {
+            Key_t arr[KEY_PRESS_STATE_NUM];
+            struct { Key_t key_normal; Key_t key_ctrl; Key_t key_shift; Key_t key_ctrl_shift; };
+        };
+    } key;
     Key_t   last_key[KEY_PRESS_STATE_NUM];        ///< 上一次按键状态 (仅用于内部边沿检测对比)
-    uint8_t key_count[KEY_PRESS_STATE_NUM][KEY_NUM_TOTAL]; ///< 按键上升沿触发次数累加器
+    struct {
+        union {
+            uint8_t arr[KEY_PRESS_STATE_NUM][KEY_NUM_TOTAL];
+            struct { uint8_t cnt_normal[KEY_NUM_TOTAL]; uint8_t cnt_ctrl[KEY_NUM_TOTAL];
+                     uint8_t cnt_shift[KEY_NUM_TOTAL]; uint8_t cnt_ctrl_shift[KEY_NUM_TOTAL]; };
+        };
+    } key_count;
 
     // 4. 鼠标按键计数
     uint8_t mouse_count[3];                       ///< [0]:左键 [1]:右键 [2]:中键 的点击次数累加
@@ -144,6 +157,16 @@ typedef struct
 
 /* ------------------- 外部接口申明 ------------------- */
 VT13_RC_t *VT13RemoteInit(UART_HandleTypeDef *huart);
+
+/**
+ * @brief 以共享串口方式初始化VT13遥控器(用于两个模块共用同一串口的场景)
+ * @note  不会调用 USARTRegister,而是作为 secondary callback 挂载到已有的串口实例上
+ *        调用前必须先初始化另一个模块(如 SelfControlInit)以完成串口注册
+ * @param shared_instance 已注册的串口实例指针(由另一个模块的 Init 返回)
+ * @return 遥控器实例指针
+ */
+VT13_RC_t *VT13RemoteInitShared(USARTInstance *shared_instance);
+
 uint8_t VT13RemoteIsOnline(void);
 
 #endif // CONTROL_2026_NEW_REMOTE_CONTROL_VT13_H
