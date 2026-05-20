@@ -94,8 +94,8 @@
 2. 有平移输入时，运动方向为 `atan2(vy, vx) - 90deg`。
 3. `follow_err = wrap180(move_angle - offset_angle)`。
 4. 如果后向误差 `rear_err = wrap180(follow_err - 180deg)` 更小，则反向行驶并使用 `rear_err`。
-5. 如果 `reverse_follow` 激活，底盘 yaw 不跟随掉头，只反向前进，等待云台完成 180 度转向。
-6. `target_yaw = imu_yaw + follow_err + gimbal_yaw_ff`。
+5. 如果 `reverse_follow` 激活，底盘 yaw 不跟随掉头，只反向前进，并暂时忽略 `gimbal_yaw_ff`，等待云台完成 180 度转向。
+6. `target_yaw = imu_yaw + follow_err + gimbal_yaw_ff`，`reverse_follow` 期间 `gimbal_yaw_ff` 取 0。
 7. `vx = input_mag * max(cos(follow_err), 0)^3`。
 8. `wz = 0`，`theta_ff = 0`。
 
@@ -126,8 +126,9 @@
 FREE 只在站立下生效：
 
 - 双板下底盘 yaw 对齐云台：`follow_err = wrap180(-offset_angle)`。
-- 如果后向误差更小，则反向行驶。
-- `target_yaw = imu_yaw + follow_err + gimbal_yaw_ff`。
+- 如果后向误差更小，或 `reverse_follow` 激活，则反向行驶。
+- `reverse_follow` 激活时底盘 yaw 锁在当前方向，并暂时忽略 `gimbal_yaw_ff`。
+- `target_yaw = imu_yaw + follow_err + gimbal_yaw_ff`，`reverse_follow` 期间 `follow_err` 和 `gimbal_yaw_ff` 均取 0。
 - `vx = intent.vy`，右摇杆纵向或键盘 W/S 作为前后速度。
 - `roll += intent.roll_delta`。
 - `leg_length += intent.leg_length_delta`，并限制到 `[LEG_MIN_LENGTH, LEG_MAX_LENGTH]`。
@@ -135,7 +136,7 @@ FREE 只在站立下生效：
 
 ### 卧倒 FOLLOW
 
-卧倒跟随仍使用 m/s 量级输入，ctrl 层只算 raw `vx / target_yaw`。实际轮速换算在 chassis 层完成。
+卧倒跟随仍使用 m/s 量级输入，ctrl 层只算 raw `vx / target_yaw`。X 掉头的 `reverse_follow` 与站立 FOLLOW 相同：反向行驶、锁底盘 yaw，并暂时忽略 `gimbal_yaw_ff`。实际轮速换算在 chassis 层完成。
 
 ## 摇杆输入
 

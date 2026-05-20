@@ -155,7 +155,8 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
       if (intent->reverse_follow) {
         follow_err = 0.0f;
       }
-      yaw_ref = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + (follow_err + intent->gimbal_yaw_ff) * DEGREE_2_RAD;
+      float yaw_ff = intent->reverse_follow ? 0.0f : intent->gimbal_yaw_ff;
+      yaw_ref = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + (follow_err + yaw_ff) * DEGREE_2_RAD;
       chassis_ctrl_cmd->target_yaw = yaw_ref;  // raw, chassis planner 平滑
       chassis_ctrl_cmd->wz = 0.0f;
 
@@ -175,11 +176,15 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
 #else
       float follow_err = wrap180(-robot->offset_angle);
       float rear_err = wrap180(follow_err - 180.0f);
-      if (fabsf(rear_err) < fabsf(follow_err)) {
+      if (intent->reverse_follow || fabsf(rear_err) < fabsf(follow_err)) {
         follow_err = rear_err;
         input_vy = -input_vy;
       }
-      yaw_ref = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + (follow_err + intent->gimbal_yaw_ff) * DEGREE_2_RAD;
+      if (intent->reverse_follow) {
+        follow_err = 0.0f;
+      }
+      float yaw_ff = intent->reverse_follow ? 0.0f : intent->gimbal_yaw_ff;
+      yaw_ref = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + (follow_err + yaw_ff) * DEGREE_2_RAD;
 #endif
       chassis_ctrl_cmd->target_yaw = yaw_ref;  // raw, chassis planner 平滑
       /* FREE 只给 yaw 位置目标，不额外叠加当前 gyro 前馈。 */
@@ -214,11 +219,15 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
       float move_angle_deg = has_move_input ? (atan2f(intent->vy, intent->vx) - PI / 2.0f) * RAD_2_DEGREE : 0.0f;
       float follow_err = wrap180(move_angle_deg - robot->offset_angle);
       float rear_err = wrap180(follow_err - 180.0f);
-      if (fabsf(rear_err) < fabsf(follow_err)) {
+      if (intent->reverse_follow || fabsf(rear_err) < fabsf(follow_err)) {
         follow_err = rear_err;
         if (has_move_input) input_mag = -input_mag;
       }
-      yaw_ref = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + (follow_err + intent->gimbal_yaw_ff) * DEGREE_2_RAD;
+      if (intent->reverse_follow) {
+        follow_err = 0.0f;
+      }
+      float yaw_ff = intent->reverse_follow ? 0.0f : intent->gimbal_yaw_ff;
+      yaw_ref = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD + (follow_err + yaw_ff) * DEGREE_2_RAD;
       chassis_ctrl_cmd->target_yaw = yaw_ref;
 
       float align_attenuation = cosf(follow_err * DEGREE_2_RAD);

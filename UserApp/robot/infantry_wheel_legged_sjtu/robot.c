@@ -132,13 +132,15 @@ static void GimbalAlignToChassisForward(void) {
   }
 
   if (!robot->update_flag.is_gimbal_aligned) {
+    uint8_t target_is_prostrate = robot->robot_mode == ROBOT_CHASSIS_PROSTRATE_FOLLOW ||
+                                  robot->robot_mode == ROBOT_CHASSIS_PROSTRATE_ROTATE;
     chassis_ctrl_cmd->chassis_mode = CHASSIS_RECOVERY;
     gimbal_ctrl_cmd->yaw = robot->gimbal->gimbal_IMU_data->YawTotalAngle + robot->offset_angle;
-    // 5°误差内认为对齐完成；同时把 chassis_mode 一次性切到 CHASSIS_ON，
-    // 让 JoyStickCtrl 的 != CHASSIS_RECOVERY 门控放行，自动起立后由 fn_1_flag 接管。
+    // 5°误差内认为对齐完成；同时把 chassis_mode 一次性切到当前目标姿态，
+    // 让 JoyStickCtrl 的 != CHASSIS_RECOVERY 门控放行。
     if (fabsf(robot->offset_angle) < 5.0f) {
       robot->update_flag.is_gimbal_aligned = 1;
-      chassis_ctrl_cmd->chassis_mode = CHASSIS_ON;
+      chassis_ctrl_cmd->chassis_mode = target_is_prostrate ? CHASSIS_PROSTRATE : CHASSIS_ON;
     }
   }
 

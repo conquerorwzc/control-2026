@@ -268,7 +268,7 @@ static void ChassisPlannerUpdate(float dt) {
     } else {
       p->snap_count = 0;
     }
-    p->wz *= 0.3f;
+    if (chassis_ctrl_cmd->is_rotate == 0) p->wz = 0.0f;
   } else {
     p->snap_count = 0;
   }
@@ -476,7 +476,7 @@ static void ChassisRecovery(void) {
   }
 
   // if (all_in_position && chassis->update_flag.gimbal_aligned) {
-  if (all_in_position ){
+  if (all_in_position) {
     ChassisCtrlUpdate();
   } else {
     // 3. 关节未到位或云台未对齐时挂零轮力输出，防止不稳定
@@ -549,9 +549,8 @@ void ChassisProstrate(void) {
   } else {
     float yaw_pid_output = PIDCalculate(&chassis->yaw_prostrate_PID, chassis->imu->YawTotalAngle * DEGREE_2_RAD,
                                         chassis_ctrl_cmd->target_yaw);
-    yaw_prostrate_pid_output_lpf = FirstOrderLowPass(yaw_pid_output, yaw_prostrate_pid_output_lpf,
-                                                     chassis->yaw_prostrate_PID.dt,
-                                                     0.02f);
+    yaw_prostrate_pid_output_lpf =
+        FirstOrderLowPass(yaw_pid_output, yaw_prostrate_pid_output_lpf, chassis->yaw_prostrate_PID.dt, 0.02f);
     chassis->yaw_prostrate_PID.Output = yaw_prostrate_pid_output_lpf;
     wz_pid = -yaw_prostrate_pid_output_lpf;
   }
@@ -650,9 +649,9 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
       .max_accel = 35.0f,
       .min_accel = 15.0f,
       .accel_base_speed = 1.3f,
-      .max_decel = 35.0f,
-      .min_decel = 15.0f,
-      .decel_base_speed = 1.3f,
+      .max_decel = 45.0f,
+      .min_decel = 10.0f,
+      .decel_base_speed = 3.3f,
       .k_p_vel = 0.0f,
   };
 
@@ -697,10 +696,10 @@ void ChassisTask(void) {
     }
   }
 
-  // 平衡 → 卧倒 平滑过渡：若直接切到 ChassisProstrate 会因关节角度环目标突变
+  // 平衡工作态 → 卧倒 平滑过渡：若直接切到 ChassisProstrate 会因关节角度环目标突变
   // (-0.15/0.15) 而导致机身砸下；切入 PROSTRATE 时若腿仍然较长，则先用 LQR 把腿降到
   // leg_min_length，再放行进入真正的卧倒控制。基于实测腿长触发，避免依赖 CAN 时序观察
-  // 到 CHASSIS_ON 中间态。
+  // 到 CHASSIS_ON 中间态。POWER_OFF/RECOVERY 直接进 PROSTRATE，不借一次平衡态。
 
   static Chassis_Mode_e last_chassis_mode = CHASSIS_POWER_OFF;
   Chassis_Mode_e cur_mode = chassis->chassis_ctrl_cmd.chassis_mode;
@@ -727,7 +726,10 @@ void ChassisTask(void) {
     }
   }
 
-  if (last_chassis_mode != CHASSIS_PROSTRATE && cur_mode == CHASSIS_PROSTRATE) {
+  uint8_t should_descend_to_prostrate = last_chassis_mode == CHASSIS_ON || last_chassis_mode == CHASSIS_STAIR ||
+                                        last_chassis_mode == CHASSIS_JUMP_READY ||
+                                        last_chassis_mode == CHASSIS_JUMP_START;
+  if (should_descend_to_prostrate && cur_mode == CHASSIS_PROSTRATE) {
     float l_avg = (leg[0]->virtual_model.length + leg[1]->virtual_model.length) * 0.5f;
     if (l_avg > chassis->param.leg_min_length + 0.05f) {
       descending_to_prostrate = 1;
@@ -791,7 +793,7 @@ void ChassisTask(void) {
   float now_ms = DWT_GetTimeline_ms();
   if (now_ms - last_super_cap_send_time >= 10.0f) {
     last_super_cap_send_time = now_ms;
-    SuperCapSendMessage(chassis->super_cap, (int16_t)(referee_data->GameRobotState.chassis_power_limit ),
+    SuperCapSendMessage(chassis->super_cap, (int16_t)(referee_data->GameRobotState.chassis_power_limit),
                         referee_data->PowerHeatData.buffer_energy,
                         referee_data->GameRobotState.power_management_chassis_output);
   }
