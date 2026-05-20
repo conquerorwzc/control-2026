@@ -876,6 +876,13 @@ static void DrawCapDynamic(const Referee_Interactive_info_t *data, uint32_t oper
   UICharRefresh(&referee_recv_info->referee_id, UI_CapCtrlCmd);
 }
 
+static void DrawCapCtrlCmdDynamic(const Referee_Interactive_info_t *data, uint32_t operate) {
+  UICharDraw(&UI_CapCtrlCmd, "cc0", operate, UI_CAP_LAYER, SuperCapCtrlCmdColor(data->super_cap_ctrl_cmd),
+             UI_CAP_CTRL_TEXT_SIZE, UI_CAP_CTRL_TEXT_WIDTH, UI_CAP_CTRL_X, UI_CAP_CTRL_Y, "%-6s",
+             SuperCapCtrlCmdStr(data->super_cap_ctrl_cmd));
+  UICharRefresh(&referee_recv_info->referee_id, UI_CapCtrlCmd);
+}
+
 /* ===========================================================================
  * Speed：底盘速度
  * =========================================================================*/
@@ -984,11 +991,14 @@ static void UIChangeCheck(Referee_Interactive_info_t *data) {
   }
 
   /* 电压小幅抖动不刷新；错误和控制命令必须立即刷新。 */
-  if (fabsf(data->cap_voltage - data->last_cap_voltage) > 0.1f || data->cap_error != data->last_cap_error ||
-      data->super_cap_ctrl_cmd != data->last_super_cap_ctrl_cmd) {
+  if (fabsf(data->cap_voltage - data->last_cap_voltage) > 0.1f || data->cap_error != data->last_cap_error) {
     data->UI_Interactive_Flag.cap_flag = 1;
     data->last_cap_voltage = data->cap_voltage;
     data->last_cap_error = data->cap_error;
+  }
+
+  if (data->super_cap_ctrl_cmd != data->last_super_cap_ctrl_cmd) {
+    data->UI_Interactive_Flag.cap_ctrl_flag = 1;
     data->last_super_cap_ctrl_cmd = data->super_cap_ctrl_cmd;
   }
 
@@ -1014,6 +1024,11 @@ static void MyUIRefresh(RobotInstance *robot, Referee_Interactive_info_t *data) 
   if (data->UI_Interactive_Flag.relative_flag) {
     DrawRelativePosition(data->chassis_relative_angle, UI_Graph_Change);
     data->UI_Interactive_Flag.relative_flag = 0;
+  }
+
+  if (data->UI_Interactive_Flag.cap_ctrl_flag) {
+    DrawCapCtrlCmdDynamic(data, UI_Graph_Change);
+    data->UI_Interactive_Flag.cap_ctrl_flag = 0;
   }
 
   static uint8_t refresh_slot = 0;
@@ -1205,6 +1220,7 @@ void UITask(RobotInstance *robot) {
     interactive_data.UI_Interactive_Flag.status_flag = 1;
     interactive_data.UI_Interactive_Flag.attitude_flag = 1;
     interactive_data.UI_Interactive_Flag.cap_flag = 1;
+    interactive_data.UI_Interactive_Flag.cap_ctrl_flag = 1;
     interactive_data.UI_Interactive_Flag.speed_flag = 1;
     interactive_data.UI_Interactive_Flag.aim_flag = 1;
   }
