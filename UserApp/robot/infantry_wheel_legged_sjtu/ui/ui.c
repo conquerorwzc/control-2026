@@ -58,6 +58,10 @@
 #define UI_AIM_RECT_HALF_W 300
 #define UI_AIM_RECT_HALF_H 200
 #define UI_AIM_RECT_WIDTH 2
+#define UI_AIM_PROMPT_X 895
+#define UI_AIM_PROMPT_Y (UI_CENTER_Y + UI_AIM_RECT_HALF_H + 40)
+#define UI_AIM_PROMPT_FONT_SIZE 28
+#define UI_AIM_PROMPT_WIDTH 4
 
 /* 五连杆腿部姿态，显示在画面右侧。 */
 #define UI_LEG_LAYER 7
@@ -171,6 +175,7 @@ static String_Data_t UI_LegLength[2];
 /* 瞄准框 */
 static Graph_Data_t UI_AimCross[2];
 static Graph_Data_t UI_AimRect;
+static String_Data_t UI_AimStairPrompt;
 static uint8_t UI_AimCrossVisible;
 
 /* 超级电容 */
@@ -601,10 +606,11 @@ static void DrawRelativePosition(float offset_angle, uint32_t operate) {
  * Aim：中心瞄准框
  * =========================================================================*/
 
-static void DrawAimIndicator(uint8_t target_locked, uint32_t operate) {
+static void DrawAimIndicator(uint8_t target_locked, Chassis_Mode_e chassis_mode, uint32_t operate) {
   const uint32_t rect_color = target_locked ? UI_Color_Purplish_red : UI_Color_Yellow;
   const int32_t cx = UI_CENTER_X;
   const int32_t cy = UI_CENTER_Y;
+  const uint8_t stair_mode = chassis_mode == CHASSIS_STAIR;
 
   /* 十字只在视觉锁定时存在；状态切换时要显式 ADD 或 DEL。 */
   if (target_locked || UI_AimCrossVisible) {
@@ -624,6 +630,11 @@ static void DrawAimIndicator(uint8_t target_locked, uint32_t operate) {
   UIRectangleDraw(&UI_AimRect, "ar0", operate, UI_AIM_LAYER, rect_color, UI_AIM_RECT_WIDTH, cx - UI_AIM_RECT_HALF_W,
                   cy - UI_AIM_RECT_HALF_H, cx + UI_AIM_RECT_HALF_W, cy + UI_AIM_RECT_HALF_H);
   UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_AimRect);
+
+  UICharDraw(&UI_AimStairPrompt, "ap0", operate, UI_AIM_LAYER,
+             stair_mode ? UI_Color_Green : UI_Color_Purplish_red, UI_AIM_PROMPT_FONT_SIZE, UI_AIM_PROMPT_WIDTH,
+             UI_AIM_PROMPT_X, UI_AIM_PROMPT_Y, "%s", stair_mode ? "RUSH!!!" : " NO!!! ");
+  UICharRefresh(&referee_recv_info->referee_id, UI_AimStairPrompt);
 }
 
 /* ===========================================================================
@@ -947,12 +958,16 @@ static void UIChangeCheck(Referee_Interactive_info_t *data) {
   }
 
   /* 状态面板按组刷新，避免不同子系统文字分帧跳变。 */
+  const uint8_t chassis_mode_changed = data->chassis_mode != data->last_chassis_mode;
   uint8_t status_changed =
-      data->robot_mode != data->last_robot_mode || data->chassis_mode != data->last_chassis_mode ||
-      data->gimbal_mode != data->last_gimbal_mode || data->friction_mode != data->last_friction_mode ||
-      data->loader_mode != data->last_loader_mode || data->super_cap_mode != data->last_super_cap_mode;
+      data->robot_mode != data->last_robot_mode || chassis_mode_changed || data->gimbal_mode != data->last_gimbal_mode ||
+      data->friction_mode != data->last_friction_mode || data->loader_mode != data->last_loader_mode ||
+      data->super_cap_mode != data->last_super_cap_mode;
   if (status_changed) {
     data->UI_Interactive_Flag.status_flag = 1;
+    if (chassis_mode_changed) {
+      data->UI_Interactive_Flag.aim_flag = 1;
+    }
     data->last_robot_mode = data->robot_mode;
     data->last_chassis_mode = data->chassis_mode;
     data->last_gimbal_mode = data->gimbal_mode;
@@ -1047,7 +1062,7 @@ static void MyUIRefresh(RobotInstance *robot, Referee_Interactive_info_t *data) 
       case 5:
         refresh_slot = 6;
         if (data->UI_Interactive_Flag.aim_flag) {
-          DrawAimIndicator(data->aim_target_flag, UI_Graph_Change);
+          DrawAimIndicator(data->aim_target_flag, data->chassis_mode, UI_Graph_Change);
           data->UI_Interactive_Flag.aim_flag = 0;
           return;
         }
@@ -1126,7 +1141,7 @@ void MyUIInit(RobotInstance *robot) {
   interactive_data.UI_Interactive_Flag = (UI_Interactive_Flag_t){0};
 
   DrawRelativePosition(interactive_data.chassis_relative_angle, UI_Graph_ADD);
-  DrawAimIndicator(interactive_data.aim_target_flag, UI_Graph_ADD);
+  DrawAimIndicator(interactive_data.aim_target_flag, interactive_data.chassis_mode, UI_Graph_ADD);
   DrawGuideLine(UI_Graph_ADD);
   DrawLegLabels(UI_Graph_ADD);
   DrawLegPosture(robot, UI_Graph_ADD);
