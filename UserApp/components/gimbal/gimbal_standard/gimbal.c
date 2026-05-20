@@ -94,7 +94,7 @@ void GimbalTask() {
     gimbal_ctrl_cmd->yaw = wrap180(gimbal_ctrl_cmd->yaw, last_yaw_cmd);
     //gimbal_ctrl_cmd->yaw= 30.0f*2.0f/3.14f*asinf(sinf(10*DWT_GetTimeline_s()));
     DJIMotorSetPIDRef(gimbal->yaw_motor, gimbal_ctrl_cmd->yaw);  // yaw和pitch会在robot_cmd中处理好多圈和单圈
-    smc_tick(&gimbal->YawSMC,gimbal->gimbal_IMU_data->YawTotalAngle,gimbal->gimbal_IMU_data->Gyro[2],gimbal_ctrl_cmd->yaw);
+    // smc_tick(&gimbal->YawSMC,gimbal->gimbal_IMU_data->YawTotalAngle,gimbal->gimbal_IMU_data->Gyro[2],gimbal_ctrl_cmd->yaw);
     // gimbal->yaw_motor->motor_controller.final_output += 0.6f*gimbal->YawSMC.u;
     // if (gimbal->yaw_motor->motor_controller.final_output> 25000) {
     //   gimbal->yaw_motor->motor_controller.final_output = 25000;
