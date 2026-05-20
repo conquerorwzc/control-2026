@@ -538,127 +538,107 @@ static void RemoteControlSet()
 {
     if (vt13_data == NULL)
         return;
+
     // 进门第一步：永远清零 wz，杜绝无限累加（防疯转的核心）
     chassis_ctrl_cmd->wz = 0;
 
-    // 如果底盘还没有完成零点标定
+    // ================= 1. 未标定情况下的安全拦截 =================
     if (!robot->chassis->cali_state.all_cali_done)
     {
-        // 1. 紧急护盾（最高优先级）：mode_switch==0 (左) 或 1 (中) 全车彻底瘫痪
-        if (vt13_data->rc.mode_switch == 0 || vt13_data->rc.mode_switch == 1)
+        // 非使能状态（左/中），底盘彻底断电瘫痪
+        if (vt13_data->rc.mode_switch != 2)
         {
             chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
             return;
         }
 
-        if (VT13RemoteIsOnline())
+        // 使能状态下，如果是初次开机，强制去执行标定
+        if (VT13RemoteIsOnline() && robot->chassis->cali_state.has_calibrated_once == 0)
         {
-            // 2. 初次开机上电，老老实实去标定
-            if (robot->chassis->cali_state.has_calibrated_once == 0)
-            {
-                chassis_ctrl_cmd->chassis_mode = CHASSIS_CALIBRATING;
-                return; // 只有第一次开机时，才拦截后续操作
-            }
+            chassis_ctrl_cmd->chassis_mode = CHASSIS_CALIBRATING;
+            return;
         }
-        // 🚨 核心修复：把下面那个强制切 POWER_OFF 和 return 删掉！
-        // 如果是中途掉电复活 (has_calibrated_once == 1)，让代码直接往下跑，去接收摇杆的 vx, vy！
+        // 如果是中途掉线复活 (has_calibrated_once == 1)，不拦截，继续往下走接收控制
     }
 
+    // 提取大模式状态
     bool is_keyboard_climb = (robot->robot_mode == ROBOT_CLIMB_MODE || robot->robot_mode == ROBOT_DOWN_STAIRS_MODE);
 
-    if (vt13_data->rc.mode_switch == 2) // 右: 遥控器模式(正常工作)
+    // ================= 2. 全局使能状态（Switch == 右） =================
+    if (vt13_data->rc.mode_switch == 2)
     {
-        // 【修改点】：键盘处于爬台阶/过烂路模式时，遥控器不要强制切回 FOLLOW
+        // 1. 底盘大模式切权：键盘处于爬台阶/过烂路模式时，不强制切回 FOLLOW
         if (!is_keyboard_climb)
         {
             chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
         }
 
-        // 在 RemoteControlSet 内部提取并剔除死区
+        // 2. 遥控器物理摇杆映射
+        chassis_ctrl_cmd->vx = 60.0f * (float)vt13_data->rc.rocker_l_;
+        chassis_ctrl_cmd->vy = 60.0f * (float)vt13_data->rc.rocker_l1;
+
+        // 3. 拨轮微调（应用对称死区优化）
         int16_t dial_raw = vt13_data->rc.dial;
         float dial_processed = 0.0f;
 
-        if (dial_raw > 20)  dial_processed = (float)(dial_raw - 20);
+        if (dial_raw > 20)       dial_processed = (float)(dial_raw - 20);
         else if (dial_raw < -20) dial_processed = (float)(dial_raw + 20);
 
-        // 后续用到 dial 的地方统一改成：
         if (dial_processed != 0.0f)
         {
-            set_angle += dial_processed * 0.0001f;
-            chassis_ctrl_cmd->wz = 0;
+            // 物理防翻车护盾：如果不是爬楼模式，随便转；如果是爬楼模式，只有低重心姿态才允许转
+            if (!is_keyboard_climb ||
+                chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_ALL_RETRACT ||
+                chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF ||
+                chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_FRONT_RETRACT)
+            {
+                set_angle += dial_processed * 0.0001f;
+            }
         }
-    }
-    
-    if (vt13_data->rc.mode_switch == 2) // 右: 使能模式
-    {
-        chassis_ctrl_cmd->vx = 60.0f * (float)vt13_data->rc.rocker_l_;
-        chassis_ctrl_cmd->vy = 60.0f * (float)vt13_data->rc.rocker_l1;
-    }
-    else
-    {
-        chassis_ctrl_cmd->vx = 0.0f;
-        chassis_ctrl_cmd->vy = 0.0f;
-    }
 
-    if (abs(vt13_data->rc.dial) > 20)
-    {
-        if (chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_ALL_RETRACT ||
-            chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_FRONT_RETRACT_REAR_HALF ||
-            chassis_ctrl_cmd->chassis_mode == CHASSIS_CLIMB_FRONT_RETRACT)
-        {
-            set_angle += (vt13_data->rc.dial - 20) * 0.0001;
-        }
-        chassis_ctrl_cmd->wz = 0;
-    }
-
-    chassis_ctrl_cmd->wz = 0;
-
-    // ================= 【VT13 按钮控制】 =================
-    // 仅在 mode_switch==2 (右, 正常工作) 时生效
-    // fn_1: 标定最大尺寸 (双腿伸出 + 机械臂最大前伸)
-    // fn_2: 最小/全收 (双腿收回 + 机械臂收回)
-    // trigger: 夹抓开/关
-    if (vt13_data->rc.mode_switch == 2)
-    {
+        // 4. 【VT13 按钮控制】fn1, fn2, trigger
         static uint8_t last_fn1 = 0;
         static uint8_t last_fn2 = 0;
         static uint8_t last_trigger = 0;
-        
+
         uint8_t curr_fn1 = vt13_data->rc.fn_1;
         uint8_t curr_fn2 = vt13_data->rc.fn_2;
         uint8_t curr_trigger = vt13_data->rc.trigger;
-        
+
         // fn_1 rising edge: 标定最大尺寸
         if (curr_fn1 && !last_fn1)
         {
-            // 双腿伸出
             chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_BOTH_EXTEND;
-            // 机械臂最大前伸
-            if (robot->grab != NULL && robot->grab->arm != NULL)
-            {
+            if (robot->grab != NULL && robot->grab->arm != NULL) {
                 grab_ctrl_cmd->arm_extend = robot->grab->arm->max_extend;
+
             }
         }
-        
+
         // fn_2 rising edge: 最小/全收
         if (curr_fn2 && !last_fn2)
         {
-            // 双腿收回
             chassis_ctrl_cmd->chassis_mode = CHASSIS_CLIMB_ALL_RETRACT;
-            // 机械臂收回
             grab_ctrl_cmd->arm_extend = 0.0f;
         }
-        
+
         // trigger rising edge: 夹抓开/关
         if (curr_trigger && !last_trigger)
         {
-            grab_ctrl_cmd->gripper_state = 
+            grab_ctrl_cmd->gripper_state =
                 (grab_ctrl_cmd->gripper_state == GRIPPER_CLOSE) ? GRIPPER_OPEN : GRIPPER_CLOSE;
         }
-        
+
         last_fn1 = curr_fn1;
         last_fn2 = curr_fn2;
         last_trigger = curr_trigger;
+    }
+    else
+    // ================= 3. 非使能状态（Switch == 左/中） =================
+    {
+        // 彻底切断物理遥控器的输出指令
+        chassis_ctrl_cmd->vx = 0.0f;
+        chassis_ctrl_cmd->vy = 0.0f;
     }
 }
 

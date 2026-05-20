@@ -97,17 +97,15 @@ static void VT13UpdateKeyboardMouseStatus(void)
     memcpy(vt13_rc.last_key, &vt13_rc.key, sizeof(vt13_rc.key));
     memset(&vt13_rc.key, 0, sizeof(vt13_rc.key));
 
-    // 3. 互斥分流：根据按下的修饰键，将其他普通按键投递到对应的“状态通道”中
+    // 3. 修饰键分流：NORMAL 始终写入原始按键（保证底盘 WASD 等基础功能永远有数据），
+    //    同时按修饰键时额外写入对应通道（供 Shift+R、Ctrl+Shift+V 等组合键使用）
+    vt13_rc.key.arr[KEY_PRESS_NORMAL].keys = raw_keys;
     if (is_ctrl && is_shift)
         vt13_rc.key.arr[KEY_PRESS_WITH_CTRL_SHIFT].keys = raw_keys;
     else if (is_ctrl)
         vt13_rc.key.arr[KEY_PRESS_WITH_CTRL].keys = raw_keys;
     else if (is_shift)
         vt13_rc.key.arr[KEY_PRESS_WITH_SHIFT].keys = raw_keys;
-    else
-        vt13_rc.key.arr[KEY_PRESS_NORMAL].keys = raw_keys;
-
-    // 4. 矩阵式边沿检测 (用于处理按键的"单击"触发，如切换模式)
     for (uint8_t state = 0; state < KEY_PRESS_STATE_NUM; state++)
     {
         uint16_t now  = vt13_rc.key.arr[state].keys;
