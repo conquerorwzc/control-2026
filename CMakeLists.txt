@@ -33,8 +33,8 @@ set(MCU_TYPE "stm32-f4")
 #set(ROBOT_TYPE "infantry_mecanum")
 #set(ROBOT_TYPE "dart")
 #set(ROBOT_TYPE "debug")
-#set(ROBOT_TYPE "sentry_omni_chassis")
-set(ROBOT_TYPE "sentry_omni_gimbal")
+set(ROBOT_TYPE "sentry_omni_chassis")
+#set(ROBOT_TYPE "sentry_omni_gimbal")
 
 include(${CMAKE_SOURCE_DIR}/Hardware/${MCU_TYPE}/${MCU_TYPE}.cmake)
 
