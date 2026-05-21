@@ -173,7 +173,7 @@ static void MouseKeySet()
     if (robot->robot_mode != last_robot_mode)
     {
         // 🌟 新增：只要车体大模式发生了切换，直接强制清零一切半自动的残留步数！
-        Half_auto_reset();
+        Half_auto_reset(grab_ctrl_cmd);
 
         // 场景：退出爬楼或烂路模式
         if (last_robot_mode == ROBOT_CLIMB_MODE || last_robot_mode == ROBOT_DOWN_STAIRS_MODE)
@@ -205,22 +205,24 @@ static void MouseKeySet()
             uint8_t curr_ctrl_f = vt13_data->key.arr[KEY_PRESS_WITH_CTRL].f;
             static uint8_t last_ctrl_f = 0;
 
+            // 场景 1：按下 Ctrl + F -> 切入【半自动模式】
+            // 🌟 只有进入，绝对不负责退出
             if (curr_ctrl_f && !last_ctrl_f)
             {
+                if (grab_control_mode != GRAB_CONTROL_HALF_AUTO)
+                {
                     grab_control_mode = GRAB_CONTROL_HALF_AUTO;
+                    Half_auto_reset(grab_ctrl_cmd); // 强制对齐物理位置
+                }
             }
 
-            // 场景 2：只按 F -> 强制夺权与状态切换
+            // 🌟 F 键专门负责夺权退回
             if (curr_f_only && !last_f_only)
             {
-                if (grab_control_mode == GRAB_CONTROL_KEYBOARD)
-                {
-                    // 如果当前已经是键鼠控制，则切换到自定义控制器
-                    grab_control_mode = GRAB_CONTROL_CUSTOM;
-                }
-                else
-                {
-                    grab_control_mode = GRAB_CONTROL_KEYBOARD;
+                if (grab_control_mode != GRAB_CONTROL_KEYBOARD) {
+                    grab_control_mode = GRAB_CONTROL_KEYBOARD; // 紧急切回键鼠
+                } else {
+                    grab_control_mode = GRAB_CONTROL_CUSTOM;   // 键鼠状态下再按F，切到自定义
                 }
             }
 

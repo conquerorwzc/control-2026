@@ -19,7 +19,7 @@ typedef enum
 
 void Half_auto_update(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd,
                       uint8_t press_l, uint8_t press_l_last, uint8_t press_r, uint8_t press_r_last);
-void Half_auto_reset(void);
+void Half_auto_reset(Grab_Ctrl_Cmd_s *cmd);
 void store_first_energy_unit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, uint8_t step);
 void store_second_energy_unit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, uint8_t step);
 void grab_first_energy_unit(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd, uint8_t step);

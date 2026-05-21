@@ -21,30 +21,40 @@ static uint8_t scurve_inited = 0;
 // ========================================================
 // S曲线平滑层：初始化 + 统一更新
 // ========================================================
+// 2. 替换初始化函数：驯服狂暴的 S 曲线参数，并强制读取物理真实角度
 static void Half_Auto_Smooth_Init(Grab_Ctrl_Cmd_s *cmd)
 {
-    // 角度类关节 (度/秒, 度/秒², 度/秒³)
-    SCurvePlanner_Reset(&sc_base, cmd->base_joint);
-    sc_base.max_vel = 40.0f; sc_base.max_accel = 200.0f; sc_base.max_jerk = 300.0f;
+    // 🌟 护盾 3：开局直接提取物理真实角度，杜绝凭空抽搐
+    RobotInstance *robot = RobotGet();
+    float init_base   = (robot && robot->grab) ? robot->grab->grab_measure.base_joint   : cmd->base_joint;
+    float init_roll   = (robot && robot->grab) ? robot->grab->grab_measure.elbow_roll   : cmd->elbow_roll;
+    float init_pitch  = (robot && robot->grab) ? robot->grab->grab_measure.elbow_pitch  : cmd->elbow_pitch;
+    float init_wpitch = (robot && robot->grab) ? robot->grab->grab_measure.wrist_pitch  : cmd->wrist_pitch;
+    float init_wroll  = (robot && robot->grab) ? robot->grab->grab_measure.wrist_roll   : cmd->wrist_roll;
+    float init_lift   = (robot && robot->grab) ? robot->grab->grab_measure.arm_lift     : cmd->arm_lift;
+    float init_extend = (robot && robot->grab) ? robot->grab->grab_measure.arm_extend   : cmd->arm_extend;
 
-    SCurvePlanner_Reset(&sc_elbow_roll, cmd->elbow_roll);
-    sc_elbow_roll.max_vel = 300.0f; sc_elbow_roll.max_accel = 1500.0f; sc_elbow_roll.max_jerk = 15000.0f;
+    // 🌟 护盾 4：全面软化 S 曲线！限制速度与加速度，保护车体
+    SCurvePlanner_Reset(&sc_base, init_base);
+    sc_base.max_vel = 80.0f; sc_base.max_accel = 200.0f; sc_base.max_jerk = 500.0f;
 
-    SCurvePlanner_Reset(&sc_elbow_pitch, cmd->elbow_pitch);
-    sc_elbow_pitch.max_vel = 300.0f; sc_elbow_pitch.max_accel = 1500.0f; sc_elbow_pitch.max_jerk = 15000.0f;
+    SCurvePlanner_Reset(&sc_elbow_roll, init_roll);
+    sc_elbow_roll.max_vel = 120.0f; sc_elbow_roll.max_accel = 300.0f; sc_elbow_roll.max_jerk = 1000.0f;
 
-    SCurvePlanner_Reset(&sc_wrist_pitch, cmd->wrist_pitch);
-    sc_wrist_pitch.max_vel = 300.0f; sc_wrist_pitch.max_accel = 1500.0f; sc_wrist_pitch.max_jerk = 15000.0f;
+    SCurvePlanner_Reset(&sc_elbow_pitch, init_pitch);
+    sc_elbow_pitch.max_vel = 120.0f; sc_elbow_pitch.max_accel = 300.0f; sc_elbow_pitch.max_jerk = 1000.0f;
 
-    SCurvePlanner_Reset(&sc_wrist_roll, cmd->wrist_roll);
-    sc_wrist_roll.max_vel = 300.0f; sc_wrist_roll.max_accel = 1500.0f; sc_wrist_roll.max_jerk = 15000.0f;
+    SCurvePlanner_Reset(&sc_wrist_pitch, init_wpitch);
+    sc_wrist_pitch.max_vel = 150.0f; sc_wrist_pitch.max_accel = 400.0f; sc_wrist_pitch.max_jerk = 2000.0f;
 
-    // 线性执行器 (mm/秒, mm/秒², mm/秒³)
-    SCurvePlanner_Reset(&sc_arm_lift, cmd->arm_lift);
-    sc_arm_lift.max_vel = 400.0f; sc_arm_lift.max_accel = 2000.0f; sc_arm_lift.max_jerk = 20000.0f;
+    SCurvePlanner_Reset(&sc_wrist_roll, init_wroll);
+    sc_wrist_roll.max_vel = 150.0f; sc_wrist_roll.max_accel = 400.0f; sc_wrist_roll.max_jerk = 2000.0f;
 
-    SCurvePlanner_Reset(&sc_arm_extend, cmd->arm_extend);
-    sc_arm_extend.max_vel = 800.0f; sc_arm_extend.max_accel = 5000.0f; sc_arm_extend.max_jerk = 10000.0f;
+    SCurvePlanner_Reset(&sc_arm_lift, init_lift);
+    sc_arm_lift.max_vel = 200.0f; sc_arm_lift.max_accel = 1000.0f; sc_arm_lift.max_jerk = 10000.0f;
+
+    SCurvePlanner_Reset(&sc_arm_extend, init_extend);
+    sc_arm_extend.max_vel = 400.0f; sc_arm_extend.max_accel = 2000.0f; sc_arm_extend.max_jerk = 10000.0f;
 
     scurve_inited = 1;
 }
@@ -79,80 +89,85 @@ static void Half_Auto_Smooth_Update(Grab_Ctrl_Cmd_s *cmd, float freq)
     cmd->arm_extend   = sc_arm_extend.pos;
 }
 
-void Half_auto_reset(void)
+void Half_auto_reset(Grab_Ctrl_Cmd_s *cmd)
 {
     normal_step = 0;
     climb_step = 0;
+
+    if (scurve_inited && cmd != NULL)
+    {
+        RobotInstance *robot = RobotGet();
+        if (robot != NULL && robot->grab != NULL)
+        {
+            SCurvePlanner_Reset(&sc_base, robot->grab->grab_measure.base_joint);
+            SCurvePlanner_Reset(&sc_elbow_roll, robot->grab->grab_measure.elbow_roll);
+            SCurvePlanner_Reset(&sc_elbow_pitch, robot->grab->grab_measure.elbow_pitch);
+            SCurvePlanner_Reset(&sc_wrist_pitch, robot->grab->grab_measure.wrist_pitch);
+            SCurvePlanner_Reset(&sc_wrist_roll, robot->grab->grab_measure.wrist_roll);
+            SCurvePlanner_Reset(&sc_arm_lift, robot->grab->grab_measure.arm_lift);
+            SCurvePlanner_Reset(&sc_arm_extend, robot->grab->grab_measure.arm_extend);
+        }
+    }
 }
 
 void Half_auto_update(Grab_Ctrl_Cmd_s *grab_ctrl_cmd, Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd, uint8_t press_l,
                       uint8_t press_l_last, uint8_t press_r, uint8_t press_r_last)
 {
+    // 🌟 护盾 1：使用内部静态变量记忆状态，免疫底层串口丢包导致的连发！
+    static uint8_t safe_last_press_l = 0;
+    static uint8_t safe_last_press_r = 0;
+
+    uint8_t click_l = (press_l && !safe_last_press_l);
+    uint8_t click_r = (press_r && !safe_last_press_r);
+
+    safe_last_press_l = press_l;
+    safe_last_press_r = press_r;
+
     // 首次调用时用当前关节角度初始化S曲线规划器
     if (!scurve_inited) Half_Auto_Smooth_Init(grab_ctrl_cmd);
 
-    // ========================================================
-    // 1. 上台阶专属控制域 (拦截所有常规操作)
-    // ========================================================
     if (grab_ctrl_cmd->is_climb_mode)
     {
-        // 🌟 防呆设计：上台阶时如果不小心多按了左键，直接按【右键】一键重置爬楼进度！
-        if (press_r && !press_r_last)
-        {
-            climb_step = 0;
-        }
-
-        if (press_l && !press_l_last)
-        {
-            if (climb_step < 13) climb_step++; // 左键只增加 climb_step，上限13
-        }
+        if (click_r) climb_step = 0;
+        if (click_l && climb_step < 13) climb_step++;
 
         climb_step_prep(grab_ctrl_cmd, climb_step);
-        Half_Auto_Smooth_Update(grab_ctrl_cmd, 500.0f);
+        // 🌟 护盾 2：匹配 RobotCMDTask 的真实 200Hz 运行频率
+        Half_Auto_Smooth_Update(grab_ctrl_cmd, 200.0f);
         return;
     }
 
-    // ========================================================
-    // 2. 常规取/存矿控制域 (退出上台阶后恢复)
-    // ========================================================
-    climb_step = 0; // 只要退出了爬楼模式，爬楼进度立刻清零，随时准备下次爬楼
+    climb_step = 0;
 
-    // 右键切路线，并清零取矿步数
-    if (press_r && !press_r_last)
+    if (click_r)
     {
         half_control_list = (half_control_list + 1) % 4;
         normal_step = 0;
     }
 
-    // 左键推进取矿进度
-    if (press_l && !press_l_last)
+    uint8_t max_step = 0;
+    if (half_control_list == Store_First_Energy_Unit) max_step = 23;
+    else if (half_control_list == Store_Second_Energy_Unit) max_step = 20;
+    else if (half_control_list == Grab_First_Energy_Unit) max_step = 19;
+    else if (half_control_list == Grab_Second_Energy_Unit) max_step = 20;
+
+    // 左键推进进度，点满了就死死卡在最后一步
+    if (click_l)
     {
-        if (normal_step < 30) normal_step++; // 上限更新为27
+        if (normal_step < max_step) normal_step++;
     }
 
-    // 执行对应的常规半自动
     switch (half_control_list)
     {
-    case Store_First_Energy_Unit:
-        store_first_energy_unit(grab_ctrl_cmd, normal_step);
-        break;
-    case Store_Second_Energy_Unit:
-        store_second_energy_unit(grab_ctrl_cmd, normal_step);
-        break;
-    case Grab_First_Energy_Unit:
-        grab_first_energy_unit(grab_ctrl_cmd, chassis_ctrl_cmd, normal_step);
-        break;
-    case Grab_Second_Energy_Unit:
-        grab_second_energy_unit(grab_ctrl_cmd, chassis_ctrl_cmd, normal_step);
-        break;
-    default:
-        break;
+    case Store_First_Energy_Unit:   store_first_energy_unit(grab_ctrl_cmd, normal_step); break;
+    case Store_Second_Energy_Unit:  store_second_energy_unit(grab_ctrl_cmd, normal_step); break;
+    case Grab_First_Energy_Unit:    grab_first_energy_unit(grab_ctrl_cmd, chassis_ctrl_cmd, normal_step); break;
+    case Grab_Second_Energy_Unit:   grab_second_energy_unit(grab_ctrl_cmd, chassis_ctrl_cmd, normal_step); break;
+    default: break;
     }
 
-    // S曲线平滑层：统一输出 (gripper_state 不受影响)
-    Half_Auto_Smooth_Update(grab_ctrl_cmd, 500.0f);
+    Half_Auto_Smooth_Update(grab_ctrl_cmd, 200.0f);
 }
-
 /**
  * @brief 上台阶预备姿态 (一键收起机械臂，防止撞击台阶)
  */
