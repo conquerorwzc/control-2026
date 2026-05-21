@@ -441,7 +441,7 @@ static IMU_Init_Config_s imu_init_config = {.flag = 1,
 static Grab_Init_Config_s
     grab_init_config =
         {
-            .Grab_cali_mode = GRAB_PRE_CALI_MODE,
+            .Grab_cali_mode = GRAB_CALI_MODE,
 
             .Grab_param =
                 {
@@ -609,8 +609,8 @@ static Grab_Init_Config_s
                             .close_loop_type = SPEED_LOOP | ANGLE_LOOP,
                             .angle_feedback_source = MOTOR_FEED,
                             .speed_feedback_source = MOTOR_FEED,
-                            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
-                            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
+                            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+                            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
                         },
                     .motor_type = J4340,
                     .can_init_config =
@@ -645,8 +645,8 @@ static Grab_Init_Config_s
                             .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
                             .angle_feedback_source = MOTOR_FEED,
                             .speed_feedback_source = MOTOR_FEED,
-                            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
-                            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+                            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+                            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
                         },
                     .motor_type = M2006,
                     .can_init_config =
@@ -680,8 +680,8 @@ static Grab_Init_Config_s
                             .close_loop_type = SPEED_LOOP | ANGLE_LOOP,
                             .angle_feedback_source = MOTOR_FEED,
                             .speed_feedback_source = MOTOR_FEED,
-                            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
-                            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+                            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+                            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
                         },
                     .motor_type = M2006,
                     .can_init_config =
