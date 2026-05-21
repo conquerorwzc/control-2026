@@ -205,6 +205,11 @@ static void MouseKeySet()
             uint8_t curr_ctrl_f = vt13_data->key.arr[KEY_PRESS_WITH_CTRL].f;
             static uint8_t last_ctrl_f = 0;
 
+            if (curr_ctrl_f && !last_ctrl_f)
+            {
+                    grab_control_mode = GRAB_CONTROL_HALF_AUTO;
+            }
+
             // 场景 2：只按 F -> 强制夺权与状态切换
             if (curr_f_only && !last_f_only)
             {

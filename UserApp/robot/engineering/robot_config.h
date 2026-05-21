@@ -79,12 +79,12 @@
         .controller_param_init_config =                                                                                \
             {.angle_PID =                                                                                              \
                  {                                                                                                     \
-                     .Kp = 10.0f,                                                                                      \
+                     .Kp = 20.0f,                                                                                      \
                      .Ki = 0,                                                                                          \
                      .Kd = 0,                                                                                          \
                      .IntegralLimit = 0,                                                                               \
                      .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,          \
-                     .MaxOut = 3700.0f,                                                                                \
+                     .MaxOut = 4800.0f,                                                                                \
                  },                                                                                                    \
              .speed_PID =                                                                                              \
                  {                                                                                                     \
@@ -123,7 +123,7 @@
                      .Kd = 0,                                                                                          \
                      .IntegralLimit = 0,                                                                               \
                      .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,          \
-                     .MaxOut = 5200.0f,                                                                                \
+                     .MaxOut = 6200.0f,                                                                                \
                  },                                                                                                    \
              .speed_PID =                                                                                              \
                  {                                                                                                     \
@@ -340,12 +340,12 @@ static Chassis_Init_Config_s chassis_init_config = {
 
                 .angle_PID =
                     {
-                        .Kp = 12.0f,
+                        .Kp = 13.0f,
                         .Ki = 0,
                         .Kd = 0,
                         .IntegralLimit = 0,
                         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                        .MaxOut = 4400.0f,
+                        .MaxOut = 5700.0f,
                     },
                 .speed_PID =
                     {
@@ -388,7 +388,7 @@ static Chassis_Init_Config_s chassis_init_config = {
                             .Kd = 0.01,
                             .IntegralLimit = 0,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                            .MaxOut = 5200.0f,
+                            .MaxOut = 6000.0f,
                         },
                     .speed_PID =
                         {

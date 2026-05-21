@@ -39,19 +39,14 @@
 #define GEAR_RATIO_FRONT 19.0f // 前腿减速比
 
 // ==================== 【标定行为期望 (物理参数)】 ====================
-// 1. 找零点（向内收回）堵转阈值：撞击车架，给温柔一点的电流防损坏
-#define FRONT_ZERO_CALI_STALL_CURRENT 3000.0f  // 前腿找零点力气
-#define REAR_ZERO_CALI_STALL_CURRENT  4000.0f  // 后腿找零点力气
-
-// 找最大行程（向外伸出）堵转阈值：必须与各自的 MaxOut 匹配！
-#define FRONT_LEFT_MAX_CALI_STALL_CURRENT  12000.0f // 左腿推力上限是 12000
-#define FRONT_RIGHT_MAX_CALI_STALL_CURRENT 10000.0f  // 右腿推力上限是 7000
-#define REAR_MAX_CALI_STALL_CURRENT        4500.0f  // 后腿找最大行程力气
+// 前后腿独立的标定堵转电流阈值 (满载为 16384)
+#define FRONT_CALI_STALL_CURRENT 2800.0f // 前腿(齿条)：机械优势小，给大点电流才能判定撞墙
+#define REAR_CALI_STALL_CURRENT 4000.0f  // 后腿(丝杠)：推力极其恐怖，阈值给小一点，撞墙瞬间温柔停机防损坏
 
 #define SPEED_RETRACT_REAR_DEG 1200.0f
 #define SPEED_EXTEND_REAR_DEG 1200.0f
-#define SPEED_RETRACT_FRONT_DEG 600.0f
-#define SPEED_EXTEND_FRONT_DEG 600.0f
+#define SPEED_RETRACT_FRONT_DEG 108.0f
+#define SPEED_EXTEND_FRONT_DEG 108.0f
 
 #define FORCE_ZERO_REAR_DEG 1000.0f
 #define FORCE_MAX_REAR_DEG 1500.0f
@@ -819,20 +814,8 @@ static void ChassisCalibrationTask(void)
                     float actual_diff = fabsf(current_angle - last_check_angle[i]);
                     float actual_current = fabsf((float)motor->measure.real_current);
 
-                    // 👇 修复：完全解耦左右腿的堵转阈值
-                    float stall_current_thres;
-                    if (i < 2)
-                    {
-                        stall_current_thres = REAR_MAX_CALI_STALL_CURRENT; // 后腿
-                    }
-                    else if (i == 2)
-                    {
-                        stall_current_thres = FRONT_LEFT_MAX_CALI_STALL_CURRENT; // 左前腿
-                    }
-                    else
-                    {
-                        stall_current_thres = FRONT_RIGHT_MAX_CALI_STALL_CURRENT; // 右前腿
-                    }
+                    // 👇 动态获取前后腿独立的标定堵转阈值
+                    float stall_current_thres = (i < 2) ? REAR_CALI_STALL_CURRENT : FRONT_CALI_STALL_CURRENT;
 
                     if (actual_diff < check_threshold && actual_current > stall_current_thres)
                     {
@@ -956,15 +939,13 @@ static void MaxExtensionCalibrationTask(uint8_t abort_flag)
             }
             else
             { // 针对前腿(齿条)
-                // 🌟 修复：左腿重，标定全程给足 FRONT_LEFT_MOVING_MAX_OUT (12000)；
-                //          右腿轻，给 FRONT_RIGHT_MOVING_MAX_OUT (7000)
-                if (i == 2) // 左前腿
+                if (current_stroke < 2000.0f)
                 {
-                    motor->motor_controller.speed_PID.MaxOut = FRONT_LEFT_MOVING_MAX_OUT;
+                    motor->motor_controller.speed_PID.MaxOut = 12000.0f;
                 }
-                else if (i == 3) // 右前腿
+                else
                 {
-                    motor->motor_controller.speed_PID.MaxOut = FRONT_RIGHT_MOVING_MAX_OUT;
+                    motor->motor_controller.speed_PID.MaxOut = 9000.0f;
                 }
             }
 
@@ -986,20 +967,7 @@ static void MaxExtensionCalibrationTask(uint8_t abort_flag)
                     float actual_diff = fabsf(current_angle - last_check_angle[i]);
                     float actual_current = fabsf((float)motor->measure.real_current);
 
-                    // 👇 修复：完全解耦左右腿的堵转阈值，解决编译报错和假堵转
-                    float stall_current_thres;
-                    if (i < 2)
-                    {
-                        stall_current_thres = REAR_MAX_CALI_STALL_CURRENT; // 后腿
-                    }
-                    else if (i == 2)
-                    {
-                        stall_current_thres = FRONT_LEFT_MAX_CALI_STALL_CURRENT; // 左前腿
-                    }
-                    else
-                    {
-                        stall_current_thres = FRONT_RIGHT_MAX_CALI_STALL_CURRENT; // 右前腿
-                    }
+                    float stall_current_thres = (i < 2) ? REAR_CALI_STALL_CURRENT : FRONT_CALI_STALL_CURRENT;
 
                     if (actual_diff < check_threshold && actual_current > stall_current_thres)
                     {
