@@ -61,6 +61,11 @@ typedef struct Power_Ctrl_t {
 
   float scale_motion[2];  // 每电机 motion 缩放系数 T_motion_ref / T_motion
   float scale_combined;   // 用于回写 chassis_ctrl_cmd 的合成缩放
+
+  float P_peak_threshold;  // 峰值功率阈值，超过后开始削平衡分量
+  float scale_balance;     // 平衡分量缩放系数 (下限 0.5，防止完全丧失平衡)
+
+  float v_max_dynamic;  // 根据功率预算动态计算的最大速度
 } Power_Ctrl_t;
 
 void PowerControl_Prostrate(ChassisInstance* chassis);

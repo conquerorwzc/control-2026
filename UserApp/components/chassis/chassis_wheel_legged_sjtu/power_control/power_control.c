@@ -44,6 +44,7 @@ void PowerControlRuntimeReset(ChassisInstance* chassis) {
   pc->P_total = 0.0f;
   pc->P_total_ref = 0.0f;
   pc->scale_combined = 1.0f;
+  pc->scale_balance = 1.0f;
 }
 
 /**
@@ -112,7 +113,6 @@ static float MotorEstimateCurrent(const float k[6], float P_target, float w, flo
  *      raw chassis_ctrl_cmd 仍保持上层命令，只回写 chassis planner 参考，避免和 ramp 抢写。
  */
 void PowerControl(ChassisInstance* chassis) {
-  State_Var_t* sv = &chassis->state_var;
   Power_Ctrl_t* pc = power_ctrl;
   // 1.获取力矩
   for (int i = 0; i < 2; i++) {
@@ -152,7 +152,7 @@ void PowerControl(ChassisInstance* chassis) {
   pc->P_total = pc->P[0] + pc->P[1];
   // pc->P_total_ref = chassis->chassis_ctrl_cmd.max_power;
   pc->P_total_ref = 250.f;
-  // pc->P_total_ref = 50.f;
+  pc->P_peak_threshold = 300.f;
 
   // 3.功率控制逻辑
   if (pc->P_total > pc->P_total_ref) {
@@ -189,9 +189,9 @@ void PowerControl(ChassisInstance* chassis) {
 
     // x_ref_j = x_j - state_err[j] * scale_combined
     // x_b 的 ref 恒为 0, 不回写; raw chassis_ctrl_cmd 保持上层命令, 只同步 planner
-    chassis->chassis_ctrl_cmd.vx = sv->x_b_d - chassis->state_err[1];
-    chassis->chassis_ctrl_cmd.target_yaw = sv->phi - chassis->state_err[2];
-    chassis->chassis_ctrl_cmd.wz = sv->phi_d - chassis->state_err[3];
+    // chassis->chassis_ctrl_cmd.vx = sv->x_b_d - chassis->state_err[1];
+    // chassis->chassis_ctrl_cmd.target_yaw = sv->phi - chassis->state_err[2];
+    // chassis->chassis_ctrl_cmd.wz = sv->phi_d - chassis->state_err[3];
     // chassis->planner.vx = sv->x_b_d - chassis->state_err[1];
     // chassis->planner.target_yaw = sv->phi - chassis->state_err[2];
     // chassis->planner.wz = sv->phi_d - chassis->state_err[3];
@@ -210,6 +210,41 @@ void PowerControl(ChassisInstance* chassis) {
       pc->T_motion_ref[i] = pc->T_motion[i];
     }
   }
+
+  // 4. 峰值保护：motion 缩放后重新估算总功率，若仍超过峰值阈值则削平衡分量
+  pc->scale_balance = 1.0f;
+  if (pc->P_total > pc->P_peak_threshold) {
+    float P_after = 0.0f;
+    for (int i = 0; i < 2; i++) {
+      float T_scaled = pc->T_motion[i] * pc->scale_combined + pc->T_balance[i];
+      float I_scaled = t2i(T_scaled);
+      P_after += MotorEstimatePower(pc->k, I_scaled, pc->w[i]);
+    }
+    if (P_after > pc->P_peak_threshold) {
+      float s = pc->P_peak_threshold / P_after;
+      VAL_LIMIT(s, 0.5f, 1.0f);
+      pc->scale_balance = s;
+      for (int j = 4; j < 10; j++) {
+        chassis->state_err[j] *= pc->scale_balance;
+      }
+    }
+  }
+
+  // 5. 动态速度上限：根据功率预算限制 planner 最大速度，防止到达刹不住的速度
+  //    P_brake = m * a_decel * v → v_max = P_motion_available / (m * a_decel)
+  float P_balance_est = 0.0f;
+  for (int i = 0; i < 2; i++) {
+    float I_bal = t2i(pc->T_balance[i]);
+    P_balance_est += pc->k[4] * I_bal * I_bal;
+  }
+  float P_motion_budget = pc->P_total_ref - P_balance_est;
+  if (P_motion_budget < 20.0f) P_motion_budget = 20.0f;
+
+  float min_decel = chassis->planner.vx_ramp.max_decel;
+  float v_max = P_motion_budget / (chassis->param.body_mass * min_decel);
+  VAL_LIMIT(v_max, 0.5f, 2.97f);
+  chassis->planner.vx_ramp.max_v = v_max;
+  pc->v_max_dynamic = v_max;
 }
 
 /**

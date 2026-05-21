@@ -34,18 +34,21 @@ static UpdateFlag_s update_flag = {.is_first_update = 1};
 static CtrlInstance ocd = {
     .leg.index = 1,
     /* 速度配置。vx/stair/vault 为平移速度 m/s，wz 为小陀螺角速度 rad/s。 */
-    .speed = {.vx = 2.5f, .wz = 12.0f, .stair = 2.2f, .vault = 1.8f},
-    /* 倾倒恢复阈值。保留 default/creep 两套配置，便于后续按场景单独调参。 */
-    .recovery = {.pitch_default = 13.0f, .pitch_creep = 13.0f},
+    .speed = {.vx = 2.5f, .wz = 12.0f, .stair = 1.8f, .vault = 1.8f},
+    /* 倾倒恢复阈值（deg）。保留 default/creep 两套配置，便于后续按场景单独调参。 */
+    .recovery = {.pitch_default = 60.0f, .pitch_creep = 30.0f},
 };
 /* 四档腿长预设：最低、上电默认、中档、最高。单位 m。 */
 static const float LEG_TABLE[4] = {0.117f, 0.20f, 0.285f, 0.370f};
 
-/** @brief 根据当前场景选择 Pitch 阈值，判断是否需要进入 CHASSIS_RECOVERY。 */
+/** @brief 根据腿脚 theta 平均值判断是否需要进入 CHASSIS_RECOVERY。 */
 static uint8_t IsRobotLostControl(RobotInstance* robot) {
-  const float thresh = robot->chassis->chassis_ctrl_cmd.chassis_mode == CHASSIS_STAIR ? ocd.recovery.pitch_creep
-                                                                                      : ocd.recovery.pitch_default;
-  return fabsf(robot->chassis->imu->Pitch) > thresh;
+  const float thresh_deg = robot->chassis->chassis_ctrl_cmd.chassis_mode == CHASSIS_STAIR
+                               ? ocd.recovery.pitch_creep
+                               : ocd.recovery.pitch_default;
+  const float thresh = thresh_deg * DEGREE_2_RAD;
+  const float avg_theta = robot->chassis->state_var.theta_l;
+  return fabsf(avg_theta) > thresh;
 }
 
 /** @brief 请求裁判 UI 做一次全量重绘。双板时通过通信字段转发到底盘侧。 */
@@ -336,6 +339,11 @@ void JoyStickCtrl(RobotInstance* robot) {
     ocd.jump.phase = JUMP_IDLE;
     ocd.jump.observed_active = 0;
     update_flag.is_stand = !update_flag.is_stand;
+    if (update_flag.is_stand && ocd.stair.active) {
+      ocd.stair.active = 0;
+      ocd.leg.index = ocd.stair.saved_leg_idx;
+      ocd.leg.pending = 1;
+    }
   }
 
   /* pause 边沿切换 FREE 模式。 */
@@ -507,6 +515,11 @@ void MouseKeyCtrl(RobotInstance* robot) {
     ocd.jump.phase = JUMP_IDLE;
     ocd.jump.observed_active = 0;
     update_flag.is_stand = !update_flag.is_stand;
+    if (update_flag.is_stand && ocd.stair.active) {
+      ocd.stair.active = 0;
+      ocd.leg.index = ocd.stair.saved_leg_idx;
+      ocd.leg.pending = 1;
+    }
   }
 
   /* Ctrl+V 进入/退出跳跃准备；准备状态下单按 V 起跳。 */

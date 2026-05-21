@@ -189,6 +189,8 @@ void RobotCommTask(RobotInstance* robot) {
   robot->chassis->imu->Pitch = chassis_upload_data->motion.Pitch;
   robot->chassis->imu->YawTotalAngle = chassis_upload_data->motion.YawTotalAngle;
   robot->chassis->imu->Gyro[2] = chassis_upload_data->motion.yaw_speed;
+  robot->chassis->state_var.theta_l = chassis_upload_data->motion.avg_theta;
+  robot->chassis->state_var.theta_r = chassis_upload_data->motion.avg_theta;
   shoot_ctrl_cmd->initial_speed = chassis_upload_data->gamestate.bullet_speed;
   shoot_ctrl_cmd->shooter_barrel_heat = chassis_upload_data->gamestate.shooter_17mm_barrel_heat;
   shoot_ctrl_cmd->shooter_barrel_heat_limit = chassis_upload_data->gamestate.shoot_heat_limit;
@@ -221,6 +223,8 @@ void RobotCommTask(RobotInstance* robot) {
   chassis_upload_data->motion.Pitch = robot->chassis->imu->Pitch;
   chassis_upload_data->motion.YawTotalAngle = robot->chassis->imu->YawTotalAngle;
   chassis_upload_data->motion.yaw_speed = robot->chassis->imu->Gyro[2];
+  chassis_upload_data->motion.avg_theta =
+      0.5f * (robot->chassis->state_var.theta_l + robot->chassis->state_var.theta_r);
   chassis_upload_data->gamestate.bullet_speed = robot->referee_data->ShootData.initial_speed;
   chassis_upload_data->gamestate.robot_id = robot->referee_data->GameRobotState.robot_id;
   chassis_upload_data->gamestate.shooter_17mm_barrel_heat =

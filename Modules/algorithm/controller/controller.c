@@ -122,6 +122,24 @@ void PIDSwitchConfig(PIDInstance* pid, const PID_Init_Config_s* config) {
   memcpy(pid, config, sizeof(PID_Init_Config_s));
 }
 
+void PIDClear(PIDInstance* pid) {
+  if (pid == NULL) return;
+  pid->Measure = 0.0f;
+  pid->Last_Measure = 0.0f;
+  pid->Err = 0.0f;
+  pid->Last_Err = 0.0f;
+  pid->Last_ITerm = 0.0f;
+  pid->Pout = 0.0f;
+  pid->Iout = 0.0f;
+  pid->Dout = 0.0f;
+  pid->ITerm = 0.0f;
+  pid->Output = 0.0f;
+  pid->Last_Output = 0.0f;
+  pid->Last_Dout = 0.0f;
+  pid->Ref = 0.0f;
+  DWT_GetDeltaT(&pid->DWT_CNT);
+}
+
 /**
  * @brief          PID计算
  * @param[in]      PID结构体

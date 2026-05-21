@@ -86,6 +86,7 @@ typedef struct {
   float leg_min_length;
   float leg_max_length;
   float LQR_K_Coefficients[40][6];
+  float LQR_K_Stair_Coefficients[40][6];
 } Chassis_Param_s;
 
 typedef struct {
@@ -95,6 +96,8 @@ typedef struct {
   PID_Init_Config_s yaw_prostrate_PID_config;
   IMU_Init_Config_s imu_init_config;
   SuperCap_Init_Config_s super_cap_config;
+  Ramp_Controller_t vx_ramp_config;
+  Ramp_Controller_t wz_ramp_config;
 } Chassis_Init_Config_s;
 
 // 底盘 planner: 把上层 raw cmd (target_yaw/vx/wz) 在 chassis 时基 (200Hz) 内平滑.

@@ -9,6 +9,7 @@
 #include "chassis.h"
 
 #include <math.h>
+#include <stdint.h>
 #include <string.h>
 
 #include "general_def.h"
@@ -40,50 +41,17 @@ static float FirstOrderLowPass(float input, float last_output, float dt, float r
   return last_output + alpha * (input - last_output);
 }
 
-static void PIDRuntimeReset(PIDInstance* pid) {
-  if (pid == NULL) return;
-  pid->Measure = 0.0f;
-  pid->Last_Measure = 0.0f;
-  pid->Err = 0.0f;
-  pid->Last_Err = 0.0f;
-  pid->Last_ITerm = 0.0f;
-  pid->Pout = 0.0f;
-  pid->Iout = 0.0f;
-  pid->Dout = 0.0f;
-  pid->ITerm = 0.0f;
-  pid->Output = 0.0f;
-  pid->Last_Output = 0.0f;
-  pid->Last_Dout = 0.0f;
-  pid->Ref = 0.0f;
-  DWT_GetDeltaT(&pid->DWT_CNT);
-}
-
-static void KalmanRuntimeReset(KalmanFilter_t* kf) {
-  if (kf == NULL || kf->xhatSize == 0) return;
-
-  size_t state_size = sizeof(float) * kf->xhatSize;
-  if (kf->FilteredValue != NULL) memset(kf->FilteredValue, 0, state_size);
-  if (kf->xhat_data != NULL) memset(kf->xhat_data, 0, state_size);
-  if (kf->xhatminus_data != NULL) memset(kf->xhatminus_data, 0, state_size);
-
-  if (kf->zSize != 0) {
-    size_t measure_size = sizeof(float) * kf->zSize;
-    if (kf->MeasuredVector != NULL) memset(kf->MeasuredVector, 0, measure_size);
-    if (kf->z_data != NULL) memset(kf->z_data, 0, measure_size);
-  }
-}
-
 static void ResetLegMotorRuntime(LegInstance* leg_instance) {
   if (leg_instance == NULL) return;
 
-  PIDRuntimeReset(&leg_instance->length_PID);
-  PIDRuntimeReset(&leg_instance->wheel_motor->motor_controller.speed_PID);
-  PIDRuntimeReset(&leg_instance->wheel_motor->motor_controller.angle_PID);
+  PIDClear(&leg_instance->length_PID);
+  PIDClear(&leg_instance->wheel_motor->motor_controller.speed_PID);
+  PIDClear(&leg_instance->wheel_motor->motor_controller.angle_PID);
   leg_instance->wheel_motor->motor_controller.final_output = 0.0f;
 
   for (int i = 0; i < 2; i++) {
-    PIDRuntimeReset(&leg_instance->joint_motor[i]->motor_controller.angle_PID);
-    PIDRuntimeReset(&leg_instance->joint_motor[i]->motor_controller.speed_PID);
+    PIDClear(&leg_instance->joint_motor[i]->motor_controller.angle_PID);
+    PIDClear(&leg_instance->joint_motor[i]->motor_controller.speed_PID);
     leg_instance->joint_motor[i]->motor_controller.final_output = 0.0f;
   }
 }
@@ -92,8 +60,8 @@ static void ResetChassisBalanceMemory(void) {
   memset(&chassis->state_var, 0, sizeof(chassis->state_var));
   memset(&chassis->last_state_var, 0, sizeof(chassis->last_state_var));
   memset(chassis->state_err, 0, sizeof(chassis->state_err));
-  KalmanRuntimeReset(&chassis->vaEstimateKF);
-  PIDRuntimeReset(&chassis->roll_PID);
+  Kalman_Filter_Clear(&chassis->vaEstimateKF);
+  PIDClear(&chassis->roll_PID);
   PowerControlRuntimeReset(chassis);
   chassis->update_flag.is_restart = 1;
 
@@ -120,7 +88,7 @@ static void ResetChassisBalanceMemory(void) {
 }
 
 static void ResetProstrateMemory(void) {
-  PIDRuntimeReset(&chassis->yaw_prostrate_PID);
+  PIDClear(&chassis->yaw_prostrate_PID);
   PowerControlRuntimeReset(chassis);
   wheel_speed_ref[0] = 0.0f;
   wheel_speed_ref[1] = 0.0f;
@@ -399,11 +367,10 @@ static void ChassisCtrlUpdate(void) {
   LQR_K_Calc(chassis->LQR_K, chassis->param.LQR_K_Coefficients, l_l, l_r);
 
   // planner 平滑上层 raw cmd, StateErrCalc 实际跟踪 planner 输出
-  StateErrCalc();
   // ChassisCtrlUpdate 始终是 LQR 平衡输出路径；真实卧倒输出在 LimitChassisOutput() 中限功率。
-  // PowerControl(chassis);
   ChassisPlannerUpdate(chassis->dt);
   StateErrCalc();
+  // PowerControl(chassis);
 
   LocomotionController();
   LegController();
@@ -459,8 +426,8 @@ static void ChassisRecovery(void) {
     DMMotorSetPIDRef(leg[i]->joint_motor[0], -0.1f);
     DMMotorSetPIDRef(leg[i]->joint_motor[1], 0.1f);
 
-    leg[i]->real_model.Tp_1 = leg[i]->joint_motor[0]->motor_controller.final_output;
-    leg[i]->real_model.Tp_2 = leg[i]->joint_motor[1]->motor_controller.final_output;
+    leg[i]->real_model.Tp_1 = leg[i]->joint_motor[0]->motor_controller.final_output + 8.0f;
+    leg[i]->real_model.Tp_2 = leg[i]->joint_motor[1]->motor_controller.final_output - 8.0f;
   }
 
   // 2. 判断关节是否均到达目标位，且云台是否已与底盘正方向对齐
@@ -506,7 +473,7 @@ static void ChassisJump(void) {
       ChassisCtrlUpdate();
       if (fabsf(leg[0]->virtual_model.length - chassis->param.leg_min_length) <= 0.05f &&
           fabsf(leg[1]->virtual_model.length - chassis->param.leg_min_length) <= 0.05f) {
-        osDelay(200);
+        osDelay(250);
         chassis->jump_state = JUMP_STATE_IDLE;
       }
       break;
@@ -544,7 +511,7 @@ void ChassisProstrate(void) {
 
   float wz_pid = 0.0f;
   if (fabsf(chassis_ctrl_cmd->wz) > 0.01f) {
-    PIDRuntimeReset(&chassis->yaw_prostrate_PID);
+    PIDClear(&chassis->yaw_prostrate_PID);
     yaw_prostrate_pid_output_lpf = 0.0f;
   } else {
     float yaw_pid_output = PIDCalculate(&chassis->yaw_prostrate_PID, chassis->imu->YawTotalAngle * DEGREE_2_RAD,
@@ -555,8 +522,6 @@ void ChassisProstrate(void) {
     wz_pid = -yaw_prostrate_pid_output_lpf;
   }
 
-  // float wz_pid = -PIDCalculate(&chassis->yaw_prostrate_PID, chassis->imu->YawTotalAngle * DEGREE_2_RAD,
-  //                                     chassis_ctrl_cmd->target_yaw);
   vx_motor = chassis_ctrl_cmd->vx * VX_MPS_TO_MOTOR;
   float wz_motor = wz_pid * WZ_PID_TO_MOTOR + chassis_ctrl_cmd->wz * WZ_RADPS_TO_MOTOR;
 
@@ -592,15 +557,14 @@ static void LimitChassisOutput(void) {
     EnableJointMotor();
   } else {
     for (int i = 0; i < 2; i++) {
-      VAL_LIMIT(leg[i]->real_model.Tp_1, -33.0f, 33.0f);
-      VAL_LIMIT(leg[i]->real_model.Tp_2, -33.0f, 33.0f);
-      // VAL_LIMIT(leg[i]->real_model.T, -2.45f, 2.45f);// 限制额定扭矩
+      VAL_LIMIT(leg[i]->real_model.Tp_1, -28.0f, 28.0f);
+      VAL_LIMIT(leg[i]->real_model.Tp_2, -28.0f, 28.0f);
+      // VAL_LIMIT(leg[i]->real_model.T, -3.65f, 3.65f);// 限制额定扭矩
       VAL_LIMIT(leg[i]->real_model.T, -4.92f, 4.92f);  // 限制峰值扭矩
       // VAL_LIMIT(leg[i]->real_model.T, -4.2f, 4.2f);  // 限制峰值扭矩
       DMMotorSetRef(leg[i]->joint_motor[0], leg[i]->real_model.Tp_1);
       DMMotorSetRef(leg[i]->joint_motor[1], leg[i]->real_model.Tp_2);
-      // DMMotorSetRef(leg[i]->joint_motor[0], 0);
-      // DMMotorSetRef(leg[i]->joint_motor[1], 0);
+
       if (leg[i]->update_flag.is_off_ground) {
         DJIMotorSetRef(leg[i]->wheel_motor, 0);
       } else {
@@ -632,28 +596,10 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   PowerControlInit(chassis_instance);
 
   chassis_instance->param = chassis_init_config->param;
+  chassis_instance->chassis_ctrl_cmd.leg_length = chassis_init_config->param.initial_leg_length;
 
-  // planner ramp 配置 (沿用旧 ctrl 层 vx_ramp / wz_ramp 参数)
-  chassis_instance->planner.vx_ramp = (Ramp_Controller_t){
-      .max_v = 2.97f,
-      .max_accel = 2.0f,
-      .min_accel = 0.05f,
-      .accel_base_speed = 0.7f,
-      .max_decel = 4.7f,
-      .min_decel = 2.0f,
-      .decel_base_speed = 0.7f,
-      .k_p_vel = 0.35f,
-  };
-  chassis_instance->planner.wz_ramp = (Ramp_Controller_t){
-      .max_v = 11.0f,
-      .max_accel = 35.0f,
-      .min_accel = 15.0f,
-      .accel_base_speed = 1.3f,
-      .max_decel = 45.0f,
-      .min_decel = 10.0f,
-      .decel_base_speed = 3.3f,
-      .k_p_vel = 0.0f,
-  };
+  chassis_instance->planner.vx_ramp = chassis_init_config->vx_ramp_config;
+  chassis_instance->planner.wz_ramp = chassis_init_config->wz_ramp_config;
 
   chassis_instance->jump_state = JUMP_STATE_IDLE;
 
@@ -806,7 +752,10 @@ void ChassisTask(void) {
   float now_ms = DWT_GetTimeline_ms();
   if (now_ms - last_super_cap_send_time >= 10.0f) {
     last_super_cap_send_time = now_ms;
-    SuperCapSendMessage(chassis->super_cap, (int16_t)(referee_data->GameRobotState.chassis_power_limit),
+    // int16_t super_cap_power =
+    //     (cur_mode == CHASSIS_STAIR) ? 500 : referee_data->GameRobotState.chassis_power_limit;
+    int16_t super_cap_power = 500.0f;
+    SuperCapSendMessage(chassis->super_cap, super_cap_power,
                         referee_data->PowerHeatData.buffer_energy,
                         referee_data->GameRobotState.power_management_chassis_output);
   }
