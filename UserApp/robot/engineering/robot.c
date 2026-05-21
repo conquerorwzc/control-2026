@@ -205,17 +205,18 @@ static void MouseKeySet()
             uint8_t curr_ctrl_f = vt13_data->key.arr[KEY_PRESS_WITH_CTRL].f;
             static uint8_t last_ctrl_f = 0;
 
-            // 场景 1：按下 Ctrl + F -> 无脑切入【半自动模式】
-            if (curr_ctrl_f && !last_ctrl_f)
-            {
-                grab_control_mode = GRAB_CONTROL_HALF_AUTO;
-            }
-
-            // 场景 2：只按 F -> 在【键鼠】和【自定义遥控器】之间接管
+            // 场景 2：只按 F -> 强制夺权与状态切换
             if (curr_f_only && !last_f_only)
             {
                 if (grab_control_mode == GRAB_CONTROL_KEYBOARD)
+                {
+                    // 如果当前已经是键鼠控制，则切换到自定义控制器
                     grab_control_mode = GRAB_CONTROL_CUSTOM;
+                }
+                else
+                {
+                    grab_control_mode = GRAB_CONTROL_KEYBOARD;
+                }
             }
 
             last_f_only = curr_f_only;
