@@ -441,7 +441,7 @@ static IMU_Init_Config_s imu_init_config = {.flag = 1,
 static Grab_Init_Config_s
     grab_init_config =
         {
-            .Grab_cali_mode = GRAB_CALI_MODE,
+            .Grab_cali_mode = GRAB_PRE_CALI_MODE,
 
             .Grab_param =
                 {
