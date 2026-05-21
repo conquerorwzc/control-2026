@@ -150,8 +150,8 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
       float move_angle_deg = has_move_input ? (atan2f(intent->vy, intent->vx) - PI / 2.0f) * RAD_2_DEGREE : 0.0f;
       float follow_err = wrap180(move_angle_deg - robot->offset_angle);
       float rear_err = wrap180(follow_err - 180.0f);
-      /* 掉头反向跟随时底盘不转身，只把前进方向反过来，等待云台完成 180 度转向。 */
-      if (intent->reverse_follow || fabsf(rear_err) < fabsf(follow_err)) {
+      if (chassis_ctrl_cmd->chassis_mode != CHASSIS_JUMP_READY &&
+          (intent->reverse_follow || fabsf(rear_err) < fabsf(follow_err))) {
         follow_err = rear_err;
         if (has_move_input) input_mag = -input_mag;
       }
