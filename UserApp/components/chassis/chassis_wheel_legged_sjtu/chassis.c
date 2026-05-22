@@ -430,9 +430,14 @@ static void ChassisRecovery(void) {
     leg[i]->real_model.Tp_2 = leg[i]->joint_motor[1]->motor_controller.final_output - 8.0f;
   }
 
-  // 2. 判断关节是否均到达目标位，且云台是否已与底盘正方向对齐
+  // 刷新腿模型和状态变量，否则 theta_l/theta_r 冻结在倒地时的旧值
+  LegModelUpdate(leg[0], chassis->imu);
+  LegModelUpdate(leg[1], chassis->imu);
+  StateVarUpdate();
+
+  // 2. 判断关节是否均到达目标位，且腿角 theta 是否已回到可平衡范围
   //    两者都满足才允许进入 ChassisCtrlUpdate（即 LQR 平衡控制），
-  //    否则保持挂零轮力，避免在云台未就位时提前抬身导致姿态抽动。
+  //    否则保持挂零轮力，避免在大角度倾倒时进 LQR 导致输出震荡。
   uint8_t all_in_position = 1;
   for (int i = 0; i < 2; i++) {
     if (fabsf(leg[i]->joint_motor[0]->measure.position - (-0.1f)) > 0.5f ||
@@ -442,11 +447,13 @@ static void ChassisRecovery(void) {
     }
   }
 
-  // if (all_in_position && chassis->update_flag.gimbal_aligned) {
-  if (all_in_position) {
+  const float kRecoveryLqrThresh = 30.0f * DEGREE_2_RAD;
+  uint8_t theta_safe = fabsf(chassis->state_var.theta_l) < kRecoveryLqrThresh &&
+                        fabsf(chassis->state_var.theta_r) < kRecoveryLqrThresh;
+
+  if (all_in_position && theta_safe) {
     ChassisCtrlUpdate();
   } else {
-    // 3. 关节未到位或云台未对齐时挂零轮力输出，防止不稳定
     for (int i = 0; i < 2; i++) {
       leg[i]->real_model.T = 0.0f;
     }
@@ -464,7 +471,7 @@ static void ChassisJump(void) {
       ChassisCtrlUpdate();
       if (fabsf(leg[0]->virtual_model.length - chassis->param.leg_max_length) <= 0.05f &&
           fabsf(leg[1]->virtual_model.length - chassis->param.leg_max_length) <= 0.05f) {
-        osDelay(50);
+        osDelay(25);
         chassis->jump_state = JUMP_STATE_RETRACT;
       }
       break;
@@ -473,7 +480,7 @@ static void ChassisJump(void) {
       ChassisCtrlUpdate();
       if (fabsf(leg[0]->virtual_model.length - chassis->param.leg_min_length) <= 0.05f &&
           fabsf(leg[1]->virtual_model.length - chassis->param.leg_min_length) <= 0.05f) {
-        osDelay(250);
+        osDelay(275);
         chassis->jump_state = JUMP_STATE_IDLE;
       }
       break;
@@ -748,14 +755,14 @@ void ChassisTask(void) {
   chassis_ctrl_cmd->max_power =
       SuperCapModeControl(chassis->super_cap, referee_data->GameRobotState.chassis_power_limit);
 
-  static float last_super_cap_send_time = 0.0f;
-  float now_ms = DWT_GetTimeline_ms();
-  if (now_ms - last_super_cap_send_time >= 10.0f) {
-    last_super_cap_send_time = now_ms;
-    SuperCapSendMessage(chassis->super_cap, (int16_t)(referee_data->GameRobotState.chassis_power_limit),
-                        referee_data->PowerHeatData.buffer_energy,
-                        referee_data->GameRobotState.power_management_chassis_output);
-  }
+  // static float last_super_cap_send_time = 0.0f;
+  // float now_ms = DWT_GetTimeline_ms();
+  // if (now_ms - last_super_cap_send_time >= 10.0f) {
+  //   last_super_cap_send_time = now_ms;
+  //   SuperCapSendMessage(chassis->super_cap, (int16_t)(referee_data->GameRobotState.chassis_power_limit),
+  //                       referee_data->PowerHeatData.buffer_energy,
+  //                       referee_data->GameRobotState.power_management_chassis_output);
+  // }
 
   LimitChassisOutput();
 }

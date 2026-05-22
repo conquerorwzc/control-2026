@@ -54,10 +54,10 @@ typedef struct {
   float vault;        // 跳台阶模式 (Ctrl+V) 速度
 } CtrlSpeed_s;
 
-// CHASSIS_RECOVERY 触发阈值 (deg). 蹭台阶模式下放宽 (7°), 让倾翻更早进入恢复, 避免硬怼台阶.
+// CHASSIS_RECOVERY 触发阈值 (deg). 蹭台阶模式下放宽, 让倾翻更早进入恢复, 避免硬怼台阶.
 typedef struct {
-  float pitch_default;  // 默认姿态 |Pitch| 阈值
-  float pitch_creep;    // 蹭台阶模式 |Pitch| 阈值 (更小, 更敏感)
+  float theta_default;  // 默认姿态 |theta| 阈值 (腿角偏离竖直方向)
+  float theta_creep;    // 蹭台阶模式 |theta| 阈值 (更小, 更敏感)
 } RecoveryThresh_s;
 
 // 蹭台阶状态: 进入时把腿切到最高档并锁慢速, 退出恢复.

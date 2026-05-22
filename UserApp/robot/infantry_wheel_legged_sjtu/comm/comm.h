@@ -51,7 +51,7 @@ typedef struct {
     float Pitch;
     float YawTotalAngle;
     float yaw_speed;
-    float avg_theta;
+    float max_theta;
   } motion;
 
   struct {

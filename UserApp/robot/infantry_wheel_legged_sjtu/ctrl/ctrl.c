@@ -36,19 +36,18 @@ static CtrlInstance ocd = {
     /* 速度配置。vx/stair/vault 为平移速度 m/s，wz 为小陀螺角速度 rad/s。 */
     .speed = {.vx = 2.5f, .wz = 12.0f, .stair = 1.8f, .vault = 1.8f},
     /* 倾倒恢复阈值（deg）。保留 default/creep 两套配置，便于后续按场景单独调参。 */
-    .recovery = {.pitch_default = 60.0f, .pitch_creep = 30.0f},
+    .recovery = {.theta_default = 50.0f, .theta_creep = 30.0f},
 };
 /* 四档腿长预设：最低、上电默认、中档、最高。单位 m。 */
 static const float LEG_TABLE[4] = {0.117f, 0.20f, 0.285f, 0.370f};
 
-/** @brief 根据腿脚 theta 平均值判断是否需要进入 CHASSIS_RECOVERY。 */
+/** @brief 根据腿角 theta 最大绝对值判断是否需要进入 CHASSIS_RECOVERY。 */
 static uint8_t IsRobotLostControl(RobotInstance* robot) {
   const float thresh_deg = robot->chassis->chassis_ctrl_cmd.chassis_mode == CHASSIS_STAIR
-                               ? ocd.recovery.pitch_creep
-                               : ocd.recovery.pitch_default;
+                               ? ocd.recovery.theta_creep
+                               : ocd.recovery.theta_default;
   const float thresh = thresh_deg * DEGREE_2_RAD;
-  const float avg_theta = robot->chassis->state_var.theta_l;
-  return fabsf(avg_theta) > thresh;
+  return robot->chassis_upload_data->motion.max_theta > thresh;
 }
 
 /** @brief 请求裁判 UI 做一次全量重绘。双板时通过通信字段转发到底盘侧。 */
@@ -274,7 +273,11 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
  */
 static void ApplyOcdMode(RobotInstance* robot) {
   Chassis_Ctrl_Cmd_s* cmd = &robot->chassis->chassis_ctrl_cmd;
-  if (cmd->chassis_mode == CHASSIS_RECOVERY && update_flag.is_stand) return;
+  if (cmd->chassis_mode == CHASSIS_RECOVERY && update_flag.is_stand) {
+    if (IsRobotLostControl(robot)) {
+      return;
+    }
+  }
 
   switch (ocd.jump.phase) {
     case JUMP_ACTIVE:
