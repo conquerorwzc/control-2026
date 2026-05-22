@@ -47,7 +47,8 @@ typedef struct {
   uint8_t shoot_mode;
   uint8_t friction_mode;
   uint8_t load_mode;
-  int16_t pitch;
+    uint8_t vision_mode;
+  int8_t pitch;
   uint8_t rest_heat;
   uint8_t shoot_rate;
   uint16_t friction_speed1;

@@ -32,6 +32,7 @@ typedef enum
     CHASSIS_ROTATE,        // 小陀螺模式
     CHASSIS_FOLLOW,        // 跟随模式，底盘叠加角度环控制
     CHASSIS_FOLLOW_DIAGONAL, // 斜45度跟随模式，底盘保持与云台45度夹角
+    CHASSIS_FREE,
 } Chassis_Mode_e;
 
 // 舵轮底盘模式

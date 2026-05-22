@@ -63,6 +63,7 @@ typedef struct
     uint32_t ammo_flag : 1;
     uint32_t fric_flag : 1;
     uint32_t yaw_flag : 1;
+    uint32_t vision_flag : 1;
 } Referee_Interactive_Flag_t;
 
 

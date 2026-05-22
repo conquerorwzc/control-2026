@@ -133,6 +133,11 @@ static void UIChangeCheck(Referee_Interactive_info_t *_Interactive_data)
         _Interactive_data->Referee_Interactive_Flag.friction_flag = 1;
         _Interactive_data->friction_last_mode = _Interactive_data->friction_mode;
     }
+    if (_Interactive_data->vision_mode != _Interactive_data->vision_last_mode)
+    {
+        _Interactive_data->Referee_Interactive_Flag.vision_flag = 1;
+        _Interactive_data->vision_last_mode = _Interactive_data->vision_mode;
+    }
 
     if (_Interactive_data->chassis_mode != _Interactive_data->chassis_last_mode)
     {
@@ -278,6 +283,9 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
         case CHASSIS_FOLLOW_DIAGONAL:
             chassis_str = "follow45 ";
             break;
+        case CHASSIS_FREE:
+            chassis_str = "free     ";
+            break;
         default:
             chassis_str = "error";
             break;
@@ -287,6 +295,28 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data)
         interactive_data->Referee_Interactive_Flag.chassis_flag = 0;
     }
 
+    if (interactive_data->Referee_Interactive_Flag.vision_flag == 1)
+    {
+        char *vision_str;
+        switch(interactive_data->vision_mode)
+        {
+            case 0:
+            vision_str = "IDLE  ";
+            break;
+            case 1:
+            vision_str = "AUTO_AIM  ";
+            break;
+            case 2:
+            vision_str = "small_buff  ";
+            break;
+            case 3:
+            vision_str = "big_buff     ";
+            break;
+        }
+        UICharDraw(&UI_State_dyn[5], "sd5", UI_Graph_Change, 8, UI_Color_Pink, 15, 2, 270, 750, vision_str);
+        UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[5]);
+        interactive_data->Referee_Interactive_Flag.vision_flag = 0;
+    }
     // 更新功率显示
     // if (interactive_data->Referee_Interactive_Flag.Power_flag == 1)
     // {
@@ -663,11 +693,11 @@ void MyUIInit()
     //                 CENTER_X - 250, CENTER_Y - 100, CENTER_X + 250, CENTER_Y + 100);
     // UIGraphRefresh(&referee_recv_info->referee_id, 1, UI_srm_bg);
     // 绘制SRM文字 (超大字体，size=100)
-    UICharDraw(&UI_srm_logo, "sr0", UI_Graph_ADD, 0, UI_Color_Pink, 200, 10,
+    UICharDraw(&UI_srm_logo, "sr0", UI_Graph_ADD, 0, UI_Color_Black, 200, 25,
                CENTER_X -260, CENTER_Y+80, "SRM");
     UICharRefresh(&referee_recv_info->referee_id, UI_srm_logo);
     // 绘制Initializing...文字 (小字，size=25)
-    UICharDraw(&UI_srm_init, "si0", UI_Graph_ADD, 0, UI_Color_White, 25, 1,
+    UICharDraw(&UI_srm_init, "si0", UI_Graph_ADD, 0, UI_Color_White, 25, 2,
                CENTER_X - 150, CENTER_Y - 170, "Initializing...");
     UICharRefresh(&referee_recv_info->referee_id, UI_srm_init);
     osDelay(200); // 短暂显示
@@ -704,6 +734,8 @@ void MyUIInit()
     UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[3]);
     UICharDraw(&UI_State_sta[4], "ss4", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 550, "chassis:");
     UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[4]);
+    UICharDraw(&UI_State_sta[5], "ss5", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 150, 750, "vision:");
+    UICharRefresh(&referee_recv_info->referee_id, UI_State_sta[5]);
 
     // 绘制车辆状态标志，动态
     // 由于初始化时xxx_last_mode默认为0，所以此处对应UI也应该设为0时对应的UI，防止模式不变的情况下无法置位flag，导致UI无法刷新
@@ -717,6 +749,8 @@ void MyUIInit()
     UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[3]);
     UICharDraw(&UI_State_dyn[4], "sd4", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 270, 550, "PowerOff");
     UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[4]);
+    UICharDraw(&UI_State_dyn[5], "sd5", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 270, 750, "AUTO_AIM");
+    UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[5]);
 
     //绘制枪口热度，射频指示
     // UICharDraw(&UI_Shoot_sta[0], "ss5", UI_Graph_ADD, 8, UI_Color_White, 15, 2, 1500, 750, "SHOOT_HEAT:");
@@ -869,11 +903,15 @@ void UITask()
         MyUIInit();
         interactive_data.ui_init=0;
     }
+    else
+    {
+        UIChangeCheck(&interactive_data);
+    }
     // 更新交互数据（模拟从系统其他部分获取数据）
     // 这些值应该从实际的机器人系统中获取
 
     // 检查是否有变化
-    UIChangeCheck(&interactive_data);
+
 
     // 执行UI刷新
     MyUIRefresh(&interactive_data);

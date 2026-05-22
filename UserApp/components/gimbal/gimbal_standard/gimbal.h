@@ -9,11 +9,21 @@ typedef enum {
   GIMBAL_VISION,
 } Gimbal_Mode_e;
 
+typedef enum
+{
+    IDLE = 0,
+    AUTO_AIM,
+    SMALL_BUFF,
+    BIG_BUFF,
+} Vision_Mode_e;
+
 typedef struct {
   float yaw;
   float pitch;
   float chassis_rotate_wz;
   Gimbal_Mode_e gimbal_mode;
+    Vision_Mode_e vision_mode;
+
 } Gimbal_Ctrl_Cmd_s;
 
 typedef struct {

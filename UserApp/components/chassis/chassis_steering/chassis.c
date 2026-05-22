@@ -14,6 +14,7 @@
 #include "bsp_dwt.h"
 #include "general_def.h"
 #include "rm_referee.h"
+
 // #include "robot_config.h"
 #include "user_lib.h"
 #define SQRT2_OVER_2 0.7071067811865476f // √2 / 2
@@ -490,7 +491,7 @@ static float AngleErrorNormalize(float error) {
     while (error < -180.0f) error += 360.0f;
     return error;
 }
-
+static uint8_t follow;
 void ChassisTask()
 {
     switch (chassis->super_cap_mode)
@@ -501,14 +502,14 @@ void ChassisTask()
         chassis->chassis_ctrl_cmd.max_power = (uint8_t)35;// TODO:用超电记得改;
         break;
     case FORCED_CHARGING_MODE:
-        if (chassis->super_cap->cap_msg.cap_v < 12.5f)
+        if (chassis->super_cap->cap_msg.cap_v < 13.0f)
             chassis->super_cap_mode = SAFETY_MODE;
         if (chassis->super_cap->cap_msg.cap_v > 18.0f)
             chassis->super_cap_mode = PASSIVE_MODE;
         chassis->chassis_ctrl_cmd.max_power = (uint16_t)(referee_data->GameRobotState.chassis_power_limit - 30);
         break;
     case CHARGING_MODE:
-        if (chassis->super_cap->cap_msg.cap_v < 13.0f)
+        if (chassis->super_cap->cap_msg.cap_v < 13.5f)
             chassis->super_cap_mode = FORCED_CHARGING_MODE;
         if (chassis->super_cap->cap_msg.cap_v > 18.0f)
             chassis->super_cap_mode = PASSIVE_MODE;
@@ -519,14 +520,14 @@ void ChassisTask()
             chassis->super_cap_mode = ACTIVE_MODE;
         if (chassis->super_cap->cap_msg.cap_v < 14.0f)
             chassis->super_cap_mode = CHARGING_MODE;
-        chassis->chassis_ctrl_cmd.max_power = referee_data->GameRobotState.chassis_power_limit + 10;
+        chassis->chassis_ctrl_cmd.max_power = (uint16_t)(0.9*(float)referee_data->GameRobotState.chassis_power_limit);
         break;
     case ACTIVE_MODE:
         if (chassis->super_cap->cap_msg.cap_v < 14.0f)
             chassis->super_cap_mode = CHARGING_MODE;
         if (!(chassis_ctrl_cmd->SuperCapBoost & 1))
             chassis->super_cap_mode = PASSIVE_MODE;
-        chassis->chassis_ctrl_cmd.max_power = 130;
+        chassis->chassis_ctrl_cmd.max_power = 150;
         break;
     default:
         chassis->super_cap_mode = SAFETY_MODE;
@@ -550,9 +551,19 @@ void ChassisTask()
     switch (chassis_ctrl_cmd->chassis_mode)
     {
     case CHASSIS_FOLLOW:
+        if (abs(AngleErrorNormalize(chassis_ctrl_cmd->offset_angle - 0))>5)
+            follow=1;
+        if (abs(AngleErrorNormalize(chassis_ctrl_cmd->offset_angle -0))<2)
+            follow=0;
+        if (follow)
         chassis_ctrl_cmd->wz += PIDCalculate(&follow_pid, AngleErrorNormalize(chassis_ctrl_cmd->offset_angle - 0), 0);
         break;
     case CHASSIS_FOLLOW_DIAGONAL:
+        if (abs(AngleErrorNormalize(chassis_ctrl_cmd->offset_angle - 45.0f))>5)
+            follow=1;
+        if (abs(AngleErrorNormalize(chassis_ctrl_cmd->offset_angle - 45.0f))<2)
+            follow=0;
+        if (follow)
         chassis_ctrl_cmd->wz += PIDCalculate(&follow_pid, AngleErrorNormalize(chassis_ctrl_cmd->offset_angle - 45.0f), 0);
         break;
     case CHASSIS_ROTATE: // 自旋,同时保持全向机动;当前wz维持定值,后续增加不规则的变速策略

@@ -26,16 +26,17 @@ typedef struct {
 
 #pragma pack(1)
 typedef struct {
-  Chassis_Ctrl_CanComm chassis_ctrl_can_comm;
-  uint8_t gimbal_mode;
-  uint8_t shoot_mode;
-  uint8_t friction_mode;
-  uint8_t load_mode;
-  int16_t pitch;
-  uint8_t rest_heat;
-  uint8_t shoot_rate;
-  uint16_t friction_speed1;
-  uint16_t friction_speed2;
+    Chassis_Ctrl_CanComm chassis_ctrl_can_comm;
+    uint8_t gimbal_mode;
+    uint8_t shoot_mode;
+    uint8_t friction_mode;
+    uint8_t load_mode;
+    uint8_t vision_mode;
+    int8_t pitch;
+    uint8_t rest_heat;
+    uint8_t shoot_rate;
+    uint16_t friction_speed1;
+    uint16_t friction_speed2;
 } CanComm_Pack;
 #pragma pack()
 typedef enum {

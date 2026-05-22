@@ -1,6 +1,7 @@
 #ifndef REFEREE_H
 #define REFEREE_H
 
+#include "gimbal.h"
 #include "rm_referee.h"
 
 //车辆示宽线
@@ -75,6 +76,7 @@ typedef struct
     Gimbal_Mode_e gimbal_mode;      // 云台模式
     Shoot_Mode_e shoot_mode;        // 发射模式设置
     Friction_Mode_e friction_mode;  // 摩擦轮关闭
+    Vision_Mode_e vision_mode;
     lid_mode_e load_mode;            // 弹舱盖打开
     Chassis_Power_Data_s Chassis_Power_Data; // 功率控制
     float pitch_angle; // 云台俯仰角
@@ -93,6 +95,7 @@ typedef struct
     Gimbal_Mode_e gimbal_last_mode;
     Shoot_Mode_e shoot_last_mode;
     Friction_Mode_e friction_last_mode;
+    Vision_Mode_e vision_last_mode;
     lid_mode_e load_last_mode;
     Chassis_Power_Data_s Chassis_last_Power_Data;
     float last_pitch_angle; // 上一次的俯仰角

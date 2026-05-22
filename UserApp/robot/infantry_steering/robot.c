@@ -118,6 +118,7 @@ static void DualBoardCtrlSet() {
    //  //interactive_data.lid_mode = robotdata->shoot->shoot_ctrl_cmd.load_mode;
       interactive_data->load_mode = cancomm_pack->load_mode;
    //
+      interactive_data->vision_mode=cancomm_pack->vision_mode;
     interactive_data->Chassis_Power_Data.chassis_power_mx = robot->chassis->chassis_ctrl_cmd.max_power; // 示例功率值
    //
    //  //interactive_data.pitch_angle = robotdata->gimbal->gimbal_ctrl_cmd.pitch;
@@ -146,7 +147,7 @@ static void DualBoardCtrlSet() {
     interactive_data->cap_voltage=robot->chassis->super_cap->cap_msg.cap_v;
       if (robot->chassis->super_cap->cap_msg.error_detect==0)
       {
-          if (robot->chassis->chassis_ctrl_cmd.SuperCapBoost & 1)
+          if (robot->chassis->super_cap_mode==ACTIVE_MODE)
               interactive_data->cap_mode=2;
           else
               interactive_data->cap_mode=1;

@@ -153,4 +153,5 @@ void VisionSend();
 
 void navigator_send();
 
+Vision_Send_s *GetVisionSend();
 #endif // !MASTER_PROCESS_H

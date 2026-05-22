@@ -177,7 +177,7 @@ static Chassis_Init_Config_s chassis_init_config = {
             .IntegralLimit = 1000.0f,
             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
             .MaxOut = 40000.0f,
-            .DeadBand = 2.0f,
+            .DeadBand = 0.0f,
 
         },
     .planar_motion_pid_config =
