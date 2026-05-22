@@ -95,7 +95,7 @@ static float LoaderSpeedFromDelay(float delta_angle, float delay_ms) {
 void ShootBulletSpeedControl(void) {
   // 计算弹速误差
   actual_bullet_speed = shoot_ctrl_cmd->initial_speed;
-  if (actual_bullet_speed < 10.0f) {
+  if (actual_bullet_speed < 20.0f) {
     return;
   }
   float speed_error = target_speed - actual_bullet_speed;
