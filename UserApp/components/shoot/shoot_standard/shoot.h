@@ -52,6 +52,8 @@ typedef struct {
   int loader_direction;          // 拨弹盘方向
   int friction_num;              // 摩擦轮数量
   float friction_speed;          // 摩擦轮速度
+  float friction_speed_min;  // 摩擦轮转速绝对值下限
+  float friction_speed_max;  // 摩擦轮转速绝对值上限
   float target_speed;
   float friction_coefficients[FRICTION_NUM];  // 摩擦轮的系数
   float deadtime_onebullet;                   // 单发死时间

@@ -33,6 +33,9 @@ static int16_t remain_heat;                    // 剩余热量
 static float shooter_barrel_heat;              // 计算的机器人当前射击热量，此变量只在模拟模式下使用
 static float heat_cooling_time;                // 用于计算冷却时间，此变量只在模拟模式下使用
 
+static float friction_speed_min;
+static float friction_speed_max;
+
 ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
   ShootInstance* shoot_instance = (ShootInstance*)zmalloc(sizeof(ShootInstance));
 
@@ -40,6 +43,8 @@ ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
   reduction_ratio_loader = shoot_init_config->shoot_param.reduction_ratio_loader;
   loader_direction = shoot_init_config->shoot_param.loader_direction;
   friction_speed = shoot_init_config->shoot_param.friction_speed;
+  friction_speed_min = shoot_init_config->shoot_param.friction_speed_min;
+  friction_speed_max = shoot_init_config->shoot_param.friction_speed_max;
   deadtime_burstfire = shoot_init_config->shoot_param.deadtime_burstfire;
   deadtime_onebullet = shoot_init_config->shoot_param.deadtime_onebullet;
   target_speed = shoot_init_config->shoot_param.target_speed;
@@ -63,6 +68,22 @@ ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
   shoot_ctrl_cmd = &shoot_instance->shoot_ctrl_cmd;  // 在运行时初始化指针
   idx++;
   return shoot_instance;
+}
+
+/**
+ * @brief 摩擦轮转速限幅
+ */
+static float LimitFrictionSpeedAbs(float speed) {
+  float sign = speed >= 0.0f ? 1.0f : -1.0f;
+  float abs_speed = speed >= 0.0f ? speed : -speed;
+
+  if (abs_speed < friction_speed_min) {
+    abs_speed = friction_speed_min;
+  } else if (abs_speed > friction_speed_max) {
+    abs_speed = friction_speed_max;
+  }
+
+  return sign * abs_speed;
 }
 
 /**
@@ -95,16 +116,17 @@ static float LoaderSpeedFromDelay(float delta_angle, float delay_ms) {
 void ShootBulletSpeedControl(void) {
   // 计算弹速误差
   actual_bullet_speed = shoot_ctrl_cmd->initial_speed;
-  if (actual_bullet_speed < 20.0f) {
+  if (actual_bullet_speed < 16.0f) {
     return;
   }
   float speed_error = target_speed - actual_bullet_speed;
-  if (actual_bullet_speed <= target_speed + 0.5 && actual_bullet_speed >= target_speed - 0.5) {
+  if (actual_bullet_speed <= target_speed + 0.4 && actual_bullet_speed >= target_speed - 0.4) {
     return;
   }
 
   // 将误差乘以系数后加到基础摩擦轮速度上
   friction_speed += speed_error * bullet_speed_adjustment;
+  friction_speed = LimitFrictionSpeedAbs(friction_speed);
 }
 
 /**
@@ -220,6 +242,7 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
   // 确定是否开启摩擦轮,后续可能修改为键鼠模式下始终开启摩擦轮(上场时建议一直开启)
   if (shoot_ctrl_cmd->friction_mode == FRICTION_ON) {
     // 根据收到的弹速设置设定摩擦轮电机参考值,需实测后填入
+    friction_speed = LimitFrictionSpeedAbs(friction_speed);
     friction_set = friction_speed;
   } else  // 关闭摩擦轮
   {

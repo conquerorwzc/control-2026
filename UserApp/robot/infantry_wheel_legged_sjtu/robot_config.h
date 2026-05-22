@@ -446,8 +446,10 @@ static Shoot_Init_Config_s shoot_init_config = {
             .num_per_circle = NUM_PER_CIRCLE,                  // 拨盘一圈的装载量
             .loader_direction = 1,                             // 拨盘旋转方向,1为正向，-1为反向
             .friction_num = 2,                                 // 摩擦轮数量
-            .friction_speed = 38000.0f,                        // 摩擦轮速度
-            .friction_coefficients = {1.0f, -1.0f},            // 摩擦轮速度比例系数
+            .friction_speed = 37000.0f,                        // 摩擦轮速度
+            .friction_speed_min = 35000.0f,
+            .friction_speed_max = 39000.0f,
+            .friction_coefficients = {1.0f, -1.0f},  // 摩擦轮速度比例系数
             .deadtime_burstfire = 50,
             .deadtime_onebullet = 350,
             .target_speed = 22.5f,
@@ -468,17 +470,17 @@ static Shoot_Init_Config_s shoot_init_config = {
                         {
                             .Kp = 60.0f,
                             .Ki = 0.0f,
-                            .Kd = 1.0f,
-                            .MaxOut = 33000.0f,
+                            .Kd = 0.5f,
+                            .MaxOut = 40000.0f,
                         },
                     .speed_PID =
                         {
-                            .Kp = 1.5f,
+                            .Kp = 2.0f,
                             .Ki = 0.4f,
                             .Kd = 0.0f,
                             .Improve = PID_Integral_Limit | PID_ErrorHandle,
                             .IntegralLimit = 5000.0f,
-                            .MaxOut = 8000.0f,
+                            .MaxOut = 10000.0f,
                         },
                 },
             .motor_type = M2006,  // 拨盘电机为M2006
