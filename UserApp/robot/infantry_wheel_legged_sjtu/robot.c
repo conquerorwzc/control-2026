@@ -44,11 +44,12 @@ void VOFATask() {
   // visualized_data[0] = robot->gimbal->gimbal_IMU_data->Yaw;
   // visualized_data[1] = robot->gimbal->gimbal_IMU_data->Pitch;
   // visualized_data[2] = robot->gimbal->gimbal_IMU_data->Roll;
-  visualized_data[0] = robot->gimbal->gimbal_ctrl_cmd.chassis_rotate_wz;
-  visualized_data[1] = robot->chassis->imu->Gyro[2];
-  visualized_data[2] = robot->gimbal->gimbal_ctrl_cmd.yaw;
-  visualized_data[3] = robot->gimbal->gimbal_IMU_data->Yaw;
-  visualized_data[4] = robot->gimbal->yaw_motor->motor_controller.pid_ref;
+  // visualized_data[0] = robot->gimbal->gimbal_ctrl_cmd.chassis_rotate_wz;
+  // visualized_data[1] = robot->chassis->imu->Gyro[2];
+  // visualized_data[2] = robot->gimbal->gimbal_ctrl_cmd.yaw;
+  // visualized_data[3] = robot->gimbal->gimbal_IMU_data->Yaw;
+  // visualized_data[4] = robot->gimbal->yaw_motor->motor_controller.pid_ref;
+  visualized_data[0] = robot->gimbal->yaw_motor->measure.ecd;
 
 
 #elif defined(ONE_BOARD) || defined(CHASSIS_BOARD)
@@ -69,13 +70,14 @@ void VOFATask() {
   // visualized_data[4] = robot->chassis->state_var.theta_b * RAD_2_DEGREE;
   // visualized_data[5] = robot->chassis->roll_PID.Ref * RAD_2_DEGREE;
   // visualized_data[6] = robot->chassis->roll_PID.Measure * RAD_2_DEGREE;
-  visualized_data[0] = robot->chassis->power_ctrl->P_total;
-  visualized_data[1] = robot->chassis->power_ctrl->P_total_ref;
-  visualized_data[2] = robot->chassis->power_ctrl->scale_combined;
-  visualized_data[3] = robot->chassis->power_ctrl->P[0];
-  visualized_data[4] = robot->chassis->power_ctrl->I[0];
-  visualized_data[5] = robot->chassis->power_ctrl->w[0];
-  visualized_data[6] = robot->chassis->state_var.phi_d;
+  // visualized_data[0] = robot->chassis->power_ctrl->P_total;
+  // visualized_data[1] = robot->chassis->power_ctrl->P_total_ref;
+  // visualized_data[2] = robot->chassis->power_ctrl->scale_combined;
+  // visualized_data[3] = robot->chassis->power_ctrl->P[0];
+  // visualized_data[4] = robot->chassis->power_ctrl->I[0];
+  // visualized_data[5] = robot->chassis->power_ctrl->w[0];
+  // visualized_data[6] = robot->chassis->state_var.phi_d;
+  // visualized_data[0] = robot->gimbal->yaw_motor->measure.angle_single_round;
 
   // visualized_data[6]= robot->chassis->super_cap->cap_msg.cap_v;
   // visualized_data[7] = robot->chassis->super_cap->cap_msg.out_p;

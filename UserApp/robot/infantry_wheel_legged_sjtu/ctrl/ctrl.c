@@ -36,18 +36,19 @@ static CtrlInstance ocd = {
     /* 速度配置。vx/stair/vault 为平移速度 m/s，wz 为小陀螺角速度 rad/s。 */
     .speed = {.vx = 2.5f, .wz = 12.0f, .stair = 1.8f, .vault = 1.8f},
     /* 倾倒恢复阈值（deg）。保留 default/creep 两套配置，便于后续按场景单独调参。 */
-    .recovery = {.theta_default = 50.0f, .theta_creep = 30.0f},
+    .recovery = {.theta_default = 50.0f, .theta_creep = 30.0f, .pitch_default = 60.0f, .pitch_creep = 30.0f},
 };
 /* 四档腿长预设：最低、上电默认、中档、最高。单位 m。 */
 static const float LEG_TABLE[4] = {0.117f, 0.20f, 0.285f, 0.370f};
 
-/** @brief 根据腿角 theta 最大绝对值判断是否需要进入 CHASSIS_RECOVERY。 */
+/** @brief 根据腿角 theta 或机身 pitch 判断是否需要进入 CHASSIS_RECOVERY。 */
 static uint8_t IsRobotLostControl(RobotInstance* robot) {
-  const float thresh_deg = robot->chassis->chassis_ctrl_cmd.chassis_mode == CHASSIS_STAIR
-                               ? ocd.recovery.theta_creep
-                               : ocd.recovery.theta_default;
-  const float thresh = thresh_deg * DEGREE_2_RAD;
-  return robot->chassis_upload_data->motion.max_theta > thresh;
+  const uint8_t is_stair = robot->chassis->chassis_ctrl_cmd.chassis_mode == CHASSIS_STAIR;
+  const float theta_thresh = (is_stair ? ocd.recovery.theta_creep : ocd.recovery.theta_default) * DEGREE_2_RAD;
+  const float pitch_thresh = (is_stair ? ocd.recovery.pitch_creep : ocd.recovery.pitch_default) * DEGREE_2_RAD;
+  if (robot->chassis_upload_data->motion.max_theta > theta_thresh) return 1;
+  if (fabsf(robot->chassis_upload_data->motion.Pitch) * DEGREE_2_RAD > pitch_thresh) return 1;
+  return 0;
 }
 
 /** @brief 请求裁判 UI 做一次全量重绘。双板时通过通信字段转发到底盘侧。 */
@@ -149,8 +150,7 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
       float move_angle_deg = has_move_input ? (atan2f(intent->vy, intent->vx) - PI / 2.0f) * RAD_2_DEGREE : 0.0f;
       float follow_err = wrap180(move_angle_deg - robot->offset_angle);
       float rear_err = wrap180(follow_err - 180.0f);
-      if (chassis_ctrl_cmd->chassis_mode != CHASSIS_JUMP_READY &&
-          (intent->reverse_follow || fabsf(rear_err) < fabsf(follow_err))) {
+      if (intent->reverse_follow || fabsf(rear_err) < fabsf(follow_err)) {
         follow_err = rear_err;
         if (has_move_input) input_mag = -input_mag;
       }
@@ -440,12 +440,16 @@ void MouseKeyCtrl(RobotInstance* robot) {
     ocd.mk_rotate_scale = 1.0f;
   }
 
-  /* 鼠标左键发射：短按单发，按住超过 0.3s 连发。 */
+  /* 鼠标左键发射：vision_priority 模式需同时满足 fire_flag，mouse_priority 按下即发。 */
   static float mouse_trigger_t0 = 0;
   if (mk->mouse.press_l) {
     if (shoot_cmd->friction_mode == FRICTION_ON) {
-      ocd.mk_shoot.fire = 1;
-      ocd.mk_shoot.burst = (DWT_GetTimeline_s() - mouse_trigger_t0 > 0.3f) ? 1 : 0;
+      uint8_t allow_fire = (ocd.fire_mode == FIRE_MOUSE_PRIORITY) ||
+                           (vision->shoot_receive.fire_flag);
+      if (allow_fire) {
+        ocd.mk_shoot.fire = 1;
+        ocd.mk_shoot.burst = (DWT_GetTimeline_s() - mouse_trigger_t0 > 0.3f) ? 1 : 0;
+      }
     }
   } else {
     mouse_trigger_t0 = DWT_GetTimeline_s();
@@ -493,11 +497,10 @@ void MouseKeyCtrl(RobotInstance* robot) {
         (robot->chassis->super_cap->super_cap_ctrl_cmd == BOOST) ? NORMAL : BOOST;
   }
 
-  /* Q/E：持续微调 roll。 */
-  if (mk->keyboard.q)
-    ocd.intent.roll_delta -= 0.4f;
-  else if (mk->keyboard.e)
-    ocd.intent.roll_delta += 0.4f;
+  /* Q：切换开火模式 (vision_priority / mouse_priority)。 */
+  if (mk->keyboard.q && !mk_last->keyboard.q) {
+    ocd.fire_mode = (ocd.fire_mode == FIRE_VISION_PRIORITY) ? FIRE_MOUSE_PRIORITY : FIRE_VISION_PRIORITY;
+  }
 
   /* R/F：非蹭台阶时切换四档腿长预设，实际写入由 CtrlSolve 消费 pending 标志。 */
   if (!ocd.stair.active && mk->keyboard.r && !mk_last->keyboard.r) {
@@ -607,8 +610,8 @@ void CtrlSolve(RobotInstance* robot) {
     ocd.intent.leg_length_delta = 0.0f;
   }
 
-  /* 7. 跳跃准备/执行期间强制云台水平，避免鼠标或自瞄覆盖 pitch。 */
-  if (ocd.jump.phase == JUMP_READY || ocd.jump.phase == JUMP_ACTIVE) {
+  /* 7. 跳跃准备/执行期间或蹭台阶模式强制云台水平，避免鼠标或自瞄覆盖 pitch。 */
+  if (ocd.jump.phase == JUMP_READY || ocd.jump.phase == JUMP_ACTIVE || ocd.stair.active) {
     gimbal_cmd->pitch = 0.0f;
   }
 
@@ -675,6 +678,8 @@ void EmergencyHandler(RobotInstance* robot) {
     shoot_cmd->load_mode = LOAD_STOP;
   }
 }
+
+FireMode_e GetFireMode(void) { return ocd.fire_mode; }
 #endif
 
 /* ------------------------- 传统遥控器链路 ------------------------- */

@@ -88,7 +88,7 @@
 #define UI_STATUS_ROW_GAP 38
 #define UI_STATUS_FONT_SIZE 14
 #define UI_STATUS_WIDTH 2
-#define UI_STATUS_ROW_COUNT 8
+#define UI_STATUS_ROW_COUNT 9
 #define UI_STATUS_VALUE_CHARS 12
 
 /* 超级电容：左侧能量弧、数字电压和控制命令。 */
@@ -210,7 +210,7 @@ static const uint8_t UI_LegRodEdges[5][2] = {
     {4, 0},
 };
 static const char *const UI_StatusLabelText[UI_STATUS_ROW_COUNT] = {
-    "ROBOT:", "CHASSIS:", "GIMBAL:", "FRICTION:", "LOADER:", "SUPERCAP:", "PITCH:", "ROLL:"};
+    "ROBOT:", "CHASSIS:", "GIMBAL:", "FRICTION:", "LOADER:", "SUPERCAP:", "FIRE:", "PITCH:", "ROLL:"};
 
 /* ===========================================================================
  * 小工具
@@ -356,6 +356,8 @@ static const char *SuperCapModeStr(SuperCap_Mode_e mode) {
 }
 
 static const char *SuperCapCtrlCmdStr(SuperCap_Ctrl_Cmd_e cmd) { return cmd == BOOST ? "BOOST" : "NORMAL"; }
+
+static const char *FireModeStr(FireMode_e mode) { return mode == FIRE_MOUSE_PRIORITY ? "MOUSE" : "VISION"; }
 
 static uint32_t SuperCapCtrlCmdColor(SuperCap_Ctrl_Cmd_e cmd) {
   return cmd == BOOST ? UI_Color_Purplish_red : UI_Color_Cyan;
@@ -548,6 +550,8 @@ static void SampleStatusData(RobotInstance *robot, Referee_Interactive_info_t *d
     data->aim_target_flag = robot->vision_recv_data->shoot_receive.fire_flag != 0;
   }
 
+  data->fire_mode = GetFireMode();
+
 #if !defined(ONE_BOARD)
   if (robot->chassis_fetch_data) {
     const UI_Remote_Status_s *status = &robot->chassis_fetch_data->gamestate.ui_status;
@@ -556,6 +560,7 @@ static void SampleStatusData(RobotInstance *robot, Referee_Interactive_info_t *d
     data->friction_mode = (Friction_Mode_e)status->friction_mode;
     data->loader_mode = (Loader_Mode_e)status->loader_mode;
     data->aim_target_flag = status->fire_flag != 0;
+    data->fire_mode = (FireMode_e)status->fire_mode;
   }
 #endif
 
@@ -775,11 +780,12 @@ static void DrawStatusModeDynamic(Referee_Interactive_info_t *data, uint32_t ope
   DrawStatusValue(3, operate, FrictionModeStr(data->friction_mode));
   DrawStatusValue(4, operate, LoaderModeStr(data->loader_mode));
   DrawStatusValue(5, operate, SuperCapModeStr(data->super_cap_mode));
+  DrawStatusValue(6, operate, FireModeStr(data->fire_mode));
 }
 
 static void DrawStatusAttitudeDynamic(Referee_Interactive_info_t *data, uint32_t operate) {
-  DrawStatusAngleValue(6, operate, data->chassis_pitch);
-  DrawStatusAngleValue(7, operate, data->chassis_roll);
+  DrawStatusAngleValue(7, operate, data->chassis_pitch);
+  DrawStatusAngleValue(8, operate, data->chassis_roll);
 }
 
 static void DrawStatusDynamic(Referee_Interactive_info_t *data, uint32_t operate) {
@@ -806,13 +812,16 @@ static uint8_t DrawStatusModeDynamicStep(Referee_Interactive_info_t *data, uint3
     case 4:
       DrawStatusValue(4, operate, LoaderModeStr(data->loader_mode));
       break;
-    default:
+    case 5:
       DrawStatusValue(5, operate, SuperCapModeStr(data->super_cap_mode));
+      break;
+    default:
+      DrawStatusValue(6, operate, FireModeStr(data->fire_mode));
       break;
   }
 
   row++;
-  if (row >= 6) {
+  if (row >= 7) {
     row = 0;
     return 1;
   }
@@ -969,7 +978,7 @@ static void UIChangeCheck(Referee_Interactive_info_t *data) {
   uint8_t status_changed =
       data->robot_mode != data->last_robot_mode || chassis_mode_changed || data->gimbal_mode != data->last_gimbal_mode ||
       data->friction_mode != data->last_friction_mode || data->loader_mode != data->last_loader_mode ||
-      data->super_cap_mode != data->last_super_cap_mode;
+      data->super_cap_mode != data->last_super_cap_mode || data->fire_mode != data->last_fire_mode;
   if (status_changed) {
     data->UI_Interactive_Flag.status_flag = 1;
     if (chassis_mode_changed) {
@@ -981,6 +990,7 @@ static void UIChangeCheck(Referee_Interactive_info_t *data) {
     data->last_friction_mode = data->friction_mode;
     data->last_loader_mode = data->loader_mode;
     data->last_super_cap_mode = data->super_cap_mode;
+    data->last_fire_mode = data->fire_mode;
   }
 
   if (fabsf(data->chassis_pitch - data->last_chassis_pitch) > 0.5f ||
@@ -1113,6 +1123,7 @@ static void SyncLastValues(Referee_Interactive_info_t *d) {
   d->last_gimbal_mode = d->gimbal_mode;
   d->last_friction_mode = d->friction_mode;
   d->last_loader_mode = d->loader_mode;
+  d->last_fire_mode = d->fire_mode;
   d->last_chassis_pitch = d->chassis_pitch;
   d->last_chassis_roll = d->chassis_roll;
   d->last_super_cap_mode = d->super_cap_mode;

@@ -68,6 +68,7 @@ typedef struct {
   uint8_t friction_mode;
   uint8_t loader_mode;
   uint8_t fire_flag;
+  uint8_t fire_mode;
   int16_t ui_chassis_relative_angle_deg_x10;
 } UI_Remote_Status_s;
 

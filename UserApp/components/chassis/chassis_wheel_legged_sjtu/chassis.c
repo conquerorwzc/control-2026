@@ -335,11 +335,11 @@ static void LegController(void) {
     f_inertial *= inertial_scale;
   }
 
-  leg[0]->virtual_model.F = -f_psi + f_l_r + f_gravity + f_inertial * 1.0f;
+  leg[0]->virtual_model.F = -f_psi + f_l_r + f_gravity + f_inertial * 5.0f;
   if (leg[0]->update_flag.is_off_ground) {
     leg[0]->virtual_model.F = -f_psi * 0.3f + f_l_r + f_gravity;
   }
-  leg[1]->virtual_model.F = f_psi + f_l_l + f_gravity - f_inertial * 1.0f;
+  leg[1]->virtual_model.F = f_psi + f_l_l + f_gravity - f_inertial * 5.0f;
   if (leg[1]->update_flag.is_off_ground) {
     leg[1]->virtual_model.F = f_psi * 0.3f + f_l_l + f_gravity;
   }

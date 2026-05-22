@@ -1,6 +1,7 @@
 #pragma once
 
 #include "robot.h"
+#include "ctrl.h"
 
 #define UI_CENTER_X 960
 #define UI_CENTER_Y 540
@@ -49,6 +50,8 @@ typedef struct {
   Friction_Mode_e last_friction_mode;
   Loader_Mode_e loader_mode;
   Loader_Mode_e last_loader_mode;
+  FireMode_e fire_mode;
+  FireMode_e last_fire_mode;
 
   /* Chassis attitude, deg */
   float chassis_pitch;

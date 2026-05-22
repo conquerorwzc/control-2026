@@ -29,6 +29,11 @@ typedef enum {
   JUMP_ACTIVE,   // 起跳中, 等待 chassis->jump_state 回 IDLE 或超时
 } JumpPhase_e;
 
+typedef enum {
+  FIRE_VISION_PRIORITY = 0,  // 左键 + vision fire_flag 同时满足才开火
+  FIRE_MOUSE_PRIORITY,       // 左键按下即开火
+} FireMode_e;
+
 typedef struct {
   uint8_t fire;   // 1 = 触发开火
   uint8_t burst;  // 1 = 连发 (压制单发)
@@ -58,6 +63,8 @@ typedef struct {
 typedef struct {
   float theta_default;  // 默认姿态 |theta| 阈值 (腿角偏离竖直方向)
   float theta_creep;    // 蹭台阶模式 |theta| 阈值 (更小, 更敏感)
+  float pitch_default;  // 默认姿态 |pitch| 阈值 (机身俯仰角)
+  float pitch_creep;    // 蹭台阶模式 |pitch| 阈值
 } RecoveryThresh_s;
 
 // 蹭台阶状态: 进入时把腿切到最高档并锁慢速, 退出恢复.
@@ -94,6 +101,7 @@ typedef struct {
   LegPreset_s     leg;
   Stair_s    stair;
   ReverseFollow_s reverse;
+  FireMode_e      fire_mode;
 
   // ---- 上电常量 (静态初始化设定, 运行时不变) ----
   CtrlSpeed_s      speed;
@@ -136,5 +144,7 @@ void EmergencyHandler(RobotInstance* robot);
  * @note 必须在 JoyStickCtrl 与 MouseKeyCtrl 之后调用.
  */
 void CtrlSolve(RobotInstance* robot);
+
+FireMode_e GetFireMode(void);
 
 #endif // INFANTRY_CTRL_H

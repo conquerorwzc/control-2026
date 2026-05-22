@@ -182,6 +182,7 @@ void RobotCommTask(RobotInstance* robot) {
   chassis_fetch_data->gamestate.ui_status.loader_mode = (uint8_t)shoot_ctrl_cmd->load_mode;
   chassis_fetch_data->gamestate.ui_status.fire_flag =
       (uint8_t)(robot->vision_recv_data != NULL && robot->vision_recv_data->shoot_receive.fire_flag != 0);
+  chassis_fetch_data->gamestate.ui_status.fire_mode = (uint8_t)GetFireMode();
 
   memcpy(&chassis_upload_data->main, CANCommGet(robot->main_comm), sizeof(chassis_upload_data->main));
   memcpy(&chassis_upload_data->motion, CANCommGet(robot->motion_comm), sizeof(chassis_upload_data->motion));
