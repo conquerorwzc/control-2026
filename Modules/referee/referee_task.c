@@ -716,8 +716,12 @@ void MyUIInit() {
     UILineDraw(&UI_shoot_line[6], "sl8", UI_Graph_ADD, 7, UI_Color_White, 2,
              CENTER_X - 120, CENTER_Y + Aim_Line_4 - 75,
              CENTER_X + 120, CENTER_Y + Aim_Line_4 - 75);
+  UILineDraw(&UI_shoot_line[7], "sl9", UI_Graph_ADD, 7, UI_Color_Orange, 2,
+             CENTER_X - 120, CENTER_Y + Aim_Line_4 - 200,
+             CENTER_X + 120, CENTER_Y + Aim_Line_4 - 200);
     UIGraphRefresh(&referee_recv_info->referee_id, 5, UI_shoot_line[0], UI_shoot_line[1], UI_shoot_line[2], UI_shoot_line[3], UI_shoot_line[4]);
     UIGraphRefresh(&referee_recv_info->referee_id, 2, UI_shoot_line[5], UI_shoot_line[6]);
+  UIGraphRefresh(&referee_recv_info->referee_id, 1,UI_shoot_line[7] );
 
     // 绘制车辆示宽线
     UILineDraw(&UI_drone_width_line[0], "sl6", UI_Graph_ADD, 7, UI_Color_Green, 2, 960 - WIDTHLINE_UP, 320, 960 - WIDTHLINE_DOWN, 0);
