@@ -393,10 +393,10 @@ static void MouseKeySet() {
     case 0: shoot_ctrl_cmd->bullet_speed_mode = DISABLE_BULLET_SPEED; break;
     case 1: shoot_ctrl_cmd->bullet_speed_mode = MANUAL_BULLET_SPEED;
       if (!rc_data_last->mouse_key.keyboard.z &&rc_data->mouse_key.keyboard.z ) {
-        shoot_ctrl_cmd->friction_speed += 300.0f;
+        shoot_ctrl_cmd->friction_speed += 150.0f;
       }
       else if (!rc_data_last->mouse_key.keyboard.x &&rc_data->mouse_key.keyboard.x) {
-        shoot_ctrl_cmd->friction_speed -= 300.0f;
+        shoot_ctrl_cmd->friction_speed -= 150.0f;
       }
       break; // 待填
     case 2: shoot_ctrl_cmd->bullet_speed_mode = ENABLE_BULLET_SPEED; break;

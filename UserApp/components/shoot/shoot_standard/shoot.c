@@ -63,6 +63,7 @@ ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
   shoot = shoot_instance;
   shoot_ctrl_cmd = &shoot_instance->shoot_ctrl_cmd;  // 在运行时初始化指针
   shoot->shoot_ctrl_cmd.friction_speed = shoot_init_config->shoot_param.friction_speed;
+  loader_set=shoot->loader_motor->measure.total_angle;
   idx++;
   return shoot_instance;
 }
@@ -157,8 +158,8 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
   switch (shoot_ctrl_cmd->load_mode) {
     // 停止拨盘
     case LOAD_STOP:
-      DJIMotorOuterLoop(shoot->loader_motor, SPEED_LOOP);  // 切换到速度环
-      loader_set = 0;                                      // 同时设定参考值为0,这样停止的速度最快
+      DJIMotorOuterLoop(shoot->loader_motor, ANGLE_LOOP);  // 切换到角度环
+
       break;
       // 单发模式,根据鼠标按下的时间,触发一次之后需要进入不响应输入的状态(否则按下的时间内可能多次进入,导致多次发射)
     case LOAD_1_BULLET:  // 激活能量机关/干扰对方用,英雄用.
