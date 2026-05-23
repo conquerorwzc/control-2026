@@ -139,9 +139,9 @@ static void RobotMotionSolve(RobotInstance* robot, Ctrl_Intent_s* intent) {
   switch (robot->robot_mode) {
     case ROBOT_CHASSIS_ROTATE: {
       /* 小陀螺模式下 target_yaw 跟随当前 yaw，旋转只由 wz 前馈推进，退出时不会残留 yaw 误差。 */
-      chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD;
-      chassis_ctrl_cmd->wz = intent->rotate_scale * ocd.speed.wz;  // 拨轮/shift 缩放 × ocd.speed.wz 上限
-      chassis_ctrl_cmd->vx = 0.0f;
+      // chassis_ctrl_cmd->target_yaw = robot->chassis->imu->YawTotalAngle * DEGREE_2_RAD;
+      // chassis_ctrl_cmd->wz = intent->rotate_scale * ocd.speed.wz;  // 拨轮/shift 缩放 × ocd.speed.wz 上限
+      // chassis_ctrl_cmd->vx = 0.0f;
       break;
     }
     case ROBOT_CHASSIS_FOLLOW: {
