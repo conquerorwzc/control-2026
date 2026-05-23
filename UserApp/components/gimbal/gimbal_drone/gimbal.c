@@ -24,15 +24,22 @@ GimbalInstance* GimbalInit(Gimbal_Init_Config_s* gimbal_init_config) {
   GimbalInstance* gimbal_instance = (GimbalInstance*)zmalloc(sizeof(GimbalInstance));
   gimbal_instance->gimbal_IMU_data = INS_Init(&gimbal_init_config->imu_init_config);  // IMU先初始化,获取姿态数据指针赋给yaw电机的其他数据来源
 
+  /*如果yaw要用imu控制*/
   // YAW控制器参数配置
-  gimbal_init_config->yaw_motor_config.controller_param_init_config.other_angle_feedback_ptr =
-      &gimbal_instance->gimbal_IMU_data->YawTotalAngle;
-  gimbal_init_config->yaw_motor_config.controller_param_init_config.other_speed_feedback_ptr =
-      &gimbal_instance->gimbal_IMU_data->Gyro[2];
+  // gimbal_init_config->yaw_motor_config.controller_param_init_config.other_angle_feedback_ptr =
+  //     &gimbal_instance->gimbal_IMU_data->YawTotalAngle;
+  // gimbal_init_config->yaw_motor_config.controller_param_init_config.other_speed_feedback_ptr =
+  //     &gimbal_instance->gimbal_IMU_data->Gyro[2];
 
   // YAW控制器设置配置
-  gimbal_init_config->yaw_motor_config.controller_setting_init_config.angle_feedback_source = OTHER_FEED;
-  gimbal_init_config->yaw_motor_config.controller_setting_init_config.speed_feedback_source = OTHER_FEED;
+  // gimbal_init_config->yaw_motor_config.controller_setting_init_config.angle_feedback_source = OTHER_FEED;
+  // gimbal_init_config->yaw_motor_config.controller_setting_init_config.speed_feedback_source = OTHER_FEED;
+  // gimbal_init_config->yaw_motor_config.controller_setting_init_config.outer_loop_type = ANGLE_LOOP;
+  // gimbal_init_config->yaw_motor_config.controller_setting_init_config.close_loop_type = SPEED_LOOP | ANGLE_LOOP;
+
+  /*如果yaw要用电机自身回传值控制*/
+  gimbal_init_config->yaw_motor_config.controller_setting_init_config.angle_feedback_source = MOTOR_FEED;
+  gimbal_init_config->yaw_motor_config.controller_setting_init_config.speed_feedback_source = MOTOR_FEED;
   gimbal_init_config->yaw_motor_config.controller_setting_init_config.outer_loop_type = ANGLE_LOOP;
   gimbal_init_config->yaw_motor_config.controller_setting_init_config.close_loop_type = SPEED_LOOP | ANGLE_LOOP;
 
@@ -64,7 +71,8 @@ void GimbalTask() {
     // 停止
     DJIMotorStop(gimbal->yaw_motor);
     DMMotorStop(gimbal->pitch_motor);
-    gimbal_ctrl_cmd->yaw = gimbal->gimbal_IMU_data->YawTotalAngle;
+    //gimbal_ctrl_cmd->yaw = gimbal->gimbal_IMU_data->YawTotalAngle; //如果你要imu控制
+    gimbal_ctrl_cmd->yaw = gimbal->yaw_motor->measure.total_angle;
     gimbal_ctrl_cmd->pitch = gimbal->gimbal_IMU_data->Pitch;
   } else {
     DJIMotorEnable(gimbal->yaw_motor);

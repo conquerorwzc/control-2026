@@ -106,7 +106,7 @@ static void RemoteControlSet() {
     }
 
     // 3. 按照增益系数计算最终的角度增量
-    gimbal_ctrl_cmd->yaw -= 0.00003f * rc_yaw_raw;
+    gimbal_ctrl_cmd->yaw += 0.00003f * rc_yaw_raw;
     gimbal_ctrl_cmd->pitch -= 0.00003f * rc_pitch_raw;
   }
 
@@ -202,21 +202,25 @@ static void MouseKeySet() {
     }
   }
 
-    /****************** 右键自瞄切换 ******************/
-  switch (rc_data[TEMP].mouse.press_r % 2) {  //右键进入自瞄预备模式
-      case 1:
-      if (has_non_zero_data(vision_recv_data)==1){
-        gimbal_ctrl_cmd->gimbal_mode=GIMBAL_VISION;    // 右键自瞄开启
-        gimbal_ctrl_cmd->yaw=vision_recv_data->gimbal_receive.yaw;
-        gimbal_ctrl_cmd->pitch=vision_recv_data->gimbal_receive.pitch;
-        //shoot_ctrl_cmd->load_mode=vision_recv_data->shoot_receive.fire_flag;
-      }
-      else
-        gimbal_ctrl_cmd->gimbal_mode=GIMBAL_ON;      //人工操控模式
-      break;
-      default:
-      break;
+  /****************** 右键拨弹盘反转 (处理卡弹) ******************/
+  static uint8_t last_right_state = 0;
+  // 取鼠标右键的原始状态 (按下为1，松开为0)
+  uint8_t right_mouse_state = rc_data[TEMP].mouse.press_r % 2;
+
+  // 1. 上升沿检测 (刚按下)：触发反转
+  if (right_mouse_state == 1 && last_right_state == 0) {
+    shoot_ctrl_cmd->load_mode = LOAD_REVERSE;
   }
+  // 2. 下降沿检测 (刚松开)：紧急刹车
+  else if (right_mouse_state == 0 && last_right_state == 1) {
+    // 【关键保护】：必须确认当前还在反转状态才置为 STOP
+    // 防止和左键的发射逻辑打架
+    if (shoot_ctrl_cmd->load_mode == LOAD_REVERSE) {
+      shoot_ctrl_cmd->load_mode = LOAD_STOP;
+    }
+  }
+
+  last_right_state = right_mouse_state;
 
     /****************** 鼠标控制云台（仅手动模式） ******************/
     if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
@@ -226,8 +230,8 @@ static void MouseKeySet() {
         if (abs(mouse_x) < MOUSE_DEADBAND) mouse_x = 0;
         if (abs(mouse_y) < MOUSE_DEADBAND) mouse_y = 0;
 
-        gimbal_ctrl_cmd->yaw -= (float)mouse_x * YAW_MOUSE_SENS;
-        gimbal_ctrl_cmd->pitch += (float)mouse_y * PITCH_MOUSE_SENS;
+        gimbal_ctrl_cmd->yaw += (float)mouse_x * YAW_MOUSE_SENS;
+        gimbal_ctrl_cmd->pitch -= (float)mouse_y * PITCH_MOUSE_SENS;
     }
 
     /****************** 左键发射控制 ******************/
@@ -302,9 +306,9 @@ static void MouseKeySet() {
  */
 static void EmergencyHandler() {
   // 两switch都在下断电
-  if (switch_is_down(rc_data[TEMP].rc.switch_left))  // 全部失能
+  if (switch_is_down(rc_data[TEMP].rc.switch_left)||!RemoteControlIsOnline())  // 全部失能
   {
-    robot->robot_mode = ROBOT_POWER_ON;
+    robot->robot_mode = ROBOT_POWER_OFF;
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
     shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
     shoot_ctrl_cmd->friction_mode = FRICTION_OFF;

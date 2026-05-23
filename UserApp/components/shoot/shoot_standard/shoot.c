@@ -75,26 +75,43 @@ ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
  * @brief 弹速控制函数，根据实际弹速与目标弹速的差异动态调整摩擦轮转速,后续实际弹速从裁判系统中获取
  */
 void ShootBulletSpeedControl(void) {
+  // 【补丁1】状态锁：记录上一发子弹的测速
+  static float last_referee_speed = 0.0f;
+
   switch (shoot_ctrl_cmd->bullet_speed_mode) {
     case DISABLE:
       return;
     case MANUAL_BULLET_SPEED:
       return;
     case ENABLE_BULLET_SPEED:
-    // 计算弹速误差
-    actual_bullet_speed = shoot_ctrl_cmd->initial_speed;
-    if (actual_bullet_speed <= 12) {
-      return;
-    }
-    float speed_error = target_speed - actual_bullet_speed;
-    if (actual_bullet_speed <= target_speed + bullet_speed_deadband &&  actual_bullet_speed >= target_speed-bullet_speed_deadband) {
-      return;
-    }
+      // 计算弹速误差
+      actual_bullet_speed = shoot_ctrl_cmd->initial_speed;
+      // 【前置过滤：没子弹或裁判系统还没更新】如果测速极低(碎弹掉落)，或和上次相同(裁判系统还没发新数据)，直接不调
+      if (actual_bullet_speed <= 12.0f || actual_bullet_speed == last_referee_speed) {
+        return;
+      }
+      // 计算误差 (目标 - 实际)
+      float speed_error = target_speed - actual_bullet_speed;
+
+      // 【死区2】差值太大不调（外层异常剔除）如果误差大于 4m/s，说明裁判系统抽风或碎弹，放弃本次调整
+      if (speed_error > 4.0f || speed_error < -4.0f) {
+        last_referee_speed = actual_bullet_speed; // 记下这发异常子弹，防止后续被死循环判断
+        return;
+      }
+      // 【死区1】：合适区间不调（内层稳态死区）
+      if (actual_bullet_speed <= target_speed + bullet_speed_deadband &&  actual_bullet_speed >= target_speed-bullet_speed_deadband) {
+        return;
+      }
+      last_referee_speed = actual_bullet_speed; // 闭锁，等下一发新子弹
 
     // 将误差乘以系数后加到基础摩擦轮速度上
-    shoot->shoot_ctrl_cmd.friction_speed += speed_error * bullet_speed_adjustment;
-    if (shoot->shoot_ctrl_cmd.friction_speed<33000.f||shoot->shoot_ctrl_cmd.friction_speed>45000.f){shoot->shoot_ctrl_cmd.friction_speed=37000.f;}
-    break;
+      shoot->shoot_ctrl_cmd.friction_speed += speed_error * bullet_speed_adjustment;
+      if (shoot->shoot_ctrl_cmd.friction_speed < 28000.f) {
+        shoot->shoot_ctrl_cmd.friction_speed = 28000.f;  // 触底限幅
+      } else if (shoot->shoot_ctrl_cmd.friction_speed > 38000.f) {
+        shoot->shoot_ctrl_cmd.friction_speed = 38000.f;  // 触顶限幅
+      }
+      break;
   }
 }
 
@@ -130,7 +147,7 @@ void HeatControl() {
     default:
       break;
     }
-     if (remain_heat < one_barrel_heat_value) shoot_ctrl_cmd->load_mode = LOAD_STOP;
+  if (remain_heat <= 6 * one_barrel_heat_value) shoot_ctrl_cmd->load_mode = LOAD_STOP;
 }
 
 
@@ -185,7 +202,6 @@ void ShootTask() {
       loader_set = shoot->loader_motor->measure.total_angle +
                    one_bullet_delta_angle * reduction_ratio_loader * loader_direction;  // 控制量增加一发弹丸的角度
       hibernate_time = DWT_GetTimeline_ms();                                            // 记录触发指令的时间
-
       dead_time = deadtime_burstfire;                                                   // 弹频
       break;
       // 拨盘反转,对速度闭环,后续增加卡弹检测(通过裁判系统剩余热量反馈和电机电流)
@@ -222,15 +238,16 @@ void ShootTask() {
     target_friction_speed = shoot->shoot_ctrl_cmd.friction_speed;
   }
 
-  // 2. 阶梯步长设置 (假设任务运行频率为 200Hz)
-  float step_up = 60.0f;   // 缓升步长：每秒+30000转，约 1.2 秒启动完毕 (防开机大电流)
+  // 2. 阶梯步长设置
+  // float step_up = 400.0f;   // 缓升步长：每秒+40000转，约 1.2 秒启动完毕 (防开机大电流)
   float step_down = 40.0f;  // 缓停步长：每秒-8000转，约 4-5 秒停稳 (死死护住J4310防烧)
 
   // 3. 让当前转速去“追赶”目标转速
   if (friction_set < target_friction_speed) {
-    friction_set += step_up;
+    //friction_set += step_up;
     // 限制不超调
-    if (friction_set > target_friction_speed) friction_set = target_friction_speed;
+    //if (friction_set > target_friction_speed)
+    friction_set = target_friction_speed;
   }
   else if (friction_set > target_friction_speed) {
     friction_set -= step_down;

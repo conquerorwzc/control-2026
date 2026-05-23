@@ -12,11 +12,11 @@
 #define YAW_CHASSIS_ALIGN_ECD 7000  // 【注意！】务必上电确定云台发射方向的ecd并填入，切勿上电就将左拨杆拨至中间
 // #define PITCH_HORIZON_ECD 5748  // 云台处于水平位置时编码器值,若对云台有机械改动需要修改(4310没ecd请忽略）
 
-#define PITCH_MAX_ANGLE 25.0f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
-#define PITCH_MIN_ANGLE -10.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define PITCH_MAX_ANGLE 28.5f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define PITCH_MIN_ANGLE -13.5f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
 
-#define YAW_MAX_ANGLE 30.0f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
-#define YAW_MIN_ANGLE -30.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define YAW_MAX_ANGLE -30.0f   // 云台竖直方向最大角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
+#define YAW_MIN_ANGLE -100.0f  // 云台竖直方向最小角度 (注意反馈如果是陀螺仪，则填写陀螺仪的角度)
 
 // 私有宏,自动将编码器转换成角度值
 #define PTICH_HORIZON_ANGLE (PITCH_HORIZON_ECD * ECD_ANGLE_COEF_DJI)  // pitch水平时电机的角度,0-360
@@ -26,42 +26,77 @@
 
 #define MOUSE_DEADBAND     5      // 鼠标死区阈值
 #define YAW_MOUSE_SENS     0.002f // 云台偏航鼠标灵敏度
-#define PITCH_MOUSE_SENS   0.0005f // 云台俯仰鼠标灵敏度
+#define PITCH_MOUSE_SENS   0.0015f // 云台俯仰鼠标灵敏度
 
 static Gimbal_Init_Config_s gimbal_init_config = {
-    .yaw_motor_config =
-        {
-            .controller_param_init_config =
+    // .yaw_motor_config =
+    //     {
+    //         .controller_param_init_config =
+    //             {
+    //                 .angle_PID =
+    //                     {
+    //                         .Kp = 1.0f,
+    //                         .Ki = 0.0f,
+    //                         .Kd = 0.004f,
+    //                         .DeadBand = 0.0f,
+    //                         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+    //                         .IntegralLimit = 5.0f,
+    //                         .MaxOut = 10.0f,
+    //                     },
+    //                 .speed_PID =
+    //                     {
+    //                         .Kp = 2300.0f,  // 4000
+    //                         .Ki = 100.0f,   // 60
+    //                         .Kd = 0.0f,
+    //                         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+    //                         .IntegralLimit = 12000.0f,
+    //                         .MaxOut = 11000.0f,  // 20000,测试的时候务必用低一点的maxout的,10000
+    //                     },
+    //
+    //             },
+    //         .motor_type = GM6020,
+    //         .can_init_config =
+    //             {
+    //                 .can_handle = &hcan1,
+    //                 .tx_id = 1,
+    //             },
+    //         .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+    //     },
+  .yaw_motor_config =
+      {
+        .controller_param_init_config =
+            {
+              .angle_PID =
+                  {
+                    .Kp = 55.0f,       // 50
+                    .Ki = 0.0f,
+                    .Kd = 0.0f,
+                    .MaxOut = 15000.0f,
+                },
+            .speed_PID =
                 {
-                    .angle_PID =
-                        {
-                            .Kp = 1.0f,
-                            .Ki = 0.0f,
-                            .Kd = 0.004f,
-                            .DeadBand = 0.0f,
-                            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                            .IntegralLimit = 5.0f,
-                            .MaxOut = 10.0f,
-                        },
-                    .speed_PID =
-                        {
-                            .Kp = 2300.0f,  // 4000
-                            .Ki = 100.0f,   // 60
-                            .Kd = 0.0f,
-                            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                            .IntegralLimit = 12000.0f,
-                            .MaxOut = 11000.0f,  // 20000,测试的时候务必用低一点的maxout的,10000
-                        },
+                  .Kp = 10.0f,       // 10
+                  .Ki = 0.0f,
+                  .Kd = 0.0f,
+                  .MaxOut = 12000.0f, // 【安全防护】首次上电调低到 5000，防正反馈疯转绞线
+              },
+      },
+  .motor_type = GM6020,
+  .can_init_config =
+      {
+        .can_handle = &hcan1,
+        .tx_id = 1,
+    },
+.controller_setting_init_config =
+    {
+      .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+      .angle_feedback_source = MOTOR_FEED, // 强行指定为电机编码器角度
+      .speed_feedback_source = MOTOR_FEED, // 强行指定为电机编码器速度
+      .outer_loop_type = ANGLE_LOOP,
+      .close_loop_type = SPEED_LOOP | ANGLE_LOOP,
+  },
+},
 
-                },
-            .motor_type = GM6020,
-            .can_init_config =
-                {
-                    .can_handle = &hcan1,
-                    .tx_id = 1,
-                },
-            .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
-        },
     .pitch_motor_config =
         {
             .controller_param_init_config =
@@ -71,7 +106,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                             .Kp = 0.7f,
                             .Ki = 0.0f,
                             .Kd = 0.0f,
-                            .MaxOut = 10.0f,//10.0
+                            .MaxOut = 8.0f,//10.0
                             .DeadBand = 0.01f,
                             .Improve = PID_Integral_Limit,
                             .IntegralLimit = 3.0f,
@@ -81,7 +116,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                             .Kp = 0.7f,
                             .Ki = 0.05f,
                             .Kd = 0.0f,
-                            .MaxOut = 2.4f,//2.4
+                            .MaxOut = 2.0f,//2.4
                             .DeadBand = 0.01f,
                             .Improve = PID_Integral_Limit,
                             .IntegralLimit = 2.0f,
@@ -118,12 +153,12 @@ static Gimbal_Init_Config_s gimbal_init_config = {
           {                                          \
               .speed_PID =                           \
                   {                                  \
-                      .Kp = 0.45f,                    \
+                      .Kp = 1.2f,                    \
                       .Ki = 0.0f,                   \
                       .Kd = 0.0f,                     \
                       .Improve = PID_Integral_Limit, \
                       .IntegralLimit = 100.0f,     \
-                      .MaxOut = 8000.0f,            \
+                      .MaxOut = 12000.0f,            \
                   },                                 \
           },                                         \
       .controller_setting_init_config =              \
@@ -151,13 +186,13 @@ static Shoot_Init_Config_s shoot_init_config = {
             .num_per_circle = 7,                    // 拨盘一圈的装载量6
             .loader_direction = 1,                  // 拨盘旋转方向,1为正向，-1为反向
             .friction_num = 2,                      // 摩擦轮数量
-            .friction_speed = 37000.0f,             // 摩擦轮速度
+            .friction_speed = 34500.0f,             // 摩擦轮速度
             .friction_coefficients = {1.0f, -1.0f},  // 摩擦轮速度比例系数
             .deadtime_burstfire = 100,
             .deadtime_onebullet = 500,  // 弹丸发射间隔
-            .target_speed = 22.0f,//目标弹速
-            .bullet_speed_deadband = 0.5f,//弹速死区，hero小些，步兵可以大些
-           .bullet_speed_adjustment = 400.0f,
+            .target_speed = 20.7f,//目标弹速
+            .bullet_speed_deadband = 0.3f,//弹速死区，hero小些，步兵可以大些
+           .bullet_speed_adjustment = 42.0f,
             .one_barrel_heat_value = 10,//一发弹丸所需热量
             .shooter_barrel_cooling_value = 12,//每秒冷却回复
             .shooter_barrel_heat_limit =72,//热量上限
