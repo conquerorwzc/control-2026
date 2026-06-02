@@ -1,5 +1,7 @@
 #include "shoot.h"
+
 #include "bsp_dwt.h"
+#include "robot.h"
 #include "user_lib.h"
 static uint8_t idx = 0;  // register idx,是该文件的全局索引,在注册时使用
 static ShootInstance* shoot;
@@ -128,9 +130,12 @@ void HeatControl() {
 
 /* 机器人发射机构控制核心任务 */
 void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，因为之前哨兵是双枪管的，时代的眼泪
-  if (shoot_ctrl_cmd->shoot_mode == SHOOT_OFF) {
+  RobotInstance *robot = getRobot();
+  if (shoot_ctrl_cmd->shoot_mode == SHOOT_OFF||robot->referee_data->GameRobotState.power_management_shooter_output==0) {
     for (int j = 0; j < FRICTION_NUM; j++) DJIMotorStop(shoot->friction_motor[j]);
     DJIMotorStop(shoot->loader_motor);
+    loader_set = shoot->loader_motor->measure.total_angle;
+    return;
   } else  // 恢复运行
   {
     for (int j = 0; j < FRICTION_NUM; j++) DJIMotorEnable(shoot->friction_motor[j]);
@@ -144,6 +149,14 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
   }
 
   HeatControl();
+  // 确定是否开启摩擦轮,后续可能修改为键鼠模式下始终开启摩擦轮(上场时建议一直开启)
+  if (shoot_ctrl_cmd->friction_mode == FRICTION_ON) {
+    // 根据收到的弹速设置设定摩擦轮电机参考值,需实测后填入
+    friction_set = shoot->shoot_ctrl_cmd.friction_speed ;
+  } else  // 关闭摩擦轮
+  {
+    friction_set = 0;
+  }
   // 如果上一次触发单发或3发指令的时间加上不应期仍然大于当前时间(尚未休眠完毕),直接返回即可
   if (hibernate_time + dead_time > DWT_GetTimeline_ms()) return;
   ;
@@ -158,7 +171,7 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
   switch (shoot_ctrl_cmd->load_mode) {
     // 停止拨盘
     case LOAD_STOP:
-      DJIMotorOuterLoop(shoot->loader_motor, ANGLE_LOOP);  // 切换到角度环
+      DJIMotorOuterLoop(shoot->loader_motor, ANGLE_LOOP);  // 切换到角度
 
       break;
       // 单发模式,根据鼠标按下的时间,触发一次之后需要进入不响应输入的状态(否则按下的时间内可能多次进入,导致多次发射)
@@ -200,14 +213,7 @@ void ShootTask() {  // 遍历实例去控制，目前只有shoot这个写法，�
     default:
       while (1);  // 未知模式,停止运行,检查指针越界,内存溢出等问题
   }
-  // 确定是否开启摩擦轮,后续可能修改为键鼠模式下始终开启摩擦轮(上场时建议一直开启)
-  if (shoot_ctrl_cmd->friction_mode == FRICTION_ON) {
-    // 根据收到的弹速设置设定摩擦轮电机参考值,需实测后填入
-    friction_set = shoot->shoot_ctrl_cmd.friction_speed ;
-  } else  // 关闭摩擦轮
-  {
-    friction_set = 0;
-  }
+
 
   // Todo: 反馈数据,目前暂时没有要设定的反馈数据,后续可能增加应用离线监测以及卡弹反馈
 }

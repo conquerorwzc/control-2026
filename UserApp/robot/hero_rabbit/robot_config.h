@@ -351,7 +351,7 @@ static Shoot_Init_Config_s shoot_init_config = {
             .friction_coefficients = {1.0f, -1.0f, 1.10f},  // 摩擦轮速度比例系数
             .deadtime_burstfire = 500,//连发时间间隔
             .deadtime_onebullet = 1000,//单发时间间隔
-            .target_speed = 11.5f,//目标弹速
+            .target_speed = 11.6f,//目标弹速
             .bullet_speed_deadband = 0.3f,//弹速死区，hero小些，步兵可以大些
             .bullet_speed_adjustment = 300.0f,
             .one_barrel_heat_value = 100,//一发弹丸所需热量
@@ -369,7 +369,7 @@ static Shoot_Init_Config_s shoot_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 50.0f,
+                            .Kp = 30.0f,
                             .Ki = 0.0f,
                             .Kd = 0.008f,
                             .MaxOut = 40000.0f,

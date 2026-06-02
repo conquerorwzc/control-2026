@@ -390,7 +390,7 @@ static void MouseKeySet() {
   }
 
   switch (key_e_count % 3) {
-    case 0: shoot_ctrl_cmd->bullet_speed_mode = DISABLE_BULLET_SPEED; break;
+    case 0: shoot_ctrl_cmd->bullet_speed_mode = ENABLE_BULLET_SPEED; break;
     case 1: shoot_ctrl_cmd->bullet_speed_mode = MANUAL_BULLET_SPEED;
       if (!rc_data_last->mouse_key.keyboard.z &&rc_data->mouse_key.keyboard.z ) {
         shoot_ctrl_cmd->friction_speed += 150.0f;
@@ -399,7 +399,7 @@ static void MouseKeySet() {
         shoot_ctrl_cmd->friction_speed -= 150.0f;
       }
       break; // 待填
-    case 2: shoot_ctrl_cmd->bullet_speed_mode = ENABLE_BULLET_SPEED; break;
+    case 2: shoot_ctrl_cmd->bullet_speed_mode = DISABLE_BULLET_SPEED; break;
     default: break;
   }
   if (rc_data->mouse_key.keyboard.shift == 1) {
