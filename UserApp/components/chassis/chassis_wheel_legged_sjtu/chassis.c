@@ -309,13 +309,14 @@ static void LocomotionController(void) {
  * -f_inertial，当前实现正确。
  */
 static void LegController(void) {
+  float roll_err = chassis_ctrl_cmd->roll - chassis->imu->Roll * DEGREE_2_RAD;
   float f_psi = PIDCalculate(&chassis->roll_PID, chassis->imu->Roll * DEGREE_2_RAD, chassis_ctrl_cmd->roll) +
                 chassis_ctrl_cmd->roll_ff;
   float l_avg = (leg[0]->virtual_model.length + leg[1]->virtual_model.length) * 0.5f;
-  float f_l_r =
-      PIDCalculate(&chassis->leg[0]->length_PID, leg[0]->virtual_model.length, chassis->chassis_ctrl_cmd.leg_length);
-  float f_l_l =
-      PIDCalculate(&chassis->leg[1]->length_PID, leg[1]->virtual_model.length, chassis->chassis_ctrl_cmd.leg_length);
+  float leg_length_r = chassis->chassis_ctrl_cmd.leg_length - chassis->param.track_width * roll_err;
+  float leg_length_l = chassis->chassis_ctrl_cmd.leg_length + chassis->param.track_width * roll_err;
+  float f_l_r = PIDCalculate(&chassis->leg[0]->length_PID, leg[0]->virtual_model.length, leg_length_r);
+  float f_l_l = PIDCalculate(&chassis->leg[1]->length_PID, leg[1]->virtual_model.length, leg_length_l);
   float f_gravity = 0.5f * chassis->param.body_mass * 9.81f;
   float f_inertial = 0.5f * chassis->param.body_mass * (l_avg / chassis->param.track_width) * chassis->state_var.phi_d *
                      chassis->state_var.x_b_d;
@@ -755,14 +756,14 @@ void ChassisTask(void) {
   chassis_ctrl_cmd->max_power =
       SuperCapModeControl(chassis->super_cap, referee_data->GameRobotState.chassis_power_limit);
 
-  // static float last_super_cap_send_time = 0.0f;
-  // float now_ms = DWT_GetTimeline_ms();
-  // if (now_ms - last_super_cap_send_time >= 10.0f) {
-  //   last_super_cap_send_time = now_ms;
-  //   SuperCapSendMessage(chassis->super_cap, (int16_t)(referee_data->GameRobotState.chassis_power_limit),
-  //                       referee_data->PowerHeatData.buffer_energy,
-  //                       referee_data->GameRobotState.power_management_chassis_output);
-  // }
+  static float last_super_cap_send_time = 0.0f;
+  float now_ms = DWT_GetTimeline_ms();
+  if (now_ms - last_super_cap_send_time >= 10.0f) {
+    last_super_cap_send_time = now_ms;
+    SuperCapSendMessage(chassis->super_cap, (int16_t)(referee_data->GameRobotState.chassis_power_limit),
+                        referee_data->PowerHeatData.buffer_energy,
+                        referee_data->GameRobotState.power_management_chassis_output);
+  }
 
   LimitChassisOutput();
 }
