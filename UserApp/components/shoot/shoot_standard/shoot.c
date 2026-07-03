@@ -115,17 +115,17 @@ static float LoaderSpeedFromDelay(float delta_angle, float delay_ms) {
  */
 void ShootBulletSpeedControl(void) {
   // 计算弹速误差
-  actual_bullet_speed = shoot_ctrl_cmd->initial_speed;
-  if (actual_bullet_speed < 16.0f) {
-    return;
-  }
-  float speed_error = target_speed - actual_bullet_speed;
-  if (actual_bullet_speed <= target_speed + 0.4 && actual_bullet_speed >= target_speed - 0.4) {
-    return;
-  }
-
-  // 将误差乘以系数后加到基础摩擦轮速度上
-  friction_speed += speed_error * bullet_speed_adjustment;
+  // actual_bullet_speed = shoot_ctrl_cmd->initial_speed;
+  // if (actual_bullet_speed < 16.0f) {
+  //   return;
+  // }
+  // float speed_error = target_speed - actual_bullet_speed;
+  // if (actual_bullet_speed <= target_speed + 0.4 && actual_bullet_speed >= target_speed - 0.4) {
+  //   return;
+  // }
+  //
+  // // 将误差乘以系数后加到基础摩擦轮速度上
+  // friction_speed += speed_error * bullet_speed_adjustment;
   friction_speed = LimitFrictionSpeedAbs(friction_speed);
 }
 
