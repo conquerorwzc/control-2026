@@ -13,10 +13,10 @@
 #include "robot_config.h"
 #include "user_lib.h"
 
-#define TEST_V_MAX 5.0f
+#define TEST_ANGLE_MAX 2.0f
 
 static RobotInstance* robot;
-static volatile float target_speed = 1.0f;  // rad/s
+static volatile float target_angle = 0.0f;  // rad
 
 RobotInstance* RobotGetInstance(void) { return robot; }
 
@@ -38,6 +38,6 @@ void RobotTask(void) {
   }
 
   DMMotorEnable(robot->test_motor);
-  target_speed = robot->rc_data[TEMP].rc.rocker_r1 / 660.0f * TEST_V_MAX;
-  DMMotorSetPIDRef(robot->test_motor, target_speed);
+  target_angle = robot->rc_data[TEMP].rc.rocker_r1 / 660.0f * TEST_ANGLE_MAX;
+  DMMotorSetPIDRef(robot->test_motor, target_angle);
 }
