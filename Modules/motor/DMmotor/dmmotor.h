@@ -91,6 +91,7 @@ void DMMotorStop(DMMotorInstance* motor);
 
 void DMMotorCaliEncoder(DMMotorInstance* motor);
 
+// pid_ref单位是rad/s
 void DMMotorSetPIDRef(DMMotorInstance* motor, float pid_ref);
 
 void DMMotorTask(void const* argument);

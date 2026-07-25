@@ -20,7 +20,6 @@
 #include "daemon.h"
 #include "motor_task.h"
 #include "robot.h"
-#include "ui.h"
 // module
 #include "dmmotor.h"
 // bsp

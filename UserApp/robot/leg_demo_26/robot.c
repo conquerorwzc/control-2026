@@ -13,16 +13,12 @@
 #include "robot_config.h"
 #include "user_lib.h"
 
+#define TEST_V_MAX 5.0f
+
 static RobotInstance* robot;
+static volatile float target_speed = 1.0f;  // rad/s
 
 RobotInstance* RobotGetInstance(void) { return robot; }
-
-static float GetTargetSpeed(void) {
-  const int16_t rocker = robot->rc_data[TEMP].rc.rocker_r1;
-  if (abs(rocker) <= RC_ROCKER_DEADBAND) return 0.0f;
-
-  return (float)rocker / RC_ROCKER_MAX * TEST_MOTOR_MAX_SPEED;
-}
 
 void RobotInit(void) {
   robot = (RobotInstance*)zmalloc(sizeof(RobotInstance));
@@ -42,5 +38,6 @@ void RobotTask(void) {
   }
 
   DMMotorEnable(robot->test_motor);
-  DMMotorSetPIDRef(robot->test_motor, GetTargetSpeed());
+  target_speed = robot->rc_data[TEMP].rc.rocker_r1 / 660.0f * TEST_V_MAX;
+  DMMotorSetPIDRef(robot->test_motor, target_speed);
 }
