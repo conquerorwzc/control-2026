@@ -2,7 +2,7 @@
  ******************************************************************************
  * @file    robot.c
  * @date    2026/7/24
- * @brief   Remote-control test for a DAMIAO J4310 motor
+ * @brief   Remote-control torque test for a DAMIAO H6215 motor
  ******************************************************************************
  */
 
@@ -13,10 +13,8 @@
 #include "robot_config.h"
 #include "user_lib.h"
 
-#define TEST_ANGLE_MAX 2.0f
-
 static RobotInstance* robot;
-static volatile float target_angle = 0.0f;  // rad
+static float target_T = 0.04f;  // N*m
 
 RobotInstance* RobotGetInstance(void) { return robot; }
 
@@ -38,6 +36,5 @@ void RobotTask(void) {
   }
 
   DMMotorEnable(robot->test_motor);
-  target_angle = robot->rc_data[TEMP].rc.rocker_r1 / 660.0f * TEST_ANGLE_MAX;
-  DMMotorSetPIDRef(robot->test_motor, target_angle);
+  DMMotorSetRef(robot->test_motor, target_T);
 }
