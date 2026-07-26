@@ -101,6 +101,7 @@ typedef struct {
 
   DMMotorInstance* joint_motor[2];
   DJIMotorInstance* wheel_motor;
+  DMMotorInstance* dm_wheel_motor;
 
   Real_Model_t real_model;
   Virtual_Model_t virtual_model;
@@ -119,6 +120,8 @@ typedef struct {
 } LegInstance;
 
 LegInstance* LegInit(Leg_Init_Config_s* config);
+
+void LegStop(LegInstance* leg);
 
 void LegModelUpdate(LegInstance* leg, INS_t* imu);
 

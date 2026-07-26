@@ -1,8 +1,8 @@
 /**
  ******************************************************************************
  * @file    robot.c
- * @date    2026/7/24
- * @brief   Remote-control torque test for a DAMIAO H6215 motor
+ * @date    2026/7/26
+ * @brief   Six-motor CAN communication test for a wheeled-legged chassis
  ******************************************************************************
  */
 
@@ -14,27 +14,20 @@
 #include "user_lib.h"
 
 static RobotInstance* robot;
-static float target_T = 0.04f;  // N*m
 
 RobotInstance* RobotGetInstance(void) { return robot; }
 
 void RobotInit(void) {
   robot = (RobotInstance*)zmalloc(sizeof(RobotInstance));
 
-  robot->rc_data = RemoteControlInit(&huart5);
-  robot->test_motor = DMMotorInit(&test_motor_config);
-  DMMotorStop(robot->test_motor);
+  robot->leg[LEG_LEFT] = LegInit(&chassis_init_config.leg_init_config[LEG_LEFT]);
+  robot->leg[LEG_RIGHT] = LegInit(&chassis_init_config.leg_init_config[LEG_RIGHT]);
+
+  LegStop(robot->leg[LEG_LEFT]);
+  LegStop(robot->leg[LEG_RIGHT]);
 }
 
 void RobotTask(void) {
-  const uint8_t motor_armed = RemoteControlIsOnline() && switch_is_mid(robot->rc_data[TEMP].rc.switch_right);
-
-  if (!motor_armed) {
-    DMMotorSetRef(robot->test_motor, 0.0f);
-    DMMotorStop(robot->test_motor);
-    return;
-  }
-
-  DMMotorEnable(robot->test_motor);
-  DMMotorSetRef(robot->test_motor, target_T);
+  LegStop(robot->leg[LEG_LEFT]);
+  LegStop(robot->leg[LEG_RIGHT]);
 }

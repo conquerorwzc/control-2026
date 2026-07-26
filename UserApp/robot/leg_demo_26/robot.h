@@ -1,11 +1,15 @@
 #pragma once
 
-#include "dmmotor.h"
-#include "remote_control.h"
+#include "chassis.h"
+
+typedef enum {
+  LEG_LEFT = 0,
+  LEG_RIGHT,
+  LEG_COUNT,
+} LegSide;
 
 typedef struct {
-  RC_ctrl_t* rc_data;
-  DMMotorInstance* test_motor;
+  LegInstance* leg[LEG_COUNT];
 } RobotInstance;
 
 void RobotInit(void);

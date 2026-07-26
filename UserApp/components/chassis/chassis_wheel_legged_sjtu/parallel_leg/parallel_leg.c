@@ -306,7 +306,11 @@ LegInstance* LegInit(Leg_Init_Config_s* config) {
 
   leg_instance->joint_motor[0] = DMMotorInit(&config->joint_motor_config[0]);
   leg_instance->joint_motor[1] = DMMotorInit(&config->joint_motor_config[1]);
-  leg_instance->wheel_motor = DJIMotorInit(&config->wheel_motor_config);
+  if (config->wheel_motor_config.motor_type == H6215) {
+    leg_instance->dm_wheel_motor = DMMotorInit(&config->wheel_motor_config);
+  } else {
+    leg_instance->wheel_motor = DJIMotorInit(&config->wheel_motor_config);
+  }
 
   PIDInit(&leg_instance->length_PID, &config->length_PID_config);
   leg_instance->update_flag.is_first_update = 1;
@@ -321,6 +325,21 @@ LegInstance* LegInit(Leg_Init_Config_s* config) {
   }
 
   return leg_instance;
+}
+
+void LegStop(LegInstance* leg) {
+  for (size_t i = 0; i < 2; i++) {
+    DMMotorSetRef(leg->joint_motor[i], 0.0f);
+    DMMotorStop(leg->joint_motor[i]);
+  }
+
+  if (leg->dm_wheel_motor != NULL) {
+    DMMotorSetRef(leg->dm_wheel_motor, 0.0f);
+    DMMotorStop(leg->dm_wheel_motor);
+  } else {
+    DJIMotorSetRef(leg->wheel_motor, 0.0f);
+    DJIMotorStop(leg->wheel_motor);
+  }
 }
 
 /**

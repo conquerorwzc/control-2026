@@ -261,7 +261,7 @@ __attribute__((noreturn)) void DMMotorTask(void const* argument) {
 }
 
 void DMMotorTaskInit() {
-  char dm_task_name[5] = "dm";
+  char dm_task_name[9] = "dm";
   // 遍历所有电机实例,创建任务
   if (!idx) return;
   for (size_t i = 0; i < idx; i++) {
