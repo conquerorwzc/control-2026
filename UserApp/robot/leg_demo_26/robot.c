@@ -2,7 +2,7 @@
  ******************************************************************************
  * @file    robot.c
  * @date    2026/7/26
- * @brief   Six-motor CAN communication test for a wheeled-legged chassis
+ * @brief   One-shot joint zero calibration for a wheeled-legged chassis
  ******************************************************************************
  */
 

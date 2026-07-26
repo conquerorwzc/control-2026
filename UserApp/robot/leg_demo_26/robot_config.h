@@ -2,7 +2,7 @@
 
 #include "robot.h"
 
-#define DM_COMM_MOTOR_CONFIG(motor, can, tx, rx)             \
+#define DM_CALIBRATION_MOTOR_CONFIG(motor, can, tx, rx)      \
   {                                                          \
       .controller_setting_init_config =                      \
           {                                                  \
@@ -25,13 +25,13 @@
 #define LEG_INIT_CONFIG(joint_can_0, joint_tx_0, joint_rx_0, joint_can_1, joint_tx_1, joint_rx_1, wheel_can, \
                         wheel_tx, wheel_rx)                                                                    \
   {                                                                                                           \
-      .cali_mode = LEG_PRE_CALI_MODE,                                                                         \
+      .cali_mode = LEG_PRE_CALI_MODE,                                                                 \
       .joint_motor_config =                                                                                   \
           {                                                                                                   \
-              [0] = DM_COMM_MOTOR_CONFIG(J4310, joint_can_0, joint_tx_0, joint_rx_0),                         \
-              [1] = DM_COMM_MOTOR_CONFIG(J4310, joint_can_1, joint_tx_1, joint_rx_1),                         \
+              [0] = DM_CALIBRATION_MOTOR_CONFIG(J4310, joint_can_0, joint_tx_0, joint_rx_0),                  \
+              [1] = DM_CALIBRATION_MOTOR_CONFIG(J4310, joint_can_1, joint_tx_1, joint_rx_1),                  \
           },                                                                                                  \
-      .wheel_motor_config = DM_COMM_MOTOR_CONFIG(H6215, wheel_can, wheel_tx, wheel_rx),                       \
+      .wheel_motor_config = DM_CALIBRATION_MOTOR_CONFIG(H6215, wheel_can, wheel_tx, wheel_rx),                \
   }
 
 static Chassis_Init_Config_s chassis_init_config = {
@@ -43,4 +43,4 @@ static Chassis_Init_Config_s chassis_init_config = {
 };
 
 #undef LEG_INIT_CONFIG
-#undef DM_COMM_MOTOR_CONFIG
+#undef DM_CALIBRATION_MOTOR_CONFIG
