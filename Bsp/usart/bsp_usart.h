@@ -27,6 +27,7 @@ typedef struct
     uint8_t recv_buff_size;                // 模块接收一包数据的大小
     UART_HandleTypeDef *usart_handle;      // 实例对应的usart_handle
     usart_module_callback module_callback; // 解析收到的数据的回调函数
+    usart_module_callback secondary_callback; // 第二模块回调(同一串口共享),可为NULL
 } USARTInstance;
 
 /* usart 初始化配置结构体 */
@@ -71,5 +72,26 @@ void USARTSend(USARTInstance *_instance, uint8_t *send_buf, uint16_t send_size,U
  * @return uint8_t ready 1, busy 0
  */
 uint8_t USARTIsReady(USARTInstance *_instance);
+
+
+/**
+ * @brief 为已注册的串口实例添加第二个回调(共享同一物理串口)
+ * @note  适用于两个协议模块共用一根串口线的场景(如VT13遥控+自定义控制器共用UART7)
+ *        secondary callback 会在 primary 之前被调用(因为 primary 可能会清 buffer).
+ *        secondary 读取的是 primary 的 recv_buff,无需自己分配 DMA buffer.
+ *
+ * @param usart_handle 已注册的串口硬件句柄
+ * @param secondary_cb 第二个模块的回调函数
+ * @return USARTInstance* 已存在的串口实例指针(共享), 找不到返回 NULL
+ */
+USARTInstance *USARTAddSecondaryCallback(UART_HandleTypeDef *usart_handle, usart_module_callback secondary_cb);
+
+/**
+ * @brief 根据硬件句柄查找已注册的串口实例
+ *
+ * @param usart_handle 串口硬件句柄
+ * @return USARTInstance* 找到的实例, 未注册则返回 NULL
+ */
+USARTInstance *USARTGetExistingInstance(UART_HandleTypeDef *usart_handle);
 
 #endif

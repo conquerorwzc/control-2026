@@ -35,6 +35,30 @@ void USARTServiceInit(USARTInstance *_instance)
     __HAL_DMA_DISABLE_IT(_instance->usart_handle->hdmarx, DMA_IT_HT);
 }
 
+USARTInstance *USARTGetExistingInstance(UART_HandleTypeDef *usart_handle)
+{
+    for (uint8_t i = 0; i < idx; i++)
+        if (usart_instance[i]->usart_handle == usart_handle)
+            return usart_instance[i];
+    return NULL;
+}
+
+USARTInstance *USARTAddSecondaryCallback(UART_HandleTypeDef *usart_handle, usart_module_callback secondary_cb)
+{
+    for (uint8_t i = 0; i < idx; i++)
+    {
+        if (usart_instance[i]->usart_handle == usart_handle)
+        {
+            usart_instance[i]->secondary_callback = secondary_cb;
+            return usart_instance[i];
+        }
+    }
+    // 该串口尚未注册,无法添加 secondary callback
+    while (1)
+        LOGERROR("[bsp_usart] Cannot add secondary callback: USART handle not registered yet!");
+    return NULL;
+}
+
 USARTInstance *USARTRegister(USART_Init_Config_s *init_config)
 {
     if (idx >= DEVICE_USART_CNT) // 超过最大实例数
@@ -104,7 +128,11 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
     for (uint8_t i = 0; i < idx; ++i)
     { // find the instance which is being handled
         if (huart == usart_instance[i]->usart_handle)
-        { // call the callback function if it is not NULL
+        {
+            // secondary callback 先执行(共享 recv_buff, 需要在 primary 清 buffer 之前读取)
+            if (usart_instance[i]->secondary_callback != NULL)
+                usart_instance[i]->secondary_callback();
+
             if (usart_instance[i]->module_callback != NULL)
             {
                 usart_instance[i]->module_callback();
