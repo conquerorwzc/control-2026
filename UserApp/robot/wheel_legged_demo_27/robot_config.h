@@ -16,11 +16,11 @@
 #include "bsp_can.h"
 #include "robot.h"
 
-/* 左前关节达妙电机的 CAN 发送标识符，对应执行器 0 和主动轴 phi1。 */
+/* 左前关节达妙电机的 CAN 发送标识符，对应 OC 主动轴 phi2。 */
 #define DOUBLE_CLOSED_LOOP_LEG_LEFT_FRONT_JOINT_TX_ID 0x05u
 /* 左前关节达妙电机的 CAN 接收标识符。 */
 #define DOUBLE_CLOSED_LOOP_LEG_LEFT_FRONT_JOINT_RX_ID 0x04u
-/* 左后关节达妙电机的 CAN 发送标识符，对应执行器 1 和主动轴 phi2。 */
+/* 左后关节达妙电机的 CAN 发送标识符，对应 OA 主动轴 phi1。 */
 #define DOUBLE_CLOSED_LOOP_LEG_LEFT_REAR_JOINT_TX_ID 0x07u
 /* 左后关节达妙电机的 CAN 接收标识符。 */
 #define DOUBLE_CLOSED_LOOP_LEG_LEFT_REAR_JOINT_RX_ID 0x06u
@@ -196,4 +196,12 @@ static const WheelLeggedWheelCanConfig_t g_right_wheel_can_config = {
     .can_handle = &hcan2,
     .tx_id = DOUBLE_CLOSED_LOOP_LEG_RIGHT_WHEEL_TX_ID,
     .rx_id = DOUBLE_CLOSED_LOOP_LEG_RIGHT_WHEEL_RX_ID,
+};
+
+/* 本车完整的底盘初始化配置；通用 chassis component 仅通过该对象获取具体硬件参数。 */
+static WheelLeggedChassisInitConfig_t g_chassis_init_config = {
+    .left_leg_init_config = &g_left_leg_init_config,
+    .right_leg_init_config = &g_right_leg_init_config,
+    .left_wheel_can_config = g_left_wheel_can_config,
+    .right_wheel_can_config = g_right_wheel_can_config,
 };
