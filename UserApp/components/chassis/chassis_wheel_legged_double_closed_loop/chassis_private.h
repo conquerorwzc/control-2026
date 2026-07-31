@@ -10,5 +10,6 @@
 
 void WheelLeggedLegInit(WheelLeggedLegInstance_t *leg, WheelLeggedLegInitConfig_t *config);
 void WheelLeggedLegUpdate(WheelLeggedLegInstance_t *leg);
+void WheelLeggedChassisStateUpdate(WheelLeggedChassisInstance_t *chassis);
 void WheelLeggedLegVmcUpdate(WheelLeggedLegInstance_t *leg);
 void WheelLeggedChassisApplyJointMotorState(WheelLeggedChassisInstance_t *chassis);

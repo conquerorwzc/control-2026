@@ -29,7 +29,7 @@ static float WheelLeggedJointGetAngle(WheelLeggedJointInstance_t *joint);
  * 关节初始化后立即置为零力矩；运行期不在读取反馈时反复 Stop 电机。
  *
  * @param leg 待初始化的腿对象。
- * @param config 该腿的关节电机与机构学配置。
+ * @param config 该腿的关节、传动和机构学配置。
  */
 void WheelLeggedLegInit(WheelLeggedLegInstance_t *leg, WheelLeggedLegInitConfig_t *config)
 {
@@ -43,19 +43,19 @@ void WheelLeggedLegInit(WheelLeggedLegInstance_t *leg, WheelLeggedLegInitConfig_
     {
         leg->kinematics_runtime_config.geometry = *config->geometry_config;
     }
-    leg->front_joint_kinematics_input = config->front_joint_kinematics_input;
-    leg->rear_joint_kinematics_input = config->rear_joint_kinematics_input;
+    leg->front_joint_kinematics_input = config->front_joint.kinematics_input;
+    leg->rear_joint_kinematics_input = config->rear_joint.kinematics_input;
     if (IsValidLegKinematicsInput(leg->front_joint_kinematics_input) &&
         IsValidLegKinematicsInput(leg->rear_joint_kinematics_input) &&
         leg->front_joint_kinematics_input != leg->rear_joint_kinematics_input)
     {
         leg->kinematics_runtime_config.transmission[leg->front_joint_kinematics_input] =
-            WheelLeggedBuildJointTransmissionConfig(config->front_joint_chain_config);
+            WheelLeggedBuildJointTransmissionConfig(&config->front_joint.chain_config);
         leg->kinematics_runtime_config.transmission[leg->rear_joint_kinematics_input] =
-            WheelLeggedBuildJointTransmissionConfig(config->rear_joint_chain_config);
+            WheelLeggedBuildJointTransmissionConfig(&config->rear_joint.chain_config);
     }
-    leg->front_joint.motor = DMMotorInit(&config->front_joint_motor_config);
-    leg->rear_joint.motor = DMMotorInit(&config->rear_joint_motor_config);
+    leg->front_joint.motor = DMMotorInit(&config->front_joint.motor_config);
+    leg->rear_joint.motor = DMMotorInit(&config->rear_joint.motor_config);
     if (leg->front_joint.motor != NULL)
     {
         DMMotorStop(leg->front_joint.motor);
@@ -83,15 +83,21 @@ void WheelLeggedLegUpdate(WheelLeggedLegInstance_t *leg)
     const float front_actuator_angle = WheelLeggedJointGetAngle(&leg->front_joint);
     const float rear_actuator_angle = WheelLeggedJointGetAngle(&leg->rear_joint);
     float actuator_angle_by_kinematics_input[LEG_KINEMATICS_INPUT_COUNT] = {0.0f};
-    if (IsValidLegKinematicsInput(leg->front_joint_kinematics_input) &&
+    if (leg->front_joint.feedback_ready != 0u && leg->rear_joint.feedback_ready != 0u &&
+        IsValidLegKinematicsInput(leg->front_joint_kinematics_input) &&
         IsValidLegKinematicsInput(leg->rear_joint_kinematics_input) &&
         leg->front_joint_kinematics_input != leg->rear_joint_kinematics_input)
     {
         actuator_angle_by_kinematics_input[leg->front_joint_kinematics_input] = front_actuator_angle;
         actuator_angle_by_kinematics_input[leg->rear_joint_kinematics_input] = rear_actuator_angle;
+        DoubleClosedLoopLegUpdate(&leg->kinematics, actuator_angle_by_kinematics_input[LEG_KINEMATICS_INPUT_PHI1],
+                                  actuator_angle_by_kinematics_input[LEG_KINEMATICS_INPUT_PHI2]);
     }
-    DoubleClosedLoopLegUpdate(&leg->kinematics, actuator_angle_by_kinematics_input[LEG_KINEMATICS_INPUT_PHI1],
-                              actuator_angle_by_kinematics_input[LEG_KINEMATICS_INPUT_PHI2]);
+    else
+    {
+        memset(&leg->kinematics.state, 0, sizeof(leg->kinematics.state));
+        leg->kinematics.forward_kinematics_status = DOUBLE_CLOSED_LOOP_LEG_INVALID_ARGUMENT;
+    }
     leg->update_count++;
     leg->sequence++;
 }
@@ -111,7 +117,7 @@ static float WheelLeggedJointGetAngle(WheelLeggedJointInstance_t *joint)
         return 0.0f;
     }
 
-    joint->feedback_ready = joint->motor->measure.state != 0u;
+    joint->feedback_ready = joint->motor->measure.state == STATE_NORMAL;
     return joint->motor->measure.total_angle;
 }
 
