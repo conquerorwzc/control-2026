@@ -22,10 +22,11 @@ typedef enum
 } LegKinematicsInput_e;
 
 /* 底盘工作模式；平衡、跳跃等模式在对应控制功能接入后再扩展。 */
+/* TODO：接入正式平衡、跳跃和故障锁定状态机时扩展底盘模式。 */
 typedef enum
 {
     CHASSIS_POWER_OFF = 0, /* 关节电机保持零力矩。 */
-    CHASSIS_ON,            /* 允许关节电机进入使能状态。 */
+    CHASSIS_ON,            /* 允许关节电机进入使能状态；当前仅用于显式 VMC 小力矩测试。 */
 } WheelLeggedChassisMode_e;
 
 /* 十维状态数组的固定下标；后续 LQR 必须严格沿用该顺序。 */
@@ -54,19 +55,20 @@ typedef enum
     WHEEL_LEGGED_STATE_VALID_IMU = (1u << 2),         /* IMU 已初始化且姿态数据有限。 */
     WHEEL_LEGGED_STATE_VALID_LEFT_LEG = (1u << 3),    /* 左腿反馈、FK 和雅可比有效。 */
     WHEEL_LEGGED_STATE_VALID_RIGHT_LEG = (1u << 4),   /* 右腿反馈、FK 和雅可比有效。 */
+    WHEEL_LEGGED_STATE_VALID_HIP_ODOMETRY = (1u << 5),/* 髋点纵向里程计计算有效。 */
 } WheelLeggedChassisStateValid_e;
 
 /* 底盘状态变量；具名字段便于观察，state_vector 供后续控制器使用。 */
 typedef struct
 {
-    float s;                 /* 整车相对初始位置的前进位移，单位 m。 */
-    float s_dot;             /* 整车前进速度，单位 m/s。 */
+    float s;                 /* 髋点 O 相对初始位置的纵向里程计位移，单位 m。 */
+    float s_dot;             /* 髋点 O 的纵向里程计速度，单位 m/s。 */
     float phi;               /* 整车相对初始方向的偏航角，单位 rad。 */
     float phi_dot;           /* 整车偏航角速度，单位 rad/s。 */
-    float theta_leg_left;    /* 左虚拟腿相对世界的摆角，单位 rad。 */
-    float theta_leg_left_dot; /* 左虚拟腿相对世界的摆角速度，单位 rad/s。 */
-    float theta_leg_right;   /* 右虚拟腿相对世界的摆角，单位 rad。 */
-    float theta_leg_right_dot; /* 右虚拟腿相对世界的摆角速度，单位 rad/s。 */
+    float theta_leg_left;    /* 左虚拟腿包含相对初始姿态机身俯仰的纵向平面摆角，单位 rad；不含 yaw 投影。 */
+    float theta_leg_left_dot; /* 左虚拟腿纵向平面摆角速度，单位 rad/s。 */
+    float theta_leg_right;   /* 右虚拟腿包含相对初始姿态机身俯仰的纵向平面摆角，单位 rad；不含 yaw 投影。 */
+    float theta_leg_right_dot; /* 右虚拟腿纵向平面摆角速度，单位 rad/s。 */
     float theta_body;        /* 机身相对初始姿态的俯仰角，单位 rad。 */
     float theta_body_dot;    /* 机身俯仰角速度，单位 rad/s。 */
 
@@ -78,9 +80,16 @@ typedef struct
     float left_wheel_speed;            /* 左轮换算到轮端的角速度，单位 rad/s。 */
     float right_wheel_angle;           /* 右轮换算到轮端的累计转角，单位 rad。 */
     float right_wheel_speed;           /* 右轮换算到轮端的角速度，单位 rad/s。 */
+    float left_leg_length;             /* 左虚拟腿长，单位 m。 */
+    float left_leg_length_dot;         /* 左虚拟腿长度变化率，单位 m/s。 */
+    float right_leg_length;            /* 右虚拟腿长，单位 m。 */
+    float right_leg_length_dot;        /* 右虚拟腿长度变化率，单位 m/s。 */
+    float hip_odometry_s_raw;          /* 未减零点的髋点 O 纵向里程计，单位 m。 */
+    float left_hip_odometry_s_dot;     /* 左腿推得的髋点 O 纵向速度，单位 m/s。 */
+    float right_hip_odometry_s_dot;    /* 右腿推得的髋点 O 纵向速度，单位 m/s。 */
 
     float state_vector[WHEEL_LEGGED_STATE_COUNT]; /* 固定顺序的整车十维状态。 */
-    float s_origin;                    /* 采集零点时的轮端平均位移，单位 m。 */
+    float s_origin;                    /* 采集零点时的髋点 O 纵向里程计原始值，单位 m。 */
     float yaw_origin;                  /* 采集零点时的 IMU yaw，单位 rad。 */
     float pitch_origin;                /* 采集零点时的 IMU pitch，单位 rad。 */
     uint16_t valid_mask;               /* 本周期有效的状态来源位掩码。 */
@@ -216,7 +225,7 @@ typedef struct
     WheelLeggedLegInstance_t right_leg;                  /* 右腿。 */
     WheelLeggedWheelInstance_t left_wheel;               /* 左轮毂。 */
     WheelLeggedWheelInstance_t right_wheel;              /* 右轮毂。 */
-    INS_t *imu;                                          /* 底盘 IMU 数据；当前未初始化。 */
+    INS_t *imu;                                          /* 底盘 IMU 数据；仅用于状态读取。 */
     WheelLeggedChassisStateConfig_t state_config;        /* 底盘状态坐标和符号配置。 */
     uint8_t joint_motor_enabled;                         /* 上次实际下发的关节使能状态。 */
 } WheelLeggedChassisInstance_t;

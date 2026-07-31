@@ -10,20 +10,32 @@
 #include <math.h>
 
 #include "general_def.h"
+#include "hip_odometry.h"
 
 /* Private define ------------------------------------------------------------*/
-/* 十维状态的全部原始来源均有效时应具有的有效位掩码。 */
-#define WHEEL_LEGGED_STATE_VALID_ALL \
+/* 髋点纵向里程计所需的全部原始来源有效时应具有的有效位掩码。 */
+#define WHEEL_LEGGED_STATE_VALID_RAW_SOURCES \
     (WHEEL_LEGGED_STATE_VALID_LEFT_WHEEL | WHEEL_LEGGED_STATE_VALID_RIGHT_WHEEL | \
      WHEEL_LEGGED_STATE_VALID_IMU | WHEEL_LEGGED_STATE_VALID_LEFT_LEG | WHEEL_LEGGED_STATE_VALID_RIGHT_LEG)
 
+/* 十维状态包含髋点纵向里程计后的完整有效位掩码。 */
+#define WHEEL_LEGGED_STATE_VALID_ALL \
+    (WHEEL_LEGGED_STATE_VALID_RAW_SOURCES | WHEEL_LEGGED_STATE_VALID_HIP_ODOMETRY)
+
 /* Intermediate variables calculated by private functions -------------------*/
+typedef struct
+{
+    float length;             /* 虚拟腿长，单位 m。 */
+    float length_dot;         /* 虚拟腿长度变化率，单位 m/s。 */
+    float relative_theta;     /* 相对机身的虚拟腿角，单位 rad。 */
+    float relative_theta_dot; /* 相对机身的虚拟腿角速度，单位 rad/s。 */
+} WheelLeggedLegStateSnapshot_t;
 
 /* Private function prototypes -----------------------------------------------*/
 static uint8_t WheelLeggedWheelReadState(WheelLeggedWheelInstance_t *wheel, float *wheel_angle,
                                          float *wheel_speed);
-static uint8_t WheelLeggedLegReadRelativeState(const WheelLeggedLegInstance_t *leg, float relative_direction,
-                                               float *relative_theta, float *relative_theta_dot);
+static uint8_t WheelLeggedLegReadState(const WheelLeggedLegInstance_t *leg, float relative_direction,
+                                       WheelLeggedLegStateSnapshot_t *state);
 static uint8_t WheelLeggedImuReadState(const INS_t *imu, float *yaw, float *yaw_rate, float *pitch,
                                        float *pitch_rate);
 static uint8_t WheelLeggedIsDirectionValid(float direction);
@@ -47,7 +59,12 @@ void WheelLeggedChassisStateUpdate(WheelLeggedChassisInstance_t *chassis)
     float yaw_rate = 0.0f;
     float pitch = 0.0f;
     float pitch_rate = 0.0f;
-    float raw_s = 0.0f;
+    WheelLeggedLegStateSnapshot_t left_leg_state = {0};
+    WheelLeggedLegStateSnapshot_t right_leg_state = {0};
+    WheelLeggedHipOdometryLegInput_t left_hip_input = {0};
+    WheelLeggedHipOdometryLegInput_t right_hip_input = {0};
+    WheelLeggedHipOdometryLegOutput_t left_hip_output = {0};
+    WheelLeggedHipOdometryLegOutput_t right_hip_output = {0};
 
     if (chassis == NULL)
     {
@@ -74,42 +91,68 @@ void WheelLeggedChassisStateUpdate(WheelLeggedChassisInstance_t *chassis)
     {
         valid_mask |= WHEEL_LEGGED_STATE_VALID_IMU;
     }
-    if (WheelLeggedLegReadRelativeState(&chassis->left_leg, chassis->state_config.left_leg_relative_direction,
-                                         &next_state.left_leg_relative_theta,
-                                         &next_state.left_leg_relative_theta_dot) != 0u)
+    if (WheelLeggedLegReadState(&chassis->left_leg, chassis->state_config.left_leg_relative_direction,
+                                &left_leg_state) != 0u)
     {
+        next_state.left_leg_relative_theta = left_leg_state.relative_theta;
+        next_state.left_leg_relative_theta_dot = left_leg_state.relative_theta_dot;
+        next_state.left_leg_length = left_leg_state.length;
+        next_state.left_leg_length_dot = left_leg_state.length_dot;
         valid_mask |= WHEEL_LEGGED_STATE_VALID_LEFT_LEG;
     }
-    if (WheelLeggedLegReadRelativeState(&chassis->right_leg, chassis->state_config.right_leg_relative_direction,
-                                         &next_state.right_leg_relative_theta,
-                                         &next_state.right_leg_relative_theta_dot) != 0u)
+    if (WheelLeggedLegReadState(&chassis->right_leg, chassis->state_config.right_leg_relative_direction,
+                                &right_leg_state) != 0u)
     {
+        next_state.right_leg_relative_theta = right_leg_state.relative_theta;
+        next_state.right_leg_relative_theta_dot = right_leg_state.relative_theta_dot;
+        next_state.right_leg_length = right_leg_state.length;
+        next_state.right_leg_length_dot = right_leg_state.length_dot;
         valid_mask |= WHEEL_LEGGED_STATE_VALID_RIGHT_LEG;
     }
 
-    if ((valid_mask & (WHEEL_LEGGED_STATE_VALID_LEFT_WHEEL | WHEEL_LEGGED_STATE_VALID_RIGHT_WHEEL)) ==
-        (WHEEL_LEGGED_STATE_VALID_LEFT_WHEEL | WHEEL_LEGGED_STATE_VALID_RIGHT_WHEEL))
+    if ((valid_mask & WHEEL_LEGGED_STATE_VALID_RAW_SOURCES) == WHEEL_LEGGED_STATE_VALID_RAW_SOURCES)
     {
-        raw_s = 0.5f * (chassis->left_wheel.wheel_radius * next_state.left_wheel_angle +
-                         chassis->right_wheel.wheel_radius * next_state.right_wheel_angle);
-        next_state.s_dot = 0.5f * (chassis->left_wheel.wheel_radius * next_state.left_wheel_speed +
-                                    chassis->right_wheel.wheel_radius * next_state.right_wheel_speed);
-    }
-
-    if ((valid_mask & WHEEL_LEGGED_STATE_VALID_ALL) == WHEEL_LEGGED_STATE_VALID_ALL &&
-        next_state.origin_captured == 0u)
-    {
-        next_state.s_origin = raw_s;
-        next_state.yaw_origin = yaw;
-        next_state.pitch_origin = pitch;
-        next_state.origin_captured = 1u;
-    }
-
-    if (next_state.origin_captured != 0u &&
-        (valid_mask & (WHEEL_LEGGED_STATE_VALID_LEFT_WHEEL | WHEEL_LEGGED_STATE_VALID_RIGHT_WHEEL)) ==
-            (WHEEL_LEGGED_STATE_VALID_LEFT_WHEEL | WHEEL_LEGGED_STATE_VALID_RIGHT_WHEEL))
-    {
-        next_state.s = raw_s - next_state.s_origin;
+        /* TODO：完成轮径、轮向和 IMU 前向加速度标定后，在此接入独立的纵向状态估计器，
+         * 处理打滑、离地和轮端里程计漂移；估计器输出替换 s/s_dot，不得修改 FK、雅可比或电机输出。 */
+        const float body_pitch_absolute = chassis->state_config.body_pitch_direction * pitch;
+        const float body_pitch_rate = chassis->state_config.body_pitch_direction * pitch_rate;
+        left_hip_input.wheel_radius = chassis->left_wheel.wheel_radius;
+        left_hip_input.wheel_angle = next_state.left_wheel_angle;
+        left_hip_input.wheel_speed = next_state.left_wheel_speed;
+        left_hip_input.leg_length = left_leg_state.length;
+        left_hip_input.leg_length_dot = left_leg_state.length_dot;
+        left_hip_input.leg_theta = left_leg_state.relative_theta +
+                                   chassis->state_config.leg_world_body_pitch_gain * body_pitch_absolute +
+                                   chassis->state_config.left_leg_world_offset;
+        left_hip_input.leg_theta_dot = left_leg_state.relative_theta_dot +
+                                       chassis->state_config.leg_world_body_pitch_gain * body_pitch_rate;
+        right_hip_input.wheel_radius = chassis->right_wheel.wheel_radius;
+        right_hip_input.wheel_angle = next_state.right_wheel_angle;
+        right_hip_input.wheel_speed = next_state.right_wheel_speed;
+        right_hip_input.leg_length = right_leg_state.length;
+        right_hip_input.leg_length_dot = right_leg_state.length_dot;
+        right_hip_input.leg_theta = right_leg_state.relative_theta +
+                                    chassis->state_config.leg_world_body_pitch_gain * body_pitch_absolute +
+                                    chassis->state_config.right_leg_world_offset;
+        right_hip_input.leg_theta_dot = right_leg_state.relative_theta_dot +
+                                        chassis->state_config.leg_world_body_pitch_gain * body_pitch_rate;
+        if (WheelLeggedHipOdometryCalculate(&left_hip_input, &left_hip_output) != 0u &&
+            WheelLeggedHipOdometryCalculate(&right_hip_input, &right_hip_output) != 0u)
+        {
+            next_state.hip_odometry_s_raw = 0.5f * (left_hip_output.raw_position + right_hip_output.raw_position);
+            next_state.left_hip_odometry_s_dot = left_hip_output.velocity;
+            next_state.right_hip_odometry_s_dot = right_hip_output.velocity;
+            next_state.s_dot = 0.5f * (left_hip_output.velocity + right_hip_output.velocity);
+            valid_mask |= WHEEL_LEGGED_STATE_VALID_HIP_ODOMETRY;
+            if (next_state.origin_captured == 0u)
+            {
+                next_state.s_origin = next_state.hip_odometry_s_raw;
+                next_state.yaw_origin = yaw;
+                next_state.pitch_origin = pitch;
+                next_state.origin_captured = 1u;
+            }
+            next_state.s = next_state.hip_odometry_s_raw - next_state.s_origin;
+        }
     }
 
     if (next_state.origin_captured != 0u && (valid_mask & WHEEL_LEGGED_STATE_VALID_IMU) != 0u)
@@ -121,7 +164,8 @@ void WheelLeggedChassisStateUpdate(WheelLeggedChassisInstance_t *chassis)
     }
 
     if ((valid_mask & (WHEEL_LEGGED_STATE_VALID_IMU | WHEEL_LEGGED_STATE_VALID_LEFT_LEG)) ==
-        (WHEEL_LEGGED_STATE_VALID_IMU | WHEEL_LEGGED_STATE_VALID_LEFT_LEG) && next_state.origin_captured != 0u)
+            (WHEEL_LEGGED_STATE_VALID_IMU | WHEEL_LEGGED_STATE_VALID_LEFT_LEG) &&
+        next_state.origin_captured != 0u)
     {
         next_state.theta_leg_left = next_state.left_leg_relative_theta +
                                     chassis->state_config.leg_world_body_pitch_gain * next_state.theta_body +
@@ -130,7 +174,8 @@ void WheelLeggedChassisStateUpdate(WheelLeggedChassisInstance_t *chassis)
                                         chassis->state_config.leg_world_body_pitch_gain * next_state.theta_body_dot;
     }
     if ((valid_mask & (WHEEL_LEGGED_STATE_VALID_IMU | WHEEL_LEGGED_STATE_VALID_RIGHT_LEG)) ==
-        (WHEEL_LEGGED_STATE_VALID_IMU | WHEEL_LEGGED_STATE_VALID_RIGHT_LEG) && next_state.origin_captured != 0u)
+            (WHEEL_LEGGED_STATE_VALID_IMU | WHEEL_LEGGED_STATE_VALID_RIGHT_LEG) &&
+        next_state.origin_captured != 0u)
     {
         next_state.theta_leg_right = next_state.right_leg_relative_theta +
                                      chassis->state_config.leg_world_body_pitch_gain * next_state.theta_body +
@@ -193,23 +238,22 @@ static uint8_t WheelLeggedWheelReadState(WheelLeggedWheelInstance_t *wheel, floa
 }
 
 /**
- * @brief 根据当前腿部 FK、雅可比和关节速度计算相对机身的虚拟腿角及角速度。
+ * @brief 根据当前腿部 FK、雅可比和关节速度读取同一帧虚拟腿状态。
  *
  * @param leg 待读取的腿对象。
  * @param relative_direction FK 相对腿角到建模相对腿角的符号。
- * @param relative_theta 返回相对机身摆角，单位 rad。
- * @param relative_theta_dot 返回相对机身摆角速度，单位 rad/s。
+ * @param state 返回腿长、腿长速度、相对机身腿角和角速度。
  * @return 反馈、FK、雅可比和传动均有效时返回 1，否则返回 0。
  */
-static uint8_t WheelLeggedLegReadRelativeState(const WheelLeggedLegInstance_t *leg, float relative_direction,
-                                               float *relative_theta, float *relative_theta_dot)
+static uint8_t WheelLeggedLegReadState(const WheelLeggedLegInstance_t *leg, float relative_direction,
+                                       WheelLeggedLegStateSnapshot_t *state)
 {
     float phi_dot[LEG_KINEMATICS_INPUT_COUNT] = {0.0f};
     const JointTransmissionConfig_t *front_transmission;
     const JointTransmissionConfig_t *rear_transmission;
     const float (*jacobian)[2];
 
-    if (leg == NULL || relative_theta == NULL || relative_theta_dot == NULL || leg->kinematics.config == NULL ||
+    if (leg == NULL || state == NULL || leg->kinematics.config == NULL ||
         leg->front_joint.motor == NULL || leg->rear_joint.motor == NULL || leg->front_joint.feedback_ready == 0u ||
         leg->rear_joint.feedback_ready == 0u || leg->kinematics.forward_kinematics_status != DOUBLE_CLOSED_LOOP_LEG_OK ||
         leg->kinematics.state.virtual_leg_jacobian_valid == 0u ||
@@ -229,8 +273,9 @@ static uint8_t WheelLeggedLegReadRelativeState(const WheelLeggedLegInstance_t *l
         !WheelLeggedIsDirectionValid(front_transmission->direction) ||
         !WheelLeggedIsDirectionValid(rear_transmission->direction) ||
         !isfinite(leg->front_joint.motor->measure.velocity) || !isfinite(leg->rear_joint.motor->measure.velocity) ||
-        !isfinite(leg->kinematics.state.virtual_leg_theta) || !isfinite(jacobian[1][0]) ||
-        !isfinite(jacobian[1][1]))
+        !isfinite(leg->kinematics.state.length) || leg->kinematics.state.length < 0.0f ||
+        !isfinite(leg->kinematics.state.virtual_leg_theta) || !isfinite(jacobian[0][0]) ||
+        !isfinite(jacobian[0][1]) || !isfinite(jacobian[1][0]) || !isfinite(jacobian[1][1]))
     {
         return 0u;
     }
@@ -239,11 +284,15 @@ static uint8_t WheelLeggedLegReadRelativeState(const WheelLeggedLegInstance_t *l
                                                   leg->front_joint.motor->measure.velocity;
     phi_dot[leg->rear_joint_kinematics_input] = rear_transmission->direction * rear_transmission->gain *
                                                  leg->rear_joint.motor->measure.velocity;
-    *relative_theta = relative_direction * leg->kinematics.state.virtual_leg_theta;
-    *relative_theta_dot = relative_direction *
-                          (jacobian[1][LEG_KINEMATICS_INPUT_PHI1] * phi_dot[LEG_KINEMATICS_INPUT_PHI1] +
-                           jacobian[1][LEG_KINEMATICS_INPUT_PHI2] * phi_dot[LEG_KINEMATICS_INPUT_PHI2]);
-    return isfinite(*relative_theta) && isfinite(*relative_theta_dot);
+    state->length = leg->kinematics.state.length;
+    state->length_dot = jacobian[0][LEG_KINEMATICS_INPUT_PHI1] * phi_dot[LEG_KINEMATICS_INPUT_PHI1] +
+                        jacobian[0][LEG_KINEMATICS_INPUT_PHI2] * phi_dot[LEG_KINEMATICS_INPUT_PHI2];
+    state->relative_theta = relative_direction * leg->kinematics.state.virtual_leg_theta;
+    state->relative_theta_dot = relative_direction *
+                                (jacobian[1][LEG_KINEMATICS_INPUT_PHI1] * phi_dot[LEG_KINEMATICS_INPUT_PHI1] +
+                                 jacobian[1][LEG_KINEMATICS_INPUT_PHI2] * phi_dot[LEG_KINEMATICS_INPUT_PHI2]);
+    return isfinite(state->length) && isfinite(state->length_dot) && isfinite(state->relative_theta) &&
+           isfinite(state->relative_theta_dot);
 }
 
 /**

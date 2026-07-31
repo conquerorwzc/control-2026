@@ -11,6 +11,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* VMC 悬空测试时单台 J4310 电机轴允许的最大绝对力矩，单位 N·m。 */
+/* TODO：正式力矩控制接入前，补充力矩变化率限制、腿部机械工作区保护、反馈失效锁定、
+ * 超时回零及明确的控制模式状态机。 */
 #define WHEEL_LEGGED_VMC_TEST_MOTOR_TORQUE_LIMIT 2.0f
 
 /* Intermediate variables calculated by private functions -------------------*/

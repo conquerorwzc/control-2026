@@ -98,6 +98,7 @@ typedef enum
 /* Private user code ---------------------------------------------------------*/
 
 /* 左右腿共用的双闭环 CAD 几何和装配支路参数；所有长度单位均为 m。 */
+/* TODO：以 CAD 或三坐标测量值复核全部杆长、装配支路和闭环一致性阈值后再冻结参数。 */
 static const DoubleClosedLoopLegGeometry_t g_leg_geometry_config = {
     .configured = 1u,
     .oa_length = 0.0525f,         /* 暂测 OA=52.5 mm。 */
@@ -187,6 +188,7 @@ static WheelLeggedLegInitConfig_t g_right_leg_init_config = {
 };
 
 /* 左轮：H6215，轮径 120 mm，减速比 1:1；direction 必须通过手推前进试验复核。 */
+/* TODO：手推确认左轮前进时轮端角速度和 s_dot 均为正后，冻结 left_wheel.direction。 */
 static WheelLeggedWheelInitConfig_t g_left_wheel_init_config = {
     .motor_config = DOUBLE_CLOSED_LOOP_LEG_H6215_CONFIG(
         &hcan1, 0x01u, 0x00u, WHEEL_LEGGED_MOTOR_NORMAL),
@@ -197,6 +199,7 @@ static WheelLeggedWheelInitConfig_t g_left_wheel_init_config = {
 };
 
 /* 右轮：H6215，轮径 120 mm，减速比 1:1；direction 必须通过手推前进试验复核。 */
+/* TODO：手推确认右轮前进时轮端角速度和 s_dot 均为正后，冻结 right_wheel.direction。 */
 static WheelLeggedWheelInitConfig_t g_right_wheel_init_config = {
     .motor_config = DOUBLE_CLOSED_LOOP_LEG_H6215_CONFIG(
         &hcan2, 0x01u, 0x00u, WHEEL_LEGGED_MOTOR_NORMAL),
@@ -207,6 +210,7 @@ static WheelLeggedWheelInitConfig_t g_right_wheel_init_config = {
 };
 
 /* 底盘 IMU 安装配置；INS 原始角度单位为 deg，由状态模块统一换算为 rad。 */
+/* TODO：完成静止和单轴转动试验后，写入 IMU 安装角、标度、零偏及离线标定参数。 */
 static IMU_Init_Config_s g_chassis_imu_init_config = {
     .flag = 1u,
     .offset_flag = 0u,
@@ -218,6 +222,7 @@ static IMU_Init_Config_s g_chassis_imu_init_config = {
 };
 
 /* 十维状态的坐标符号；世界系腿角关系需结合静态俯仰试验确认。 */
+/* TODO：通过前进手推、单轴俯仰和左右腿摆动试验确认所有方向、机身俯仰增益与零位偏置。 */
 static const WheelLeggedChassisStateConfig_t g_chassis_state_config = {
     .yaw_direction = 1.0f,
     .body_pitch_direction = -1.0f,

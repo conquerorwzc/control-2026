@@ -25,6 +25,8 @@ static void EmergencyHandler(RobotInstance *robot_instance);
  * 当前只定义底盘使能命令：右拨杆上或中请求关节使能，右拨杆下请求关节失能。
  * 云台尚未初始化，故不调用 CalcOffsetAngle；键鼠到底盘运动、腿长和跳跃命令尚未定义，
  * 因而不保留没有实际行为的空 MouseKeySet 函数。
+ * TODO：接入底盘运动命令、腿长目标、跳跃状态和 VMC/LQR 上层命令；上层只能写
+ * chassis 命令或 leg.vmc 命令，禁止直接写电机。
  *
  * @param robot_instance 顶层机器人对象。
  */

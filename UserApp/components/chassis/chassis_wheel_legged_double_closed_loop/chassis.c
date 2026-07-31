@@ -84,6 +84,8 @@ static void WheelLeggedWheelInit(WheelLeggedWheelInstance_t *wheel, WheelLeggedW
  *
  * 固定顺序为：更新关节反馈和正运动学、组装整车十维状态、计算两条腿的 VMC 映射，
  * 最后根据上层命令进行唯一的关节输出仲裁。轮毂仅用于读取反馈，本任务不向轮毂写入控制参考。
+ * TODO：轮毂闭环控制接入时，必须新增唯一轮毂输出仲裁入口；不得在状态读取模块或
+ * 上层命令模块直接调用 DMMotorSetRef。
  *
  * @param chassis 底盘对象。
  */

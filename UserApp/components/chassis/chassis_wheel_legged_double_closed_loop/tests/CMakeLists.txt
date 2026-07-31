@@ -6,8 +6,10 @@ project(double_closed_loop_leg_tests C)
 add_executable(double_closed_loop_leg_tests
     test_main.c
     double_closed_loop_leg_test.c
+    hip_odometry_test.c
     joint_transmission_test.c
     ../kinematics/double_closed_loop_leg.c
+    ../kinematics/hip_odometry.c
     ../transmission/joint_transmission.c
 )
 

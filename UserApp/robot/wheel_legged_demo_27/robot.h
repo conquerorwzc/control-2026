@@ -26,8 +26,8 @@ typedef struct
 {
     RobotMode_e robot_mode;                     /* 机器人基础工作状态。 */
     WheelLeggedChassisInstance_t *chassis;      /* 轮腿底盘对象。 */
-    GimbalInstance *gimbal;                     /* 云台对象；当前未初始化。 */
-    RC_ctrl_t *rc_data;                         /* 遥控器数据；当前未初始化。 */
+    GimbalInstance *gimbal;                     /* 云台对象；当前未接入本机器人。 */
+    RC_ctrl_t *rc_data;                         /* 遥控器运行数据；由 RobotInit 初始化。 */
 } RobotInstance;
 
 void RobotInit(void);
