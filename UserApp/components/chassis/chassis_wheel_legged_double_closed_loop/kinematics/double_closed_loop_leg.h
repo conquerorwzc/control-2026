@@ -80,6 +80,10 @@ typedef struct
     float epsilon;              /* 有向线 F->P 相对 x 正方向的绝对角，单位 rad。 */
     float length;               /* O 到足端 P 的虚拟腿长，单位 m。 */
     float theta;                /* 虚拟腿相对 y 正方向的俯仰角，单位 rad。 */
+    float virtual_leg_theta;    /* 轮轴 P 指向髋点 O 的虚拟腿摆角，单位 rad；正值表示髋点向 x 正方向前摆。 */
+    float virtual_leg_jacobian[2][2]; /* 虚拟腿雅可比：行依次为 length、virtual_leg_theta，列依次为 phi1、phi2。 */
+    float virtual_leg_jacobian_det;   /* 虚拟腿雅可比行列式，工程单位 m/rad^2。 */
+    uint8_t virtual_leg_jacobian_valid; /* 虚拟腿雅可比有效时为 1。 */
     float first_loop_residual;  /* 第一闭环杆 A-B 的长度残差，单位 m。 */
     float second_loop_residual; /* 第二闭环杆 D-E 的长度残差，单位 m。 */
 } DoubleClosedLoopLegState_t;

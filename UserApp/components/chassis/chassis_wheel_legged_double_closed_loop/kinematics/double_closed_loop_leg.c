@@ -206,6 +206,121 @@ static DoubleClosedLoopLegStatus_e CircleIntersection(const DoubleClosedLoopLegV
     return DOUBLE_CLOSED_LOOP_LEG_OK;
 }
 
+/**
+ * @brief 由两条定长圆约束的微分关系，计算圆交点对两个主动轴角的导数。
+ *
+ * 对点 X 满足 |X-U|、|X-V| 为常量，逐列求解：
+ * [ (X-U)^T ; (X-V)^T ] X_q = [ (X-U)^T U_q ; (X-V)^T V_q ]。
+ *
+ * @param point 当前圆交点 X。
+ * @param center0 第一圆心 U。
+ * @param center0_derivative U 对 phi1、phi2 的导数，行依次为 x、y。
+ * @param center1 第二圆心 V。
+ * @param center1_derivative V 对 phi1、phi2 的导数，行依次为 x、y。
+ * @param singular_epsilon 机构长度奇异阈值，单位 m。
+ * @param point_derivative 输出 X 对 phi1、phi2 的导数，行依次为 x、y。
+ * @return 成功返回 1；约束矩阵接近奇异或数值异常时返回 0。
+ */
+static int CircleIntersectionDerivative(const DoubleClosedLoopLegVec2_t point,
+                                        const DoubleClosedLoopLegVec2_t center0,
+                                        const float center0_derivative[2][2],
+                                        const DoubleClosedLoopLegVec2_t center1,
+                                        const float center1_derivative[2][2], float singular_epsilon,
+                                        float point_derivative[2][2])
+{
+    const DoubleClosedLoopLegVec2_t from_center0 = Vec2Subtract(point, center0);
+    const DoubleClosedLoopLegVec2_t from_center1 = Vec2Subtract(point, center1);
+    const float determinant = from_center0.x * from_center1.y - from_center0.y * from_center1.x;
+    const float determinant_epsilon = singular_epsilon * (Vec2Norm(from_center0) + Vec2Norm(from_center1));
+    if (!isfinite(determinant) || fabsf(determinant) <= determinant_epsilon)
+    {
+        return 0;
+    }
+
+    for (uint8_t input_index = 0u; input_index < 2u; input_index++)
+    {
+        const float rhs0 = from_center0.x * center0_derivative[0][input_index] +
+                           from_center0.y * center0_derivative[1][input_index];
+        const float rhs1 = from_center1.x * center1_derivative[0][input_index] +
+                           from_center1.y * center1_derivative[1][input_index];
+        point_derivative[0][input_index] =
+            (rhs0 * from_center1.y - from_center0.y * rhs1) / determinant;
+        point_derivative[1][input_index] =
+            (from_center0.x * rhs1 - rhs0 * from_center1.x) / determinant;
+    }
+    return isfinite(point_derivative[0][0]) && isfinite(point_derivative[0][1]) &&
+           isfinite(point_derivative[1][0]) && isfinite(point_derivative[1][1]);
+}
+
+/**
+ * @brief 根据当前闭环各点位置，解析计算轮轴 P 指向髋点 O 的虚拟腿雅可比。
+ *
+ * 现有机构坐标中 O 为髋点、P 为轮轴，x 向前/右为正、y 向下为正。
+ * 因此 theta_l = atan2(-x_P, y_P)，其正方向表示髋点向 x 正方向前摆。
+ *
+ * @param geometry 双闭环机构的几何和奇异阈值。
+ * @param input 当前 phi1、phi2。
+ * @param state 已完成 FK 的当前机构状态；函数原地写入虚拟腿雅可比。
+ */
+static void CalculateVirtualLegJacobian(const DoubleClosedLoopLegGeometry_t *geometry,
+                                        const DoubleClosedLoopLegInput_t *input, DoubleClosedLoopLegState_t *state)
+{
+    float a_derivative[2][2] = {{0.0f}};
+    float b_derivative[2][2] = {{0.0f}};
+    float c_derivative[2][2] = {{0.0f}};
+    float d_derivative[2][2] = {{0.0f}};
+    float e_derivative[2][2] = {{0.0f}};
+    float f_derivative[2][2] = {{0.0f}};
+    float p_derivative[2][2] = {{0.0f}};
+    const float length_square = state->p.x * state->p.x + state->p.y * state->p.y;
+
+    state->virtual_leg_theta = atan2f(-state->p.x, state->p.y);
+    state->virtual_leg_jacobian_valid = 0u;
+    state->virtual_leg_jacobian_det = 0.0f;
+    memset(state->virtual_leg_jacobian, 0, sizeof(state->virtual_leg_jacobian));
+    if (!isfinite(length_square) || length_square <= geometry->singular_epsilon * geometry->singular_epsilon)
+    {
+        return;
+    }
+
+    a_derivative[0][0] = -geometry->oa_length * sinf(input->phi1);
+    a_derivative[1][0] = geometry->oa_length * cosf(input->phi1);
+    c_derivative[0][1] = -geometry->oc_length * sinf(input->phi2);
+    c_derivative[1][1] = geometry->oc_length * cosf(input->phi2);
+    f_derivative[0][1] = -geometry->of_length * sinf(input->phi2);
+    f_derivative[1][1] = geometry->of_length * cosf(input->phi2);
+
+    if (!CircleIntersectionDerivative(state->b, state->c, c_derivative, state->a, a_derivative,
+                                      geometry->singular_epsilon, b_derivative) ||
+        !CircleIntersectionDerivative(state->d, state->c, c_derivative, state->b, b_derivative,
+                                      geometry->singular_epsilon, d_derivative) ||
+        !CircleIntersectionDerivative(state->e, state->f, f_derivative, state->d, d_derivative,
+                                      geometry->singular_epsilon, e_derivative) ||
+        !CircleIntersectionDerivative(state->p, state->f, f_derivative, state->e, e_derivative,
+                                      geometry->singular_epsilon, p_derivative))
+    {
+        return;
+    }
+
+    for (uint8_t input_index = 0u; input_index < 2u; input_index++)
+    {
+        state->virtual_leg_jacobian[0][input_index] =
+            (state->p.x * p_derivative[0][input_index] + state->p.y * p_derivative[1][input_index]) /
+            state->length;
+        state->virtual_leg_jacobian[1][input_index] =
+            (-state->p.y * p_derivative[0][input_index] + state->p.x * p_derivative[1][input_index]) /
+            length_square;
+    }
+    state->virtual_leg_jacobian_det = state->virtual_leg_jacobian[0][0] * state->virtual_leg_jacobian[1][1] -
+                                      state->virtual_leg_jacobian[0][1] * state->virtual_leg_jacobian[1][0];
+    state->virtual_leg_jacobian_valid = isfinite(state->virtual_leg_theta) &&
+                                        isfinite(state->virtual_leg_jacobian_det) &&
+                                        isfinite(state->virtual_leg_jacobian[0][0]) &&
+                                        isfinite(state->virtual_leg_jacobian[0][1]) &&
+                                        isfinite(state->virtual_leg_jacobian[1][0]) &&
+                                        isfinite(state->virtual_leg_jacobian[1][1]);
+}
+
 DoubleClosedLoopLegStatus_e DoubleClosedLoopLegForwardKinematics(const DoubleClosedLoopLegGeometry_t *geometry,
                                                                  const DoubleClosedLoopLegInput_t *input,
                                                                  DoubleClosedLoopLegState_t *state)
@@ -273,6 +388,7 @@ DoubleClosedLoopLegStatus_e DoubleClosedLoopLegForwardKinematics(const DoubleClo
 
     state->length = Vec2Norm(state->p);
     state->theta = atan2f(state->p.x, state->p.y);
+    CalculateVirtualLegJacobian(geometry, input, state);
     state->first_loop_residual = fabsf(Vec2Norm(Vec2Subtract(state->b, state->a)) - geometry->ab_length);
     state->second_loop_residual = fabsf(Vec2Norm(Vec2Subtract(state->e, state->d)) - geometry->de_length);
 

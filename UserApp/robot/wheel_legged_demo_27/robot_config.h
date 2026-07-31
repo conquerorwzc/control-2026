@@ -41,8 +41,6 @@
 /* 右轮毂电机的 CAN 接收标识符。 */
 #define DOUBLE_CLOSED_LOOP_LEG_RIGHT_WHEEL_RX_ID 0x00u
 
-/* CAD 杆长和装配支路尚未标定，禁止计算真实机构位姿。 */
-#define DOUBLE_CLOSED_LOOP_LEG_GEOMETRY_CONFIGURED 0u
 /*
  * 根据 CAN 外设、CAN 标识符和电机坐标方向构造一台零力矩保活用的达妙电机初始化配置。
  * 使用 MOTOR_FEED 自身反馈闭环时，电机输出方向与反馈方向应同向配置：均为 NORMAL 或均为 REVERSE。
@@ -132,7 +130,7 @@ static const WheelLeggedChainTransmissionConfig_t g_right_rear_joint_chain_confi
 };
 
 /* 双闭环杆系的 CAD 几何和装配支路参数。所有长度均为转轴中心距，单位：m。 */
-static const DoubleClosedLoopLegGeometry_t g_unconfigured_leg_geometry_config = {
+static const DoubleClosedLoopLegGeometry_t g_leg_geometry_config = {
     .configured = 1u,
     .oa_length = 0.0525f,         /* 暂测 OA=52.5 mm。 */
     .oc_length = 0.0525f,         /* 暂测 OC=52.5 mm。 */
@@ -166,7 +164,7 @@ static WheelLeggedLegInitConfig_t g_left_leg_init_config = {
     .rear_joint_chain_config = &g_left_rear_joint_chain_config,
     .front_joint_kinematics_input = LEG_KINEMATICS_INPUT_PHI2,
     .rear_joint_kinematics_input = LEG_KINEMATICS_INPUT_PHI1,
-    .geometry_config = &g_unconfigured_leg_geometry_config,
+    .geometry_config = &g_leg_geometry_config,
 };
 
 /* 右腿关节初始化配置：已实测右前对应 phi2（OC），右后对应 phi1（OA）。 */
@@ -181,7 +179,7 @@ static WheelLeggedLegInitConfig_t g_right_leg_init_config = {
     .rear_joint_chain_config = &g_right_rear_joint_chain_config,
     .front_joint_kinematics_input = LEG_KINEMATICS_INPUT_PHI2,
     .rear_joint_kinematics_input = LEG_KINEMATICS_INPUT_PHI1,
-    .geometry_config = &g_unconfigured_leg_geometry_config,
+    .geometry_config = &g_leg_geometry_config,
 };
 
 /* 左轮毂接线记录；电机型号和控制方式未确认，当前只保存地址、不初始化驱动。 */

@@ -41,6 +41,26 @@ typedef struct
     uint8_t feedback_ready; /* 是否已经收到电机反馈帧。 */
 } WheelLeggedJointInstance_t;
 
+/* 一条腿的 VMC 命令和实时映射结果；默认只计算，手动打开测试开关后才允许受限下发。 */
+typedef struct
+{
+    float force_command;        /* F：虚拟腿轴向广义力命令，单位 N；正值表示伸腿、撑开髋点与轮轴。 */
+    float pitch_torque_command; /* Tp：虚拟腿摆动广义力矩命令，单位 N·m；正值使虚拟腿角增大。 */
+
+    float phi1_torque; /* 映射得到的 phi1 主动轴目标力矩，单位 N·m。 */
+    float phi2_torque; /* 映射得到的 phi2 主动轴目标力矩，单位 N·m。 */
+
+    float front_motor_torque; /* 映射到前关节电机轴的目标力矩，单位 N·m。 */
+    float rear_motor_torque;  /* 映射到后关节电机轴的目标力矩，单位 N·m。 */
+
+    float front_motor_torque_output; /* 经过测试限幅后实际写入前关节电机的力矩参考，单位 N·m。 */
+    float rear_motor_torque_output;  /* 经过测试限幅后实际写入后关节电机的力矩参考，单位 N·m。 */
+
+    float virtual_jacobian_det; /* 当前虚拟腿雅可比行列式，工程单位 m/rad^2，用于观察接近奇异的位置。 */
+    uint8_t torque_test_enable; /* 手动 VMC 小力矩测试使能；仅本腿为 1 且计算有效时允许下发力矩。 */
+    uint8_t valid;              /* FK、雅可比、反馈和传动换算均有效时为 1。 */
+} WheelLeggedLegVmc_t;
+
 /* 一台关节的链轮传动标定参数；只需填写链轮齿数，程序自动计算角度传动比。 */
 typedef struct
 {
@@ -62,6 +82,7 @@ typedef struct
 
     DoubleClosedLoopLegConfig_t kinematics_runtime_config; /* 由链轮齿数生成的机构学运行配置。 */
     DoubleClosedLoopLegInstance_t kinematics;               /* 执行器角到足端状态的纯机构学实例。 */
+    WheelLeggedLegVmc_t vmc;                                 /* 本腿 VMC 命令和实时计算状态。 */
     volatile uint32_t update_count;                          /* 该腿已完成的更新次数。 */
     volatile uint32_t sequence;                              /* 奇数表示写入中，偶数表示写入完成。 */
 } WheelLeggedLegInstance_t;

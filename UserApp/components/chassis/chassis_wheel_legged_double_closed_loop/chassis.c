@@ -46,7 +46,7 @@ void WheelLeggedChassisInit(WheelLeggedChassisInstance_t *chassis,
 /**
  * @brief 执行一次底盘周期任务。
  *
- * 固定顺序为：更新关节反馈和正运动学，再根据上层命令进行唯一的关节输出仲裁。
+ * 固定顺序为：更新关节反馈和正运动学、计算两条腿的 VMC 映射，再根据上层命令进行唯一的关节输出仲裁。
  * 当前轮毂型号尚未确认，本任务不向轮毂发送任何 CAN 控制命令。
  *
  * @param chassis 底盘对象。
@@ -60,5 +60,7 @@ void ChassisTask(WheelLeggedChassisInstance_t *chassis)
 
     WheelLeggedLegUpdate(&chassis->left_leg);
     WheelLeggedLegUpdate(&chassis->right_leg);
+    WheelLeggedLegVmcUpdate(&chassis->left_leg);
+    WheelLeggedLegVmcUpdate(&chassis->right_leg);
     WheelLeggedChassisApplyJointMotorState(chassis);
 }
