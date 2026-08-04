@@ -1,18 +1,18 @@
 /**
  ******************************************************************************
  * @file    test_main.c
- * @brief   双闭环腿主机端单测入口，不参与单片机固件构建
+ * @brief   同心五连杆主机端单测入口，不参与单片机固件构建
  ******************************************************************************
  */
 #include <stdio.h>
 
-#include "double_closed_loop_leg_test.h"
+#include "parallel_leg_test.h"
 #include "hip_odometry_test.h"
 #include "joint_transmission_test.h"
 
 int main(void)
 {
-    const DoubleClosedLoopLegSelfTestResult_t geometry_result = DoubleClosedLoopLegRunSelfTest();
+    const ParallelLegSelfTestResult_t geometry_result = ParallelLegRunSelfTest();
     const JointTransmissionSelfTestResult_t transmission_result = JointTransmissionRunSelfTest();
     const WheelLeggedHipOdometryTestResult_t hip_odometry_result = WheelLeggedHipOdometryRunSelfTest();
 

@@ -23,7 +23,7 @@ static float WheelLeggedJointTorqueFromActiveTorque(const JointTransmissionConfi
 /* Private user code ---------------------------------------------------------*/
 
 /**
- * @brief 根据当前虚拟腿雅可比，把本腿的 F、Tp 命令映射为主动轴和电机轴目标力矩。
+ * @brief 根据当前真实末端 J 的腿雅可比，把本腿 F、Tp 命令映射为主动轴和电机轴目标力矩。
  *
  * 虚拟广义力正方向由虚功定义：F 为正使腿长增加，Tp 为正使髋点向 x 正方向前摆。
  * 第一阶段只保存计算结果，禁止在本文件或调用链中向达妙电机写入任何力矩参考。
@@ -38,20 +38,18 @@ void WheelLeggedLegVmcUpdate(WheelLeggedLegInstance_t *leg)
     }
 
     WheelLeggedLegClearVmcResult(leg);
-    leg->vmc.virtual_jacobian_det = leg->kinematics.state.virtual_leg_jacobian_det;
-    if (leg->kinematics.forward_kinematics_status != DOUBLE_CLOSED_LOOP_LEG_OK ||
-        leg->kinematics.state.virtual_leg_jacobian_valid == 0u || leg->kinematics.config == NULL ||
+    leg->vmc.leg_jacobian_det = leg->kinematics.state.real_leg_jacobian_det;
+    if (leg->kinematics.forward_kinematics_status != PARALLEL_LEG_OK ||
+        leg->kinematics.state.real_leg_jacobian_valid == 0u || leg->kinematics.config == NULL ||
         leg->front_joint_kinematics_input >= LEG_KINEMATICS_INPUT_COUNT ||
         leg->rear_joint_kinematics_input >= LEG_KINEMATICS_INPUT_COUNT || !WheelLeggedLegHasValidFeedback(leg))
     {
         return;
     }
 
-    const float (*jacobian)[2] = leg->kinematics.state.virtual_leg_jacobian;
-    leg->vmc.phi1_torque = jacobian[0][0] * leg->vmc.force_command +
-                            jacobian[1][0] * leg->vmc.pitch_torque_command;
-    leg->vmc.phi2_torque = jacobian[0][1] * leg->vmc.force_command +
-                            jacobian[1][1] * leg->vmc.pitch_torque_command;
+    const float(*jacobian)[2] = leg->kinematics.state.real_leg_jacobian;
+    leg->vmc.phi1_torque = jacobian[0][0] * leg->vmc.force_command + jacobian[1][0] * leg->vmc.pitch_torque_command;
+    leg->vmc.phi2_torque = jacobian[0][1] * leg->vmc.force_command + jacobian[1][1] * leg->vmc.pitch_torque_command;
     leg->vmc.front_motor_torque = WheelLeggedJointTorqueFromActiveTorque(
         &leg->kinematics.config->transmission[leg->front_joint_kinematics_input],
         leg->front_joint_kinematics_input == LEG_KINEMATICS_INPUT_PHI1 ? leg->vmc.phi1_torque : leg->vmc.phi2_torque);

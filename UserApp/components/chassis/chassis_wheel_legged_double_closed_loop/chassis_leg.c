@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    chassis_leg.c
- * @brief   双闭环轮腿的关节初始化、反馈读取与正运动学更新
+ * @brief   同心五连杆轮腿的关节初始化、反馈读取与正运动学更新
  ******************************************************************************
  */
 /* Private includes ----------------------------------------------------------*/
@@ -64,7 +64,7 @@ void WheelLeggedLegInit(WheelLeggedLegInstance_t *leg, WheelLeggedLegInitConfig_
     {
         DMMotorStop(leg->rear_joint.motor);
     }
-    DoubleClosedLoopLegInit(&leg->kinematics, &leg->kinematics_runtime_config);
+    ParallelLegInit(&leg->kinematics, &leg->kinematics_runtime_config);
 }
 
 /**
@@ -90,13 +90,13 @@ void WheelLeggedLegUpdate(WheelLeggedLegInstance_t *leg)
     {
         actuator_angle_by_kinematics_input[leg->front_joint_kinematics_input] = front_actuator_angle;
         actuator_angle_by_kinematics_input[leg->rear_joint_kinematics_input] = rear_actuator_angle;
-        DoubleClosedLoopLegUpdate(&leg->kinematics, actuator_angle_by_kinematics_input[LEG_KINEMATICS_INPUT_PHI1],
-                                  actuator_angle_by_kinematics_input[LEG_KINEMATICS_INPUT_PHI2]);
+        ParallelLegUpdate(&leg->kinematics, actuator_angle_by_kinematics_input[LEG_KINEMATICS_INPUT_PHI1],
+                          actuator_angle_by_kinematics_input[LEG_KINEMATICS_INPUT_PHI2]);
     }
     else
     {
         memset(&leg->kinematics.state, 0, sizeof(leg->kinematics.state));
-        leg->kinematics.forward_kinematics_status = DOUBLE_CLOSED_LOOP_LEG_INVALID_ARGUMENT;
+        leg->kinematics.forward_kinematics_status = PARALLEL_LEG_INVALID_ARGUMENT;
     }
     leg->update_count++;
     leg->sequence++;
@@ -142,7 +142,7 @@ static JointTransmissionConfig_t WheelLeggedBuildJointTransmissionConfig(
     const WheelLeggedChainTransmissionConfig_t *chain_config)
 {
     JointTransmissionConfig_t transmission_config = {0};
-    if (chain_config == NULL || chain_config->driving_sprocket_teeth == 0u ||
+    if (chain_config == NULL || chain_config->configured == 0u || chain_config->driving_sprocket_teeth == 0u ||
         chain_config->driven_sprocket_teeth == 0u)
     {
         return transmission_config;

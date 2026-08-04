@@ -19,76 +19,74 @@ typedef enum
 } WheelLeggedMotorDirection_e;
 
 /* 将本车的配对方向换算为底层达妙电机输出方向枚举。 */
-#define WHEEL_LEGGED_MOTOR_DIRECTION_FLAG(direction) \
+#define WHEEL_LEGGED_MOTOR_DIRECTION_FLAG(direction)                                                                   \
     ((direction) == WHEEL_LEGGED_MOTOR_REVERSE ? MOTOR_DIRECTION_REVERSE : MOTOR_DIRECTION_NORMAL)
 
 /* 将本车的配对方向换算为底层达妙电机反馈方向枚举。 */
-#define WHEEL_LEGGED_FEEDBACK_DIRECTION_FLAG(direction) \
+#define WHEEL_LEGGED_FEEDBACK_DIRECTION_FLAG(direction)                                                                \
     ((direction) == WHEEL_LEGGED_MOTOR_REVERSE ? FEEDBACK_DIRECTION_REVERSE : FEEDBACK_DIRECTION_NORMAL)
 
 /* 根据关节 CAN 地址和配对方向构造一台 J4310 关节电机配置。 */
-#define DOUBLE_CLOSED_LOOP_LEG_J4310_CONFIG(can_handle_ptr, tx_identifier, rx_identifier, direction)                  \
-    {                                                                                                                    \
-        .controller_setting_init_config =                                                                               \
-            {                                                                                                           \
-                .outer_loop_type = ANGLE_LOOP,                                                                          \
-                .close_loop_type = ANGLE_LOOP | SPEED_LOOP,                                                             \
-                .angle_feedback_source = MOTOR_FEED,                                                                    \
-                .speed_feedback_source = MOTOR_FEED,                                                                    \
+#define WHEEL_LEGGED_J4310_CONFIG(can_handle_ptr, tx_identifier, rx_identifier, direction)                             \
+    {                                                                                                                  \
+        .controller_setting_init_config =                                                                              \
+            {                                                                                                          \
+                .outer_loop_type = ANGLE_LOOP,                                                                         \
+                .close_loop_type = ANGLE_LOOP | SPEED_LOOP,                                                            \
+                .angle_feedback_source = MOTOR_FEED,                                                                   \
+                .speed_feedback_source = MOTOR_FEED,                                                                   \
                 .motor_reverse_flag = WHEEL_LEGGED_MOTOR_DIRECTION_FLAG(direction),                                    \
                 .feedback_reverse_flag = WHEEL_LEGGED_FEEDBACK_DIRECTION_FLAG(direction),                              \
-            },                                                                                                          \
-        .controller_param_init_config =                                                                                 \
-            {                                                                                                           \
-                .angle_PID =                                                                                            \
-                    {                                                                                                   \
-                        .Kp = 8.0f,                                                                                     \
-                        .Ki = 0.0f,                                                                                     \
-                        .Kd = 0.08f,                                                                                    \
-                        .MaxOut = 12.5f,                                                                                \
-                        .DeadBand = 0.01f,                                                                              \
-                        .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,        \
-                        .IntegralLimit = 6.0f,                                                                          \
-                    },                                                                                                  \
-                .speed_PID =                                                                                            \
-                    {                                                                                                   \
-                        .Kp = 0.65f,                                                                                    \
-                        .Ki = 0.1f,                                                                                     \
-                        .Kd = 0.007f,                                                                                   \
-                        .MaxOut = 7.0f,                                                                                 \
-                        .DeadBand = 0.05f,                                                                              \
-                        .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,        \
-                        .IntegralLimit = 6.0f,                                                                          \
-                    },                                                                                                  \
-            },                                                                                                          \
-        .motor_type = J4310,                                                                                            \
-        .can_init_config =                                                                                              \
-            {                                                                                                           \
-                .can_handle = (can_handle_ptr),                                                                         \
-                .tx_id = (tx_identifier),                                                                               \
-                .rx_id = (rx_identifier),                                                                               \
-            },                                                                                                          \
+            },                                                                                                         \
+        .controller_param_init_config =                                                                                \
+            {                                                                                                          \
+                .angle_PID =                                                                                           \
+                    {                                                                                                  \
+                        .Kp = 8.0f,                                                                                    \
+                        .Ki = 0.0f,                                                                                    \
+                        .Kd = 0.08f,                                                                                   \
+                        .MaxOut = 12.5f,                                                                               \
+                        .DeadBand = 0.01f,                                                                             \
+                        .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,       \
+                        .IntegralLimit = 6.0f,                                                                         \
+                    },                                                                                                 \
+                .speed_PID =                                                                                           \
+                    {                                                                                                  \
+                        .Kp = 0.65f,                                                                                   \
+                        .Ki = 0.1f,                                                                                    \
+                        .Kd = 0.007f,                                                                                  \
+                        .MaxOut = 7.0f,                                                                                \
+                        .DeadBand = 0.05f,                                                                             \
+                        .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,       \
+                        .IntegralLimit = 6.0f,                                                                         \
+                    },                                                                                                 \
+            },                                                                                                         \
+        .motor_type = J4310,                                                                                           \
+        .can_init_config = {                                                                                           \
+            .can_handle = (can_handle_ptr),                                                                            \
+            .tx_id = (tx_identifier),                                                                                  \
+            .rx_id = (rx_identifier),                                                                                  \
+        },                                                                                                             \
     }
 
 /* 根据轮毂 CAN 地址和配对方向构造一台 H6215 只读反馈配置。 */
-#define DOUBLE_CLOSED_LOOP_LEG_H6215_CONFIG(can_handle_ptr, tx_identifier, rx_identifier, direction)                  \
-    {                                                                                                                    \
-        .controller_setting_init_config =                                                                               \
-            {                                                                                                           \
-                .outer_loop_type = SPEED_LOOP,                                                                          \
-                .close_loop_type = 0u,                                                                                  \
-                .angle_feedback_source = MOTOR_FEED,                                                                    \
-                .speed_feedback_source = MOTOR_FEED,                                                                    \
+#define WHEEL_LEGGED_H6215_CONFIG(can_handle_ptr, tx_identifier, rx_identifier, direction)                             \
+    {                                                                                                                  \
+        .controller_setting_init_config =                                                                              \
+            {                                                                                                          \
+                .outer_loop_type = SPEED_LOOP,                                                                         \
+                .close_loop_type = 0u,                                                                                 \
+                .angle_feedback_source = MOTOR_FEED,                                                                   \
+                .speed_feedback_source = MOTOR_FEED,                                                                   \
                 .motor_reverse_flag = WHEEL_LEGGED_MOTOR_DIRECTION_FLAG(direction),                                    \
                 .feedback_reverse_flag = WHEEL_LEGGED_FEEDBACK_DIRECTION_FLAG(direction),                              \
-            },                                                                                                          \
-        .motor_type = H6215,                                                                                            \
-        .can_init_config =                                                                                              \
-            {                                                                                                           \
-                .can_handle = (can_handle_ptr),                                                                         \
-                .tx_id = (tx_identifier),                                                                               \
-                .rx_id = (rx_identifier),                                                                               \
-            },                                                                                                          \
+            },                                                                                                         \
+        .motor_type = H6215,                                                                                           \
+        .can_init_config = {                                                                                           \
+            .can_handle = (can_handle_ptr),                                                                            \
+            .tx_id = (tx_identifier),                                                                                  \
+            .rx_id = (rx_identifier),                                                                                  \
+        },                                                                                                             \
     }
 
 /* Intermediate variables calculated by private functions -------------------*/
@@ -97,92 +95,76 @@ typedef enum
 
 /* Private user code ---------------------------------------------------------*/
 
-/* 左右腿共用的双闭环 CAD 几何和装配支路参数；所有长度单位均为 m。 */
-/* TODO：以 CAD 或三坐标测量值复核全部杆长、装配支路和闭环一致性阈值后再冻结参数。 */
-static const DoubleClosedLoopLegGeometry_t g_leg_geometry_config = {
+/* 左右腿共用的 ACE 显式 k 缩放同心五连杆参数；所有长度单位均为 m。 */
+/* TODO：填写真实 AH、HJ 和虚拟 CE，复核 AD/AH=CE/HJ 后再置 configured=1。 */
+static const ParallelLegGeometry_t g_leg_geometry_config = {
     .configured = 1u,
-    .oa_length = 0.0525f,         /* 暂测 OA=52.5 mm。 */
-    .oc_length = 0.0525f,         /* 暂测 OC=52.5 mm。 */
-    .ab_length = 0.0625f,         /* 暂测 AB=62.5 mm。 */
-    .bc_length = 0.0625f,         /* 暂测 BC=62.5 mm。 */
-    .bd_length = 0.10054f,        /* 暂测 BD=100.54 mm。 */
-    .cd_length = 0.0400f,         /* 暂测 CD=40.0 mm。 */
-    .of_length = 0.1050f,         /* 暂测 OF=105.0 mm。 */
-    .cf_length = 0.0525f,         /* 暂测 CF=52.5 mm；O-C-F 共线且 C 位于中间。 */
-    .de_length = 0.0525f,         /* 暂测 DE=52.5 mm。 */
-    .ef_length = 0.0400f,         /* 暂测 EF=40.0 mm。 */
-    .ep_length = 0.16294f,        /* 暂测 EP=162.94 mm。 */
-    .fp_length = 0.1250f,         /* 暂测 FP=125.0 mm。 */
-    .first_loop_branch_sign = -1, /* B 位于有向线 C->A 的视觉左侧，对应叉积为负。 */
-    .bcd_branch_sign = 1,         /* D 位于有向线 C->B 的视觉左侧，对应叉积为正。 */
-    .second_loop_branch_sign = 1, /* E 位于有向线 F->D 的视觉右侧，对应叉积为正。 */
-    .efp_branch_sign = -1,        /* P 位于有向线 F->E 的视觉左侧，对应叉积为负。 */
-    .geometry_consistency_epsilon = 0.0010f,
-    .singular_epsilon = 1e-5f,
+    .l0 = 0.0f,                     /* 两个主动轴中心距，ACE 同心模型固定为 0 m。 */
+    .real_first_link_ah = 0.105f,     /* AH：真实主动杆长度，待测量，单位 m。 */
+    .real_second_link_hj = 0.125f,    /* HJ：真实末端杆长度，待测量，单位 m。 */
+    .virtual_second_link_ce = 0.0625f, /* CE：虚拟五连杆被动杆长度，待测量，单位 m；k=CE/HJ。 */
+    .virtual_end_branch_sign = -1,   /* C 相对有向线 D->E 的支路，待按实物填写 +1 或 -1。 */
+    .singular_epsilon = 1e-5f,      /* 两圆重合或相切的判据，单位 m。 */
 };
 
-/* 左腿：前关节对应 phi2，即 x 轴到 O-C 的角；后关节对应 phi1，即 x 轴到 O-A 的角。 */
+/* 左腿：前关节对应 phi1；后关节对应 phi2。 */
 static WheelLeggedLegInitConfig_t g_left_leg_init_config = {
     .front_joint =
         {
-            .motor_config = DOUBLE_CLOSED_LOOP_LEG_J4310_CONFIG(
-                &hcan1, 0x05u, 0x04u, WHEEL_LEGGED_MOTOR_REVERSE),
+            .motor_config = WHEEL_LEGGED_J4310_CONFIG(&hcan2, 0x0Bu, 0x0Au, WHEEL_LEGGED_MOTOR_NORMAL),
             .chain_config =
                 {
                     .configured = 1u,
                     .driving_sprocket_teeth = 12u, /* 电机侧主动链轮齿数。 */
-                    .driven_sprocket_teeth = 12u,  /* O-C 主动轴侧从动链轮齿数。 */
+                    .driven_sprocket_teeth = 12u,  /* phi1 主动轴侧从动链轮齿数。 */
                     .direction = 1.0f,
-                    .motor_zero_angle = 0.0974674225f, /* phi2=0 时的左前电机累计角，单位 rad。 */
+                    .motor_zero_angle = -2.53547764f, /* TODO：重新标定 phi1=0 时的左前电机累计角，单位 rad。 */
                 },
-            .kinematics_input = LEG_KINEMATICS_INPUT_PHI2,
+            .kinematics_input = LEG_KINEMATICS_INPUT_PHI1,
         },
     .rear_joint =
         {
-            .motor_config = DOUBLE_CLOSED_LOOP_LEG_J4310_CONFIG(
-                &hcan1, 0x07u, 0x06u, WHEEL_LEGGED_MOTOR_REVERSE),
+            .motor_config = WHEEL_LEGGED_J4310_CONFIG(&hcan2, 0x09u, 0x08u, WHEEL_LEGGED_MOTOR_NORMAL),
             .chain_config =
                 {
                     .configured = 1u,
                     .driving_sprocket_teeth = 12u, /* 电机侧主动链轮齿数。 */
-                    .driven_sprocket_teeth = 12u,  /* O-A 主动轴侧从动链轮齿数。 */
+                    .driven_sprocket_teeth = 12u,  /* phi2 主动轴侧从动链轮齿数。 */
                     .direction = 1.0f,
-                    .motor_zero_angle = -3.34725761f, /* phi1=0 时的左后电机累计角，单位 rad。 */
+                    .motor_zero_angle =  -4.74803543f, /* TODO：重新标定 phi2=0 时的左后电机累计角，单位 rad。 */
                 },
-            .kinematics_input = LEG_KINEMATICS_INPUT_PHI1,
+            .kinematics_input = LEG_KINEMATICS_INPUT_PHI2,
         },
     .geometry_config = &g_leg_geometry_config,
 };
 
-/* 右腿：前关节对应 phi2，即 x 轴到 O-C 的角；后关节对应 phi1，即 x 轴到 O-A 的角。 */
+/* 右腿：前关节对应 phi1；后关节对应 phi2。 */
 static WheelLeggedLegInitConfig_t g_right_leg_init_config = {
     .front_joint =
         {
-            .motor_config = DOUBLE_CLOSED_LOOP_LEG_J4310_CONFIG(
-                &hcan2, 0x09u, 0x08u, WHEEL_LEGGED_MOTOR_NORMAL),
+            .motor_config = WHEEL_LEGGED_J4310_CONFIG(&hcan1, 0x07u, 0x06u, WHEEL_LEGGED_MOTOR_REVERSE),
             .chain_config =
                 {
                     .configured = 1u,
                     .driving_sprocket_teeth = 12u, /* 电机侧主动链轮齿数。 */
-                    .driven_sprocket_teeth = 12u,  /* O-C 主动轴侧从动链轮齿数。 */
+                    .driven_sprocket_teeth = 12u,  /* phi1 主动轴侧从动链轮齿数。 */
                     .direction = 1.0f,
-                    .motor_zero_angle = 0.0703821182f, /* phi2=0 时的右前电机累计角，单位 rad。 */
+                    .motor_zero_angle = -3.41477871f, /* TODO：重新标定 phi1=0 时的右前电机累计角，单位 rad。 */
                 },
-            .kinematics_input = LEG_KINEMATICS_INPUT_PHI2,
+            .kinematics_input = LEG_KINEMATICS_INPUT_PHI1,
         },
     .rear_joint =
         {
-            .motor_config = DOUBLE_CLOSED_LOOP_LEG_J4310_CONFIG(
-                &hcan2, 0x0Bu, 0x0Au, WHEEL_LEGGED_MOTOR_NORMAL),
+            .motor_config = WHEEL_LEGGED_J4310_CONFIG(&hcan1, 0x05u, 0x04u, WHEEL_LEGGED_MOTOR_REVERSE),
             .chain_config =
                 {
                     .configured = 1u,
                     .driving_sprocket_teeth = 12u, /* 电机侧主动链轮齿数。 */
-                    .driven_sprocket_teeth = 12u,  /* O-A 主动轴侧从动链轮齿数。 */
+                    .driven_sprocket_teeth = 12u,  /* phi2 主动轴侧从动链轮齿数。 */
                     .direction = 1.0f,
-                    .motor_zero_angle = -3.39074516f, /* phi1=0 时的右后电机累计角，单位 rad。 */
+                    .motor_zero_angle = 0.557526588f, /* phi1=0 时的右后电机累计角，单位 rad。 */
                 },
-            .kinematics_input = LEG_KINEMATICS_INPUT_PHI1,
+            .kinematics_input = LEG_KINEMATICS_INPUT_PHI2,
         },
     .geometry_config = &g_leg_geometry_config,
 };
@@ -190,22 +172,20 @@ static WheelLeggedLegInitConfig_t g_right_leg_init_config = {
 /* 左轮：H6215，轮径 120 mm，减速比 1:1；direction 必须通过手推前进试验复核。 */
 /* TODO：手推确认左轮前进时轮端角速度和 s_dot 均为正后，冻结 left_wheel.direction。 */
 static WheelLeggedWheelInitConfig_t g_left_wheel_init_config = {
-    .motor_config = DOUBLE_CLOSED_LOOP_LEG_H6215_CONFIG(
-        &hcan1, 0x01u, 0x00u, WHEEL_LEGGED_MOTOR_NORMAL),
+    .motor_config = WHEEL_LEGGED_H6215_CONFIG(&hcan2, 0x01u, 0x00u, WHEEL_LEGGED_MOTOR_NORMAL),
     .wheel_radius = 0.0600f, /* 轮半径 60 mm，单位 m。 */
     .reduction_ratio = 1.0f,
-    .direction = 1.0f,       /* 暂定前进为正，手推后若 s_dot<0 则改为 -1。 */
+    .direction = 1.0f, /* 暂定前进为正，手推后若 s_dot<0 则改为 -1。 */
     .configured = 1u,
 };
 
 /* 右轮：H6215，轮径 120 mm，减速比 1:1；direction 必须通过手推前进试验复核。 */
 /* TODO：手推确认右轮前进时轮端角速度和 s_dot 均为正后，冻结 right_wheel.direction。 */
 static WheelLeggedWheelInitConfig_t g_right_wheel_init_config = {
-    .motor_config = DOUBLE_CLOSED_LOOP_LEG_H6215_CONFIG(
-        &hcan2, 0x01u, 0x00u, WHEEL_LEGGED_MOTOR_NORMAL),
+    .motor_config = WHEEL_LEGGED_H6215_CONFIG(&hcan1, 0x01u, 0x00u, WHEEL_LEGGED_MOTOR_REVERSE),
     .wheel_radius = 0.0600f, /* 轮半径 60 mm，单位 m。 */
     .reduction_ratio = 1.0f,
-    .direction = 1.0f,       /* 暂定前进为正，手推后若 s_dot<0 则改为 -1。 */
+    .direction = 1.0f, /* 暂定前进为正，手推后若 s_dot<0 则改为 -1。 */
     .configured = 1u,
 };
 
@@ -213,12 +193,12 @@ static WheelLeggedWheelInitConfig_t g_right_wheel_init_config = {
 /* TODO：完成静止和单轴转动试验后，写入 IMU 安装角、标度、零偏及离线标定参数。 */
 static IMU_Init_Config_s g_chassis_imu_init_config = {
     .flag = 1u,
-    .offset_flag = 0u,
+    .offset_flag = 1u,
     .scale = {1.0f, 1.0f, 1.0f},
     .Yaw = 0.0f,
     .Pitch = 0.0f,
     .Roll = 0.0f,
-    .GyroOffset = {0.0f, 0.0f, 0.0f},
+    .GyroOffset = {0.000319366809f, -0.00321031036f, -0.00178090471f},
 };
 
 /* 十维状态的坐标符号；世界系腿角关系需结合静态俯仰试验确认。 */
