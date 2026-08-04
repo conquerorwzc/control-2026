@@ -9,8 +9,8 @@ function parameter = double_closed_loop_parameters()
 % 输入顺序:
 %   u_mcu = [Tp_R, Tp_L, Tw_R, Tw_L]^T
 %
-% s 是髋点 O 的世界系前向位移。左右腿分别由轮端滚动和虚拟腿
-% 几何估计髋点位置，取平均后减去采样零点。该测量定义包含 l_dot，
+% s 是 WBR body 版机身纵向二维坐标 s_b。当前模型将 O 作为机身参考点，
+% 所以左右腿分别由轮端滚动和虚拟腿几何估计 O 后取平均，数值上等于 (2.8)。该测量定义包含 l_dot，
 % 但单个 LQR 工作点仍采用固定腿长近似，忽略 l_dot、l_ddot 的动力学影响。
 
 %% ========================================
@@ -56,14 +56,14 @@ parameter.wheel_inertia_right = 0.000896;
 parameter.leg_com_distance = @(leg_length) 0.5 * leg_length;
 
 %% ========================================
-%  Step 4: 腿长调度与静态工作点
+%  Step 4: 固定腿长工作点与静态配平
 %  ========================================
 
-parameter.leg_length_min = 0.140;
-parameter.leg_length_max = 0.180;
-parameter.leg_length_step = 0.005;
-parameter.nominal_leg_length_left = 0.160;
-parameter.nominal_leg_length_right = 0.160;
+% 第一版固定在双腿均为 0.160 m 的直立工作点，不做腿长调度或多项式拟合。
+% MCU 影子 LQR 不按腿长门控；实测腿长仅用于变量窗口观察。
+parameter.fixed_leg_length = 0.160;
+parameter.nominal_leg_length_left = parameter.fixed_leg_length;
+parameter.nominal_leg_length_right = parameter.fixed_leg_length;
 
 % 自动配平保持机身 Pitch 为此参考值，并求左右虚拟腿静态角和 u0。
 parameter.trim_body_pitch_reference = 0.0;
@@ -77,17 +77,69 @@ parameter.trim_input_regularization = 1e-10;
 %  ========================================
 
 % 模型中的正 Tp 使 theta_L/theta_R 减小；固件 VMC 中正 Tp 使虚拟腿角增大，
-% 所以前两项由模型映射到 MCU 时固定取 -1。Tw 的真实执行器方向仍需真机验证。
-parameter.input_sign = [-1; -1; 1; 1];
+% 所以前两项由模型映射到 MCU 时固定取 -1。模型中的正 Tw 已直接定义为
+% 对应轮向前滚动的轮端力矩，因此 Tw 不再额外取反。
+parameter.input_sign = [-1; -1; +1; +1];
 parameter.input_sign_status = {'Tp 与 VMC 合同已对齐', 'Tp 与 VMC 合同已对齐', ...
-    'Tw_R 需真机验证', 'Tw_L 需真机验证'};
+    'Tw_R 正值定义为右轮向前，待实际输出标定', 'Tw_L 正值定义为左轮向前，待实际输出标定'};
 
 %% ========================================
-%  Step 6: LQR 与数值线性化参数
+%  Step 6: Bryson 法 Q/R 权重
 %  ========================================
 
-parameter.Q = diag([300, 30, 300, 10, 300, 15, 300, 15, 6000, 80]);
-parameter.R = diag([2, 2, 8, 8]);
+% Bryson 法按 Q_ii=q_i/e_i,max^2 归一化状态误差。每行顺序严格对应
+% state_order，第一列 e_max 是有物理单位的可接受误差，第二列 q 是无量纲
+% 优先级倍数。边界不是机械硬限位；日常闭环调参优先修改 q，避免混淆物理边界。
+parameter.bryson_state_tuning = [ ...
+    0.10,        1.0;  % s：髋点纵向位移，单位 m。
+    0.50,        1.0;  % s_dot：髋点纵向速度，单位 m/s。
+    deg2rad(10), 0.3;  % phi：偏航角，单位 rad。
+    1.00,        1.0;  % phi_dot：偏航角速度，单位 rad/s。
+    deg2rad(10), 3.0;  % theta_L：左腿纵向平面角，单位 rad。
+    2.00,        1.0;  % theta_L_dot：左腿角速度，单位 rad/s。
+    deg2rad(10), 3.0;  % theta_R：右腿纵向平面角，单位 rad。
+    2.00,        1.0;  % theta_R_dot：右腿角速度，单位 rad/s。
+    deg2rad(5), 10.0;  % theta_b：机身俯仰角，单位 rad。
+    1.50,        1.0;  % theta_b_dot：机身俯仰角速度，单位 rad/s。
+];
+parameter.bryson_state_error_limit = parameter.bryson_state_tuning(:, 1);
+parameter.bryson_state_weight_multiplier = parameter.bryson_state_tuning(:, 2);
+
+% 输入按 R_jj=r_j/delta_u_j,max^2 归一化。每行顺序严格对应 input_order，
+% 第一列 delta_u_max 是相对静态配平输入 u0 的允许控制增量，单位 N*m；第二列
+% r 是无量纲输入抑制倍数。delta_u_max 不是电机轴、VMC 或轮毂的实际输出限幅。
+parameter.bryson_input_tuning = [ ...
+    0.50, 1.0; % Tp_R：右腿虚拟摆动广义力矩，单位 N*m。
+    0.50, 1.0; % Tp_L：左腿虚拟摆动广义力矩，单位 N*m。
+    1.00, 1.0; % Tw_R：右轮广义力矩，单位 N*m。
+    1.00, 1.0; % Tw_L：左轮广义力矩，单位 N*m。
+];
+parameter.bryson_input_delta_limit = parameter.bryson_input_tuning(:, 1);
+parameter.bryson_input_weight_multiplier = parameter.bryson_input_tuning(:, 2);
+
+assert(isequal(size(parameter.bryson_state_tuning), [10, 2]), ...
+    'Bryson 状态调参表必须为 10x2。');
+assert(isequal(size(parameter.bryson_input_tuning), [4, 2]), ...
+    'Bryson 输入调参表必须为 4x2。');
+assert(isequal(size(parameter.bryson_state_error_limit), [10, 1]), ...
+    'Bryson 状态误差边界必须为 10x1。');
+assert(isequal(size(parameter.bryson_state_weight_multiplier), [10, 1]), ...
+    'Bryson 状态权重倍数必须为 10x1。');
+assert(isequal(size(parameter.bryson_input_delta_limit), [4, 1]), ...
+    'Bryson 输入增量边界必须为 4x1。');
+assert(isequal(size(parameter.bryson_input_weight_multiplier), [4, 1]), ...
+    'Bryson 输入权重倍数必须为 4x1。');
+assert(all(isfinite(parameter.bryson_state_error_limit)) && all(parameter.bryson_state_error_limit > 0.0), ...
+    'Bryson 状态误差边界必须为有限正数。');
+assert(all(isfinite(parameter.bryson_state_weight_multiplier)) && ...
+    all(parameter.bryson_state_weight_multiplier > 0.0), 'Bryson 状态权重倍数必须为有限正数。');
+assert(all(isfinite(parameter.bryson_input_delta_limit)) && all(parameter.bryson_input_delta_limit > 0.0), ...
+    'Bryson 输入增量边界必须为有限正数。');
+assert(all(isfinite(parameter.bryson_input_weight_multiplier)) && ...
+    all(parameter.bryson_input_weight_multiplier > 0.0), 'Bryson 输入权重倍数必须为有限正数。');
+
+parameter.Q = diag(parameter.bryson_state_weight_multiplier ./ parameter.bryson_state_error_limit .^ 2);
+parameter.R = diag(parameter.bryson_input_weight_multiplier ./ parameter.bryson_input_delta_limit .^ 2);
 parameter.linearization_state_step = 1e-6;
 parameter.linearization_input_step = 1e-6;
 end

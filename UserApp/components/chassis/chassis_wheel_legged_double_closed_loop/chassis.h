@@ -9,6 +9,8 @@
 #include <stdint.h>
 
 #include "bsp_can.h"
+#include "chassis_length_control.h"
+#include "chassis_lqr.h"
 #include "dmmotor.h"
 #include "ins_task.h"
 #include "parallel_leg.h"
@@ -26,26 +28,27 @@ typedef enum
 typedef enum
 {
     CHASSIS_POWER_OFF = 0, /* 关节电机保持零力矩。 */
-    CHASSIS_ON,            /* 允许关节电机进入使能状态；当前仅用于显式 VMC 小力矩测试。 */
+    CHASSIS_ON,            /* 允许通过完整闭环安全检查后使能六台底盘电机。 */
 } WheelLeggedChassisMode_e;
 
 /* 十维状态数组的固定下标；后续 LQR 必须严格沿用该顺序。 */
 typedef enum
 {
-    WHEEL_LEGGED_STATE_S = 0,           /* 整车前进相对位移，单位 m。 */
-    WHEEL_LEGGED_STATE_S_DOT,           /* 整车前进速度，单位 m/s。 */
-    WHEEL_LEGGED_STATE_PHI,             /* 整车偏航角，单位 rad。 */
-    WHEEL_LEGGED_STATE_PHI_DOT,         /* 整车偏航角速度，单位 rad/s。 */
-    WHEEL_LEGGED_STATE_THETA_LEFT,      /* 左虚拟腿世界系摆角，单位 rad。 */
-    WHEEL_LEGGED_STATE_THETA_LEFT_DOT,  /* 左虚拟腿世界系摆角速度，单位 rad/s。 */
-    WHEEL_LEGGED_STATE_THETA_RIGHT,     /* 右虚拟腿世界系摆角，单位 rad。 */
-    WHEEL_LEGGED_STATE_THETA_RIGHT_DOT, /* 右虚拟腿世界系摆角速度，单位 rad/s。 */
-    WHEEL_LEGGED_STATE_THETA_BODY,      /* 机身俯仰角，单位 rad。 */
-    WHEEL_LEGGED_STATE_THETA_BODY_DOT,  /* 机身俯仰角速度，单位 rad/s。 */
+    WHEEL_LEGGED_STATE_S = WHEEL_LEGGED_LQR_STATE_S, /* 整车前进相对位移，单位 m。 */
+    WHEEL_LEGGED_STATE_S_DOT = WHEEL_LEGGED_LQR_STATE_S_DOT, /* 整车前进速度，单位 m/s。 */
+    WHEEL_LEGGED_STATE_PHI = WHEEL_LEGGED_LQR_STATE_PHI, /* 整车偏航角，单位 rad。 */
+    WHEEL_LEGGED_STATE_PHI_DOT = WHEEL_LEGGED_LQR_STATE_PHI_DOT, /* 整车偏航角速度，单位 rad/s。 */
+    WHEEL_LEGGED_STATE_THETA_LEFT = WHEEL_LEGGED_LQR_STATE_THETA_LEFT, /* 左虚拟腿世界系摆角，单位 rad。 */
+    WHEEL_LEGGED_STATE_THETA_LEFT_DOT = WHEEL_LEGGED_LQR_STATE_THETA_LEFT_DOT, /* 左虚拟腿世界系摆角速度，单位 rad/s。 */
+    WHEEL_LEGGED_STATE_THETA_RIGHT = WHEEL_LEGGED_LQR_STATE_THETA_RIGHT, /* 右虚拟腿世界系摆角，单位 rad。 */
+    WHEEL_LEGGED_STATE_THETA_RIGHT_DOT = WHEEL_LEGGED_LQR_STATE_THETA_RIGHT_DOT, /* 右虚拟腿世界系摆角速度，单位 rad/s。 */
+    WHEEL_LEGGED_STATE_THETA_BODY = WHEEL_LEGGED_LQR_STATE_THETA_BODY, /* 机身俯仰角，单位 rad。 */
+    WHEEL_LEGGED_STATE_THETA_BODY_DOT = WHEEL_LEGGED_LQR_STATE_THETA_BODY_DOT, /* 机身俯仰角速度，单位 rad/s。 */
     WHEEL_LEGGED_STATE_COUNT,           /* 十维状态总数，不代表一个实际状态。 */
 } WheelLeggedChassisStateIndex_e;
 
 _Static_assert(WHEEL_LEGGED_STATE_COUNT == 10, "五连杆底盘状态向量必须保持十维");
+_Static_assert(WHEEL_LEGGED_STATE_COUNT == WHEEL_LEGGED_LQR_STATE_COUNT, "十维状态和 LQR 状态必须保持一致");
 
 /* 十维状态各原始来源的有效标志位。 */
 typedef enum
@@ -122,7 +125,7 @@ typedef struct
     uint8_t feedback_ready; /* 是否已经收到电机反馈帧。 */
 } WheelLeggedJointInstance_t;
 
-/* 一条腿的 VMC 命令和实时映射结果；默认只计算，手动打开测试开关后才允许受限下发。 */
+/* 一条腿的 VMC 命令和实时映射结果；力矩下发只允许经过 chassis_output.c。 */
 typedef struct
 {
     float force_command; /* F：虚拟腿轴向广义力命令，单位 N；正值表示伸腿、撑开髋点与轮轴。 */
@@ -138,8 +141,7 @@ typedef struct
     float rear_motor_torque_output; /* 经过测试限幅后实际写入后关节电机的力矩参考，单位 N·m。 */
 
     float leg_jacobian_det; /* 当前真实末端 J 的腿雅可比行列式，工程单位 m/rad^2，用于观察接近奇异的位置。 */
-    uint8_t torque_test_enable; /* 手动 VMC 小力矩测试使能；仅本腿为 1 且计算有效时允许下发力矩。 */
-    uint8_t valid;              /* FK、雅可比、反馈和传动换算均有效时为 1。 */
+    uint8_t valid; /* FK、雅可比、反馈和传动换算均有效时为 1。 */
 } WheelLeggedLegVmc_t;
 
 /* 一台关节的链轮传动标定参数；只需填写链轮齿数，程序自动计算角度传动比。 */
@@ -163,6 +165,7 @@ typedef struct
 
     ParallelLegConfig_t kinematics_runtime_config; /* 由链轮齿数生成的机构学运行配置。 */
     ParallelLegInstance_t kinematics;              /* 执行器角到轮轴状态的纯机构学实例。 */
+    WheelLeggedLegLengthControl_t length_control;  /* 本腿独立的腿长 PID 运行态、测量和力命令。 */
     WheelLeggedLegVmc_t vmc;                       /* 本腿 VMC 命令和实时计算状态。 */
     volatile uint32_t update_count;                /* 该腿已完成的更新次数。 */
     volatile uint32_t sequence;                    /* 奇数表示写入中，偶数表示写入完成。 */
@@ -177,6 +180,9 @@ typedef struct
     float direction;        /* 电机反馈正方向对应轮端前进正方向时为 +1，反向时为 -1。 */
     uint8_t configured;     /* 轮径、减速比和轮端方向均已标定时为 1。 */
     uint8_t feedback_ready; /* 本周期已收到轮毂有效反馈时为 1。 */
+    float torque_command;       /* LQR 请求并经过轮端限幅的轮端力矩，单位 N*m。 */
+    float motor_torque_output;  /* 经变化率限制后实际写入电机的力矩，单位 N*m。 */
+    float previous_motor_torque; /* 上一周期实际写入的电机力矩，单位 N*m。 */
 } WheelLeggedWheelInstance_t;
 
 /* 一台主动关节的电机、传动和主动轴映射初始化配置。 */
@@ -190,9 +196,10 @@ typedef struct
 /* 一条腿的硬件和机构学初始化配置。 */
 typedef struct
 {
-    WheelLeggedJointInitConfig_t front_joint;     /* 前关节完整配置。 */
-    WheelLeggedJointInitConfig_t rear_joint;      /* 后关节完整配置。 */
-    const ParallelLegGeometry_t *geometry_config; /* 对应腿的同心五连杆几何配置。 */
+    WheelLeggedJointInitConfig_t front_joint;               /* 前关节完整配置。 */
+    WheelLeggedJointInitConfig_t rear_joint;                /* 后关节完整配置。 */
+    const ParallelLegGeometry_t *geometry_config;           /* 对应腿的同心五连杆几何配置。 */
+    WheelLeggedLegLengthControlInitConfig_t length_control; /* 本腿默认关闭的腿长 PID 初始化配置。 */
 } WheelLeggedLegInitConfig_t;
 
 /* 一台轮毂的电机、轮端尺寸和正方向初始化配置。 */
@@ -205,6 +212,16 @@ typedef struct
     uint8_t configured; /* 轮端方向已通过手动推车验证时为 1。 */
 } WheelLeggedWheelInitConfig_t;
 
+/* LQR 四输入首次小量闭环的输出、安全和重力前馈配置。 */
+typedef struct
+{
+    float supported_body_mass;       /* 由双腿支撑的机身质量，单位 kg；不含双腿、双轮和电池。 */
+    float pitch_torque_limit;        /* 单腿虚拟摆动广义力矩 Tp 的绝对限幅，单位 N*m。 */
+    float wheel_torque_limit;        /* 单个 H6215 轮端力矩绝对限幅，单位 N*m。 */
+    float wheel_torque_rate_limit;   /* 单个 H6215 轮端力矩最大变化率，单位 N*m/s。 */
+    float minimum_support_projection; /* cos(theta_L)+cos(theta_R) 的最小允许值。 */
+} WheelLeggedChassisLqrOutputConfig_t;
+
 /* 底盘初始化配置；由 robot 层提供本车的电机、传动和几何参数。 */
 typedef struct
 {
@@ -214,6 +231,7 @@ typedef struct
     WheelLeggedWheelInitConfig_t *right_wheel_init_config; /* 右轮完整初始化配置。 */
     IMU_Init_Config_s *imu_init_config;                    /* 底盘 IMU 初始化配置。 */
     const WheelLeggedChassisStateConfig_t *state_config;   /* 十维状态坐标和符号配置。 */
+    const WheelLeggedChassisLqrOutputConfig_t *lqr_output_config; /* LQR 输出和安全配置。 */
 } WheelLeggedChassisInitConfig_t;
 
 /* 底盘对象：具名左右字段保证 J-Link 可直接看出左右腿和左右轮。 */
@@ -221,13 +239,19 @@ typedef struct
 {
     WheelLeggedChassisControlCommand_t chassis_ctrl_cmd; /* 上层下发的底盘命令。 */
     WheelLeggedChassisState_t chassis_state;             /* 底盘十维状态和调试量。 */
+    WheelLeggedChassisLqr_t lqr;                         /* 十维 LQR 的实时计算结果。 */
     WheelLeggedLegInstance_t left_leg;                   /* 左腿。 */
     WheelLeggedLegInstance_t right_leg;                  /* 右腿。 */
     WheelLeggedWheelInstance_t left_wheel;               /* 左轮毂。 */
     WheelLeggedWheelInstance_t right_wheel;              /* 右轮毂。 */
     INS_t *imu;                                          /* 底盘 IMU 数据；仅用于状态读取。 */
     WheelLeggedChassisStateConfig_t state_config;        /* 底盘状态坐标和符号配置。 */
-    uint8_t joint_motor_enabled;                         /* 上次实际下发的关节使能状态。 */
+    WheelLeggedChassisLqrOutputConfig_t lqr_output_config; /* LQR 输出和安全配置。 */
+    uint32_t output_dwt_count;                           /* 电机输出斜率限制使用的 DWT 时间基准。 */
+    float output_dt;                                     /* 本周期输出仲裁实际使用的时间间隔，单位 s。 */
+    uint8_t motor_enabled;                               /* 上次实际下发的六台底盘电机使能状态。 */
+    uint8_t output_ever_enabled;                         /* 本次中档周期内曾成功闭环出力时为 1。 */
+    uint8_t output_fault_locked;                         /* 已出力后失效时锁定；离开中档后才允许清除。 */
 } WheelLeggedChassisInstance_t;
 
 void WheelLeggedChassisInit(WheelLeggedChassisInstance_t *chassis, WheelLeggedChassisInitConfig_t *init_config);

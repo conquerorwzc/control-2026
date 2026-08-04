@@ -18,6 +18,7 @@
 static void ParallelLegRecordCase(ParallelLegSelfTestResult_t *result, uint32_t case_id, uint8_t passed);
 static float ParallelLegWrapAngleDifference(float angle);
 static uint8_t ParallelLegVerifyRealLegJacobian(const ParallelLegGeometry_t *geometry, const ParallelLegInput_t *input);
+static uint8_t ParallelLegVerifyInverseRoundTrip(const ParallelLegGeometry_t *geometry, const ParallelLegInput_t *input);
 
 /* Private user code ---------------------------------------------------------*/
 
@@ -138,6 +139,37 @@ static uint8_t ParallelLegVerifyRealLegJacobian(const ParallelLegGeometry_t *geo
 }
 
 /**
+ * @brief 验证指定几何和主动角的真实 J 点 FK -> IK -> FK 回代关系。
+ *
+ * @param geometry 待验证的 ACE 五连杆几何参数。
+ * @param input 原始主动轴角 phi1、phi2。
+ * @return 回代状态、主动角连续性和真实 J 位置误差均满足容差时返回 1。
+ */
+static uint8_t ParallelLegVerifyInverseRoundTrip(const ParallelLegGeometry_t *geometry, const ParallelLegInput_t *input)
+{
+    const float phi_tolerance = 1e-4f;
+    const float position_tolerance = 1e-5f;
+    ParallelLegState_t forward_state = {0};
+    ParallelLegInput_t solution = {0};
+    ParallelLegState_t backward_state = {0};
+
+    if (ParallelLegForwardKinematics(geometry, input, &forward_state) != PARALLEL_LEG_OK ||
+        ParallelLegInverseKinematics(geometry, &forward_state.real_end_j, input, &solution) != PARALLEL_LEG_OK ||
+        ParallelLegForwardKinematics(geometry, &solution, &backward_state) != PARALLEL_LEG_OK)
+    {
+        return 0u;
+    }
+
+    const float phi1_error = ParallelLegWrapAngleDifference(solution.phi1 - input->phi1);
+    const float phi2_error = ParallelLegWrapAngleDifference(solution.phi2 - input->phi2);
+    const float delta_x = backward_state.real_end_j.x - forward_state.real_end_j.x;
+    const float delta_y = backward_state.real_end_j.y - forward_state.real_end_j.y;
+    const float position_error = sqrtf(delta_x * delta_x + delta_y * delta_y);
+    return fabsf(phi1_error) <= phi_tolerance && fabsf(phi2_error) <= phi_tolerance &&
+           position_error <= position_tolerance;
+}
+
+/**
  * @brief 执行同心五连杆的全部主机端自测。
  *
  * @return 所有用例的汇总结果。
@@ -214,5 +246,29 @@ ParallelLegSelfTestResult_t ParallelLegRunSelfTest(void)
     const ParallelLegInput_t tangent_input = {.phi1 = 0.0f, .phi2 = 3.14159265358979323846f};
     status = ParallelLegForwardKinematics(&tangent_geometry, &tangent_input, &state);
     ParallelLegRecordCase(&result, 10u, status == PARALLEL_LEG_SINGULAR);
+
+    /* 当前 robot_config.h 的 ACE 实物几何；几何标定变更时同步更新本测试。 */
+    const ParallelLegGeometry_t current_robot_geometry = {
+        .configured = 1u,
+        .l0 = 0.0f,
+        .real_first_link_ah = 0.105f,
+        .real_second_link_hj = 0.125f,
+        .virtual_second_link_ce = 0.0625f,
+        .virtual_end_branch_sign = -1,
+        .singular_epsilon = 1e-5f,
+    };
+    const ParallelLegInput_t current_robot_inputs[] = {
+        {.phi1 = 0.80f, .phi2 = 2.20f}, /* 代表性非奇异姿态一。 */
+        {.phi1 = 1.05f, .phi2 = 2.00f}, /* 代表性非奇异姿态二。 */
+        {.phi1 = 0.55f, .phi2 = 2.40f}, /* 代表性非奇异姿态三。 */
+    };
+    ParallelLegRecordCase(&result, 11u,
+                          ParallelLegVerifyRealLegJacobian(&current_robot_geometry, &current_robot_inputs[0]));
+    ParallelLegRecordCase(&result, 12u,
+                          ParallelLegVerifyInverseRoundTrip(&current_robot_geometry, &current_robot_inputs[0]));
+    ParallelLegRecordCase(&result, 13u,
+                          ParallelLegVerifyInverseRoundTrip(&current_robot_geometry, &current_robot_inputs[1]));
+    ParallelLegRecordCase(&result, 14u,
+                          ParallelLegVerifyInverseRoundTrip(&current_robot_geometry, &current_robot_inputs[2]));
     return result;
 }

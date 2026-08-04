@@ -43,6 +43,7 @@ void WheelLeggedLegInit(WheelLeggedLegInstance_t *leg, WheelLeggedLegInitConfig_
     {
         leg->kinematics_runtime_config.geometry = *config->geometry_config;
     }
+    WheelLeggedLegLengthControlInit(&leg->length_control, &config->length_control);
     leg->front_joint_kinematics_input = config->front_joint.kinematics_input;
     leg->rear_joint_kinematics_input = config->rear_joint.kinematics_input;
     if (IsValidLegKinematicsInput(leg->front_joint_kinematics_input) &&

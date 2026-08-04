@@ -1,5 +1,5 @@
 % export_symbolic_ab_markdown.m
-% 导出双闭环模型的符号动力学 M、B、g、五条原始方程与运动学约束。
+% 导出双闭环模型的原始 Newton-Euler 方程、自动消元后的 M、B、g 与运动学约束。
 %
 % 注意: 本文件不导出控制器线性 A/B。控制器 A/B 由
 % compute_lqr_and_export.m 在各 (x_ref, u0) 处对完整非线性状态方程求雅可比。
@@ -19,8 +19,8 @@ fprintf('Step 1: 读取符号模型...\n');
 if ~isfile('double_closed_loop_symbolic_model.mat')
     build_symbolic_model;
 end
-model = load('double_closed_loop_symbolic_model.mat', 'eq1', 'eq2', 'eq3', 'eq4', 'eq5', ...
-    'substitution_lhs', 'substitution_rhs', 'M', 'B_control', 'g_vector');
+model = load('double_closed_loop_symbolic_model.mat', 'raw_equations', 'generalized_equations', ...
+    'kinematic_substitution_symbols', 'kinematic_substitution_values', 'M', 'B_control', 'g_vector');
 file_id = fopen('double_closed_loop_symbolic_ab.md', 'w');
 if file_id < 0
     error('Cannot open double_closed_loop_symbolic_ab.md for writing.');
@@ -30,34 +30,38 @@ end
 %  Step 2: 写入模型合同和假设
 %  ========================================
 
-fprintf('Step 2: 写入模型合同、假设和五条方程...\n');
+fprintf('Step 2: 写入模型合同、假设和自动消元方程...\n');
 fprintf(file_id, '# 双闭环等效腿模型：符号动力学 M、B、g 与约束\n\n');
 fprintf(file_id, '## 状态和输入合同\n\n');
 fprintf(file_id, '状态顺序：`[s, s_dot, phi, phi_dot, theta_L, theta_L_dot, theta_R, theta_R_dot, theta_b, theta_b_dot]`。\n\n');
 fprintf(file_id, '输入顺序（模型正方向）：`[Tp_R, Tp_L, Tw_R, Tw_L]`。MCU 输入方向在数值 LQR 脚本中另行映射。\n\n');
-fprintf(file_id, '$$\ns=x_O-x_{O,0}.\n$$\n\n');
-fprintf(file_id, '模型假设：平地、纯滚动、两轮接地、无 Roll、固定腿长工作点。`eq3/eq4` 额外采用左右地面对轮法向力相等的闭合假设；这是对称降阶模型的前提，不是运行时接触力判断。\n\n');
+fprintf(file_id, '$$\ns=s_b-s_{b,0}.\n$$\n\n');
+fprintf(file_id, 's 是 WBR body 版机身纵向二维坐标，不做 Yaw 的世界系投影。当前模型以 O 为机身参考点且 body_com_to_pitch_axis=0，因此固件 O 里程计可读取相同数值。模型假设：平地、纯滚动、两轮接地、无 Roll、固定腿长工作点。左右地面对轮法向力相等用于闭合竖直内力；这是降阶模型前提，不是运行时接触力判断。\n\n');
+fprintf(file_id, 'Tw 正值定义为使对应轮向前滚动的**轮端力矩**。轮对腿的反作用力矩因此为 `-Tw`；此处定义不等于未来 H6215 电机轴正指令，后者仍需独立标定。\n\n');
 fprintf(file_id, '测量端髋点速度可包含腿长变化项；本符号动力学的单个工作点不把 `l_dot/l_ddot` 纳入状态。\n\n');
-fprintf(file_id, '## 五条已化简动力学方程\n\n');
-write_equation(file_id, 'eq_1', model.eq1);
-write_equation(file_id, 'eq_2', model.eq2);
-write_equation(file_id, 'eq_3', model.eq3);
-write_equation(file_id, 'eq_4', model.eq4);
-write_equation(file_id, 'eq_5', model.eq5);
+fprintf(file_id, '## 原始 Newton-Euler 方程\n\n');
+fprintf(file_id, '以下 17 条残差包含机体、左右腿、左右轮、Yaw 方程和等法向力闭合。程序先消去 12 个接触内力，再得到五条广义坐标方程；不维护手写的 `eq1` 至 `eq5`。\n\n');
+for index = 1:numel(model.raw_equations)
+    write_equation(file_id, sprintf('r_{%d}', index), model.raw_equations(index));
+end
+fprintf(file_id, '## 自动消元后的五条广义方程\n\n');
+for index = 1:numel(model.generalized_equations)
+    write_equation(file_id, sprintf('E_{%d}', index), model.generalized_equations(index));
+end
 
 %% ========================================
 %  Step 3: 写入运动学代换
 %  ========================================
 
 fprintf('Step 3: 写入运动学约束...\n');
-fprintf(file_id, '## 髋点 O 运动学代换\n\n');
+fprintf(file_id, '## Body 版 s_b 运动学代换\n\n');
 fprintf(file_id, '对每一侧：\n\n');
-write_latex_block(file_id, 's_{O,i}=R\theta_{w,i}+l_i\sin\theta_i,');
-write_latex_block(file_id, '\dot{s}_{O,i}=R\dot{\theta}_{w,i}+\dot l_i\sin\theta_i+l_i\dot{\theta}_i\cos\theta_i.');
+write_latex_block(file_id, 'R\theta_{w,L}=s_b-b\phi-l_L\sin\theta_L,\qquad R\theta_{w,R}=s_b+b\phi-l_R\sin\theta_R.');
+write_latex_block(file_id, 's_b=\frac{R\theta_{w,L}+l_L\sin\theta_L+R\theta_{w,R}+l_R\sin\theta_R}{2}.');
 fprintf(file_id, '以下为固定腿长工作点所用的加速度代换：\n\n');
-for index = 1:numel(model.substitution_lhs)
-    fprintf(file_id, '$$\n%s=%s.\n$$\n\n', latex(model.substitution_lhs(index)), ...
-        latex(model.substitution_rhs(index)));
+for index = 1:numel(model.kinematic_substitution_symbols)
+    fprintf(file_id, '$$\n%s=%s.\n$$\n\n', latex(model.kinematic_substitution_symbols(index)), ...
+        latex(model.kinematic_substitution_values(index)));
 end
 
 %% ========================================

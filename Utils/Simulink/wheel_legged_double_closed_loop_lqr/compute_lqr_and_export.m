@@ -1,5 +1,6 @@
+function compute_lqr_and_export()
 % compute_lqr_and_export.m
-% 双闭环等效虚拟腿模型: 静态配平、工作点线性化、二维腿长 LQR 与 C 导出。
+% 双闭环等效虚拟腿模型: 固定工作点的静态配平、线性化、LQR 与 C 导出。
 %
 % 控制合同:
 %   u_mcu = u0 - K * (x - x_ref)
@@ -8,7 +9,6 @@
 %   测量端 s_dot 保留 l_dot 项；单个 LQR 工作点采用固定腿长模型，
 %   不把 l_dot、l_ddot 作为动力学状态或输入。
 
-clear;
 clc;
 
 fprintf('========================================\n');
@@ -21,86 +21,26 @@ fprintf('========================================\n\n');
 
 fprintf('Step 1: 读取模型合同与参数...\n');
 parameter = double_closed_loop_parameters();
-if ~isfile('double_closed_loop_symbolic_model.mat')
-    build_symbolic_model;
-end
+% 每次导出前重建符号模型，避免脚本或 Tw 合同变更后误用旧 MAT 文件。
+build_symbolic_model;
 model = load('double_closed_loop_symbolic_model.mat', ...
     'M_func', 'B_control_func', 'g_func');
 
 fprintf('  状态顺序: [%s]\n', strjoin(parameter.state_order, ', '));
 fprintf('  输入顺序: [%s]\n', strjoin(parameter.input_order, ', '));
 fprintf('  MCU 输入符号: [%g, %g, %g, %g]\n', parameter.input_sign);
-fprintf('  Tp_R/Tp_L 已按 VMC 合同取负号；Tw_R/Tw_L: 需真机验证。\n\n');
-
-%% ========================================
-%  Step 2: 二维腿长网格上的静态配平与线性化
-%  ========================================
-
-fprintf('Step 2: 在二维腿长网格求静态配平并线性化...\n');
-leg_lengths = (parameter.leg_length_min:parameter.leg_length_step: ...
-    parameter.leg_length_max).';
-sample_count = numel(leg_lengths)^2;
-samples = zeros(sample_count, 42);
-trim_samples = zeros(sample_count, 10);
-x_ref_samples = zeros(sample_count, 10);
-u0_samples = zeros(sample_count, 4);
-sample_index = 0;
-
-for left_index = 1:numel(leg_lengths)
-    for right_index = 1:numel(leg_lengths)
-        left_length = leg_lengths(left_index);
-        right_length = leg_lengths(right_index);
-        values = parameter_values(parameter, left_length, right_length);
-
-        [x_ref, u0, trim] = solve_static_trim(model, parameter, values);
-        if trim.relative_residual > parameter.trim_relative_residual_tolerance
-            error(['Static trim failed at l_L=%.4f m, l_R=%.4f m: relative ' ...
-                'residual %.3e exceeds %.3e. K is not exported.'], ...
-                left_length, right_length, trim.relative_residual, ...
-                parameter.trim_relative_residual_tolerance);
-        end
-
-        [A, B] = linearize_nonlinear_model(model, parameter, values, x_ref, u0);
-        K = continuous_lqr(A, B, parameter.Q, parameter.R);
-
-        sample_index = sample_index + 1;
-        samples(sample_index, :) = [left_length, right_length, reshape(K.', 1, [])];
-        trim_samples(sample_index, :) = [left_length, right_length, x_ref([5, 7, 9]).', ...
-            u0.', trim.relative_residual];
-        x_ref_samples(sample_index, :) = x_ref.';
-        u0_samples(sample_index, :) = u0.';
-        fprintf('  [%2d/%2d] l_L=%.3f, l_R=%.3f m, residual=%.3e\n', ...
-            sample_index, sample_count, left_length, right_length, trim.relative_residual);
-    end
-end
+fprintf('  Tp_R/Tp_L 已按 VMC 合同取负号；Tw_R/Tw_L 正值定义为对应轮向前，实际电机方向仍需标定。\n\n');
+fprintf('  Bryson 状态调参表 [e_max, q] =\n'); disp(parameter.bryson_state_tuning);
+fprintf('  Bryson 输入调参表 [du_max, r] =\n'); disp(parameter.bryson_input_tuning);
+fprintf('  Q 对角线 = '); disp(diag(parameter.Q).');
+fprintf('  R 对角线 = '); disp(diag(parameter.R).');
 fprintf('\n');
 
 %% ========================================
-%  Step 3: 二元二次腿长调度拟合
+%  Step 2: 固定工作点、可控性与闭环极点
 %  ========================================
 
-fprintf('Step 3: 拟合 K(l_L, l_R)...\n');
-design = [ones(sample_count, 1), samples(:, 1), samples(:, 2), ...
-    samples(:, 1).^2, samples(:, 1) .* samples(:, 2), samples(:, 2).^2];
-coefficient = zeros(40, 6);
-for element_index = 1:40
-    coefficient(element_index, :) = (design \ samples(:, element_index + 2)).';
-end
-x_ref_coefficient = (design \ x_ref_samples).';
-u0_coefficient = (design \ u0_samples).';
-fit_reconstruction = design * coefficient.';
-fit_error_max = max(abs(fit_reconstruction - samples(:, 3:end)), [], 'all');
-x_ref_fit_error_max = max(abs(design * x_ref_coefficient.' - x_ref_samples), [], 'all');
-u0_fit_error_max = max(abs(design * u0_coefficient.' - u0_samples), [], 'all');
-fprintf('  最大 K 重构误差: %.3e\n\n', fit_error_max);
-fprintf('  最大 x_ref 重构误差: %.3e\n', x_ref_fit_error_max);
-fprintf('  最大 u0 重构误差: %.3e\n\n', u0_fit_error_max);
-
-%% ========================================
-%  Step 4: 标称工作点、可控性与闭环极点
-%  ========================================
-
-fprintf('Step 4: 计算标称工作点详情...\n');
+fprintf('Step 2: 计算固定 0.160 m 工作点详情...\n');
 nominal_values = parameter_values(parameter, parameter.nominal_leg_length_left, ...
     parameter.nominal_leg_length_right);
 [x_ref_nominal, u0_nominal, trim_nominal] = solve_static_trim(model, parameter, nominal_values);
@@ -129,23 +69,21 @@ end
 fprintf('\n');
 
 %% ========================================
-%  Step 5: 保存与导出
+%  Step 3: 保存与导出
 %  ========================================
 
-fprintf('Step 5: 导出 MAT 与 C 初始化器...\n');
-export_lqr_header('double_closed_loop_lqr_coefficients.h', parameter, K_nominal, ...
-    coefficient, x_ref_nominal, u0_nominal, trim_nominal.relative_residual, ...
-    x_ref_coefficient, u0_coefficient);
-save('double_closed_loop_lqr_results.mat', 'parameter', 'samples', 'trim_samples', ...
-    'x_ref_samples', 'u0_samples', 'coefficient', 'x_ref_coefficient', 'u0_coefficient', ...
-    'fit_error_max', 'x_ref_fit_error_max', 'u0_fit_error_max', 'A_nominal', 'B_nominal', 'K_nominal', ...
-    'x_ref_nominal', 'u0_nominal', 'trim_nominal', 'closed_loop_poles', ...
-    'controllability_rank');
+fprintf('Step 3: 导出 MAT 与 C 初始化器...\n');
+export_lqr_header('double_closed_loop_lqr_coefficients.h', parameter, K_nominal, x_ref_nominal, ...
+    u0_nominal, trim_nominal.relative_residual);
+save('double_closed_loop_lqr_results.mat', 'parameter', 'A_nominal', 'B_nominal', 'K_nominal', ...
+    'x_ref_nominal', 'u0_nominal', 'trim_nominal', 'closed_loop_poles', 'controllability_rank');
 fprintf('  输出: double_closed_loop_lqr_coefficients.h\n');
 fprintf('  输出: double_closed_loop_lqr_results.mat\n');
 fprintf('========================================\n');
 fprintf('LQR 计算与导出完成\n');
 fprintf('========================================\n');
+
+end
 
 %% ========================================
 %  Private functions
@@ -230,8 +168,7 @@ g = model.g_func(x, values);
 B_mcu = B_model * diag(parameter.input_sign);
 end
 
-function export_lqr_header(path, parameter, K, coefficient, x_ref, u0, trim_residual, ...
-    x_ref_coefficient, u0_coefficient)
+function export_lqr_header(path, parameter, K, x_ref, u0, trim_residual)
 % 导出直接可嵌入 MCU 的常量；不在本脚本接入或执行底盘闭环控制。
 file_id = fopen(path, 'w');
 if file_id < 0
@@ -242,7 +179,10 @@ fprintf(file_id, '/* Generated by compute_lqr_and_export.m. */\n');
 fprintf(file_id, '/* x: [s, s_dot, phi, phi_dot, theta_L, theta_L_dot, theta_R, theta_R_dot, theta_b, theta_b_dot]. */\n');
 fprintf(file_id, '/* u_mcu: [Tp_R, Tp_L, Tw_R, Tw_L]. */\n');
 fprintf(file_id, '/* u_mcu = u0 - K * (x - x_ref). */\n');
-fprintf(file_id, '/* Tp signs are aligned with the current VMC contract. Tw signs require hardware verification. */\n\n');
+fprintf(file_id, '/* Tp signs are aligned with the current VMC contract. Positive Tw means the corresponding wheel rolls forward; H6215 command direction still requires hardware calibration. */\n\n');
+fprintf(file_id, '/* Fixed 0.160 m design point. The current shadow LQR does not gate on leg length. */\n');
+fprintf(file_id, 'static const float k_double_closed_loop_lqr_fixed_leg_length = %.9ef;\n', parameter.fixed_leg_length);
+fprintf(file_id, '\n');
 fprintf(file_id, 'static const float k_double_closed_loop_lqr_input_sign[4] = {%.1ff, %.1ff, %.1ff, %.1ff};\n', ...
     parameter.input_sign);
 write_c_vector(file_id, 'k_double_closed_loop_lqr_x_ref', x_ref);
@@ -254,18 +194,7 @@ for row = 1:4
     fprintf(file_id, '%.9ef, ', K(row, 1:9));
     fprintf(file_id, '%.9ef}%s\n', K(row, 10), ternary(row < 4, ',', ''));
 end
-fprintf(file_id, '};\n\n');
-fprintf(file_id, '/* [p00,p10,p01,p20,p11,p02], K_ij=p00+p10*lL+p01*lR+p20*lL^2+p11*lL*lR+p02*lR^2. */\n');
-fprintf(file_id, 'static const float k_double_closed_loop_lqr_coeff[40][6] = {\n');
-for index = 1:40
-    fprintf(file_id, '    {');
-    fprintf(file_id, '%.9ef, ', coefficient(index, 1:5));
-    fprintf(file_id, '%.9ef}%s\n', coefficient(index, 6), ternary(index < 40, ',', ''));
-end
 fprintf(file_id, '};\n');
-fprintf(file_id, '\n/* Same polynomial basis as k_double_closed_loop_lqr_coeff. */\n');
-write_c_matrix(file_id, 'k_double_closed_loop_lqr_x_ref_coeff', x_ref_coefficient);
-write_c_matrix(file_id, 'k_double_closed_loop_lqr_u0_coeff', u0_coefficient);
 fclose(file_id);
 end
 
@@ -274,17 +203,6 @@ function write_c_vector(file_id, name, vector)
 fprintf(file_id, 'static const float %s[%d] = {', name, numel(vector));
 fprintf(file_id, '%.9ef, ', vector(1:end - 1));
 fprintf(file_id, '%.9ef};\n', vector(end));
-end
-
-function write_c_matrix(file_id, name, matrix)
-% 以 C 二维数组格式写入腿长调度 x_ref 或 u0 的二元二次系数。
-fprintf(file_id, 'static const float %s[%d][%d] = {\n', name, size(matrix, 1), size(matrix, 2));
-for row = 1:size(matrix, 1)
-    fprintf(file_id, '    {');
-    fprintf(file_id, '%.9ef, ', matrix(row, 1:end - 1));
-    fprintf(file_id, '%.9ef}%s\n', matrix(row, end), ternary(row < size(matrix, 1), ',', ''));
-end
-fprintf(file_id, '};\n');
 end
 
 function value = ternary(condition, true_value, false_value)

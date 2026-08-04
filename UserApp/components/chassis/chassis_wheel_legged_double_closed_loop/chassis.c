@@ -7,6 +7,7 @@
 /* Private includes ----------------------------------------------------------*/
 #include "chassis.h"
 
+#include <math.h>
 #include <string.h>
 
 #include "chassis_private.h"
@@ -17,6 +18,10 @@
 
 /* Private function prototypes -----------------------------------------------*/
 static void WheelLeggedWheelInit(WheelLeggedWheelInstance_t *wheel, WheelLeggedWheelInitConfig_t *config);
+static uint8_t WheelLeggedChassisHasCompleteState(const WheelLeggedChassisInstance_t *chassis);
+static uint8_t WheelLeggedChassisCalculateGravityFeedforward(const WheelLeggedChassisInstance_t *chassis,
+                                                             float *gravity_feedforward);
+static float WheelLeggedChassisLimitPitchTorque(float torque, float torque_limit);
 
 /* Private user code ---------------------------------------------------------*/
 
@@ -28,8 +33,7 @@ static void WheelLeggedWheelInit(WheelLeggedWheelInstance_t *wheel, WheelLeggedW
  * @param chassis 待初始化的底盘对象。
  * @param init_config 本车完整的底盘初始化配置。
  */
-void WheelLeggedChassisInit(WheelLeggedChassisInstance_t *chassis,
-                            WheelLeggedChassisInitConfig_t *init_config)
+void WheelLeggedChassisInit(WheelLeggedChassisInstance_t *chassis, WheelLeggedChassisInitConfig_t *init_config)
 {
     if (chassis == NULL || init_config == NULL)
     {
@@ -42,6 +46,11 @@ void WheelLeggedChassisInit(WheelLeggedChassisInstance_t *chassis,
     {
         chassis->state_config = *init_config->state_config;
     }
+    if (init_config->lqr_output_config != NULL)
+    {
+        chassis->lqr_output_config = *init_config->lqr_output_config;
+    }
+    WheelLeggedChassisLqrInit(&chassis->lqr);
     WheelLeggedLegInit(&chassis->left_leg, init_config->left_leg_init_config);
     WheelLeggedLegInit(&chassis->right_leg, init_config->right_leg_init_config);
     WheelLeggedWheelInit(&chassis->left_wheel, init_config->left_wheel_init_config);
@@ -82,15 +91,18 @@ static void WheelLeggedWheelInit(WheelLeggedWheelInstance_t *wheel, WheelLeggedW
 /**
  * @brief 执行一次底盘周期任务。
  *
- * 固定顺序为：更新关节反馈和正运动学、组装整车十维状态、计算两条腿的 VMC 映射，
- * 最后根据上层命令进行唯一的关节输出仲裁。轮毂仅用于读取反馈，本任务不向轮毂写入控制参考。
- * TODO：轮毂闭环控制接入时，必须新增唯一轮毂输出仲裁入口；不得在状态读取模块或
- * 上层命令模块直接调用 DMMotorSetRef。
+ * 固定顺序为：更新关节反馈和正运动学、组装整车十维状态、计算四输入 LQR、计算带重力前馈的
+ * 两条腿腿长 PID、计算两条腿 VMC 映射，最后由唯一仲裁器下发六台电机。
  *
  * @param chassis 底盘对象。
  */
 void ChassisTask(WheelLeggedChassisInstance_t *chassis)
 {
+    uint8_t state_valid;
+    uint8_t gravity_valid;
+    uint8_t length_control_valid;
+    float gravity_feedforward = 0.0f;
+
     if (chassis == NULL)
     {
         return;
@@ -99,7 +111,117 @@ void ChassisTask(WheelLeggedChassisInstance_t *chassis)
     WheelLeggedLegUpdate(&chassis->left_leg);
     WheelLeggedLegUpdate(&chassis->right_leg);
     WheelLeggedChassisStateUpdate(chassis);
+    state_valid = WheelLeggedChassisHasCompleteState(chassis);
+    WheelLeggedChassisLqrUpdate(
+        &chassis->lqr, chassis->chassis_state.state_vector, state_valid,
+        chassis->chassis_state.origin_captured, chassis->chassis_state.left_leg_length,
+        chassis->chassis_state.right_leg_length);
+
+    chassis->right_leg.vmc.pitch_torque_command =
+        chassis->lqr.valid != 0u
+            ? WheelLeggedChassisLimitPitchTorque(chassis->lqr.tp_right, chassis->lqr_output_config.pitch_torque_limit)
+            : 0.0f;
+    chassis->left_leg.vmc.pitch_torque_command =
+        chassis->lqr.valid != 0u
+            ? WheelLeggedChassisLimitPitchTorque(chassis->lqr.tp_left, chassis->lqr_output_config.pitch_torque_limit)
+            : 0.0f;
+
+    gravity_valid = WheelLeggedChassisCalculateGravityFeedforward(chassis, &gravity_feedforward);
+    length_control_valid = chassis->chassis_ctrl_cmd.chassis_mode == CHASSIS_ON && gravity_valid != 0u;
+    WheelLeggedLegLengthControlUpdate(&chassis->left_leg.length_control,
+                                      length_control_valid != 0u &&
+                                          (chassis->chassis_state.valid_mask & WHEEL_LEGGED_STATE_VALID_LEFT_LEG) != 0u,
+                                      chassis->chassis_state.left_leg_length,
+                                      chassis->chassis_state.left_leg_length_dot, gravity_feedforward);
+    chassis->left_leg.vmc.force_command = chassis->left_leg.length_control.force_command;
+    WheelLeggedLegLengthControlUpdate(&chassis->right_leg.length_control,
+                                      length_control_valid != 0u &&
+                                          (chassis->chassis_state.valid_mask & WHEEL_LEGGED_STATE_VALID_RIGHT_LEG) != 0u,
+                                      chassis->chassis_state.right_leg_length,
+                                      chassis->chassis_state.right_leg_length_dot, gravity_feedforward);
+    chassis->right_leg.vmc.force_command = chassis->right_leg.length_control.force_command;
     WheelLeggedLegVmcUpdate(&chassis->left_leg);
     WheelLeggedLegVmcUpdate(&chassis->right_leg);
-    WheelLeggedChassisApplyJointMotorState(chassis);
+    WheelLeggedChassisApplyMotorOutput(chassis);
+}
+
+/**
+ * @brief 判断十维状态是否具备四输入 LQR 所需的全部实时来源。
+ *
+ * @param chassis 底盘对象。
+ * @return 左右轮、IMU、左右腿和髋点里程计均有效时返回 1。
+ */
+static uint8_t WheelLeggedChassisHasCompleteState(const WheelLeggedChassisInstance_t *chassis)
+{
+    const uint16_t required_mask = WHEEL_LEGGED_STATE_VALID_LEFT_WHEEL | WHEEL_LEGGED_STATE_VALID_RIGHT_WHEEL |
+                                   WHEEL_LEGGED_STATE_VALID_IMU | WHEEL_LEGGED_STATE_VALID_LEFT_LEG |
+                                   WHEEL_LEGGED_STATE_VALID_RIGHT_LEG | WHEEL_LEGGED_STATE_VALID_HIP_ODOMETRY;
+    return chassis != NULL && (chassis->chassis_state.valid_mask & required_mask) == required_mask;
+}
+
+/**
+ * @brief 按当前左右腿纵向投影计算每条腿相同的重力前馈。
+ *
+ * @param chassis 底盘对象。
+ * @param gravity_feedforward 返回单条腿前馈，单位 N。
+ * @return 状态、投影和配置均有效时返回 1。
+ */
+static uint8_t WheelLeggedChassisCalculateGravityFeedforward(const WheelLeggedChassisInstance_t *chassis,
+                                                             float *gravity_feedforward)
+{
+    float support_projection;
+    float force;
+
+    if (gravity_feedforward == NULL)
+    {
+        return 0u;
+    }
+    *gravity_feedforward = 0.0f;
+    if (chassis == NULL || WheelLeggedChassisHasCompleteState(chassis) == 0u ||
+        !isfinite(chassis->lqr_output_config.supported_body_mass) ||
+        !isfinite(chassis->lqr_output_config.minimum_support_projection) ||
+        chassis->lqr_output_config.supported_body_mass <= 0.0f ||
+        chassis->lqr_output_config.minimum_support_projection <= 0.0f ||
+        !isfinite(chassis->chassis_state.theta_leg_left) || !isfinite(chassis->chassis_state.theta_leg_right))
+    {
+        return 0u;
+    }
+
+    support_projection = cosf(chassis->chassis_state.theta_leg_left) + cosf(chassis->chassis_state.theta_leg_right);
+    if (!isfinite(support_projection) || support_projection < chassis->lqr_output_config.minimum_support_projection)
+    {
+        return 0u;
+    }
+
+    force = chassis->lqr_output_config.supported_body_mass * 9.81f / support_projection;
+    if (!isfinite(force))
+    {
+        return 0u;
+    }
+    *gravity_feedforward = force;
+    return 1u;
+}
+
+/**
+ * @brief 将 LQR 的虚拟摆动力矩限制在 robot 配置指定的首次测试范围。
+ *
+ * @param torque 待限幅的 Tp，单位 N*m。
+ * @param torque_limit 绝对力矩限幅，单位 N*m。
+ * @return 有限且已限幅的 Tp；配置或输入异常时返回 0。
+ */
+static float WheelLeggedChassisLimitPitchTorque(float torque, float torque_limit)
+{
+    if (!isfinite(torque) || !isfinite(torque_limit) || torque_limit <= 0.0f)
+    {
+        return 0.0f;
+    }
+    if (torque > torque_limit)
+    {
+        return torque_limit;
+    }
+    if (torque < -torque_limit)
+    {
+        return -torque_limit;
+    }
+    return torque;
 }

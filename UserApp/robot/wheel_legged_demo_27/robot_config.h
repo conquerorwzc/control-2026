@@ -136,6 +136,23 @@ static WheelLeggedLegInitConfig_t g_left_leg_init_config = {
             .kinematics_input = LEG_KINEMATICS_INPUT_PHI2,
         },
     .geometry_config = &g_leg_geometry_config,
+    .length_control =
+        {
+            .force_pid_config =
+                {
+                    .Kp = 500.0f, /* 比例增益，单位 N/m。 */
+                    .Ki = 0.0f,   /* 积分增益，单位 N/(m*s)。 */
+                    .Kd = 0.0f,   /* 必须为 0；物理 D 项由下方 Jacobian 腿长速度计算。 */
+                    .MaxOut = 20.0f, /* PI 与最终虚拟轴向力的唯一绝对限幅，单位 N。 */
+                    .DeadBand = 0.0f, /* 初期不使用死区，避免通用 PID 在死区内清零输出。 */
+                    .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit,
+                    .IntegralLimit = 0.0f, /* Ki=0 时积分限幅为 0；启用 Ki 前需同步填写。 */
+                },
+            .velocity_damping_kd = 5.0f, /* Jacobian 腿长速度阻尼增益，单位 N*s/m。 */
+            .length_reference = 0.160f,  /* 与当前固定工作点 LQR 一致的目标腿长，单位 m。 */
+            .minimum_length = 0.07f,     /* 力控最小工作腿长，单位 m。 */
+            .maximum_length = 0.19f,     /* 力控最大工作腿长，单位 m。 */
+        },
 };
 
 /* 右腿：前关节对应 phi1；后关节对应 phi2。 */
@@ -167,6 +184,23 @@ static WheelLeggedLegInitConfig_t g_right_leg_init_config = {
             .kinematics_input = LEG_KINEMATICS_INPUT_PHI2,
         },
     .geometry_config = &g_leg_geometry_config,
+    .length_control =
+        {
+            .force_pid_config =
+                {
+                    .Kp = 500.0f, /* 比例增益，单位 N/m。 */
+                    .Ki = 0.0f,   /* 积分增益，单位 N/(m*s)。 */
+                    .Kd = 0.0f,   /* 必须为 0；物理 D 项由下方 Jacobian 腿长速度计算。 */
+                    .MaxOut = 20.0f, /* PI 与最终虚拟轴向力的唯一绝对限幅，单位 N。 */
+                    .DeadBand = 0.0f, /* 初期不使用死区，避免通用 PID 在死区内清零输出。 */
+                    .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit,
+                    .IntegralLimit = 0.0f, /* Ki=0 时积分限幅为 0；启用 Ki 前需同步填写。 */
+                },
+            .velocity_damping_kd = 5.0f, /* Jacobian 腿长速度阻尼增益，单位 N*s/m。 */
+            .length_reference = 0.160f,  /* 与当前固定工作点 LQR 一致的目标腿长，单位 m。 */
+            .minimum_length = 0.07f,     /* 力控最小工作腿长，单位 m。 */
+            .maximum_length = 0.19f,     /* 力控最大工作腿长，单位 m。 */
+        },
 };
 
 /* 左轮：H6215，轮径 120 mm，减速比 1:1；direction 必须通过手推前进试验复核。 */
@@ -213,6 +247,15 @@ static const WheelLeggedChassisStateConfig_t g_chassis_state_config = {
     .right_leg_world_offset = 0.0f,
 };
 
+/* 四输入 LQR 首次手扶接地试验的输出、安全和重力前馈配置。 */
+static const WheelLeggedChassisLqrOutputConfig_t g_chassis_lqr_output_config = {
+    .supported_body_mass = 1.683f,       /* 双腿支撑的机身质量，单位 kg；不含电池、双腿和双轮。 */
+    .pitch_torque_limit = 0.10f,         /* 单腿虚拟 Tp 限幅，单位 N*m。 */
+    .wheel_torque_limit = 0.20f,         /* 单个 H6215 轮端 Tw 限幅，单位 N*m。 */
+    .wheel_torque_rate_limit = 1.0f,     /* H6215 轮端 Tw 变化率，单位 N*m/s。 */
+    .minimum_support_projection = 0.20f, /* cos(theta_L)+cos(theta_R) 小于此值时禁止出力。 */
+};
+
 /* 本车底盘根配置；robot.c 只将该对象交给 chassis component。 */
 static WheelLeggedChassisInitConfig_t g_chassis_init_config = {
     .left_leg_init_config = &g_left_leg_init_config,
@@ -221,4 +264,5 @@ static WheelLeggedChassisInitConfig_t g_chassis_init_config = {
     .right_wheel_init_config = &g_right_wheel_init_config,
     .imu_init_config = &g_chassis_imu_init_config,
     .state_config = &g_chassis_state_config,
+    .lqr_output_config = &g_chassis_lqr_output_config,
 };

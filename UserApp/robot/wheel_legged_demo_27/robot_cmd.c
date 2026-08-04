@@ -22,7 +22,7 @@ static void EmergencyHandler(RobotInstance *robot_instance);
 /**
  * @brief 将上层遥控器输入转换为底盘命令，并优先处理急停。
  *
- * 当前只定义底盘使能命令：右拨杆上或中请求关节使能，右拨杆下请求关节失能。
+ * 当前只定义底盘使能命令：右拨杆中档允许完整闭环；右拨杆上或下均请求全部电机停止。
  * 云台尚未初始化，故不调用 CalcOffsetAngle；键鼠到底盘运动、腿长和跳跃命令尚未定义，
  * 因而不保留没有实际行为的空 MouseKeySet 函数。
  * TODO：接入底盘运动命令、腿长目标、跳跃状态和 VMC/LQR 上层命令；上层只能写
@@ -53,13 +53,12 @@ static void RemoteControlSet(RobotInstance *robot_instance)
         return;
     }
 
-    if (switch_is_up(robot_instance->rc_data[TEMP].rc.switch_right) ||
-        switch_is_mid(robot_instance->rc_data[TEMP].rc.switch_right))
+    if (switch_is_mid(robot_instance->rc_data[TEMP].rc.switch_right))
     {
         robot_instance->robot_mode = ROBOT_MODE_CONTROL;
         robot_instance->chassis->chassis_ctrl_cmd.chassis_mode = CHASSIS_ON;
     }
-    else if (switch_is_down(robot_instance->rc_data[TEMP].rc.switch_right))
+    else
     {
         robot_instance->robot_mode = ROBOT_MODE_POWER_OFF;
         robot_instance->chassis->chassis_ctrl_cmd.chassis_mode = CHASSIS_POWER_OFF;

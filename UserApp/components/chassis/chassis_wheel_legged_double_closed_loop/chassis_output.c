@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    chassis_output.c
- * @brief   双闭环轮腿关节电机的唯一输出仲裁
+ * @brief   双闭环轮腿六台电机的唯一输出仲裁
  ******************************************************************************
  */
 /* Private includes ----------------------------------------------------------*/
@@ -9,110 +9,218 @@
 
 #include <math.h>
 
+#include "bsp_dwt.h"
+
 /* Private define ------------------------------------------------------------*/
-/* VMC 悬空测试时单台 J4310 电机轴允许的最大绝对力矩，单位 N·m。 */
-/* TODO：正式力矩控制接入前，补充力矩变化率限制、腿部机械工作区保护、反馈失效锁定、
- * 超时回零及明确的控制模式状态机。 */
-#define WHEEL_LEGGED_VMC_TEST_MOTOR_TORQUE_LIMIT 2.0f
+/* 单台 J4310 电机轴的硬力矩上限，单位 N*m。 */
+#define WHEEL_LEGGED_JOINT_MOTOR_TORQUE_LIMIT 2.0f
+
+/* 输出仲裁可接受的最大调度间隔；更长间隔按此值限速，避免恢复调度时突跳。 */
+#define WHEEL_LEGGED_OUTPUT_MAX_RATE_DT 0.005f
 
 /* Intermediate variables calculated by private functions -------------------*/
 
 /* Private function prototypes -----------------------------------------------*/
-static void WheelLeggedSetLegJointMotorState(WheelLeggedLegInstance_t *leg, uint8_t request_enable);
-static void WheelLeggedSetLegVmcTorqueReference(WheelLeggedLegInstance_t *leg, uint8_t request_enable);
-static float WheelLeggedLimitVmcTestMotorTorque(float torque);
+static uint8_t WheelLeggedChassisCanApplyClosedLoop(const WheelLeggedChassisInstance_t *chassis);
+static uint8_t WheelLeggedChassisHasAllMotorInstances(const WheelLeggedChassisInstance_t *chassis);
+static uint8_t WheelLeggedChassisHasValidOutputConfig(const WheelLeggedChassisLqrOutputConfig_t *config);
+static void WheelLeggedChassisSetAllMotorState(WheelLeggedChassisInstance_t *chassis, uint8_t enable);
+static void WheelLeggedChassisSetAllTorqueReference(WheelLeggedChassisInstance_t *chassis, uint8_t apply_output,
+                                                     float output_dt);
+static void WheelLeggedSetLegTorqueReference(WheelLeggedLegInstance_t *leg, uint8_t apply_output);
+static void WheelLeggedSetWheelTorqueReference(WheelLeggedWheelInstance_t *wheel, float requested_torque,
+                                               float torque_limit, float torque_rate_limit, float output_dt,
+                                               uint8_t apply_output);
+static float WheelLeggedLimitTorque(float torque, float torque_limit);
+static float WheelLeggedLimitTorqueRate(float target_torque, float previous_torque, float torque_rate_limit,
+                                        float output_dt);
 
 /* Private user code ---------------------------------------------------------*/
 
 /**
- * @brief 根据底盘模式切换关节电机 Stop 或 Enable，并从唯一出口写入 VMC 测试力矩。
+ * @brief 从唯一出口仲裁六台底盘电机的 Stop、Enable 和力矩参考。
  *
- * 同一状态下不重复下发 Stop 或 Enable，避免 1 ms 周期任务反复抢写电机状态。
- * 正常使能时默认持续写零力矩；只有本腿 torque_test_enable=1 且 VMC 有效时，
- * 才允许写入经过 ±2 N·m 电机轴限幅后的 VMC 测试参考。
+ * 右拨杆中档只表达上层允许；实际出力还必须具备完整状态、LQR、腿长 PID、VMC、轮反馈、
+ * 配置和六台电机实例。成功出力后的任一失效会锁定 Stop，必须先让右拨杆离开中档才能重置锁定。
  *
  * @param chassis 底盘对象。
  */
-void WheelLeggedChassisApplyJointMotorState(WheelLeggedChassisInstance_t *chassis)
+void WheelLeggedChassisApplyMotorOutput(WheelLeggedChassisInstance_t *chassis)
 {
+    const uint8_t remote_enable = chassis != NULL && chassis->chassis_ctrl_cmd.chassis_mode == CHASSIS_ON;
+    uint8_t apply_output = 0u;
+    float output_dt = 0.0f;
+
     if (chassis == NULL)
     {
         return;
     }
 
-    const uint8_t request_enable = chassis->chassis_ctrl_cmd.chassis_mode != CHASSIS_POWER_OFF;
-    if (request_enable != chassis->joint_motor_enabled)
+    output_dt = DWT_GetDeltaT(&chassis->output_dwt_count);
+    if (!isfinite(output_dt) || output_dt <= 0.0f)
     {
-        WheelLeggedSetLegJointMotorState(&chassis->left_leg, request_enable);
-        WheelLeggedSetLegJointMotorState(&chassis->right_leg, request_enable);
-        chassis->joint_motor_enabled = request_enable;
+        output_dt = 0.0f;
+    }
+    else if (output_dt > WHEEL_LEGGED_OUTPUT_MAX_RATE_DT)
+    {
+        output_dt = WHEEL_LEGGED_OUTPUT_MAX_RATE_DT;
+    }
+    chassis->output_dt = output_dt;
+
+    if (remote_enable == 0u)
+    {
+        chassis->output_fault_locked = 0u;
+        chassis->output_ever_enabled = 0u;
+    }
+    else if (chassis->output_fault_locked == 0u && WheelLeggedChassisCanApplyClosedLoop(chassis) != 0u)
+    {
+        apply_output = 1u;
+        chassis->output_ever_enabled = 1u;
+    }
+    else if (chassis->output_ever_enabled != 0u)
+    {
+        chassis->output_fault_locked = 1u;
     }
 
-    WheelLeggedSetLegVmcTorqueReference(&chassis->left_leg, request_enable);
-    WheelLeggedSetLegVmcTorqueReference(&chassis->right_leg, request_enable);
+    if (apply_output != chassis->motor_enabled)
+    {
+        WheelLeggedChassisSetAllMotorState(chassis, apply_output);
+        chassis->motor_enabled = apply_output;
+    }
+    WheelLeggedChassisSetAllTorqueReference(chassis, apply_output, output_dt);
 }
 
 /**
- * @brief 对一条腿的两个主动关节统一下发 Stop 或 Enable。
+ * @brief 判断当前是否满足完整四输入闭环的自动保护条件。
  *
- * @param leg 待操作的腿对象。
- * @param request_enable 非零时使能，零时置为零力矩。
+ * @param chassis 底盘对象。
+ * @return 所有实时状态、计算结果、电机实例与输出配置有效时返回 1。
  */
-static void WheelLeggedSetLegJointMotorState(WheelLeggedLegInstance_t *leg, uint8_t request_enable)
+static uint8_t WheelLeggedChassisCanApplyClosedLoop(const WheelLeggedChassisInstance_t *chassis)
 {
-    if (leg == NULL)
+    const uint16_t required_state_mask = WHEEL_LEGGED_STATE_VALID_LEFT_WHEEL |
+                                         WHEEL_LEGGED_STATE_VALID_RIGHT_WHEEL | WHEEL_LEGGED_STATE_VALID_IMU |
+                                         WHEEL_LEGGED_STATE_VALID_LEFT_LEG | WHEEL_LEGGED_STATE_VALID_RIGHT_LEG |
+                                         WHEEL_LEGGED_STATE_VALID_HIP_ODOMETRY;
+    return chassis != NULL && chassis->chassis_state.origin_captured != 0u &&
+           (chassis->chassis_state.valid_mask & required_state_mask) == required_state_mask &&
+           chassis->left_wheel.feedback_ready != 0u && chassis->right_wheel.feedback_ready != 0u &&
+           chassis->lqr.valid != 0u && chassis->left_leg.length_control.valid != 0u &&
+           chassis->right_leg.length_control.valid != 0u && chassis->left_leg.vmc.valid != 0u &&
+           chassis->right_leg.vmc.valid != 0u && WheelLeggedChassisHasValidOutputConfig(&chassis->lqr_output_config) != 0u &&
+           WheelLeggedChassisHasAllMotorInstances(chassis) != 0u;
+}
+
+/**
+ * @brief 检查六台底盘电机实例都已经成功注册。
+ *
+ * @param chassis 底盘对象。
+ * @return 全部实例非空时返回 1。
+ */
+static uint8_t WheelLeggedChassisHasAllMotorInstances(const WheelLeggedChassisInstance_t *chassis)
+{
+    return chassis != NULL && chassis->left_leg.front_joint.motor != NULL &&
+           chassis->left_leg.rear_joint.motor != NULL && chassis->right_leg.front_joint.motor != NULL &&
+           chassis->right_leg.rear_joint.motor != NULL && chassis->left_wheel.motor != NULL &&
+           chassis->right_wheel.motor != NULL;
+}
+
+/**
+ * @brief 检查首次小量闭环输出参数是否均为有限正数。
+ *
+ * @param config robot 配置中的 LQR 输出参数。
+ * @return 参数合法时返回 1。
+ */
+static uint8_t WheelLeggedChassisHasValidOutputConfig(const WheelLeggedChassisLqrOutputConfig_t *config)
+{
+    return config != NULL && isfinite(config->supported_body_mass) && isfinite(config->pitch_torque_limit) &&
+           isfinite(config->wheel_torque_limit) && isfinite(config->wheel_torque_rate_limit) &&
+           isfinite(config->minimum_support_projection) && config->supported_body_mass > 0.0f &&
+           config->pitch_torque_limit > 0.0f && config->wheel_torque_limit > 0.0f &&
+           config->wheel_torque_rate_limit > 0.0f && config->minimum_support_projection > 0.0f;
+}
+
+/**
+ * @brief 对六台电机统一下发 Stop 或 Enable，避免多处模块争夺模式。
+ *
+ * @param chassis 底盘对象。
+ * @param enable 非零时使能，零时停止。
+ */
+static void WheelLeggedChassisSetAllMotorState(WheelLeggedChassisInstance_t *chassis, uint8_t enable)
+{
+    DMMotorInstance *motors[6];
+    uint32_t motor_index;
+
+    if (chassis == NULL)
     {
         return;
     }
-
-    if (request_enable != 0u)
+    motors[0] = chassis->left_leg.front_joint.motor;
+    motors[1] = chassis->left_leg.rear_joint.motor;
+    motors[2] = chassis->right_leg.front_joint.motor;
+    motors[3] = chassis->right_leg.rear_joint.motor;
+    motors[4] = chassis->left_wheel.motor;
+    motors[5] = chassis->right_wheel.motor;
+    for (motor_index = 0u; motor_index < 6u; motor_index++)
     {
-        if (leg->front_joint.motor != NULL)
+        if (motors[motor_index] != NULL)
         {
-            DMMotorEnable(leg->front_joint.motor);
-        }
-        if (leg->rear_joint.motor != NULL)
-        {
-            DMMotorEnable(leg->rear_joint.motor);
-        }
-    }
-    else
-    {
-        if (leg->front_joint.motor != NULL)
-        {
-            DMMotorStop(leg->front_joint.motor);
-        }
-        if (leg->rear_joint.motor != NULL)
-        {
-            DMMotorStop(leg->rear_joint.motor);
+            if (enable != 0u)
+            {
+                DMMotorEnable(motors[motor_index]);
+            }
+            else
+            {
+                DMMotorStop(motors[motor_index]);
+            }
         }
     }
 }
 
 /**
- * @brief 将一条腿的 VMC 力矩测试结果写入两个达妙电机，未授权测试时始终写零力矩。
+ * @brief 将 VMC 的两腿关节力矩和 LQR 的两轮 Tw 写入唯一电机出口。
  *
- * 本函数是 VMC 唯一允许调用 DMMotorSetRef 的位置。即使关节已经处于 Enable 状态，
- * 只要 torque_test_enable 为 0、VMC 无效或底盘请求失能，两个电机参考均保持为 0。
- *
- * @param leg 待写入力矩参考的一条腿。
- * @param request_enable 底盘是否请求使能；为 0 时强制清零。
+ * @param chassis 底盘对象。
+ * @param apply_output 当前周期是否允许真实出力。
+ * @param output_dt 输出斜率限制使用的周期，单位 s。
  */
-static void WheelLeggedSetLegVmcTorqueReference(WheelLeggedLegInstance_t *leg, uint8_t request_enable)
+static void WheelLeggedChassisSetAllTorqueReference(WheelLeggedChassisInstance_t *chassis, uint8_t apply_output,
+                                                     float output_dt)
+{
+    if (chassis == NULL)
+    {
+        return;
+    }
+    WheelLeggedSetLegTorqueReference(&chassis->left_leg, apply_output);
+    WheelLeggedSetLegTorqueReference(&chassis->right_leg, apply_output);
+    WheelLeggedSetWheelTorqueReference(&chassis->left_wheel, chassis->lqr.tw_left,
+                                       chassis->lqr_output_config.wheel_torque_limit,
+                                       chassis->lqr_output_config.wheel_torque_rate_limit, output_dt, apply_output);
+    WheelLeggedSetWheelTorqueReference(&chassis->right_wheel, chassis->lqr.tw_right,
+                                       chassis->lqr_output_config.wheel_torque_limit,
+                                       chassis->lqr_output_config.wheel_torque_rate_limit, output_dt, apply_output);
+}
+
+/**
+ * @brief 写入一条腿的两个 J4310 电机轴力矩，失效时强制写零。
+ *
+ * @param leg 腿对象。
+ * @param apply_output 当前周期是否允许真实出力。
+ */
+static void WheelLeggedSetLegTorqueReference(WheelLeggedLegInstance_t *leg, uint8_t apply_output)
 {
     float front_torque = 0.0f;
     float rear_torque = 0.0f;
+
     if (leg == NULL)
     {
         return;
     }
-
-    if (request_enable != 0u && leg->vmc.torque_test_enable != 0u && leg->vmc.valid != 0u)
+    if (apply_output != 0u)
     {
-        front_torque = WheelLeggedLimitVmcTestMotorTorque(leg->vmc.front_motor_torque);
-        rear_torque = WheelLeggedLimitVmcTestMotorTorque(leg->vmc.rear_motor_torque);
+        front_torque = WheelLeggedLimitTorque(leg->vmc.front_motor_torque, WHEEL_LEGGED_JOINT_MOTOR_TORQUE_LIMIT);
+        rear_torque = WheelLeggedLimitTorque(leg->vmc.rear_motor_torque, WHEEL_LEGGED_JOINT_MOTOR_TORQUE_LIMIT);
     }
-
     leg->vmc.front_motor_torque_output = front_torque;
     leg->vmc.rear_motor_torque_output = rear_torque;
     if (leg->front_joint.motor != NULL)
@@ -126,24 +234,97 @@ static void WheelLeggedSetLegVmcTorqueReference(WheelLeggedLegInstance_t *leg, u
 }
 
 /**
- * @brief 将单台电机轴 VMC 测试力矩限制在安全上限内。
+ * @brief 对一台 H6215 先做轮端力矩限幅、再做变化率限制并写入电机参考。
  *
- * @param torque 待限幅的电机轴力矩，单位 N·m。
- * @return 有限且位于 ±2 N·m 范围内的电机轴力矩；异常值返回 0。
+ * Tw 的符号已在 MATLAB 导出的 K 中定义为该轮向前滚动；本处不再乘 direction，
+ * 电机安装镜像只由本车 motor_reverse_flag 与 feedback_reverse_flag 成对配置处理。
+ *
+ * @param wheel 轮对象。
+ * @param requested_torque LQR 的该轮 Tw，单位 N*m。
+ * @param torque_limit 轮端力矩绝对限幅，单位 N*m。
+ * @param torque_rate_limit 轮端力矩变化率上限，单位 N*m/s。
+ * @param output_dt 当前输出周期，单位 s。
+ * @param apply_output 当前周期是否允许真实出力。
  */
-static float WheelLeggedLimitVmcTestMotorTorque(float torque)
+static void WheelLeggedSetWheelTorqueReference(WheelLeggedWheelInstance_t *wheel, float requested_torque,
+                                               float torque_limit, float torque_rate_limit, float output_dt,
+                                               uint8_t apply_output)
 {
-    if (!isfinite(torque))
+    float torque_command = 0.0f;
+    float motor_torque_output = 0.0f;
+
+    if (wheel == NULL)
+    {
+        return;
+    }
+    if (apply_output != 0u)
+    {
+        torque_command = WheelLeggedLimitTorque(requested_torque, torque_limit);
+        motor_torque_output = WheelLeggedLimitTorqueRate(torque_command, wheel->previous_motor_torque,
+                                                         torque_rate_limit, output_dt);
+    }
+    wheel->torque_command = torque_command;
+    wheel->motor_torque_output = motor_torque_output;
+    wheel->previous_motor_torque = motor_torque_output;
+    if (wheel->motor != NULL)
+    {
+        DMMotorSetRef(wheel->motor, motor_torque_output);
+    }
+}
+
+/**
+ * @brief 限制一个有限力矩的绝对值。
+ *
+ * @param torque 待限幅力矩，单位 N*m。
+ * @param torque_limit 绝对上限，单位 N*m。
+ * @return 限幅后的力矩；异常输入返回 0。
+ */
+static float WheelLeggedLimitTorque(float torque, float torque_limit)
+{
+    if (!isfinite(torque) || !isfinite(torque_limit) || torque_limit <= 0.0f)
     {
         return 0.0f;
     }
-    if (torque > WHEEL_LEGGED_VMC_TEST_MOTOR_TORQUE_LIMIT)
+    if (torque > torque_limit)
     {
-        return WHEEL_LEGGED_VMC_TEST_MOTOR_TORQUE_LIMIT;
+        return torque_limit;
     }
-    if (torque < -WHEEL_LEGGED_VMC_TEST_MOTOR_TORQUE_LIMIT)
+    if (torque < -torque_limit)
     {
-        return -WHEEL_LEGGED_VMC_TEST_MOTOR_TORQUE_LIMIT;
+        return -torque_limit;
     }
     return torque;
+}
+
+/**
+ * @brief 在有限周期内限制轮端力矩相对于上一帧的变化量。
+ *
+ * @param target_torque 限幅后的目标力矩，单位 N*m。
+ * @param previous_torque 上一帧实际输出力矩，单位 N*m。
+ * @param torque_rate_limit 最大变化率，单位 N*m/s。
+ * @param output_dt 本周期时间间隔，单位 s。
+ * @return 变化率受限后的电机轴力矩；异常输入返回 0。
+ */
+static float WheelLeggedLimitTorqueRate(float target_torque, float previous_torque, float torque_rate_limit,
+                                        float output_dt)
+{
+    float maximum_delta;
+    float torque_delta;
+
+    if (!isfinite(target_torque) || !isfinite(previous_torque) || !isfinite(torque_rate_limit) ||
+        !isfinite(output_dt) || torque_rate_limit <= 0.0f || output_dt <= 0.0f)
+    {
+        return 0.0f;
+    }
+    maximum_delta = torque_rate_limit * output_dt;
+    torque_delta = target_torque - previous_torque;
+    if (torque_delta > maximum_delta)
+    {
+        return previous_torque + maximum_delta;
+    }
+    if (torque_delta < -maximum_delta)
+    {
+        return previous_torque - maximum_delta;
+    }
+    return target_torque;
 }
