@@ -12,8 +12,8 @@
 #include "bsp_dwt.h"
 
 /* Private define ------------------------------------------------------------*/
-/* 单台 J4310 电机轴的硬力矩上限，单位 N*m。 */
-#define WHEEL_LEGGED_JOINT_MOTOR_TORQUE_LIMIT 2.0f
+/* 单台 J4310 电机轴的调试力矩上限，单位 N*m；保留相对协议 +/-10 N*m 范围的余量。 */
+#define WHEEL_LEGGED_JOINT_MOTOR_TORQUE_LIMIT 8.0f
 
 /* 输出仲裁可接受的最大调度间隔；更长间隔按此值限速，避免恢复调度时突跳。 */
 #define WHEEL_LEGGED_OUTPUT_MAX_RATE_DT 0.005f
@@ -81,8 +81,10 @@ void WheelLeggedChassisApplyMotorOutput(WheelLeggedChassisInstance_t *chassis)
         apply_output = 1u;
         chassis->output_ever_enabled = 1u;
     }
-    else if (chassis->output_ever_enabled != 0u)
+    else if (chassis->output_ever_enabled != 0u && chassis->output_fault_locked == 0u)
     {
+        /* 先保存原始阻断原因，再追加 FAULT_LOCKED，避免只看到笼统的 2。 */
+        chassis->output_fault_reason_latched = WheelLeggedChassisGetOutputBlockReason(chassis);
         chassis->output_fault_locked = 1u;
     }
 
@@ -203,9 +205,14 @@ static uint8_t WheelLeggedChassisHasValidOutputConfig(const WheelLeggedChassisLq
 {
     return config != NULL && isfinite(config->supported_body_mass) && isfinite(config->pitch_torque_limit) &&
            isfinite(config->wheel_torque_limit) && isfinite(config->wheel_torque_rate_limit) &&
-           isfinite(config->minimum_support_projection) && config->supported_body_mass > 0.0f &&
+           isfinite(config->minimum_support_projection) && isfinite(config->prepare_length_tolerance) &&
+           isfinite(config->prepare_length_rate_limit) && isfinite(config->prepare_leg_angle_limit) &&
+           isfinite(config->prepare_body_angle_limit) && config->supported_body_mass > 0.0f &&
            config->pitch_torque_limit > 0.0f && config->wheel_torque_limit > 0.0f &&
-           config->wheel_torque_rate_limit > 0.0f && config->minimum_support_projection > 0.0f;
+           config->wheel_torque_rate_limit > 0.0f && config->minimum_support_projection > 0.0f &&
+           config->prepare_length_tolerance > 0.0f && config->prepare_length_rate_limit > 0.0f &&
+           config->prepare_leg_angle_limit > 0.0f && config->prepare_body_angle_limit > 0.0f &&
+           config->prepare_stable_cycles > 0u;
 }
 
 /**
@@ -255,16 +262,24 @@ static void WheelLeggedChassisSetAllMotorState(WheelLeggedChassisInstance_t *cha
 static void WheelLeggedChassisSetAllTorqueReference(WheelLeggedChassisInstance_t *chassis, uint8_t apply_output,
                                                      float output_dt)
 {
+    float left_wheel_torque = 0.0f;
+    float right_wheel_torque = 0.0f;
+
     if (chassis == NULL)
     {
         return;
     }
+    if (chassis->balance_phase == WHEEL_LEGGED_BALANCE_PHASE_ACTIVE)
+    {
+        left_wheel_torque = chassis->lqr.tw_left;
+        right_wheel_torque = chassis->lqr.tw_right;
+    }
     WheelLeggedSetLegTorqueReference(&chassis->left_leg, apply_output);
     WheelLeggedSetLegTorqueReference(&chassis->right_leg, apply_output);
-    WheelLeggedSetWheelTorqueReference(&chassis->left_wheel, chassis->lqr.tw_left,
+    WheelLeggedSetWheelTorqueReference(&chassis->left_wheel, left_wheel_torque,
                                        chassis->lqr_output_config.wheel_torque_limit,
                                        chassis->lqr_output_config.wheel_torque_rate_limit, output_dt, apply_output);
-    WheelLeggedSetWheelTorqueReference(&chassis->right_wheel, chassis->lqr.tw_right,
+    WheelLeggedSetWheelTorqueReference(&chassis->right_wheel, right_wheel_torque,
                                        chassis->lqr_output_config.wheel_torque_limit,
                                        chassis->lqr_output_config.wheel_torque_rate_limit, output_dt, apply_output);
 }

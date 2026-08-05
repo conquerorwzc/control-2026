@@ -1,15 +1,15 @@
 #include "power_control.h"
-#include "chassis.h"
 
 #include <math.h>
 
+#include "chassis.h"
 #include "general_def.h"
 #include "user_lib.h"
 
-static PowerCtrl_t* power_ctrl;
+static Power_Ctrl_t* power_ctrl;
 /**
  * @brief  单电机 6 参数功率估算（中科大模型，正运算）
- *         P = k0 + k1·|I| + k2·|ω| + k3·|I|·|ω| + k4·I² + k5·ω²
+ *         P = k0 + k1·I + k2·ω + k3·I·ω + k4·I² + k5·ω²
  *
  * @param[in]  k  模型系数数组 [k0 … k5]
  * @param[in]  I  电调电流 (A)，由 final_output / (16384/20) 换算得到
@@ -17,9 +17,34 @@ static PowerCtrl_t* power_ctrl;
  *                注意：speed_aps 为转子侧 deg/s，不除减速比
  * @return     估算电功率 (W)，钳位到 [0, +∞)
  */
-static float MotorEstimatePower(const float k[6], float I, float w) {
+static float power_ctrl_k_coff = 1.0f;
+static float MotorEstimatePower(float k[6], float I, float w) {
+  for (int i = 0; i < 6; i++) k[i] *= power_ctrl_k_coff;
   float P = k[0] + k[1] * I + k[2] * w + k[3] * I * w + k[4] * I * I + k[5] * w * w;
   return fmaxf(P, 0.0f);
+}
+
+void PowerControlRuntimeReset(ChassisInstance* chassis) {
+  if (chassis == NULL || chassis->power_ctrl == NULL) return;
+
+  Power_Ctrl_t* pc = chassis->power_ctrl;
+  for (int i = 0; i < 2; i++) {
+    pc->w[i] = 0.0f;
+    pc->T_motion[i] = 0.0f;
+    pc->T_balance[i] = 0.0f;
+    pc->I[i] = 0.0f;
+    pc->P[i] = 0.0f;
+    pc->P_ref[i] = 0.0f;
+    pc->I_ref[i] = 0.0f;
+    pc->T_ref[i] = 0.0f;
+    pc->T_motion_ref[i] = 0.0f;
+    pc->scale_motion[i] = 1.0f;
+  }
+
+  pc->P_total = 0.0f;
+  pc->P_total_ref = 0.0f;
+  pc->scale_combined = 1.0f;
+  pc->scale_balance = 1.0f;
 }
 
 /**
@@ -58,128 +83,220 @@ static float MotorEstimateCurrent(const float k[6], float P_target, float w, flo
   float temp2 = (-B - sqrt_disc) / (2.0f * A);
 
   if (I_current > 0.0f) {
-    return (fabsf(temp1 - I_current) < fabsf(temp2 - I_current) ? fminf(16000.f, temp1) : fminf(16000.f, temp2));
+    return (fabsf(temp1 - I_current) < fabsf(temp2 - I_current) ? fminf(20.f, temp1) : fminf(20.f, temp2));
 
   } else {
-    return (fabsf(temp1 - I_current) < fabsf(temp2 - I_current) ? fmaxf(-16000.f, temp1) : fmaxf(-16000.f, temp2));
+    return (fabsf(temp1 - I_current) < fabsf(temp2 - I_current) ? fmaxf(-20.f, temp1) : fmaxf(-20.f, temp2));
   }
 }
 
 /**
- * @brief 功率控制器
+ * @brief 功率控制器（按比例分配 + 状态参考回写）
  *
- * 对应SJTU文档第7节:
- *   s_d_max = Kp * sqrt(P_ref)
- *   P_ref   = P_limit  (无超级电容，f1=f2=0)
+ * 控制律: u = -K(x - x_ref); 仅对 motion 状态 (x_b, x_b_d, phi, phi_d) 调整 x_ref,
+ * balance 状态 (theta_l/_d, theta_r/_d, theta_b/_d) 的 ref 恒为 0。
  *
- * 斜率限制对应文档4-(b)(c):
- *   (b) 加速中段: Ks/(2Rω) * ṡ*(s_d-s) → 限制加速斜率
- *   (c) 急减速:   Ks/(2Rω) * ṡ*(s-s_d) → 限制减速斜率
+ * 流程:
+ *   1. 由实际电机电流 I 估算每电机功率 P_i, 求 P_chassis = P_0 + P_1
+ *   2. 若 P_chassis > P_ref:
+ *        P_ref_i = P_i / P_chassis * P_ref            (按当前用量比例分配)
+ *        I_ref_i = MotorEstimateCurrent(P_ref_i, ω)   (功率反解)
+ *        I_motion_ref_i = I_ref_i - I_balance_i       (扣除平衡分量)
+ *        T_motion_ref_i = i2t(I_motion_ref_i)
+ *   3. 对每个 motion 状态 j ∈ {0,1,2,3}, 每电机 i 的力矩贡献为
+ *        T_motion_xj_i = -K[i][j] * state_err[j]
+ *      按比例缩放:
+ *        T_ref_motion_xj_i = T_motion_xj_i / T_motion_i * T_motion_ref_i
+ *      由 x_ref_j = x_j + T_ref_motion_xj_i / K[i][j] 反推, 化简为
+ *        state_err_new[j]_i = state_err[j] * scale_i,  scale_i = T_motion_ref_i / T_motion_i
+ *   4. 两电机给出两个 scale, 取较小值后缩放本帧 LQR motion state_err。
+ *      raw chassis_ctrl_cmd 仍保持上层命令，只回写 chassis planner 参考，避免和 ramp 抢写。
  */
 void PowerControl(ChassisInstance* chassis) {
-  State_Var_t* sv = &chassis->state_var;
-  PowerCtrl_t* pc = power_ctrl;
-
-  float state_err[10];
-  state_err[0] = sv->x_b - 0.0f;
-  state_err[1] = sv->x_b_d - chassis->chassis_ctrl_cmd.vx;
-  VAL_LIMIT(state_err[1], -2.7f, 2.7f);
-  state_err[2] = sv->phi - chassis->chassis_ctrl_cmd.target_yaw;
-  VAL_LIMIT(state_err[2], -0.52f, 0.52f);  // ±30°
-  state_err[3] = sv->phi_d - chassis->chassis_ctrl_cmd.wz;
-  VAL_LIMIT(state_err[3], -2.0f, 2.0f);
-
-  pc->T_total[0] = chassis->leg[0]->real_model.T;
-  pc->T_total[1] = chassis->leg[1]->real_model.T;
-
-  pc->T_motion[0] = 0.0f;
-  pc->T_motion[1] = 0.0f;
-  for (int i = 0; i < 4; i++) {
-    pc->T_motion[0] -= chassis->LQR_K[2][i] * state_err[i];
-    pc->T_motion[1] -= chassis->LQR_K[3][i] * state_err[i];
+  Power_Ctrl_t* pc = power_ctrl;
+  // 1.获取力矩
+  for (int i = 0; i < 2; i++) {
+    pc->T_motion[i] = 0.0f;
+    pc->T_balance[i] = 0.0f;
+    pc->scale_motion[i] = 1.0f;
   }
+  pc->scale_combined = 1.0f;
+  for (int j = 0; j < 4; j++) {
+    pc->T_motion[0] -= chassis->LQR_K[2][j] * chassis->state_err[j];
+    pc->T_motion[1] -= chassis->LQR_K[3][j] * chassis->state_err[j];
+  }
+  for (int j = 4; j < 10; j++) {
+    pc->T_balance[0] -= chassis->LQR_K[2][j] * chassis->state_err[j];
+    pc->T_balance[1] -= chassis->LQR_K[3][j] * chassis->state_err[j];
+  }
+
+  // 2.估算功率
+  for (int i = 0; i < 2; i++) {
+    // 实际电机电流 / 力矩 (来自上一拍 final_output)
+    // float current_I = (float)chassis->leg[i]->wheel_motor->motor_controller.final_output * DJI_CURRENT_SCALE;
+    // 实际电机电流 / 力矩 (来自当前拍 T)
+    float current_I = t2i(pc->T_motion[i] + pc->T_balance[i]);
+    pc->I[i] = current_I;
+
+    // 对 w 应用一阶低通滤波 (当前不加滤波)
+    float current_w = chassis->leg[i]->wheel_motor->measure.speed_aps * DEGREE_2_RAD;
+    pc->w[i] = current_w;
+
+    // speed_aps 与底盘前进方向相反; P_motion_mech < 0 表示 motion 净刹车/回收, 不参与限功率缩放。
+
+    // 总功率用实际电机电流估算，并应用一阶低通滤波 (当前不加滤波)
+    float current_P = MotorEstimatePower(pc->k, pc->I[i], pc->w[i]);  // 使用原始 current_w 计算瞬态功率
+    pc->P[i] = current_P;
+  }
+
+  pc->P_total = pc->P[0] + pc->P[1];
+  // pc->P_total_ref = chassis->chassis_ctrl_cmd.max_power;
+  pc->P_total_ref = 250.f;
+  pc->P_peak_threshold = 300.f;
+
+  // 3.功率控制逻辑
+  if (pc->P_total > pc->P_total_ref) {
+    for (int i = 0; i < 2; i++) {
+      // 1) 按当前总功率占比分配每电机的许用总功率
+      pc->P_ref[i] = pc->P[i] / pc->P_total * pc->P_total_ref;
+
+      // 2) 由 P_ref 反解允许的总电流 (符号跟随 I_total)
+      // pc->I_ref[i] = MotorEstimateCurrent(pc->k, pc->P_ref[i], pc->w[i], pc->I[i]);
+      // 计算当前拍的预期输出总电流，用于决定功率逆解求出的允许电流的符号
+      // float I_cmd = t2i(pc->T_motion[i] + pc->T_balance[i]);
+      // 2) 由 P_ref 反解允许的总电流 (符号跟随 I_cmd)
+      pc->I_ref[i] = MotorEstimateCurrent(pc->k, pc->P_ref[i], pc->w[i], pc->I[i]);
+
+      pc->T_ref[i] = i2t(pc->I_ref[i]);
+
+      // 3) 扣除 balance 分量, 得到 motion 部分的扭矩
+      pc->T_motion_ref[i] = pc->T_ref[i] - pc->T_balance[i];
+
+      // 4) motion 缩放系数
+      if (fabsf(pc->T_motion[i]) > 1e-6f) {
+        float s = pc->T_motion_ref[i] / pc->T_motion[i];
+        VAL_LIMIT(s, 0.0f, 1.0f);  // 不放大, 也不允许符号反转(反解奇异时)
+        pc->scale_motion[i] = s;
+      }
+    }
+
+    // 两电机给出两个 scale, state_err 在两电机间共享, 取算术平均回写
+    pc->scale_combined = (pc->scale_motion[0] + pc->scale_motion[1]) * 0.5f;  // todo: 取最小值还是平均？
+
+    chassis->state_err[1] *= pc->scale_combined;
+    chassis->state_err[2] *= pc->scale_combined;
+    chassis->state_err[3] *= pc->scale_combined;
+
+    // x_ref_j = x_j - state_err[j] * scale_combined
+    // x_b 的 ref 恒为 0, 不回写; raw chassis_ctrl_cmd 保持上层命令, 只同步 planner
+    // chassis->chassis_ctrl_cmd.vx = sv->x_b_d - chassis->state_err[1];
+    // chassis->chassis_ctrl_cmd.target_yaw = sv->phi - chassis->state_err[2];
+    // chassis->chassis_ctrl_cmd.wz = sv->phi_d - chassis->state_err[3];
+    // chassis->planner.vx = sv->x_b_d - chassis->state_err[1];
+    // chassis->planner.target_yaw = sv->phi - chassis->state_err[2];
+    // chassis->planner.wz = sv->phi_d - chassis->state_err[3];
+    // chassis->planner.vx_ramp.planning_v = chassis->planner.vx;
+    // chassis->planner.wz_ramp.planning_v = chassis->planner.wz;
+    // VAL_LIMIT(chassis->planner.vx_ramp.planning_v, -chassis->planner.vx_ramp.max_v, chassis->planner.vx_ramp.max_v);
+    // VAL_LIMIT(chassis->planner.wz_ramp.planning_v, -chassis->planner.wz_ramp.max_v, chassis->planner.wz_ramp.max_v);
+  } else {
+    // 默认无缩放
+    pc->scale_motion[0] = 1.0f;
+    pc->scale_motion[1] = 1.0f;
+    pc->scale_combined = 1.0f;
+    for (int i = 0; i < 2; i++) {
+      pc->P_ref[i] = pc->P[i];
+      pc->I_ref[i] = pc->I[i];
+      pc->T_motion_ref[i] = pc->T_motion[i];
+    }
+  }
+
+  // 4. 峰值保护：motion 缩放后重新估算总功率，若仍超过峰值阈值则削平衡分量
+  pc->scale_balance = 1.0f;
+  if (pc->P_total > pc->P_peak_threshold) {
+    float P_after = 0.0f;
+    for (int i = 0; i < 2; i++) {
+      float T_scaled = pc->T_motion[i] * pc->scale_combined + pc->T_balance[i];
+      float I_scaled = t2i(T_scaled);
+      P_after += MotorEstimatePower(pc->k, I_scaled, pc->w[i]);
+    }
+    if (P_after > pc->P_peak_threshold) {
+      float s = pc->P_peak_threshold / P_after;
+      VAL_LIMIT(s, 0.5f, 1.0f);
+      pc->scale_balance = s;
+      for (int j = 4; j < 10; j++) {
+        chassis->state_err[j] *= pc->scale_balance;
+      }
+    }
+  }
+
+  // 5. 动态速度上限：根据功率预算限制 planner 最大速度，防止到达刹不住的速度
+  //    P_brake = m * a_decel * v → v_max = P_motion_available / (m * a_decel)
+  float P_balance_est = 0.0f;
+  for (int i = 0; i < 2; i++) {
+    float I_bal = t2i(pc->T_balance[i]);
+    P_balance_est += pc->k[4] * I_bal * I_bal;
+  }
+  float P_motion_budget = pc->P_total_ref - P_balance_est;
+  if (P_motion_budget < 20.0f) P_motion_budget = 20.0f;
+
+  float min_decel = chassis->planner.vx_ramp.max_decel;
+  float v_max = P_motion_budget / (chassis->param.body_mass * min_decel);
+  VAL_LIMIT(v_max, 0.5f, 2.97f);
+  chassis->planner.vx_ramp.max_v = v_max;
+  pc->v_max_dynamic = v_max;
+}
+
+/**
+ * @brief prostrate模式功率控制
+ *
+ */
+void PowerControl_Prostrate(ChassisInstance* chassis) {
+  Power_Ctrl_t* pc = power_ctrl;
+  // 计算每个电机的功率贡献
 
   for (int i = 0; i < 2; i++) {
-    pc->T_balance[i] = pc->T_total[i] - pc->T_motion[i];
-    pc->I_balance[i] = t2i(pc->T_balance[i]);
-    pc->I_motion[i] = t2i(pc->T_motion[i]);
+    float current_I = chassis->leg[i]->wheel_motor->motor_controller.final_output * DJI_CURRENT_SCALE;
+    pc->I[i] = current_I;
 
-    pc->w[i] = chassis->leg[i]->wheel_motor->measure.speed_aps * DEGREE_2_RAD;
+    // 对 w 应用一阶低通滤波 (当前不加滤波)
+    float current_w = chassis->leg[i]->wheel_motor->measure.speed_aps * DEGREE_2_RAD;
+    pc->w[i] = current_w;
 
-    pc->P_motion[i] = MotorEstimatePower(pc->k, pc->I_motion[i], pc->w[i]);
-    pc->P_balance[i] = MotorEstimatePower(pc->k, pc->I_balance[i], pc->w[i]);
+    // 总功率用实际电机电流估算，并应用一阶低通滤波 (当前不加滤波)
+    float current_P = MotorEstimatePower(pc->k, pc->I[i],
+                                         pc->w[i]);  // 使用原始 current_w 计算瞬态功率
+    pc->P[i] = current_P;
   }
 
-  pc->P_motion_total = pc->P_motion[0] + pc->P_motion[1];
-  pc->P_balance_total = pc->P_balance[0] + pc->P_balance[1];
+  pc->P_total = pc->P[0] + pc->P[1];
   pc->P_total_ref = chassis->chassis_ctrl_cmd.max_power;
-  pc->P_motion_total_ref = chassis->chassis_ctrl_cmd.max_power - pc->P_balance_total;
+  // pc->P_total_ref = 180.f;
+  // pc->P_total_ref = 50.f;
 
-  if (pc->P_motion_total > pc->P_motion_total_ref) {
+  // 功率超限时进行动态调整
+  if (pc->P_total > pc->P_total_ref) {
+    // 重新计算每个电机的电流参考值
     for (int i = 0; i < 2; i++) {
-      // 功率分配：许用功率 * 当前功率用量比例
-      pc->P_motion_ref[i] = pc->P_motion[i] / (pc->P_motion_total) * pc->P_motion_total_ref;
-      pc->I_motion_ref[i] = MotorEstimateCurrent(pc->k, pc->P_motion_ref[i], pc->w[i], pc->I_motion[i]);
-      pc->T_motion_ref[i] = i2t(pc->I_motion_ref[i]);
+      pc->P_ref[i] = pc->P[i] / pc->P_total * pc->P_total_ref;
+      pc->I_ref[i] = MotorEstimateCurrent(pc->k, pc->P_ref[i], pc->w[i], pc->I[i]);
     }
-
-    // 通过 LQR_K 的伪逆矩阵反解限制后的状态误差 (x, x_d, phi, phi_d)
-    // A = [ K[2][0..3] ]
-    //     [ K[3][0..3] ]
-    float A[2][4];
-    for (int j = 0; j < 4; j++) {
-      A[0][j] = chassis->LQR_K[2][j];
-      A[1][j] = chassis->LQR_K[3][j];
-    }
-
-    // 计算 A * A^T
-    float M[2][2] = {0};
+  } else {
+    // 不超限时透传实际电流, 写回 = no-op, 避免 I_ref 残值反推到 final_output
     for (int i = 0; i < 2; i++) {
-      for (int j = 0; j < 2; j++) {
-        for (int k = 0; k < 4; k++) {
-          M[i][j] += A[i][k] * A[j][k];
-        }
-      }
+      pc->P_ref[i] = pc->P[i];
+      pc->I_ref[i] = pc->I[i];
     }
-
-    // 计算 M 的逆
-    float det = M[0][0] * M[1][1] - M[0][1] * M[1][0];
-    if (fabsf(det) > 1e-6f) {
-      float invM[2][2];
-      invM[0][0] = M[1][1] / det;
-      invM[0][1] = -M[0][1] / det;
-      invM[1][0] = -M[1][0] / det;
-      invM[1][1] = M[0][0] / det;
-
-      // 计算伪逆 A^+ = A^T * invM (维度 4x2)
-      float A_pinv[4][2];
-      for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 2; j++) {
-          A_pinv[i][j] = A[0][i] * invM[0][j] + A[1][i] * invM[1][j];
-        }
-      }
-
-      // 计算新的 state_err' = - A^+ * T_motion_ref
-      float new_state_err[4];
-      for (int i = 0; i < 4; i++) {
-        new_state_err[i] = -(A_pinv[i][0] * pc->T_motion_ref[0] + A_pinv[i][1] * pc->T_motion_ref[1]);
-      }
-
-      // 反解出对应的控制指令
-      // state_err[1] = x_b_d - vx => vx = x_b_d - state_err[1]
-      // state_err[2] = phi - target_yaw => target_yaw = phi - state_err[2]
-      // state_err[3] = phi_d - wz => wz = phi_d - state_err[3]
-      chassis->chassis_ctrl_cmd.vx = sv->x_b_d - new_state_err[1];
-      chassis->chassis_ctrl_cmd.target_yaw = sv->phi - new_state_err[2];
-      chassis->chassis_ctrl_cmd.wz = sv->phi_d - new_state_err[3];
-    }
+  }
+  for (int i = 0; i < 2; i++) {
+    chassis->leg[i]->wheel_motor->motor_controller.final_output = (int16_t)(pc->I_ref[i] / DJI_CURRENT_SCALE);
   }
 }
 
 void PowerControlInit(ChassisInstance* chassis) {
-  
-  power_ctrl = (PowerCtrl_t*)zmalloc(sizeof(PowerCtrl_t));
-  PowerCtrl_t* pc = power_ctrl;
+  power_ctrl = (Power_Ctrl_t*)zmalloc(sizeof(Power_Ctrl_t));
+  chassis->power_ctrl = power_ctrl;
+  Power_Ctrl_t* pc = power_ctrl;
   // 6参数模型系数
   pc->k[0] = WHEEL_K0;
   pc->k[1] = WHEEL_K1;

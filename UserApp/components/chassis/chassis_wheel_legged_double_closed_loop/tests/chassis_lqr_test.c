@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    chassis_lqr_test.c
- * @brief   十维影子 LQR 固定工作点与输出合同主机端回归测试
+ * @brief   十维 LQR 固定工作点与输出合同主机端回归测试
  ******************************************************************************
  */
 /* Private includes ----------------------------------------------------------*/
@@ -27,7 +27,7 @@ static void WheelLeggedChassisLqrExpectNear(WheelLeggedChassisLqrSelfTestResult_
 /* Private user code ---------------------------------------------------------*/
 
 /**
- * @brief 执行影子 LQR 的调度、控制律和失效回退回归测试。
+ * @brief 执行 LQR 的控制律和失效回退回归测试。
  *
  * @return 所有测试的通过与失败统计。
  */
@@ -45,8 +45,37 @@ WheelLeggedChassisLqrSelfTestResult_t WheelLeggedChassisLqrRunSelfTest(void)
     WheelLeggedChassisLqrUpdate(&lqr, state, 1u, 1u, 0.16f, 0.16f);
     WheelLeggedChassisLqrExpectTrue(&result, 1u, lqr.valid != 0u);
     WheelLeggedChassisLqrExpectTrue(&result, 2u, isfinite(lqr.gain[0][0]));
-    WheelLeggedChassisLqrExpectNear(&result, 20u, lqr.input_sign[WHEEL_LEGGED_LQR_INPUT_TP_RIGHT], -1.0f);
-    WheelLeggedChassisLqrExpectNear(&result, 21u, lqr.input_sign[WHEEL_LEGGED_LQR_INPUT_TP_LEFT], -1.0f);
+    WheelLeggedChassisLqrExpectNear(&result, 24u,
+                                    lqr.gain[WHEEL_LEGGED_LQR_INPUT_TP_RIGHT][WHEEL_LEGGED_LQR_STATE_S], 0.0f);
+    WheelLeggedChassisLqrExpectTrue(
+        &result, 25u,
+        isfinite(lqr.gain[WHEEL_LEGGED_LQR_INPUT_TP_RIGHT][WHEEL_LEGGED_LQR_STATE_PHI]) &&
+            fabsf(lqr.gain[WHEEL_LEGGED_LQR_INPUT_TP_RIGHT][WHEEL_LEGGED_LQR_STATE_PHI]) >
+                CHASSIS_LQR_TEST_EPSILON);
+    WheelLeggedChassisLqrExpectTrue(
+        &result, 26u,
+        isfinite(lqr.gain[WHEEL_LEGGED_LQR_INPUT_TP_RIGHT][WHEEL_LEGGED_LQR_STATE_THETA_BODY]) &&
+            fabsf(lqr.gain[WHEEL_LEGGED_LQR_INPUT_TP_RIGHT][WHEEL_LEGGED_LQR_STATE_THETA_BODY]) >
+                CHASSIS_LQR_TEST_EPSILON);
+    WheelLeggedChassisLqrExpectTrue(&result, 27u,
+                                    isfinite(lqr.gain[WHEEL_LEGGED_LQR_INPUT_TP_RIGHT]
+                                                 [WHEEL_LEGGED_LQR_STATE_THETA_LEFT]));
+    WheelLeggedChassisLqrExpectTrue(&result, 28u,
+                                    isfinite(lqr.gain[WHEEL_LEGGED_LQR_INPUT_TP_RIGHT]
+                                                 [WHEEL_LEGGED_LQR_STATE_THETA_RIGHT]));
+    WheelLeggedChassisLqrExpectTrue(&result, 29u,
+                                    isfinite(lqr.gain[WHEEL_LEGGED_LQR_INPUT_TP_RIGHT]
+                                                 [WHEEL_LEGGED_LQR_STATE_THETA_LEFT_DOT]));
+    WheelLeggedChassisLqrExpectTrue(&result, 30u,
+                                    isfinite(lqr.gain[WHEEL_LEGGED_LQR_INPUT_TP_RIGHT]
+                                                 [WHEEL_LEGGED_LQR_STATE_THETA_RIGHT_DOT]));
+    WheelLeggedChassisLqrExpectTrue(
+        &result, 31u,
+        isfinite(lqr.gain[WHEEL_LEGGED_LQR_INPUT_TP_RIGHT][WHEEL_LEGGED_LQR_STATE_THETA_BODY_DOT]) &&
+            fabsf(lqr.gain[WHEEL_LEGGED_LQR_INPUT_TP_RIGHT][WHEEL_LEGGED_LQR_STATE_THETA_BODY_DOT]) >
+                CHASSIS_LQR_TEST_EPSILON);
+    WheelLeggedChassisLqrExpectNear(&result, 20u, lqr.input_sign[WHEEL_LEGGED_LQR_INPUT_TP_RIGHT], 1.0f);
+    WheelLeggedChassisLqrExpectNear(&result, 21u, lqr.input_sign[WHEEL_LEGGED_LQR_INPUT_TP_LEFT], 1.0f);
     WheelLeggedChassisLqrExpectNear(&result, 22u, lqr.input_sign[WHEEL_LEGGED_LQR_INPUT_TW_RIGHT], 1.0f);
     WheelLeggedChassisLqrExpectNear(&result, 23u, lqr.input_sign[WHEEL_LEGGED_LQR_INPUT_TW_LEFT], 1.0f);
     memcpy(reference, lqr.state_reference, sizeof(reference));

@@ -34,13 +34,13 @@ fprintf('Step 2: 写入模型合同、假设和自动消元方程...\n');
 fprintf(file_id, '# 双闭环等效腿模型：符号动力学 M、B、g 与约束\n\n');
 fprintf(file_id, '## 状态和输入合同\n\n');
 fprintf(file_id, '状态顺序：`[s, s_dot, phi, phi_dot, theta_L, theta_L_dot, theta_R, theta_R_dot, theta_b, theta_b_dot]`。\n\n');
-fprintf(file_id, '输入顺序（模型正方向）：`[Tp_R, Tp_L, Tw_R, Tw_L]`。MCU 输入方向在数值 LQR 脚本中另行映射。\n\n');
+fprintf(file_id, '原文模型输入顺序：`[T_lw,L, T_lw,R, T_bl,L, T_bl,R]`。其中 `T_bl` 是机身对腿的力矩，`T_lw` 是腿/电机对轮的驱动力矩。MCU 顺序为 `[Tp_R, Tp_L, Tw_R, Tw_L]`，由数值脚本显式置换。\n\n');
 fprintf(file_id, '$$\ns=s_w-s_{w,0}.\n$$\n\n');
-fprintf(file_id, 's 是左右轮端平均滚动得到的纯轮式纵向二维坐标，不做 Yaw 的世界系投影。髋点 O 里程计只作为固件诊断量，不参与十维状态和 LQR。模型假设：平地、纯滚动、两轮接地、无 Roll、固定腿长工作点。左右地面对轮法向力相等用于闭合竖直内力；这是降阶模型前提，不是运行时接触力判断。\n\n');
-fprintf(file_id, 'Tw 正值定义为使对应轮向前滚动的**轮端力矩**。轮对腿的反作用力矩因此为 `-Tw`；此处定义不等于未来 H6215 电机轴正指令，后者仍需独立标定。\n\n');
+fprintf(file_id, 's 是左右轮端平均滚动得到的纯轮式纵向二维坐标，不做 Yaw 的世界系投影。髋点 O 里程计只作为固件诊断量，不参与十维状态和 LQR。模型假设：平地、纯滚动、两轮接地、无 Roll、固定腿长工作点。按原文 (3.10) 使用 F_wh,L=F_wh,R，即左右轮对腿的竖直支持力相等；这是降阶模型前提，不是运行时接触力判断。\n\n');
+fprintf(file_id, '`T_bl,i` 对腿为正、对机身为负；`T_lw,i` 对轮为正、对腿为负。正 `T_lw` 定义为使对应轮向前滚动的轮端力矩；此处定义不等于未来 H6215 电机轴正指令，后者仍需独立标定。\n\n');
 fprintf(file_id, '测量端髋点速度可包含腿长变化项；本符号动力学的单个工作点不把 `l_dot/l_ddot` 纳入状态。\n\n');
 fprintf(file_id, '## 原始 Newton-Euler 方程\n\n');
-fprintf(file_id, '以下 17 条残差包含机体、左右腿、左右轮、Yaw 方程和等法向力闭合。程序先消去 12 个接触内力，再得到五条广义坐标方程；不维护手写的 `eq1` 至 `eq5`。\n\n');
+fprintf(file_id, '以下 15 条残差严格对应原文 (3.1) 至 (3.10)：机体 3 条、左右腿各 3 条、左右轮各 2 条、Yaw 1 条和等支持力 1 条。程序先消去 10 个接触内力，再得到五条广义坐标方程；不维护手写的 `eq1` 至 `eq5`。\n\n');
 for index = 1:numel(model.raw_equations)
     write_equation(file_id, sprintf('r_{%d}', index), model.raw_equations(index));
 end
@@ -56,8 +56,8 @@ end
 fprintf('Step 3: 写入运动学约束...\n');
 fprintf(file_id, '## 纯轮式 s 运动学代换\n\n');
 fprintf(file_id, '对每一侧：\n\n');
-write_latex_block(file_id, 'R\theta_{w,L}=s-b\phi+\frac{q_R-q_L}{2},\qquad R\theta_{w,R}=s+b\phi+\frac{q_L-q_R}{2}.');
-write_latex_block(file_id, 's=s_w=\frac{R\theta_{w,L}+R\theta_{w,R}}{2},\qquad q_i=l_i\sin\theta_i.');
+write_latex_block(file_id, 'R_w\theta_{w,L}=s-R_l\phi+\frac{q_R-q_L}{2},\qquad R_w\theta_{w,R}=s+R_l\phi+\frac{q_L-q_R}{2}.');
+write_latex_block(file_id, 's=s_w=\frac{R_w\theta_{w,L}+R_w\theta_{w,R}}{2},\qquad q_i=l_i\sin\theta_i.');
 fprintf(file_id, '以下为固定腿长工作点所用的加速度代换：\n\n');
 for index = 1:numel(model.kinematic_substitution_symbols)
     fprintf(file_id, '$$\n%s=%s.\n$$\n\n', latex(model.kinematic_substitution_symbols(index)), ...

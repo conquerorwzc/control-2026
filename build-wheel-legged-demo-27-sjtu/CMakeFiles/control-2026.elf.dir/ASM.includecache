@@ -1,0 +1,28 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/Users/jiahaoruan/Work/Robomaster/control-2026/Hardware/stm32-h7/Middlewares/Third_Party/SEGGER/Config/SEGGER_RTT_Conf.h
+intrinsics.h
+-
+machine.h
+-
+
+/Users/jiahaoruan/Work/Robomaster/control-2026/Hardware/stm32-h7/Middlewares/Third_Party/SEGGER/RTT/SEGGER_RTT.h
+../Config/SEGGER_RTT_Conf.h
+/Users/jiahaoruan/Work/Robomaster/control-2026/Hardware/stm32-h7/Middlewares/Third_Party/SEGGER/Config/SEGGER_RTT_Conf.h
+stdlib.h
+-
+stdarg.h
+-
+
+/Users/jiahaoruan/Work/Robomaster/control-2026/Hardware/stm32-h7/Middlewares/Third_Party/SEGGER/RTT/SEGGER_RTT_ASM_ARMv7M.s
+SEGGER_RTT.h
+/Users/jiahaoruan/Work/Robomaster/control-2026/Hardware/stm32-h7/Middlewares/Third_Party/SEGGER/RTT/SEGGER_RTT.h
+
+/Users/jiahaoruan/Work/Robomaster/control-2026/Hardware/stm32-h7/Startup/startup_stm32h723vgtx.s
+

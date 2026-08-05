@@ -35,7 +35,7 @@ int main(void)
            (unsigned long)wheel_odometry_result.last_failed_case);
     printf("length_control: passed=%lu failed=%lu last_failed=%lu\n", (unsigned long)length_control_result.passed_count,
            (unsigned long)length_control_result.failed_count, (unsigned long)length_control_result.last_failed_case);
-    printf("shadow_lqr: passed=%lu failed=%lu last_failed=%lu\n", (unsigned long)lqr_result.passed_count,
+    printf("lqr: passed=%lu failed=%lu last_failed=%lu\n", (unsigned long)lqr_result.passed_count,
            (unsigned long)lqr_result.failed_count, (unsigned long)lqr_result.last_failed_case);
     printf("output: passed=%lu failed=%lu last_failed=%lu\n", (unsigned long)output_result.passed_count,
            (unsigned long)output_result.failed_count, (unsigned long)output_result.last_failed_case);

@@ -99,12 +99,12 @@ typedef enum
 /* TODO：填写真实 AH、HJ 和虚拟 CE，复核 AD/AH=CE/HJ 后再置 configured=1。 */
 static const ParallelLegGeometry_t g_leg_geometry_config = {
     .configured = 1u,
-    .l0 = 0.0f,                     /* 两个主动轴中心距，ACE 同心模型固定为 0 m。 */
-    .real_first_link_ah = 0.105f,     /* AH：真实主动杆长度，待测量，单位 m。 */
-    .real_second_link_hj = 0.125f,    /* HJ：真实末端杆长度，待测量，单位 m。 */
+    .l0 = 0.0f,                        /* 两个主动轴中心距，ACE 同心模型固定为 0 m。 */
+    .real_first_link_ah = 0.105f,      /* AH：真实主动杆长度，待测量，单位 m。 */
+    .real_second_link_hj = 0.125f,     /* HJ：真实末端杆长度，待测量，单位 m。 */
     .virtual_second_link_ce = 0.0625f, /* CE：虚拟五连杆被动杆长度，待测量，单位 m；k=CE/HJ。 */
-    .virtual_end_branch_sign = -1,   /* C 相对有向线 D->E 的支路，待按实物填写 +1 或 -1。 */
-    .singular_epsilon = 1e-5f,      /* 两圆重合或相切的判据，单位 m。 */
+    .virtual_end_branch_sign = -1,     /* C 相对有向线 D->E 的支路，待按实物填写 +1 或 -1。 */
+    .singular_epsilon = 1e-5f,         /* 两圆重合或相切的判据，单位 m。 */
 };
 
 /* 左腿：前关节对应 phi1；后关节对应 phi2。 */
@@ -131,7 +131,7 @@ static WheelLeggedLegInitConfig_t g_left_leg_init_config = {
                     .driving_sprocket_teeth = 12u, /* 电机侧主动链轮齿数。 */
                     .driven_sprocket_teeth = 12u,  /* phi2 主动轴侧从动链轮齿数。 */
                     .direction = 1.0f,
-                    .motor_zero_angle =  -4.74803543f, /* TODO：重新标定 phi2=0 时的左后电机累计角，单位 rad。 */
+                    .motor_zero_angle = -4.74803543f, /* TODO：重新标定 phi2=0 时的左后电机累计角，单位 rad。 */
                 },
             .kinematics_input = LEG_KINEMATICS_INPUT_PHI2,
         },
@@ -140,18 +140,18 @@ static WheelLeggedLegInitConfig_t g_left_leg_init_config = {
         {
             .force_pid_config =
                 {
-                    .Kp = 500.0f, /* 比例增益，单位 N/m。 */
-                    .Ki = 0.0f,   /* 积分增益，单位 N/(m*s)。 */
-                    .Kd = 0.0f,   /* 必须为 0；物理 D 项由下方 Jacobian 腿长速度计算。 */
-                    .MaxOut = 20.0f, /* PI 与最终虚拟轴向力的唯一绝对限幅，单位 N。 */
+                    .Kp = 500.0f,     /* 比例增益，单位 N/m。 */
+                    .Ki = 0.0f,       /* 积分增益，单位 N/(m*s)。 */
+                    .Kd = 0.0f,       /* 必须为 0；物理 D 项由下方 Jacobian 腿长速度计算。 */
+                    .MaxOut = 20.0f,  /* PI 与最终虚拟轴向力的唯一绝对限幅，单位 N。 */
                     .DeadBand = 0.0f, /* 初期不使用死区，避免通用 PID 在死区内清零输出。 */
                     .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit,
                     .IntegralLimit = 0.0f, /* Ki=0 时积分限幅为 0；启用 Ki 前需同步填写。 */
                 },
             .velocity_damping_kd = 5.0f, /* Jacobian 腿长速度阻尼增益，单位 N*s/m。 */
-            .length_reference = 0.160f,  /* 与当前固定工作点 LQR 一致的目标腿长，单位 m。 */
-            .minimum_length = 0.07f,     /* 力控最小工作腿长，单位 m。 */
-            .maximum_length = 0.19f,     /* 力控最大工作腿长，单位 m。 */
+            .length_reference = 0.170f,  /* 当前 LQR 工作点的目标腿长，单位 m。 */
+            .minimum_length = 0.03f,     /* 力控最小工作腿长，单位 m。 */
+            .maximum_length = 0.23f,     /* ACE 机构最大工作腿长，单位 m；接近全伸展时仍需避开奇异位形。 */
         },
 };
 
@@ -188,37 +188,37 @@ static WheelLeggedLegInitConfig_t g_right_leg_init_config = {
         {
             .force_pid_config =
                 {
-                    .Kp = 500.0f, /* 比例增益，单位 N/m。 */
-                    .Ki = 0.0f,   /* 积分增益，单位 N/(m*s)。 */
-                    .Kd = 0.0f,   /* 必须为 0；物理 D 项由下方 Jacobian 腿长速度计算。 */
-                    .MaxOut = 20.0f, /* PI 与最终虚拟轴向力的唯一绝对限幅，单位 N。 */
+                    .Kp = 500.0f,     /* 比例增益，单位 N/m。 */
+                    .Ki = 0.0f,       /* 积分增益，单位 N/(m*s)。 */
+                    .Kd = 0.0f,       /* 必须为 0；物理 D 项由下方 Jacobian 腿长速度计算。 */
+                    .MaxOut = 20.0f,  /* PI 与最终虚拟轴向力的唯一绝对限幅，单位 N。 */
                     .DeadBand = 0.0f, /* 初期不使用死区，避免通用 PID 在死区内清零输出。 */
                     .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit,
                     .IntegralLimit = 0.0f, /* Ki=0 时积分限幅为 0；启用 Ki 前需同步填写。 */
                 },
             .velocity_damping_kd = 5.0f, /* Jacobian 腿长速度阻尼增益，单位 N*s/m。 */
-            .length_reference = 0.160f,  /* 与当前固定工作点 LQR 一致的目标腿长，单位 m。 */
-            .minimum_length = 0.07f,     /* 力控最小工作腿长，单位 m。 */
-            .maximum_length = 0.19f,     /* 力控最大工作腿长，单位 m。 */
+            .length_reference = 0.170f,  /* 当前 LQR 工作点的目标腿长，单位 m。 */
+            .minimum_length = 0.03f,     /* 力控最小工作腿长，单位 m；仍需避开机构学奇异区。 */
+            .maximum_length = 0.23f,     /* ACE 机构最大工作腿长，单位 m；接近全伸展时仍需避开奇异位形。 */
         },
 };
 
-/* 左轮：H6215，轮径 120 mm，减速比 1:1；direction 必须通过手推前进试验复核。 */
-/* TODO：手推确认左轮前进时轮端角速度和 s_dot 均为正后，冻结 left_wheel.direction。 */
+/* 左轮：H6215，轮径 120 mm，减速比 1:1；软件正方向已由电机输出/反馈配对方向归一化。 */
+/* 手推方向若不对，应成对修正 H6215 的输出与反馈方向；禁止只修改 wheel.direction。 */
 static WheelLeggedWheelInitConfig_t g_left_wheel_init_config = {
     .motor_config = WHEEL_LEGGED_H6215_CONFIG(&hcan2, 0x01u, 0x00u, WHEEL_LEGGED_MOTOR_NORMAL),
     .wheel_radius = 0.0600f, /* 轮半径 60 mm，单位 m。 */
     .reduction_ratio = 1.0f,
-    .direction = 1.0f, /* 暂定前进为正，手推后若 s_dot<0 则改为 -1。 */
+    .direction = 1.0f, /* 当前 1:1 输出合同固定为 +1；前进反馈方向由配对电机方向保证。 */
     .configured = 1u,
 };
 
-/* 右轮：H6215，轮径 120 mm，减速比 1:1；direction 必须通过手推前进试验复核。 */
+/* 右轮：H6215，轮径 120 mm，减速比 1:1；软件正方向已由电机输出/反馈配对方向归一化。 */
 static WheelLeggedWheelInitConfig_t g_right_wheel_init_config = {
     .motor_config = WHEEL_LEGGED_H6215_CONFIG(&hcan1, 0x01u, 0x00u, WHEEL_LEGGED_MOTOR_REVERSE),
     .wheel_radius = 0.0600f, /* 轮半径 60 mm，单位 m。 */
     .reduction_ratio = 1.0f,
-    .direction = 1.0f, /* 暂定前进为正，手推后若 s_dot<0 则改为 -1。 */
+    .direction = 1.0f, /* 当前 1:1 输出合同固定为 +1；前进反馈方向由配对电机方向保证。 */
     .configured = 1u,
 };
 
@@ -241,17 +241,22 @@ static const WheelLeggedChassisStateConfig_t g_chassis_state_config = {
     .left_leg_relative_direction = 1.0f,
     .right_leg_relative_direction = 1.0f,
     .leg_world_body_pitch_gain = 1.0f,
-    .left_leg_world_offset = 0.0f,
-    .right_leg_world_offset = 0.0f,
+    .left_leg_world_offset = -0.451405585f,  /* 机械相对腿角零位偏置，单位 rad。 */
+    .right_leg_world_offset = -0.542720139f, /* 机械相对腿角零位偏置，单位 rad。 */
 };
 
 /* 四输入 LQR 首次手扶接地试验的输出、安全和重力前馈配置。 */
 static const WheelLeggedChassisLqrOutputConfig_t g_chassis_lqr_output_config = {
-    .supported_body_mass = 1.683f,       /* 双腿支撑的机身质量，单位 kg；不含电池、双腿和双轮。 */
-    .pitch_torque_limit = 0.10f,         /* 单腿虚拟 Tp 限幅，单位 N*m。 */
-    .wheel_torque_limit = 0.20f,         /* 单个 H6215 轮端 Tw 限幅，单位 N*m。 */
+    .supported_body_mass = 1.183f, /* 当前无车载电池；双腿实际支撑的完整机身总成质量，单位 kg。 */
+    .pitch_torque_limit = 5.0f,          /* 单腿虚拟 Tp 首次站立限幅，单位 N*m。 */
+    .wheel_torque_limit = 0.20f,         /* 单个 H6215 轮端 Tw 首次站立限幅，单位 N*m。 */
     .wheel_torque_rate_limit = 1.0f,     /* H6215 轮端 Tw 变化率，单位 N*m/s。 */
-    .minimum_support_projection = 0.20f, /* cos(theta_L)+cos(theta_R) 小于此值时禁止出力。 */
+    .minimum_support_projection = 0.10f, /* cos(theta_L)+cos(theta_R) 小于此值时禁止出力。 */
+    .prepare_length_tolerance = 0.015f,  /* 手扶进入平衡前单腿长度允许误差，单位 m。 */
+    .prepare_length_rate_limit = 0.15f,  /* 手扶进入平衡前单腿长度速度上限，单位 m/s。 */
+    .prepare_leg_angle_limit = 0.65f, /* 手扶启动安全范围，不要求腿长阶段将腿角调零，单位 rad。 */
+    .prepare_body_angle_limit = 0.25f, /* 手扶启动安全范围，不要求腿长阶段将 pitch 调零，单位 rad。 */
+    .prepare_stable_cycles = 100u, /* 约 1 kHz 任务下累计稳定 100 ms 后接入 LQR。 */
 };
 
 /* 本车底盘根配置；robot.c 只将该对象交给 chassis component。 */

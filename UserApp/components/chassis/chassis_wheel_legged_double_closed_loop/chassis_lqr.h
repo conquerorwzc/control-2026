@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    chassis_lqr.h
- * @brief   双闭环轮腿十维影子 LQR 纯计算接口
+ * @brief   双闭环轮腿十维 LQR 控制量计算接口
  ******************************************************************************
  */
 #pragma once
@@ -29,7 +29,7 @@ typedef enum
 } WheelLeggedChassisLqrState_e;
 
 _Static_assert(WHEEL_LEGGED_LQR_STATE_COUNT_CHECK == WHEEL_LEGGED_LQR_STATE_COUNT,
-               "影子 LQR 状态必须保持十维");
+               "LQR 状态必须保持十维");
 
 /* MATLAB 导出与 MCU 发布的四个 LQR 输入槽位。 */
 typedef enum
@@ -42,7 +42,7 @@ typedef enum
 } WheelLeggedChassisLqrInput_e;
 
 _Static_assert(WHEEL_LEGGED_LQR_INPUT_COUNT_CHECK == WHEEL_LEGGED_LQR_INPUT_COUNT,
-               "影子 LQR 输入必须保持四维");
+               "LQR 输入必须保持四维");
 
 /* 底盘对象中的 LQR 运行状态，供变量窗口与 MATLAB 同帧比较。 */
 typedef struct
@@ -62,7 +62,7 @@ typedef struct
     float tp_left;  /* output[Tp_L] 的具名调试别名，单位 N*m。 */
     float tw_right; /* output[Tw_R] 的具名调试别名，单位 N*m。 */
     float tw_left;  /* output[Tw_L] 的具名调试别名，单位 N*m。 */
-    uint32_t update_count; /* 已执行的影子 LQR 更新次数。 */
+    uint32_t update_count; /* 已执行的 LQR 更新次数。 */
 } WheelLeggedChassisLqr_t;
 
 void WheelLeggedChassisLqrInit(WheelLeggedChassisLqr_t *lqr);

@@ -21,6 +21,8 @@ static void WheelLeggedWheelInit(WheelLeggedWheelInstance_t *wheel, WheelLeggedW
 static uint8_t WheelLeggedChassisHasCompleteState(const WheelLeggedChassisInstance_t *chassis);
 static uint8_t WheelLeggedChassisCalculateGravityFeedforward(const WheelLeggedChassisInstance_t *chassis,
                                                              float *gravity_feedforward);
+static uint16_t WheelLeggedChassisGetPrepareBlockReason(WheelLeggedChassisInstance_t *chassis, uint8_t state_valid);
+static void WheelLeggedChassisUpdateBalancePhase(WheelLeggedChassisInstance_t *chassis, uint8_t state_valid);
 static float WheelLeggedChassisLimitPitchTorque(float torque, float torque_limit);
 
 /* Private user code ---------------------------------------------------------*/
@@ -112,33 +114,31 @@ void ChassisTask(WheelLeggedChassisInstance_t *chassis)
     WheelLeggedLegUpdate(&chassis->right_leg);
     WheelLeggedChassisStateUpdate(chassis);
     state_valid = WheelLeggedChassisHasCompleteState(chassis);
-    WheelLeggedChassisLqrUpdate(
-        &chassis->lqr, chassis->chassis_state.state_vector, state_valid,
-        chassis->chassis_state.origin_captured, chassis->chassis_state.left_leg_length,
-        chassis->chassis_state.right_leg_length);
+    WheelLeggedChassisLqrUpdate(&chassis->lqr, chassis->chassis_state.state_vector, state_valid,
+                                chassis->chassis_state.origin_captured, chassis->chassis_state.left_leg_length,
+                                chassis->chassis_state.right_leg_length);
+    WheelLeggedChassisUpdateBalancePhase(chassis, state_valid);
 
     chassis->right_leg.vmc.pitch_torque_command =
-        chassis->lqr.valid != 0u
+        chassis->balance_phase == WHEEL_LEGGED_BALANCE_PHASE_ACTIVE && chassis->lqr.valid != 0u
             ? WheelLeggedChassisLimitPitchTorque(chassis->lqr.tp_right, chassis->lqr_output_config.pitch_torque_limit)
             : 0.0f;
     chassis->left_leg.vmc.pitch_torque_command =
-        chassis->lqr.valid != 0u
+        chassis->balance_phase == WHEEL_LEGGED_BALANCE_PHASE_ACTIVE && chassis->lqr.valid != 0u
             ? WheelLeggedChassisLimitPitchTorque(chassis->lqr.tp_left, chassis->lqr_output_config.pitch_torque_limit)
             : 0.0f;
 
-    gravity_valid = WheelLeggedChassisCalculateGravityFeedforward(chassis, &gravity_feedforward);
+    gravity_valid = WheelLeggedChassisCalculateGravityFeedforward(chassis, &gravity_feedforward);//重力前馈
     length_control_valid = chassis->chassis_ctrl_cmd.chassis_mode == CHASSIS_ON && gravity_valid != 0u;
-    WheelLeggedLegLengthControlUpdate(&chassis->left_leg.length_control,
-                                      length_control_valid != 0u &&
-                                          (chassis->chassis_state.valid_mask & WHEEL_LEGGED_STATE_VALID_LEFT_LEG) != 0u,
-                                      chassis->chassis_state.left_leg_length,
-                                      chassis->chassis_state.left_leg_length_dot, gravity_feedforward);
+    WheelLeggedLegLengthControlUpdate(
+        &chassis->left_leg.length_control,
+        length_control_valid != 0u && (chassis->chassis_state.valid_mask & WHEEL_LEGGED_STATE_VALID_LEFT_LEG) != 0u,
+        chassis->chassis_state.left_leg_length, chassis->chassis_state.left_leg_length_dot, gravity_feedforward);
     chassis->left_leg.vmc.force_command = chassis->left_leg.length_control.force_command;
-    WheelLeggedLegLengthControlUpdate(&chassis->right_leg.length_control,
-                                      length_control_valid != 0u &&
-                                          (chassis->chassis_state.valid_mask & WHEEL_LEGGED_STATE_VALID_RIGHT_LEG) != 0u,
-                                      chassis->chassis_state.right_leg_length,
-                                      chassis->chassis_state.right_leg_length_dot, gravity_feedforward);
+    WheelLeggedLegLengthControlUpdate(
+        &chassis->right_leg.length_control,
+        length_control_valid != 0u && (chassis->chassis_state.valid_mask & WHEEL_LEGGED_STATE_VALID_RIGHT_LEG) != 0u,
+        chassis->chassis_state.right_leg_length, chassis->chassis_state.right_leg_length_dot, gravity_feedforward);
     chassis->right_leg.vmc.force_command = chassis->right_leg.length_control.force_command;
     WheelLeggedLegVmcUpdate(&chassis->left_leg);
     WheelLeggedLegVmcUpdate(&chassis->right_leg);
@@ -157,6 +157,143 @@ static uint8_t WheelLeggedChassisHasCompleteState(const WheelLeggedChassisInstan
                                    WHEEL_LEGGED_STATE_VALID_IMU | WHEEL_LEGGED_STATE_VALID_LEFT_LEG |
                                    WHEEL_LEGGED_STATE_VALID_RIGHT_LEG | WHEEL_LEGGED_STATE_VALID_WHEEL_ODOMETRY;
     return chassis != NULL && (chassis->chassis_state.valid_mask & required_mask) == required_mask;
+}
+
+/**
+ * @brief 先完成腿长准备，再自动接入四输入平衡控制。
+ *
+ * 右拨杆中档后先进入 LEG_PREPARE。此阶段只允许腿长 F 通过 VMC，Tp 和 Tw 保持为零；
+ * 左右腿长度、腿长速度、世界腿角和机身俯仰角稳定满足配置周期后才进入 ACTIVE。
+ * 离开中档会重新开始准备，避免再次使能时沿用旧的就绪状态。
+ *
+ * @param chassis 底盘对象。
+ * @param state_valid 十维状态来源本周期是否完整有效。
+ */
+static void WheelLeggedChassisUpdateBalancePhase(WheelLeggedChassisInstance_t *chassis, uint8_t state_valid)
+{
+    const uint16_t transient_rate_mask =
+        WHEEL_LEGGED_PREPARE_BLOCK_LEFT_LENGTH_RATE | WHEEL_LEGGED_PREPARE_BLOCK_RIGHT_LENGTH_RATE;
+    const WheelLeggedChassisLqrOutputConfig_t *config;
+    uint16_t block_reason;
+
+    if (chassis == NULL)
+    {
+        return;
+    }
+    if (chassis->chassis_ctrl_cmd.chassis_mode != CHASSIS_ON)
+    {
+        chassis->balance_phase = WHEEL_LEGGED_BALANCE_PHASE_POWER_OFF;
+        chassis->balance_prepare_count = 0u;
+        chassis->balance_prepare_block_reason = WHEEL_LEGGED_PREPARE_BLOCK_REMOTE_OFF;
+        return;
+    }
+    if (chassis->balance_phase == WHEEL_LEGGED_BALANCE_PHASE_ACTIVE)
+    {
+        chassis->balance_prepare_block_reason = WHEEL_LEGGED_PREPARE_BLOCK_NONE;
+        return;
+    }
+
+    chassis->balance_phase = WHEEL_LEGGED_BALANCE_PHASE_LEG_PREPARE;
+    config = &chassis->lqr_output_config;
+    block_reason = WheelLeggedChassisGetPrepareBlockReason(chassis, state_valid);
+    chassis->balance_prepare_block_reason = block_reason;
+    if (block_reason != WHEEL_LEGGED_PREPARE_BLOCK_NONE)
+    {
+        /* Jacobian 腿速会有单周期毛刺；仅腿速超限时缓慢退计数，其他条件失效仍立即清零。 */
+        if ((block_reason & ~transient_rate_mask) == 0u && chassis->balance_prepare_count > 0u)
+        {
+            chassis->balance_prepare_count--;
+        }
+        else
+        {
+            chassis->balance_prepare_count = 0u;
+        }
+        return;
+    }
+    if (chassis->balance_prepare_count < config->prepare_stable_cycles)
+    {
+        chassis->balance_prepare_count++;
+    }
+    if (chassis->balance_prepare_count >= config->prepare_stable_cycles)
+    {
+        chassis->balance_phase = WHEEL_LEGGED_BALANCE_PHASE_ACTIVE;
+    }
+}
+
+/**
+ * @brief 汇总自动站立准备阶段的当前阻断原因，并发布左右腿长度误差。
+ *
+ * 腿角和机身角只作为手扶启动安全范围，不要求准备阶段依靠轴向力把姿态调到零。
+ *
+ * @param chassis 底盘对象。
+ * @param state_valid 十维状态来源本周期是否完整有效。
+ * @return 准备阶段阻断原因位掩码，0 表示本周期可以累计稳定计数。
+ */
+static uint16_t WheelLeggedChassisGetPrepareBlockReason(WheelLeggedChassisInstance_t *chassis, uint8_t state_valid)
+{
+    const WheelLeggedChassisLqrOutputConfig_t *config;
+    uint16_t reason = WHEEL_LEGGED_PREPARE_BLOCK_NONE;
+
+    if (chassis == NULL)
+    {
+        return WHEEL_LEGGED_PREPARE_BLOCK_STATE | WHEEL_LEGGED_PREPARE_BLOCK_CONFIG;
+    }
+
+    config = &chassis->lqr_output_config;
+    chassis->balance_prepare_left_length_error =
+        chassis->chassis_state.left_leg_length - chassis->left_leg.length_control.length_reference;
+    chassis->balance_prepare_right_length_error =
+        chassis->chassis_state.right_leg_length - chassis->right_leg.length_control.length_reference;
+
+    if (state_valid == 0u)
+    {
+        reason |= WHEEL_LEGGED_PREPARE_BLOCK_STATE;
+    }
+    if (config->prepare_stable_cycles == 0u || !isfinite(config->prepare_length_tolerance) ||
+        config->prepare_length_tolerance <= 0.0f || !isfinite(config->prepare_length_rate_limit) ||
+        config->prepare_length_rate_limit <= 0.0f || !isfinite(config->prepare_leg_angle_limit) ||
+        config->prepare_leg_angle_limit <= 0.0f || !isfinite(config->prepare_body_angle_limit) ||
+        config->prepare_body_angle_limit <= 0.0f)
+    {
+        reason |= WHEEL_LEGGED_PREPARE_BLOCK_CONFIG;
+        return reason;
+    }
+    if (!isfinite(chassis->balance_prepare_left_length_error) ||
+        fabsf(chassis->balance_prepare_left_length_error) > config->prepare_length_tolerance)
+    {
+        reason |= WHEEL_LEGGED_PREPARE_BLOCK_LEFT_LENGTH;
+    }
+    if (!isfinite(chassis->balance_prepare_right_length_error) ||
+        fabsf(chassis->balance_prepare_right_length_error) > config->prepare_length_tolerance)
+    {
+        reason |= WHEEL_LEGGED_PREPARE_BLOCK_RIGHT_LENGTH;
+    }
+    if (!isfinite(chassis->chassis_state.left_leg_length_dot) ||
+        fabsf(chassis->chassis_state.left_leg_length_dot) > config->prepare_length_rate_limit)
+    {
+        reason |= WHEEL_LEGGED_PREPARE_BLOCK_LEFT_LENGTH_RATE;
+    }
+    if (!isfinite(chassis->chassis_state.right_leg_length_dot) ||
+        fabsf(chassis->chassis_state.right_leg_length_dot) > config->prepare_length_rate_limit)
+    {
+        reason |= WHEEL_LEGGED_PREPARE_BLOCK_RIGHT_LENGTH_RATE;
+    }
+    if (!isfinite(chassis->chassis_state.theta_leg_left) ||
+        fabsf(chassis->chassis_state.theta_leg_left) > config->prepare_leg_angle_limit)
+    {
+        reason |= WHEEL_LEGGED_PREPARE_BLOCK_LEFT_LEG_ANGLE;
+    }
+    if (!isfinite(chassis->chassis_state.theta_leg_right) ||
+        fabsf(chassis->chassis_state.theta_leg_right) > config->prepare_leg_angle_limit)
+    {
+        reason |= WHEEL_LEGGED_PREPARE_BLOCK_RIGHT_LEG_ANGLE;
+    }
+    if (!isfinite(chassis->chassis_state.theta_body) ||
+        fabsf(chassis->chassis_state.theta_body) > config->prepare_body_angle_limit)
+    {
+        reason |= WHEEL_LEGGED_PREPARE_BLOCK_BODY_ANGLE;
+    }
+    return reason;
 }
 
 /**

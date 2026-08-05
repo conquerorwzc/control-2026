@@ -89,7 +89,7 @@ R_val = 0.077;              % 轮子半径 (m) — SRM
 R_w_val = 0.25025;          % 轮距/2 (m) — SRM
 
 % ==================== 机体参数 ====================
-m_b_val = 16.7;             % 机体质量 (kg) — SRM
+m_b_val = 23.0;             % 机体质量 (kg) — SRM
 I_b_val = 0.3160;           % 机体俯仰转动惯量 (kg·m²) — SRM
 l_b_val = 0.0;              % 机体质心到俯仰轴距离 (m) — SRM
 I_yaw_val = 0.5965;         % 整体yaw轴转动惯量 (kg·m²) — SRM
@@ -168,14 +168,17 @@ fprintf('Step 4: 设置LQR权重矩阵...\n');
 %
 % 能用
 %             位置     速度      偏航   偏航速   左腿角   左腿速     右腿角   右腿速      俯仰角   俯仰速
-% lqr_Q = diag([300,    300,      600,    1,      10,     10,       10,     10,       15000,    1]);
+% lqr_Q = diag([1000,    500,      45000,    1,      1000,     10,       1000,     10,       80000,    1]);
+% lqr_Q = diag([1000,    500,      45000,    1,      2000,     10,       2000,     10,       80000,    1]);
+% lqr_Q = diag([500,    3500,      45000,    1,      10000,     50,       10000,     50,       100000,    100]); % 我爱人类
+lqr_Q = diag([7500,    3500,      450000,    1,      10000,     50,       10000,     50,       1000000,    100]); % 我爱人类 能下台阶，能蹭，但是一级蹭不上去
 % 感觉转向还行？但是位置不稳
-% lqr_Q = diag([500,    300,      800,    1,      10,     10,       10,     10,       5000,    1]);
-lqr_Q = diag([5000,    700,      1450,    1,      100,     10,       100,     10,       5000,    1]);
 % R矩阵: 控制输入权重
 % 控制: [T_{r→b}, T_{l→b}, T_{wr→r}, T_{wl→l}]
 %        右髋扭矩   左髋扭矩   右轮扭矩   左轮扭矩
-lqr_R = diag([1,      1,        15,        15]);
+% lqr_Q = diag([100,    1,      4000,    1,      1000,     10,       1000,     10,       40000,    1]);
+% lqr_R = diag([1,      1,        10,        10]);
+lqr_R = diag([8,      8,        160,        160]);
 
 fprintf('  Q矩阵 (状态权重):\n');
 fprintf('         X_b^h  V_b^h  phi   dphi  θ_l   dθ_l  θ_r   dθ_r  θ_b   dθ_b\n');
@@ -340,8 +343,9 @@ if enable_fitting
                 K_sample_2d(idx, 1) = l_l_fit;
                 K_sample_2d(idx, 2) = l_r_fit;
                 K_sample_2d(idx, 3:42) = reshape(K_fit.', 1, []);  % 真正的行优先展开
-            catch
-                warning('LQR计算失败: l_l=%.2f, l_r=%.2f', l_l_fit, l_r_fit);
+            catch ME_lqr
+                warning('LQR计算失败: l_l=%.2f, l_r=%.2f — %s (%s)', ...
+                    l_l_fit, l_r_fit, ME_lqr.message, ME_lqr.identifier);
             end
 
             % 显示进度
@@ -369,8 +373,8 @@ if enable_fitting
             K_Surface_Fit = fit([l_l_samples, l_r_samples], K_values, 'poly22');
             coeffs = coeffvalues(K_Surface_Fit);
             K_Fit_Coefficients(n, :) = coeffs;  % [p00, p10, p01, p20, p11, p02]
-        catch
-            warning('二维拟合失败: 元素 %d', n);
+        catch ME
+            warning('二维拟合失败: 元素 %d — %s (%s)', n, ME.message, ME.identifier);
         end
     end
 

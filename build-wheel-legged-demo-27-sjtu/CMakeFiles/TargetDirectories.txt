@@ -1,0 +1,3 @@
+/Users/jiahaoruan/Work/Robomaster/control-2026/build-wheel-legged-demo-27-sjtu/CMakeFiles/control-2026.elf.dir
+/Users/jiahaoruan/Work/Robomaster/control-2026/build-wheel-legged-demo-27-sjtu/CMakeFiles/edit_cache.dir
+/Users/jiahaoruan/Work/Robomaster/control-2026/build-wheel-legged-demo-27-sjtu/CMakeFiles/rebuild_cache.dir

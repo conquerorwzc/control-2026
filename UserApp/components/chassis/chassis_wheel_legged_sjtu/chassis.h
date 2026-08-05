@@ -25,6 +25,8 @@
 #include "ins_task.h"
 #include "parallel_leg.h"
 #include "super_cap.h"
+#include "user_lib.h"
+// #include "power_control.h"
 
 typedef enum {
   CHASSIS_POWER_OFF = 0,
@@ -32,6 +34,8 @@ typedef enum {
   CHASSIS_ON,
   CHASSIS_JUMP_READY,
   CHASSIS_JUMP_START,
+  CHASSIS_PROSTRATE,
+  CHASSIS_STAIR,
 } Chassis_Mode_e;
 
 typedef enum {
@@ -43,9 +47,13 @@ typedef enum {
 
 typedef struct {
   float vx;
-  float wz;          // 保留用于小陀螺前馈角速度.单位rad/s
-  float target_yaw;  // 新增：LQR目标yaw角度 (rad)
+  // 平衡模式: 目标 yaw 角速度(rad/s), 进入 LQR 的 phi_d 跟踪项。
+  // 卧倒模式: 差速转向前馈量, 不是 rad/s, 由 ChassisProstrateMode() 换算为轮速。
+  float wz;
+  // 目标 yaw 角度(rad)。卧倒小陀螺/自由转向时应对齐当前 yaw, 让 yaw PID 不参与。
+  float target_yaw;
   float roll;
+  float roll_ff;
   float leg_length;
   float jump_force;
   float theta_ff;
@@ -53,6 +61,8 @@ typedef struct {
   uint16_t max_power;
   Chassis_Mode_e chassis_mode;
   uint8_t SuperCapBoost;
+  // 小陀螺标志: 1 时 LegController 关闭 f_inertial 前馈, StateVarUpdate 用轮速回授 phi_d/x_b_d 并始终积分 x_b
+  uint8_t is_rotate;
 } Chassis_Ctrl_Cmd_s;
 
 /* SJTU model: 10-dim state vector */
@@ -69,17 +79,6 @@ typedef struct {
   float theta_b_d;  // 机身俯仰角速度 pitch_rate（rad/s），由IMU陀螺仪Gyro[0]获得
 } State_Var_t;
 
-/* K matrix 4x10, 2D poly fitting coeffs [p00,p10,p01,p20,p11,p02] per element */
-
-//超级电容策略结构体
-typedef enum {
-  SAFETY_MODE=0,//安全模式，超电电压低于8伏时进入，大于18伏退出，底盘限制30W
-  PASSIVE_MODE,//被动模式，超电电压正常时的工作模式
-  ACTIVE_MODE,//，主动模式，主动使用超电能量
-  CHARGING_MODE,//充电模式，衰减底盘功率，保障电容电压健康
-  FORCED_CHARGING_MODE,//强制充电模式，更极端的功率衰减，强制超电快速充电
-} SuperCapMode;
-
 typedef struct {
   float track_width;
   float body_mass;
@@ -87,19 +86,36 @@ typedef struct {
   float leg_min_length;
   float leg_max_length;
   float LQR_K_Coefficients[40][6];
+  float LQR_K_Stair_Coefficients[40][6];
 } Chassis_Param_s;
 
 typedef struct {
   Chassis_Param_s param;
   Leg_Init_Config_s leg_init_config[2];
   PID_Init_Config_s roll_PID_config;
+  PID_Init_Config_s yaw_prostrate_PID_config;
   IMU_Init_Config_s imu_init_config;
   SuperCap_Init_Config_s super_cap_config;
+  Ramp_Controller_t vx_ramp_config;
+  Ramp_Controller_t wz_ramp_config;
 } Chassis_Init_Config_s;
+
+// 底盘 planner: 把上层 raw cmd (target_yaw/vx/wz) 在 chassis 时基 (200Hz) 内平滑.
+// 迁移自 ctrl 层 PlanYawByAcc + vx_ramp, 避免 50Hz CAN ZOH 把 LQR 参考切成阶梯.
+typedef struct {
+  Ramp_Controller_t wz_ramp;
+  Ramp_Controller_t vx_ramp;
+  float yaw_err_filt;  // yaw_err 一阶 LPF 输出
+  uint8_t snap_count;  // snap-to-target 滞回计数
+  float target_yaw;    // 规划态 yaw (rad), 每帧 += planned_wz * dt
+  float vx;            // 平滑 vx, 供 LQR state_err[1] 使用
+  float wz;            // 平滑 wz (= wz_ramp.planning_v), 调试用
+} ChassisPlanner_t;
 
 typedef struct {
   Jump_State_e jump_state;
   Chassis_Ctrl_Cmd_s chassis_ctrl_cmd;
+  ChassisPlanner_t planner;
   Chassis_Param_s param;
 
   INS_t* imu;
@@ -111,8 +127,10 @@ typedef struct {
 
   LegInstance* leg[2];
   PIDInstance roll_PID;
+  PIDInstance yaw_prostrate_PID;
 
   float LQR_K[4][10];  // [4输出][10状态变量]
+  float state_err[10]; // 10状态变量误差
 
   uint32_t DWT_CNT;
   float dt;
@@ -120,11 +138,11 @@ typedef struct {
     uint8_t is_first_update : 1;    // 观测器和状态变量是否完成第一次更新
     uint8_t is_restart : 1;         // 是否需要重启更新（如时间步长过大时）
     uint8_t is_controlled : 1;      // 是否处于受控状态, 1表示受控（如有前进指令时）, 0表示非受控, 用于切换控制策略
-    uint8_t is_recovered : 1;       // 本次倒地自起是否已完成，pitch<阈值后置1并退出 recovery，未失控时由上层清零
+    uint8_t gimbal_aligned : 1;     // 云台是否已与底盘正方向对齐（双板时由云台板经 CAN 同步到底盘板）
   } update_flag;
 
   SuperCapInstance* super_cap;
-  SuperCapMode super_cap_mode;
+  struct Power_Ctrl_t* power_ctrl;
 } ChassisInstance;
 
 ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config);

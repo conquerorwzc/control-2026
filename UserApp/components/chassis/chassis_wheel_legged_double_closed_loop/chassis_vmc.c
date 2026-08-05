@@ -25,7 +25,8 @@ static float WheelLeggedJointTorqueFromActiveTorque(const JointTransmissionConfi
 /**
  * @brief 根据当前真实末端 J 的腿雅可比，把本腿 F、Tp 命令映射为主动轴和电机轴目标力矩。
  *
- * 虚拟广义力正方向由虚功定义：F 为正使腿长增加，Tp 为正使髋点向 x 正方向前摆。
+ * 虚拟广义力正方向由虚功定义：F 为正使腿长增加；Tp 为正使虚拟腿角增加，
+ * 即轮轴 P 相对髋点 O 向后摆，等价于髋点 O 相对轮轴 P 向前运动。
  * 第一阶段只保存计算结果，禁止在本文件或调用链中向达妙电机写入任何力矩参考。
  *
  * @param leg 待计算 VMC 映射的一条腿。

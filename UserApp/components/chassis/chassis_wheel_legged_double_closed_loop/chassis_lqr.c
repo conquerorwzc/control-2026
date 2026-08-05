@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    chassis_lqr.c
- * @brief   双闭环轮腿十维影子 LQR 的固定工作点纯计算
+ * @brief   双闭环轮腿十维 LQR 的固定工作点控制量计算
  ******************************************************************************
  */
 /* Private includes ----------------------------------------------------------*/
@@ -13,8 +13,8 @@
 #include "double_closed_loop_lqr_coefficients.h"
 
 /* Private define ------------------------------------------------------------*/
-/* 临时直立调试开关：屏蔽 s、s_dot、phi、phi_dot 对 K 的反馈列；改为 0 可恢复十维反馈。 */
-#define WHEEL_LEGGED_LQR_DEBUG_DISABLE_TRANSLATION_YAW_FEEDBACK 0u
+/* 临时站立调试开关：只屏蔽纵向位移/速度，保留 Yaw、腿摆角和机身俯仰反馈。 */
+#define WHEEL_LEGGED_LQR_DEBUG_DISABLE_TRANSLATION 1u
 
 /* Intermediate variables calculated by private functions -------------------*/
 
@@ -29,10 +29,10 @@ static uint8_t WheelLeggedChassisLqrIsInputValid(const float state_vector[WHEEL_
 /**
  * @brief 初始化 LQR 运行对象。
  *
- * MATLAB 已使用的输入符号、K、x_ref、u0 均固定来自 0.160 m 工作点导出常量，
+ * MATLAB 已使用的输入符号、K、x_ref、u0 均固定来自 0.120 m 工作点导出常量，
  * MCU 不做腿长调度或拟合。
  *
- * @param lqr 待初始化的影子 LQR 对象。
+ * @param lqr 待初始化的 LQR 对象。
  */
 void WheelLeggedChassisLqrInit(WheelLeggedChassisLqr_t *lqr)
 {
@@ -51,13 +51,13 @@ void WheelLeggedChassisLqrInit(WheelLeggedChassisLqr_t *lqr)
 }
 
 /**
- * @brief 使用当前十维状态执行一次固定 0.160 m 工作点的 LQR 计算。
+ * @brief 使用当前十维状态执行一次固定 0.120 m 工作点的 LQR 计算。
  *
  * 本函数只发布 u = u0 - K*(x-x_ref) 到 lqr 对象。MATLAB 在导出 K 前已经把
  * input_sign 合并到输入矩阵，因此此处严禁再次对 Tp 或 Tw 额外取反；本函数不
  * 包含、更不调用任何电机接口。
  *
- * @param lqr 影子 LQR 运行对象。
+ * @param lqr LQR 运行对象。
  * @param state_vector 固定顺序十维状态 x。
  * @param state_valid 十维状态来源本周期是否完整有效。
  * @param origin_captured 十维状态零点是否已采集。
@@ -103,9 +103,10 @@ void WheelLeggedChassisLqrUpdate(WheelLeggedChassisLqr_t *lqr,
         for (state_index = 0u; state_index < WHEEL_LEGGED_LQR_STATE_COUNT; state_index++)
         {
             lqr->gain[input_index][state_index] = k_double_closed_loop_lqr_nominal[input_index][state_index];
-#if WHEEL_LEGGED_LQR_DEBUG_DISABLE_TRANSLATION_YAW_FEEDBACK
-            if (state_index <= WHEEL_LEGGED_LQR_STATE_PHI_DOT)
+#if WHEEL_LEGGED_LQR_DEBUG_DISABLE_TRANSLATION
+            if (state_index == WHEEL_LEGGED_LQR_STATE_S || state_index == WHEEL_LEGGED_LQR_STATE_S_DOT)
             {
+                /* 仅屏蔽纵向反馈列，保留 state_error 便于变量窗口继续排查。 */
                 lqr->gain[input_index][state_index] = 0.0f;
             }
 #endif
@@ -126,9 +127,9 @@ void WheelLeggedChassisLqrUpdate(WheelLeggedChassisLqr_t *lqr,
 }
 
 /**
- * @brief 清空本周期影子 LQR 的计算结果，杜绝无效帧沿用上帧输出。
+ * @brief 清空本周期 LQR 的计算结果，杜绝无效帧沿用上帧输出。
  *
- * @param lqr 待清空的影子 LQR 对象。
+ * @param lqr 待清空的 LQR 对象。
  */
 static void WheelLeggedChassisLqrClearResult(WheelLeggedChassisLqr_t *lqr)
 {
@@ -152,7 +153,7 @@ static void WheelLeggedChassisLqrClearResult(WheelLeggedChassisLqr_t *lqr)
 }
 
 /**
- * @brief 检查影子 LQR 的状态、零点和腿长数值是否有效。
+ * @brief 检查 LQR 的状态、零点和腿长数值是否有效。
  *
  * @param state_vector 固定顺序十维状态。
  * @param state_valid 十维状态来源是否完整有效。
