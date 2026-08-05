@@ -166,7 +166,7 @@ static WheelLeggedLegInitConfig_t g_right_leg_init_config = {
                     .driving_sprocket_teeth = 12u, /* 电机侧主动链轮齿数。 */
                     .driven_sprocket_teeth = 12u,  /* phi1 主动轴侧从动链轮齿数。 */
                     .direction = 1.0f,
-                    .motor_zero_angle = -3.41477871f, /* TODO：重新标定 phi1=0 时的右前电机累计角，单位 rad。 */
+                    .motor_zero_angle = 2.87193871f, /* TODO：重新标定 phi1=0 时的右前电机累计角，单位 rad。 */
                 },
             .kinematics_input = LEG_KINEMATICS_INPUT_PHI1,
         },
@@ -179,7 +179,7 @@ static WheelLeggedLegInitConfig_t g_right_leg_init_config = {
                     .driving_sprocket_teeth = 12u, /* 电机侧主动链轮齿数。 */
                     .driven_sprocket_teeth = 12u,  /* phi2 主动轴侧从动链轮齿数。 */
                     .direction = 1.0f,
-                    .motor_zero_angle = 0.557526588f, /* phi1=0 时的右后电机累计角，单位 rad。 */
+                    .motor_zero_angle = 0.337414742f, /* phi1=0 时的右后电机累计角，单位 rad。 */
                 },
             .kinematics_input = LEG_KINEMATICS_INPUT_PHI2,
         },
@@ -214,7 +214,6 @@ static WheelLeggedWheelInitConfig_t g_left_wheel_init_config = {
 };
 
 /* 右轮：H6215，轮径 120 mm，减速比 1:1；direction 必须通过手推前进试验复核。 */
-/* TODO：手推确认右轮前进时轮端角速度和 s_dot 均为正后，冻结 right_wheel.direction。 */
 static WheelLeggedWheelInitConfig_t g_right_wheel_init_config = {
     .motor_config = WHEEL_LEGGED_H6215_CONFIG(&hcan1, 0x01u, 0x00u, WHEEL_LEGGED_MOTOR_REVERSE),
     .wheel_radius = 0.0600f, /* 轮半径 60 mm，单位 m。 */
@@ -224,7 +223,6 @@ static WheelLeggedWheelInitConfig_t g_right_wheel_init_config = {
 };
 
 /* 底盘 IMU 安装配置；INS 原始角度单位为 deg，由状态模块统一换算为 rad。 */
-/* TODO：完成静止和单轴转动试验后，写入 IMU 安装角、标度、零偏及离线标定参数。 */
 static IMU_Init_Config_s g_chassis_imu_init_config = {
     .flag = 1u,
     .offset_flag = 1u,

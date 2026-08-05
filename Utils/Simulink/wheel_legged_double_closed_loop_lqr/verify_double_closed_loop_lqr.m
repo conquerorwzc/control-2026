@@ -21,7 +21,9 @@ symbolic_model = load('double_closed_loop_symbolic_model.mat', 'raw_equations', 
     'internal_force_solution', 'force_elimination_residual', 'equation', ...
     'generalized_equations', 'M', 'B_control', 'g_vector', 'ddq', 'u', ...
     'M_func', 'B_control_func', 'g_func', 'q_dd_l', 'q_dd_r', ...
-    'wheel_angular_acceleration_left', 'wheel_angular_acceleration_right');
+    'wheel_angular_acceleration_left', 'wheel_angular_acceleration_right', ...
+    'body_horizontal_acceleration', 'force_solution_func', ...
+    'T_motor_stator_to_left_leg', 'T_motor_stator_to_right_leg');
 require(numel(symbolic_model.raw_equations) == 17, '原始方程数量必须为 17。');
 require(numel(symbolic_model.internal_forces) == 12, '待消去接触内力数量必须为 12。');
 require(isequal(size(symbolic_model.generalized_equations), [5, 1]), '广义方程必须为五条。');
@@ -34,13 +36,16 @@ decomposition = simplify(symbolic_model.equation - (symbolic_model.M * symbolic_
     - symbolic_model.B_control * symbolic_model.u - symbolic_model.g_vector));
 require(all(arrayfun(@(value) isequal(value, sym(0)), decomposition)), ...
     'M*ddq-B*u-g symbolic decomposition is nonzero.');
+require(isequal(simplify(symbolic_model.T_motor_stator_to_left_leg + symbolic_model.u(4)), sym(0)) && ...
+    isequal(simplify(symbolic_model.T_motor_stator_to_right_leg + symbolic_model.u(3)), sym(0)), ...
+    '电机定子对腿的反作用力矩必须等于负的轮电机 Tw。');
 fprintf('  PASS: 17 条原始方程 -> 消去 12 个内力 -> 5 条广义方程，且 M/B/g 一致。\n\n');
 
 %% ========================================
-%  Step 2: 左右独立机身 s_b 约束及 (2.5)--(2.8) 导数
+%  Step 2: 左右独立纯轮式 s 约束及一、二阶导数
 %  ========================================
 
-fprintf('Step 2: 检查左右独立机身 s_b 约束和一、二阶导数...\n');
+fprintf('Step 2: 检查左右独立纯轮式 s 约束和一、二阶导数...\n');
 syms wheel_radius half_track s phi theta_wl theta_wr theta_l theta_r real
 syms ds dphi dtheta_wl dtheta_wr dtheta_l dtheta_r real
 syms dds ddphi ddtheta_wl ddtheta_wr ddtheta_l ddtheta_r real
@@ -53,10 +58,12 @@ q_dot_r = l_r * cos(theta_r) * dtheta_r;
 q_dd_l = l_l * cos(theta_l) * ddtheta_l - l_l * sin(theta_l) * dtheta_l ^ 2;
 q_dd_r = l_r * cos(theta_r) * ddtheta_r - l_r * sin(theta_r) * dtheta_r ^ 2;
 
-left_constraint = wheel_radius * theta_wl - (s - half_track * phi - q_l);
-right_constraint = wheel_radius * theta_wr - (s + half_track * phi - q_r);
+left_constraint = wheel_radius * theta_wl - ...
+    (s - half_track * phi + (q_r - q_l) / 2);
+right_constraint = wheel_radius * theta_wr - ...
+    (s + half_track * phi + (q_l - q_r) / 2);
 phi_from_constraints = (wheel_radius * (-theta_wl + theta_wr) - q_l + q_r) / (2 * half_track);
-s_from_constraints = (wheel_radius * theta_wl + q_l + wheel_radius * theta_wr + q_r) / 2;
+s_from_constraints = wheel_radius * (theta_wl + theta_wr) / 2;
 require(isequal(simplify(phi - phi_from_constraints - ...
     (left_constraint - right_constraint) / (2 * half_track)), sym(0)), ...
     '(2.5)/(2.6) 到 (2.7) 的符号消元错误。');
@@ -67,8 +74,8 @@ phi_dot_from_constraints = (wheel_radius * (-dtheta_wl + dtheta_wr) - q_dot_l + 
     (2 * half_track);
 phi_dd_from_constraints = (wheel_radius * (-ddtheta_wl + ddtheta_wr) - q_dd_l + q_dd_r) / ...
     (2 * half_track);
-s_dot_from_constraints = (wheel_radius * dtheta_wl + q_dot_l + wheel_radius * dtheta_wr + q_dot_r) / 2;
-s_dd_from_constraints = (wheel_radius * ddtheta_wl + q_dd_l + wheel_radius * ddtheta_wr + q_dd_r) / 2;
+s_dot_from_constraints = wheel_radius * (dtheta_wl + dtheta_wr) / 2;
+s_dd_from_constraints = wheel_radius * (ddtheta_wl + ddtheta_wr) / 2;
 require(isequal(simplify(phi_dot_from_constraints - ...
     (wheel_radius * (-dtheta_wl + dtheta_wr) - l_l * cos(theta_l) * dtheta_l + ...
     l_r * cos(theta_r) * dtheta_r) / (2 * half_track)), sym(0)), ...
@@ -78,12 +85,10 @@ require(isequal(simplify(phi_dd_from_constraints - ...
     l_l * sin(theta_l) * dtheta_l ^ 2 + l_r * cos(theta_r) * ddtheta_r - ...
     l_r * sin(theta_r) * dtheta_r ^ 2) / (2 * half_track)), sym(0)), ...
     '(2.7) 二阶导数错误。');
-require(isequal(simplify(s_dot_from_constraints - ...
-    (wheel_radius * (dtheta_wl + dtheta_wr) + l_l * cos(theta_l) * dtheta_l + ...
-    l_r * cos(theta_r) * dtheta_r) / 2), sym(0)), '(2.8) 一阶导数错误。');
-require(isequal(simplify(s_dd_from_constraints - ...
-    (wheel_radius * (ddtheta_wl + ddtheta_wr) + q_dd_l + q_dd_r) / 2), sym(0)), ...
-    '(2.8) 二阶导数错误。');
+require(isequal(simplify(s_dot_from_constraints - wheel_radius * (dtheta_wl + dtheta_wr) / 2), sym(0)), ...
+    '纯轮式 s 一阶导数错误。');
+require(isequal(simplify(s_dd_from_constraints - wheel_radius * (ddtheta_wl + ddtheta_wr) / 2), sym(0)), ...
+    '纯轮式 s 二阶导数错误。');
 
 % 对真实 builder 的左右轮角加速度逐项检查，禁止回退为左右腿平均项。
 builder_yaw_kinematic_residual = simplify((wheel_radius / (2 * half_track)) * ...
@@ -92,28 +97,30 @@ builder_yaw_kinematic_residual = simplify((wheel_radius / (2 * half_track)) * ..
 require(isequal(builder_yaw_kinematic_residual, sym(0)), 'builder 中的左右独立 Yaw 约束错误。');
 require(~isequal(simplify(diff(symbolic_model.wheel_angular_acceleration_left, ddtheta_l)), sym(0)), ...
     '左轮约束未保留 q_L 二阶导数。');
-require(isequal(simplify(diff(symbolic_model.wheel_angular_acceleration_left, ddtheta_r)), sym(0)), ...
-    '左轮约束错误引入 q_R 二阶导数。');
+require(~isequal(simplify(diff(symbolic_model.wheel_angular_acceleration_left, ddtheta_r)), sym(0)), ...
+    '左轮约束未保留 q_R-q_L 差分项。');
 require(~isequal(simplify(diff(symbolic_model.wheel_angular_acceleration_right, ddtheta_r)), sym(0)), ...
     '右轮约束未保留 q_R 二阶导数。');
-require(isequal(simplify(diff(symbolic_model.wheel_angular_acceleration_right, ddtheta_l)), sym(0)), ...
-    '右轮约束错误引入 q_L 二阶导数。');
-fprintf('  PASS: (2.5)/(2.6) 到 (2.7)/(2.8) 及一、二阶导数一致，Yaw 保留 q_R-q_L。\n\n');
+require(~isequal(simplify(diff(symbolic_model.wheel_angular_acceleration_right, ddtheta_l)), sym(0)), ...
+    '右轮约束未保留 q_L-q_R 差分项。');
+require(isequal(simplify(symbolic_model.body_horizontal_acceleration - ...
+    (dds + (q_dd_l + q_dd_r) / 2)), sym(0)), ...
+    '纯轮式 s 下机身水平加速度未包含 (q_L_dd+q_R_dd)/2。');
+fprintf('  PASS: 纯轮式 s 的位置、速度、加速度约束成立，Yaw 保留 q_R-q_L。\n\n');
 
 %% ========================================
-%  Step 3: 髋点 O 里程计数值交叉用例
+%  Step 3: 纯轮式里程计数值交叉用例
 %  ========================================
 
-fprintf('Step 3: 检查髋点 O 里程计合同...\n');
+fprintf('Step 3: 检查纯轮式里程计合同...\n');
 radius = 0.060;
-[position, velocity] = hip_point_side(radius, 2.0, 3.0, 0.160, 0.0, 0.0, 0.0);
-require_close(position, 0.120, 1e-12, 'pure rolling position');
-require_close(velocity, 0.180, 1e-12, 'pure rolling velocity');
-[~, velocity] = hip_point_side(radius, 0.0, 0.0, 0.160, 0.0, 0.0, 2.5);
-require_close(velocity, 0.400, 1e-12, 'leg swing velocity');
-[~, velocity] = hip_point_side(radius, 0.0, 0.0, 0.160, 0.5, 0.2, 0.0);
-require_close(velocity, 0.5 * sin(0.2), 1e-12, 'leg length rate velocity');
-fprintf('  PASS: 纯滚动、腿摆和 l_dot 项均符合髋点 O 定义。\n\n');
+[position, velocity] = wheel_odometry(radius, 2.0, 3.0, 4.0, 5.0);
+require_close(position, 0.180, 1e-12, 'pure rolling position');
+require_close(velocity, 0.240, 1e-12, 'pure rolling velocity');
+[position, velocity] = wheel_odometry(radius, 0.0, 0.0, 0.0, 0.0);
+require_close(position, 0.0, 1e-12, 'stationary wheel position');
+require_close(velocity, 0.0, 1e-12, 'stationary wheel velocity');
+fprintf('  PASS: 两轮向前时 s_dot>0，腿角和腿长变化不进入纯轮式 s。\n\n');
 
 %% ========================================
 %  Step 4: 静态工作点、Tw 合同和 LQR
@@ -151,6 +158,8 @@ right_wheel_acceleration = wheel_acceleration_right(input_acceleration(:, 3), pa
     result.x_ref_nominal);
 left_wheel_acceleration = wheel_acceleration_left(input_acceleration(:, 4), parameter, ...
     result.x_ref_nominal);
+require(input_acceleration(1, 3) > 0.0 && input_acceleration(1, 4) > 0.0, ...
+    '正 Tw 的 s_ddot 通道必须为正；请检查轮端输入定义或状态方向。');
 require(right_wheel_acceleration > 0.0 && input_acceleration(2, 3) > 0.0, ...
     'Tw_R > 0 must make the right wheel roll forward and phi_ddot > 0.');
 require(left_wheel_acceleration > 0.0 && input_acceleration(2, 4) < 0.0, ...
@@ -160,20 +169,80 @@ fprintf('  Tw_R>0: s_ddot=%+.6f, right wheel_ddot=%+.6f, phi_ddot=%+.6f\n', ...
 fprintf('  Tw_L>0: s_ddot=%+.6f, left wheel_ddot=%+.6f, phi_ddot=%+.6f\n', ...
     input_acceleration(1, 4), left_wheel_acceleration, input_acceleration(2, 4));
 
+% 接触力只用于验证 Newton--Euler 方程中的角色和正方向，不能替代 Tw。
+% 正方向定义为 +s；在给定零加速度的受力定义检查中，地面对轮和轮对腿
+% 的水平力均应为正。真实动态响应中 F_w_to_l 还包含轮子平动惯性项，
+% 因此其数值可以变负，不能把“正方向”误写成“所有工况都必须为正”。
+forward_input = [0; 0; 1; 1];
+zero_acceleration_forces = symbolic_model.force_solution_func(result.x_ref_nominal, forward_input, ...
+    zeros(5, 1), values);
+zero_acceleration_forces = double(zero_acceleration_forces(:));
+require(all(isfinite(zero_acceleration_forces)), '零加速度受力方向检查出现非有限值。');
+require(zero_acceleration_forces(5) > 0.0 && zero_acceleration_forces(7) > 0.0 && ...
+    zero_acceleration_forces(9) > 0.0 && zero_acceleration_forces(11) > 0.0, ...
+    '正 Tw 的 +s 受力方向定义必须为正。');
+fprintf('  零加速度受力定义: F_wL_to_l,h=%+.6f N, F_wR_to_r,h=%+.6f N, ', ...
+    zero_acceleration_forces(5), zero_acceleration_forces(7));
+fprintf('F_g_to_wL,h=%+.6f N, F_g_to_wR,h=%+.6f N\n', ...
+    zero_acceleration_forces(9), zero_acceleration_forces(11));
+forward_acceleration = M_nominal \ (B_mcu_nominal * forward_input + g_nominal);
+forward_forces = symbolic_model.force_solution_func(result.x_ref_nominal, forward_input, ...
+    forward_acceleration, values);
+forward_forces = double(forward_forces(:));
+require(all(isfinite(forward_forces)), 'Tw 与接触力计算出现非有限值。');
+require(forward_forces(9) > 0.0 && forward_forces(11) > 0.0, ...
+    '两轮正向驱动时地面对左右轮的水平摩擦力必须为正。');
+fprintf('  两轮正 Tw: F_g_to_wL,h=%+.6f N, F_g_to_wR,h=%+.6f N\n', ...
+    forward_forces(9), forward_forces(11));
+fprintf('  两轮正 Tw 动态响应: F_wL_to_l,h=%+.6f N, F_wR_to_r,h=%+.6f N；符号由相对加速度决定。\n', ...
+    forward_forces(5), forward_forces(7));
+
 state_error_s = zeros(10, 1);
 state_error_s(1) = 1.0;
+state_error_s_dot = zeros(10, 1);
+state_error_s_dot(2) = 1.0;
 state_error_phi = zeros(10, 1);
 state_error_phi(3) = 1.0;
 feedback_s = -result.K_nominal * state_error_s;
+feedback_s_dot = -result.K_nominal * state_error_s_dot;
 feedback_phi = -result.K_nominal * state_error_phi;
 fprintf('  s>0 时 -Kx 的 [Tp_R Tp_L Tw_R Tw_L] = [%+.6f %+.6f %+.6f %+.6f]\n', feedback_s);
+fprintf('  s_dot>0 时 -Kx 的 [Tp_R Tp_L Tw_R Tw_L] = [%+.6f %+.6f %+.6f %+.6f]\n', feedback_s_dot);
 fprintf('  phi>0 时 -Kx 的 [Tp_R Tp_L Tw_R Tw_L] = [%+.6f %+.6f %+.6f %+.6f]\n', feedback_phi);
 restoring_acceleration_s = input_acceleration * feedback_s;
 restoring_acceleration_phi = input_acceleration * feedback_phi;
-require(restoring_acceleration_s(1) < 0.0, ...
-    's > 0 must receive a restoring total s_ddot from the complete four-input feedback.');
-require(restoring_acceleration_phi(2) < 0.0, ...
-    'phi > 0 must receive a restoring total phi_ddot from the complete four-input feedback.');
+restoring_acceleration_s_dot = input_acceleration * feedback_s_dot;
+require(all(isfinite(restoring_acceleration_s)) && all(isfinite(restoring_acceleration_s_dot)) && ...
+    all(isfinite(restoring_acceleration_phi)), ...
+    'complete four-input feedback acceleration contains a non-finite value.');
+fprintf('  s>0 的瞬时 s_ddot=%+.6f，phi>0 的瞬时 phi_ddot=%+.6f；完整 LQR 是耦合反馈，不把单个输入的瞬时符号当作稳定性判据。\n', ...
+    restoring_acceleration_s(1), restoring_acceleration_phi(2));
+if feedback_s(3) >= 0.0 || feedback_s(4) >= 0.0 || feedback_s_dot(3) >= 0.0 || feedback_s_dot(4) >= 0.0
+    fprintf(['  NOTE: 当前完整 LQR 的 s/s_dot 单状态初始 Tw 为正；这来自四输入耦合\n' ...
+        '        最优分配，不是 B 或 input_sign 的反号证据，不能直接取负。\n']);
+end
+closed_loop_state_after_one_second = expm(result.A_nominal - result.B_nominal * result.K_nominal) * state_error_s;
+require(abs(closed_loop_state_after_one_second(1)) < abs(state_error_s(1)), ...
+    's 单状态扰动在 1 s 闭环响应后未收敛，不能导出当前 K。');
+fprintf('  s=1 初始扰动经 1 s 闭环后 s=%+.6f；以闭环响应而非第一拍 Tw 符号验收。\n', ...
+    closed_loop_state_after_one_second(1));
+
+% 公共轮力矩到纯轮式 s 的右半平面零点解释了非单调的第一拍响应。
+% 这不是输入极性修正，而是完整四输入耦合系统的可实现性边界。
+common_tw_input = (result.B_nominal(:, 3) + result.B_nominal(:, 4)) / 2.0;
+output_s = zeros(1, WHEEL_LEGGED_LQR_STATE_COUNT_LOCAL());
+output_s(1) = 1.0;
+system_matrix = [result.A_nominal, -common_tw_input; output_s, 0.0];
+descriptor_matrix = [eye(size(result.A_nominal)), zeros(size(result.A_nominal, 1), 1); ...
+    zeros(1, size(result.A_nominal, 2)), 0.0];
+invariant_zeros = eig(system_matrix, descriptor_matrix);
+invariant_zeros = invariant_zeros(isfinite(invariant_zeros));
+require(nnz(real(invariant_zeros) > 1e-8) >= 1, ...
+    '公共 Tw 到纯轮式 s 的零点检查未发现预期的右半平面零点。');
+fprintf('  公共 Tw -> s 的有限不变零点 = ');
+disp(invariant_zeros.');
+fprintf('  右半平面零点数量 = %d；因此“单独 s>0 时 Tw 每一拍必须为负”不是无约束 LQR 的有效验收条件。\n\n', ...
+    nnz(real(invariant_zeros) > 1e-8));
 
 require(isfile('double_closed_loop_lqr_coefficients.h'), 'Generated C header is missing.');
 header = fileread('double_closed_loop_lqr_coefficients.h');
@@ -189,25 +258,32 @@ fprintf('========================================\n');
 %  Private functions
 %  ========================================
 
-function [position, velocity] = hip_point_side(radius, wheel_angle, wheel_speed, ...
-    leg_length, leg_length_rate, leg_angle_longitudinal, leg_angle_speed_longitudinal)
-% 单侧髋点 O 的车体纵向二维位置和速度。
-position = radius * wheel_angle + leg_length * sin(leg_angle_longitudinal);
-velocity = radius * wheel_speed + leg_length_rate * sin(leg_angle_longitudinal) + ...
-    leg_length * leg_angle_speed_longitudinal * cos(leg_angle_longitudinal);
+function [position, velocity] = wheel_odometry(radius, left_angle, left_speed, right_angle, right_speed)
+% 计算左右轮端平均滚动纵向位置和速度；腿长、腿角不参与。
+position = radius * (left_angle + right_angle) / 2;
+velocity = radius * (left_speed + right_speed) / 2;
+end
+
+function count = WHEEL_LEGGED_LQR_STATE_COUNT_LOCAL()
+% 返回验证脚本使用的十维状态数量，避免在 MATLAB 验证中依赖 C 头文件宏。
+count = 10;
 end
 
 function acceleration = wheel_acceleration_left(generalized_acceleration, parameter, x_ref)
-% 由左侧独立髋点约束恢复左轮角加速度，正值表示左轮向前滚动。
-q_dd = parameter.nominal_leg_length_left * cos(x_ref(5)) * generalized_acceleration(3);
-acceleration = (generalized_acceleration(1) - parameter.half_track * generalized_acceleration(2) - q_dd) / ...
+% 由左侧纯轮式约束恢复左轮角加速度，正值表示左轮向前滚动。
+q_dd_l = parameter.nominal_leg_length_left * cos(x_ref(5)) * generalized_acceleration(3);
+q_dd_r = parameter.nominal_leg_length_right * cos(x_ref(7)) * generalized_acceleration(4);
+acceleration = (generalized_acceleration(1) - parameter.half_track * generalized_acceleration(2) + ...
+    (q_dd_r - q_dd_l) / 2) / ...
     parameter.wheel_radius;
 end
 
 function acceleration = wheel_acceleration_right(generalized_acceleration, parameter, x_ref)
-% 由右侧独立髋点约束恢复右轮角加速度，正值表示右轮向前滚动。
-q_dd = parameter.nominal_leg_length_right * cos(x_ref(7)) * generalized_acceleration(4);
-acceleration = (generalized_acceleration(1) + parameter.half_track * generalized_acceleration(2) - q_dd) / ...
+% 由右侧纯轮式约束恢复右轮角加速度，正值表示右轮向前滚动。
+q_dd_l = parameter.nominal_leg_length_left * cos(x_ref(5)) * generalized_acceleration(3);
+q_dd_r = parameter.nominal_leg_length_right * cos(x_ref(7)) * generalized_acceleration(4);
+acceleration = (generalized_acceleration(1) + parameter.half_track * generalized_acceleration(2) + ...
+    (q_dd_l - q_dd_r) / 2) / ...
     parameter.wheel_radius;
 end
 

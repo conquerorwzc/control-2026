@@ -149,13 +149,13 @@ void ChassisTask(WheelLeggedChassisInstance_t *chassis)
  * @brief 判断十维状态是否具备四输入 LQR 所需的全部实时来源。
  *
  * @param chassis 底盘对象。
- * @return 左右轮、IMU、左右腿和髋点里程计均有效时返回 1。
+ * @return 左右轮、纯轮式里程计、IMU 和左右腿均有效时返回 1。
  */
 static uint8_t WheelLeggedChassisHasCompleteState(const WheelLeggedChassisInstance_t *chassis)
 {
     const uint16_t required_mask = WHEEL_LEGGED_STATE_VALID_LEFT_WHEEL | WHEEL_LEGGED_STATE_VALID_RIGHT_WHEEL |
                                    WHEEL_LEGGED_STATE_VALID_IMU | WHEEL_LEGGED_STATE_VALID_LEFT_LEG |
-                                   WHEEL_LEGGED_STATE_VALID_RIGHT_LEG | WHEEL_LEGGED_STATE_VALID_HIP_ODOMETRY;
+                                   WHEEL_LEGGED_STATE_VALID_RIGHT_LEG | WHEEL_LEGGED_STATE_VALID_WHEEL_ODOMETRY;
     return chassis != NULL && (chassis->chassis_state.valid_mask & required_mask) == required_mask;
 }
 

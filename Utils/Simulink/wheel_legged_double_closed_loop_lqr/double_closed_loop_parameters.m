@@ -9,9 +9,9 @@ function parameter = double_closed_loop_parameters()
 % 输入顺序:
 %   u_mcu = [Tp_R, Tp_L, Tw_R, Tw_L]^T
 %
-% s 是 WBR body 版机身纵向二维坐标 s_b。当前模型将 O 作为机身参考点，
-% 所以左右腿分别由轮端滚动和虚拟腿几何估计 O 后取平均，数值上等于 (2.8)。该测量定义包含 l_dot，
-% 但单个 LQR 工作点仍采用固定腿长近似，忽略 l_dot、l_ddot 的动力学影响。
+% s 是左右轮端平均滚动得到的纯轮式纵向二维坐标，不包含腿长和腿角项。
+% 髋点 O 里程计仍可作为固件诊断量，但不参与十维状态和 LQR。
+% 单个 LQR 工作点仍采用固定腿长近似，忽略 l_dot、l_ddot 的动力学影响。
 
 %% ========================================
 %  Step 1: 状态与输入合同
@@ -91,8 +91,8 @@ parameter.input_sign_status = {'Tp 与 VMC 合同已对齐', 'Tp 与 VMC 合同�
 % state_order，第一列 e_max 是有物理单位的可接受误差，第二列 q 是无量纲
 % 优先级倍数。边界不是机械硬限位；日常闭环调参优先修改 q，避免混淆物理边界。
 parameter.bryson_state_tuning = [ ...
-    0.10,        1.0;  % s：髋点纵向位移，单位 m。
-    0.50,        1.0;  % s_dot：髋点纵向速度，单位 m/s。
+    0.10,        1.0;  % s：纯轮式纵向位移，单位 m。
+    0.50,        1.0;  % s_dot：纯轮式纵向速度，单位 m/s。
     deg2rad(10), 0.3;  % phi：偏航角，单位 rad。
     1.00,        1.0;  % phi_dot：偏航角速度，单位 rad/s。
     deg2rad(10), 3.0;  % theta_L：左腿纵向平面角，单位 rad。

@@ -105,3 +105,4 @@ cmake-build-debug/
 *.jdebug
 
 *.log
+/UserApp/components/chassis/chassis_wheel_legged_double_closed_loop/tests/

@@ -7,6 +7,7 @@
 #pragma once
 
 #include "chassis.h"
+#include "wheel_odometry.h"
 
 void WheelLeggedLegInit(WheelLeggedLegInstance_t *leg, WheelLeggedLegInitConfig_t *config);
 void WheelLeggedLegUpdate(WheelLeggedLegInstance_t *leg);

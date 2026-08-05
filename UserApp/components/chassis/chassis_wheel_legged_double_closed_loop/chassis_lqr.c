@@ -13,6 +13,9 @@
 #include "double_closed_loop_lqr_coefficients.h"
 
 /* Private define ------------------------------------------------------------*/
+/* 临时直立调试开关：屏蔽 s、s_dot、phi、phi_dot 对 K 的反馈列；改为 0 可恢复十维反馈。 */
+#define WHEEL_LEGGED_LQR_DEBUG_DISABLE_TRANSLATION_YAW_FEEDBACK 0u
+
 /* Intermediate variables calculated by private functions -------------------*/
 
 /* Private function prototypes -----------------------------------------------*/
@@ -100,6 +103,12 @@ void WheelLeggedChassisLqrUpdate(WheelLeggedChassisLqr_t *lqr,
         for (state_index = 0u; state_index < WHEEL_LEGGED_LQR_STATE_COUNT; state_index++)
         {
             lqr->gain[input_index][state_index] = k_double_closed_loop_lqr_nominal[input_index][state_index];
+#if WHEEL_LEGGED_LQR_DEBUG_DISABLE_TRANSLATION_YAW_FEEDBACK
+            if (state_index <= WHEEL_LEGGED_LQR_STATE_PHI_DOT)
+            {
+                lqr->gain[input_index][state_index] = 0.0f;
+            }
+#endif
             feedback += lqr->gain[input_index][state_index] * lqr->state_error[state_index];
         }
         lqr->output[input_index] = lqr->trim_input[input_index] - feedback;

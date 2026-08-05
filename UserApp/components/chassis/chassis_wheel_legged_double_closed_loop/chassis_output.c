@@ -22,6 +22,7 @@
 
 /* Private function prototypes -----------------------------------------------*/
 static uint8_t WheelLeggedChassisCanApplyClosedLoop(const WheelLeggedChassisInstance_t *chassis);
+static uint16_t WheelLeggedChassisGetOutputBlockReason(const WheelLeggedChassisInstance_t *chassis);
 static uint8_t WheelLeggedChassisHasAllMotorInstances(const WheelLeggedChassisInstance_t *chassis);
 static uint8_t WheelLeggedChassisHasValidOutputConfig(const WheelLeggedChassisLqrOutputConfig_t *config);
 static void WheelLeggedChassisSetAllMotorState(WheelLeggedChassisInstance_t *chassis, uint8_t enable);
@@ -56,6 +57,9 @@ void WheelLeggedChassisApplyMotorOutput(WheelLeggedChassisInstance_t *chassis)
         return;
     }
 
+    chassis->output_block_reason = remote_enable != 0u ? WHEEL_LEGGED_OUTPUT_BLOCK_NONE
+                                                       : WHEEL_LEGGED_OUTPUT_BLOCK_REMOTE_OFF;
+
     output_dt = DWT_GetDeltaT(&chassis->output_dwt_count);
     if (!isfinite(output_dt) || output_dt <= 0.0f)
     {
@@ -82,6 +86,15 @@ void WheelLeggedChassisApplyMotorOutput(WheelLeggedChassisInstance_t *chassis)
         chassis->output_fault_locked = 1u;
     }
 
+    if (remote_enable != 0u)
+    {
+        chassis->output_block_reason = WheelLeggedChassisGetOutputBlockReason(chassis);
+        if (chassis->output_fault_locked != 0u)
+        {
+            chassis->output_block_reason |= WHEEL_LEGGED_OUTPUT_BLOCK_FAULT_LOCKED;
+        }
+    }
+
     if (apply_output != chassis->motor_enabled)
     {
         WheelLeggedChassisSetAllMotorState(chassis, apply_output);
@@ -98,17 +111,72 @@ void WheelLeggedChassisApplyMotorOutput(WheelLeggedChassisInstance_t *chassis)
  */
 static uint8_t WheelLeggedChassisCanApplyClosedLoop(const WheelLeggedChassisInstance_t *chassis)
 {
+    return WheelLeggedChassisGetOutputBlockReason(chassis) == WHEEL_LEGGED_OUTPUT_BLOCK_NONE;
+}
+
+/**
+ * @brief 汇总当前闭环输出被拦截的所有原因。
+ *
+ * @param chassis 底盘对象。
+ * @return 输出阻断原因位掩码；返回 0 表示可以进入闭环输出。
+ */
+static uint16_t WheelLeggedChassisGetOutputBlockReason(const WheelLeggedChassisInstance_t *chassis)
+{
     const uint16_t required_state_mask = WHEEL_LEGGED_STATE_VALID_LEFT_WHEEL |
                                          WHEEL_LEGGED_STATE_VALID_RIGHT_WHEEL | WHEEL_LEGGED_STATE_VALID_IMU |
                                          WHEEL_LEGGED_STATE_VALID_LEFT_LEG | WHEEL_LEGGED_STATE_VALID_RIGHT_LEG |
-                                         WHEEL_LEGGED_STATE_VALID_HIP_ODOMETRY;
-    return chassis != NULL && chassis->chassis_state.origin_captured != 0u &&
-           (chassis->chassis_state.valid_mask & required_state_mask) == required_state_mask &&
-           chassis->left_wheel.feedback_ready != 0u && chassis->right_wheel.feedback_ready != 0u &&
-           chassis->lqr.valid != 0u && chassis->left_leg.length_control.valid != 0u &&
-           chassis->right_leg.length_control.valid != 0u && chassis->left_leg.vmc.valid != 0u &&
-           chassis->right_leg.vmc.valid != 0u && WheelLeggedChassisHasValidOutputConfig(&chassis->lqr_output_config) != 0u &&
-           WheelLeggedChassisHasAllMotorInstances(chassis) != 0u;
+                                         WHEEL_LEGGED_STATE_VALID_WHEEL_ODOMETRY;
+    uint16_t reason = WHEEL_LEGGED_OUTPUT_BLOCK_NONE;
+
+    if (chassis == NULL)
+    {
+        return WHEEL_LEGGED_OUTPUT_BLOCK_STATE | WHEEL_LEGGED_OUTPUT_BLOCK_CONFIG |
+               WHEEL_LEGGED_OUTPUT_BLOCK_MOTOR_INSTANCE;
+    }
+    if (chassis->chassis_state.origin_captured == 0u)
+    {
+        reason |= WHEEL_LEGGED_OUTPUT_BLOCK_ORIGIN;
+    }
+    if ((chassis->chassis_state.valid_mask & required_state_mask) != required_state_mask)
+    {
+        reason |= WHEEL_LEGGED_OUTPUT_BLOCK_STATE;
+    }
+    if (chassis->left_wheel.feedback_ready == 0u || chassis->right_wheel.feedback_ready == 0u)
+    {
+        reason |= WHEEL_LEGGED_OUTPUT_BLOCK_WHEEL_FEEDBACK;
+    }
+    if (chassis->lqr.valid == 0u)
+    {
+        reason |= WHEEL_LEGGED_OUTPUT_BLOCK_LQR;
+    }
+    if (chassis->left_leg.length_control.valid == 0u || chassis->right_leg.length_control.valid == 0u)
+    {
+        reason |= WHEEL_LEGGED_OUTPUT_BLOCK_LENGTH_CONTROL;
+    }
+    if (chassis->left_leg.vmc.valid == 0u || chassis->right_leg.vmc.valid == 0u)
+    {
+        reason |= WHEEL_LEGGED_OUTPUT_BLOCK_VMC;
+    }
+    if (WheelLeggedChassisHasValidOutputConfig(&chassis->lqr_output_config) == 0u)
+    {
+        reason |= WHEEL_LEGGED_OUTPUT_BLOCK_CONFIG;
+    }
+    if (WheelLeggedChassisHasAllMotorInstances(chassis) == 0u)
+    {
+        reason |= WHEEL_LEGGED_OUTPUT_BLOCK_MOTOR_INSTANCE;
+    }
+    if (!isfinite(chassis->lqr.tp_right) || !isfinite(chassis->lqr.tp_left) ||
+        !isfinite(chassis->lqr.tw_right) || !isfinite(chassis->lqr.tw_left) ||
+        !isfinite(chassis->left_leg.length_control.force_command) ||
+        !isfinite(chassis->right_leg.length_control.force_command) ||
+        !isfinite(chassis->left_leg.vmc.front_motor_torque) ||
+        !isfinite(chassis->left_leg.vmc.rear_motor_torque) ||
+        !isfinite(chassis->right_leg.vmc.front_motor_torque) ||
+        !isfinite(chassis->right_leg.vmc.rear_motor_torque))
+    {
+        reason |= WHEEL_LEGGED_OUTPUT_BLOCK_NONFINITE;
+    }
+    return reason;
 }
 
 /**

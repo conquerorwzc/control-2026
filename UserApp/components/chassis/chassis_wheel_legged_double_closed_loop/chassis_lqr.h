@@ -15,8 +15,8 @@
 /* MATLAB 与 MCU 共用的十维状态槽位。 */
 typedef enum
 {
-    WHEEL_LEGGED_LQR_STATE_S = 0,         /* 髋点 O 的纵向位移，单位 m。 */
-    WHEEL_LEGGED_LQR_STATE_S_DOT,         /* 髋点 O 的纵向速度，单位 m/s。 */
+    WHEEL_LEGGED_LQR_STATE_S = 0,         /* 左右轮平均滚动纵向位移，单位 m。 */
+    WHEEL_LEGGED_LQR_STATE_S_DOT,         /* 左右轮平均滚动纵向速度，单位 m/s。 */
     WHEEL_LEGGED_LQR_STATE_PHI,           /* 偏航角，单位 rad。 */
     WHEEL_LEGGED_LQR_STATE_PHI_DOT,       /* 偏航角速度，单位 rad/s。 */
     WHEEL_LEGGED_LQR_STATE_THETA_LEFT,    /* 左腿纵向平面角，单位 rad。 */

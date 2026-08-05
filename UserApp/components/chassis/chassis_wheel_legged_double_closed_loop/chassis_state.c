@@ -11,15 +11,17 @@
 
 #include "general_def.h"
 #include "hip_odometry.h"
+#include "wheel_odometry.h"
 
 /* Private define ------------------------------------------------------------*/
-/* 髋点纵向里程计所需的全部原始来源有效时应具有的有效位掩码。 */
+/* 完整十维状态原始来源必须同时包含左右轮、IMU 和左右腿。 */
 #define WHEEL_LEGGED_STATE_VALID_RAW_SOURCES                                                                           \
     (WHEEL_LEGGED_STATE_VALID_LEFT_WHEEL | WHEEL_LEGGED_STATE_VALID_RIGHT_WHEEL | WHEEL_LEGGED_STATE_VALID_IMU |       \
      WHEEL_LEGGED_STATE_VALID_LEFT_LEG | WHEEL_LEGGED_STATE_VALID_RIGHT_LEG)
 
-/* 十维状态包含髋点纵向里程计后的完整有效位掩码。 */
-#define WHEEL_LEGGED_STATE_VALID_ALL (WHEEL_LEGGED_STATE_VALID_RAW_SOURCES | WHEEL_LEGGED_STATE_VALID_HIP_ODOMETRY)
+/* 完整十维状态还必须包含纯轮式 s 的计算结果。 */
+#define WHEEL_LEGGED_STATE_VALID_ALL \
+    (WHEEL_LEGGED_STATE_VALID_RAW_SOURCES | WHEEL_LEGGED_STATE_VALID_WHEEL_ODOMETRY)
 
 /* Intermediate variables calculated by private functions -------------------*/
 typedef struct
@@ -62,6 +64,8 @@ void WheelLeggedChassisStateUpdate(WheelLeggedChassisInstance_t *chassis)
     WheelLeggedHipOdometryLegInput_t right_hip_input = {0};
     WheelLeggedHipOdometryLegOutput_t left_hip_output = {0};
     WheelLeggedHipOdometryLegOutput_t right_hip_output = {0};
+    WheelLeggedWheelOdometryInput_t wheel_odometry_input = {0};
+    WheelLeggedWheelOdometryOutput_t wheel_odometry_output = {0};
 
     if (chassis == NULL)
     {
@@ -107,10 +111,26 @@ void WheelLeggedChassisStateUpdate(WheelLeggedChassisInstance_t *chassis)
         valid_mask |= WHEEL_LEGGED_STATE_VALID_RIGHT_LEG;
     }
 
+    if ((valid_mask & (WHEEL_LEGGED_STATE_VALID_LEFT_WHEEL | WHEEL_LEGGED_STATE_VALID_RIGHT_WHEEL)) ==
+            (WHEEL_LEGGED_STATE_VALID_LEFT_WHEEL | WHEEL_LEGGED_STATE_VALID_RIGHT_WHEEL))
+    {
+        wheel_odometry_input.left_wheel_radius = chassis->left_wheel.wheel_radius;
+        wheel_odometry_input.right_wheel_radius = chassis->right_wheel.wheel_radius;
+        wheel_odometry_input.left_wheel_angle = next_state.left_wheel_angle;
+        wheel_odometry_input.right_wheel_angle = next_state.right_wheel_angle;
+        wheel_odometry_input.left_wheel_speed = next_state.left_wheel_speed;
+        wheel_odometry_input.right_wheel_speed = next_state.right_wheel_speed;
+        if (WheelLeggedWheelOdometryCalculate(&wheel_odometry_input, &wheel_odometry_output) != 0u)
+        {
+            next_state.wheel_odometry_s_raw = wheel_odometry_output.raw_position;
+            next_state.wheel_odometry_s_dot = wheel_odometry_output.velocity;
+            valid_mask |= WHEEL_LEGGED_STATE_VALID_WHEEL_ODOMETRY;
+        }
+    }
+
     if ((valid_mask & WHEEL_LEGGED_STATE_VALID_RAW_SOURCES) == WHEEL_LEGGED_STATE_VALID_RAW_SOURCES)
     {
-        /* TODO：完成轮径、轮向和 IMU 前向加速度标定后，在此接入独立的纵向状态估计器，
-         * 处理打滑、离地和轮端里程计漂移；估计器输出替换 s/s_dot，不得修改 FK、雅可比或电机输出。 */
+        /* 原点只在完整原始状态下捕获；s 本身仍来自纯轮式里程计。 */
         const float body_pitch_absolute = chassis->state_config.body_pitch_direction * pitch;
         const float body_pitch_rate = chassis->state_config.body_pitch_direction * pitch_rate;
         left_hip_input.wheel_radius = chassis->left_wheel.wheel_radius;
@@ -133,23 +153,30 @@ void WheelLeggedChassisStateUpdate(WheelLeggedChassisInstance_t *chassis)
                                     chassis->state_config.right_leg_world_offset;
         right_hip_input.leg_theta_dot =
             right_leg_state.relative_theta_dot + chassis->state_config.leg_world_body_pitch_gain * body_pitch_rate;
+
+        if (next_state.origin_captured == 0u &&
+            (valid_mask & WHEEL_LEGGED_STATE_VALID_WHEEL_ODOMETRY) != 0u)
+        {
+            next_state.s_origin = next_state.wheel_odometry_s_raw;
+            next_state.yaw_origin = yaw;
+            next_state.pitch_origin = pitch;
+            next_state.origin_captured = 1u;
+        }
+
         if (WheelLeggedHipOdometryCalculate(&left_hip_input, &left_hip_output) != 0u &&
             WheelLeggedHipOdometryCalculate(&right_hip_input, &right_hip_output) != 0u)
         {
             next_state.hip_odometry_s_raw = 0.5f * (left_hip_output.raw_position + right_hip_output.raw_position);
             next_state.left_hip_odometry_s_dot = left_hip_output.velocity;
             next_state.right_hip_odometry_s_dot = right_hip_output.velocity;
-            next_state.s_dot = 0.5f * (left_hip_output.velocity + right_hip_output.velocity);
-            valid_mask |= WHEEL_LEGGED_STATE_VALID_HIP_ODOMETRY;
-            if (next_state.origin_captured == 0u)
-            {
-                next_state.s_origin = next_state.hip_odometry_s_raw;
-                next_state.yaw_origin = yaw;
-                next_state.pitch_origin = pitch;
-                next_state.origin_captured = 1u;
-            }
-            next_state.s = next_state.hip_odometry_s_raw - next_state.s_origin;
         }
+    }
+
+    if (next_state.origin_captured != 0u &&
+        (valid_mask & WHEEL_LEGGED_STATE_VALID_WHEEL_ODOMETRY) != 0u)
+    {
+        next_state.s = next_state.wheel_odometry_s_raw - next_state.s_origin;
+        next_state.s_dot = next_state.wheel_odometry_s_dot;
     }
 
     if (next_state.origin_captured != 0u && (valid_mask & WHEEL_LEGGED_STATE_VALID_IMU) != 0u)

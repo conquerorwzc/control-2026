@@ -41,6 +41,12 @@ syms F_l_to_b_h F_l_to_b_v F_r_to_b_h F_r_to_b_v real
 syms F_wl_to_l_h F_wl_to_l_v F_wr_to_r_h F_wr_to_r_v real
 syms F_g_to_wl_h F_g_to_wl_v F_g_to_wr_h F_g_to_wr_v real
 
+% Tw 是电机施加给轮子的轮端力矩，正值使对应轮向前滚动。
+% 电机定子固定在腿上，因此定子对腿的反作用力矩与 Tw 符号相反。
+% 该力矩不是轮轴传力 F_w_to_l，二者必须独立保留，避免与 SJTU/WBR 的内部力矩混淆。
+T_motor_stator_to_left_leg = -T_w_l;
+T_motor_stator_to_right_leg = -T_w_r;
+
 x = [s; ds; phi; dphi; theta_l; dtheta_l; theta_r; dtheta_r; theta_b; dtheta_b];
 ddq = [dds; ddphi; ddtheta_l; ddtheta_r; ddtheta_b];
 u = [T_p_r; T_p_l; T_w_r; T_w_l];
@@ -67,21 +73,21 @@ raw_left_leg_h = -F_l_to_b_h + F_wl_to_l_h - m_l * a_l_h;
 raw_left_leg_v = -F_l_to_b_v + F_wl_to_l_v + m_l * g - m_l * a_l_v;
 raw_left_leg_pitch = (F_wl_to_l_v * l_l_d + F_l_to_b_v * left_com_to_hip) * sin(theta_l) ...
     - (F_wl_to_l_h * l_l_d + F_l_to_b_h * left_com_to_hip) * cos(theta_l) ...
-    - T_w_l + T_p_l - I_l * ddtheta_l;
+    + T_motor_stator_to_left_leg + T_p_l - I_l * ddtheta_l;
 
 raw_right_leg_h = -F_r_to_b_h + F_wr_to_r_h - m_r * a_r_h;
 raw_right_leg_v = -F_r_to_b_v + F_wr_to_r_v + m_r * g - m_r * a_r_v;
 raw_right_leg_pitch = (F_wr_to_r_v * l_r_d + F_r_to_b_v * right_com_to_hip) * sin(theta_r) ...
     - (F_wr_to_r_h * l_r_d + F_r_to_b_h * right_com_to_hip) * cos(theta_r) ...
-    - T_w_r + T_p_r - I_r * ddtheta_r;
+    + T_motor_stator_to_right_leg + T_p_r - I_r * ddtheta_r;
 
 raw_left_wheel_h = -F_wl_to_l_h + F_g_to_wl_h - m_wl * a_wl_h;
 raw_left_wheel_v = -F_wl_to_l_v + F_g_to_wl_v + m_wl * g - m_wl * a_wl_v;
-raw_left_wheel_roll = T_w_l - F_g_to_wl_h * wheel_radius - I_wl * ddtheta_wl;
+raw_left_wheel_roll = -T_motor_stator_to_left_leg - F_g_to_wl_h * wheel_radius - I_wl * ddtheta_wl;
 
 raw_right_wheel_h = -F_wr_to_r_h + F_g_to_wr_h - m_wr * a_wr_h;
 raw_right_wheel_v = -F_wr_to_r_v + F_g_to_wr_v + m_wr * g - m_wr * a_wr_v;
-raw_right_wheel_roll = T_w_r - F_g_to_wr_h * wheel_radius - I_wr * ddtheta_wr;
+raw_right_wheel_roll = -T_motor_stator_to_right_leg - F_g_to_wr_h * wheel_radius - I_wr * ddtheta_wr;
 
 raw_yaw = (F_g_to_wr_h - F_g_to_wl_h) * half_track - I_yaw * ddphi;
 raw_equal_normal = F_g_to_wl_v - F_g_to_wr_v;
@@ -100,20 +106,25 @@ internal_forces = [F_l_to_b_h; F_l_to_b_v; F_r_to_b_h; F_r_to_b_v; ...
 fprintf('  17 条原始方程，12 个接触内力；剩余 5 条为广义坐标方程。\n\n');
 
 %% ========================================
-%  Step 3: 左右独立机身 s_b 运动学约束
+%  Step 3: 左右独立纯轮式 s 运动学约束
 %  ========================================
 
-fprintf('Step 3: 代入左右独立的机身 s_b 运动学约束...\n');
+fprintf('Step 3: 代入左右独立的纯轮式 s 运动学约束...\n');
 
 q_l = l_l * sin(theta_l);
 q_r = l_r * sin(theta_r);
 q_dd_l = l_l * cos(theta_l) * ddtheta_l - l_l * sin(theta_l) * dtheta_l ^ 2;
 q_dd_r = l_r * cos(theta_r) * ddtheta_r - l_r * sin(theta_r) * dtheta_r ^ 2;
 
-% R*theta_w,L = s_b-b*phi-q_L，R*theta_w,R = s_b+b*phi-q_R。
-wheel_angular_acceleration_left = (dds - half_track * ddphi - q_dd_l) / wheel_radius;
-wheel_angular_acceleration_right = (dds + half_track * ddphi - q_dd_r) / wheel_radius;
+% R*theta_w,L = s-b*phi+(q_R-q_L)/2，R*theta_w,R = s+b*phi+(q_L-q_R)/2。
+wheel_angular_acceleration_left = ...
+    (dds - half_track * ddphi + (q_dd_r - q_dd_l) / 2) / wheel_radius;
+wheel_angular_acceleration_right = ...
+    (dds + half_track * ddphi + (q_dd_l - q_dd_r) / 2) / wheel_radius;
 
+% s 是左右轮端平均滚动坐标，不是机身髋点坐标。
+% 由 x_b = s + (q_L + q_R) / 2，机身水平加速度必须保留左右腿的 q_dd 项。
+body_horizontal_acceleration = dds + (q_dd_l + q_dd_r) / 2;
 body_vertical_acceleration = -(l_l * sin(theta_l) * ddtheta_l + l_r * sin(theta_r) * ddtheta_r) / 2 ...
     - (l_l * cos(theta_l) * dtheta_l ^ 2 + l_r * cos(theta_r) * dtheta_r ^ 2) / 2;
 
@@ -128,13 +139,13 @@ kinematic_substitution_values = [wheel_angular_acceleration_left; wheel_angular_
     wheel_radius * wheel_angular_acceleration_right + l_r_d * cos(theta_r) * ddtheta_r - ...
     l_r_d * sin(theta_r) * dtheta_r ^ 2; ...
     -l_r_d * sin(theta_r) * ddtheta_r - l_r_d * cos(theta_r) * dtheta_r ^ 2; ...
-    dds; body_vertical_acceleration];
+    body_horizontal_acceleration; body_vertical_acceleration];
 
 kinematic_raw_equations = simplify(subs(raw_equations, kinematic_substitution_symbols, ...
     kinematic_substitution_values));
 
-fprintf('  R*ddtheta_w,L = s_ddot-b*phi_ddot-q_L_ddot\n');
-fprintf('  R*ddtheta_w,R = s_ddot+b*phi_ddot-q_R_ddot\n\n');
+fprintf('  R*ddtheta_w,L = s_ddot-b*phi_ddot+(q_R_ddot-q_L_ddot)/2\n');
+fprintf('  R*ddtheta_w,R = s_ddot+b*phi_ddot+(q_L_ddot-q_R_ddot)/2\n\n');
 
 %% ========================================
 %  Step 4: 自动消去接触内力
@@ -192,15 +203,18 @@ parameter_symbols = [m_b, m_l, m_r, m_wl, m_wr, I_b, I_l, I_r, I_wl, I_wr, I_yaw
 M_func = matlabFunction(M, 'Vars', {x, parameter_symbols});
 B_control_func = matlabFunction(B_control, 'Vars', {x, parameter_symbols});
 g_func = matlabFunction(g_vector, 'Vars', {x, parameter_symbols});
+force_solution_func = matlabFunction(internal_force_solution, 'Vars', {x, u, ddq, parameter_symbols});
 
 save('double_closed_loop_symbolic_model.mat', ...
     'raw_equations', 'kinematic_raw_equations', 'internal_forces', 'force_equation_indices', ...
     'generalized_equation_indices', 'force_matrix', 'force_rhs', 'internal_force_solution', ...
     'force_elimination_residual', 'q_l', 'q_r', 'q_dd_l', 'q_dd_r', ...
+    'T_motor_stator_to_left_leg', 'T_motor_stator_to_right_leg', ...
     'wheel_angular_acceleration_left', 'wheel_angular_acceleration_right', ...
     'kinematic_substitution_symbols', 'kinematic_substitution_values', ...
     'equation', 'generalized_equations', 'x', 'u', 'ddq', 'M', 'B_control', 'g_vector', ...
-    'parameter_symbols', 'M_func', 'B_control_func', 'g_func');
+    'body_horizontal_acceleration', 'body_vertical_acceleration', 'parameter_symbols', ...
+    'M_func', 'B_control_func', 'g_func', 'force_solution_func');
 
 fprintf('  输出: double_closed_loop_symbolic_model.mat\n');
 fprintf('========================================\n');

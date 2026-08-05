@@ -10,15 +10,20 @@ add_executable(parallel_leg_tests
     test_main.c
     parallel_leg_test.c
     hip_odometry_test.c
+    wheel_odometry_test.c
     joint_transmission_test.c
     length_control_test.c
     chassis_lqr_test.c
+    chassis_output_test.c
     controller_dwt_stub.c
+    mocks/dmmotor_mock.c
     ../chassis_length_control.c
     ../chassis_lqr.c
+    ../chassis_output.c
     ${CONTROLLER_DIR}/controller.c
     ../kinematics/parallel_leg.c
     ../kinematics/hip_odometry.c
+    ../kinematics/wheel_odometry.c
     ../transmission/joint_transmission.c
 )
 

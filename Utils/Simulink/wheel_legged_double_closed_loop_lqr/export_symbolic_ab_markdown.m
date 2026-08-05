@@ -35,8 +35,8 @@ fprintf(file_id, '# 双闭环等效腿模型：符号动力学 M、B、g 与约�
 fprintf(file_id, '## 状态和输入合同\n\n');
 fprintf(file_id, '状态顺序：`[s, s_dot, phi, phi_dot, theta_L, theta_L_dot, theta_R, theta_R_dot, theta_b, theta_b_dot]`。\n\n');
 fprintf(file_id, '输入顺序（模型正方向）：`[Tp_R, Tp_L, Tw_R, Tw_L]`。MCU 输入方向在数值 LQR 脚本中另行映射。\n\n');
-fprintf(file_id, '$$\ns=s_b-s_{b,0}.\n$$\n\n');
-fprintf(file_id, 's 是 WBR body 版机身纵向二维坐标，不做 Yaw 的世界系投影。当前模型以 O 为机身参考点且 body_com_to_pitch_axis=0，因此固件 O 里程计可读取相同数值。模型假设：平地、纯滚动、两轮接地、无 Roll、固定腿长工作点。左右地面对轮法向力相等用于闭合竖直内力；这是降阶模型前提，不是运行时接触力判断。\n\n');
+fprintf(file_id, '$$\ns=s_w-s_{w,0}.\n$$\n\n');
+fprintf(file_id, 's 是左右轮端平均滚动得到的纯轮式纵向二维坐标，不做 Yaw 的世界系投影。髋点 O 里程计只作为固件诊断量，不参与十维状态和 LQR。模型假设：平地、纯滚动、两轮接地、无 Roll、固定腿长工作点。左右地面对轮法向力相等用于闭合竖直内力；这是降阶模型前提，不是运行时接触力判断。\n\n');
 fprintf(file_id, 'Tw 正值定义为使对应轮向前滚动的**轮端力矩**。轮对腿的反作用力矩因此为 `-Tw`；此处定义不等于未来 H6215 电机轴正指令，后者仍需独立标定。\n\n');
 fprintf(file_id, '测量端髋点速度可包含腿长变化项；本符号动力学的单个工作点不把 `l_dot/l_ddot` 纳入状态。\n\n');
 fprintf(file_id, '## 原始 Newton-Euler 方程\n\n');
@@ -54,10 +54,10 @@ end
 %  ========================================
 
 fprintf('Step 3: 写入运动学约束...\n');
-fprintf(file_id, '## Body 版 s_b 运动学代换\n\n');
+fprintf(file_id, '## 纯轮式 s 运动学代换\n\n');
 fprintf(file_id, '对每一侧：\n\n');
-write_latex_block(file_id, 'R\theta_{w,L}=s_b-b\phi-l_L\sin\theta_L,\qquad R\theta_{w,R}=s_b+b\phi-l_R\sin\theta_R.');
-write_latex_block(file_id, 's_b=\frac{R\theta_{w,L}+l_L\sin\theta_L+R\theta_{w,R}+l_R\sin\theta_R}{2}.');
+write_latex_block(file_id, 'R\theta_{w,L}=s-b\phi+\frac{q_R-q_L}{2},\qquad R\theta_{w,R}=s+b\phi+\frac{q_L-q_R}{2}.');
+write_latex_block(file_id, 's=s_w=\frac{R\theta_{w,L}+R\theta_{w,R}}{2},\qquad q_i=l_i\sin\theta_i.');
 fprintf(file_id, '以下为固定腿长工作点所用的加速度代换：\n\n');
 for index = 1:numel(model.kinematic_substitution_symbols)
     fprintf(file_id, '$$\n%s=%s.\n$$\n\n', latex(model.kinematic_substitution_symbols(index)), ...

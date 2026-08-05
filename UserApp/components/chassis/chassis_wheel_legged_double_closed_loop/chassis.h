@@ -58,14 +58,14 @@ typedef enum
     WHEEL_LEGGED_STATE_VALID_IMU = (1u << 2),          /* IMU 已初始化且姿态数据有限。 */
     WHEEL_LEGGED_STATE_VALID_LEFT_LEG = (1u << 3),     /* 左腿反馈、FK 和雅可比有效。 */
     WHEEL_LEGGED_STATE_VALID_RIGHT_LEG = (1u << 4),    /* 右腿反馈、FK 和雅可比有效。 */
-    WHEEL_LEGGED_STATE_VALID_HIP_ODOMETRY = (1u << 5), /* 髋点纵向里程计计算有效。 */
+    WHEEL_LEGGED_STATE_VALID_WHEEL_ODOMETRY = (1u << 5), /* 左右轮平均纵向里程计计算有效。 */
 } WheelLeggedChassisStateValid_e;
 
 /* 底盘状态变量；具名字段便于观察，state_vector 供后续控制器使用。 */
 typedef struct
 {
-    float s;       /* 髋点 O 相对初始位置的纵向里程计位移，单位 m。 */
-    float s_dot;   /* 髋点 O 的纵向里程计速度，单位 m/s。 */
+    float s;       /* 左右轮平均滚动位移相对初始位置的纵向里程计位移，单位 m。 */
+    float s_dot;   /* 左右轮平均滚动纵向里程计速度，单位 m/s。 */
     float phi;     /* 整车相对初始方向的偏航角，单位 rad。 */
     float phi_dot; /* 整车偏航角速度，单位 rad/s。 */
     float theta_leg_left; /* 左虚拟腿包含相对初始姿态机身俯仰的纵向平面摆角，单位 rad；不含 yaw 投影。 */
@@ -87,12 +87,14 @@ typedef struct
     float left_leg_length_dot;          /* 左虚拟腿长度变化率，单位 m/s。 */
     float right_leg_length;             /* 右虚拟腿长，单位 m。 */
     float right_leg_length_dot;         /* 右虚拟腿长度变化率，单位 m/s。 */
+    float wheel_odometry_s_raw;         /* 未减零点的左右轮平均纵向里程计，单位 m。 */
+    float wheel_odometry_s_dot;         /* 左右轮平均滚动纵向里程计速度，单位 m/s。 */
     float hip_odometry_s_raw;           /* 未减零点的髋点 O 纵向里程计，单位 m。 */
     float left_hip_odometry_s_dot;      /* 左腿推得的髋点 O 纵向速度，单位 m/s。 */
     float right_hip_odometry_s_dot;     /* 右腿推得的髋点 O 纵向速度，单位 m/s。 */
 
     float state_vector[WHEEL_LEGGED_STATE_COUNT]; /* 固定顺序的整车十维状态。 */
-    float s_origin;          /* 采集零点时的髋点 O 纵向里程计原始值，单位 m。 */
+    float s_origin;          /* 采集零点时的纯轮式纵向里程计原始值，单位 m。 */
     float yaw_origin;        /* 采集零点时的 IMU yaw，单位 rad。 */
     float pitch_origin;      /* 采集零点时的 IMU pitch，单位 rad。 */
     uint16_t valid_mask;     /* 本周期有效的状态来源位掩码。 */
@@ -222,6 +224,23 @@ typedef struct
     float minimum_support_projection; /* cos(theta_L)+cos(theta_R) 的最小允许值。 */
 } WheelLeggedChassisLqrOutputConfig_t;
 
+/* 底盘未使能或被安全仲裁拦截时的原因位；允许多个原因同时置位。 */
+typedef enum
+{
+    WHEEL_LEGGED_OUTPUT_BLOCK_NONE = 0u,                    /* 当前没有阻断原因。 */
+    WHEEL_LEGGED_OUTPUT_BLOCK_REMOTE_OFF = (1u << 0),      /* 右拨杆不在中档或底盘未请求 CHASSIS_ON。 */
+    WHEEL_LEGGED_OUTPUT_BLOCK_FAULT_LOCKED = (1u << 1),    /* 已出力后发生失效，当前处于故障锁定。 */
+    WHEEL_LEGGED_OUTPUT_BLOCK_ORIGIN = (1u << 2),           /* 状态零点尚未捕获。 */
+    WHEEL_LEGGED_OUTPUT_BLOCK_STATE = (1u << 3),            /* 状态来源 valid_mask 不完整。 */
+    WHEEL_LEGGED_OUTPUT_BLOCK_WHEEL_FEEDBACK = (1u << 4),  /* 左右轮反馈尚未准备好。 */
+    WHEEL_LEGGED_OUTPUT_BLOCK_LQR = (1u << 5),              /* LQR 本周期无效。 */
+    WHEEL_LEGGED_OUTPUT_BLOCK_LENGTH_CONTROL = (1u << 6),  /* 一侧或两侧腿长控制无效。 */
+    WHEEL_LEGGED_OUTPUT_BLOCK_VMC = (1u << 7),              /* 一侧或两侧 VMC 无效。 */
+    WHEEL_LEGGED_OUTPUT_BLOCK_CONFIG = (1u << 8),           /* 输出安全配置非法。 */
+    WHEEL_LEGGED_OUTPUT_BLOCK_MOTOR_INSTANCE = (1u << 9),  /* 六台电机实例不完整。 */
+    WHEEL_LEGGED_OUTPUT_BLOCK_NONFINITE = (1u << 10),      /* 输出或力命令出现非有限数。 */
+} WheelLeggedChassisOutputBlockReason_e;
+
 /* 底盘初始化配置；由 robot 层提供本车的电机、传动和几何参数。 */
 typedef struct
 {
@@ -252,6 +271,7 @@ typedef struct
     uint8_t motor_enabled;                               /* 上次实际下发的六台底盘电机使能状态。 */
     uint8_t output_ever_enabled;                         /* 本次中档周期内曾成功闭环出力时为 1。 */
     uint8_t output_fault_locked;                         /* 已出力后失效时锁定；离开中档后才允许清除。 */
+    uint16_t output_block_reason;                         /* 本周期未使能的原因位掩码，0 表示没有阻断。 */
 } WheelLeggedChassisInstance_t;
 
 void WheelLeggedChassisInit(WheelLeggedChassisInstance_t *chassis, WheelLeggedChassisInitConfig_t *init_config);
