@@ -1,6 +1,5 @@
-# infantry
-
-<p align='right'>neozng1@hnu.edu.cn</p>
+# sentry，这只是一次codex的PR测试
+<p align='right'>——by王子成</p>
 
 ## 运行流程
 
