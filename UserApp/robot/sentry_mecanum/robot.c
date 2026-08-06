@@ -25,7 +25,7 @@ static float vx_initial;   //x轴输入控制量
 static float vy_initial;   //y轴输入控制量
 static float angle;
 // static  DJIMotorInstance* debug_motor;
-
+//11111
 /**
  * @brief 根据gimbal app传回的当前电机角度计算和零位的误差
  *        单圈绝对角度的范围是0~360,说明文档中有图示
