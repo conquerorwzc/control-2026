@@ -1,0 +1,146 @@
+name: Assign layer reviewers
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  assign-reviewers:
+    name: Detect changed layers and request reviews
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    env:
+      BSP_REVIEWERS: ${{ vars.BSP_REVIEWERS }}
+      BSP_TEAM_REVIEWERS: ${{ vars.BSP_TEAM_REVIEWERS }}
+      MODULES_REVIEWERS: ${{ vars.MODULES_REVIEWERS }}
+      MODULES_TEAM_REVIEWERS: ${{ vars.MODULES_TEAM_REVIEWERS }}
+      USERAPP_REVIEWERS: ${{ vars.USERAPP_REVIEWERS }}
+      USERAPP_TEAM_REVIEWERS: ${{ vars.USERAPP_TEAM_REVIEWERS }}
+    steps:
+      - name: Classify files and assign reviewers
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const pull_number = context.payload.pull_request.number;
+            const author = context.payload.pull_request.user.login.toLowerCase();
+
+            const files = await github.paginate(
+              github.rest.pulls.listFiles,
+              { owner, repo, pull_number, per_page: 100 }
+            );
+
+            const layers = [
+              {
+                name: 'bsp',
+                label: 'area:bsp',
+                color: '1D76DB',
+                matches: (path) => path.toLowerCase().startsWith('bsp/'),
+                users: process.env.BSP_REVIEWERS,
+                teams: process.env.BSP_TEAM_REVIEWERS,
+              },
+              {
+                name: 'modules',
+                label: 'area:modules',
+                color: '5319E7',
+                matches: (path) => path.toLowerCase().startsWith('modules/'),
+                users: process.env.MODULES_REVIEWERS,
+                teams: process.env.MODULES_TEAM_REVIEWERS,
+              },
+              {
+                name: 'userapp',
+                label: 'area:userapp',
+                color: '0E8A16',
+                matches: (path) => path.toLowerCase().startsWith('userapp/'),
+                users: process.env.USERAPP_REVIEWERS,
+                teams: process.env.USERAPP_TEAM_REVIEWERS,
+              },
+            ];
+
+            const parseList = (value) => (value || '')
+              .split(',')
+              .map((item) => item.trim())
+              .filter(Boolean);
+
+            const changedLayers = layers.filter((layer) =>
+              files.some((file) => layer.matches(file.filename))
+            );
+
+            for (const layer of changedLayers) {
+              try {
+                await github.rest.issues.getLabel({ owner, repo, name: layer.label });
+              } catch (error) {
+                if (error.status !== 404) throw error;
+                await github.rest.issues.createLabel({
+                  owner,
+                  repo,
+                  name: layer.label,
+                  color: layer.color,
+                  description: `Changes in the ${layer.name} layer`,
+                });
+              }
+            }
+
+            const changedLabelNames = new Set(
+              changedLayers.map((layer) => layer.label)
+            );
+            for (const layer of layers.filter((item) => !changedLabelNames.has(item.label))) {
+              try {
+                await github.rest.issues.removeLabel({
+                  owner,
+                  repo,
+                  issue_number: pull_number,
+                  name: layer.label,
+                });
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
+            }
+
+            if (changedLayers.length === 0) {
+              core.notice('No Bsp, Modules, or UserApp files changed.');
+              return;
+            }
+
+            await github.rest.issues.addLabels({
+              owner,
+              repo,
+              issue_number: pull_number,
+              labels: changedLayers.map((layer) => layer.label),
+            });
+
+            const reviewers = [...new Set(
+              changedLayers.flatMap((layer) => parseList(layer.users))
+            )].filter((login) => login.toLowerCase() !== author);
+
+            const team_reviewers = [...new Set(
+              changedLayers.flatMap((layer) => parseList(layer.teams))
+            )];
+
+            core.summary
+              .addHeading('Changed code layers')
+              .addList(changedLayers.map((layer) => layer.name))
+              .addHeading('Requested reviewers')
+              .addRaw(reviewers.join(', ') || 'No individual reviewers configured')
+              .addHeading('Requested teams')
+              .addRaw(team_reviewers.join(', ') || 'No team reviewers configured');
+            await core.summary.write();
+
+            if (reviewers.length === 0 && team_reviewers.length === 0) {
+              core.warning('Layers were detected, but their reviewer variables are empty.');
+              return;
+            }
+
+            await github.rest.pulls.requestReviewers({
+              owner,
+              repo,
+              pull_number,
+              reviewers,
+              team_reviewers,
+            });
