@@ -17,8 +17,12 @@
 | `MODULES_TEAM_REVIEWERS` | 组织内 team slug | `module-maintainers` |
 | `USERAPP_REVIEWERS` | GitHub 用户名 | `dave` |
 | `USERAPP_TEAM_REVIEWERS` | 组织内 team slug | `app-maintainers` |
+| `OTHER_REVIEWERS` | 其他所有路径的 GitHub 用户名 | `alice,bob` |
+| `OTHER_TEAM_REVIEWERS` | 其他所有路径的 team slug | `repository-maintainers` |
 
 团队审查只适用于 GitHub Organization 拥有的仓库。个人账号仓库请使用个人审查人变量。PR 作者本人会被自动排除。
+
+`OTHER_REVIEWERS` 覆盖所有不在 `Bsp/**`、`Modules/**`、`UserApp/**` 下的改动，例如根目录文件、`CMakeLists.txt`、`Hardware/**` 和 `Utils/**`。如果一个 PR 同时修改层级目录和其他路径，会同时请求两类审查人。
 
 如果审查必须通过才能合并，还需要在 **Settings → Branches/Rulesets** 中为目标分支启用 “Require a pull request before merging” 和 “Require approvals”。
 
