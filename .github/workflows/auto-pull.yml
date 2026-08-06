@@ -21,7 +21,7 @@ jobs:
       EXPECTED_REPOSITORY: ${{ github.repository }}
     steps:
       - name: Update local branch ref safely
-        shell: pwsh
+        shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
 
