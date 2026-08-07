@@ -8,7 +8,7 @@
 #include "remote_control.h"
 #include "rm_referee.h"
 #include "shoot.h"
-#include "super_cap.h"
+#include "super_cap_HKUST/super_cap_HKUST.h"
 // todo: add vision_module
 #define CHASSIS_BOARD
 typedef enum {
