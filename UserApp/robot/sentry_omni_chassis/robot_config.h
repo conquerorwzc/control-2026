@@ -9,6 +9,13 @@
 #include "robot.h"
 #include "can_comm.h"
 
+/* 输出车体角速度 rad/s */
+#define Wheel_radius 76.475f
+#define Wheel_base 345.96f
+#define Reduction_ratio 19.0f
+#define WZ_CMD_TO_CAR_WZ_RAD_S (DEGREE_2_RAD * DEGREE_2_RAD * Wheel_radius / Reduction_ratio) //wz乘以这个参数，得出的就是车辆的实际转动角速度
+
+
 // 编译warning,提醒开发者修改机器人参数
 #ifndef ROBOT_CONFIG_PARAM_WARNING
 #define ROBOT_CONFIG_PARAM_WARNING
@@ -86,19 +93,19 @@ static Chassis_Init_Config_s chassis_init_config = {
     .chassis_param =
         {
             // 机器人底盘修改的参数,单位为mm(毫米)
-            .wheel_base = 345.96f,              // 纵向轴距(前进后退方向)
+            .wheel_base = Wheel_base,              // 纵向轴距(前进后退方向)
             .track_width = 345.96f,             // 横向轮距(左右平移方向)
             .center_gimbal_offset_x = 0.0f,    // 云台旋转中心距底盘几何中心的距离,前后方向,云台位于正中心时默认设为0
             .center_gimbal_offset_y = 0.0f,    // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
-            .wheel_radius = 76.475f,             // 轮子半径
-            .wheel_reduction_ratio = 19.0f,  // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
+            .wheel_radius = Wheel_radius,             // 轮子半径
+            .wheel_reduction_ratio = Reduction_ratio,  // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
             //3508功率模型参数
-            .power_param.k0=0.7441993412640775f,
-            .power_param.k1=0.006444284468539646f,
-            .power_param.k2=0.0001423857226262331f,
-            .power_param.k3=0.015644430204543864f,
-            .power_param.k4=0.1580143850678086f,
-            .power_param.k5=2.896721772539512e-05f,
+      .power_param.k0=0.7441993412640775f,
+      .power_param.k1=0.0090164284468539646f,
+      .power_param.k2=0.0001988857226262331f,
+      .power_param.k3=0.024694430204543864f,
+      .power_param.k4=0.20160143850678086f,
+      .power_param.k5=3.715221772539512e-05f,
         },
     .wheel_motor_config[0] = WHEEL_MOTOR_CONFIG(&hcan1,1),
     .wheel_motor_config[1] = WHEEL_MOTOR_CONFIG(&hcan1,4),
@@ -106,59 +113,118 @@ static Chassis_Init_Config_s chassis_init_config = {
     .wheel_motor_config[3] = WHEEL_MOTOR_CONFIG(&hcan1,3),
     //跟随PID
     .follow_pid={
-        .Kp = -80.0f,
+        .Kp = -70.0f,
         .Ki = 0.0f,
         .Kd = 0.0f,
-        .DeadBand = 0.0f,
+        .DeadBand = 1.0f,
         .IntegralLimit = 1000.0f,
         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
         .MaxOut = 20000.0f,
     },
-
-
+  .yaw_hold_pid = {
+      .Kp = -80.0f,
+      .Ki = 0.0f,
+      .Kd = 0.0f,
+      .DeadBand = 5.0f,
+      .IntegralLimit = 1000.0f,
+      .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+      .MaxOut = 10000.0f,
+  },
+  .imu_init_config = {
+      .flag = 1,
+      .offset_flag=1,
+      .scale = {1.0f, 1.0f, 1.0f},
+      .Yaw = 0.0f,
+      .Pitch = 0.0f,
+      .Roll = 0.0f,
+      .GyroOffset ={0.00269625871,0.00128621224,0.00186533504},
+  },
 };
 
 static SuperCap_Init_Config_s super_cap_config = {
     .can_config = {
-        .can_handle = &hcan2,
-        .tx_id = 0x302,  // 超级电容默认接收id
-        .rx_id = 0x301,  // 超级电容默认发送id,注意tx和rx在其他人看来是反的
-    }};
+        .can_handle = &hcan1,
+        .tx_id = 0x61,
+        .rx_id = 0x51,
+    }
+};
 
 #ifndef CONTROL_2026_ROBOT_CONFIG_H
 #define CONTROL_2026_ROBOT_CONFIG_H
 #if DEVICE_ROLE_TX
 // 发送板配置
-#define BOARD_TX_ID 0x218
-#define BOARD_RX_ID 0x219
+#define CANID_MAIN_TX 0x218
+#define CANID_MAIN_RX 0x219
+#define CANID_MOTION_TX 0x21A
+#define CANID_MOTION_RX 0x21B
+#define CANID_GAME_STATE_TX 0x21C
+#define CANID_GAME_STATE_RX 0x21D
 #else
 // 接收板配置
-#define BOARD_TX_ID 0x311
-#define BOARD_RX_ID 0x10
+#define CANID_MAIN_TX 0x01
+#define CANID_MAIN_RX 0x03
+#define CANID_MOTION_TX 0x211
+#define CANID_MOTION_RX 0x210
+#define CANID_GAME_STATE_TX 0x213
+#define CANID_GAME_STATE_RX 0x212
 #endif
 
+#ifdef USE_DUAL_RC_NEW
+#define DUALBOARD_CMD_LEN ((uint8_t)sizeof(Send_Data_RC_NEW))
+#else
+#define DUALBOARD_CMD_LEN ((uint8_t)sizeof(Send_Data_RC))
+#endif
+#define DUALBOARD_REF_MAIN_LEN ((uint8_t)sizeof(Referee_Main_s))
+#define DUALBOARD_REF_MOTION_LEN ((uint8_t)sizeof(Chassis_Motion_s))
+#define DUALBOARD_REF_GAME_STATE_LEN ((uint8_t)sizeof(Referee_Game_State_s))
+
 static CANComm_Init_Config_s comm_config = {
-  .recv_data_len = 24,        // 接收数据长度，根据实际需求调整
-  .send_data_len = 24,        // 发送数据长度，根据实际需求调整
-  .daemon_count = 10,      // 看门狗重载计数，根据实际需求调整
+  .recv_data_len = DUALBOARD_CMD_LEN,
+  .send_data_len = DUALBOARD_REF_MAIN_LEN,
+  .daemon_count = 10,
   .can_config = {
     .can_handle = &hcan2,  // 假设使用CAN1，根据实际使用的CAN句柄调整
-    .tx_id = BOARD_TX_ID,        // 发送ID，根据实际需求调整
-    .rx_id = BOARD_RX_ID,        // 接收ID，根据实际需求调整
+    .tx_id = CANID_MAIN_TX,        // 发送ID，根据实际需求调整
+    .rx_id = CANID_MAIN_RX,        // 接收ID，根据实际需求调整
     .id = NULL                   // 将在CANCommInit中设置
+  }
+};
+
+static CANComm_Init_Config_s comm_config_motion = {
+  .recv_data_len = 0,
+  .send_data_len = DUALBOARD_REF_MOTION_LEN,
+  .daemon_count = 10,
+  .can_config = {
+    .can_handle = &hcan2,
+    .tx_id = CANID_MOTION_TX,
+    .rx_id = CANID_MOTION_RX,
+    .id = NULL
+  }
+};
+
+static CANComm_Init_Config_s comm_config_game_state = {
+  .recv_data_len = 0,
+  .send_data_len = DUALBOARD_REF_GAME_STATE_LEN,
+  .daemon_count = 200,
+  .can_config = {
+    .can_handle = &hcan2,
+    .tx_id = CANID_GAME_STATE_TX,
+    .rx_id = CANID_GAME_STATE_RX,
+    .id = NULL
   }
 };
 
 // CAN实例配置（用于数据存储）
 static CANInstance board_can_comm_data = {
   .can_handle = &BOARD_CAN,
-  .tx_id = BOARD_TX_ID,          // 与comm_config中的ID保持一致
-  .rx_id = BOARD_RX_ID,
+  .tx_id = CANID_MAIN_TX,          // 与comm_config中的ID保持一致
+  .rx_id = CANID_MAIN_RX,
   .txconf = {
-    .StdId = BOARD_TX_ID,      // 发送ID
+    .StdId = CANID_MAIN_TX,      // 发送ID
     .IDE = CAN_ID_STD,   // 标准帧
     .RTR = CAN_RTR_DATA, // 数据帧
     .DLC = 0x08,         // 数据长度8字节
   }
 };
 #endif  // CONTROL_2026_ROBOT_CONFIG_H
+

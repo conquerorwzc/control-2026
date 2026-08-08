@@ -29,7 +29,6 @@
 #pragma once
 
 #include "dji_motor.h"
-#include "super_cap.h"
 
 typedef enum {
   CHASSIS_POWER_OFF = 0,    // 电流零输入
@@ -86,13 +85,11 @@ typedef struct {
   Chassis_Param_s chassis_param;
   Motor_Init_Config_s wheel_motor_config[4];
   PID_Init_Config_s follow_pid;
-  SuperCap_Init_Config_s super_cap_config;
 } Chassis_Init_Config_s;
 
 typedef struct {
   Chassis_Ctrl_Cmd_s chassis_ctrl_cmd;
   DJIMotorInstance* wheel_motor[4];  // left right forward back
-  SuperCapInstance* super_cap;
   SuperCapMode super_cap_mode;
 } ChassisInstance;
 

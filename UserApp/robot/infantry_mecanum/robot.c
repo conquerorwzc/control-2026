@@ -598,7 +598,7 @@ void RobotCMDTask() {
   shoot_ctrl_cmd->shooter_barrel_heat=robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
   shoot_ctrl_cmd->shooter_barrel_heat_limit=robot->referee_data->GameRobotState.shooter_barrel_heat_limit-10;
   shoot_ctrl_cmd->shooter_barrel_cooling_value=robot->referee_data->GameRobotState.shooter_barrel_cooling_value;
-  supercap_power();
+  // supercap_power();
   CalcOffsetAngle();
   RemoteControlSet();
   MouseKeySet();
@@ -616,10 +616,7 @@ void RobotTask() {
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   ChassisTask();
-  SuperCapSendMessage(robot->super_cap,
-    robot->referee_data->GameRobotState.chassis_power_limit-2,
-    robot->referee_data->PowerHeatData.buffer_energy,
-    robot->referee_data->GameRobotState.power_management_chassis_output);
+  SuperCapSendMessage(0,200,50);
 #endif
 
 

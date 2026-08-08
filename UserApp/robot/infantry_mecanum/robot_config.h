@@ -7,7 +7,6 @@
 #pragma once
 
 #include "robot.h"
-#include "super_cap.h"
 #include "chassis.h"
 
 // 编译warning,提醒开发者修改机器人参数
@@ -188,6 +187,13 @@ static Gimbal_Init_Config_s gimbal_init_config = {
       .Roll = 0.0f
     },
     .hi05_uart_handle = &huart1,
+};
+static SuperCap_Init_Config_s super_cap_config = {
+  .can_config = {
+    .can_handle = &hcan1,
+    .tx_id = 0x61,
+    .rx_id = 0x51,
+}
 };
 
 #define FRICTION_MOTOR_CONFIG(handle, id, direction) \

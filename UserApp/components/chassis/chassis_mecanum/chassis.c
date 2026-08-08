@@ -12,7 +12,6 @@
 #include "bsp_dwt.h"
 #include "general_def.h"
 #include "rm_referee.h"
-#include "super_cap.h"
 #include "user_lib.h"
 
 static ChassisInstance* chassis;

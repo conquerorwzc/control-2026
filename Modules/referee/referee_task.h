@@ -53,7 +53,6 @@ typedef struct
     Shoot_Mode_e shoot_mode;        // 发射模式设置
     Friction_Mode_e friction_mode;  // 摩擦轮关闭
     lid_mode_e lid_mode;            // 弹舱盖打开
-    SuperCap_Measure_s cap_msg; // 超级电容信息
 
     Chassis_Power_Data_s Chassis_Power_Data; // 功率控制
     float pitch_angle; // 云台俯仰角

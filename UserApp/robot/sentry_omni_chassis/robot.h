@@ -8,9 +8,9 @@
 #include "remote_control.h"
 #include "rm_referee.h"
 #include "shoot.h"
-#include "super_cap.h"
+#include "super_cap_HKUST/super_cap_HKUST.h"
 // todo: add vision_module
-
+#define CHASSIS_BOARD
 typedef enum {
   ROBOT_POWER_OFF = 0,
   ROBOT_POWER_ON,
@@ -19,20 +19,26 @@ typedef enum {
 // 定义枚举体，包含自动模式和手动模式
 typedef enum {
   MANUAL_MODE=0,   // 手动控制
-  AUTO_MODE,    // 自动控制
+  NAVIGATOR_MODE,    // 自动控制
 } Control_Mode_e;
 
 #pragma pack(1)
 typedef struct {
-  uint16_t projectile_allowance_17mm;//17mm弹丸允许发弹量
   uint16_t initial_speed; // 弹速
   uint16_t shooter_17mm_barrel_heat;//17mm发射机构的射击热量
-  // uint16_t shooter_barrel_heat_limit;//机器人射击热量上限
-  // uint16_t shooter_barrel_cooling_value;//机器人射击热量每秒冷却值
-} Referee_Data;
-#pragma pack()
+} Referee_Main_s;
 
-#pragma pack(1)
+typedef struct {
+  float wz;
+} Chassis_Motion_s;
+
+typedef struct {
+  // uint16_t projectile_allowance_17mm;//17mm弹丸允许发弹量
+  // uint16_t shooter_barrel_cooling_value;//机器人射击热量每秒冷却值
+  uint16_t shooter_barrel_heat_limit;//机器人射击热量上限
+  uint8_t robot_id;  // 本机器人ID（红蓝阵营）
+} Referee_Game_State_s;
+
 #ifdef USE_DUAL_RC
 typedef struct {
   int16_t Rc_vx;
@@ -40,7 +46,9 @@ typedef struct {
   float Rotate_speed;
   int16_t Spin_speed;
   float Yaw_motor_angle;
-  uint8_t Switch_right;
+  uint8_t rc_switch_left;
+  uint8_t rc_switch_right;
+  // uint8_t Control_mode;
 } Send_Data_RC;
 #elifdef USE_DUAL_RC_NEW
 typedef struct {
@@ -49,14 +57,64 @@ typedef struct {
   float Rotate_speed;
   int16_t Spin_speed;
   float Yaw_motor_angle;
-  float Mode_switch;
-  float Control_mode;
-  float Pause_flag;
+  uint8_t Mode_switch;
+  uint8_t Control_mode;
+  uint8_t Pause_flag;
 } Send_Data_RC_NEW;
 #endif
-#pragma pack()
 
-#pragma pack(1)
+typedef struct {
+   union{
+    uint32_t RFID1;
+    struct {
+      uint32_t base_boost : 1;                        // bit0: 己方基地增益点
+      uint32_t own_center_highland_boost : 1;         // bit1: 己方中央高地增益点
+      uint32_t enemy_center_highland_boost : 1;       // bit2: 对方中央高地增益点
+      uint32_t own_trapezoid_highland_boost : 1;      // bit3: 己方梯形高地增益点
+      uint32_t enemy_trapezoid_highland_boost : 1;    // bit4: 对方梯形高地增益点
+      uint32_t own_ramp_before_boost : 1;             // bit5: 己方地形跨越增益点(飞坡)(靠近己方一侧飞坡前)
+      uint32_t own_ramp_after_boost : 1;              // bit6: 己方地形跨越增益点(飞坡)(靠近己方一侧飞坡后)
+      uint32_t enemy_ramp_before_boost : 1;           // bit7: 对方地形跨越增益点(飞坡)(靠近对方一侧飞坡前)
+      uint32_t enemy_ramp_after_boost : 1;            // bit8: 对方地形跨越增益点(飞坡)(靠近对方一侧飞坡后)
+      uint32_t own_center_highland_lower_boost : 1;   // bit9: 己方地形跨越增益点(中央高地下方)
+      uint32_t own_center_highland_upper_boost : 1;   // bit10: 己方地形跨越增益点(中央高地上方)
+      uint32_t enemy_center_highland_lower_boost : 1; // bit11: 对方地形跨越增益点(中央高地下方)
+      uint32_t enemy_center_highland_upper_boost : 1; // bit12: 对方地形跨越增益点(中央高地上方)
+      uint32_t own_road_lower_boost : 1;              // bit13: 己方地形跨越增益点(公路下方)
+      uint32_t own_road_upper_boost : 1;              // bit14: 己方地形跨越增益点(公路上方)
+      uint32_t enemy_road_lower_boost : 1;            // bit15: 对方地形跨越增益点(公路下方)
+      uint32_t enemy_road_upper_boost : 1;            // bit16: 对方地形跨越增益点(公路上方)
+      uint32_t own_fortress_boost : 1;                // bit17: 己方堡垒增益点
+      uint32_t own_outpost_boost : 1;                 // bit18: 己方前哨站增益点
+      uint32_t own_supply_zone_boost : 1;             // bit19: 己方与资源区不重叠的补给区/RMUL补给区
+      uint32_t own_overlap_supply_boost : 1;          // bit20: 己方与资源区重叠的补给区
+      uint32_t own_assembly_boost : 1;                // bit21: 己方装配增益点
+      uint32_t enemy_assembly_boost : 1;              // bit22: 对方装配增益点
+      uint32_t center_boost_rmull : 1;                // bit23: 中心增益点(仅RMUL适用)
+      uint32_t enemy_fortress_boost : 1;              // bit24: 对方堡垒增益点
+      uint32_t enemy_outpost_boost : 1;               // bit25: 对方前哨站增益点
+      uint32_t own_tunnel_boost_road_lower : 1;       // bit26: 己方地形跨越增益点(隧道)(靠近己方一侧公路区下方)
+      uint32_t own_tunnel_boost_road_middle : 1;      // bit27: 己方地形跨越增益点(隧道)(靠近己方一侧公路区中间)
+      uint32_t own_tunnel_boost_road_upper : 1;       // bit28: 己方地形跨越增益点(隧道)(靠近己方一侧公路区上方)
+      uint32_t own_tunnel_boost_trapezoid_low : 1;    // bit29: 己方地形跨越增益点(隧道)(靠近己方梯形高地较低处)
+      uint32_t own_tunnel_boost_trapezoid_mid : 1;    // bit30: 己方地形跨越增益点(隧道)(靠近己方梯形高地较中间)
+      uint32_t own_tunnel_boost_trapezoid_high : 1;   // bit31: 己方地形跨越增益点(隧道)(靠近己方梯形高地较高处)
+    } fields;
+  } RFID1_t;
+   union{
+    uint8_t RFID2;
+    struct {
+      uint8_t enemy_tunnel_boost_road_lower : 1;   // bit0: 对方地形跨越增益点(隧道)(靠近对方公路一侧下方)
+      uint8_t enemy_tunnel_boost_road_middle : 1;  // bit1: 对方地形跨越增益点(隧道)(靠近对方公路一侧中间)
+      uint8_t enemy_tunnel_boost_road_upper : 1;   // bit2: 对方地形跨越增益点(隧道)(靠近对方公路一侧上方)
+      uint8_t enemy_tunnel_boost_trapezoid_low : 1;// bit3: 对方地形跨越增益点(隧道)(靠近对方梯形高地较低处)
+      uint8_t enemy_tunnel_boost_trapezoid_mid : 1;// bit4: 对方地形跨越增益点(隧道)(靠近对方梯形高地较中间)
+      uint8_t enemy_tunnel_boost_trapezoid_high : 1;// bit5: 对方地形跨越增益点(隧道)(靠近对方梯形高地较高处)
+      uint8_t reserved : 2;                         // 保留位(用于未来扩展)
+    } fields;
+  } RFID2_t;
+} RFID_Status_t;
+
 typedef union{
   // 方式 1：直接作为 4 字节数组访问（用于底层串口发送/接收）
   uint8_t raw_data[4];
@@ -143,6 +201,7 @@ typedef struct {
   ShootInstance* shoot;
 } RobotInstance;
 
+Sentry_Cmd_t *SentryUpdate();
 
 /**
  * @brief 机器人初始化,请在开启rtos之前调用.这也是唯一需要放入main函数的函数
