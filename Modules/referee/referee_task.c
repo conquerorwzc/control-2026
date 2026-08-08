@@ -208,7 +208,7 @@ static void MyUIRefresh(Referee_Interactive_info_t *interactive_data) {
   }
 
 
-    char *cap_str = (interactive_data->cap_msg.error_detect==0&&interactive_data->cap_msg.cap_v!=0) == 0? "good " : "bad";
+    char *cap_str = "bad";
     UICharDraw(&UI_State_dyn[4], "sd4", UI_Graph_Change, 8, UI_Color_Pink, 15, 2, 270, 550, cap_str);
     UICharRefresh(&referee_recv_info->referee_id, UI_State_dyn[4]);
     interactive_data->Referee_Interactive_Flag.lid_flag = 0;
@@ -615,7 +615,6 @@ void UITask() {
   interactive_data.friction_mode = robot->shoot->shoot_ctrl_cmd.friction_mode;
   interactive_data.bullet_speed_mode_e=robot->shoot->shoot_ctrl_cmd.bullet_speed_mode;
   interactive_data.heat_mode_e=robot->shoot->shoot_ctrl_cmd.heat_mode;
-  interactive_data.cap_voltage = robot->super_cap->cap_msg.cap_v;
 
   // 动态数值（如果这里的变量名和你的底层解算名字不一致，请手动微调一下）
   interactive_data.pitch_angle = robot->gimbal->gimbal_ctrl_cmd.pitch;                      // 俯仰角

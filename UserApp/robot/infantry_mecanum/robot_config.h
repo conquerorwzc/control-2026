@@ -279,11 +279,3 @@ static Shoot_Init_Config_s shoot_init_config = {
             .controller_setting_init_config.close_loop_type = SPEED_LOOP | ANGLE_LOOP,
         },
 };
-
-
-static SuperCap_Init_Config_s super_cap_config = {
-  .can_config = {
-    .can_handle = &hcan1,
-    .tx_id = 0x210,  // 超级电容默认接收id
-    .rx_id = 0x211,  // 超级电容默认发送id,注意tx和rx在其他人看来是反的
-}};
