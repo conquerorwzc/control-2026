@@ -27,7 +27,7 @@ static void SuperCapOfflineCallback()
 
 static void DecodeSuperCap(CANInstance *_instance)
 {
-    memcpy(&super_cap_instance->cap_msg,_instance->rx_buff,8);
+    memcpy(&super_cap_instance->cap_msg, _instance->rx_buff, sizeof(super_cap_instance->cap_msg));
     // 重载daemon，表示正常接收到数据
     DaemonReload(supercap_daemon_instance);
 }

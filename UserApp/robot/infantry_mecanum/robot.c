@@ -527,7 +527,7 @@ void RobotInit() {
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   shoot_ctrl_cmd->bullet_speed_mode=MANUAL_BULLET_SPEED;
-  shoot_ctrl_cmd->heat_mode=REFEREE_CONTROL;
+  shoot_ctrl_cmd->heat_mode=DISABLE;
   vision_recv_data=VisionInit(&gimbal_init_config.imu_init_config);
   Buzzer_config_s buzzer_cfg = {
     .alarm_level = ALARM_LEVEL_HIGH,
@@ -569,7 +569,7 @@ void RobotTask() {
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
   ChassisTask();
-  SuperCapSendMessage(0,200,50);
+  SuperCapSendMessage(1,45,50);
 #endif
 
 
