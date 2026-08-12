@@ -9,7 +9,6 @@
 // #include "rm_referee.h"
 #include "can_comm.h"
 #include "new_RC_VT13.h"
-#include "super_cap.h"
 // todo: add vision_module
 
 typedef enum {
@@ -79,7 +78,6 @@ typedef struct {
   Vision_Receive_s* vision_recv_data;
   navigator_recv_t* navigator_data;    //从导航获取的控制指令
 
-  SuperCapInstance* super_cap;
   ChassisInstance* chassis;
   GimbalInstance* gimbal;
   ShootInstance* shoot;
