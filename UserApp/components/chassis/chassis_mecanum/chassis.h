@@ -47,8 +47,19 @@ typedef struct {
   uint16_t max_power;  // 最大功率限制
   // UI部分
   //  ...
-
+  uint8_t SuperCapBoost;
 } Chassis_Ctrl_Cmd_s;
+
+#pragma pack()
+//超级电容策略结构体
+
+typedef enum {
+  SAFETY_MODE=0,//安全模式，超电电压低于8伏时进入，大于18伏退出，底盘限制30W
+  PASSIVE_MODE,//被动模式，超电电压正常时的工作模式
+  ACTIVE_MODE,//，主动模式，主动使用超电能量
+  CHARGING_MODE,//充电模式，衰减底盘功率，保障电容电压健康
+  FORCED_CHARGING_MODE,//强制充电模式，更极端的功率衰减，强制超电快速充电
+} SuperCapMode;
 
 typedef struct {
   float k0;
@@ -79,6 +90,7 @@ typedef struct {
 typedef struct {
   Chassis_Ctrl_Cmd_s chassis_ctrl_cmd;
   DJIMotorInstance* wheel_motor[4];  // left right forward back
+  SuperCapMode super_cap_mode;
 } ChassisInstance;
 
 /**

@@ -56,7 +56,7 @@ typedef struct {
   // IMU原始测量值
   float Gyro[3];   // 陀螺仪原始测量角速度 [0]-Pitch方向 [1]-Roll方向 [2]-Yaw方向 单位: °/s
   float Accel[3];  // 加速度计原始测量加速度 [0]-X方向 [1]-Y方向 [2]-Z方向 单位: m/s^2
-
+  float GyroWithLPF[3];   // 陀螺仪滤波后的测量角速度 [0]-Pitch方向 [1]-Roll方向 [2]-Yaw方向 单位: °/s
   // 姿态解算结果
   float Roll;           // 解算得到的横滚角 单位: °
   float Pitch;          // 解算得到的俯仰角 单位: °
@@ -71,12 +71,14 @@ typedef struct {
  */
 typedef struct {
   uint8_t flag;  // 参数更新标志位，当参数发生变化时置1
+  uint8_t offset_flag; //是否采用离线标注参数，0-在线标定 1-离线标定
 
   float scale[3];  // 三轴标度因数修正系数 [0]-X轴 [1]-Y轴 [2]-Z轴
 
   float Yaw;    // Yaw轴安装偏角修正 单位: °
   float Pitch;  // Pitch轴安装偏角修正 单位: °
   float Roll;   // Roll轴安装偏角修正 单位: °
+  float GyroOffset[3];
 } IMU_Init_Config_s;
 
 /**

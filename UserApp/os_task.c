@@ -28,7 +28,7 @@
 #include "dmmotor.h"
 // bsp
 #include "bsp_init.h"
-
+#include "referee_task.h"
 
 osThreadId motorTaskHandle;
 osThreadId daemonTaskHandle;
@@ -52,14 +52,17 @@ void OSTaskInit() {
   osThreadDef(motortask, StartMOTORTASK, osPriorityBelowNormal, 0, 256);
   motorTaskHandle = osThreadCreate(osThread(motortask), NULL);
 
-  // osThreadDef(daemontask, StartDAEMONTASK, osPriorityNormal, 0, 128);
-  // daemonTaskHandle = osThreadCreate(osThread(daemontask), NULL);
+  osThreadDef(daemontask, StartDAEMONTASK, osPriorityNormal, 0, 128);
+  daemonTaskHandle = osThreadCreate(osThread(daemontask), NULL);
+  if (daemonTaskHandle == NULL) {
+    LOGERROR("[freeRTOS] Daemon task create failed");
+  }
 
   osThreadDef(robottask, StartROBOTTASK, osPriorityNormal, 0, 1024);
   robotTaskHandle = osThreadCreate(osThread(robottask), NULL);
 
-  // osThreadDef(uitask, StartUITASK, osPriorityNormal, 0, 512);
-  // uiTaskHandle = osThreadCreate(osThread(uitask), NULL);
+  osThreadDef(uitask, StartUITASK, osPriorityNormal, 0, 512);
+  uiTaskHandle = osThreadCreate(osThread(uitask), NULL);
 
   // 初始化完成,开启中断
   __enable_irq();
@@ -74,7 +77,7 @@ __attribute__((noreturn)) void StartMOTORTASK(void const *argument) {
     MotorControlTask();
     motor_dt = DWT_GetTimeline_ms() - motor_start;
     if (motor_dt > 2) LOGERROR("[freeRTOS] MOTOR Task is being DELAY! dt = [%f]", &motor_dt);
-    osDelay(2);
+    osDelay(1);
   }
 }
 
@@ -106,12 +109,12 @@ __attribute__((noreturn)) void StartROBOTTASK(void const *argument) {
     robot_start = DWT_GetTimeline_ms();
     RobotTask();
     robot_dt = DWT_GetTimeline_ms() - robot_start;
-    if (robot_dt > 2) LOGERROR("[freeRTOS] ROBOT core Task is being DELAY! dt = [%f]", &robot_dt);
-    osDelay(2);
+    if (robot_dt > 3) LOGERROR("[freeRTOS] ROBOT core Task is being DELAY! dt = [%f]", &robot_dt);
+    osDelay(1);
   }
 }
 
-#if 0
+// #if 0
 __attribute__((noreturn)) void StartUITASK(void const *argument) {
   LOGINFO("[freeRTOS] UI Task Start");
   MyUIInit();
@@ -121,6 +124,5 @@ __attribute__((noreturn)) void StartUITASK(void const *argument) {
     UITask();
     osDelay(1);  // 即使没有任何UI需要刷新,也挂起一次,防止卡在UITask中无法切换
   }
-
-// 111
-#endif
+}
+// #endif
