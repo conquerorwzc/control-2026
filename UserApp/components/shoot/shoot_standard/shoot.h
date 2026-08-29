@@ -35,6 +35,14 @@ typedef enum {
   LOAD_BURSTFIRE,  // 连发
 } Loader_Mode_e;
 
+typedef enum {
+  BULLET_SPEED_NONE = 0,
+  BIG_AMU_10 = 10,
+  SMALL_AMU_15 = 15,
+  BIG_AMU_16 = 16,
+  SMALL_AMU_18 = 18,
+  SMALL_AMU_30 = 30,
+} Bullet_Speed_e;
 
 // 机器人底盘修改的参数,单位为mm(毫米)
 typedef struct {
@@ -44,12 +52,15 @@ typedef struct {
   int loader_direction;          // 拨弹盘方向
   int friction_num;              // 摩擦轮数量
   float friction_speed;          // 摩擦轮速度
+  float friction_speed_min;  // 摩擦轮转速绝对值下限
+  float friction_speed_max;  // 摩擦轮转速绝对值上限
+  float target_speed;
   float friction_coefficients[FRICTION_NUM];  // 摩擦轮的系数
   float deadtime_onebullet;                   // 单发死时间
   float deadtime_burstfire;                   // 连发死时间
-  float target_speed;                         //目标弹速
+  float bullet_speed_adjustment;
+  float feedforward;
   float bullet_speed_deadband;                //速度死区
-  float bullet_speed_adjustment;              // 弹速误差修正系数
   uint16_t shooter_barrel_cooling_value;      // 机器人射击热量每秒冷却值
   uint16_t shooter_barrel_heat_limit;         // 机器人射击热量上限
   uint16_t one_barrel_heat_value;             // 一个弹丸的热量
@@ -62,12 +73,10 @@ typedef struct {
   Friction_Mode_e friction_mode;
   BULLET_Speed_Mode_e bullet_speed_mode;
   HEAT_Mode_e heat_mode;
-  uint8_t auto_vision_mode;
   uint16_t shooter_barrel_heat;// 机器人当前射击热量,从裁判系统获取
-  uint16_t shooter_barrel_heat_limit;//
-  uint16_t shooter_barrel_cooling_value;//
   float initial_speed;  // 当前弹速
-  float friction_speed; //摩擦轮转速
+  float friction_speed; // 摩擦轮转速
+  uint16_t shooter_barrel_heat_limit;  // 机器人射击热量上限
 } Shoot_Ctrl_Cmd_s;
 
 typedef struct {

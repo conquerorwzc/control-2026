@@ -1,5 +1,5 @@
 # Set the type of chassis, gimbal and shooter modules for infantry robot
-set(CHASSIS_TYPE chassis_mecanum)
+set(CHASSIS_TYPE chassis_lift)
 set(Grab_TYPE 5-DOF)
 
 add_compile_definitions(FRICTION_NUM=3)

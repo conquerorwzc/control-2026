@@ -1,0 +1,134 @@
+{
+  "version": "2.0.0",
+  "inputs": [
+    {
+      "id": "boardType",
+      "type": "pickString",
+      "description": "Select Board Type",
+      "options": [
+        "CHASSIS_BOARD",
+        "GIMBAL_BOARD",
+        "ONE_BOARD"
+      ],
+      "default": "CHASSIS_BOARD"
+    },
+    {
+      "id": "debuggerAction",
+      "type": "pickString",
+      "description": "Select Action",
+      "options": [
+        "dap (Flash)",
+        "jlink (Flash)",
+        "dap (Ozone)",
+        "jlink (Ozone)"
+      ],
+      "default": "dap (Flash)"
+    }
+  ],
+  "tasks": [
+    {
+      "label": "CMake: Configure (Ninja)",
+      "type": "shell",
+      "command": "cmake",
+      "args": [
+        "-G",
+        "Ninja",
+        "-S",
+        ".",
+        "-B",
+        "cmake-build-debug",
+        "-DCMAKE_BUILD_TYPE=Debug",
+        "-DBOARD_TYPE=${input:boardType}"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "CMake: Build (Ninja)",
+      "type": "shell",
+      "command": "cmake",
+      "args": [
+        "--build",
+        "cmake-build-debug"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": [
+        {
+          "owner": "cpp",
+          "fileLocation": [
+            "relative",
+            "${workspaceFolder}"
+          ],
+          "pattern": {
+            "regexp": "^(.*):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
+            "file": 1,
+            "line": 2,
+            "column": 3,
+            "severity": 4,
+            "message": 5
+          }
+        }
+      ],
+      "dependsOn": [
+        "CMake: Configure (Ninja)"
+      ]
+    },
+    {
+      "label": "OpenOCD: Flash/Debug (Selected Board)",
+      "type": "shell",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "dependsOn": [
+        "CMake: Build (Ninja)"
+      ],
+      "windows": {
+        "options": {
+          "shell": {
+            "executable": "powershell",
+            "args": [
+              "-NoProfile",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-Command"
+            ]
+          }
+        },
+        "command": "$BOARD = '${input:boardType}'; if ($BOARD -eq 'GIMBAL_BOARD') { $MCU = 'f4' } else { $MCU = 'h7' }; if ('${input:debuggerAction}' -match 'dap \\(Ozone\\)') { Start-Process cmd -ArgumentList \"/c start ${workspaceFolder}/Debug/gbd_server/gbd_start_dap_$MCU.bat\"; if (Get-Command Ozone -ErrorAction SilentlyContinue) { Start-Process Ozone -ArgumentList \"${workspaceFolder}/Debug/ozone/control-2026-$MCU.jdebug\" } else { Write-Error 'Ozone executable not found in PATH. Please add your Ozone installation directory to your system PATH environment variable.' } } elseif ('${input:debuggerAction}' -match 'jlink \\(Ozone\\)') { if (Get-Command Ozone -ErrorAction SilentlyContinue) { Start-Process Ozone -ArgumentList \"${workspaceFolder}/Debug/ozone/control-2026-$MCU.jdebug\" } else { Write-Error 'Ozone executable not found in PATH. Please add your Ozone installation directory to your system PATH environment variable.' } } elseif ('${input:debuggerAction}' -match 'dap \\(Flash\\)') { openocd -f Debug/config/openocd_dap_$MCU.cfg -c 'program cmake-build-debug/control-2026.elf verify reset exit' } elseif ('${input:debuggerAction}' -match 'jlink \\(Flash\\)') { openocd -f Debug/config/openocd_jlink_$MCU.cfg -c 'program cmake-build-debug/control-2026.elf verify reset exit' }"
+      },
+      "osx": {
+        "command": "bash",
+        "args": [
+          "-lc",
+          "SEL=\"${input:debuggerAction}\"; BOARD=\"${input:boardType}\"; case \"$BOARD\" in GIMBAL_BOARD) MCU=f4 ;; *) MCU=h7 ;; esac; if [[ \"$SEL\" =~ ^dap\\ \\(Ozone\\)$ ]]; then open -a Terminal \"${workspaceFolder}/Debug/gbd_server/gbd_start_dap_$MCU.sh\"; if OZONE_APP=$(ls -d /Applications/SEGGER/Ozone_V*/Ozone.app 2>/dev/null | head -n 1) && [ -d \"$OZONE_APP\" ]; then open -a \"$OZONE_APP\" --args \"${workspaceFolder}/Debug/ozone/control-2026-$MCU.jdebug\"; elif command -v Ozone >/dev/null 2>&1; then open -a Ozone --args \"${workspaceFolder}/Debug/ozone/control-2026-$MCU.jdebug\"; else echo \"Ozone executable not found in PATH or Applications. Please add Ozone to PATH.\" >&2; exit 1; fi; elif [[ \"$SEL\" =~ ^jlink\\ \\(Ozone\\)$ ]]; then if OZONE_APP=$(ls -d /Applications/SEGGER/Ozone_V*/Ozone.app 2>/dev/null | head -n 1) && [ -d \"$OZONE_APP\" ]; then open -a \"$OZONE_APP\" --args \"${workspaceFolder}/Debug/ozone/control-2026-$MCU.jdebug\"; elif command -v Ozone >/dev/null 2>&1; then open -a Ozone --args \"${workspaceFolder}/Debug/ozone/control-2026-$MCU.jdebug\"; else echo \"Ozone executable not found in PATH or Applications. Please add Ozone to PATH.\" >&2; exit 1; fi; elif [[ \"$SEL\" =~ ^dap\\ \\(Flash\\)$ ]]; then openocd -f Debug/config/openocd_dap_$MCU.cfg -c \"program cmake-build-debug/control-2026.elf verify reset exit\"; elif [[ \"$SEL\" =~ ^jlink\\ \\(Flash\\)$ ]]; then openocd -f Debug/config/openocd_jlink_$MCU.cfg -c \"program cmake-build-debug/control-2026.elf verify reset exit\"; else echo \"Unknown selection\" >&2; exit 2; fi"
+        ]
+      },
+      "linux": {
+        "command": "bash",
+        "args": [
+          "-lc",
+          "SEL=\"${input:debuggerAction}\"; BOARD=\"${input:boardType}\"; case \"$BOARD\" in GIMBAL_BOARD) MCU=f4 ;; *) MCU=h7 ;; esac; if [[ \"$SEL\" =~ ^dap\\ \\(Ozone\\)$ ]]; then bash \"${workspaceFolder}/Debug/gbd_server/gbd_start_dap_$MCU.sh\" & if command -v Ozone >/dev/null 2>&1; then Ozone \"${workspaceFolder}/Debug/ozone/control-2026-$MCU.jdebug\"; else echo \"Ozone executable not found in PATH. Please add Ozone to PATH.\" >&2; exit 1; fi; elif [[ \"$SEL\" =~ ^jlink\\ \\(Ozone\\)$ ]]; then if command -v Ozone >/dev/null 2>&1; then Ozone \"${workspaceFolder}/Debug/ozone/control-2026-$MCU.jdebug\"; else echo \"Ozone executable not found in PATH. Please add Ozone to PATH.\" >&2; exit 1; fi; elif [[ \"$SEL\" =~ ^dap\\ \\(Flash\\)$ ]]; then openocd -f Debug/config/openocd_dap_$MCU.cfg -c \"program cmake-build-debug/control-2026.elf verify reset exit\"; elif [[ \"$SEL\" =~ ^jlink\\ \\(Flash\\)$ ]]; then openocd -f Debug/config/openocd_jlink_$MCU.cfg -c \"program cmake-build-debug/control-2026.elf verify reset exit\"; else echo \"Unknown selection\" >&2; exit 2; fi"
+        ]
+      }
+    }
+  ]
+}

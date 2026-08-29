@@ -38,6 +38,7 @@ const float zb[3] = {0, 0, 1};
 // 用于获取两次采样之间的时间间隔
 static uint32_t INS_DWT_Count = 0;
 static float dt = 0, t = 0;
+static float RefTemp = 40;  // 恒温设定温度
 
 static void IMU_Param_Correction(IMU_Init_Config_s *param, float gyro[3], float accel[3]);
 
@@ -66,9 +67,9 @@ static void InitQuaternion(float *init_q4) {
   for (uint8_t i = 0; i < 100; ++i) {
     BMI088_Read(&BMI088);
     IMU_Param_Correction(&IMU_Param, BMI088.Gyro, BMI088.Accel);
-    acc_init[X] += BMI088.Accel[X];
-    acc_init[Y] += BMI088.Accel[Y];
-    acc_init[Z] += BMI088.Accel[Z];
+    acc_init[X] += BMI088.Accel[X];  // X轴不变
+    acc_init[Y] += BMI088.Accel[Y];  // Y轴取反
+    acc_init[Z] += BMI088.Accel[Z];  // Z轴取反
     DWT_Delay(0.001);
   }
   for (uint8_t i = 0; i < 3; ++i) acc_init[i] /= 100;
@@ -95,6 +96,38 @@ __attribute__((noreturn)) void StartINSTASK(void const *argument) {
     osDelay(1);
   }
 }
+
+/**
+ * @brief 【新增】IMU杆臂补偿 (消除高速旋转时的向心加速度)
+ * @param accel 当前三轴加速度 (m/s^2) [将被就地修改]
+ * @param gyro  当前三轴角速度 (rad/s)
+ * @param offset IMU中心到旋转中心的偏移量 (m)
+ */
+static void IMU_LeverArm_Compensation(float accel[3], float gyro[3], float offset[3]) {
+  // 如果没有设置偏移量，则不消耗算力
+  if (offset[X] == 0.0f && offset[Y] == 0.0f && offset[Z] == 0.0f) {
+    return;
+  }
+
+  // 1. 计算叉乘: V = w x r (角速度 叉乘 偏置向量 -> 得到线速度)
+  float cross_wx_r[3];
+  cross_wx_r[X] = gyro[Y] * offset[Z] - gyro[Z] * offset[Y];
+  cross_wx_r[Y] = gyro[Z] * offset[X] - gyro[X] * offset[Z];
+  cross_wx_r[Z] = gyro[X] * offset[Y] - gyro[Y] * offset[X];
+
+  // 2. 计算向心加速度: a_c = w x (w x r) = w x V
+  float a_c[3];
+  a_c[X] = gyro[Y] * cross_wx_r[Z] - gyro[Z] * cross_wx_r[Y];
+  a_c[Y] = gyro[Z] * cross_wx_r[X] - gyro[X] * cross_wx_r[Z];
+  a_c[Z] = gyro[X] * cross_wx_r[Y] - gyro[Y] * cross_wx_r[X];
+
+  // 3. 从原始加速度中剔除向心加速度
+  // (注意：此处的accel和gyro必须已经是对齐了机体坐标系的数据)
+  accel[X] -= a_c[X];
+  accel[Y] -= a_c[Y];
+  accel[Z] -= a_c[Z];
+}
+
 /**
  * @brief 调试用陀螺仪校准函数，用于测量陀螺仪零偏值
  * @param sample_count 采样次数
@@ -115,7 +148,7 @@ static void INS_CalibrateGyroForDebug(uint16_t sample_count) {
       BMI088_Read(&BMI088);
       IMU_Temperature_Ctrl();
       DWT_Delay(0.001);
-    } while (BMI088.Temperature <= 39.5f || BMI088.Temperature >= 40.5f);
+    } while (BMI088.Temperature <= 39.0f || BMI088.Temperature >= 41.0f);
 
     // 累加陀螺仪读数
     for (uint8_t j = 0; j < 3; j++) {
@@ -158,10 +191,10 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
                               .Improve = 0x01};  // enable integratiaon limit
   PIDInit(&TempCtrl, &config);
 
-  for (int i=0;i<3000;i++) {
+  for (int i=0;i<1000;i++) {
     BMI088_Read(&BMI088);
     IMU_Temperature_Ctrl();
-    DWT_Delay(0.001f);
+    DWT_Delay(0.001);
   }
   //是否在线标定
   if (imu_init_config->offset_flag==1) {
@@ -169,7 +202,7 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
       BMI088.GyroOffset[i]=imu_init_config->GyroOffset[i];
   }
   else {
-    INS_CalibrateGyroForDebug(10000);
+    INS_CalibrateGyroForDebug(5000);
   }
 
   // 手动计算加速度缩放因子，因为我们跳过了完整的校准过程
@@ -181,14 +214,18 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
   IMU_Param.Pitch = imu_init_config->Pitch;
   IMU_Param.Roll = imu_init_config->Roll;
   IMU_Param.flag = imu_init_config->flag;
+  // ==================== 【新增】 ====================
+  IMU_Param.CenterOffset[X] = imu_init_config->CenterOffset[X];
+  IMU_Param.CenterOffset[Y] = imu_init_config->CenterOffset[Y];
+  IMU_Param.CenterOffset[Z] = imu_init_config->CenterOffset[Z];
 
   // BMI088CalibrateGyroForDebug(BMI,1000);
   float init_quaternion[4] = {0};
   InitQuaternion(init_quaternion);
   // 改进的初始化方式：使用更稳定的四元数初始化
-  //float init_quaternion[4] = {1.0f, 0.0f, 0.0f, 0.0f};  // 单位四元数
-  IMU_QuaternionEKF_Init(init_quaternion, 10, 0.001f, 10000000, 0.9996f, 0.0085f);  // 增加测量噪声，启用渐消因子和低通滤波
-
+  // float init_quaternion[4] = {1.0f, 0.0f, 0.0f, 0.0f};  // 单位四元数
+  IMU_QuaternionEKF_Init(init_quaternion, 10, 0.001f, 10000000, 0.9996f,
+                         0.0085f);  // 增加测量噪声，启用渐消因子和低通滤波
   // noise of accel is relatively big and of high freq,thus lpf is used
   INS.AccelLPF = 0.0085;
   DWT_GetDeltaT(&INS_DWT_Count);
@@ -216,18 +253,17 @@ void INS_Task(void) {
     INS.Gyro[X] = BMI088.Gyro[X];
     INS.Gyro[Y] = BMI088.Gyro[Y];
     INS.Gyro[Z] = BMI088.Gyro[Z];
-    for (uint8_t i = 0; i < 3; ++i)  // 为滑模控制过一个低通滤波，防止速度乱飞，系数就用加速度的得了
-    {
-      INS.GyroWithLPF[i] = INS.Gyro[i] * dt / (INS.AccelLPF + dt) +
-                             INS.GyroWithLPF[i] * INS.AccelLPF / (INS.AccelLPF + dt);
-    }
+
     // 修正安装误差
     IMU_Param_Correction(&IMU_Param, INS.Gyro, INS.Accel);
 
     // 计算重力加速度矢量和b系的XY两轴的夹角,可用作功能扩展,本demo暂时没用
     // INS.atanxz = -atan2f(INS.Accel[X], INS.Accel[Z]) * 180 / PI;
     // INS.atanyz = atan2f(INS.Accel[Y], INS.Accel[Z]) * 180 / PI;
-
+    // ==================== 【新增】 ====================
+    // 扣除小陀螺时的向心加速度，防止姿态解算发飘导致平移
+    // 必须放在 IMU_Param_Correction 之后，EKF_Update 之前
+    IMU_LeverArm_Compensation(INS.Accel, INS.Gyro, IMU_Param.CenterOffset);
     // 核心函数,EKF更新四元数
     IMU_QuaternionEKF_Update(INS.Gyro[X], INS.Gyro[Y], INS.Gyro[Z], INS.Accel[X], INS.Accel[Y], INS.Accel[Z], dt);
 

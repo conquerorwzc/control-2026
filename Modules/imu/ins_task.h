@@ -26,7 +26,7 @@
 #define INS_TASK_PERIOD 1
 
 typedef struct {
-  float Gyro[3];   // 三个轴的角速度数据 [0]-Pitch方向 [1]-Roll方向 [2]-Yaw方向 单位: °/s
+  float Gyro[3];   // 三个轴的角速度数据 [0]-Pitch方向 [1]-Roll方向 [2]-Yaw方向 单位: rad/s
   float Accel[3];  // 三个轴的加速度数据 [0]-X方向 [1]-Y方向 [2]-Z方向 单位: m/s^2
   // float Ang_accel[3]; // 加角速度数据
 
@@ -54,9 +54,9 @@ typedef struct {
   // float atanyz;
 
   // IMU原始测量值
-  float Gyro[3];   // 陀螺仪原始测量角速度 [0]-Pitch方向 [1]-Roll方向 [2]-Yaw方向 单位: °/s
+  float Gyro[3];   // 陀螺仪原始测量角速度 [0]-Pitch方向 [1]-Roll方向 [2]-Yaw方向 单位:  rad/s
   float Accel[3];  // 加速度计原始测量加速度 [0]-X方向 [1]-Y方向 [2]-Z方向 单位: m/s^2
-  float GyroWithLPF[3];   // 陀螺仪滤波后的测量角速度 [0]-Pitch方向 [1]-Roll方向 [2]-Yaw方向 单位: °/s
+
   // 姿态解算结果
   float Roll;           // 解算得到的横滚角 单位: °
   float Pitch;          // 解算得到的俯仰角 单位: °
@@ -79,6 +79,13 @@ typedef struct {
   float Pitch;  // Pitch轴安装偏角修正 单位: °
   float Roll;   // Roll轴安装偏角修正 单位: °
   float GyroOffset[3];
+  // ==================== 【新增】 ====================
+  // IMU中心相对于底盘旋转中心的物理偏移量 (单位: 米)
+  // X: 前后偏移 (前正后负)
+  // Y: 左右偏移 (左正右负 或 视你的坐标系而定)
+  // Z: 上下偏移 (通常Z轴向心力影响较小，可填0)
+  float CenterOffset[3];
+  // =================================================
 } IMU_Init_Config_s;
 
 /**
@@ -99,6 +106,8 @@ void INS_Task(void);
  *
  */
 void StartINSTASK(void const *argument);
+
+uint8_t INS_GetAttitude(attitude_t *attitude);
 
 /**
  * @brief 四元数更新函数,即实现dq/dt=0.5Ωq
@@ -148,5 +157,13 @@ void BodyFrameToEarthFrame(const float *vecBF, float *vecEF, float *q);
  * @param q
  */
 void EarthFrameToBodyFrame(const float *vecEF, float *vecBF, float *q);
+
+/**
+ * @brief 【新增】IMU杆臂补偿 (消除高速旋转时的向心加速度)
+ * @param accel 当前三轴加速度 (m/s^2) [将被就地修改]
+ * @param gyro  当前三轴角速度 (rad/s)
+ * @param offset IMU中心到旋转中心的偏移量 (m)
+ */
+// static void IMU_LeverArm_Compensation(float accel[3], float gyro[3], float offset[3]);
 
 #endif
