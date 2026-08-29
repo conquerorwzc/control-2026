@@ -4,8 +4,7 @@
 #include "buzzer.h"
 #include "general_def.h"
 #include "master_process.h"
-#include "referee_task.h"
-#include "rm_referee.h"
+#include "referee.h"
 #include "robot_config.h"
 #include "user_lib.h"
 
@@ -370,16 +369,16 @@ static void MouseKeySet() {
   }
   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_V] % 2) {
     case 0:
-      shoot_ctrl_cmd->auto_vision_mode=1;//自瞄
+      VisionSetMode(1);  // 自瞄
       break;
     case 1:
-      shoot_ctrl_cmd->auto_vision_mode=2;//小符
+      VisionSetMode(2);  // 小符
       break;
     case 2:
-      shoot_ctrl_cmd->auto_vision_mode=3;//大符
+      VisionSetMode(3);  // 大符
       break;
     case 3:
-      shoot_ctrl_cmd->auto_vision_mode=0;//空闲
+      VisionSetMode(0);  // 空闲
       break;
     default:
       break;
@@ -416,10 +415,6 @@ static void MouseKeySet() {
   }
   else {
     chassis_ctrl_cmd->SuperCapBoost=0;
-  }
-  if (rc_data[TEMP].key[KEY_PRESS].r) {
-    Referee_Interactive_info_t *ui_data=getUI();
-    ui_data->force_refresh_ui=1;
   }
   *rc_data_last = *rc_data;
 }
@@ -551,7 +546,6 @@ void RobotCMDTask() {
   shoot_ctrl_cmd->initial_speed=robot->referee_data->ShootData.initial_speed;
   shoot_ctrl_cmd->shooter_barrel_heat=robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
   shoot_ctrl_cmd->shooter_barrel_heat_limit=robot->referee_data->GameRobotState.shooter_barrel_heat_limit-10;
-  shoot_ctrl_cmd->shooter_barrel_cooling_value=robot->referee_data->GameRobotState.shooter_barrel_cooling_value;
   CalcOffsetAngle();
   RemoteControlSet();
   MouseKeySet();

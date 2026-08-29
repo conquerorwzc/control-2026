@@ -20,7 +20,6 @@
 #include "daemon.h"
 #include "motor_task.h"
 #include "robot.h"
-#include "ui.h"
 // module
 #include "dmmotor.h"
 // bsp
@@ -29,7 +28,6 @@
 osThreadId motorTaskHandle;
 osThreadId daemonTaskHandle;
 osThreadId robotTaskHandle;
-osThreadId uiTaskHandle;
 
 /**
  * @brief 初始化RTOS任务,所有持续运行的任务都在这里初始化
@@ -53,15 +51,10 @@ void OSTaskInit() {
 
   osThreadDef(robottask, StartROBOTTASK, osPriorityNormal, 0, 1024);
   robotTaskHandle = osThreadCreate(osThread(robottask), NULL);
-#if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
-  osThreadDef(uitask, StartUITASK, osPriorityLow, 0, 512);
-  uiTaskHandle = osThreadCreate(osThread(uitask), NULL);
-#endif
 
   // 初始化完成,开启中断
   __enable_irq();
 }
-
 __attribute__((noreturn)) void StartMOTORTASK(void const *argument) {
   static float motor_dt;
   static float motor_start;
@@ -105,35 +98,4 @@ __attribute__((noreturn)) void StartROBOTTASK(void const *argument) {
     if (robot_dt > 1) LOGERROR("[freeRTOS] ROBOT core Task is being DELAY! dt = [%f]", &robot_dt);
     osDelay(1);
   }
-}
-
-__attribute__((noreturn)) void StartUITASK(void const *argument) {
-#if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
-  RobotInstance* ui_robot = NULL;
-
-  LOGINFO("[freeRTOS] UI Task Start");
-  osDelay(100);
-
-  for (;;) {
-    ui_robot = RobotGetInstance();
-    if (ui_robot != NULL && ui_robot->referee_data != NULL) {
-      break;
-    }
-    osDelay(10);
-  }
-
-  MyUIInit(ui_robot);
-
-  for (;;) {
-    ui_robot = RobotGetInstance();
-    if (ui_robot != NULL && ui_robot->referee_data != NULL) {
-      UITask(ui_robot);
-    }
-    osDelay(30);
-  }
-#else
-  for (;;) {
-    osDelay(1000);
-  }
-#endif
 }

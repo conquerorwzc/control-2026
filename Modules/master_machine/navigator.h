@@ -8,7 +8,7 @@
 #include "bsp_usart.h"
 #include "cmsis_os.h"
 #include "crc_func.h"
-#include "rm_referee.h"
+#include "referee.h"
 #include "string.h"
 #include "usart.h"
 

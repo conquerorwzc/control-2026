@@ -186,7 +186,6 @@ static Gimbal_Init_Config_s gimbal_init_config = {
       .Pitch = 0.0f,
       .Roll = 0.0f
     },
-    .hi05_uart_handle = &huart1,
 };
 static SuperCap_Init_Config_s super_cap_config = {
   .can_config = {

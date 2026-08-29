@@ -8,7 +8,7 @@
  * @copyright Copyright (c) 2022
  *
  */
-#include "referee_ui.h"
+#include "referee_UI.h"
 
 #include "crc_func.h"
 #include "referee.h"

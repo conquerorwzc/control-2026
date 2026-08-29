@@ -342,25 +342,25 @@ static const char *LoaderModeStr(Loader_Mode_e mode) {
 
 static const char *SuperCapModeStr(SuperCap_Mode_e mode) {
   switch (mode) {
-    case SAFETY_MODE:
+    case SUPER_CAP_SAFETY_MODE:
       return "SAFETY";
-    case PASSIVE_MODE:
+    case SUPER_CAP_PASSIVE_MODE:
       return "PASSIVE";
-    case ACTIVE_MODE:
+    case SUPER_CAP_ACTIVE_MODE:
       return "ACTIVE";
-    case CHARGING_MODE:
+    case SUPER_CAP_CHARGING_MODE:
       return "CHARGING";
     default:
       return "UNK";
   }
 }
 
-static const char *SuperCapCtrlCmdStr(SuperCap_Ctrl_Cmd_e cmd) { return cmd == BOOST ? "BOOST" : "NORMAL"; }
+static const char *SuperCapCtrlCmdStr(SuperCap_Ctrl_Cmd_e cmd) { return cmd == SUPER_CAP_BOOST ? "BOOST" : "NORMAL"; }
 
 static const char *FireModeStr(FireMode_e mode) { return mode == FIRE_MOUSE_PRIORITY ? "MOUSE" : "VISION"; }
 
 static uint32_t SuperCapCtrlCmdColor(SuperCap_Ctrl_Cmd_e cmd) {
-  return cmd == BOOST ? UI_Color_Purplish_red : UI_Color_Cyan;
+  return cmd == SUPER_CAP_BOOST ? UI_Color_Purplish_red : UI_Color_Cyan;
 }
 
 /** @brief 速度量程随底盘姿态变化，匍匐模式单独判定。 */
@@ -513,8 +513,8 @@ static void SampleStatusData(RobotInstance *robot, Referee_Interactive_info_t *d
   data->loader_mode = LOAD_STOP;
   data->chassis_pitch = 0.0f;
   data->chassis_roll = 0.0f;
-  data->super_cap_mode = SAFETY_MODE;
-  data->super_cap_ctrl_cmd = NORMAL;
+  data->super_cap_mode = SUPER_CAP_SAFETY_MODE;
+  data->super_cap_ctrl_cmd = SUPER_CAP_NORMAL;
   data->cap_voltage = 0.0f;
   data->cap_error = 1;
   data->speed = 0.0f;

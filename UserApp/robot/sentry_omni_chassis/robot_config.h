@@ -90,6 +90,7 @@
 })
 
 static Chassis_Init_Config_s chassis_init_config = {
+    .enable_yaw_hold = 1,
     .chassis_param =
         {
             // 机器人底盘修改的参数,单位为mm(毫米)

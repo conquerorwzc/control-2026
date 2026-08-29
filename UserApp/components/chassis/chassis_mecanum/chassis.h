@@ -29,11 +29,13 @@
 #pragma once
 
 #include "dji_motor.h"
+#include "ins_task.h"
 
 typedef enum {
   CHASSIS_POWER_OFF = 0,    // 电流零输入
   CHASSIS_ROTATE,            // 小陀螺模式
   CHASSIS_FOLLOW,            // 跟随模式，底盘叠加角度环控制
+  CHASSIS_HOLD,              // 航向保持模式
 } Chassis_Mode_e;
 
 typedef struct {
@@ -43,6 +45,7 @@ typedef struct {
   float wz;            // 旋转速度
   Chassis_Mode_e chassis_mode;
   float offset_angle;  // 底盘和归中位置的夹角
+  float yaw_hold_ref;  // 航向保持目标角度
   int chassis_speed_buff;
   uint16_t max_power;  // 最大功率限制
   // UI部分
@@ -85,12 +88,17 @@ typedef struct {
   Chassis_Param_s chassis_param;
   Motor_Init_Config_s wheel_motor_config[4];
   PID_Init_Config_s follow_pid;
+  PID_Init_Config_s yaw_hold_pid;
+  IMU_Init_Config_s imu_init_config;
+  uint8_t enable_yaw_hold;
 } Chassis_Init_Config_s;
 
 typedef struct {
   Chassis_Ctrl_Cmd_s chassis_ctrl_cmd;
   DJIMotorInstance* wheel_motor[4];  // left right forward back
   SuperCapMode super_cap_mode;
+  INS_t* chassis_IMU;
+  PIDInstance yaw_hold_pid;
 } ChassisInstance;
 
 /**

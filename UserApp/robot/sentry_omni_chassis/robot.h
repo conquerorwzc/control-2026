@@ -6,7 +6,7 @@
 #include "navigator.h"
 #include "new_RC_VT13.h"
 #include "remote_control.h"
-#include "rm_referee.h"
+#include "referee.h"
 #include "shoot.h"
 #include "super_cap_HKUST/super_cap_HKUST.h"
 // todo: add vision_module
@@ -172,14 +172,6 @@ typedef enum {
   DEFENSE_POSE,
   MOBILITY_POSE,
 } Sentry_Mode_e;
-
-typedef enum {
-  SAFETY_MODE=0,
-  PASSIVE_MODE,
-  ACTIVE_MODE,
-  CHARGING_MODE,
-  FORCED_CHARGING_MODE,
-} SuperCapMode;
 
 typedef struct {
   Robot_Mode_e robot_mode;       // 机器人工作状态

@@ -22,17 +22,22 @@ if(NOT DEFINED CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Debug")
 endif() # Debug Release RelWithDebInfo MinSizeRel
 
-#set(ROBOT_TYPE "steering_infantry_gimbal")
-#set(ROBOT_TYPE "sentry_mecanum")
-#set(ROBOT_TYPE "engineering")
-#set(ROBOT_TYPE "infantry_wheel_legged_heu")
-set(ROBOT_TYPE "infantry_wheel_legged_sjtu")
-#set(ROBOT_TYPE "infantry_wheel_legged_demo")
-#set(ROBOT_TYPE "hero_mecanum")
-#set(ROBOT_TYPE "infantry_steering")
-#set(ROBOT_TYPE "infantry_mecanum")
-#set(ROBOT_TYPE "dart")
-#set(ROBOT_TYPE "debug")；
+# 默认仍构建麦轮步兵，也允许通过 -DROBOT_TYPE=<目录名> 选择其他机器人。
+set(ROBOT_TYPE "infantry_mecanum" CACHE STRING "Robot configuration under UserApp/robot")
+
+# 其余已修复机器人预留配置；需要时取消对应一行的注释即可。
+# set(ROBOT_TYPE "sentry_omni_chassis")
+# set(ROBOT_TYPE "sentry_omni_gimbal")
+# set(ROBOT_TYPE "infantry_wheel_legged_sjtu")
+
+set(ROBOT_CMAKE "${CMAKE_SOURCE_DIR}/UserApp/robot/${ROBOT_TYPE}/robot.cmake")
+if (NOT EXISTS "${ROBOT_CMAKE}")
+    message(FATAL_ERROR "Unknown ROBOT_TYPE '${ROBOT_TYPE}': ${ROBOT_CMAKE} does not exist")
+endif ()
+
+# 除明确在 robot.cmake 中覆盖的多板型机器人外，现有机器人均使用 STM32F4。
+set(MCU_TYPE "stm32-f4")
+# set(MCU_TYPE "stm32-h7")  # H7 主控预留；轮腿项目通常由 robot.cmake 根据 BOARD_TYPE 自动选择
 
 # 递归包含头文件的函数
 function(include_sub_directories_recursively root_dir)
@@ -50,7 +55,10 @@ function(include_sub_directories_recursively root_dir)
 endfunction()
 
 # robot.cmake 根据 BOARD_TYPE 设置 MCU_TYPE，因此必须在 hardware cmake 之前 include
-include(${CMAKE_SOURCE_DIR}/UserApp/robot/${ROBOT_TYPE}/robot.cmake)
+include(${ROBOT_CMAKE})
+
+message(STATUS "Robot type: ${ROBOT_TYPE}")
+message(STATUS "MCU type: ${MCU_TYPE}")
 
 include(${CMAKE_SOURCE_DIR}/Hardware/${MCU_TYPE}/${MCU_TYPE}.cmake)
 
@@ -75,6 +83,25 @@ file(GLOB_RECURSE BASE_SOURCES
         "Modules/*.c"
         "UserApp/os_task.c"
 )
+
+# 合并后同时存在两套不兼容的 VT13 驱动，按机器人选择实际使用的一套。
+list(FILTER BASE_SOURCES EXCLUDE REGEX "[/\\\\](VT13[/\\\\]VT13|remote[/\\\\]new_RC_VT13)\\.c$")
+if (ROBOT_TYPE STREQUAL "infantry_wheel_legged_sjtu" OR ROBOT_TYPE STREQUAL "infantry_six_wheel")
+    list(APPEND BASE_SOURCES "${CMAKE_SOURCE_DIR}/Modules/VT13/VT13.c")
+elseif (ROBOT_TYPE STREQUAL "infantry_mecanum" OR
+        ROBOT_TYPE STREQUAL "sentry_omni_chassis" OR
+        ROBOT_TYPE STREQUAL "sentry_omni_gimbal")
+    list(APPEND BASE_SOURCES "${CMAKE_SOURCE_DIR}/Modules/remote/new_RC_VT13.c")
+endif ()
+
+# 两套超电驱动导出同名 API，不能同时参与链接。
+list(FILTER BASE_SOURCES EXCLUDE REGEX "[/\\\\](super_cap[/\\\\]super_cap|super_cap_HKUST[/\\\\]super_cap_HKUST)\\.c$")
+if (ROBOT_TYPE STREQUAL "infantry_mecanum" OR ROBOT_TYPE STREQUAL "sentry_omni_chassis")
+    list(APPEND BASE_SOURCES "${CMAKE_SOURCE_DIR}/Modules/super_cap_HKUST/super_cap_HKUST.c")
+else ()
+    list(APPEND BASE_SOURCES "${CMAKE_SOURCE_DIR}/Modules/super_cap/super_cap.c")
+endif ()
+
 list(APPEND SOURCES ${BASE_SOURCES})
 
 # Build types

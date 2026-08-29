@@ -8,7 +8,7 @@
 #else
 #include "remote_control.h"
 #endif
- #include "rm_referee.h"
+ #include "referee.h"
 #include "super_cap_HKUST/super_cap_HKUST.h"
 // todo: add vision_module
 
