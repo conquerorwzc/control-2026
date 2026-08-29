@@ -1,9 +1,11 @@
 #include "robot.h"
-#include "dmmotor.h"
+
+#include "HI05.h"
 #include "dji_motor.h"
 #include "dmmotor.h"
 #include "general_def.h"
 #include "robot_config.h"
+#include "usart.h"
 #include "user_lib.h"
 
 float target_torque = 0;
@@ -12,15 +14,17 @@ float q2i_coeff = (3591.0f / 187.0f) / reduction_ratio / 0.3f;
 
 // static DMMotorInstance* J8009P_instance;
 static DJIMotorInstance* M3508_instance;
-float speed_ref = 15000.0f;
+float speed_ref = 0.0f;
+static HI05_t*  imu_data;
 
 void RobotInit() {
   // J8009P_instance = DMMotorInit(&J8009P_config);
-  M3508_instance = DJIMotorInit(&M3508_config);
+  // M3508_instance = DJIMotorInit(&M3508_config);
+  imu_data = HI05_Init(&huart1);
 }
 
 void RobotTask() {
   // DMMotorSetPIDRef(J8009P_instance, speed_ref);
   // M3508_instance->motor_controller.final_output = target_torque * q2i_coeff * (16384.0f / 20.0f);
-  DJIMotorSetPIDRef(M3508_instance, speed_ref);
+  // DJIMotorSetPIDRef(M3508_instance, speed_ref);
 }

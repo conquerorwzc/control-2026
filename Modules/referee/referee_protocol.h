@@ -15,21 +15,21 @@
 
 /****************************宏定义部分****************************/
 
-#define REFEREE_SOF 0xA5  // 起始字节,协议固定为0xA5
+#define REFEREE_SOF 0xA5 // 起始字节,协议固定为0xA5
 #define Robot_Red 0
 #define Robot_Blue 1
-#define Communicate_Data_LEN \
-  5  // 自定义交互数据长度，该长度决定了我方发送和他方接收，自定义交互数据协议更改时只需要更改此宏定义即可
+#define Communicate_Data_LEN 5 // 自定义交互数据长度，该长度决定了我方发送和他方接收，自定义交互数据协议更改时只需要更改此宏定义即可
 
 #pragma pack(1)
 
 /****************************通信协议格式****************************/
 
 /* 通信协议格式偏移，枚举类型,代替#define声明 */
-typedef enum {
-  FRAME_HEADER_Offset = 0,
-  CMD_ID_Offset = 5,
-  DATA_Offset = 7,
+typedef enum
+{
+	FRAME_HEADER_Offset = 0,
+	CMD_ID_Offset = 5,
+	DATA_Offset = 7,
 } JudgeFrameOffset_e;
 
 /* 通信协议长度 */
@@ -45,68 +45,72 @@ typedef enum {
 /****************************帧头****************************/
 
 /* 帧头偏移 */
-typedef enum {
-  SOF = 0,          // 起始位
-  DATA_LENGTH = 1,  // 帧内数据长度,根据这个来获取数据长度
-  SEQ = 3,          // 包序号
-  CRC8 = 4          // CRC8
+typedef enum
+{
+	SOF = 0,		 // 起始位
+	DATA_LENGTH = 1, // 帧内数据长度,根据这个来获取数据长度
+	SEQ = 3,		 // 包序号
+	CRC8 = 4		 // CRC8
 } FrameHeaderOffset_e;
 
 /* 帧头定义 */
-typedef struct {
-  uint8_t SOF;
-  uint16_t DataLength;
-  uint8_t Seq;
-  uint8_t CRC8;
+typedef struct
+{
+	uint8_t SOF;
+	uint16_t DataLength;
+	uint8_t Seq;
+	uint8_t CRC8;
 } xFrameHeader;
 
 /****************************cmd_id命令码说明****************************/
 /****************************cmd_id命令码说明****************************/
 
 /* 命令码ID,用来判断接收的是什么数据 */
-typedef enum {
-  ID_game_state = 0x0001,            // 比赛状态数据
-  ID_game_result = 0x0002,           // 比赛结果数据
-  ID_game_robot_survivors = 0x0003,  // 比赛机器人血量数据
-  ID_event_data = 0x0101,            // 场地事件数据
-  // ID_supply_projectile_action = 0x0102,  // 场地补给站动作标识数据
-  //  ID_supply_projectile_booking = 0x0103, // 场地补给站预约子弹数据
-  ID_referee_warning = 0x104,    // 裁判系统警告
-  ID_dart_info = 0x105,          // 飞镖发射相关数据
-  ID_game_robot_state = 0x0201,  // 机器人状态数据
-  ID_power_heat_data = 0x0202,   // 实时功率热量数据
-  ID_game_robot_pos = 0x0203,    // 机器人位置数据
-  ID_buff_musk = 0x0204,         // 机器人增益数据
-  // ID_aerial_robot_energy = 0x0205,	   // 空中机器人能量状态数据
-  ID_robot_hurt = 0x0206,           // 伤害状态数据
-  ID_shoot_data = 0x0207,           // 实时射击数据
-  ID_projectile_allowance = 0x208,  // 允许发弹量
-  ID_RFID_info = 0x209,             // RFID信息
+typedef enum
+{
+	ID_game_state = 0x0001,				   // 比赛状态数据
+	ID_game_result = 0x0002,			   // 比赛结果数据
+	ID_game_robot_survivors = 0x0003,	   // 比赛机器人血量数据
+	ID_event_data = 0x0101,				   // 场地事件数据
+	ID_supply_projectile_action = 0x0102,  // 场地补给站动作标识数据
+	ID_supply_projectile_booking = 0x0103, // 场地补给站预约子弹数据
+        ID_referee_warning = 0x104,    //裁判系统警告
+        //ID_dart_info = 0x105,          //飞镖发射相关数据
+	ID_game_robot_state = 0x0201,		   // 机器人状态数据
+	ID_power_heat_data = 0x0202,		   // 实时功率热量数据
+	ID_game_robot_pos = 0x0203,			   // 机器人位置数据
+	ID_buff_musk = 0x0204,				   // 机器人增益数据
+	//ID_aerial_robot_energy = 0x0205,	   // 空中机器人能量状态数据
+	ID_robot_hurt = 0x0206,				   // 伤害状态数据
+	ID_shoot_data = 0x0207,				   // 实时射击数据
+        ID_projectile_allowance = 0x208,      //允许发弹量
+        ID_RFID_info = 0x209,     //RFID信息
   ID_sentry_info = 0x020D,          // 哨兵自主决策信息
   ID_radar_info = 0x020E,           // 雷达自主决策信息信息
-  ID_student_interactive = 0x0301,  // 机器人间交互数据
+	ID_student_interactive = 0x0301,	   // 机器人间交互数据
 } CmdID_e;
 
 /* 命令码数据段长,根据官方协议来定义长度，还有自定义数据长度 */
-typedef enum {
+typedef enum
+{
   LEN_game_state = 11,     // 0x0001
   LEN_game_result = 1,     // 0x0002
   LEN_game_robot_HP = 16,  // 0x0003
-  LEN_event_data = 4,      // 0x0101
-  // LEN_supply_projectile_action = 4,  // 0x0102
-  LEN_referee_warning = 3,    // 0x0104
-  LEN_game_robot_state = 13,  // 0x0201
+	LEN_event_data = 4,							 // 0x0101
+	LEN_supply_projectile_action = 4,			 // 0x0102
+        LEN_referee_warning = 3,                                 //0x0104
+	LEN_game_robot_state = 13,					 // 0x0201
   LEN_power_heat_data = 14,   // 0x0202
-  LEN_game_robot_pos = 16,    // 0x0203
+	LEN_game_robot_pos = 16,					 // 0x0203
   LEN_buff_musk = 8,          // 0x0204
-  // LEN_aerial_robot_energy = 2,				 // 0x0205
-  LEN_robot_hurt = 1,                           // 0x0206
-  LEN_shoot_data = 7,                           // 0x0207
-  LEN_projectile_allowance = 6,                 // 0x208
+	//LEN_aerial_robot_energy = 2,				 // 0x0205
+	LEN_robot_hurt = 1,							 // 0x0206
+	LEN_shoot_data = 7,							 // 0x0207
+        LEN_projectile_allowance = 6,             // 0x208
   LEN_RFID_info = 5,                            // 0x209
   LEN_sentry_info = 6,                          // 哨兵自主决策信息
   LEN_radar_info = 1,                           // 雷达自主决策信息信息
-  LEN_receive_data = 6 + Communicate_Data_LEN,  // 0x0301
+	LEN_receive_data = 6 + Communicate_Data_LEN, // 0x0301
 
 } JudgeDataLength_e;
 
@@ -114,16 +118,18 @@ typedef enum {
 /****************************接收数据的详细说明****************************/
 
 /* ID: 0x0001  Byte:  11    比赛状态数据 */
-typedef struct {
-  uint8_t game_type : 4;
-  uint8_t game_progress : 4;
-  uint16_t stage_remain_time;
-  uint64_t SyncTimeStamp;
+typedef  struct 
+{ 
+ uint8_t game_type : 4; 
+ uint8_t game_progress : 4; 
+ uint16_t stage_remain_time; 
+ uint64_t SyncTimeStamp; 
 } ext_game_state_t;
 
 /* ID: 0x0002  Byte:  1    比赛结果数据 */
-typedef struct {
-  uint8_t winner;
+typedef struct
+{
+	uint8_t winner;
 } ext_game_result_t;
 
 /* ID: 0x0003  Byte:  16    比赛机器人血量数据 */
@@ -158,23 +164,24 @@ bit27-28：己方前哨站增益点的占领状态，0 为未被占领，1 为�
 bit 29：己方基地增益点的占领状态，1 为已占领
 bit 30-31：保留位*/
 typedef struct {
-  uint32_t event_type;
+	uint32_t event_type;
 } ext_event_data_t;
 
-// /* ID: 0x0102  Byte:  3    场地补给站动作标识数据 */
-// typedef struct
-// {
-// 	uint8_t supply_projectile_id;
-// 	uint8_t supply_robot_id;
-// 	uint8_t supply_projectile_step;
-// 	uint8_t supply_projectile_num;
-// } ext_supply_projectile_action_t;
+/* ID: 0x0102  Byte:  3    场地补给站动作标识数据 */
+typedef struct
+{
+	uint8_t supply_projectile_id;
+	uint8_t supply_robot_id;
+	uint8_t supply_projectile_step;
+	uint8_t supply_projectile_num;
+} ext_supply_projectile_action_t;
 
 /* ID: 0x0104  Byte:  3    裁判警告数据 */
-typedef struct {
-  uint8_t level;
-  uint8_t offending_robot_id;
-  uint8_t count;
+typedef struct
+{
+        uint8_t level;
+        uint8_t offending_robot_id;
+        uint8_t count;
 } ext_referee_warning_t;
 
 /* ID: 0X0201  Byte: 13    机器人状态数据 */
@@ -192,59 +199,63 @@ typedef struct {
 } ext_game_robot_state_t;
 
 /* ID: 0X0202  Byte: 14    实时功率热量数据 */
-typedef struct {
-  uint16_t reserved_1;
-  uint16_t reserved_2;
-  float reserved_3;
-  uint16_t buffer_energy;
-  uint16_t shooter_17mm_barrel_heat;
-  uint16_t shooter_42mm_barrel_heat;
+typedef struct
+{
+  uint16_t reserved_1;       //保留位
+  uint16_t reserved_2;       //保留位
+  float reserved_3;          //保留位
+  uint16_t buffer_energy;    //缓冲能量
+  uint16_t shooter_17mm_barrel_heat;   //17mm弹丸允许发弹量
+  uint16_t shooter_42mm_barrel_heat;   //42mm弹丸允许发弹量
 } ext_power_heat_data_t;
 
 /* ID: 0x0203  Byte: 16    机器人位置数据 */
-typedef struct {
-  float x;
-  float y;
-  float angle;
+typedef struct
+{
+	float x;
+	float y;
+	float angle;
 } ext_game_robot_pos_t;
 
 /* ID: 0x0204  Byte:  8    机器人增益数据 */
-typedef struct {
-  uint8_t recovery_buff;       // 机器人回血增益（百分比，值为10表示每秒恢复血量上限的10%）
-  uint16_t cooling_buff;       // 机器人射击热量冷却增益具体值（直接值，值为x表示热量冷却增加x/s）
-  uint8_t defence_buff;        // 机器人防御增益（百分比，值为50表示50%防御增益）
+typedef struct
+{
+  uint8_t recovery_buff;  // 机器人回血增益（百分比，值为10表示每秒恢复血量上限的10%）
+  uint16_t cooling_buff;  // 机器人射击热量冷却增益具体值（直接值，值为x表示热量冷却增加x/s）
+  uint8_t defence_buff;   // 机器人防御增益（百分比，值为50表示50%防御增益）
   uint8_t vulnerability_buff;  // 机器人负防御增益（百分比，值为30表示-30%防御增益）
-  uint16_t attack_buff;        // 机器人攻击增益（百分比，值为50表示50%攻击增益）
+  uint16_t attack_buff;	// 机器人攻击增益（百分比，值为50表示50%攻击增益）
   /*bit 0 - 6：机器人剩余能量值反馈，以 16 进制标识机器人剩余能量值比例，仅在机器人剩余能量小于 50 %
               时反馈，其余默认反馈 0x80。机器人初始能量视为100 %
-        bit 0：在剩余能量≥125 % 时为1，其余情况为0
-        bit 1：在剩余能量≥100 % 时为1，其余情况为0
-        bit 2：在剩余能量≥50 % 时为1，其余情况为0
-        bit 3：在剩余能量≥30 % 时为1，其余情况为0
-        bit 4：在剩余能量≥15 % 时为1，其余情况为0
-        bit 5：在剩余能量≥5 % 时为1，其余情况为0
-        bit 6：在剩余能量≥1 % 时为1，其余情况为0*/
-  uint8_t remaining_energy;
+	bit 0：在剩余能量≥125 % 时为1，其余情况为0
+	bit 1：在剩余能量≥100 % 时为1，其余情况为0
+	bit 2：在剩余能量≥50 % 时为1，其余情况为0
+	bit 3：在剩余能量≥30 % 时为1，其余情况为0
+	bit 4：在剩余能量≥15 % 时为1，其余情况为0
+	bit 5：在剩余能量≥5 % 时为1，其余情况为0
+	bit 6：在剩余能量≥1 % 时为1，其余情况为0*/
+ uint8_t remaining_energy;
 } ext_buff_musk_t;
 
 /* ID: 0x0206  Byte:  1    伤害状态数据 */
-/*bit
-0-3：当扣血原因为装甲模块被弹丸攻击、受撞击或离线时，该4bit组成的数值为装甲模块或测速模块的ID编号；当其他原因导致扣血时，该数值为0
+/*bit 0-3：当扣血原因为装甲模块被弹丸攻击、受撞击或离线时，该4bit组成的数值为装甲模块或测速模块的ID编号；当其他原因导致扣血时，该数值为0
 bit 4-7：血量变化类型
  0：装甲模块被弹丸攻击导致扣血
  1：装甲模块或超级电容管理模块离线导致扣血
  5：装甲模块受到撞击导致扣血*/
-typedef struct {
+typedef struct
+{
   uint8_t armor_id : 4;
   uint8_t hurt_type : 4;
 } ext_robot_hurt_t;
 
 /* ID: 0x0207  Byte:  7    实时射击数据 */
-typedef struct {
-  uint8_t bullet_type;          // 弹丸类型：bit 1：17mm弹丸 bit 2：42mm弹丸
-  uint8_t shooter_id;           // 发射机构ID：1： 17mm发射机构 2：保留位 3：42mm发射机构
-  uint8_t launching_frequency;  // 弹丸射速（单位：Hz）
-  float initial_speed;          // 弹丸初速度（单位：m/s）
+typedef struct
+{
+  	uint8_t bullet_type; // 弹丸类型：bit 1：17mm弹丸 bit 2：42mm弹丸
+	uint8_t shooter_id;  // 发射机构ID：1： 17mm发射机构 2：保留位 3：42mm发射机构
+ 	uint8_t launching_frequency; // 弹丸射速（单位：Hz）
+  	float initial_speed;         // 弹丸初速度（单位：m/s）
 } ext_shoot_data_t;
 
 /* ID: 0x0208  Byte:  6    允许发弹量 */
@@ -256,10 +267,11 @@ typedef struct {
 } ext_projectile_allowance_t;
 
 /* ID: 0x0209  Byte:  5    RFID模块状态 */
-typedef struct {
+typedef struct
+{
   uint32_t rfid_status;  // bit 23：中心增益点（仅 RMUL 适用）...
   uint8_t rfid_status_2;
-} ext_rfid_status_t;
+}ext_rfid_status_t;
 
 /* ID: 0x020D  Byte:  6   哨兵自主决策信息同步  */
 typedef struct {
@@ -278,139 +290,151 @@ typedef struct {
 } ext_student_interactive_header_data_t;
 
 /* 机器人id */
-typedef enum {
-  // 红方机器人ID
-  RobotID_RHero = 1,
-  RobotID_REngineer = 2,
-  RobotID_RStandard1 = 3,
-  RobotID_RStandard2 = 4,
-  RobotID_RStandard3 = 5,
-  RobotID_RAerial = 6,
-  RobotID_RSentry = 7,
-  RobotID_RRadar = 9,
-  // 蓝方机器人ID
-  RobotID_BHero = 101,
-  RobotID_BEngineer = 102,
-  RobotID_BStandard1 = 103,
-  RobotID_BStandard2 = 104,
-  RobotID_BStandard3 = 105,
-  RobotID_BAerial = 106,
-  RobotID_BSentry = 107,
-  RobotID_BRadar = 109,
+typedef enum
+{
+	// 红方机器人ID
+	RobotID_RHero = 1,
+	RobotID_REngineer = 2,
+	RobotID_RStandard1 = 3,
+	RobotID_RStandard2 = 4,
+	RobotID_RStandard3 = 5,
+	RobotID_RAerial = 6,
+	RobotID_RSentry = 7,
+	RobotID_RRadar = 9,
+	// 蓝方机器人ID
+	RobotID_BHero = 101,
+	RobotID_BEngineer = 102,
+	RobotID_BStandard1 = 103,
+	RobotID_BStandard2 = 104,
+	RobotID_BStandard3 = 105,
+	RobotID_BAerial = 106,
+	RobotID_BSentry = 107,
+	RobotID_BRadar = 109,
 } Robot_ID_e;
 
 /* 交互数据ID */
-typedef enum {
-  UI_Data_ID_Del = 0x100,
-  UI_Data_ID_Draw1 = 0x101,
-  UI_Data_ID_Draw2 = 0x102,
-  UI_Data_ID_Draw5 = 0x103,
-  UI_Data_ID_Draw7 = 0x104,
-  UI_Data_ID_DrawChar = 0x110,
+typedef enum
+{
+	UI_Data_ID_Del = 0x100,
+	UI_Data_ID_Draw1 = 0x101,
+	UI_Data_ID_Draw2 = 0x102,
+	UI_Data_ID_Draw5 = 0x103,
+	UI_Data_ID_Draw7 = 0x104,
+	UI_Data_ID_DrawChar = 0x110,
 
-  /* 自定义交互数据部分 */
-  Communicate_Data_ID = 0x0200,
+	/* 自定义交互数据部分 */
+	Communicate_Data_ID = 0x0200,
 
 } Interactive_Data_ID_e;
 /* 交互数据长度 */
-typedef enum {
-  Interactive_Data_LEN_Head = 6,
-  UI_Operate_LEN_Del = 2,
-  UI_Operate_LEN_PerDraw = 15,
-  UI_Operate_LEN_DrawChar = 15 + 30,
+typedef enum
+{
+	Interactive_Data_LEN_Head = 6,
+	UI_Operate_LEN_Del = 2,
+	UI_Operate_LEN_PerDraw = 15,
+	UI_Operate_LEN_DrawChar = 15 + 30,
 
-  /* 自定义交互数据部分 */
-  // Communicate_Data_LEN = 5,
+	/* 自定义交互数据部分 */
+	// Communicate_Data_LEN = 5,
 
 } Interactive_Data_Length_e;
 
 /****************************自定义交互数据****************************/
 /*
-        学生机器人间通信 cmd_id 0x0301，内容 ID:0x0200~0x02FF
-        自定义交互数据 机器人间通信：0x0301。
-        发送频率：上限 10Hz
+	学生机器人间通信 cmd_id 0x0301，内容 ID:0x0200~0x02FF
+	自定义交互数据 机器人间通信：0x0301。
+	发送频率：上限 10Hz
 */
 // 自定义交互数据协议，可更改，更改后需要修改最上方宏定义数据长度的值
-typedef struct {
-  uint8_t data[Communicate_Data_LEN];  // 数据段,n需要小于113
+typedef struct
+{
+	uint8_t data[Communicate_Data_LEN]; // 数据段,n需要小于113
 } robot_interactive_data_t;
 
 // 机器人交互信息_发送
-typedef struct {
-  xFrameHeader FrameHeader;
-  uint16_t CmdID;
-  ext_student_interactive_header_data_t datahead;
-  robot_interactive_data_t Data;  // 数据段
-  uint16_t frametail;
+typedef struct
+{
+	xFrameHeader FrameHeader;
+	uint16_t CmdID;
+	ext_student_interactive_header_data_t datahead;
+	robot_interactive_data_t Data; // 数据段
+	uint16_t frametail;
 } Communicate_SendData_t;
 // 机器人交互信息_接收
-typedef struct {
-  ext_student_interactive_header_data_t datahead;
-  robot_interactive_data_t Data;  // 数据段
+typedef struct
+{
+	ext_student_interactive_header_data_t datahead;
+	robot_interactive_data_t Data; // 数据段
 } Communicate_ReceiveData_t;
 
 /****************************UI交互数据****************************/
 
 /* 图形数据 */
-typedef struct {
-  uint8_t graphic_name[3];
-  uint32_t operate_tpye : 3;
-  uint32_t graphic_tpye : 3;
-  uint32_t layer : 4;
-  uint32_t color : 4;
-  uint32_t start_angle : 9;
-  uint32_t end_angle : 9;
-  uint32_t width : 10;
-  uint32_t start_x : 11;
-  uint32_t start_y : 11;
-  uint32_t radius : 10;
-  uint32_t end_x : 11;
-  uint32_t end_y : 11;
+typedef struct
+{
+	uint8_t graphic_name[3];
+	uint32_t operate_tpye : 3;
+	uint32_t graphic_tpye : 3;
+	uint32_t layer : 4;
+	uint32_t color : 4;
+	uint32_t start_angle : 9;
+	uint32_t end_angle : 9;
+	uint32_t width : 10;
+	uint32_t start_x : 11;
+	uint32_t start_y : 11;
+	uint32_t radius : 10;
+	uint32_t end_x : 11;
+	uint32_t end_y : 11;
 } Graph_Data_t;
 
-typedef struct {
-  Graph_Data_t Graph_Control;
-  uint8_t show_Data[30];
-} String_Data_t;  // 打印字符串数据
+typedef struct
+{
+	Graph_Data_t Graph_Control;
+	uint8_t show_Data[30];
+} String_Data_t; // 打印字符串数据
 
 /* 删除操作 */
-typedef enum {
-  UI_Data_Del_NoOperate = 0,
-  UI_Data_Del_Layer = 1,
-  UI_Data_Del_ALL = 2,  // 删除全部图层，后面的参数已经不重要了。
+typedef enum
+{
+	UI_Data_Del_NoOperate = 0,
+	UI_Data_Del_Layer = 1,
+	UI_Data_Del_ALL = 2, // 删除全部图层，后面的参数已经不重要了。
 } UI_Delete_Operate_e;
 
 /* 图形配置参数__图形操作 */
-typedef enum {
-  UI_Graph_ADD = 1,
-  UI_Graph_Change = 2,
-  UI_Graph_Del = 3,
+typedef enum
+{
+	UI_Graph_ADD = 1,
+	UI_Graph_Change = 2,
+	UI_Graph_Del = 3,
 } UI_Graph_Operate_e;
 
 /* 图形配置参数__图形类型 */
-typedef enum {
-  UI_Graph_Line = 0,       // 直线
-  UI_Graph_Rectangle = 1,  // 矩形
-  UI_Graph_Circle = 2,     // 整圆
-  UI_Graph_Ellipse = 3,    // 椭圆
-  UI_Graph_Arc = 4,        // 圆弧
-  UI_Graph_Float = 5,      // 浮点型
-  UI_Graph_Int = 6,        // 整形
-  UI_Graph_Char = 7,       // 字符型
+typedef enum
+{
+	UI_Graph_Line = 0,		// 直线
+	UI_Graph_Rectangle = 1, // 矩形
+	UI_Graph_Circle = 2,	// 整圆
+	UI_Graph_Ellipse = 3,	// 椭圆
+	UI_Graph_Arc = 4,		// 圆弧
+	UI_Graph_Float = 5,		// 浮点型
+	UI_Graph_Int = 6,		// 整形
+	UI_Graph_Char = 7,		// 字符型
 
 } UI_Graph_Type_e;
 
 /* 图形配置参数__图形颜色 */
-typedef enum {
-  UI_Color_Main = 0,  // 红蓝主色
-  UI_Color_Yellow = 1,
-  UI_Color_Green = 2,
-  UI_Color_Orange = 3,
-  UI_Color_Purplish_red = 4,  // 紫红色
-  UI_Color_Pink = 5,
-  UI_Color_Cyan = 6,  // 青色
-  UI_Color_Black = 7,
-  UI_Color_White = 8,
+typedef enum
+{
+	UI_Color_Main = 0, // 红蓝主色
+	UI_Color_Yellow = 1,
+	UI_Color_Green = 2,
+	UI_Color_Orange = 3,
+	UI_Color_Purplish_red = 4, // 紫红色
+	UI_Color_Pink = 5,
+	UI_Color_Cyan = 6, // 青色
+	UI_Color_Black = 7,
+	UI_Color_White = 8,
 
 } UI_Graph_Color_e;
 

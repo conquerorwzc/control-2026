@@ -100,7 +100,7 @@ static uint8_t BuzzerBeepTask(void) {
 void BuzzerInit() {
 #ifdef STM32F407xx
   PWM_Init_Config_s buzzer_config = {
-      .htim = &htim10,
+      .htim = &htim4,
       .channel = TIM_CHANNEL_3,
       .dutyratio = 0,
       .period = 0.001,

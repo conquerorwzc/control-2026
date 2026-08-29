@@ -1,4 +1,5 @@
 #include "shoot.h"
+
 #include "bsp_dwt.h"
 #include "user_lib.h"
 
@@ -13,8 +14,8 @@ static float friction_speed;
 static float friction_coefficients[FRICTION_NUM];
 /* 对于双发射机构的机器人,将下面的数据封装成结构体即可,生成两份shoot应用实例 */
 
-static float loader_set = 0;    // 波胆盘速度
-static float friction_set = 0;  // 摩擦轮速度
+static float loader_set = 0;       // 波胆盘速度
+static float friction_set = 0;     // 摩擦轮速度
 float actual_bullet_speed;      // 调试用，后续从裁判系统中获取
 // 波弹盘位置初始化标志
 //  static uint8_t loader_position_init=0;
@@ -54,6 +55,7 @@ ShootInstance* ShootInit(Shoot_Init_Config_s* shoot_init_config) {
   one_barrel_heat_value = shoot_init_config->shoot_param.one_barrel_heat_value;
   shooter_barrel_heat = 0;  // 初始热量为0
   // 初始化弹速控制PID参数
+
   // 初始化弹速控制PID控制器
 
   for (int i = 0; i < FRICTION_NUM; i++) {
@@ -115,17 +117,17 @@ static float LoaderSpeedFromDelay(float delta_angle, float delay_ms) {
  */
 void ShootBulletSpeedControl(void) {
   // 计算弹速误差
-  // actual_bullet_speed = shoot_ctrl_cmd->initial_speed;
-  // if (actual_bullet_speed < 16.0f) {
-  //   return;
-  // }
-  // float speed_error = target_speed - actual_bullet_speed;
-  // if (actual_bullet_speed <= target_speed + 0.4 && actual_bullet_speed >= target_speed - 0.4) {
-  //   return;
-  // }
-  //
-  // // 将误差乘以系数后加到基础摩擦轮速度上
-  // friction_speed += speed_error * bullet_speed_adjustment;
+  actual_bullet_speed = shoot_ctrl_cmd->initial_speed;
+  if (actual_bullet_speed < 16.0f) {
+    return;
+  }
+  float speed_error = target_speed - actual_bullet_speed;
+  if (actual_bullet_speed <= target_speed + 0.4 && actual_bullet_speed >= target_speed - 0.4) {
+    return;
+  }
+
+  // 将误差乘以系数后加到基础摩擦轮速度上
+  friction_speed += speed_error * bullet_speed_adjustment;
   friction_speed = LimitFrictionSpeedAbs(friction_speed);
 }
 

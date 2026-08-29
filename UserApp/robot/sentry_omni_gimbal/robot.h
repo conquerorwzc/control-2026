@@ -7,8 +7,9 @@
 #include "navigator.h"
 #include "master_process.h"
 // #include "rm_referee.h"
-#include "super_cap.h"
 #include "can_comm.h"
+#include "new_RC_VT13.h"
+#include "super_cap.h"
 // todo: add vision_module
 
 typedef enum {
@@ -22,15 +23,47 @@ typedef enum {
   AUTO_MODE,    // 自动控制
 } Control_Mode_e;
 //联合体定义
-typedef union {
-  int16_t value;
-  uint8_t bytes[2];
-} Int16ToBytes;
+typedef struct {
+  uint16_t projectile_allowance_17mm;    // 机器人自身拥有的17mm弹丸允许发弹量
+  uint16_t  initial_speed;                   // 弹速
+  uint16_t shooter_17mm_barrel_heat;     // 17mm发射机构的射击热量
+  // uint16_t shooter_barrel_heat_limit;    // 机器人射击热量上限
+  // uint16_t shooter_barrel_cooling_value; // 机器人射击热量每秒冷却值
+} Referee_Data;
+#pragma pack(1)
+#ifdef USE_DUAL_RC
+typedef struct {
+  int16_t Rc_vx;
+  int16_t Rc_vy;
+  float Rotate_speed;
+  int16_t Spin_speed;
+  float Yaw_motor_angle;
+  uint8_t Switch_right;
+} Send_Data_RC;
+#elifdef USE_DUAL_RC_NEW
+typedef struct {
+  int16_t Rc_vx;
+  int16_t Rc_vy;
+  float Rotate_speed;
+  int16_t Spin_speed;
+  float Yaw_motor_angle;
+  float Mode_switch;
+  float Control_mode;
+  float Pause_flag;
+} Send_Data_RC_NEW;
+#endif
+
+#pragma pack()
+
+
 typedef struct {
   Robot_Mode_e robot_mode;       // 机器人工作状态
   Control_Mode_e control_mode;   // 控制模式
-
-  RC_ctrl_t *rc_data;               // 遥控器数据,初始化时返回
+  #ifdef USE_DUAL_RC
+    RC_ctrl_t *rc_data;               // 遥控器数据,初始化时返回
+  #elifdef USE_DUAL_RC_NEW
+    VT13_RC_t *vt13_rc_data;
+  #endif
   // referee_info_t* referee_data;     // 用于获取裁判系统的数据
   Vision_Receive_s* vision_recv_data;
   navigator_recv_t* navigator_data;    //从导航获取的控制指令

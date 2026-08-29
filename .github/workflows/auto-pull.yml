@@ -1,0 +1,99 @@
+name: Auto update local master ref
+
+on:
+  push:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auto-pull-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  auto-pull:
+    name: Fetch and fast-forward local branch ref
+    if: vars.AUTO_PULL_BRANCH != '' && github.ref_name == vars.AUTO_PULL_BRANCH
+    runs-on: [self-hosted, Windows, auto-pull]
+    env:
+      TARGET_PATH: ${{ vars.AUTO_PULL_PATH }}
+      TARGET_BRANCH: ${{ github.ref_name }}
+      EXPECTED_REPOSITORY: ${{ github.repository }}
+    steps:
+      - name: Update local branch ref safely
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          if ([string]::IsNullOrWhiteSpace($env:TARGET_PATH)) {
+            throw 'Repository variable AUTO_PULL_PATH is not configured.'
+          }
+
+          $target = [System.IO.Path]::GetFullPath($env:TARGET_PATH)
+          if (-not (Test-Path -LiteralPath (Join-Path $target '.git'))) {
+            throw "AUTO_PULL_PATH is not a Git working copy: $target"
+          }
+
+          $remoteUrl = (git -C $target remote get-url origin).Trim()
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to read the origin remote.' }
+          $repositoryPattern = [regex]::Escape($env:EXPECTED_REPOSITORY)
+          if ($remoteUrl -notmatch "(?i)(:|/)$repositoryPattern(\.git)?$") {
+            throw "The origin remote does not match $env:EXPECTED_REPOSITORY."
+          }
+
+          $localRef = "refs/heads/$($env:TARGET_BRANCH)"
+          $remoteRef = "refs/remotes/origin/$($env:TARGET_BRANCH)"
+          $fetchRefspec = "+refs/heads/$($env:TARGET_BRANCH):$remoteRef"
+
+          git check-ref-format $localRef
+          if ($LASTEXITCODE -ne 0) {
+            throw "Invalid target branch: $env:TARGET_BRANCH"
+          }
+
+          # Never move a branch ref that is checked out in any worktree.
+          $worktreeInfo = git -C $target worktree list --porcelain
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to inspect Git worktrees.' }
+          if ($worktreeInfo -contains "branch $localRef") {
+            throw "Branch '$env:TARGET_BRANCH' is currently checked out; refusing to move it in the background."
+          }
+
+          # Fetch commits without switching or modifying the current branch.
+          git -C $target fetch --prune origin $fetchRefspec
+          if ($LASTEXITCODE -ne 0) { throw 'git fetch failed.' }
+
+          $remoteShaOutput = git -C $target rev-parse --verify $remoteRef
+          if ($LASTEXITCODE -ne 0) {
+            throw "Remote branch '$remoteRef' was not found."
+          }
+          $remoteSha = ($remoteShaOutput | Select-Object -First 1).Trim()
+
+          $localShaOutput = git -C $target rev-parse --verify $localRef 2>$null
+          $localRefExitCode = $LASTEXITCODE
+          if ($localRefExitCode -ne 0) {
+            git -C $target update-ref $localRef $remoteSha
+            if ($LASTEXITCODE -ne 0) {
+              throw "Unable to create local branch '$env:TARGET_BRANCH'."
+            }
+            Write-Host "Created $env:TARGET_BRANCH at $remoteSha."
+            return
+          }
+          $localSha = ($localShaOutput | Select-Object -First 1).Trim()
+
+          if ($localSha -eq $remoteSha) {
+            Write-Host "$env:TARGET_BRANCH is already up to date."
+            return
+          }
+
+          # Preserve local commits by allowing only a fast-forward.
+          git -C $target merge-base --is-ancestor $localSha $remoteSha
+          if ($LASTEXITCODE -ne 0) {
+            throw "Local '$env:TARGET_BRANCH' has diverged from origin; manual intervention is required."
+          }
+
+          # The expected old SHA makes concurrent ref updates fail safely.
+          git -C $target update-ref $localRef $remoteSha $localSha
+          if ($LASTEXITCODE -ne 0) {
+            throw "Unable to fast-forward '$env:TARGET_BRANCH'; the ref may have changed concurrently."
+          }
+
+          Write-Host "Fast-forwarded $env:TARGET_BRANCH from $localSha to $remoteSha."

@@ -143,6 +143,10 @@ referee_info_t *RefereeInit(UART_HandleTypeDef *referee_usart_handle) {
 
   return &referee_info;
 }
+//当c板未初始化裁判系统但又需要裁判系统结构体时使用，例如双板通信传输裁判系统数据时
+referee_info_t *GetReferee() {
+  return &referee_info;
+}
 
 //当c板未初始化裁判系统但又需要裁判系统结构体时使用，例如双板通信传输裁判系统数据时
 referee_info_t *GetReferee() {
@@ -155,5 +159,13 @@ referee_info_t *GetReferee() {
  */
 void RefereeSend(uint8_t *send, uint16_t tx_len) {
   USARTSend(referee_usart_instance, send, tx_len, USART_TRANSFER_DMA);
-  osDelay(115);
+  osDelay(40);
+}
+
+/**
+ * @brief 裁判系统数据发送函数
+ * @param
+ */
+void SentrySend(uint8_t *send, uint16_t tx_len) {
+  USARTSend(referee_usart_instance, send, tx_len, USART_TRANSFER_DMA);
 }
