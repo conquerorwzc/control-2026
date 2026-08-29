@@ -349,8 +349,8 @@ static void RemoteControlSet() {
 static void MouseKeySet() {
   static float trigger_time = 0;  // 触发时间
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
-    gimbal_ctrl_cmd->yaw -= (float)vt13_rc_data->mouse_key.mouse.x * 0.001f;
-    gimbal_ctrl_cmd->pitch -= (float)vt13_rc_data->mouse_key.mouse.y * 0.0005f;
+    gimbal_ctrl_cmd->yaw -= (float)vt13_rc_data->mouse_key[TEMP].mouse.x * 0.001f;
+    gimbal_ctrl_cmd->pitch -= (float)vt13_rc_data->mouse_key[TEMP].mouse.y * 0.0005f;
   }
 
   // 弹速设置 (Z键)
@@ -367,7 +367,7 @@ static void MouseKeySet() {
   // }
 
   // 右键自瞄
-  switch (vt13_rc_data->mouse_key.mouse.press_r % 2) {
+  switch (vt13_rc_data->mouse_key[TEMP].mouse.press_r % 2) {
     case 1:
       if (has_non_zero_data(vision_recv_data) == 1) {
         gimbal_ctrl_cmd->gimbal_mode = GIMBAL_VISION;
@@ -382,7 +382,7 @@ static void MouseKeySet() {
   }
 
   // 左键发射
-  switch (vt13_rc_data->mouse_key.mouse.press_l) {
+  switch (vt13_rc_data->mouse_key[TEMP].mouse.press_l) {
     case 0:
       if (vt13_rc_data->rc.trigger == 0) {
         // 停止发射逻辑
@@ -495,13 +495,13 @@ void Gimbal_CANCommSend()
     return;
   }
 
-  send_data_new->Rc_vx = vt13_rc_data->rc.rocker_l_ + vt13_rc_data->mouse_key.keyboard.d * 660 - vt13_rc_data->mouse_key.keyboard.a * 660;
+  send_data_new->Rc_vx = vt13_rc_data->rc.rocker_l_ + vt13_rc_data->mouse_key[TEMP].keyboard.d * 660 - vt13_rc_data->mouse_key[TEMP].keyboard.a * 660;
 
-  send_data_new->Rc_vy = vt13_rc_data->rc.rocker_l1 + vt13_rc_data->mouse_key.keyboard.w * 660 - vt13_rc_data->mouse_key.keyboard.s * 660;
+  send_data_new->Rc_vy = vt13_rc_data->rc.rocker_l1 + vt13_rc_data->mouse_key[TEMP].keyboard.w * 660 - vt13_rc_data->mouse_key[TEMP].keyboard.s * 660;
 
-  send_data_new->Rotate_speed = vt13_rc_data->rc.rocker_r_ + vt13_rc_data->mouse_key.mouse.x * 2;
+  send_data_new->Rotate_speed = vt13_rc_data->rc.rocker_r_ + vt13_rc_data->mouse_key[TEMP].mouse.x * 2;
 
-  send_data_new->Spin_speed = vt13_rc_data->rc.dial + vt13_rc_data->mouse_key.keyboard.q*300;
+  send_data_new->Spin_speed = vt13_rc_data->rc.dial + vt13_rc_data->mouse_key[TEMP].keyboard.q*300;
 
   send_data_new->Yaw_motor_angle = (int16_t)robot->gimbal->yaw_motor->measure.angle_single_round;
 

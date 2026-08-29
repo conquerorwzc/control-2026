@@ -46,8 +46,15 @@ static uint8_t IsRobotLostControl(RobotInstance* robot) {
   const uint8_t is_stair = robot->chassis->chassis_ctrl_cmd.chassis_mode == CHASSIS_STAIR;
   const float theta_thresh = (is_stair ? ocd.recovery.theta_creep : ocd.recovery.theta_default) * DEGREE_2_RAD;
   const float pitch_thresh = (is_stair ? ocd.recovery.pitch_creep : ocd.recovery.pitch_default) * DEGREE_2_RAD;
+#if defined(ONE_BOARD)
+  const float abs_l = fabsf(robot->chassis->state_var.theta_l);
+  const float abs_r = fabsf(robot->chassis->state_var.theta_r);
+  if ((abs_l > abs_r ? abs_l : abs_r) > theta_thresh) return 1;
+  if (fabsf(robot->chassis->imu->Pitch) * DEGREE_2_RAD > pitch_thresh) return 1;
+#else
   if (robot->chassis_upload_data->motion.max_theta > theta_thresh) return 1;
   if (fabsf(robot->chassis_upload_data->motion.Pitch) * DEGREE_2_RAD > pitch_thresh) return 1;
+#endif
   return 0;
 }
 
@@ -494,7 +501,7 @@ void MouseKeyCtrl(RobotInstance* robot) {
   /* C：切换超级电容控制命令。 */
   if (mk->keyboard.c && !mk_last->keyboard.c) {
     robot->chassis->super_cap->super_cap_ctrl_cmd =
-        (robot->chassis->super_cap->super_cap_ctrl_cmd == BOOST) ? NORMAL : BOOST;
+        (robot->chassis->super_cap->super_cap_ctrl_cmd == SUPER_CAP_BOOST) ? SUPER_CAP_NORMAL : SUPER_CAP_BOOST;
   }
 
   /* Q：切换开火模式 (vision_priority / mouse_priority)。 */
@@ -871,10 +878,10 @@ void MouseKeyCtrl(RobotInstance* robot) {
 
   if (rc_data[TEMP].key[KEY_PRESS].c != c_key_last) {
     if (rc_data[TEMP].key[KEY_PRESS].c) {
-      if (robot->chassis->super_cap->super_cap_ctrl_cmd == BOOST) {
-        robot->chassis->super_cap->super_cap_ctrl_cmd = NORMAL;
+      if (robot->chassis->super_cap->super_cap_ctrl_cmd == SUPER_CAP_BOOST) {
+        robot->chassis->super_cap->super_cap_ctrl_cmd = SUPER_CAP_NORMAL;
       } else {
-        robot->chassis->super_cap->super_cap_ctrl_cmd = BOOST;
+        robot->chassis->super_cap->super_cap_ctrl_cmd = SUPER_CAP_BOOST;
       }
     }
     c_key_last = rc_data[TEMP].key[KEY_PRESS].c;

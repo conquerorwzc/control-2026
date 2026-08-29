@@ -147,4 +147,5 @@ void VisionSend();
 // void navigator_send();
 
 void VisionSetRefereeData(float bullet_speed, uint8_t robot_id);
+void VisionSetMode(uint8_t mode);
 #endif // !MASTER_PROCESS_H

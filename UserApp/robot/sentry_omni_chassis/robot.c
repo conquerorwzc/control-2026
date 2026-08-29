@@ -255,6 +255,10 @@ static void EmergencyHandler() {
 float pose_time;       //移动时间
 static void SentryCmd() {
   static float request_timestamp=0;
+  const uint8_t free_revive_available =
+      (robot->referee_data->SentryInfo.sentry_info >> 19) & 0x01U;
+  const uint16_t instant_revive_cost =
+      (robot->referee_data->SentryInfo.sentry_info >> 21) & 0x03FFU;
     if (robot->referee_data->ProjectileAllowance.projectile_allowance_17mm<=50) {
       robot->sentry_mode=DEFENSE_POSE;    //弹丸不足时进入防御姿态
       // robot->chassis->chassis_ctrl_cmd.wz=-2500;
@@ -272,10 +276,10 @@ static void SentryCmd() {
         // robot->chassis->chassis_ctrl_cmd.wz=-1500;
       }
     }
-  sentry_cmd->fields.confirm_respawn=robot->referee_data->SentryInfo.free_revive_available;                //裁判端反馈可免费复活时确认复活
+  sentry_cmd->fields.confirm_respawn=free_revive_available;                //裁判端反馈可免费复活时确认复活
   sentry_cmd->fields.confirm_instant_respawn=robot->referee_data->GameRobotState.current_HP==0
-    &&robot->referee_data->ProjectileAllowance.remaining_gold_coin > robot->referee_data->SentryInfo.instant_revive_cost
-    &&robot->referee_data->ProjectileAllowance.remaining_gold_coin - robot->referee_data->SentryInfo.instant_revive_cost>=500;               //0为不买活，1为买活
+    &&robot->referee_data->ProjectileAllowance.remaining_gold_coin > instant_revive_cost
+    &&robot->referee_data->ProjectileAllowance.remaining_gold_coin - instant_revive_cost>=500;               //0为不买活，1为买活
   if (robot->referee_data->ProjectileAllowance.projectile_allowance_17mm<100) {
     if(RFID->RFID1_t.fields.base_boost
       ||RFID->RFID1_t.fields.own_outpost_boost

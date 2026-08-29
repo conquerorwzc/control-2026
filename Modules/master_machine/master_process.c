@@ -34,6 +34,7 @@ static Message send;
 
 static float vision_bullet_speed = 22.0f;  // 默认初速度，防止0值异常
 static uint8_t vision_robot_id = 0;
+static uint8_t vision_mode = 0;
 
 uint8_t custom_data[] = {0x40, 0x50, 0x60, 0x70};
 uint16_t packed_length;
@@ -60,11 +61,13 @@ void VisionSetRefereeData(float bullet_speed, uint8_t robot_id) {
   vision_robot_id = robot_id;
 }
 
+void VisionSetMode(uint8_t mode) { vision_mode = mode; }
+
 void UpdateGimbalAttitude(Vision_Send_s *vision_send) {
   vision_send->gimbal_send.yaw = current_attitude->Yaw;
   vision_send->gimbal_send.pitch = current_attitude->Pitch;
   vision_send->gimbal_send.roll = current_attitude->Roll;
-  vision_send->gimbal_send.mode = 0;
+  vision_send->gimbal_send.mode = vision_mode;
   vision_send->shoot_send.bullet_speed = vision_bullet_speed;
   vision_send->gimbal_send.color = vision_robot_id;
 }

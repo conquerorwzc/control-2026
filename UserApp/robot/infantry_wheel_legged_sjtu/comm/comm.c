@@ -157,7 +157,7 @@ void RobotCommTask(RobotInstance* robot) {
   MonitorTask(&comm_lost_monitor);
 
 #if defined(GIMBAL_BOARD)
-  static SuperCap_Ctrl_Cmd_e last_local_cmd = NORMAL;
+  static SuperCap_Ctrl_Cmd_e last_local_cmd = SUPER_CAP_NORMAL;
   static float last_change_time = 0;
   static float last_fetch_main_send_time = -COMM_PERIOD_50HZ_MS;
   static float last_fetch_motion_send_time = -COMM_PERIOD_20HZ_MS;
