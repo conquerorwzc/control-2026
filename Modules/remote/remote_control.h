@@ -18,55 +18,72 @@
 #include "main.h"
 #include "usart.h"
 
-// 用于遥控器数据读取,遥控器数据是一个大小为2的数组
-#define LAST 1
-#define TEMP 0
+/* ----------------------- Enum Definitions -------------------------------- */
 
-// 获取按键操作
-#define KEY_PRESS 0
-#define KEY_STATE 1
-#define KEY_PRESS_WITH_CTRL 1
-#define KEY_PRESS_WITH_SHIFT 2
+// 1. 用于遥控器数据读取数组的索引
+typedef enum {
+    TEMP = 0,
+    LAST = 1,
+    RC_DATA_NUM // 自动等于2
+} RCDataIdx_e;
+
+// 2. 键盘互斥修饰状态枚举
+typedef enum {
+    KEY_PRESS_NORMAL = 0,       // 无任何修饰键按下
+    KEY_PRESS_WITH_CTRL,        // 仅按下 Ctrl
+    KEY_PRESS_WITH_SHIFT,       // 仅按下 Shift
+    KEY_PRESS_WITH_CTRL_SHIFT,  // 同时按下 Ctrl 和 Shift
+    KEY_PRESS_STATE_NUM         // 状态总数 (自动等于4)，用于数组长度
+} KeyPressState_e;
+
+// 3. 遥控器拨杆状态枚举
+typedef enum {
+    RC_SW_OFF  = 0,  // 遥控器断连 (或无信号)
+    RC_SW_UP   = 1,  // 开关向上
+    RC_SW_DOWN = 2,  // 开关向下
+    RC_SW_MID  = 3   // 开关中间
+} RCSwitchState_e;
+
+// 4. 键盘按键索引枚举 (替代原有的宏定义)
+typedef enum {
+    KEY_W = 0,
+    KEY_S,
+    KEY_A,
+    KEY_D,
+    KEY_SHIFT,
+    KEY_CTRL,
+    KEY_Q,
+    KEY_E,
+    KEY_R,
+    KEY_F,
+    KEY_G,
+    KEY_Z,
+    KEY_X,
+    KEY_C,
+    KEY_V,
+    KEY_B,
+    KEY_NUM_TOTAL   // 自动等于16，用于数组长度
+} KeyIndex_e;
+
+/* ----------------------- Macros ------------------------------------------ */
 
 // 检查接收值是否出错
 #define RC_CH_VALUE_MIN ((uint16_t)364)
 #define RC_CH_VALUE_OFFSET ((uint16_t)1024)
 #define RC_CH_VALUE_MAX ((uint16_t)1684)
 
-/* ----------------------- RC Switch Definition----------------------------- */
-#define RC_SW_UP ((uint16_t)1)    // 开关向上时的值
-#define RC_SW_MID ((uint16_t)3)   // 开关中间时的值
-#define RC_SW_DOWN ((uint16_t)2)  // 开关向下时的值
-#define RC_SW_OFF ((uint16_t)0)   //  遥控器断连
-// 三个判断开关状态的宏
-#define switch_is_down(s) (s == RC_SW_DOWN)
-#define switch_is_mid(s) (s == RC_SW_MID)
-#define switch_is_up(s) (s == RC_SW_UP)
-#define switch_is_off(s) (s == RC_SW_OFF)
+// 三个判断开关状态的宏 (配合枚举使用)
+#define switch_is_down(s) ((s) == RC_SW_DOWN)
+#define switch_is_mid(s)  ((s) == RC_SW_MID)
+#define switch_is_up(s)   ((s) == RC_SW_UP)
+#define switch_is_off(s)  ((s) == RC_SW_OFF)
 
-/* ----------------------- PC Key Definition-------------------------------- */
-// 对应key[x][0~16],获取对应的键;例如通过key[KEY_PRESS][Key_W]获取W键是否按下,后续改为位域后删除
-#define Key_W 0
-#define Key_S 1
-#define Key_A 2
-#define Key_D 3
-#define Key_Shift 4
-#define Key_Ctrl 5
-#define Key_Q 6
-#define Key_E 7
-#define Key_R 8
-#define Key_F 9
-#define Key_G 10
-#define Key_Z 11
-#define Key_X 12
-#define Key_C 13
-#define Key_V 14
-#define Key_B 15
 /* ----------------------- Data Struct ------------------------------------- */
-// 待测试的位域结构体,可以极大提升解析速度
+
+// 位域结构体 (极大提升解析速度，这部分保持不变)
 typedef union
 {
-    struct // 用于访问键盘状态
+    struct
     {
         uint16_t w : 1;
         uint16_t s : 1;
@@ -85,10 +102,9 @@ typedef union
         uint16_t v : 1;
         uint16_t b : 1;
     };
-    uint16_t keys; // 用于memcpy而不需要进行强制类型转换
+    uint16_t keys;
 } Key_t;
 
-// @todo 当前结构体嵌套过深,需要进行优化
 typedef struct
 {
     struct
@@ -99,9 +115,10 @@ typedef struct
         int16_t rocker_r1; // 右竖直
         int16_t dial;      // 侧边拨轮
 
-        uint8_t switch_left;  // 左侧开关
-        uint8_t switch_right; // 右侧开关
+        uint8_t switch_left;  // 左侧开关 (可强转为 RCSwitchState_e)
+        uint8_t switch_right; // 右侧开关 (可强转为 RCSwitchState_e)
     } rc;
+
     struct
     {
         int16_t x;
@@ -110,10 +127,14 @@ typedef struct
         uint8_t press_r;
     } mouse;
 
-    Key_t key[3]; // 改为位域后的键盘索引,空间减少8倍,速度增加16~倍
+    // 键盘状态数组，大小为 4 (对应 4 种互斥的修饰键状态)
+    Key_t key[KEY_PRESS_STATE_NUM];
 
-    uint8_t key_count[3][16];
-    uint8_t mouse_count[3][2];
+    // 按键触发计数器 [修饰键状态][按键索引]
+    uint8_t key_count[KEY_PRESS_STATE_NUM][KEY_NUM_TOTAL];
+
+    // 鼠标按键计数器 [0]:左键 [1]:右键
+    uint8_t mouse_count[2];
 } RC_ctrl_t;
 
 /* ------------------------- Internal Data ----------------------------------- */
