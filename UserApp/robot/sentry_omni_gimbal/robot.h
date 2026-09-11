@@ -40,6 +40,7 @@ typedef struct {
   int16_t Spin_speed;
   float Yaw_motor_angle;
   uint8_t Switch_right;
+  uint8_t Switch_left;
 } Send_Data_RC;
 #elifdef USE_DUAL_RC_NEW
 typedef struct {

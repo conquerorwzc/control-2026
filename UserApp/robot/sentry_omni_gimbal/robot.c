@@ -88,47 +88,50 @@ uint8_t has_non_zero_data(const Vision_Receive_s* data) {
  */
 #ifdef USE_DUAL_RC
 static void RemoteControlSet() {
+  static float trigger_time = 0;  // 扳机触发时间
   static float NotFoundTime = 0.0f;      // 最后一次识别到目标的时间
   static float search_start_time = 0.0f;
   static float search_phase = 0.0f;
   static uint8_t search_wave_inited = 0;
-  // 右[中]，云台
+  // 右[中]，云台底盘使能
    if (switch_is_mid(rc_data[TEMP].rc.switch_right))
    {
      gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
    }
-  // 右[上]，超电，保持底盘跟随云台
+  // 右[上]，云台底盘使能+扫头
   else if (switch_is_up(rc_data[TEMP].rc.switch_right))
     {
       gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+    robot->control_mode=NAVIGATOR_MODE; //对云台来说这个模式是扫头模式
     }
-  // 左[中],云台启动，摩擦轮启动，拨弹盘启动，准备射击
+  // 左[中],云台加自瞄
   if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
     shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-    shoot_ctrl_cmd->friction_mode = FRICTION_ON;
+    // shoot_ctrl_cmd->friction_mode = FRICTION_ON;
+    shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
+    gimbal_ctrl_cmd->gimbal_mode=GIMBAL_ON;
+    if (has_non_zero_data(vision_recv_data)==1){
+      gimbal_ctrl_cmd->gimbal_mode=GIMBAL_VISION;
+
+      gimbal_ctrl_cmd->yaw=vision_recv_data->gimbal_receive.yaw;
+      gimbal_ctrl_cmd->pitch=vision_recv_data->gimbal_receive.pitch;
+      // shoot_ctrl_cmd->load_mode=vision_recv_data->shoot_receive.fire_flag;
+    }
+    else {
+      gimbal_ctrl_cmd->gimbal_mode=GIMBAL_ON;
+    }
     // 待添加,视觉会发来和目标的误差,同样将其转化为total angle的增量进行控制
     // ...
   }
-  else if (switch_is_up(rc_data[TEMP].rc.switch_left))  // 开火，发射，根据时间判断单发或者连发
+  // 左[上],导航
+  else if (switch_is_up(rc_data[TEMP].rc.switch_left))
   {
-    shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-    shoot_ctrl_cmd->friction_mode = FRICTION_ON;
-    shoot_ctrl_cmd->load_mode = LOAD_STOP;
-    if (switch_is_mid(rc_data_last[TEMP].rc.switch_left)) {
-      trigger_time = time;
-    }
-    if (time - trigger_time > 1.0f) {
-      shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
-    } else {
-      shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
-    }
   }
-    if (switch_is_up(rc_data[TEMP].rc.switch_right))//除了右拨杆在上机器人使用导航数据，其余都正常人为控制
+  // 左[上],导航+自瞄
+    if (switch_is_up(rc_data[TEMP].rc.switch_right))//除了右拨杆在上机器人使用扫头模式，其余都正常人为控制
     {
-      robot->control_mode=AUTO_MODE;
+      robot->control_mode=NAVIGATOR_MODE;
     }
     else {
       robot->control_mode=MANUAL_MODE;
@@ -144,18 +147,19 @@ static void RemoteControlSet() {
     {
       search_wave_inited = 0;
     }
-    else if (robot->control_mode == AUTO_MODE) // 自动控制，直接接收上位机控制量
+    else if (robot->control_mode == NAVIGATOR_MODE) // 自动控制，直接接收上位机控制量
     {
-      gimbal_ctrl_cmd->gimbal_mode=GIMBAL_VISION;           //自瞄开启
+      // gimbal_ctrl_cmd->gimbal_mode=GIMBAL_VISION;           //自瞄开启
       if (has_non_zero_data(vision_recv_data)==1){
-        gimbal_ctrl_cmd->yaw=vision_recv_data->gimbal_receive.yaw;
-        gimbal_ctrl_cmd->pitch=vision_recv_data->gimbal_receive.pitch;
+        gimbal_ctrl_cmd->yaw+=vision_recv_data->gimbal_receive.yaw;
+        gimbal_ctrl_cmd->pitch+=vision_recv_data->gimbal_receive.pitch;
         switch (vision_recv_data->shoot_receive.fire_flag) {
           case 0:
             shoot_ctrl_cmd->load_mode=LOAD_STOP;
             break;
           default:
-            shoot_ctrl_cmd->load_mode=LOAD_BURSTFIRE;
+            // shoot_ctrl_cmd->load_mode=LOAD_BURSTFIRE;
+            shoot_ctrl_cmd->load_mode=LOAD_STOP;
             break;
         }
         NotFoundTime=time;                   //识别到装甲板
@@ -179,22 +183,11 @@ static void RemoteControlSet() {
   }
 
 static void MouseKeySet() {
+  static float trigger_time = 0;  // 触发时间
 if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   {
   gimbal_ctrl_cmd->yaw -= (float)rc_data[TEMP].mouse.x * 0.007f;  // 横向灵敏度调节
   gimbal_ctrl_cmd->pitch += (float)rc_data[TEMP].mouse.y * 0.003f; // 纵向灵敏度调节 (负号反转Y轴)
-  }
-  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Z] % 3)  // Z键设置弹速
-  {
-    case 0:
-      shoot_ctrl_cmd->bullet_speed = 15;
-      break;
-    case 1:
-      shoot_ctrl_cmd->bullet_speed = 18;
-      break;
-    default:
-      shoot_ctrl_cmd->bullet_speed = 30;
-      break;
   }
   switch (rc_data[TEMP].mouse.press_r % 2) {  //右键进入自瞄预备模式
   case 1:
@@ -258,17 +251,6 @@ if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   //     break;
   // }
 
-  switch (rc_data[TEMP].key[KEY_PRESS].shift)  // 待添加 按shift允许超功率 消耗缓冲能量
-  {
-    case 1:
-
-      break;
-
-    default:
-
-      break;
-  }
-  shoot_ctrl_cmd->shoot_rate = 8;// 射频控制,固定每秒1发,后续可以根据左侧拨轮的值大小切换射频,
 }
 # elifdef USE_DUAL_RC_NEW
 static void RemoteControlSet() {
@@ -477,6 +459,9 @@ void Gimbal_CANCommSend()
   send_data->Yaw_motor_angle = (int16_t)robot->gimbal->yaw_motor->measure.angle_single_round;
 
   send_data->Switch_right = rc_data->rc.switch_right;
+
+  send_data->Switch_left = rc_data->rc.switch_left;
+
   CANCommSend(can_comm_instance,(void*)send_data);
   #elifdef USE_DUAL_RC_NEW
   if (can_comm_instance == NULL || vt13_rc_data == NULL)
@@ -520,7 +505,7 @@ void RobotInit() {
   // 使用旧遥控器
   robot->rc_data = RemoteControlInit(&huart3);  // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
   rc_data_last = (RC_ctrl_t *)zmalloc(sizeof(RC_ctrl_t));
-  send_data = (Send_Data_RC*)zmalloc((sizeof)(Send_Data_RC));
+  send_data = (Send_Data_RC*)zmalloc(sizeof(Send_Data_RC));
   *rc_data_last = *robot->rc_data;  // 记录上一次遥控器的状态
   rc_data = robot->rc_data;
 #elif defined(USE_DUAL_RC_NEW)
@@ -565,7 +550,7 @@ void RobotCMDTask() {
   shoot_ctrl_cmd->initial_speed = DecodeBulletSpeedFromU16(RefereeData->initial_speed);
   shoot_ctrl_cmd->shooter_barrel_heat=RefereeData->shooter_17mm_barrel_heat;
   RemoteControlSet();
-  MouseKeySet();
+  // MouseKeySet();
   PitchAngleLimit();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
