@@ -91,6 +91,9 @@ build
 # J-Link files
 JLinkLog.txt
 *.jlink
+*.jdebug
+*.jdebug.user
+*.xml
 
 # IDE / Editor
 .history/

@@ -160,7 +160,7 @@ static void DecodeVision(uint16_t recv_len) {
 }
 
 /* 视觉通信初始化 */
-Vision_Receive_s *VisionInit(IMU_Init_Config_s *imu_init_config) {
+Vision_Receive_s *VisionInit(IMU_Init_Config_s *imu_init_config, float* initial_speed, uint8_t* robot_id) {
   current_attitude = INS_Init(imu_init_config);
   referee_info = GetReferee();
   USB_Init_Config_s conf = {.rx_cbk = DecodeVision};
