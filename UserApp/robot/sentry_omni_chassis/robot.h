@@ -6,7 +6,6 @@
 #include "navigator.h"
 #include "new_RC_VT13.h"
 #include "remote_control.h"
-#include "rm_referee.h"
 #include "shoot.h"
 #include "super_cap.h"
 // todo: add vision_module

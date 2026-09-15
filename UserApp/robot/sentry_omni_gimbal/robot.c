@@ -527,7 +527,7 @@ void RobotInit() {
   robot->vision_recv_data = VisionInit(&gimbal_init_config.imu_init_config, &shoot_ctrl_cmd->initial_speed, &RefereeData->robot_id);
   // robot->super_cap = SuperCapInit(&super_cap_config)
 
-  shoot_ctrl_cmd->heat_mode=REFEREE_CONTROL;
+  shoot_ctrl_cmd->heat_mode=NO_CONTROL;
   shoot_ctrl_cmd->bullet_speed_mode=ENABLE_BULLET_SPEED;
   // navigator_data  = robot->navigator_data;
   vision_recv_data = robot->vision_recv_data;

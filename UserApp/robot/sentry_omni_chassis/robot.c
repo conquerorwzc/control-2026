@@ -82,7 +82,6 @@ static void SentryRefereeSend() {
   sentry_cmd.fields.sentry_mode = robot->sentry_mode;
   sentry_cmd.fields.activate_power_rune = 1;
 
-  SentrySend(sentry_cmd.raw_data, sizeof(sentry_cmd.raw_data));
 }
 
 #if defined(USE_DUAL_RC)
@@ -496,7 +495,6 @@ void RobotInit() {
   robot->super_cap = SuperCapInit(&super_cap_config);
 
   robot->chassis = ChassisInit(&chassis_init_config);
-  robot->chassis->super_cap=robot->super_cap;
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
   // navigator_data  = robot->navigator_data;

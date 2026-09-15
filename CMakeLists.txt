@@ -22,12 +22,11 @@ if(NOT DEFINED CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Debug")
 endif() # Debug Release RelWithDebInfo MinSizeRel
 
-# 默认仍构建麦轮步兵，也允许通过 -DROBOT_TYPE=<目录名> 选择其他机器人。
-set(ROBOT_TYPE "infantry_mecanum" CACHE STRING "Robot configuration under UserApp/robot")
 
 # 其余已修复机器人预留配置；需要时取消对应一行的注释即可。
+#set(ROBOT_TYPE "infantry_mecanum")
 # set(ROBOT_TYPE "sentry_omni_chassis")
-# set(ROBOT_TYPE "sentry_omni_gimbal")
+ set(ROBOT_TYPE "sentry_omni_gimbal")
 # set(ROBOT_TYPE "infantry_wheel_legged_sjtu")
 
 set(ROBOT_CMAKE "${CMAKE_SOURCE_DIR}/UserApp/robot/${ROBOT_TYPE}/robot.cmake")
