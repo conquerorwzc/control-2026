@@ -52,9 +52,19 @@ typedef struct
     AlarmState_e alarm_state;
 }BuzzzerInstance;
 
+typedef struct
+{
+    uint16_t frequency;
+    uint8_t count;
+    float loudness;
+} Buzzer_Beep_Config_s;
+
 
 void BuzzerInit();
 void BuzzerTask();
+uint8_t BuzzerBeep(uint8_t count);
+uint8_t BuzzerBeepWithConfig(const Buzzer_Beep_Config_s *config);
+uint8_t BuzzerBeepWithFreq(uint16_t frequency, uint8_t count);
 BuzzzerInstance *BuzzerRegister(Buzzer_config_s *config);
 void AlarmSetStatus(BuzzzerInstance *buzzer, AlarmState_e state);
 #endif // !BUZZER_H

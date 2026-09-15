@@ -33,13 +33,12 @@ typedef enum
 } JudgeFrameOffset_e;
 
 /* 通信协议长度 */
-typedef enum
-{
-	LEN_HEADER = 5, // 帧头长
-	LEN_CMDID = 2,	// 命令码长度
-	LEN_TAIL = 2,	// 帧尾CRC16
+typedef enum {
+  LEN_HEADER = 5,  // 帧头长
+  LEN_CMDID = 2,   // 命令码长度
+  LEN_TAIL = 2,    // 帧尾CRC16
 
-	LEN_CRC8 = 4, // 帧头CRC8校验长度=帧头+数据长+包序号
+  LEN_CRC8 = 4,  // 帧头CRC8校验长度=帧头+数据长+包序号
 } JudgeFrameLength_e;
 
 /****************************帧头****************************/
@@ -67,49 +66,51 @@ typedef struct
 /****************************cmd_id命令码说明****************************/
 
 /* 命令码ID,用来判断接收的是什么数据 */
-typedef enum {
-  ID_game_state = 0x0001,                // 比赛状态数据
-  ID_game_result = 0x0002,               // 比赛结果数据
-  ID_game_robot_survivors = 0x0003,      // 比赛机器人血量数据
-  ID_event_data = 0x0101,                // 场地事件数据
-  //ID_supply_projectile_action = 0x0102,  // 场地补给站动作标识数据
-                                         // ID_supply_projectile_booking = 0x0103, // 场地补给站预约子弹数据
-  ID_referee_warning = 0x104,            // 裁判系统警告
-  ID_dart_info = 0x105,                  // 飞镖发射相关数据
-  ID_game_robot_state = 0x0201,          // 机器人状态数据
-  ID_power_heat_data = 0x0202,           // 实时功率热量数据
-  ID_game_robot_pos = 0x0203,            // 机器人位置数据
-  ID_buff_musk = 0x0204,                 // 机器人增益数据
-  // ID_aerial_robot_energy = 0x0205,	   // 空中机器人能量状态数据
-  ID_robot_hurt = 0x0206,           // 伤害状态数据
-  ID_shoot_data = 0x0207,           // 实时射击数据
-  ID_projectile_allowance = 0x208,  // 允许发弹量
-  ID_RFID_info = 0x209,             // RFID信息
+typedef enum
+{
+	ID_game_state = 0x0001,				   // 比赛状态数据
+	ID_game_result = 0x0002,			   // 比赛结果数据
+	ID_game_robot_survivors = 0x0003,	   // 比赛机器人血量数据
+	ID_event_data = 0x0101,				   // 场地事件数据
+	ID_supply_projectile_action = 0x0102,  // 场地补给站动作标识数据
+	ID_supply_projectile_booking = 0x0103, // 场地补给站预约子弹数据
+        ID_referee_warning = 0x104,    //裁判系统警告
+        //ID_dart_info = 0x105,          //飞镖发射相关数据
+	ID_game_robot_state = 0x0201,		   // 机器人状态数据
+	ID_power_heat_data = 0x0202,		   // 实时功率热量数据
+	ID_game_robot_pos = 0x0203,			   // 机器人位置数据
+	ID_buff_musk = 0x0204,				   // 机器人增益数据
+	//ID_aerial_robot_energy = 0x0205,	   // 空中机器人能量状态数据
+	ID_robot_hurt = 0x0206,				   // 伤害状态数据
+	ID_shoot_data = 0x0207,				   // 实时射击数据
+        ID_projectile_allowance = 0x208,      //允许发弹量
+        ID_RFID_info = 0x209,     //RFID信息
   ID_sentry_info = 0x020D,          // 哨兵自主决策信息
   ID_radar_info = 0x020E,           // 雷达自主决策信息信息
-  ID_student_interactive = 0x0301,  // 机器人间交互数据
+	ID_student_interactive = 0x0301,	   // 机器人间交互数据
 } CmdID_e;
 
 /* 命令码数据段长,根据官方协议来定义长度，还有自定义数据长度 */
-typedef enum {
-  LEN_game_state = 11,               // 0x0001
-  LEN_game_result = 1,               // 0x0002
-  LEN_game_robot_HP = 16,            // 0x0003
-  LEN_event_data = 4,                // 0x0101
-  //LEN_supply_projectile_action = 4,  // 0x0102
-  LEN_referee_warning = 3,           // 0x0104
-  LEN_game_robot_state = 13,         // 0x0201
-  LEN_power_heat_data = 14,          // 0x0202
-  LEN_game_robot_pos = 16,           // 0x0203
-  LEN_buff_musk = 8,                 // 0x0204
-  // LEN_aerial_robot_energy = 2,				 // 0x0205
-  LEN_robot_hurt = 1,                           // 0x0206
-  LEN_shoot_data = 7,                           // 0x0207
-  LEN_projectile_allowance = 6,                 // 0x208
+typedef enum
+{
+  LEN_game_state = 11,     // 0x0001
+  LEN_game_result = 1,     // 0x0002
+  LEN_game_robot_HP = 16,  // 0x0003
+	LEN_event_data = 4,							 // 0x0101
+	LEN_supply_projectile_action = 4,			 // 0x0102
+        LEN_referee_warning = 3,                                 //0x0104
+	LEN_game_robot_state = 13,					 // 0x0201
+  LEN_power_heat_data = 14,   // 0x0202
+	LEN_game_robot_pos = 16,					 // 0x0203
+  LEN_buff_musk = 8,          // 0x0204
+	//LEN_aerial_robot_energy = 2,				 // 0x0205
+	LEN_robot_hurt = 1,							 // 0x0206
+	LEN_shoot_data = 7,							 // 0x0207
+        LEN_projectile_allowance = 6,             // 0x208
   LEN_RFID_info = 5,                            // 0x209
-  LEN_sentry_info = 6,                      // 哨兵自主决策信息
-  LEN_radar_info = 1,                       // 雷达自主决策信息信息
-  LEN_receive_data = 6 + Communicate_Data_LEN,  // 0x0301
+  LEN_sentry_info = 6,                          // 哨兵自主决策信息
+  LEN_radar_info = 1,                           // 雷达自主决策信息信息
+	LEN_receive_data = 6 + Communicate_Data_LEN, // 0x0301
 
 } JudgeDataLength_e;
 
@@ -132,8 +133,7 @@ typedef struct
 } ext_game_result_t;
 
 /* ID: 0x0003  Byte:  16    比赛机器人血量数据 */
-typedef struct
-{
+typedef struct {
   uint16_t ally_1_robot_HP;
   uint16_t ally_2_robot_HP;
   uint16_t ally_3_robot_HP;
@@ -156,45 +156,44 @@ bit 5 - 6：己方大能量机关的激活状态，0为未激活，1 为已激�
 bit 7 - 8：己方中央高地的占领状态，1 为被己方占领，2 为被对方占领
 bit 9 - 10：己方梯形高地的占领状态，1 为已占领
 bit 11 - 19：对方飞镖最后一次击中己方前哨站或基地的时间（0 - 420，开局默认为 0）
-bit 20 -22：对方飞镖最后一次击中己方前哨站或基地的具体目标，开局默认为 0，1 为击中前哨站，2为击中基地固定目标，3为击中基地随机固定目标，4 为击中基地随机移动目标，5为击中基地末端移动目标
+bit 20 -22：对方飞镖最后一次击中己方前哨站或基地的具体目标，开局默认为 0，1
+为击中前哨站，2为击中基地固定目标，3为击中基地随机固定目标，4 为击中基地随机移动目标，5为击中基地末端移动目标
 bit23-24：中心增益点的占领状态，0 为未被占领，1 为被己方占领，2 为被对方占领，3 为被双方占领。（仅 RMUL 适用）
 bit25-26：己方堡垒增益点的占领状态，0 为未被占领，1 为被己方占领，2 为被对方占领，3 为被双方占领
 bit27-28：己方前哨站增益点的占领状态，0 为未被占领，1 为被己方占领，2 为被对方占领
 bit 29：己方基地增益点的占领状态，1 为已占领
 bit 30-31：保留位*/
-typedef struct
-{
-  uint32_t event_type;
+typedef struct {
+	uint32_t event_type;
 } ext_event_data_t;
 
-// /* ID: 0x0102  Byte:  3    场地补给站动作标识数据 */
-// typedef struct
-// {
-// 	uint8_t supply_projectile_id;
-// 	uint8_t supply_robot_id;
-// 	uint8_t supply_projectile_step;
-// 	uint8_t supply_projectile_num;
-// } ext_supply_projectile_action_t;
+/* ID: 0x0102  Byte:  3    场地补给站动作标识数据 */
+typedef struct
+{
+	uint8_t supply_projectile_id;
+	uint8_t supply_robot_id;
+	uint8_t supply_projectile_step;
+	uint8_t supply_projectile_num;
+} ext_supply_projectile_action_t;
 
 /* ID: 0x0104  Byte:  3    裁判警告数据 */
 typedef struct
 {
-    uint8_t level;
-    uint8_t offending_robot_id;
-    uint8_t count;
-}ext_referee_warning_t;
+        uint8_t level;
+        uint8_t offending_robot_id;
+        uint8_t count;
+} ext_referee_warning_t;
 
 /* ID: 0X0201  Byte: 13    机器人状态数据 */
-typedef struct
-{
-  uint8_t robot_id;  // 本机器人ID
-  uint8_t robot_level;	// 机器人等级
-  uint16_t current_HP;	// 机器人当前血量
-  uint16_t maximum_HP;	// 机器人血量上限
-  uint16_t shooter_barrel_cooling_value;  // 机器人射击热量每秒冷却值
-  uint16_t shooter_barrel_heat_limit;     // 机器人射击热量上限
-  uint16_t chassis_power_limit;           // 机器人底盘功率上限
-  uint8_t power_management_gimbal_output : 1;  // bit 0：gimbal口输出，0为无输出，1为 24V输出
+typedef struct {
+  uint8_t robot_id;                             // 本机器人ID
+  uint8_t robot_level;                          // 机器人等级
+  uint16_t current_HP;                          // 机器人当前血量
+  uint16_t maximum_HP;                          // 机器人血量上限
+  uint16_t shooter_barrel_cooling_value;        // 机器人射击热量每秒冷却值
+  uint16_t shooter_barrel_heat_limit;           // 机器人射击热量上限
+  uint16_t chassis_power_limit;                 // 机器人底盘功率上限
+  uint8_t power_management_gimbal_output : 1;   // bit 0：gimbal口输出，0为无输出，1为 24V输出
   uint8_t power_management_chassis_output : 1;  // bit 1：chassis口输出，0为无输出，1为24V输出
   uint8_t power_management_shooter_output : 1;  // bit 2：shooter口输出，0为无输出，1为24V输出
 } ext_game_robot_state_t;
@@ -238,7 +237,6 @@ typedef struct
  uint8_t remaining_energy;
 } ext_buff_musk_t;
 
-
 /* ID: 0x0206  Byte:  1    伤害状态数据 */
 /*bit 0-3：当扣血原因为装甲模块被弹丸攻击、受撞击或离线时，该4bit组成的数值为装甲模块或测速模块的ID编号；当其他原因导致扣血时，该数值为0
 bit 4-7：血量变化类型
@@ -247,8 +245,8 @@ bit 4-7：血量变化类型
  5：装甲模块受到撞击导致扣血*/
 typedef struct
 {
-	uint8_t armor_id : 4;
-	uint8_t hurt_type : 4;
+  uint8_t armor_id : 4;
+  uint8_t hurt_type : 4;
 } ext_robot_hurt_t;
 
 /* ID: 0x0207  Byte:  7    实时射击数据 */
@@ -261,13 +259,12 @@ typedef struct
 } ext_shoot_data_t;
 
 /* ID: 0x0208  Byte:  6    允许发弹量 */
-typedef struct
-{
-  uint16_t projectile_allowance_17mm;  // 机器人自身拥有的17mm弹丸允许发弹量
-  uint16_t projectile_allowance_42mm;  // 42mm弹丸允许发弹量
-  uint16_t remaining_gold_coin;        // 剩余金币数量
+typedef struct {
+  uint16_t projectile_allowance_17mm;      // 机器人自身拥有的17mm弹丸允许发弹量
+  uint16_t projectile_allowance_42mm;      // 42mm弹丸允许发弹量
+  uint16_t remaining_gold_coin;            // 剩余金币数量
   uint16_t projectile_allowance_fortress;  // 堡垒增益点提供的储备17mm弹丸允许发弹量；该值与机器人是否实际占领堡垒无关
-}ext_projectile_allowance_t;
+} ext_projectile_allowance_t;
 
 /* ID: 0x0209  Byte:  5    RFID模块状态 */
 typedef struct
@@ -285,11 +282,11 @@ typedef struct {
 /****************************机器人交互数据****************************/
 /* 发送的内容数据段最大为 113 检测是否超出大小限制?实际上图形段不会超，数据段最多30个，也不会超*/
 /* 交互数据头结构 */
-typedef struct
-{
-	uint16_t data_cmd_id; // 由于存在多个内容 ID，但整个cmd_id 上行频率最大为 10Hz，请合理安排带宽。注意交互部分的上行频率
-	uint16_t sender_ID;
-	uint16_t receiver_ID;
+typedef struct {
+  uint16_t
+      data_cmd_id;  // 由于存在多个内容 ID，但整个cmd_id 上行频率最大为 10Hz，请合理安排带宽。注意交互部分的上行频率
+  uint16_t sender_ID;
+  uint16_t receiver_ID;
 } ext_student_interactive_header_data_t;
 
 /* 机器人id */

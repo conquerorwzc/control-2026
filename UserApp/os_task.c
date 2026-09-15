@@ -18,22 +18,16 @@
 // tasks
 #include "buzzer.h"
 #include "daemon.h"
-#include "dmmotor.h"
-#include "ins_task.h"
-#include "master_process.h"
 #include "motor_task.h"
-// #include "referee_task.h"
 #include "robot.h"
 // module
 #include "dmmotor.h"
 // bsp
 #include "bsp_init.h"
 
-
 osThreadId motorTaskHandle;
 osThreadId daemonTaskHandle;
 osThreadId robotTaskHandle;
-osThreadId uiTaskHandle;
 
 /**
  * @brief 初始化RTOS任务,所有持续运行的任务都在这里初始化
@@ -54,20 +48,13 @@ void OSTaskInit() {
 
   osThreadDef(daemontask, StartDAEMONTASK, osPriorityNormal, 0, 128);
   daemonTaskHandle = osThreadCreate(osThread(daemontask), NULL);
-  if (daemonTaskHandle == NULL) {
-    LOGERROR("[freeRTOS] Daemon task create failed");
-  }
 
   osThreadDef(robottask, StartROBOTTASK, osPriorityNormal, 0, 1024);
   robotTaskHandle = osThreadCreate(osThread(robottask), NULL);
 
-  // osThreadDef(uitask, StartUITASK, osPriorityNormal, 0, 512);
-  // uiTaskHandle = osThreadCreate(osThread(uitask), NULL);
-
   // 初始化完成,开启中断
   __enable_irq();
 }
-
 __attribute__((noreturn)) void StartMOTORTASK(void const *argument) {
   static float motor_dt;
   static float motor_start;
@@ -77,7 +64,7 @@ __attribute__((noreturn)) void StartMOTORTASK(void const *argument) {
     MotorControlTask();
     motor_dt = DWT_GetTimeline_ms() - motor_start;
     if (motor_dt > 2) LOGERROR("[freeRTOS] MOTOR Task is being DELAY! dt = [%f]", &motor_dt);
-    osDelay(1);
+    osDelay(2);
   }
 }
 
@@ -100,7 +87,6 @@ __attribute__((noreturn)) void StartDAEMONTASK(void const *argument) {
 __attribute__((noreturn)) void StartROBOTTASK(void const *argument) {
   static float robot_dt;
   static float robot_start;
-
   RobotInit();
   DMMotorTaskInit();
   LOGINFO("[freeRTOS] ROBOT core Task Start");
@@ -109,20 +95,7 @@ __attribute__((noreturn)) void StartROBOTTASK(void const *argument) {
     robot_start = DWT_GetTimeline_ms();
     RobotTask();
     robot_dt = DWT_GetTimeline_ms() - robot_start;
-    if (robot_dt > 3) LOGERROR("[freeRTOS] ROBOT core Task is being DELAY! dt = [%f]", &robot_dt);
+    if (robot_dt > 1) LOGERROR("[freeRTOS] ROBOT core Task is being DELAY! dt = [%f]", &robot_dt);
     osDelay(1);
   }
 }
-
-#if 0
-__attribute__((noreturn)) void StartUITASK(void const *argument) {
-  LOGINFO("[freeRTOS] UI Task Start");
-  MyUIInit();
-  LOGINFO("[freeRTOS] UI Init Done, communication with ref has established");
-  for (;;) {
-    // 每给裁判系统发送一包数据会挂起一次,详见UITask函数的refereeSend()
-    UITask();
-    osDelay(1);  // 即使没有任何UI需要刷新,也挂起一次,防止卡在UITask中无法切换
-  }
-}
-#endif

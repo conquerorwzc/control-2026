@@ -1,10 +1,10 @@
 # ins_task
 
-<p align='right'>neozng1@hnu.edu.cn</p>
+neozng1@hnu.edu.cn
 
 ## 硬触发流程
 
-![image-20221113212706633](.assets\image-20221113212706633.png)
+image-20221113212706633
 
 `times%10` 是固定相机的采集频率为100hz，请根据视觉算法实际能达到的最大帧率调整。
 
@@ -36,6 +36,6 @@ float Roll;        // Roll轴安装偏角修正 单位: °
 flag给1，表示参数更新。
 scale为三轴标度因数修正系数，默认为1.0f，表示一比一。scale增加，表示传感器的测量结果比真值要大。
 Yaw、Pitch、Roll为三轴安装偏角修正系数，默认为0.0f，表示无安装偏角。如果存在安装偏角，比如需要按照下图yaw、roll、pitch方向，设置坐标系旋转角度。例如板子的坐标系需要按yaw轴正向旋转90°才是车体坐标系，则Yaw设置为90.0f。下图中就是roll转到pitch位置。
-![imu三轴旋转正方向.png](imu%E4%B8%89%E8%BD%B4%E6%97%8B%E8%BD%AC%E6%AD%A3%E6%96%B9%E5%90%91.png)
+imu三轴旋转正方向.png
 
 IMU_Init_Config_s* imu_init_config写在gimbal.h或者chassis.h里。

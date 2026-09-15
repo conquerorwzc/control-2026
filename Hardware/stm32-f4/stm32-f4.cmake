@@ -1,5 +1,5 @@
 # board specific settings, arch/fpu/instruction
-set(MCU_FLAGS -mcpu=cortex-m4 -mthumb -mthumb-interwork -mfloat-abi=hard -mfpu=fpv4-sp-d16)
+set(MCU_FLAGS -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16)
 set(LINKER_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/STM32F407IGHX_FLASH.ld") # 指定链接脚本
 set(DSP_NAME "libCMSISDSP.a") # 指定DSP库名称
 link_directories(${CMAKE_CURRENT_LIST_DIR}/Middlewares/ST/ARM/DSP/Lib)

@@ -11,14 +11,12 @@
 #include "arm_math.h"
 #include "bsp_dwt.h"
 #include "general_def.h"
-#include "rm_referee.h"
-#include "super_cap.h"
+#include "referee.h"
 #include "user_lib.h"
 
 static ChassisInstance* chassis;
 static Chassis_Ctrl_Cmd_s* chassis_ctrl_cmd;  // 声明但不初始化
 static Chassis_Param_s chassis_param;         // 声明为静态局部变量
-static referee_info_t *referee_data;
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
 static float chassis_vx, chassis_vy;      // 将云台系的速度投影到底盘
 static referee_info_t *referee_data;
@@ -28,6 +26,7 @@ static float rf_radius;
 static float lb_radius;
 static float rb_radius;
 static PIDInstance follow_pid;
+static uint8_t yaw_hold_active;
 static float power;
 static float k0, k1, k2, k3, k4, k5;  // 中科大的功率模型
 static uint8_t super_cap_error_flag = 0; //电容故障标志
@@ -160,6 +159,29 @@ static void EstimateSpeed() {
   // DJIMotor得改otherfeed
 }
 
+static float YawHoldCompensate() {
+  if (chassis == NULL || chassis_ctrl_cmd == NULL || chassis->chassis_IMU == NULL || !chassis->chassis_IMU->init) {
+    yaw_hold_active = 0;
+    return 0.0f;
+  }
+
+  if (chassis_ctrl_cmd->chassis_mode != CHASSIS_HOLD) {
+    yaw_hold_active = 0;
+    return 0.0f;
+  }
+
+  if (!yaw_hold_active) {
+    yaw_hold_active = 1;
+    chassis->yaw_hold_pid.Iout = 0.0f;
+    chassis->yaw_hold_pid.ITerm = 0.0f;
+    chassis->yaw_hold_pid.Last_ITerm = 0.0f;
+    chassis->yaw_hold_pid.Last_Err = 0.0f;
+    chassis->yaw_hold_pid.Last_Output = 0.0f;
+  }
+
+  return PIDCalculate(&chassis->yaw_hold_pid, chassis->chassis_IMU->YawTotalAngle, chassis_ctrl_cmd->yaw_hold_ref);
+}
+
 ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   ChassisInstance* chassis_instance = (ChassisInstance*)zmalloc(sizeof(ChassisInstance));
 
@@ -175,7 +197,7 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
   k3 = chassis_param.power_param.k3;
   k4 = chassis_param.power_param.k4;
   k5 = chassis_param.power_param.k5;
-  referee_data = GetReferee();
+
   lf_radius = sqrtf((half_track_width + center_gimbal_offset_x) * (half_track_width + center_gimbal_offset_x) +
                     (half_wheel_base - center_gimbal_offset_y) * (half_wheel_base - center_gimbal_offset_y)) *
               DEGREE_2_RAD;
@@ -194,6 +216,11 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
 
   PIDInit(&follow_pid, &chassis_init_config->follow_pid);
 
+  if (chassis_init_config->enable_yaw_hold) {
+    PIDInit(&chassis_instance->yaw_hold_pid, &chassis_init_config->yaw_hold_pid);
+    chassis_instance->chassis_IMU = INS_Init(&chassis_init_config->imu_init_config);
+  }
+
   for (int i = 0; i < 4; i++) {
     chassis_init_config->wheel_motor_config[i].controller_setting_init_config.angle_feedback_source = MOTOR_FEED;
     chassis_init_config->wheel_motor_config[i].controller_setting_init_config.speed_feedback_source = MOTOR_FEED;
@@ -210,6 +237,7 @@ ChassisInstance* ChassisInit(Chassis_Init_Config_s* chassis_init_config) {
 
 /* 机器人底盘控制核心任务 */
 void ChassisTask() {
+
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_POWER_OFF) {
     // 如果出现重要模块离线或遥控器设置为急停,让电机停止
     for (int i = 0; i < 4; i++) DJIMotorStop(chassis->wheel_motor[i]);
@@ -224,6 +252,9 @@ void ChassisTask() {
       break;
     case CHASSIS_ROTATE:  // 自旋,同时保持全向机动;当前wz维持定值,后续增加不规则的变速策略
       // chassis_cmd_recv.wz = 4000;
+      break;
+    case CHASSIS_HOLD:
+      chassis_ctrl_cmd->wz += YawHoldCompensate();
       break;
     default:
       break;
@@ -243,6 +274,9 @@ void ChassisTask() {
 
   // 根据控制模式进行正运动学解算,计算底盘输出
   MecanumCalculate();
+
+  // SuperCapSendMessage(chassis->super_cap, (int16_t)300, referee_data->PowerHeatData.buffer_energy,
+  //                       referee_data->GameRobotState.power_management_chassis_output);
 
   // 功率控制与输出限幅
   LimitChassisOutput();

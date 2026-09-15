@@ -261,6 +261,27 @@ void Kalman_Filter_Init(KalmanFilter_t *kf, uint8_t xhatSize, uint8_t uSize, uin
     kf->SkipEq5 = 0;
 }
 
+/**
+ * @brief 清除卡尔曼滤波器的运行时状态（如状态估计和观测值），保留配置矩阵
+ * 
+ * @param kf kf类型定义
+ */
+void Kalman_Filter_Clear(KalmanFilter_t *kf)
+{
+    if (kf == NULL || kf->xhatSize == 0) return;
+
+    size_t state_size = sizeof_float * kf->xhatSize;
+    if (kf->FilteredValue != NULL) memset(kf->FilteredValue, 0, state_size);
+    if (kf->xhat_data != NULL) memset(kf->xhat_data, 0, state_size);
+    if (kf->xhatminus_data != NULL) memset(kf->xhatminus_data, 0, state_size);
+
+    if (kf->zSize != 0) {
+        size_t measure_size = sizeof_float * kf->zSize;
+        if (kf->MeasuredVector != NULL) memset(kf->MeasuredVector, 0, measure_size);
+        if (kf->z_data != NULL) memset(kf->z_data, 0, measure_size);
+    }
+}
+
 void Kalman_Filter_Measure(KalmanFilter_t *kf)
 {
     // 矩阵H K R根据量测情况自动调整

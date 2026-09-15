@@ -95,6 +95,16 @@ JLinkLog.txt
 *.jdebug.user
 *.xml
 
-# cmake build directory
-cmake-build-debug-stm32/
+# IDE / Editor
+.history/
 
+# macOS
+.DS_Store
+
+# cmake build directory
+cmake-build-debug/
+
+*.jdebug.user
+*.jdebug
+
+*.log

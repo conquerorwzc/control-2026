@@ -61,6 +61,7 @@ static void CANCommRxCallback(CANInstance *_instance)
                 { // 数据量大的话考虑使用DMA
                     memcpy(comm->unpacked_recv_data, comm->raw_recvbuf + 2, comm->recv_data_len);
                     comm->update_flag = 1;           // 数据更新flag置为1
+                    comm->has_received = 1;
                     DaemonReload(comm->comm_daemon); // 重载daemon,避免数据更新后一直不被读取而导致数据更新不及时
                 }
             }
@@ -74,7 +75,7 @@ static void CANCommLostCallback(void *cancomm)
 {
     CANCommInstance *comm = (CANCommInstance *)cancomm;
     CANCommResetRx(comm);
-    LOGWARNING("[can_comm] can comm rx[%d] lost, reset rx state.", &comm->can_ins->rx_id);
+    LOGWARNING("[can_comm] can comm rx[%d] lost, reset rx state.", comm->can_ins->rx_id);
 }
 
 CANCommInstance *CANCommInit(CANComm_Init_Config_s *comm_config)
@@ -131,4 +132,9 @@ void *CANCommGet(CANCommInstance *instance)
 uint8_t CANCommIsOnline(CANCommInstance *instance)
 {
     return DaemonIsOnline(instance->comm_daemon);
+}
+
+uint8_t CANCommHasReceived(CANCommInstance *instance)
+{
+    return instance->has_received;
 }

@@ -124,6 +124,21 @@ typedef struct // config parameter
 void PIDInit(PIDInstance *pid, PID_Init_Config_s *config);
 
 /**
+ * @brief 在线切换PID参数,只覆盖增益/改进项配置,保留运行时状态(Iout/Last_Err/Last_Output等)
+ * @note  依赖 PIDInstance 头部布局与 PID_Init_Config_s 二进制兼容(同 PIDInit)
+ * @param pid    PID实例指针
+ * @param config 新的PID配置
+ */
+void PIDSwitchConfig(PIDInstance *pid, const PID_Init_Config_s *config);
+
+/**
+ * @brief 清除PID控制器的运行时状态，保留配置参数
+ *
+ * @param pid    PID实例指针
+ */
+void PIDClear(PIDInstance *pid);
+
+/**
  * @brief 计算PID输出
  *
  * @param pid     PID实例指针

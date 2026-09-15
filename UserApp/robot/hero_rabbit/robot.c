@@ -85,11 +85,11 @@ static void RemoteControlSet() {
 
     chassis_ctrl_cmd->leg_mode = LEG_NORMAL;
   } else if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
-    chassis_ctrl_cmd->leg_mode = LEG_NORMAL;
+    chassis_ctrl_cmd->leg_mode = LEG_CRUISE;
 
   } else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
 
-    chassis_ctrl_cmd->leg_mode = LEG_NORMAL;
+    chassis_ctrl_cmd->leg_mode = LEG_IN_AIR;
 
   }
 
@@ -173,29 +173,28 @@ static void MouseKeySet() {
                         (float) chassis_ctrl_cmd->chassis_speed_buff;
   vx_initial += (float)(rc_data[TEMP].key[KEY_PRESS].a - rc_data[TEMP].key[KEY_PRESS].d) *
                          (float) -chassis_ctrl_cmd->chassis_speed_buff;
-chassis_ctrl_cmd->vx=vx_initial;
-  chassis_ctrl_cmd->vy=vy_initial;
-  // //缓加速
-  // if (abs(vx_initial)<=30000) {
-  //   x_speed_time=DWT_GetTimeline_s();
-  //   chassis_ctrl_cmd->vx=vx_initial;
-  // }//速度绝对值在10000以下输出控制量=输入控制量
-  // if (vx_initial > 30000&&chassis_ctrl_cmd->vx<= 80.0f * (float)rc_data[TEMP].rc.rocker_l_ ) {
-  //   chassis_ctrl_cmd->vx=30000+(DWT_GetTimeline_s()-x_speed_time)*10000;
-  // }
-  // if (vx_initial < -30000&&chassis_ctrl_cmd->vx>= 80.0f * (float)rc_data[TEMP].rc.rocker_l_) {
-  //   chassis_ctrl_cmd->vx=-30000-(DWT_GetTimeline_s()-x_speed_time)*10000;
-  // }//速度绝对值在10000以上输出控制量=10000+10000t(s)
-  // if (abs(vy_initial)<=30000) {
-  //   y_speed_time=DWT_GetTimeline_s();
-  //   chassis_ctrl_cmd->vy=vy_initial;
-  // }//速度绝对值在10000以下输出控制量=输入控制量
-  // if (vy_initial > 30000&&chassis_ctrl_cmd->vy<= 80.0f * (float)rc_data[TEMP].rc.rocker_l1 ) {
-  //   chassis_ctrl_cmd->vy=30000+(DWT_GetTimeline_s()-y_speed_time)*10000;
-  // }
-  // if (vy_initial < -30000&&chassis_ctrl_cmd->vy>= 80.0f * (float)rc_data[TEMP].rc.rocker_l1) {
-  //   chassis_ctrl_cmd->vy=-30000-(DWT_GetTimeline_s()-y_speed_time)*10000;
-  // }//速度绝对值在10000以上输出控制量=10000+10000t(s)
+
+  //缓加速
+  if (abs(vx_initial)<=10000) {
+    x_speed_time=DWT_GetTimeline_s();
+    chassis_ctrl_cmd->vx=vx_initial;
+  }//速度绝对值在10000以下输出控制量=输入控制量
+  if (vx_initial > 10000&&chassis_ctrl_cmd->vx<= 60.0f * (float)rc_data[TEMP].rc.rocker_l_ ) {
+    chassis_ctrl_cmd->vx=10000+(DWT_GetTimeline_s()-x_speed_time)*10000;
+  }
+  if (vx_initial < -10000&&chassis_ctrl_cmd->vx>= 60.0f * (float)rc_data[TEMP].rc.rocker_l_) {
+    chassis_ctrl_cmd->vx=-10000-(DWT_GetTimeline_s()-x_speed_time)*10000;
+  }//速度绝对值在10000以上输出控制量=10000+10000t(s)
+  if (abs(vy_initial)<=10000) {
+    y_speed_time=DWT_GetTimeline_s();
+    chassis_ctrl_cmd->vy=vy_initial;
+  }//速度绝对值在10000以下输出控制量=输入控制量
+  if (vy_initial > 10000&&chassis_ctrl_cmd->vy<= 60.0f * (float)rc_data[TEMP].rc.rocker_l1 ) {
+    chassis_ctrl_cmd->vy=10000+(DWT_GetTimeline_s()-y_speed_time)*10000;
+  }
+  if (vy_initial < -10000&&chassis_ctrl_cmd->vy>= 60.0f * (float)rc_data[TEMP].rc.rocker_l1) {
+    chassis_ctrl_cmd->vy=-10000-(DWT_GetTimeline_s()-y_speed_time)*10000;
+  }//速度绝对值在10000以上输出控制量=10000+10000t(s)
 
   if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
   {
@@ -216,13 +215,13 @@ chassis_ctrl_cmd->vx=vx_initial;
     }
   }
   // 添加R键和F键控制腿部升降,腿在leg in air模式时这两个按键不起作用
-  // if (rc_data[TEMP].key[KEY_PRESS].r) {
-  //   // R键按下，腿部渐渐升起
-  //   chassis_ctrl_cmd->leg_mode = LEG_MANUAL_UP;
-  // } else if (rc_data[TEMP].key[KEY_PRESS].f) {
-  //   // F键按下，腿部渐渐降下
-  //   chassis_ctrl_cmd->leg_mode = LEG_MANUAL_DOWN;
-  // }
+  if (rc_data[TEMP].key[KEY_PRESS].r) {
+    // R键按下，腿部渐渐升起
+    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_UP;
+  } else if (rc_data[TEMP].key[KEY_PRESS].f) {
+    // F键按下，腿部渐渐降下
+    chassis_ctrl_cmd->leg_mode = LEG_MANUAL_DOWN;
+  }
 
   // 检测X键按下事件（从释放到按下），设置腿部为正常模式
   if (!rc_data_last[TEMP].key[KEY_PRESS].x && rc_data[TEMP].key[KEY_PRESS].x) {
@@ -283,6 +282,21 @@ chassis_ctrl_cmd->vx=vx_initial;
             break;
           }
       }
+      break;
+  }
+  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_C] % 4)  // C键设置底盘速度
+  {
+    case 0:
+      chassis_ctrl_cmd->chassis_speed_buff = 15000;
+      break;
+    case 1:
+      chassis_ctrl_cmd->chassis_speed_buff = 20000;
+      break;
+    case 2:
+      chassis_ctrl_cmd->chassis_speed_buff = 40000;
+      break;
+    default:
+      chassis_ctrl_cmd->chassis_speed_buff = 80000;
       break;
   }
   switch (rc_data[TEMP].key_count[KEY_PRESS][Key_V]%2)  // 小陀螺
@@ -481,7 +495,6 @@ void RobotInit() {
   vision_recv_data=VisionInit(&gimbal_init_config.imu_init_config);
   gpio_5V_EN = GPIORegister(&gpio_init_config_5v);
   GPIOSet(gpio_5V_EN);
-  chassis_ctrl_cmd->chassis_speed_buff=25000;
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
@@ -490,7 +503,7 @@ void RobotCMDTask() {
   shoot_ctrl_cmd->initial_speed=robot->referee_data->ShootData.initial_speed;
   shoot_ctrl_cmd->shooter_barrel_heat=robot->referee_data->PowerHeatData.shooter_42mm_barrel_heat;
   chassis_ctrl_cmd->max_power=robot->referee_data->GameRobotState.chassis_power_limit;
-  //gimbal_ctrl_cmd->chassis_rotate_wz=-1.f*robot->chassis->chassis_external_imu->gyro[2];
+  gimbal_ctrl_cmd->chassis_rotate_wz=-3.f*robot->chassis->chassis_external_imu->gyro[2];
   CalcOffsetAngle();
   RemoteControlSet();
   MouseKeySet();

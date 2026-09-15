@@ -109,6 +109,7 @@ typedef struct kf_t {
 extern uint16_t sizeof_float, sizeof_double;
 
 void Kalman_Filter_Init(KalmanFilter_t *kf, uint8_t xhatSize, uint8_t uSize, uint8_t zSize);
+void Kalman_Filter_Clear(KalmanFilter_t *kf);
 void Kalman_Filter_Measure(KalmanFilter_t *kf);
 void Kalman_Filter_xhatMinusUpdate(KalmanFilter_t *kf);
 void Kalman_Filter_PminusUpdate(KalmanFilter_t *kf);

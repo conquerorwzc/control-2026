@@ -164,7 +164,7 @@ typedef struct
     } rc;
 
     /* -------- 鼠标 + 键盘（整体 memcpy 自原始帧）-------- */
-    VT13_MouseKey_t mouse_key; ///< 鼠标移动/按键 + 键盘状态，与 buf[10..18] 布局一致
+    VT13_MouseKey_t mouse_key[2]; ///< 鼠标移动/按键 + 键盘状态，与 buf[10..18] 布局一致
     
     /* -------- 按钮状态跟踪 -------- */
     struct {

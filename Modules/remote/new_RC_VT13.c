@@ -139,25 +139,25 @@ static void VT13UpdateButtonStatus(void)
     vt13_rc.button_status.trigger_last = vt13_rc.rc.trigger;
 
     /* 鼠标左键处理 */
-    if (vt13_rc.mouse_key.mouse.press_l && !vt13_rc.button_status.mouse_l_last) {
+    if (vt13_rc.mouse_key->mouse.press_l && !vt13_rc.button_status.mouse_l_last) {
         vt13_rc.button_status.mouse_l_flag = !vt13_rc.button_status.mouse_l_flag;
         vt13_rc.button_status.mouse_l_count++;
     }
-    vt13_rc.button_status.mouse_l_last = vt13_rc.mouse_key.mouse.press_l;
+    vt13_rc.button_status.mouse_l_last = vt13_rc.mouse_key->mouse.press_l;
 
     /* 鼠标右键处理 */
-    if (vt13_rc.mouse_key.mouse.press_r && !vt13_rc.button_status.mouse_r_last) {
+    if (vt13_rc.mouse_key->mouse.press_r && !vt13_rc.button_status.mouse_r_last) {
         vt13_rc.button_status.mouse_r_flag = !vt13_rc.button_status.mouse_r_flag;
         vt13_rc.button_status.mouse_r_count++;
     }
-    vt13_rc.button_status.mouse_r_last = vt13_rc.mouse_key.mouse.press_r;
+    vt13_rc.button_status.mouse_r_last = vt13_rc.mouse_key->mouse.press_r;
 
     /* 鼠标中键处理 */
-    if (vt13_rc.mouse_key.mouse.press_m && !vt13_rc.button_status.mouse_m_last) {
+    if (vt13_rc.mouse_key->mouse.press_m && !vt13_rc.button_status.mouse_m_last) {
         vt13_rc.button_status.mouse_m_flag = !vt13_rc.button_status.mouse_m_flag;
         vt13_rc.button_status.mouse_m_count++;
     }
-    vt13_rc.button_status.mouse_m_last = vt13_rc.mouse_key.mouse.press_m;
+    vt13_rc.button_status.mouse_m_last = vt13_rc.mouse_key->mouse.press_m;
 }
 
 /**
@@ -201,8 +201,9 @@ static uint8_t VT13Decode(const uint8_t *buf, uint16_t len)
     vt13_rc.rc.dial        = VT13_CH_TO_SIGNED((raw64 >> 49) & 0x7FFu); ///< 拨轮
     vt13_rc.rc.trigger     = (uint8_t)((raw64 >> 60) & 0x1u);  ///< 扳机
 
+  memcpy(&vt13_rc.mouse_key[1],&vt13_rc.mouse_key[0], sizeof(VT13_MouseKey_t));
     /* 鼠标 + 键盘：直接 memcpy，buf[10..18] → mouse_key */
-    memcpy(&vt13_rc.mouse_key, &buf[10], sizeof(VT13_MouseKey_t));
+    memcpy(&vt13_rc.mouse_key[0], &buf[10], sizeof(VT13_MouseKey_t));
     
     /* 更新按钮状态和计数器 */
     VT13UpdateButtonStatus();

@@ -8,7 +8,7 @@
 #include "bsp_usart.h"
 #include "cmsis_os.h"
 #include "crc_func.h"
-#include "rm_referee.h"
+#include "referee.h"
 #include "string.h"
 #include "usart.h"
 
@@ -198,9 +198,8 @@ typedef struct {
     float vx;
     float vy;
     float wz;
-    // 决策状态：0=正常巡逻，1=回血中
   } __attribute__((__packed__)) speed_vector;
-  uint8_t is_recovering;
+
 //   // 底盘控制
 //   struct {
 //     float roll;

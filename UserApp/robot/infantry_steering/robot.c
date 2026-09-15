@@ -1,9 +1,10 @@
 #include "robot.h"
+
 #include "can_comm.h"
 #include "general_def.h"
 #include "robot_config.h"
 #include "user_lib.h"
-#define USECANREMOTE 1 //是否使用云台板的遥控数据
+#define USECANREMOTE 1  // 是否使用云台板的遥控数据
 
 static RobotInstance *robot;
 
@@ -17,15 +18,15 @@ static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 
 /* Intermediate variables calculated by private functions */
 static float trigger_time = 0;  // 触发时间
-static float angle=0;
-uint8_t* received_data = NULL;
-CANCommInstance* can_comm_instance = NULL;
+static float angle = 0;
+uint8_t *received_data = NULL;
+CANCommInstance *can_comm_instance = NULL;
 typedef union {
   int16_t value16[32];
   uint16_t valueu16[32];
   uint8_t bytes[64];
 } int16_t_bytes;
-int16_t_bytes CanData={0};//底盘板can接收的遥控数据
+int16_t_bytes CanData = {0};  // 底盘板can接收的遥控数据
 // static  DJIMotorInstance* debug_motor;
 
 /**
@@ -35,7 +36,7 @@ int16_t_bytes CanData={0};//底盘板can接收的遥控数据
  */
 static void CalcOffsetAngle() {
   angle = (uint16_t)CanData.valueu16[4];
-  float delta = angle-YAW_ALIGN_ANGLE;
+  float delta = angle - YAW_ALIGN_ANGLE;
   if (delta > 180.0f) {
     delta -= 360.0f;
   } else if (delta <= -180.0f) {
@@ -124,27 +125,26 @@ static void RemoteControlSet() {
 
   *rc_data_last = *rc_data;
 }
-//解析底盘板收到的遥控数据
+// 解析底盘板收到的遥控数据
 static void DualBoardCtrlSet() {
-  //chassis_ctrl_cmd->wz=0;
+  // chassis_ctrl_cmd->wz=0;
   if (CANCommIsOnline(can_comm_instance)) {
     // 检查是否有新数据更新
-    received_data = (uint8_t*)CANCommGet(can_comm_instance);
+    received_data = (uint8_t *)CANCommGet(can_comm_instance);
     // 如果收到数据，可以在这里处理
     if (received_data != NULL) {
       // 解析接收到的数据到全局变量
-      //memcpy(board_can_comm_data.rx_buff, received_data, 16);
+      // memcpy(board_can_comm_data.rx_buff, received_data, 16);
 
-      for (int i = 0; i < 24; i++)
-        CanData.bytes[i] = received_data[i];
-      chassis_ctrl_cmd->vx=60.0f*CanData.value16[0];//todo:后面chassis改改把负号去掉
-      chassis_ctrl_cmd->vy=60.0f*CanData.value16[1];
-      //if (CanData.value16[2]>=0)
-      // chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)-CanData.value16[2]/50.0f))*CanData.value16[2];
-      // else chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)CanData.value16[2]/50.0f))*CanData.value16[2];
-      chassis_ctrl_cmd->wz=42.0f*CanData.value16[2];
+      for (int i = 0; i < 24; i++) CanData.bytes[i] = received_data[i];
+      chassis_ctrl_cmd->vx = 60.0f * CanData.value16[0];  // todo:后面chassis改改把负号去掉
+      chassis_ctrl_cmd->vy = 60.0f * CanData.value16[1];
+      // if (CanData.value16[2]>=0)
+      //  chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)-CanData.value16[2]/50.0f))*CanData.value16[2];
+      //  else chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)CanData.value16[2]/50.0f))*CanData.value16[2];
+      chassis_ctrl_cmd->wz = 42.0f * CanData.value16[2];
       if (switch_is_mid(CanData.bytes[10])) {
-        //gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
+        // gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
         if (CanData.value16[3] > 20) {
           chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
         } else
@@ -238,14 +238,14 @@ static void MouseKeySet() {
  *
  */
 static void EmergencyHandler() {
-  //底盘侧双板通信离线,好痛
+  // 底盘侧双板通信离线,好痛
   if (!CANCommIsOnline(can_comm_instance)) {
     chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
     LOGERROR("[CMD] Emergency Stop! DualBoardComm Lost");
-  }
-  else LOGINFO("[CMD]DualBoardComm is Online");
+  } else
+    LOGINFO("[CMD]DualBoardComm is Online");
   // 两switch都在下断电
-  switch (USECANREMOTE)//急停信号源
+  switch (USECANREMOTE)  // 急停信号源
   {
     case 0:
       if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left)))  // 全部失能
@@ -281,11 +281,10 @@ static void EmergencyHandler() {
       // 遥控器右侧开关为[上],恢复正常运行
       break;
   }
-
 }
 
 void RobotInit() {
-  //要在云台和底盘任务开始之前完成该任务的初始化
+  // 要在云台和底盘任务开始之前完成该任务的初始化
   vTaskDelay(CAN_COMM_TASK_INIT_TIME);
   // 初始化CAN接收
   can_comm_instance = CANCommInit(&comm_config);
@@ -304,13 +303,12 @@ void RobotInit() {
 
   // robot->super_cap = SuperCapInit(&super_cap_config);
 
-// #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
-//   robot->gimbal = GimbalInit(&gimbal_init_config);
-//   robot->shoot = ShootInit(&shoot_init_config);
-// #endif
+  // #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
+  //   robot->gimbal = GimbalInit(&gimbal_init_config);
+  //   robot->shoot = ShootInit(&shoot_init_config);
+  // #endif
 
   robot->chassis = ChassisInit(&chassis_init_config);
-
 
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
@@ -318,14 +316,13 @@ void RobotInit() {
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;
-
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
 void RobotCMDTask() {
   // 根据gimbal的反馈值计算云台和底盘正方向的夹角             ,不需要传参,通过static私有变量完成
   CalcOffsetAngle();
-  //RemoteControlSet();
+  // RemoteControlSet();
   DualBoardCtrlSet();
   // MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
@@ -335,30 +332,27 @@ void RobotTask() {
   if (DEVICE_ROLE_TX) {
     // 云台发送板控制任务
     // 测试数据,实际应用中这些数据应该来自其他模块
-    board_can_comm_data.tx_buff[0] = 1;  // ui_flag
-    board_can_comm_data.tx_buff[1] = 0;  // fric_flag
-    board_can_comm_data.tx_buff[2] = 100; // chassis_vx
-    board_can_comm_data.tx_buff[3] = 50;  // chassis_vy
+    board_can_comm_data.tx_buff[0] = 1;                   // ui_flag
+    board_can_comm_data.tx_buff[1] = 0;                   // fric_flag
+    board_can_comm_data.tx_buff[2] = 100;                 // chassis_vx
+    board_can_comm_data.tx_buff[3] = 50;                  // chassis_vy
     board_can_comm_data.tx_buff[4] = (3000 >> 8) & 0xFF;  // pitch_abs 高字节
     board_can_comm_data.tx_buff[5] = 3000 & 0xFF;         // pitch_abs 低字节
-    board_can_comm_data.tx_buff[6] = 1;  // chassis_behaviour
-    board_can_comm_data.tx_buff[7] = 0;  // cap_flag
+    board_can_comm_data.tx_buff[6] = 1;                   // chassis_behaviour
+    board_can_comm_data.tx_buff[7] = 0;                   // cap_flag
 
     CANCommSend(can_comm_instance, board_can_comm_data.tx_buff);
-    //can数据数据发送
+    // can数据数据发送
     vTaskDelay(CAN_COMM_TASK_TIME);
-  }
-  else {
-
-    //底盘接收板控制任务
+  } else {
+    // 底盘接收板控制任务
     RobotCMDTask();
-    //GimbalTask();
-    //ShootTask();
+    // GimbalTask();
+    // ShootTask();
     ChassisTask();
-    //将原本motortask的can发送改到这里，和pid计算同频，减少无用发送
-    //DJIMotorCANTransmit();
+    // 将原本motortask的can发送改到这里，和pid计算同频，减少无用发送
+    // DJIMotorCANTransmit();
   }
-
 
   // 正确的赋值方式 - 直接赋值指针值
   // robot->shoot->friction_motor[1];

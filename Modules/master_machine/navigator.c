@@ -2,7 +2,7 @@
 #include "bsp_dwt.h"
 #include "bsp_usart.h"
 #include "crc_func.h"
-#include "rm_referee.h"
+#include "referee.h"
 
 static navigator_send_t send_data;
 static USARTInstance *navigator_usart_instance ;

@@ -16,6 +16,8 @@
 static GimbalInstance* gimbal;
 static Gimbal_Ctrl_Cmd_s* gimbal_ctrl_cmd;  // 声明但不初始化
 
+static int disable_2_enable_flag;
+
 // static BMI088Instance *bmi088; // 云台IMU
 GimbalInstance* GimbalInit(Gimbal_Init_Config_s* gimbal_init_config) {
   GimbalInstance* gimbal_instance = (GimbalInstance*)zmalloc(sizeof(GimbalInstance));
@@ -62,14 +64,20 @@ void GimbalTask() {
     // 停止
     DJIMotorStop(gimbal->yaw_motor);
     DMMotorStop(gimbal->pitch_motor);
+    disable_2_enable_flag=0;
   }else {
     DJIMotorEnable(gimbal->yaw_motor);
     DMMotorEnable(gimbal->pitch_motor);
 
+    if (disable_2_enable_flag==0) {
+      //校准
+      gimbal_ctrl_cmd->yaw=gimbal->gimbal_IMU_data->YawTotalAngle;
+      disable_2_enable_flag=1;
+    }
+
     // 调用核心控制函数
     DJIMotorSetPIDRef(gimbal->yaw_motor, gimbal_ctrl_cmd->yaw);  // yaw和pitch会在robot_cmd中处理好多圈和单圈GimbalMotorAbsoluteAngleControl(gimbal);
     DMMotorSetPIDRef(gimbal->pitch_motor, gimbal_ctrl_cmd->pitch);
-
   }
   // 在合适的地方添加pitch重力补偿前馈力矩
   // 根据IMU姿态/pitch电机角度反馈计算出当前配重下的重力矩

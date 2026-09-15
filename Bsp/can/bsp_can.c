@@ -13,7 +13,25 @@ static CANInstance *can_instance[CAN_MX_REGISTER_CNT] = {NULL};
 static uint8_t idx;  // 全局CAN实例索引,每次有新的模块注册会自增
 
 /* ----------------two static function called by CANRegister()-------------------- */
+#ifdef STM32H723xx
+void RestartFDCAN(FDCAN_HandleTypeDef *hfdcan) {
+  // 停止FDCAN
+  HAL_FDCAN_Stop(hfdcan);
 
+  // 清除错误状态
+  hfdcan->ErrorCode = HAL_FDCAN_ERROR_NONE;
+  hfdcan->State = HAL_FDCAN_STATE_READY;
+
+  // 重新启动FDCAN
+  HAL_FDCAN_Start(hfdcan);
+
+  // 重新激活中断
+  HAL_FDCAN_ActivateNotification(hfdcan, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0);
+  HAL_FDCAN_ActivateNotification(hfdcan, FDCAN_IT_RX_FIFO1_NEW_MESSAGE, 0);
+
+  LOGINFO("FDCAN restarted successfully");
+}
+#endif
 /**
  * @brief 添加过滤器以实现对特定id的报文的接收,会被CANRegister()调用
  *        给CAN添加过滤器后,BxCAN会根据接收到的报文的id进行消息过滤,符合规则的id会被填入FIFO触发中断
@@ -205,7 +223,6 @@ uint8_t CANTransmit(CANInstance *_instance, float timeout) {
   }
   return 1;  // 发送成功
 }
-
 void CANSetDLC(CANInstance *_instance, uint8_t length) {
   // 发送长度错误!检查调用参数是否出错,或出现野指针/越界访问
 #ifdef STM32F407xx
