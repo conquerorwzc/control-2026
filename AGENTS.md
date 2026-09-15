@@ -124,9 +124,13 @@ Dual-board communication is via CAN (shared bus — watch out for ID conflicts a
 - `#ifdef USE_DUAL_RC` / `#elifdef USE_DUAL_RC_NEW` — remote type
 - `#pragma message(...)` patters used for config-change warnings
 
-## Commit style
+## Commit and PR style
 
-Conventional-commits-like prefixes: `[feat]`, `[fix]`, `[perf]`, `[others]`. Chinese in commit messages is normal.
+Follow [PR_CI使用说明.md](PR_CI使用说明.md), sections 3.2 and 3.3.
+
+- Commit subjects use `<type>: <简要说明>`, for example `fix: 恢复导航串口配置`. Do not use square-bracket prefixes such as `[fix]`.
+- Chinese descriptions are welcome. When generating PR titles, use the same `<type>: <简要说明>` format for consistency.
+- PR descriptions must include `修改内容` (what and why), `影响范围` (robots, modules, or hardware), and `验证情况` (build, warnings, and hardware test status). Clearly state any checks not performed.
 
 ## Documentation
 
