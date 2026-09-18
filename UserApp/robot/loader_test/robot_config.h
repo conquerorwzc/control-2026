@@ -39,13 +39,14 @@
 /* 每次步进的角度(°).这里的角度指电机输出轴的角度,DM4310直接驱动拨盘时即为拨盘角度;
    若拨盘与电机之间存在减速比,需要乘以减速比后再填入 */
 #define LOADER_STEP_ANGLE_DEG 30.0f
-/* 遥控器右拨杆[中]/[上]时的步进间隔(ms) */
+/* 遥控器拨杆[中]/[上]时的步进间隔(ms),正转(右拨杆)与反转(左拨杆)共用同一组参数 */
 #define LOADER_STEP_PERIOD_MID_MS 700
 #define LOADER_STEP_PERIOD_UP_MS 40
 
 /* 步进折算出的平均角速度(rad/s),作为速度环的前馈值:
    让速度环直接按目标转速运行,角度环只负责修正残差,
-   避免纯比例位置环在快速步进时产生与转速成正比的固定滞后 */
+   避免纯比例位置环在快速步进时产生与转速成正比的固定滞后.
+   反转时由robot.c取负值传入,前馈符号与目标角度的变化方向保持一致 */
 #define LOADER_STEP_RATE_MID (LOADER_STEP_ANGLE_DEG * DEGREE_2_RAD / ((float)LOADER_STEP_PERIOD_MID_MS * 0.001f))
 #define LOADER_STEP_RATE_UP (LOADER_STEP_ANGLE_DEG * DEGREE_2_RAD / ((float)LOADER_STEP_PERIOD_UP_MS * 0.001f))
 

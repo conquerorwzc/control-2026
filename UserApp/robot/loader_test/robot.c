@@ -1,10 +1,10 @@
 /**
  ******************************************************************************
  * @file    robot.c
- * @brief   拨弹盘(DM4310)测试机器人:遥控器右拨杆直接控制拨弹盘电机
- *          右拨杆[下]:失能
- *          右拨杆[中]:每隔300ms转动30°
- *          右拨杆[上]:每隔50ms转动30°
+ * @brief   拨弹盘(DM4310)测试机器人:遥控器左右拨杆直接控制拨弹盘电机
+ *          右拨杆[下]:失能               右拨杆[中]:每隔300ms正转30°   右拨杆[上]:每隔50ms正转30°
+ *          左拨杆[下]:失能               左拨杆[中]:每隔300ms反转30°   左拨杆[上]:每隔50ms反转30°
+ *          左拨杆的非[下]档位(反转指令)优先于右拨杆;左拨杆在[下]时交还给右拨杆控制
  ******************************************************************************
  */
 #include "robot.h"
@@ -34,10 +34,10 @@ static void LoaderDisable(void)
 }
 
 /**
- * @brief 拨弹盘步进:每隔period_ms把目标角度增加一个步距,并让电机跟踪该目标
+ * @brief 拨弹盘步进:每隔period_ms把目标角度增加(或减少)一个步距,并让电机跟踪该目标
  *
  * @param period_ms 步进间隔,单位ms
- * @param step_rate 该步距对应的平均角速度(rad/s),作为速度环前馈
+ * @param step_rate 该步距对应的平均角速度(rad/s),作为速度环前馈;符号即转向,正=正转,负=反转
  */
 static void LoaderStep(uint32_t period_ms, float step_rate)
 {
@@ -62,7 +62,8 @@ static void LoaderStep(uint32_t period_ms, float step_rate)
     if ((uint32_t)(osKernelSysTick() - loader_step_time) >= period_ms)
     {
         loader_step_time = osKernelSysTick();
-        robot->target_angle += LOADER_STEP_ANGLE_DEG * DEGREE_2_RAD;
+        /* 一个步距 = 平均角速度 × 步进间隔,符号与速度前馈一致,即反转时目标角度递减 */
+        robot->target_angle += step_rate * ((float)period_ms * 0.001f);
     }
 
     /* 角度环->速度环的串级计算在DMMotorSetPIDRef内部完成,其输出为力矩参考 */
@@ -91,15 +92,32 @@ static void LoaderSetMode(Loader_Mode_e mode)
     loader_step_time = osKernelSysTick();
     PIDClear(&robot->loader_motor->motor_controller.angle_PID);
     PIDClear(&robot->loader_motor->motor_controller.speed_PID);
-    if (mode == LOADER_STEP_SLOW)
+    switch (mode)
+    {
+    case LOADER_STEP_SLOW:
         LOGINFO("[loader] mode: step 30deg/300ms");
-    else
+        break;
+    case LOADER_STEP_FAST:
         LOGINFO("[loader] mode: step 30deg/50ms");
+        break;
+    case LOADER_STEP_SLOW_REVERSE:
+        LOGINFO("[loader] mode: reverse step 30deg/300ms");
+        break;
+    case LOADER_STEP_FAST_REVERSE:
+        LOGINFO("[loader] mode: reverse step 30deg/50ms");
+        break;
+    default:
+        break;
+    }
 }
 
 /**
- * @brief 遥控器右拨杆[下/中/上] -> 拨弹盘[失能/慢速步进/快速步进]
- *
+ * @brief 遥控器拨杆 -> 拨弹盘模式
+ *        右拨杆[下/中/上] = 失能/慢速正转/快速正转
+ *        左拨杆[下/中/上] = 失能/慢速反转/快速反转
+ *        优先级:左拨杆的非[下]档位(反转指令)优先于右拨杆,拨下去即可立即反转;
+ *                左拨杆在[下]时交还给右拨杆控制,所以正转随时可达;
+ *                因此两个拨杆都在[下]时失能,单独使用任一拨杆时行为与标注完全一致
  */
 static void RemoteControlSet(void)
 {
@@ -112,12 +130,25 @@ static void RemoteControlSet(void)
         return;
     }
 
-    if (switch_is_down(rc_data[TEMP].rc.switch_right))
-        LoaderSetMode(LOADER_DISABLE);
-    else if (switch_is_mid(rc_data[TEMP].rc.switch_right))
+    /* 左拨杆:反转指令,优先于右拨杆 */
+    if (switch_is_mid(rc_data[TEMP].rc.switch_left))
+    {
+        LoaderSetMode(LOADER_STEP_SLOW_REVERSE);
+        return;
+    }
+    if (switch_is_up(rc_data[TEMP].rc.switch_left))
+    {
+        LoaderSetMode(LOADER_STEP_FAST_REVERSE);
+        return;
+    }
+
+    /* 左拨杆在[下],交给右拨杆决定:下=失能,中=慢速正转,上=快速正转 */
+    if (switch_is_mid(rc_data[TEMP].rc.switch_right))
         LoaderSetMode(LOADER_STEP_SLOW);
     else if (switch_is_up(rc_data[TEMP].rc.switch_right))
         LoaderSetMode(LOADER_STEP_FAST);
+    else
+        LoaderSetMode(LOADER_DISABLE);
 }
 
 /**
@@ -136,6 +167,12 @@ static void LoaderControl(void)
         break;
     case LOADER_STEP_FAST:
         LoaderStep(LOADER_STEP_PERIOD_UP_MS, LOADER_STEP_RATE_UP);
+        break;
+    case LOADER_STEP_SLOW_REVERSE:
+        LoaderStep(LOADER_STEP_PERIOD_MID_MS, -LOADER_STEP_RATE_MID);
+        break;
+    case LOADER_STEP_FAST_REVERSE:
+        LoaderStep(LOADER_STEP_PERIOD_UP_MS, -LOADER_STEP_RATE_UP);
         break;
     default:
         break;
