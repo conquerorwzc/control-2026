@@ -41,7 +41,7 @@
 #define LOADER_STEP_ANGLE_DEG 30.0f
 /* 遥控器拨杆[中]/[上]时的步进间隔(ms),正转(右拨杆)与反转(左拨杆)共用同一组参数 */
 #define LOADER_STEP_PERIOD_MID_MS 700
-#define LOADER_STEP_PERIOD_UP_MS 40
+#define LOADER_STEP_PERIOD_UP_MS 50
 
 /* 步进折算出的平均角速度(rad/s),作为速度环的前馈值:
    让速度环直接按目标转速运行,角度环只负责修正残差,
@@ -72,7 +72,7 @@ static Motor_Init_Config_s loader_motor_config = {
                     .Kp = 0.6f,
                     .Ki = 0.1f,
                     .Kd = 0.0f,
-                    .MaxOut = 8.0f,  // 速度环输出为力矩参考(N·m),DM4310力矩上限为10N·m
+                    .MaxOut = 2.0f,  // 速度环输出为力矩参考(N·m),DM4310力矩上限为10N·m
                     .DeadBand = 0.01f,
                     .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                     .IntegralLimit = 5.0f,
