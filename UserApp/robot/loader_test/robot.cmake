@@ -1,4 +1,4 @@
-# 拨弹盘(DM4310)测试机器人:只依赖遥控器模块与DM电机模块,不包含底盘/云台/发射组件
+# 拨弹盘(M2006+C610)测试机器人:只依赖遥控器模块与DJI电机模块,不包含底盘/云台/发射组件
 # Include directories for header file searching
 include_sub_directories_recursively(${CMAKE_CURRENT_LIST_DIR})
 

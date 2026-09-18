@@ -1,10 +1,14 @@
 /**
  ******************************************************************************
  * @file    robot.c
- * @brief   拨弹盘(DM4310)测试机器人:遥控器左右拨杆直接控制拨弹盘电机
- *          右拨杆[下]:失能               右拨杆[中]:每隔300ms正转30°   右拨杆[上]:每隔50ms正转30°
- *          左拨杆[下]:失能               左拨杆[中]:每隔300ms反转30°   左拨杆[上]:每隔50ms反转30°
+ * @brief   拨弹盘(M2006+C610)测试机器人:遥控器左右拨杆直接控制拨弹盘电机
+ *          右拨杆[下]:失能               右拨杆[中]:每隔700ms正转45°   右拨杆[上]:每隔50ms正转45°
+ *          左拨杆[下]:失能               左拨杆[中]:每隔700ms反转45°   左拨杆[上]:每隔50ms反转45°
  *          左拨杆的非[下]档位(反转指令)优先于右拨杆;左拨杆在[下]时交还给右拨杆控制
+ *
+ * @note    角度单位说明:DJIMotor反馈与下发目标都是M2006转子侧的角度制(°),
+ *          拨盘侧角度 = 转子侧角度 / LOADER_MOTOR_REDUCTION_RATIO(36),
+ *          所以"每发弹丸45°"在电机侧对应 45 × 36 = 1620°(转子4.5圈)
  ******************************************************************************
  */
 #include "robot.h"
@@ -28,7 +32,7 @@ static uint8_t loader_feedback_ready;
  */
 static void LoaderDisable(void)
 {
-    DMMotorStop(robot->loader_motor);
+    DJIMotorStop(robot->loader_motor);
     loader_speed_feedforward = 0.0f;
     robot->target_angle = robot->loader_motor->measure.total_angle;
 }
@@ -37,7 +41,7 @@ static void LoaderDisable(void)
  * @brief 拨弹盘步进:每隔period_ms把目标角度增加(或减少)一个步距,并让电机跟踪该目标
  *
  * @param period_ms 步进间隔,单位ms
- * @param step_rate 该步距对应的平均角速度(rad/s),作为速度环前馈;符号即转向,正=正转,负=反转
+ * @param step_rate 该步距对应的平均角速度(°/s,转子侧),作为速度环前馈;符号即转向,正=正转,负=反转
  */
 static void LoaderStep(uint32_t period_ms, float step_rate)
 {
@@ -56,18 +60,18 @@ static void LoaderStep(uint32_t period_ms, float step_rate)
         loader_step_time = osKernelSysTick();
     }
 
-    DMMotorEnable(robot->loader_motor);
+    DJIMotorEnable(robot->loader_motor);
     loader_speed_feedforward = step_rate;
 
     if ((uint32_t)(osKernelSysTick() - loader_step_time) >= period_ms)
     {
         loader_step_time = osKernelSysTick();
-        /* 一个步距 = 平均角速度 × 步进间隔,符号与速度前馈一致,即反转时目标角度递减 */
+        /* 一个步距 = 平均角速度 × 步进间隔 = 拨盘45°(折算到转子侧1620°),符号与速度前馈一致,即反转时目标角度递减 */
         robot->target_angle += step_rate * ((float)period_ms * 0.001f);
     }
 
-    /* 角度环->速度环的串级计算在DMMotorSetPIDRef内部完成,其输出为力矩参考 */
-    DMMotorSetPIDRef(robot->loader_motor, robot->target_angle);
+    /* 角度环->速度环的串级计算在DJIMotorSetPIDRef内部完成,其输出为转矩电流控制量 */
+    DJIMotorSetPIDRef(robot->loader_motor, robot->target_angle);
 }
 
 /**
@@ -95,16 +99,16 @@ static void LoaderSetMode(Loader_Mode_e mode)
     switch (mode)
     {
     case LOADER_STEP_SLOW:
-        LOGINFO("[loader] mode: step 30deg/300ms");
+        LOGINFO("[loader] mode: step 45deg/700ms");
         break;
     case LOADER_STEP_FAST:
-        LOGINFO("[loader] mode: step 30deg/50ms");
+        LOGINFO("[loader] mode: step 45deg/50ms");
         break;
     case LOADER_STEP_SLOW_REVERSE:
-        LOGINFO("[loader] mode: reverse step 30deg/300ms");
+        LOGINFO("[loader] mode: reverse step 45deg/700ms");
         break;
     case LOADER_STEP_FAST_REVERSE:
-        LOGINFO("[loader] mode: reverse step 30deg/50ms");
+        LOGINFO("[loader] mode: reverse step 45deg/50ms");
         break;
     default:
         break;
@@ -210,12 +214,13 @@ void RobotInit(void)
     /* 遥控器使用DBUS协议串口(USART3, PC10/PC11),若实际接线不同请修改这里的串口 */
     robot->rc_data = RemoteControlInit(&huart3);
 
-    robot->loader_motor = DMMotorInit(&loader_motor_config);
+    robot->loader_motor = DJIMotorInit(&loader_motor_config);
     /* 以电机当前的实际角度作为目标角度的起点 */
     robot->target_angle = robot->loader_motor->measure.total_angle;
     loader_step_time = osKernelSysTick();
 
-    LOGINFO("[loader] init done, dm4310 tx:0x01 rx:0x00");
+    LOGINFO("[loader] init done, m2006(c610) can_id:%d, reduction:%.1f, step:%.1fdeg", LOADER_MOTOR_ID,
+            LOADER_MOTOR_REDUCTION_RATIO, LOADER_STEP_ANGLE_DEG);
 }
 
 /* 机器人核心控制任务,1kHz运行 */
