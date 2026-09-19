@@ -487,7 +487,7 @@ void RobotInit() {
 #endif
 
   // robot->vision_recv_data = VisionInit(&gimbal_init_config.imu_init_config);
-  robot->navigator_data = navigator_init(&huart1);
+  // robot->navigator_data = navigator_init(&huart1);
 
   robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
   robot->sentry_mode = 1;
