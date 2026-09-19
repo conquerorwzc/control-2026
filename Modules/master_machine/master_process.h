@@ -111,11 +111,12 @@ typedef struct
 #pragma pack()
 
 /**
- * @brief 调用此函数初始化和视觉的串口通信
+ * @brief 初始化视觉通信及姿态数据源
  *
- * @param handle 用于和视觉通信的串口handle(C板上一般为USART1,丝印为USART2,4pin)
+ * @param imu_init_config IMU初始化配置
+ * @note 裁判系统数据通过VisionSetRefereeData()独立更新。
  */
-Vision_Receive_s *VisionInit(IMU_Init_Config_s* imu_init_config, float* initial_speed, uint8_t* robot_id);
+Vision_Receive_s *VisionInit(IMU_Init_Config_s *imu_init_config);
 
 // /**
 //  * @brief 发送视觉数据
