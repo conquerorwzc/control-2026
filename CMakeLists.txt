@@ -28,6 +28,7 @@ endif() # Debug Release RelWithDebInfo MinSizeRel
 # set(ROBOT_TYPE "sentry_omni_chassis")
 # set(ROBOT_TYPE "sentry_omni_gimbal")
 # set(ROBOT_TYPE "infantry_wheel_legged_sjtu")
+# set(ROBOT_TYPE "arm_rmcc")  # 场地臂：只用 H7；robot.cmake 会自行把 MCU_TYPE 覆盖成 stm32-h7
  set(ROBOT_TYPE "loader_test")
 
 set(ROBOT_CMAKE "${CMAKE_SOURCE_DIR}/UserApp/robot/${ROBOT_TYPE}/robot.cmake")
