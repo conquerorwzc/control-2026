@@ -132,6 +132,8 @@
   })
 
 static Chassis_Init_Config_s chassis_init_config = {
+    // 本车使用超级电容, 显式置 1(新字段默认为 0 即不注册超电)
+    .enable_super_cap = 1,
     .chassis_param =
         {
             // 机器人底盘修改的参数,单位为mm(毫米)
