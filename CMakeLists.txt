@@ -27,6 +27,7 @@ endif() # Debug Release RelWithDebInfo MinSizeRel
 #set(ROBOT_TYPE "infantry_mecanum")
 # set(ROBOT_TYPE "sentry_omni_chassis")
  set(ROBOT_TYPE "sentry_omni_gimbal")
+#set(ROBOT_TYPE "sentry_gimbal_demo")
 # set(ROBOT_TYPE "infantry_wheel_legged_sjtu")
 
 set(ROBOT_CMAKE "${CMAKE_SOURCE_DIR}/UserApp/robot/${ROBOT_TYPE}/robot.cmake")
