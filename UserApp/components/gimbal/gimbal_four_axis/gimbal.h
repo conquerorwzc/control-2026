@@ -4,12 +4,15 @@
 #include "dmmotor.h"
 #include "ins_task.h"
 // 大 Pitch 电机反馈坐标中的标定目标，单位 rad；须确认安装零位、方向和传动比。
+#ifndef PI
 #define PI 3.14159265358979f
-#define UP_ANGLE (PI / 2.0f)
-#define DOWN_ANGLE 0.0f
+#endif
+#define UP_ANGLE 0.83f
+#define DOWN_ANGLE (-0.54f)
 typedef enum {
     GIMBAL_POWER_OFF = 0,  // 电机零输出，不代表承重机构保持当前位置
-    GIMBAL_ON
+    GIMBAL_ON,
+    GIMBAL_VISION
 } Gimbal_Mode_e;
 
 // 大 Pitch 用于改变枪口高度，不参与小 Pitch 的瞄准回中。

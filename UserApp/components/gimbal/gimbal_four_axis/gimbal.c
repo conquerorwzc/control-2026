@@ -7,10 +7,9 @@
 #include "ins_task.h"
 #include <stdlib.h>
 
-static GimbalInstance *gimbal;
+static GimbalInstance *gimbal; //云台实例
 static Gimbal_Ctrl_Cmd_s *gimbal_ctrl_cmd; // 声明但不初始化
-static uint8_t gimbal_enabled;
-static const float kDegToRad = 0.017453292519943295f;
+static uint8_t gimbal_enabled;  //使能标志位，上电保持原有姿态有关
 
 static void ResetController(Motor_Controller_s *controller)
 {
@@ -92,17 +91,16 @@ void GimbalTask(void)
         return;
     }
 
-    if (!gimbal_enabled) {
+    if (!gimbal_enabled) {        //保持当前姿态
         ResetController(&gimbal->big_pitch_motor->motor_controller);
         ResetController(&gimbal->small_pitch_motor->motor_controller);
         ResetController(&gimbal->big_yaw_motor->motor_controller);
         ResetController(&gimbal->small_yaw_motor->motor_controller);
-        // 本周期先对齐当前姿态，上游从下一周期继续更新瞄准命令。
         gimbal_ctrl_cmd->yaw = gimbal->gimbal_IMU_data->YawTotalAngle;
         gimbal_ctrl_cmd->pitch = gimbal->gimbal_IMU_data->Pitch;
-        gimbal_ctrl_cmd->big_yaw = gimbal->big_yaw_motor->measure.total_angle / kDegToRad;
+        gimbal_ctrl_cmd->big_yaw = gimbal->big_yaw_motor->measure.total_angle / DEGREE_2_RAD;
         gimbal_enabled = 1;
-        return;  // 下周期再计算输出并使能，避免发送旧输出
+        return;
     }
 
     // 小轴角度反馈为 deg，速度反馈为 rad/s；角度 PID 的输出须按 rad/s 整定。
@@ -116,7 +114,7 @@ void GimbalTask(void)
     {
         DMMotorSetPIDRef(gimbal->big_pitch_motor, DOWN_ANGLE);
     }
-    DMMotorSetPIDRef(gimbal->big_yaw_motor, gimbal_ctrl_cmd->big_yaw * kDegToRad);
+    DMMotorSetPIDRef(gimbal->big_yaw_motor, gimbal_ctrl_cmd->big_yaw * DEGREE_2_RAD);
     DMMotorEnable(gimbal->big_pitch_motor);
     DMMotorEnable(gimbal->small_pitch_motor);
     DMMotorEnable(gimbal->big_yaw_motor);
