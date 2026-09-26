@@ -62,6 +62,7 @@ GimbalInstance *GimbalInit(Gimbal_Init_Config_s *gimbal_init_config)
     big_yaw_config->controller_setting_init_config.outer_loop_type = ANGLE_LOOP;
     big_yaw_config->controller_setting_init_config.close_loop_type = ANGLE_LOOP | SPEED_LOOP;
 
+
     Motor_Init_Config_s *small_yaw_config = &gimbal_init_config->small_yaw_motor_config;
     small_yaw_config->controller_param_init_config.other_angle_feedback_ptr = &gimbal->gimbal_IMU_data->YawTotalAngle;
     small_yaw_config->controller_param_init_config.other_speed_feedback_ptr = &gimbal->gimbal_IMU_data->Gyro[2];
@@ -69,6 +70,8 @@ GimbalInstance *GimbalInit(Gimbal_Init_Config_s *gimbal_init_config)
     small_yaw_config->controller_setting_init_config.speed_feedback_source = OTHER_FEED;
     small_yaw_config->controller_setting_init_config.outer_loop_type = ANGLE_LOOP;
     small_yaw_config->controller_setting_init_config.close_loop_type = ANGLE_LOOP | SPEED_LOOP;
+
+    PIDInit(&gimbal->yaw_follow,&gimbal_init_config->Yaw_Follow_PID);
 
     gimbal->big_pitch_motor = DMMotorInit(big_pitch_config);
     DMMotorStop(gimbal->big_pitch_motor);

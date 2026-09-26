@@ -11,12 +11,11 @@
 static RobotInstance *robot;
 static Gimbal_Ctrl_Cmd_s *gimbal_ctrl_cmd;
 static RC_ctrl_t *rc_data;
-
+static float yaw_delta;
 float Delta_Yaw(const GimbalInstance *gimbal_ins)
 {
-    const float big_yaw_deg = gimbal_ins->big_yaw_motor->measure.total_angle / DEGREE_2_RAD;
-    const float imu_yaw_deg = gimbal_ins->gimbal_IMU_data->Yaw;
-    const float offset = imu_yaw_deg - big_yaw_deg - ALIGN_DEG;
+    const float small_yaw_deg = gimbal_ins->small_yaw_motor->measure.total_angle;
+    const float offset = small_yaw_deg - ALIGN_DEG;
     return offset;
 }
 static void RemoteControlSet()
@@ -31,20 +30,28 @@ static void RemoteControlSet()
     }
     if (switch_is_mid(rc_data[TEMP].rc.switch_left))
     {
-        gimbal_ctrl_cmd->big_pitch_pose=GIMBAL_BIG_PITCH_HORIZONTAL;    //水平姿态
+        gimbal_ctrl_cmd->big_pitch_pose = GIMBAL_BIG_PITCH_HORIZONTAL; // 水平姿态
     }
     else if (switch_is_up(rc_data[TEMP].rc.switch_left))
     {
-        gimbal_ctrl_cmd->big_pitch_pose=GIMBAL_BIG_PITCH_VERTICAL;      //垂直姿态
+        gimbal_ctrl_cmd->big_pitch_pose = GIMBAL_BIG_PITCH_VERTICAL; // 垂直姿态
     }
     // 云台使能,纯遥控器拨杆控制
     if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
     {
-        if (1)
+        float delta = Delta_Yaw(robot->gimbal);
+        if (delta < 50.0f)
         {
-            gimbal_ctrl_cmd->yaw -= 0.0003f * (float)rc_data[TEMP].rc.rocker_r_;
+            gimbal_ctrl_cmd->yaw -= 0.001f * (float)rc_data[TEMP].rc.rocker_r_;
+            gimbal_ctrl_cmd->big_yaw -= PIDCalculate(&robot->gimbal->yaw_follow, delta, 0.0f);
+            gimbal_ctrl_cmd->big_yaw -= 0.0008f * (float)rc_data[TEMP].rc.rocker_r_; //主动跟随量
         }
-        gimbal_ctrl_cmd->big_yaw -= 0.0006f * (float)rc_data[TEMP].rc.rocker_r_;
+        else
+        {
+
+            gimbal_ctrl_cmd->big_yaw -=PIDCalculate(&robot->gimbal->yaw_follow, delta, 0.0f);
+            gimbal_ctrl_cmd->big_yaw -= 0.0008f * (float)rc_data[TEMP].rc.rocker_r_; //主动跟随量
+        }
         gimbal_ctrl_cmd->pitch += 0.0005f * (float)rc_data[TEMP].rc.rocker_r1;
     }
 }
@@ -81,6 +88,7 @@ void RobotInit()
 }
 void RobotTask()
 {
+    yaw_delta = Delta_Yaw(robot->gimbal);
     RobotCMDTask();
     GimbalTask();
 }

@@ -36,6 +36,7 @@ typedef struct {
     Motor_Init_Config_s small_yaw_motor_config;    // GM6020
     Motor_Init_Config_s big_pitch_motor_config;    // DM-J4310
     Motor_Init_Config_s small_pitch_motor_config;  // DM-J4310
+    PID_Init_Config_s Yaw_Follow_PID;
     IMU_Init_Config_s imu_init_config;  // IMU 安装在枪口/小 Pitch 上，用于绝对姿态反馈
     float big_pitch_feedforward_scale;    // 大 Pitch 重力补偿系数，使用 DM 力矩输出单位
     float small_pitch_feedforward_scale;  // 小 Pitch 重力补偿系数，使用 DM 力矩输出单位
@@ -47,6 +48,7 @@ typedef struct {
     DJIMotorInstance* small_yaw_motor;
     DMMotorInstance* big_pitch_motor;
     DMMotorInstance* small_pitch_motor;
+    PIDInstance yaw_follow;
     INS_t* gimbal_IMU_data;  // 枪口 IMU 数据；电机编码器用于关节相对角度和机械限位
 } GimbalInstance;
 /**
