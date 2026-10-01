@@ -5,14 +5,17 @@
  * 电机布局(默认全部挂 hcan1):
  *   - yaw:    M2006 x1, 角度环串级 PID 控制发射架 yaw
  *   - belt:   M3508 x2, 水平对置驱动同步带挡块, 位置环串级 PID, 严格同步
- *   - trigger:M3508 x1, 控制扳机位置(决定拉簧拉伸量, 即射力, 可调)
+ *   - screw:  M3508 x1, 扳机丝杆, 控制扳机整体位置(决定拉簧拉伸量=射力, 可调)
+ *   - servo:  PWM 舵机 x1, 扳机的发射动作(卡位角扣住/释放角放开), 50Hz 占空比->角度
  *
  * 坐标约定:
  *   - 同步带逻辑坐标: 0 = 释放方向硬限位(堵转校准得到), 正方向 = 储能方向
- *   - 扳机/yaw 逻辑坐标: 0 = 开机位置
+ *   - 丝杆/yaw 逻辑坐标: 0 = 开机位置
+ *   - 舵机: 直接给角度, 映射到脉宽见 DART_SERVO_* 宏
  *
  * @attention 所有行程/角度/力矩参数均为占位初值, 必须按实机机械结构标定;
- *            电机方向不对时只翻转对应 DART_XXX_REVERSE 宏。
+ *            电机方向不对时只翻转对应 DART_XXX_REVERSE 宏;
+ *            舵机换定时器/通道只改 DART_SERVO_PWM_TIM / DART_SERVO_PWM_CHANNEL 两行。
  */
 #pragma once
 
@@ -27,14 +30,14 @@
 #endif
 
 /* ================= 硬件接线(CAN ID / 串口) ================= */
-#define DART_YAW_CAN (&hcan1)      // yaw 电机总线
-#define DART_BELT_CAN (&hcan1)     // 同步带电机总线
-#define DART_TRIGGER_CAN (&hcan1)  // 扳机电机总线
+#define DART_YAW_CAN (&hcan1)     // yaw 电机总线
+#define DART_BELT_CAN (&hcan1)    // 同步带电机总线
+#define DART_SCREW_CAN (&hcan1)   // 扳机丝杆电机总线
 
-#define DART_YAW_CAN_ID 1      // M2006 yaw
-#define DART_BELT_L_CAN_ID 2   // M3508 同步带电机(左)
-#define DART_BELT_R_CAN_ID 3   // M3508 同步带电机(右)
-#define DART_TRIGGER_CAN_ID 4  // M3508 扳机
+#define DART_YAW_CAN_ID 1     // M2006 yaw
+#define DART_BELT_L_CAN_ID 2  // M3508 同步带电机(左)
+#define DART_BELT_R_CAN_ID 3  // M3508 同步带电机(右)
+#define DART_SCREW_CAN_ID 4   // M3508 扳机丝杆
 
 /* 遥控器串口: F407 用 huart3(DBUS), H7 用 huart5 */
 #ifdef STM32H723XX
@@ -49,7 +52,7 @@
 #define DART_YAW_REVERSE MOTOR_DIRECTION_NORMAL
 #define DART_BELT_L_REVERSE MOTOR_DIRECTION_NORMAL
 #define DART_BELT_R_REVERSE MOTOR_DIRECTION_REVERSE  // 对置安装, 需反转
-#define DART_TRIGGER_REVERSE MOTOR_DIRECTION_NORMAL
+#define DART_SCREW_REVERSE MOTOR_DIRECTION_NORMAL
 
 /* ================= 零位校准参数 ================= */
 #define DART_CALI_SPEED_DPS 8.0f          // 校准顶硬限位速度 (deg/s)
@@ -76,21 +79,35 @@
 #define DART_CHARGE_HOLD_MS 200                   // 拉拽到位后保持时间 (ms)
 #define DART_RETRACT_TIMEOUT_MS 5000              // 挡块回撤超时 (ms)
 
-/* ================= 扳机(射力)参数 =================
- * 逻辑坐标以开机位置为 0; 卡位可调范围 [MIN, MAX];
- * 释放位必须在可调范围之外, 保证发射时扳机确实脱开。 */
-#define DART_TRIGGER_CATCH_DEFAULT_DEG 0.0f   // 默认卡位(开机位置), 即默认射力
-#define DART_TRIGGER_MIN_DEG (-60.0f)         // 卡位可调下限 (拉伸量小, 射力小)
-#define DART_TRIGGER_MAX_DEG 60.0f            // 卡位可调上限 (拉伸量大, 射力大)
-#define DART_TRIGGER_RELEASE_DEG (-90.0f)     // 发射释放位 (实机标定)
-#define DART_TRIGGER_POS_TOL_DEG 2.0f         // 位置到位容差 (deg)
-#define DART_TRIGGER_MAX_OUT 6000.0f          // 电流限幅
-#define DART_TRIGGER_INTEGRAL_LIMIT 2000.0f   // 积分限幅
-#define DART_TRIGGER_MAX_SPEED_DPS 300.0f     // 位置环输出限幅 = 最大速度
-#define DART_TRIGGER_ADJ_DPS 60.0f            // 拨轮满行程时射力调节速度 (deg/s)
-#define DART_TRIGGER_SETTLE_TIMEOUT_MS 2000   // 扳机就位超时 (ms)
-#define DART_FIRE_DWELL_MS 500                // 发射时扳机释放位保持时间 (ms)
-#define DART_FIRE_TIMEOUT_MS 3000             // 发射序列单步超时 (ms)
+/* ================= 扳机丝杆(射力)参数 =================
+ * 扳机整体装在丝杆上, 由 M3508 位置环控制;
+ * 丝杆位置决定卡住发射平台时拉簧的拉伸量, 直接影响发射力量和速度(可调)。
+ * 逻辑坐标以开机位置为 0。 */
+#define DART_SCREW_POS_DEFAULT_DEG 0.0f    // 默认射力位置(开机位置)
+#define DART_SCREW_POS_MIN_DEG (-60.0f)    // 射力位置下限 (拉伸量小, 射力小)
+#define DART_SCREW_POS_MAX_DEG 60.0f       // 射力位置上限 (拉伸量大, 射力大)
+#define DART_SCREW_POS_TOL_DEG 2.0f        // 位置到位容差 (deg)
+#define DART_SCREW_MAX_OUT 6000.0f         // 电流限幅
+#define DART_SCREW_INTEGRAL_LIMIT 2000.0f  // 积分限幅
+#define DART_SCREW_MAX_SPEED_DPS 300.0f    // 位置环输出限幅 = 最大速度
+#define DART_SCREW_ADJ_DPS 60.0f           // 拨轮满行程时射力调节速度 (deg/s)
+#define DART_SCREW_SETTLE_TIMEOUT_MS 2000  // 储能前丝杆就位超时 (ms)
+
+/* ================= 扳机舵机(PWM 发射动作)参数 =================
+ * 舵机通过 50Hz PWM 占空比控制角度: 脉宽线性映射到 [ANGLE_MIN, ANGLE_MAX]。
+ * 换定时器/通道只改下面两行(所选定时器需在 CubeMX 配好对应通道的 PWM,
+ * 建议预分频使计数 tick = 1us, 便于按脉宽微秒数计算)。 */
+#define DART_SERVO_PWM_TIM (&htim1)             // ← 舵机 PWM 定时器(待定, 按实际接线改)
+#define DART_SERVO_PWM_CHANNEL (TIM_CHANNEL_1)  // ← 舵机 PWM 通道
+#define DART_SERVO_PWM_PERIOD_S (0.02f)         // 50Hz PWM 周期 (s)
+#define DART_SERVO_PULSE_MIN_US 500.0f          // 角度下限对应脉宽 (us)
+#define DART_SERVO_PULSE_MAX_US 2500.0f         // 角度上限对应脉宽 (us)
+#define DART_SERVO_ANGLE_MIN_DEG 0.0f           // 舵机机械角度下限 (deg)
+#define DART_SERVO_ANGLE_MAX_DEG 180.0f         // 舵机机械角度上限 (deg)
+#define DART_SERVO_CATCH_DEG 90.0f              // 卡位角: 扣住发射平台(待发/上电默认)
+#define DART_SERVO_RELEASE_DEG 0.0f             // 释放角: 放开发射平台(发射)
+#define DART_SERVO_SETTLE_MS 300                // 舵机动作等待时间 (ms, 开环无反馈)
+#define DART_FIRE_DWELL_MS 500                  // 发射时释放角保持时间 (ms)
 
 /* ================= yaw 参数 ================= */
 #define DART_YAW_SENSITIVITY_DPS 60.0f   // 满杆 yaw 角速度 (deg/s)
@@ -108,12 +125,13 @@
  *   右开关: 下 = 安全停机(全部电机停); 中 = 使能(上电首次使能自动校准); 上 = 使能 + 调试点动
  *   左开关: 下 = 待机; 中(上升沿) = 储能命令(故障/未校准时为重新校准); 上(上升沿) = 发射命令
  *   右摇杆水平: yaw 增量式角度目标
- *   侧边拨轮:    扳机卡位(射力)微调, 仅 IDLE/READY 生效
- *   调试档(右开关上): 左摇杆竖直 = 双同步带电机同速点动; 左摇杆水平 = 扳机点动 */
+ *   侧边拨轮:    正常档 = 射力(丝杆位置)微调, 仅 IDLE/READY 生效
+ *                调试档 = 直接给舵机角度(满行程映射角度范围, 标定卡位角/释放角用)
+ *   调试档(右开关上): 左摇杆竖直 = 双同步带电机同速点动; 左摇杆水平 = 扳机丝杆点动 */
 
 /* ================= 调试点动参数 ================= */
-#define DART_DEBUG_BELT_MAX_SPEED_DPS 60.0f     // 同步带点动满杆速度 (deg/s)
-#define DART_DEBUG_TRIGGER_MAX_SPEED_DPS 60.0f  // 扳机点动满杆速度 (deg/s)
+#define DART_DEBUG_BELT_MAX_SPEED_DPS 60.0f   // 同步带点动满杆速度 (deg/s)
+#define DART_DEBUG_SCREW_MAX_SPEED_DPS 60.0f  // 扳机丝杆点动满杆速度 (deg/s)
 
 /* ================= 任务周期 ================= */
 #define DART_SYNC_WARN_PERIOD_MS 1000  // 同步偏差告警的最小打印间隔
@@ -204,9 +222,9 @@
   }
 
 /**
- * @brief 扳机电机(M3508)配置: 位置环串级速度环
+ * @brief 扳机丝杆电机(M3508)配置: 位置环串级速度环
  */
-#define DART_TRIGGER_MOTOR_CONFIG(can_h, _id, _reverse)                          \
+#define DART_SCREW_MOTOR_CONFIG(can_h, _id, _reverse)                            \
   {                                                                              \
       .motor_type = M3508,                                                       \
       .can_init_config =                                                         \
@@ -230,8 +248,8 @@
                       .Kp = 5.0f,                                                \
                       .Ki = 0.5f,                                                \
                       .Kd = 0.0f,                                                \
-                      .MaxOut = DART_TRIGGER_MAX_OUT,                            \
-                      .IntegralLimit = DART_TRIGGER_INTEGRAL_LIMIT,              \
+                      .MaxOut = DART_SCREW_MAX_OUT,                              \
+                      .IntegralLimit = DART_SCREW_INTEGRAL_LIMIT,                \
                       .Improve = PID_Integral_Limit | PID_Trapezoid_Intergral,   \
                   },                                                             \
               .angle_PID =                                                       \
@@ -239,7 +257,7 @@
                       .Kp = 15.0f,                                               \
                       .Ki = 0.0f,                                                \
                       .Kd = 0.0f,                                                \
-                      .MaxOut = DART_TRIGGER_MAX_SPEED_DPS,                      \
+                      .MaxOut = DART_SCREW_MAX_SPEED_DPS,                        \
                       .DeadBand = 0.2f,                                          \
                   },                                                             \
           },                                                                     \

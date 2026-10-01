@@ -1,16 +1,21 @@
 /**
  * @file dart_launcher.h
- * @brief dart 发射架执行层: 4 电机(1xM2006 yaw + 2xM3508 同步带 + 1xM3508 扳机)的状态机与闭环控制
+ * @brief dart 发射架执行层: 5 个执行器(1xM2006 yaw + 2xM3508 同步带 + 1xM3508 扳机丝杆 + 1xPWM 舵机)的状态机与闭环控制
+ *
+ * 扳机子系统含两个执行器:
+ *   - 扳机丝杆(M3508, 位置环串级): 扳机整体在丝杆上的位置, 决定卡住发射平台时拉簧的拉伸量(射力, 可调);
+ *   - 扳机舵机(PWM, 50Hz 占空比->角度, 开环): 扳机的发射动作, 卡位角扣住发射平台 / 释放角放开发射。
  *
  * 分步操作流程(由上层命令驱动):
  *   1. 上电使能后自动执行一次朝向释放方向的零位校准(堵转检测, 同步两带电机零点,
  *      校准完成前严格限制带电机力矩);
- *   2. 储能命令: 扳机先到卡位 -> 双带电机同步拉拽发射平台 -> 被扳机卡住 -> 挡块回撤;
- *   3. 就绪(READY)后可随时调射力(扳机卡位);
- *   4. 发射命令: 扳机移出卡位释放发射平台, 随后自动回卡位待下一发。
+ *   2. 储能命令: 扳机丝杆先到射力位置 -> 双带电机同步拉拽发射平台 -> 被扳机卡住 -> 挡块回撤;
+ *   3. 就绪(READY)后可随时调射力(丝杆位置);
+ *   4. 发射命令: 舵机转到释放角放开发射平台, 随后自动回卡位角待下一发。
  */
 #pragma once
 
+#include "bsp_pwm.h"
 #include "dji_motor.h"
 #include <stdbool.h>
 #include <stdint.h>
@@ -41,17 +46,17 @@ typedef enum {
 
 /* 储能子步骤 */
 typedef enum {
-  CHARGE_STEP_PREP_TRIGGER = 0,  // 扳机先到卡位(拉伸量决定射力)
-  CHARGE_STEP_DRIVE,             // 双电机同步拉拽发射平台
-  CHARGE_STEP_HOLD,              // 到位保持
-  CHARGE_STEP_RETRACT,           // 挡块回撤出发射平台活动范围
+  CHARGE_STEP_PREP_SCREW = 0,  // 扳机丝杆先到射力位置(拉伸量决定射力)
+  CHARGE_STEP_DRIVE,           // 双电机同步拉拽发射平台
+  CHARGE_STEP_HOLD,            // 到位保持
+  CHARGE_STEP_RETRACT,         // 挡块回撤出发射平台活动范围
 } Dart_Charge_Step_e;
 
-/* 发射子步骤 */
+/* 发射子步骤(舵机开环, 全部按时间推进) */
 typedef enum {
-  FIRE_STEP_RELEASE = 0,  // 扳机移出卡位, 释放发射平台
-  FIRE_STEP_DWELL,        // 释放位保持
-  FIRE_STEP_RESET,        // 扳机回卡位待下一发
+  FIRE_STEP_RELEASE = 0,  // 舵机转到释放角, 放开发射平台
+  FIRE_STEP_DWELL,        // 释放角保持
+  FIRE_STEP_RESET,        // 舵机回卡位角待下一发
 } Dart_Fire_Step_e;
 
 /* 堵转检测器(速度低于阈值持续指定时间) */
@@ -64,7 +69,8 @@ typedef struct {
 typedef struct {
   DJIMotorInstance* yaw_motor;      // M2006 发射架 yaw
   DJIMotorInstance* belt_motor[2];  // M3508 同步带电机 [0]左 [1]右, 同一位置目标严格同步
-  DJIMotorInstance* trigger_motor;  // M3508 扳机
+  DJIMotorInstance* screw_motor;    // M3508 扳机丝杆: 扳机整体位置(拉簧拉伸量=射力)
+  PWMInstance* servo_pwm;           // PWM 舵机: 扳机发射动作(卡位角/释放角)
 
   Dart_State_e state;
   bool enabled;          // 遥控器使能标志(失能即全部停机)
@@ -75,14 +81,14 @@ typedef struct {
   // 逻辑坐标零点
   float belt_zero_offset[2];  // 释放方向硬限位处的 total_angle
   float yaw_boot_angle;       // yaw 开机角度
-  float trigger_boot_angle;   // 扳机开机角度
+  float screw_boot_angle;     // 扳机丝杆开机角度
 
   // 控制目标(逻辑坐标)
-  float belt_pos_target;     // 同步带目标 (deg, 正=储能方向)
-  float yaw_angle_target;    // yaw 目标角 (deg, 相对开机)
-  float trigger_catch_deg;   // 扳机卡位(射力, 可调)
-  float trigger_target_deg;  // 扳机当前目标 (deg, 相对开机)
-  float yaw_rate_cmd_dps;    // yaw 角速度指令 (deg/s)
+  float belt_pos_target;    // 同步带目标 (deg, 正=储能方向)
+  float yaw_angle_target;   // yaw 目标角 (deg, 相对开机)
+  float screw_pos_deg;      // 扳机丝杆位置(射力, 可调, deg 相对开机)
+  float servo_angle_deg;    // 舵机当前目标角 (deg)
+  float yaw_rate_cmd_dps;   // yaw 角速度指令 (deg/s)
 
   // 序列子步骤与计时
   Dart_Cali_Step_e cali_step;
@@ -101,11 +107,11 @@ typedef struct {
   // 调试点动(右开关上档)
   bool debug_jog;
   float debug_belt_speed_dps;
-  float debug_trigger_speed_dps;
+  float debug_screw_speed_dps;
 } DartLauncherInstance;
 
 /**
- * @brief 初始化发射架: 注册 4 个电机并复位状态机
+ * @brief 初始化发射架: 注册电机/PWM 舵机并复位状态机
  */
 DartLauncherInstance* DartLauncherInit(void);
 
@@ -121,9 +127,14 @@ void DartLauncherSetEnable(DartLauncherInstance* inst, bool enable);
 void DartLauncherSetCommand(DartLauncherInstance* inst, Dart_Cmd_e cmd);
 
 /**
- * @brief 扳机卡位(射力)微调, 自动限幅, 仅 IDLE/READY 生效
+ * @brief 扳机丝杆位置(射力)微调, 自动限幅, 仅 IDLE/READY 生效
  */
-void DartLauncherAdjustTrigger(DartLauncherInstance* inst, float delta_deg);
+void DartLauncherAdjustScrewPos(DartLauncherInstance* inst, float delta_deg);
+
+/**
+ * @brief 直接设定舵机角度(自动限幅), 用于标定卡位角/释放角
+ */
+void DartLauncherSetServoAngle(DartLauncherInstance* inst, float angle_deg);
 
 /**
  * @brief 设置 yaw 角速度指令, 由状态机积分成角度目标
@@ -131,9 +142,9 @@ void DartLauncherAdjustTrigger(DartLauncherInstance* inst, float delta_deg);
 void DartLauncherSetYawRate(DartLauncherInstance* inst, float rate_dps);
 
 /**
- * @brief 调试点动(仅 IDLE 态生效): 同步带双电机同速点动 + 扳机点动
+ * @brief 调试点动(仅 IDLE 态生效): 同步带双电机同速点动 + 扳机丝杆点动
  */
-void DartLauncherSetDebugJog(DartLauncherInstance* inst, bool enable, float belt_speed_dps, float trigger_speed_dps);
+void DartLauncherSetDebugJog(DartLauncherInstance* inst, bool enable, float belt_speed_dps, float screw_speed_dps);
 
 /**
  * @brief 发射架周期任务, 由 RobotTask 以 ~1kHz 调用

@@ -1,6 +1,6 @@
 /**
  * @file dart_launcher.c
- * @brief dart 发射架执行层实现: 零位校准 / 储能 / 发射 / 扳机调力 / yaw 角度环
+ * @brief dart 发射架执行层实现: 零位校准 / 储能 / 发射(舵机开环) / 射力调节 / yaw 角度环
  */
 #include "dart_launcher.h"
 
@@ -53,16 +53,32 @@ static bool BeltPositionReached(DartLauncherInstance* inst, float pos_deg) {
   return true;
 }
 
-/* 扳机是否到达当前目标位置 */
-static bool TriggerPositionReached(DartLauncherInstance* inst) {
-  float err = (inst->trigger_boot_angle + inst->trigger_target_deg) - inst->trigger_motor->measure.total_angle;
-  return fabsf(err) < DART_TRIGGER_POS_TOL_DEG;
+/* 扳机丝杆是否到达目标位置(射力位置) */
+static bool ScrewPositionReached(DartLauncherInstance* inst) {
+  float err = (inst->screw_boot_angle + inst->screw_pos_deg) - inst->screw_motor->measure.total_angle;
+  return fabsf(err) < DART_SCREW_POS_TOL_DEG;
 }
 
-/* 扳机位置环输出 */
-static void ApplyTriggerPosition(DartLauncherInstance* inst) {
-  DJIMotorOuterLoop(inst->trigger_motor, ANGLE_LOOP);
-  DJIMotorSetPIDRef(inst->trigger_motor, inst->trigger_boot_angle + inst->trigger_target_deg);
+/* 扳机丝杆位置环输出 */
+static void ApplyScrewPosition(DartLauncherInstance* inst) {
+  DJIMotorOuterLoop(inst->screw_motor, ANGLE_LOOP);
+  DJIMotorSetPIDRef(inst->screw_motor, inst->screw_boot_angle + inst->screw_pos_deg);
+}
+
+/* 舵机角度 -> 占空比: 角度线性映射到脉宽, 脉宽/周期即占空比 */
+static float ServoAngleToDuty(float angle_deg) {
+  float span = DART_SERVO_ANGLE_MAX_DEG - DART_SERVO_ANGLE_MIN_DEG;
+  float pulse_us = DART_SERVO_PULSE_MIN_US +
+                   (angle_deg - DART_SERVO_ANGLE_MIN_DEG) * (DART_SERVO_PULSE_MAX_US - DART_SERVO_PULSE_MIN_US) / span;
+  return (pulse_us * 1e-6f) / DART_SERVO_PWM_PERIOD_S;
+}
+
+/* 设定舵机角度(开环, 限幅到机械范围) */
+static void SetServoAngle(DartLauncherInstance* inst, float angle_deg) {
+  if (inst->servo_pwm == NULL) return;
+  VAL_LIMIT(angle_deg, DART_SERVO_ANGLE_MIN_DEG, DART_SERVO_ANGLE_MAX_DEG);
+  inst->servo_angle_deg = angle_deg;
+  PWMSetDutyRatio(inst->servo_pwm, ServoAngleToDuty(angle_deg));
 }
 
 /* 堵转检测: 速度低于阈值持续 need_ms 判定堵转 */
@@ -94,13 +110,13 @@ static bool ConsumePidBlocked(DJIMotorInstance* motor) {
 static void StopAllMotors(DartLauncherInstance* inst) {
   DJIMotorStop(inst->yaw_motor);
   for (int i = 0; i < 2; i++) DJIMotorStop(inst->belt_motor[i]);
-  DJIMotorStop(inst->trigger_motor);
+  DJIMotorStop(inst->screw_motor);
 }
 
 static void EnableAllMotors(DartLauncherInstance* inst) {
   DJIMotorEnable(inst->yaw_motor);
   for (int i = 0; i < 2; i++) DJIMotorEnable(inst->belt_motor[i]);
-  DJIMotorEnable(inst->trigger_motor);
+  DJIMotorEnable(inst->screw_motor);
 }
 
 static void ResetStallDetectors(DartLauncherInstance* inst) {
@@ -121,8 +137,9 @@ static void ClearBeltPid(DartLauncherInstance* inst) {
 static void EnterFault(DartLauncherInstance* inst) {
   inst->state = DART_STATE_FAULT;
   inst->cali_step = CALI_STEP_DRIVE_TO_STOP;
-  inst->charge_step = CHARGE_STEP_PREP_TRIGGER;
+  inst->charge_step = CHARGE_STEP_PREP_SCREW;
   inst->fire_step = FIRE_STEP_RELEASE;
+  SetServoAngle(inst, DART_SERVO_CATCH_DEG);  // 故障时舵机回卡位角(保持扣住)
   StopAllMotors(inst);
 }
 
@@ -189,7 +206,6 @@ static void HandleCalibrating(DartLauncherInstance* inst, uint32_t now) {
 
 static void HandleIdle(DartLauncherInstance* inst, uint32_t now) {
   (void)now;
-  inst->trigger_target_deg = inst->trigger_catch_deg;
   SetBeltPosition(inst, DART_BELT_HOME_DEG);
   if (inst->recovery_retract) {
     if (BeltPositionReached(inst, DART_BELT_HOME_DEG)) {
@@ -201,16 +217,15 @@ static void HandleIdle(DartLauncherInstance* inst, uint32_t now) {
 
 static void HandleCharging(DartLauncherInstance* inst, uint32_t now) {
   switch (inst->charge_step) {
-    case CHARGE_STEP_PREP_TRIGGER:
-      // 拉伸量由扳机卡位决定, 必须先就位再拉拽
-      inst->trigger_target_deg = inst->trigger_catch_deg;
+    case CHARGE_STEP_PREP_SCREW:
+      // 拉伸量由扳机丝杆位置(射力)决定, 必须先就位再拉拽
       SetBeltPosition(inst, DART_BELT_HOME_DEG);
-      if (TriggerPositionReached(inst)) {
+      if (ScrewPositionReached(inst)) {
         ResetStallDetectors(inst);
         inst->charge_step = CHARGE_STEP_DRIVE;
         inst->step_start_ms = now;
-      } else if (now - inst->step_start_ms > DART_TRIGGER_SETTLE_TIMEOUT_MS) {
-        LOGERROR("[dart] fault: trigger not in position before charge");
+      } else if (now - inst->step_start_ms > DART_SCREW_SETTLE_TIMEOUT_MS) {
+        LOGERROR("[dart] fault: screw not in position before charge");
         EnterFault(inst);
       }
       break;
@@ -259,27 +274,24 @@ static void HandleCharging(DartLauncherInstance* inst, uint32_t now) {
       break;
 
     default:
-      inst->charge_step = CHARGE_STEP_PREP_TRIGGER;
+      inst->charge_step = CHARGE_STEP_PREP_SCREW;
       break;
   }
 }
 
 static void HandleReady(DartLauncherInstance* inst, uint32_t now) {
   (void)now;
-  inst->trigger_target_deg = inst->trigger_catch_deg;
   SetBeltPosition(inst, DART_BELT_HOME_DEG);
 }
 
 static void HandleFiring(DartLauncherInstance* inst, uint32_t now) {
+  // 舵机无位置反馈, 发射序列全部按时间推进
   switch (inst->fire_step) {
     case FIRE_STEP_RELEASE:
-      inst->trigger_target_deg = DART_TRIGGER_RELEASE_DEG;
-      if (TriggerPositionReached(inst)) {
+      SetServoAngle(inst, DART_SERVO_RELEASE_DEG);
+      if (now - inst->step_start_ms >= DART_SERVO_SETTLE_MS) {
         inst->fire_step = FIRE_STEP_DWELL;
         inst->step_start_ms = now;
-      } else if (now - inst->step_start_ms > DART_FIRE_TIMEOUT_MS) {
-        LOGERROR("[dart] fault: trigger release timeout");
-        EnterFault(inst);
       }
       break;
 
@@ -291,14 +303,11 @@ static void HandleFiring(DartLauncherInstance* inst, uint32_t now) {
       break;
 
     case FIRE_STEP_RESET:
-      inst->trigger_target_deg = inst->trigger_catch_deg;
-      if (TriggerPositionReached(inst)) {
+      SetServoAngle(inst, DART_SERVO_CATCH_DEG);
+      if (now - inst->step_start_ms >= DART_SERVO_SETTLE_MS) {
         inst->fire_step = FIRE_STEP_RELEASE;
         inst->state = DART_STATE_IDLE;
         LOGINFO("[dart] fire sequence done, back to idle");
-      } else if (now - inst->step_start_ms > DART_FIRE_TIMEOUT_MS) {
-        LOGERROR("[dart] fault: trigger reset timeout");
-        EnterFault(inst);
       }
       break;
 
@@ -325,7 +334,7 @@ static void HandleCommand(DartLauncherInstance* inst, uint32_t now) {
 
     case DART_CMD_CHARGE:
       if (inst->state == DART_STATE_IDLE && inst->is_calibrated && !inst->recovery_retract) {
-        inst->charge_step = CHARGE_STEP_PREP_TRIGGER;
+        inst->charge_step = CHARGE_STEP_PREP_SCREW;
         inst->step_start_ms = now;
         inst->state = DART_STATE_CHARGING;
         LOGINFO("[dart] charge sequence start");
@@ -373,11 +382,11 @@ static void MonitorBeltSync(DartLauncherInstance* inst, uint32_t now) {
   }
 }
 
-/* 调试点动: 双带电机同速 + 扳机点动 */
+/* 调试点动: 双带电机同速 + 扳机丝杆点动 */
 static void ApplyDebugJog(DartLauncherInstance* inst) {
   SetBeltSpeed(inst, inst->debug_belt_speed_dps);
-  DJIMotorOuterLoop(inst->trigger_motor, SPEED_LOOP);
-  DJIMotorSetPIDRef(inst->trigger_motor, inst->debug_trigger_speed_dps);
+  DJIMotorOuterLoop(inst->screw_motor, SPEED_LOOP);
+  DJIMotorSetPIDRef(inst->screw_motor, inst->debug_screw_speed_dps);
 }
 
 /* ==================== 对外接口 ==================== */
@@ -393,14 +402,25 @@ DartLauncherInstance* DartLauncherInit(void) {
   Motor_Init_Config_s belt_r_conf = DART_BELT_MOTOR_CONFIG(DART_BELT_CAN, DART_BELT_R_CAN_ID, DART_BELT_R_REVERSE);
   inst->belt_motor[1] = DJIMotorInit(&belt_r_conf);
 
-  Motor_Init_Config_s trigger_conf = DART_TRIGGER_MOTOR_CONFIG(DART_TRIGGER_CAN, DART_TRIGGER_CAN_ID, DART_TRIGGER_REVERSE);
-  inst->trigger_motor = DJIMotorInit(&trigger_conf);
+  Motor_Init_Config_s screw_conf = DART_SCREW_MOTOR_CONFIG(DART_SCREW_CAN, DART_SCREW_CAN_ID, DART_SCREW_REVERSE);
+  inst->screw_motor = DJIMotorInit(&screw_conf);
+
+  // 扳机舵机(PWM): 上电即输出卡位角(保持扣住发射平台), 占空比映射见 robot_config.h
+  PWM_Init_Config_s servo_conf = {
+      .htim = DART_SERVO_PWM_TIM,
+      .channel = DART_SERVO_PWM_CHANNEL,
+      .period = DART_SERVO_PWM_PERIOD_S,
+      .dutyratio = ServoAngleToDuty(DART_SERVO_CATCH_DEG),
+      .callback = NULL,
+      .id = inst,
+  };
+  inst->servo_pwm = PWMRegister(&servo_conf);
+  inst->servo_angle_deg = DART_SERVO_CATCH_DEG;
 
   inst->yaw_boot_angle = inst->yaw_motor->measure.total_angle;
-  inst->trigger_boot_angle = inst->trigger_motor->measure.total_angle;
+  inst->screw_boot_angle = inst->screw_motor->measure.total_angle;
   inst->yaw_angle_target = inst->yaw_boot_angle;
-  inst->trigger_catch_deg = DART_TRIGGER_CATCH_DEFAULT_DEG;
-  inst->trigger_target_deg = DART_TRIGGER_CATCH_DEFAULT_DEG;
+  inst->screw_pos_deg = DART_SCREW_POS_DEFAULT_DEG;
   inst->belt_pos_target = DART_BELT_HOME_DEG;
   inst->state = DART_STATE_IDLE;
   inst->last_ms = (uint32_t)DWT_GetTimeline_ms();
@@ -433,7 +453,7 @@ void DartLauncherSetEnable(DartLauncherInstance* inst, bool enable) {
         break;
       case DART_STATE_CHARGING:
         inst->state = DART_STATE_IDLE;
-        inst->charge_step = CHARGE_STEP_PREP_TRIGGER;
+        inst->charge_step = CHARGE_STEP_PREP_SCREW;
         if (inst->is_calibrated) inst->recovery_retract = true;
         break;
       case DART_STATE_FIRING:
@@ -453,11 +473,16 @@ void DartLauncherSetCommand(DartLauncherInstance* inst, Dart_Cmd_e cmd) {
   inst->pending_cmd = cmd;
 }
 
-void DartLauncherAdjustTrigger(DartLauncherInstance* inst, float delta_deg) {
+void DartLauncherAdjustScrewPos(DartLauncherInstance* inst, float delta_deg) {
   if (inst == NULL) return;
   if (inst->state != DART_STATE_IDLE && inst->state != DART_STATE_READY) return;
-  inst->trigger_catch_deg += delta_deg;
-  VAL_LIMIT(inst->trigger_catch_deg, DART_TRIGGER_MIN_DEG, DART_TRIGGER_MAX_DEG);
+  inst->screw_pos_deg += delta_deg;
+  VAL_LIMIT(inst->screw_pos_deg, DART_SCREW_POS_MIN_DEG, DART_SCREW_POS_MAX_DEG);
+}
+
+void DartLauncherSetServoAngle(DartLauncherInstance* inst, float angle_deg) {
+  if (inst == NULL) return;
+  SetServoAngle(inst, angle_deg);
 }
 
 void DartLauncherSetYawRate(DartLauncherInstance* inst, float rate_dps) {
@@ -465,11 +490,11 @@ void DartLauncherSetYawRate(DartLauncherInstance* inst, float rate_dps) {
   inst->yaw_rate_cmd_dps = rate_dps;
 }
 
-void DartLauncherSetDebugJog(DartLauncherInstance* inst, bool enable, float belt_speed_dps, float trigger_speed_dps) {
+void DartLauncherSetDebugJog(DartLauncherInstance* inst, bool enable, float belt_speed_dps, float screw_speed_dps) {
   if (inst == NULL) return;
   inst->debug_jog = enable;
   inst->debug_belt_speed_dps = belt_speed_dps;
-  inst->debug_trigger_speed_dps = trigger_speed_dps;
+  inst->debug_screw_speed_dps = screw_speed_dps;
 }
 
 void DartLauncherTask(DartLauncherInstance* inst) {
@@ -512,7 +537,9 @@ void DartLauncherTask(DartLauncherInstance* inst) {
       default:
         break;
     }
-    ApplyTriggerPosition(inst);
+    // 发射序列中舵机由 HandleFiring 控制, 其余状态舵机保持卡位角
+    if (inst->state != DART_STATE_FIRING) SetServoAngle(inst, DART_SERVO_CATCH_DEG);
+    ApplyScrewPosition(inst);
   }
 
   ApplyYaw(inst, dt_s);

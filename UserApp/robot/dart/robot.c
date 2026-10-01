@@ -36,19 +36,24 @@ static void RCCommandUpdate(void) {
   // 右摇杆水平 -> yaw 角速度
   DartLauncherSetYawRate(launcher, StickToNorm(rc->rc.rocker_r_) * DART_YAW_SENSITIVITY_DPS);
 
-  // 侧边拨轮 -> 射力(扳机卡位)微调, 仅 IDLE/READY 生效(launcher 内部约束)
+  // 侧边拨轮归一化
   float dial = StickToNorm(rc->rc.dial);
-  if (dial != 0.0f) {
-    DartLauncherAdjustTrigger(launcher, dial * DART_TRIGGER_ADJ_DPS * DART_TASK_DT_S);
-  }
 
   // 右开关上档 = 调试点动
   bool debug = switch_is_up(rc->rc.switch_right);
   if (debug) {
+    // 调试档: 拨轮直接给舵机角度(标定卡位角/释放角), 左摇杆水平点动扳机丝杆
+    float servo_angle =
+        DART_SERVO_ANGLE_MIN_DEG + (dial + 1.0f) * 0.5f * (DART_SERVO_ANGLE_MAX_DEG - DART_SERVO_ANGLE_MIN_DEG);
+    DartLauncherSetServoAngle(launcher, servo_angle);
     DartLauncherSetDebugJog(launcher, true, StickToNorm(rc->rc.rocker_l1) * DART_DEBUG_BELT_MAX_SPEED_DPS,
-                            StickToNorm(rc->rc.rocker_l_) * DART_DEBUG_TRIGGER_MAX_SPEED_DPS);
+                            StickToNorm(rc->rc.rocker_l_) * DART_DEBUG_SCREW_MAX_SPEED_DPS);
   } else {
     DartLauncherSetDebugJog(launcher, false, 0.0f, 0.0f);
+    // 侧边拨轮 -> 射力(丝杆位置)微调, 仅 IDLE/READY 生效(launcher 内部约束)
+    if (dial != 0.0f) {
+      DartLauncherAdjustScrewPos(launcher, dial * DART_SCREW_ADJ_DPS * DART_TASK_DT_S);
+    }
   }
 
   // 左开关上升沿命令: 中档 = 储能(故障/未校准时为重新校准); 上档 = 发射
