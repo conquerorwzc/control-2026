@@ -15,12 +15,20 @@
 
 /* 校准完成前严格限制同步带电机力矩(所有模式生效), 防止卡死损坏 */
 static void ApplyBeltTorqueLimit(DartLauncherInstance* inst) {
-  float max_out = inst->is_calibrated ? DART_BELT_MAX_OUT : DART_CALI_MAX_OUT;
-  float integral = inst->is_calibrated ? DART_BELT_INTEGRAL_LIMIT : DART_CALI_INTEGRAL_LIMIT;
+  float max_out = inst->is_calibrated ? DART_BELT_MAX_OUT : DART_BELT_CALI_MAX_OUT;
+  float integral = inst->is_calibrated ? DART_BELT_INTEGRAL_LIMIT : DART_BELT_CALI_INTEGRAL_LIMIT;
   for (int i = 0; i < 2; i++) {
     inst->belt_motor[i]->motor_controller.speed_PID.MaxOut = max_out;
     inst->belt_motor[i]->motor_controller.speed_PID.IntegralLimit = integral;
   }
+}
+
+/* 校准完成前严格限制扳机丝杆力矩(顶硬限位时防止卡死损坏) */
+static void ApplyScrewTorqueLimit(DartLauncherInstance* inst) {
+  float max_out = inst->is_calibrated ? DART_SCREW_MAX_OUT : DART_SCREW_CALI_MAX_OUT;
+  float integral = inst->is_calibrated ? DART_SCREW_INTEGRAL_LIMIT : DART_SCREW_CALI_INTEGRAL_LIMIT;
+  inst->screw_motor->motor_controller.speed_PID.MaxOut = max_out;
+  inst->screw_motor->motor_controller.speed_PID.IntegralLimit = integral;
 }
 
 /* 双同步带电机同速控制(速度环), 逻辑正方向 = 储能方向 */
@@ -35,7 +43,7 @@ static void SetBeltSpeed(DartLauncherInstance* inst, float speed_dps) {
  * speed_limit_dps: 本阶段限速, 通过角度环 MaxOut 实现, 再被 DART_BELT_MAX_SPEED_DPS 钳一次 */
 static void SetBeltPosition(DartLauncherInstance* inst, float pos_deg, float speed_limit_dps) {
   inst->belt_pos_target = pos_deg;
-  if (!inst->zero_valid) {
+  if (!inst->belt_zero_valid) {
     SetBeltSpeed(inst, 0.0f);  // 零点无效时只能速度环抱死, 禁止位置闭环
     return;
   }
@@ -56,16 +64,22 @@ static bool BeltPositionReached(DartLauncherInstance* inst, float pos_deg) {
   return true;
 }
 
-/* 扳机丝杆是否到达目标位置(射力位置) */
+/* 扳机丝杆是否到达目标位置(射力位置, 相对丝杆零点) */
 static bool ScrewPositionReached(DartLauncherInstance* inst) {
-  float err = (inst->screw_boot_angle + inst->screw_pos_deg) - inst->screw_motor->measure.total_angle;
+  if (!inst->screw_zero_valid) return false;
+  float err = (inst->screw_zero_offset + inst->screw_pos_deg) - inst->screw_motor->measure.total_angle;
   return fabsf(err) < DART_SCREW_POS_TOL_DEG;
 }
 
-/* 扳机丝杆位置环输出 */
+/* 扳机丝杆位置环输出(未校准时只能速度环抱死, 禁止位置闭环) */
 static void ApplyScrewPosition(DartLauncherInstance* inst) {
+  if (!inst->screw_zero_valid) {
+    DJIMotorOuterLoop(inst->screw_motor, SPEED_LOOP);
+    DJIMotorSetPIDRef(inst->screw_motor, 0.0f);
+    return;
+  }
   DJIMotorOuterLoop(inst->screw_motor, ANGLE_LOOP);
-  DJIMotorSetPIDRef(inst->screw_motor, inst->screw_boot_angle + inst->screw_pos_deg);
+  DJIMotorSetPIDRef(inst->screw_motor, inst->screw_zero_offset + inst->screw_pos_deg);
 }
 
 /* 舵机角度 -> 占空比: 角度线性映射到脉宽, 脉宽/周期即占空比 */
@@ -137,72 +151,124 @@ static void ClearBeltPid(DartLauncherInstance* inst) {
   }
 }
 
+static void ClearScrewPid(DartLauncherInstance* inst) {
+  PIDClear(&inst->screw_motor->motor_controller.speed_PID);
+  PIDClear(&inst->screw_motor->motor_controller.angle_PID);
+}
+
 static void EnterFault(DartLauncherInstance* inst) {
   inst->state = DART_STATE_FAULT;
-  inst->cali_step = CALI_STEP_DRIVE_TO_STOP;
+  inst->cali_step = CALI_STEP_BELT_DRIVE_TO_STOP;
   inst->charge_step = CHARGE_STEP_PREP_SCREW;
   inst->fire_step = FIRE_STEP_RELEASE;
   SetServoAngle(inst, DART_SERVO_CATCH_DEG);  // 故障时舵机回卡位角(保持扣住)
   StopAllMotors(inst);
 }
 
-/* 开始一次零位校准 */
+/* 开始一次零位校准(同步带 -> 扳机丝杆) */
 static void StartCalibration(DartLauncherInstance* inst, uint32_t now) {
   inst->is_calibrated = false;
-  inst->zero_valid = false;
+  inst->belt_zero_valid = false;
+  inst->screw_zero_valid = false;
   inst->recovery_retract = false;
-  inst->cali_step = CALI_STEP_DRIVE_TO_STOP;
+  inst->cali_step = CALI_STEP_BELT_DRIVE_TO_STOP;
   inst->cali_start_ms = now;
+  inst->screw_stall.tracking = false;
   ResetStallDetectors(inst);
   ClearBeltPid(inst);
+  ClearScrewPid(inst);
   EnableAllMotors(inst);  // 故障恢复路径上电机可能处于停机状态
   inst->state = DART_STATE_CALIBRATING;
-  LOGINFO("[dart] start zero calibration");
+  LOGINFO("[dart] start zero calibration (belt + screw)");
 }
 
 /* ==================== 状态处理 ==================== */
 
 static void HandleCalibrating(DartLauncherInstance* inst, uint32_t now) {
   switch (inst->cali_step) {
-    case CALI_STEP_DRIVE_TO_STOP:
-      SetBeltSpeed(inst, DART_CALI_DIRECTION * DART_CALI_SPEED_DPS);
-      for (int i = 0; i < 2; i++) {
-        bool stalled = CheckStall(&inst->stall[i], inst->belt_motor[i], DART_CALI_STALL_SPEED_DPS, DART_CALI_STALL_MS,
-                                  now) ||
-                       ConsumePidBlocked(inst->belt_motor[i]);
-        if (stalled) inst->stalled_flag[i] = true;
+    case CALI_STEP_BELT_DRIVE_TO_STOP:
+      ApplyScrewPosition(inst);  // 丝杆零点未标定前保持不动(速度环抱死)
+      SetBeltSpeed(inst, DART_BELT_CALI_DIRECTION * DART_BELT_CALI_SPEED_DPS);
+      if (now - inst->step_start_ms > DART_CALI_START_GRACE_MS) {  // 起步宽限, 防起步误判堵转
+        for (int i = 0; i < 2; i++) {
+          bool stalled = CheckStall(&inst->stall[i], inst->belt_motor[i], DART_CALI_STALL_SPEED_DPS,
+                                    DART_CALI_STALL_MS, now) ||
+                         ConsumePidBlocked(inst->belt_motor[i]);
+          if (stalled) inst->stalled_flag[i] = true;
+        }
       }
       if (inst->stalled_flag[0] && inst->stalled_flag[1]) {
         // 双电机各记硬限位处编码器值, 零点即完成同步
         for (int i = 0; i < 2; i++) {
           inst->belt_zero_offset[i] = inst->belt_motor[i]->measure.total_angle;
         }
-        inst->zero_valid = true;
+        inst->belt_zero_valid = true;
         inst->belt_pos_target = DART_BELT_HOME_DEG;
         ClearBeltPid(inst);
-        inst->cali_step = CALI_STEP_BACKOFF;
+        inst->cali_step = CALI_STEP_BELT_BACKOFF;
         inst->step_start_ms = now;
-        LOGINFO("[dart] zero found, back off to home");
-      } else if (now - inst->cali_start_ms > DART_CALI_TIMEOUT_MS) {
-        LOGERROR("[dart] fault: calibration stall timeout");
+        LOGINFO("[dart] belt zero found, back off to release position");
+      } else if (now - inst->cali_start_ms > DART_BELT_CALI_TIMEOUT_MS) {
+        LOGERROR("[dart] fault: belt calibration stall timeout");
         EnterFault(inst);
       }
       break;
 
-    case CALI_STEP_BACKOFF:
-      SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_CALI_BACKOFF_SPEED_DPS);
+    case CALI_STEP_BELT_BACKOFF:
+      ApplyScrewPosition(inst);
+      SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_BELT_CALI_BACKOFF_SPEED_DPS);
       if (BeltPositionReached(inst, DART_BELT_HOME_DEG)) {
+        // 同步带完成, 接着校准扳机丝杆零点
+        inst->screw_stall.tracking = false;
+        ClearScrewPid(inst);
+        inst->cali_step = CALI_STEP_SCREW_DRIVE_TO_STOP;
+        inst->step_start_ms = now;
+        LOGINFO("[dart] belt zero done, start screw zero calibration");
+      } else if (now - inst->step_start_ms > DART_BELT_CALI_TIMEOUT_MS) {
+        LOGERROR("[dart] fault: belt calibration backoff timeout");
+        EnterFault(inst);
+      }
+      break;
+
+    case CALI_STEP_SCREW_DRIVE_TO_STOP:
+      SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_BELT_HOME_SPEED_DPS);  // 带保持释放位置
+      // 丝杆低速顶硬限位(力矩由 ApplyScrewTorqueLimit 严格限制)
+      DJIMotorOuterLoop(inst->screw_motor, SPEED_LOOP);
+      DJIMotorSetPIDRef(inst->screw_motor, DART_SCREW_CALI_DIRECTION * DART_SCREW_CALI_SPEED_DPS);
+      if (now - inst->step_start_ms > DART_CALI_START_GRACE_MS &&
+          (CheckStall(&inst->screw_stall, inst->screw_motor, DART_CALI_STALL_SPEED_DPS, DART_CALI_STALL_MS, now) ||
+           ConsumePidBlocked(inst->screw_motor))) {
+        // 记丝杆零点, 并退开限位到默认射力位置
+        inst->screw_zero_offset = inst->screw_motor->measure.total_angle;
+        inst->screw_zero_valid = true;
+        ClearScrewPid(inst);
+        float target = DART_SCREW_POS_DEFAULT_DEG > DART_SCREW_CALI_BACKOFF_DEG ? DART_SCREW_POS_DEFAULT_DEG
+                                                                                : DART_SCREW_CALI_BACKOFF_DEG;
+        inst->screw_pos_deg = target;
+        inst->cali_step = CALI_STEP_SCREW_BACKOFF;
+        inst->step_start_ms = now;
+        LOGINFO("[dart] screw zero found, move to default power position");
+      } else if (now - inst->step_start_ms > DART_SCREW_CALI_TIMEOUT_MS) {
+        LOGERROR("[dart] fault: screw calibration stall timeout");
+        EnterFault(inst);
+      }
+      break;
+
+    case CALI_STEP_SCREW_BACKOFF:
+      SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_BELT_HOME_SPEED_DPS);
+      ApplyScrewPosition(inst);
+      if (ScrewPositionReached(inst)) {
         inst->is_calibrated = true;
         inst->state = DART_STATE_IDLE;
-        LOGINFO("[dart] calibration done");
-      } else if (now - inst->step_start_ms > DART_CALI_TIMEOUT_MS) {
-        LOGERROR("[dart] fault: calibration backoff timeout");
+        LOGINFO("[dart] calibration done (belt + screw)");
+      } else if (now - inst->step_start_ms > DART_SCREW_CALI_TIMEOUT_MS) {
+        LOGERROR("[dart] fault: screw calibration backoff timeout");
         EnterFault(inst);
       }
       break;
 
     default:
-      inst->cali_step = CALI_STEP_DRIVE_TO_STOP;
+      inst->cali_step = CALI_STEP_BELT_DRIVE_TO_STOP;
       break;
   }
 }
@@ -372,7 +438,7 @@ static void ApplyYaw(DartLauncherInstance* inst, float dt_s) {
 
 /* 双带电机同步偏差监测 */
 static void MonitorBeltSync(DartLauncherInstance* inst, uint32_t now) {
-  if (!inst->zero_valid) return;
+  if (!inst->belt_zero_valid) return;
   float pos0 = inst->belt_motor[0]->measure.total_angle - inst->belt_zero_offset[0];
   float pos1 = inst->belt_motor[1]->measure.total_angle - inst->belt_zero_offset[1];
   if (fabsf(pos0 - pos1) > DART_BELT_SYNC_WARN_DEG && now - inst->sync_warn_ms > DART_SYNC_WARN_PERIOD_MS) {
@@ -417,7 +483,6 @@ DartLauncherInstance* DartLauncherInit(void) {
   inst->servo_angle_deg = DART_SERVO_CATCH_DEG;
 
   inst->yaw_boot_angle = inst->yaw_motor->measure.total_angle;
-  inst->screw_boot_angle = inst->screw_motor->measure.total_angle;
   inst->yaw_angle_target = inst->yaw_boot_angle;
   inst->screw_pos_deg = DART_SCREW_POS_DEFAULT_DEG;
   inst->belt_pos_target = DART_BELT_HOME_DEG;
@@ -448,7 +513,8 @@ void DartLauncherSetEnable(DartLauncherInstance* inst, bool enable) {
       case DART_STATE_CALIBRATING:
         inst->state = DART_STATE_IDLE;
         inst->is_calibrated = false;
-        inst->zero_valid = false;
+        inst->belt_zero_valid = false;
+        inst->screw_zero_valid = false;
         break;
       case DART_STATE_CHARGING:
         inst->state = DART_STATE_IDLE;
@@ -504,8 +570,9 @@ void DartLauncherTask(DartLauncherInstance* inst) {
   if (dt_s <= 0.0f || dt_s > 0.05f) dt_s = DART_TASK_DT_S;
   inst->last_ms = now;
 
-  // 校准完成前严格限制同步带电机力矩(所有模式生效)
+  // 校准完成前严格限制同步带/丝杆力矩(所有模式生效)
   ApplyBeltTorqueLimit(inst);
+  ApplyScrewTorqueLimit(inst);
 
   HandleCommand(inst, now);
 
@@ -538,7 +605,8 @@ void DartLauncherTask(DartLauncherInstance* inst) {
     }
     // 发射序列中舵机由 HandleFiring 控制, 其余状态舵机保持卡位角
     if (inst->state != DART_STATE_FIRING) SetServoAngle(inst, DART_SERVO_CATCH_DEG);
-    ApplyScrewPosition(inst);
+    // 校准过程中丝杆由 HandleCalibrating 自己控制(顶限位/退回默认位置), 其余状态保持射力位置
+    if (inst->state != DART_STATE_CALIBRATING) ApplyScrewPosition(inst);
   }
 
   ApplyYaw(inst, dt_s);

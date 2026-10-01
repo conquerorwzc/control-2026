@@ -7,8 +7,8 @@
  *   - 扳机舵机(PWM, 50Hz 占空比->角度, 开环): 扳机的发射动作, 卡位角扣住发射平台 / 释放角放开发射。
  *
  * 分步操作流程(由上层命令驱动):
- *   1. 上电使能后自动执行一次朝向释放方向的零位校准(堵转检测, 同步两带电机零点,
- *      校准完成前严格限制带电机力矩);
+ *   1. 上电使能后自动执行一次校准: 同步带顶释放方向硬限位(堵转检测, 同步两带电机零点)
+ *      -> 扳机丝杆顶硬限位(丝杆零点), 完成后退回默认射力位置; 校准全程严格限制电机力矩;
  *   2. 储能命令: 扳机丝杆先到射力位置 -> 双带电机同步把平台向后拉指定行程
  *      (扳机锁定态是单向通道, 平台会滑过扳机, 不会堵转) -> 限速复位到释放位置;
  *   3. 就绪(READY)后可随时调射力(丝杆位置);
@@ -39,10 +39,12 @@ typedef enum {
   DART_CMD_FIRE,       // 发射
 } Dart_Cmd_e;
 
-/* 校准子步骤 */
+/* 校准子步骤(同步带 -> 丝杆, 顺序执行) */
 typedef enum {
-  CALI_STEP_DRIVE_TO_STOP = 0,  // 释放方向低力矩顶硬限位
-  CALI_STEP_BACKOFF,            // 回撤到回缩位
+  CALI_STEP_BELT_DRIVE_TO_STOP = 0,  // 同步带顶释放方向硬限位(低力矩)
+  CALI_STEP_BELT_BACKOFF,            // 同步带回撤到释放位置
+  CALI_STEP_SCREW_DRIVE_TO_STOP,     // 扳机丝杆顶硬限位(低力矩)
+  CALI_STEP_SCREW_BACKOFF,           // 丝杆退开限位到默认射力位置
 } Dart_Cali_Step_e;
 
 /* 储能子步骤 */
@@ -73,20 +75,21 @@ typedef struct {
   PWMInstance* servo_pwm;           // PWM 舵机: 扳机发射动作(卡位角/释放角)
 
   Dart_State_e state;
-  bool enabled;          // 遥控器使能标志(失能即全部停机)
-  bool is_calibrated;    // 本次上电是否已完成零位校准
-  bool zero_valid;       // 同步带零点是否有效(校准找到硬限位后置位)
-  bool recovery_retract; // 储能中断后, 重新使能须先回撤挡块
+  bool enabled;           // 遥控器使能标志(失能即全部停机)
+  bool is_calibrated;     // 本次上电校准(同步带+丝杆)是否已完成
+  bool belt_zero_valid;   // 同步带零点是否有效(顶到释放方向硬限位后置位)
+  bool screw_zero_valid;  // 丝杆零点是否有效(顶到硬限位后置位)
+  bool recovery_retract;  // 储能中断后, 重新使能须先回撤挡块
 
   // 逻辑坐标零点
-  float belt_zero_offset[2];  // 释放方向硬限位处的 total_angle
+  float belt_zero_offset[2];  // 同步带: 释放方向硬限位处的 total_angle
+  float screw_zero_offset;    // 丝杆: 硬限位处的 total_angle
   float yaw_boot_angle;       // yaw 开机角度
-  float screw_boot_angle;     // 扳机丝杆开机角度
 
   // 控制目标(逻辑坐标)
   float belt_pos_target;    // 同步带目标 (deg, 正=储能方向)
   float yaw_angle_target;   // yaw 目标角 (deg, 相对开机)
-  float screw_pos_deg;      // 扳机丝杆位置(射力, 可调, deg 相对开机)
+  float screw_pos_deg;      // 扳机丝杆位置(射力, 可调, deg 相对丝杆零点)
   float servo_angle_deg;    // 舵机当前目标角 (deg)
   float yaw_rate_cmd_dps;   // yaw 角速度指令 (deg/s)
 
@@ -101,8 +104,9 @@ typedef struct {
   uint32_t sync_warn_ms;  // 同步偏差告警限频
 
   // 堵转检测
-  StallDetector_s stall[2];
-  bool stalled_flag[2];  // 校准阶段各电机堵转记录
+  StallDetector_s stall[2];   // 两个同步带电机
+  StallDetector_s screw_stall;  // 扳机丝杆
+  bool stalled_flag[2];       // 同步带校准阶段各电机堵转记录
 
   // 调试点动(右开关上档)
   bool debug_jog;

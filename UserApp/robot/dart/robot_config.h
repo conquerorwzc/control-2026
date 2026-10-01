@@ -10,12 +10,16 @@
  *
  * 坐标约定:
  *   - 同步带逻辑坐标: 0 = 释放方向硬限位(堵转校准得到), 正方向 = 储能方向
- *   - 丝杆/yaw 逻辑坐标: 0 = 开机位置
+ *   - 丝杆逻辑坐标:   0 = 丝杆零点(校准顶到的硬限位), 数值越大射力越大(方向按实机标定)
+ *   - yaw 逻辑坐标:   0 = 开机位置
  *   - 舵机: 直接给角度, 映射到脉宽见 DART_SERVO_* 宏
  *
  * @attention 所有行程/角度/力矩参数均为占位初值, 必须按实机机械结构标定;
  *            电机方向不对时只翻转对应 DART_XXX_REVERSE 宏;
  *            舵机换定时器/通道只改 DART_SERVO_PWM_TIM / DART_SERVO_PWM_CHANNEL 两行。
+ * @warning 上电使能会自动执行校准(同步带与丝杆都会低速顶硬限位):
+ *          若上次断电时发射平台仍被扳机锁住且拉簧处于储能状态, 丝杆校准移动扳机有意外释放风险,
+ *          上电前务必确认已卸压(已发射完/平台未被卡住)。
  */
 #pragma once
 
@@ -35,9 +39,9 @@
 #define DART_SCREW_CAN (&hcan1)   // 扳机丝杆电机总线
 
 #define DART_YAW_CAN_ID 1     // M2006 yaw
-#define DART_BELT_L_CAN_ID 2  // M3508 同步带电机(左)
-#define DART_BELT_R_CAN_ID 3  // M3508 同步带电机(右)
-#define DART_SCREW_CAN_ID 4   // M3508 扳机丝杆
+#define DART_BELT_L_CAN_ID 4  // M3508 同步带电机(左)
+#define DART_BELT_R_CAN_ID 2  // M3508 同步带电机(右)
+#define DART_SCREW_CAN_ID 3   // M3508 扳机丝杆
 
 /* 遥控器串口: F407 用 huart3(DBUS), H7 用 huart5 */
 #ifdef STM32H723XX
@@ -54,23 +58,27 @@
 #define DART_BELT_R_REVERSE MOTOR_DIRECTION_REVERSE  // 对置安装, 需反转
 #define DART_SCREW_REVERSE MOTOR_DIRECTION_NORMAL
 
-/* ================= 零位校准参数 ================= */
-#define DART_CALI_SPEED_DPS 8.0f          // 校准顶硬限位速度 (deg/s)
-#define DART_CALI_DIRECTION (-1.0f)       // 释放方向符号; 实机相反时改 +1.0f
-#define DART_CALI_MAX_OUT 1500.0f         // 校准前/校准中严格限流 (M3508 满量程 16384)
-#define DART_CALI_INTEGRAL_LIMIT 800.0f   // 校准中积分限幅
-#define DART_CALI_STALL_SPEED_DPS 2.0f    // 堵转判定: 速度阈值 (deg/s)
-#define DART_CALI_STALL_MS 300            // 堵转判定: 持续时间 (ms)
-#define DART_CALI_TIMEOUT_MS 8000         // 校准单步超时 (ms)
-#define DART_CALI_BACKOFF_DEG 15.0f       // 顶到限位后回撤距离, 即释放位置(回缩位) (deg)
-#define DART_CALI_BACKOFF_SPEED_DPS 20.0f // 顶到限位后回撤限速 (deg/s, 顶死后必须慢速退开)
+/* ================= 零位校准参数 =================
+ * 上电使能后自动执行一次: 同步带顶释放方向硬限位(两侧零点同步) -> 扳机丝杆顶硬限位(丝杆零点);
+ * 校准全程严格限制电机力矩, 完成后才允许储能/发射。
+ * 各机构专用的顶限位速度/方向/限流见 DART_BELT_CALI_* 与 DART_SCREW_CALI_*。 */
+#define DART_BELT_CALI_SPEED_DPS 8.0f          // 同步带顶硬限位速度 (deg/s)
+#define DART_BELT_CALI_DIRECTION (-1.0f)       // 同步带释放方向符号(零点取这一端); 实机相反时改 +1.0f
+#define DART_BELT_CALI_MAX_OUT 1500.0f         // 同步带校准严格限流 (M3508 满量程 16384)
+#define DART_BELT_CALI_INTEGRAL_LIMIT 800.0f   // 同步带校准积分限幅
+#define DART_BELT_CALI_TIMEOUT_MS 8000         // 同步带校准单步超时 (ms)
+#define DART_BELT_CALI_BACKOFF_DEG 15.0f       // 顶到限位后回撤距离, 即释放位置(回缩位) (deg)
+#define DART_BELT_CALI_BACKOFF_SPEED_DPS 20.0f // 顶到限位后回撤限速 (deg/s, 顶死后必须慢速退开)
+#define DART_CALI_STALL_SPEED_DPS 2.0f         // 堵转判定(同步带/丝杆共用): 速度阈值 (deg/s)
+#define DART_CALI_STALL_MS 300                 // 堵转判定(同步带/丝杆共用): 持续时间 (ms)
+#define DART_CALI_START_GRACE_MS 500           // 顶限位起步宽限: 进入步骤后先忽略堵转判定, 防起步误判
 
 /* ================= 同步带(储能)参数 =================
  * 扳机锁定状态下是单向通道: 发射平台会滑过扳机继续被向后拉, 因此储能时同步带不会堵转,
  * 储能只按位置行程推进(拉到位 -> 限速复位到释放位置), 不依赖堵转判完成;
  * 仅当超过滑台行程等异常顶死时, 由堵转看门狗直接判故障停机。
  * 位置环限速: 各阶段通过角度环 MaxOut 限速, 最终不超过 DART_BELT_MAX_SPEED_DPS(电机级硬上限) */
-#define DART_BELT_HOME_DEG DART_CALI_BACKOFF_DEG  // 释放位置(回缩位): 挡块退出发射平台活动范围
+#define DART_BELT_HOME_DEG DART_BELT_CALI_BACKOFF_DEG  // 释放位置(回缩位): 挡块退出发射平台活动范围
 #define DART_BELT_CHARGE_DEG 360.0f               // 储能行程: 零位起沿储能方向的电机轴角度 (deg, 实机标定, 须小于滑台行程)
 #define DART_BELT_POS_TOL_DEG 3.0f                // 位置到位容差 (deg)
 #define DART_BELT_MAX_OUT 8000.0f                 // 正常工作电流限幅
@@ -87,16 +95,24 @@
 /* ================= 扳机丝杆(射力)参数 =================
  * 扳机整体装在丝杆上, 由 M3508 位置环控制;
  * 丝杆位置决定卡住发射平台时拉簧的拉伸量, 直接影响发射力量和速度(可调)。
- * 逻辑坐标以开机位置为 0。 */
-#define DART_SCREW_POS_DEFAULT_DEG 0.0f    // 默认射力位置(开机位置)
-#define DART_SCREW_POS_MIN_DEG (-60.0f)    // 射力位置下限 (拉伸量小, 射力小)
-#define DART_SCREW_POS_MAX_DEG 60.0f       // 射力位置上限 (拉伸量大, 射力大)
+ * 逻辑坐标以丝杆零点(校准顶到的硬限位)为 0, 数值越大射力越大(方向按实机标定)。 */
+#define DART_SCREW_POS_DEFAULT_DEG 30.0f   // 默认射力位置(相对丝杆零点, deg)
+#define DART_SCREW_POS_MIN_DEG 10.0f       // 射力位置下限(须 >= DART_SCREW_CALI_BACKOFF_DEG, 避免压在限位上)
+#define DART_SCREW_POS_MAX_DEG 90.0f       // 射力位置上限(须 < 丝杆行程对应的电机角度)
 #define DART_SCREW_POS_TOL_DEG 2.0f        // 位置到位容差 (deg)
-#define DART_SCREW_MAX_OUT 6000.0f         // 电流限幅
-#define DART_SCREW_INTEGRAL_LIMIT 2000.0f  // 积分限幅
+#define DART_SCREW_MAX_OUT 6000.0f         // 正常工作电流限幅
+#define DART_SCREW_INTEGRAL_LIMIT 2000.0f  // 正常工作积分限幅
 #define DART_SCREW_MAX_SPEED_DPS 300.0f    // 位置环输出限幅 = 最大速度
 #define DART_SCREW_ADJ_DPS 60.0f           // 拨轮满行程时射力调节速度 (deg/s)
 #define DART_SCREW_SETTLE_TIMEOUT_MS 2000  // 储能前丝杆就位超时 (ms)
+
+/* 扳机丝杆零位校准(与同步带校准同一次自动执行) */
+#define DART_SCREW_CALI_SPEED_DPS 8.0f        // 顶硬限位速度 (deg/s)
+#define DART_SCREW_CALI_DIRECTION (-1.0f)     // 顶限位方向(零点取这一端); 实机零点在另一端时改 +1.0f
+#define DART_SCREW_CALI_MAX_OUT 1500.0f       // 校准严格限流 (M3508 满量程 16384)
+#define DART_SCREW_CALI_INTEGRAL_LIMIT 800.0f // 校准积分限幅
+#define DART_SCREW_CALI_TIMEOUT_MS 8000       // 顶限位/退开单步超时 (ms)
+#define DART_SCREW_CALI_BACKOFF_DEG 5.0f      // 找到零点后至少退开距离 (deg)
 
 /* ================= 扳机舵机(PWM 发射动作)参数 =================
  * 舵机通过 50Hz PWM 占空比控制角度: 脉宽线性映射到 [ANGLE_MIN, ANGLE_MAX]。
@@ -228,6 +244,7 @@
 
 /**
  * @brief 扳机丝杆电机(M3508)配置: 位置环串级速度环
+ * @note 速度环启用 PID_ErrorHandle 作为丝杆零点校准堵转检测的备份判据
  */
 #define DART_SCREW_MOTOR_CONFIG(can_h, _id, _reverse)                            \
   {                                                                              \
@@ -255,7 +272,7 @@
                       .Kd = 0.0f,                                                \
                       .MaxOut = DART_SCREW_MAX_OUT,                              \
                       .IntegralLimit = DART_SCREW_INTEGRAL_LIMIT,                \
-                      .Improve = PID_Integral_Limit | PID_Trapezoid_Intergral,   \
+                      .Improve = PID_Integral_Limit | PID_Trapezoid_Intergral | PID_ErrorHandle, \
                   },                                                             \
               .angle_PID =                                                       \
                   {                                                              \
