@@ -107,10 +107,10 @@
  */
 // 标定完成后填这一行(示例值, 换成实测的四个 ecd):
 //   {6091, 6831, 733, 5190}   =  LF, LB, RB, RF
-#define DEMO_RUDDER_OFFSET_LF 6123
-#define DEMO_RUDDER_OFFSET_LB 5186
-#define DEMO_RUDDER_OFFSET_RB 732
-#define DEMO_RUDDER_OFFSET_RF 5190
+#define DEMO_RUDDER_OFFSET_LF 6111
+#define DEMO_RUDDER_OFFSET_LB 5217
+#define DEMO_RUDDER_OFFSET_RB 724
+#define DEMO_RUDDER_OFFSET_RF 5040
 
 /* ============================ 四、调试开关 ============================ */
 
@@ -272,7 +272,7 @@ static IMU_Init_Config_s imu_init_config = {
  */
 #define DEMO_RC_MAX_VX 30000.0f   // 满杆平移(前后)
 #define DEMO_RC_MAX_VY 30000.0f   // 满杆平移(左右)
-#define DEMO_RC_MAX_WZ 3/0000.0f   // 满杆自转: 自转分量 = 12000×0.707 ≈ 8485
+#define DEMO_RC_MAX_WZ 30000.0f   // 满杆自转: 自转分量 = 12000×0.707 ≈ 8485
 
 /* ======================== 五、轴向符号总开关(调方向只改这里) ======================== */
 

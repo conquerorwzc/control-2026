@@ -166,7 +166,7 @@ static float omega_y[WHEEL_COUNT] = {0.0f};
 static uint8_t follow_enabled;
 
 /* 当前生效的底盘功率上限，由 UpdateSuperCapMode() 维护，对外经 ChassisGetPowerLimit() 读取。 */
-static uint16_t chassis_power_limit = CHASSIS_DEFAULT_NO_REFEREE_POWER;
+ uint16_t chassis_power_limit = CHASSIS_DEFAULT_NO_REFEREE_POWER;
 
 /* robot 层设定的功率上限，仅在"没有裁判系统"时作为兜底，见 ChassisSetPowerLimit()。 */
 static uint16_t chassis_set_power_limit = CHASSIS_DEFAULT_NO_REFEREE_POWER;
