@@ -234,38 +234,34 @@ static void HandleCharging(DartLauncherInstance* inst, uint32_t now) {
       break;
 
     case CHARGE_STEP_DRIVE: {
+      // 扳机锁定态是单向通道, 平台会滑过扳机被继续后拉, 储能不会堵转, 按行程判完成
       SetBeltPosition(inst, DART_BELT_CHARGE_DEG, DART_BELT_CHARGE_SPEED_DPS);
-      bool done = BeltPositionReached(inst, DART_BELT_CHARGE_DEG);
-      if (!done && DART_CHARGE_COMPLETE_ON_STALL) {
-        done = true;
-        for (int i = 0; i < 2; i++) {
-          bool stalled = CheckStall(&inst->stall[i], inst->belt_motor[i], DART_CHARGE_STALL_SPEED_DPS,
-                                    DART_CHARGE_STALL_MS, now) ||
-                         ConsumePidBlocked(inst->belt_motor[i]);
-          if (stalled) inst->stalled_flag[i] = true;
-          if (!inst->stalled_flag[i]) done = false;
-        }
-      }
-      if (done) {
-        inst->charge_step = CHARGE_STEP_HOLD;
+      if (BeltPositionReached(inst, DART_BELT_CHARGE_DEG)) {
+        inst->charge_step = CHARGE_STEP_RETRACT;
         inst->step_start_ms = now;
-      } else if (now - inst->step_start_ms > DART_CHARGE_TIMEOUT_MS) {
-        LOGERROR("[dart] fault: charge timeout");
-        EnterFault(inst);
+        LOGINFO("[dart] charge stroke done, reset to release position");
+      } else {
+        // 堵转看门狗: 单向扳机不会阻挡平台, 顶死只可能是超过滑台行程等异常, 直接故障停机
+        bool stalled = false;
+        for (int i = 0; i < 2; i++) {
+          bool motor_stalled = CheckStall(&inst->stall[i], inst->belt_motor[i], DART_CHARGE_STALL_SPEED_DPS,
+                                          DART_CHARGE_STALL_MS, now) ||
+                               ConsumePidBlocked(inst->belt_motor[i]);
+          if (motor_stalled) stalled = true;
+        }
+        if (stalled) {
+          LOGERROR("[dart] fault: belt stalled during charge (check charge travel vs slide range)");
+          EnterFault(inst);
+        } else if (now - inst->step_start_ms > DART_CHARGE_TIMEOUT_MS) {
+          LOGERROR("[dart] fault: charge timeout");
+          EnterFault(inst);
+        }
       }
       break;
     }
 
-    case CHARGE_STEP_HOLD:
-      SetBeltPosition(inst, DART_BELT_CHARGE_DEG, DART_BELT_CHARGE_SPEED_DPS);
-      if (now - inst->step_start_ms >= DART_CHARGE_HOLD_MS) {
-        inst->charge_step = CHARGE_STEP_RETRACT;
-        inst->step_start_ms = now;
-      }
-      break;
-
     case CHARGE_STEP_RETRACT:
-      // 挡块脱离发射平台活动范围, 避免阻挡发射体
+      // 限速复位到释放位置: 挡块脱离发射平台活动范围, 避免阻挡发射体
       SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_BELT_HOME_SPEED_DPS);
       if (BeltPositionReached(inst, DART_BELT_HOME_DEG)) {
         inst->state = DART_STATE_READY;
