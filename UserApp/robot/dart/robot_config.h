@@ -63,14 +63,18 @@
 #define DART_CALI_STALL_MS 300            // 堵转判定: 持续时间 (ms)
 #define DART_CALI_TIMEOUT_MS 8000         // 校准单步超时 (ms)
 #define DART_CALI_BACKOFF_DEG 15.0f       // 顶到限位后回撤距离, 即回缩位 (deg)
+#define DART_CALI_BACKOFF_SPEED_DPS 20.0f // 顶到限位后回撤限速 (deg/s, 顶死后必须慢速退开)
 
-/* ================= 同步带(储能)参数 ================= */
+/* ================= 同步带(储能)参数 =================
+ * 位置环限速: 各阶段通过角度环 MaxOut 限速, 最终不超过 DART_BELT_MAX_SPEED_DPS(电机级硬上限) */
 #define DART_BELT_HOME_DEG DART_CALI_BACKOFF_DEG  // 逻辑回缩位: 挡块退出发射平台活动范围
-#define DART_BELT_CHARGE_DEG 360.0f               // 储能行程 (deg, 实机标定)
+#define DART_BELT_CHARGE_DEG 360.0f               // 储能行程: 零位起沿储能方向的电机轴角度 (deg, 实机标定)
 #define DART_BELT_POS_TOL_DEG 3.0f                // 位置到位容差 (deg)
 #define DART_BELT_MAX_OUT 8000.0f                 // 正常工作电流限幅
 #define DART_BELT_INTEGRAL_LIMIT 3000.0f          // 正常工作积分限幅
-#define DART_BELT_MAX_SPEED_DPS 360.0f            // 位置环输出限幅 = 最大速度
+#define DART_BELT_MAX_SPEED_DPS 360.0f            // 位置环速度硬上限 (各阶段限速都会被它再钳一次)
+#define DART_BELT_HOME_SPEED_DPS 120.0f           // 回缩位/挡块回撤限速 (deg/s)
+#define DART_BELT_CHARGE_SPEED_DPS 120.0f         // 储能拉拽限速 (deg/s)
 #define DART_BELT_SYNC_WARN_DEG 10.0f             // 双电机位置偏差告警阈值 (deg)
 #define DART_CHARGE_STALL_SPEED_DPS 3.0f          // 储能完成堵转判定速度阈值
 #define DART_CHARGE_STALL_MS 300                  // 储能完成堵转判定持续时间

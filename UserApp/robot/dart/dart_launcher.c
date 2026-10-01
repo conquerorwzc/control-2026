@@ -31,14 +31,17 @@ static void SetBeltSpeed(DartLauncherInstance* inst, float speed_dps) {
   }
 }
 
-/* 双同步带电机同一逻辑位置目标(位置环串级), 保证严格同步 */
-static void SetBeltPosition(DartLauncherInstance* inst, float pos_deg) {
+/* 双同步带电机同一逻辑位置目标(位置环串级), 保证严格同步
+ * speed_limit_dps: 本阶段限速, 通过角度环 MaxOut 实现, 再被 DART_BELT_MAX_SPEED_DPS 钳一次 */
+static void SetBeltPosition(DartLauncherInstance* inst, float pos_deg, float speed_limit_dps) {
   inst->belt_pos_target = pos_deg;
   if (!inst->zero_valid) {
     SetBeltSpeed(inst, 0.0f);  // 零点无效时只能速度环抱死, 禁止位置闭环
     return;
   }
+  float limit = speed_limit_dps < DART_BELT_MAX_SPEED_DPS ? speed_limit_dps : DART_BELT_MAX_SPEED_DPS;
   for (int i = 0; i < 2; i++) {
+    inst->belt_motor[i]->motor_controller.angle_PID.MaxOut = limit;  // 限速(位置环输出=速度给定)
     DJIMotorOuterLoop(inst->belt_motor[i], ANGLE_LOOP);
     DJIMotorSetPIDRef(inst->belt_motor[i], inst->belt_zero_offset[i] + pos_deg);
   }
@@ -187,7 +190,7 @@ static void HandleCalibrating(DartLauncherInstance* inst, uint32_t now) {
       break;
 
     case CALI_STEP_BACKOFF:
-      SetBeltPosition(inst, DART_BELT_HOME_DEG);
+      SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_CALI_BACKOFF_SPEED_DPS);
       if (BeltPositionReached(inst, DART_BELT_HOME_DEG)) {
         inst->is_calibrated = true;
         inst->state = DART_STATE_IDLE;
@@ -206,7 +209,7 @@ static void HandleCalibrating(DartLauncherInstance* inst, uint32_t now) {
 
 static void HandleIdle(DartLauncherInstance* inst, uint32_t now) {
   (void)now;
-  SetBeltPosition(inst, DART_BELT_HOME_DEG);
+  SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_BELT_HOME_SPEED_DPS);
   if (inst->recovery_retract) {
     if (BeltPositionReached(inst, DART_BELT_HOME_DEG)) {
       inst->recovery_retract = false;
@@ -219,7 +222,7 @@ static void HandleCharging(DartLauncherInstance* inst, uint32_t now) {
   switch (inst->charge_step) {
     case CHARGE_STEP_PREP_SCREW:
       // 拉伸量由扳机丝杆位置(射力)决定, 必须先就位再拉拽
-      SetBeltPosition(inst, DART_BELT_HOME_DEG);
+      SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_BELT_HOME_SPEED_DPS);
       if (ScrewPositionReached(inst)) {
         ResetStallDetectors(inst);
         inst->charge_step = CHARGE_STEP_DRIVE;
@@ -231,7 +234,7 @@ static void HandleCharging(DartLauncherInstance* inst, uint32_t now) {
       break;
 
     case CHARGE_STEP_DRIVE: {
-      SetBeltPosition(inst, DART_BELT_CHARGE_DEG);
+      SetBeltPosition(inst, DART_BELT_CHARGE_DEG, DART_BELT_CHARGE_SPEED_DPS);
       bool done = BeltPositionReached(inst, DART_BELT_CHARGE_DEG);
       if (!done && DART_CHARGE_COMPLETE_ON_STALL) {
         done = true;
@@ -254,7 +257,7 @@ static void HandleCharging(DartLauncherInstance* inst, uint32_t now) {
     }
 
     case CHARGE_STEP_HOLD:
-      SetBeltPosition(inst, DART_BELT_CHARGE_DEG);
+      SetBeltPosition(inst, DART_BELT_CHARGE_DEG, DART_BELT_CHARGE_SPEED_DPS);
       if (now - inst->step_start_ms >= DART_CHARGE_HOLD_MS) {
         inst->charge_step = CHARGE_STEP_RETRACT;
         inst->step_start_ms = now;
@@ -263,7 +266,7 @@ static void HandleCharging(DartLauncherInstance* inst, uint32_t now) {
 
     case CHARGE_STEP_RETRACT:
       // 挡块脱离发射平台活动范围, 避免阻挡发射体
-      SetBeltPosition(inst, DART_BELT_HOME_DEG);
+      SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_BELT_HOME_SPEED_DPS);
       if (BeltPositionReached(inst, DART_BELT_HOME_DEG)) {
         inst->state = DART_STATE_READY;
         LOGINFO("[dart] charged, ready to fire");
@@ -281,7 +284,7 @@ static void HandleCharging(DartLauncherInstance* inst, uint32_t now) {
 
 static void HandleReady(DartLauncherInstance* inst, uint32_t now) {
   (void)now;
-  SetBeltPosition(inst, DART_BELT_HOME_DEG);
+  SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_BELT_HOME_SPEED_DPS);
 }
 
 static void HandleFiring(DartLauncherInstance* inst, uint32_t now) {
