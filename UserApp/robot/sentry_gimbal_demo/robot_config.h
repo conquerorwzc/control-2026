@@ -112,12 +112,13 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                     .can_handle = &hcan1,
                     .tx_id = 2,
                 },
+            .controller_setting_init_config.gm6020_control_mode = GM6020_CURRENT_CONTROL,
             .controller_param_init_config =
                 {
                     .speed_PID =
                         {
-                            .Kp = 1500.0f,
-                            .Ki = 50.0f,
+                            .Kp = 1000.0f,
+                            .Ki = 30.0f,
                             .Kd = 0.0f,
                             .DeadBand = 0.0f,
                             .MaxOut = 15000.0f,
