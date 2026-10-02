@@ -91,9 +91,21 @@ build
 # J-Link files
 JLinkLog.txt
 *.jlink
+*.jdebug
+*.jdebug.user
+*.xml
+
+# IDE / Editor
+.history/
+doc
+
+# macOS
+.DS_Store
 
 # cmake build directory
-cmake-build-debug-stm32/
+cmake-build-debug/
 
-/Debug/Ozone/control-2026-h7.jdebug
-/Debug/Ozone/control-2026-h7.jdebug.user
+*.jdebug.user
+*.jdebug
+
+*.log

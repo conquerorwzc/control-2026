@@ -213,6 +213,7 @@ static void MouseKeySet() {
 #else
 
 static void RemoteControlSet() {
+  /*
   // 右[中]，云台
   if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
@@ -279,7 +280,57 @@ static void RemoteControlSet() {
 
   // 射频控制,固定每秒1发,后续可以根据左侧拨轮的值大小切换射频,
 }
+*/
+  // 右拨杆：下失能，中手动，上上位机接管
+  if (switch_is_down(rc_data[TEMP].rc.switch_right)) {
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
+  }
+  else if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
 
+    gimbal_ctrl_cmd->yaw -=
+        0.0016f * (float)rc_data[TEMP].rc.rocker_r_;
+    gimbal_ctrl_cmd->pitch -=
+        0.0003f * (float)rc_data[TEMP].rc.rocker_r1;
+  }
+  else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_VISION;
+
+    if (vision_recv_data != NULL) {
+      gimbal_ctrl_cmd->yaw = vision_recv_data->gimbal_receive.yaw;
+      gimbal_ctrl_cmd->pitch = vision_recv_data->gimbal_receive.pitch;
+    }
+  }
+  else {
+    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
+  }
+
+  // 沿用当前工程的上位机模式约定：1自瞄，0空闲
+  shoot_ctrl_cmd->auto_vision_mode =
+      switch_is_up(rc_data[TEMP].rc.switch_right) ? 1 : 0;
+
+  // 左拨杆：下停止，中开启摩擦轮，上开启摩擦轮并连续拨弹
+  shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
+  shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
+  shoot_ctrl_cmd->load_mode = LOAD_STOP;
+
+  if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
+    shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
+    shoot_ctrl_cmd->friction_mode = FRICTION_ON;
+  }
+  else if (switch_is_up(rc_data[TEMP].rc.switch_left)) {
+    shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
+    shoot_ctrl_cmd->friction_mode = FRICTION_ON;
+    shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+  }
+
+  // 人工和上位机控制共用原来的 Pitch 软件限位。
+  if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
+    gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
+  } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
+    gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
+  }
+}
 static void MouseKeySet() {
   vy_initial += (float)((rc_data[TEMP].key[KEY_PRESS].w) - rc_data[TEMP].key[KEY_PRESS].s) *
                          (float) chassis_ctrl_cmd->chassis_speed_buff;
@@ -456,36 +507,19 @@ static void EmergencyHandler() {
       gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
   }
 #else
-  // 两switch都在下断电
-  if ((switch_is_down(rc_data[TEMP].rc.switch_right) && switch_is_down(rc_data[TEMP].rc.switch_left))||
-      switch_is_off(rc_data[TEMP].rc.switch_left)||switch_is_off(rc_data[TEMP].rc.switch_right)) {
-    robot->robot_mode = ROBOT_POWER_ON;
+  // 双下急停或遥控器掉线时统一停止，覆盖正常拨杆指令。
+  if ((switch_is_down(rc_data[TEMP].rc.switch_left) &&
+       switch_is_down(rc_data[TEMP].rc.switch_right)) ||
+      !RemoteControlIsOnline() ||
+      switch_is_off(rc_data[TEMP].rc.switch_left) ||
+      switch_is_off(rc_data[TEMP].rc.switch_right)) {
     gimbal_ctrl_cmd->gimbal_mode = GIMBAL_POWER_OFF;
     chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
     shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
     shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
-    LOGERROR("[CMD] emergency stop!");
-  } else {
-    LOGINFO("[CMD] reinstate, robot ready");
+    return;
   }
-
-  if (switch_is_down(rc_data[TEMP].rc.switch_right)||switch_is_off(rc_data[TEMP].rc.switch_right)) {  // 底盘失能
-    chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
-  } else {
-    gimbal_ctrl_cmd->gimbal_mode=GIMBAL_ON;
-  }
-
-  if (switch_is_down(rc_data[TEMP].rc.switch_left)||switch_is_off(rc_data[TEMP].rc.switch_left)) {  // 发射失能
-    shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
-    shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
-    shoot_ctrl_cmd->load_mode = LOAD_STOP;
-  } else {
-    shoot_ctrl_cmd->shoot_mode= SHOOT_ON;
-    if (gimbal_ctrl_cmd->gimbal_mode!=GIMBAL_VISION)  //增加自瞄状态的优先级
-      gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-  }
-  // 遥控器右侧开关为[上],恢复正常运行
 #endif
 }
 
@@ -554,7 +588,12 @@ void RobotCMDTask() {
   shoot_ctrl_cmd->shooter_barrel_cooling_value=robot->referee_data->GameRobotState.shooter_barrel_cooling_value;
   CalcOffsetAngle();
   RemoteControlSet();
-  MouseKeySet();
+  // 仅使用遥控器控制云台和发射机构，底盘保持失能。
+  // MouseKeySet();
+  chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
+  chassis_ctrl_cmd->vx = 0.0f;
+  chassis_ctrl_cmd->vy = 0.0f;
+  chassis_ctrl_cmd->wz = 0.0f;
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
 
