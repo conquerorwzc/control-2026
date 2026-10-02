@@ -30,6 +30,34 @@ static IMU_Init_Config_s IMU_Param;
 static PIDInstance TempCtrl = {0};
 static osThreadId insTaskHandle;
 
+/**
+ * @brief BMI088 上电后、开始 SPI 通信前的等待时间(秒)。
+ *
+ * 【为什么需要它】BMI088 从供电稳定到内部寄存器可读, 有一个上电启动时间(t_PON)。
+ *   若在这之前就去读 chip id, 会读到 0x00/0xFF 之类的无效值, bmi088_accel_init() /
+ *   bmi088_gyro_init() 于是返回 BMI088_NO_SENSOR。而原来的初始化是一个【无超时死循环】:
+ *       while (BMI088Init(&hspi1, 0) != BMI088_NO_SENSOR);
+ *   一旦命中, 程序就永久卡死在 INS_Init() 里 —— 而 INS_Init() 是在 RobotInit() 内
+ *   被调用的, 于是整车的 ChassisInit() 和后续任务循环都不会执行, 表现为
+ *   "上电后轮子完全没反应"。这个现象在【冷启动】时更容易出现。
+ *
+ * 【取值】默认 0.1s(100ms)。BMI088 数据手册的 t_PON 在毫秒量级, 100ms 是留有充足
+ *   余量的工程取值。若你的板子仍然偶发初始化失败, 可以把这个值加大到 0.2~0.5。
+ *
+ * @note 用 DWT_Delay 而不是 HAL_Delay: 调用点在 RTOS 启动后, 且本工程惯用 DWT 计时
+ *       (见 os_task.c 的 "只允许使用 DWT_Delay()" 约定), 它不依赖 SysTick 中断。
+ */
+#define BMI088_POWER_ON_DELAY_S 0.1f
+
+/**
+ * @brief BMI088 初始化失败时的重试次数。
+ *
+ * 原来是无上限死循环, 会永久卡住启动。改成有限重试: 超过次数就打印明确错误并继续,
+ * 让底盘至少能起来(此时 IMU 数据不可信, 依赖它的功能要自行判断)。
+ */
+#define BMI088_INIT_RETRY_MAX 5
+#define BMI088_INIT_RETRY_DELAY_S 0.02f
+
 // body2earth
 const float xb[3] = {1, 0, 0};
 const float yb[3] = {0, 1, 0};
@@ -174,10 +202,38 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
 #elifdef STM32H7
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
 #endif
+
+  /**
+   * 等 BMI088 上电启动完成再开始 SPI 通信。
+   * 放在这里是因为此时 TIM10(加热) 已启动、而 SPI 还没发过任何一帧; 详见
+   * BMI088_POWER_ON_DELAY_S 上方的说明。
+   */
+  DWT_Delay(BMI088_POWER_ON_DELAY_S);
+
 #ifdef STM32F407xx
-  while (BMI088Init(&hspi1, 0) != BMI088_NO_ERROR);
+  {
+    uint8_t retry = 0;
+    while (BMI088Init(&hspi1, 0) != BMI088_NO_ERROR) {
+      if (++retry >= BMI088_INIT_RETRY_MAX) {
+        LOGERROR("[bmi088] init failed after %d retries, IMU data will be INVALID", retry);
+        break;  // 不再死等, 让后续初始化与任务循环照常启动
+      }
+      LOGWARNING("[bmi088] init retry %d/%d", retry, BMI088_INIT_RETRY_MAX);
+      DWT_Delay(BMI088_INIT_RETRY_DELAY_S);
+    }
+  }
 #elifdef STM32H7
-  while (BMI088Init(&hspi2, 0) != BMI088_NO_ERROR);
+  {
+    uint8_t retry = 0;
+    while (BMI088Init(&hspi2, 0) != BMI088_NO_ERROR) {
+      if (++retry >= BMI088_INIT_RETRY_MAX) {
+        LOGERROR("[bmi088] init failed after %d retries, IMU data will be INVALID", retry);
+        break;
+      }
+      LOGWARNING("[bmi088] init retry %d/%d", retry, BMI088_INIT_RETRY_MAX);
+      DWT_Delay(BMI088_INIT_RETRY_DELAY_S);
+    }
+  }
 #endif
   // 使用我们的调试校准函数来测量陀螺仪零偏值，绕过预定义值
 

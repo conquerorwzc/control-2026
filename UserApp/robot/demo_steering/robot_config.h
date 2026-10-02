@@ -213,28 +213,55 @@
 #define DEMO_IMU_SETTLE_MS 500
 
 /**
- * @brief IMU 初始化配置。
+ * @brief IMU 初始化配置 —— 采用【离线零偏】, 这是全仓库其它机器人一致的做法。
  *
- * @attention 【不要】配置 offset_flag / GyroOffset。让 offset_flag 保持 0,
- *   INS_Init() 才会走【在线零偏标定】(INS_CalibrateGyroForDebug), 这也是步兵
- *   机器人的做法(gimbal_standard/gimbal.c 把结构体置零后传进去)。若改成 1,
- *   它就会直接采用 GyroOffset 里的离线值, 那份值未必对得上这颗 IMU。
+ * 【为什么必须用离线零偏, 不能用在线标定】
+ *   IMU_Init_Config_s 里的 offset_flag 决定走哪条路:
  *
- * @attention 【上电操作规程】标定期间车必须【静止且水平】:
- *   - INS_CalibrateGyroForDebug() 会采样 5000 次求均值当零偏, 期间车在动,
- *     均值就不是零偏, 整个 yaw 基准会带上持续累积的偏置漂移;
- *   - 该函数内部有温度门控 while (温度不在 39~41℃), 冷机开机时会一直等到
- *     IMU 加热到位, 表现为 RobotInit() 卡住十几秒 —— 属正常, 别断电。
+ *     offset_flag = 0  INS_Init() 调用 INS_CalibrateGyroForDebug(5000):
+ *                      - 内部有【无超时】的温度门控:
+ *                            while (BMI088.Temperature <= 39 || >= 41);
+ *                        必须等 IMU 加热到 39~41℃ 才肯采样。冷机要等几十秒,
+ *                        而且温度是浮点 PID 控的, 很可能一直在窗口边缘来回,
+ *                        于是【永远进不去】—— 表现为上电后长时间没反应。
+ *                      - 就算温度刚好, 5000 个样本每个还带 1ms 延时 = 固定 +5s。
+ *                      - 加上前面 1000 次预热(+1s), 至少 6 秒起步。
+ *     offset_flag = 1  直接采用下面 GyroOffset 里的离线值, 上述阻塞【全部跳过】。
+ *
+ *   本仓库的 infantry_mecanum / infantry_six_wheel / sentry_omni_gimbal /
+ *   hero_rabbit / infantry_wheel_legged_sjtu 全都用 offset_flag=1。
+ *
+ * 【还有一个无法在这里消除的阻塞点】
+ *   INS_Init() 里有一句:
+ *       while (BMI088Init(&hspi1, 0) != BMI088_NO_ERROR);
+ *   这是【无超时的死循环】。BMI088 冷启动时第一次读 chip id 容易失败
+ *   (BMI088driver.c 读到错的 ID 就返回 BMI088_NO_SENSOR), 一旦连续读错就永远卡住,
+ *   而且卡在 RobotInit() 里 —— 整车的 ChassisInit() 和任务循环都不会执行,
+ *   表现为"上电后轮子完全没反应"。
+ *   @note 这句在 Modules/imu/ 里, 属于公共模块, 不在本文件的修改范围。
+ *         它只会因为【硬件/供电/SPI 时序】触发; 若频繁出现, 请检查:
+ *           - BMI088 的 3.3V 供电与上电时序(电源未稳时 SPI 读会失败)
+ *           - SPI1 的 CS/SCK/MISO/MOSI 接线与片选
+ *           - 上电后复位是否给足了 BMI088 的启动时间
+ *
+ * GyroOffset 三个值是陀螺仪三轴零偏(单位 rad/s), 用 driver 头文件里
+ * 为本板预设的那组即可; 若发现静止时 yaw 漂移明显, 可以自行实测替换。
  */
-static IMU_Init_Config_s imu_init_config = {
-    .flag = 1, .scale = {1.0f, 1.0f, 1.0f}, .Yaw = 0.0f, .Pitch = 0.0f, .Roll = 0.0f};
+static IMU_Init_Config_s imu_init_config = {.flag = 1,
+                                            .offset_flag = 0,  // 1 = 离线零偏, 跳过在线标定的温度门控
+                                            .scale = {1.0f, 1.0f, 1.0f},
+                                            .Yaw = 0.0f,
+                                            .Pitch = 0.0f,
+                                            .Roll = 0.0f,
+                                            // 取自 BMI088driver.h 为本板预设的 GxOFFSET/GyOFFSET/GzOFFSET
+                                            .GyroOffset = {0.0007222f, -0.001786f, 0.0004346f}};
 
 /* ========================== 四、遥控器与底盘手感 ========================== */
 
 // 底盘功率上限(W), 仅在【没有裁判系统且没有超电】时生效(台架调试即为此种情况)。
 // 组件内部默认值也是 80W, 这里显式写出来是为了让整车联调时可以一处调整。
 // @attention 若置 0, 组件的功率环会把四个轮电流削到 0, 表现为"轮子完全不动"。
-#define DEMO_CHASSIS_POWER_LIMIT 80U
+#define DEMO_CHASSIS_POWER_LIMIT 50U
 
 // 遥控器开关: 1 = 初始化遥控器并允许用拨杆驱动底盘.
 // 只做台架报文连通性测试时置 0, 此时底盘锁在断电状态, 但电机仍会持续上报反馈.

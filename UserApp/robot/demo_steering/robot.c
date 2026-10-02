@@ -485,10 +485,15 @@ void RobotInit() {
   /**
    * 虚拟云台: 初始化 IMU, 并起算"上电 0 点"的采样窗口。
    *
-   * @attention 首次调用 INS_Init() 会阻塞一会儿(见 robot_config.h 的说明):
-   *   它要把 IMU 加热到 39~41℃ 再采样 5000 次标定陀螺零偏, 因此
-   *   【此刻车必须静止且水平】, 否则标出来的零偏是错的。
-   *   冷机开机时这个阻塞可能十几秒, 属正常, 不要断电。
+   * 采用离线零偏(imu_init_config.offset_flag = 1), 因此【不做】在线标定的温度门控与
+   * 5000 次采样, 上电很快返回 —— 具体原因见 robot_config.h 里 imu_init_config 的注释。
+   *
+   * @attention INS_Init() 里仍有一句无超时的死循环:
+   *       while (BMI088Init(&hspi1, 0) != BMI088_NO_ERROR);
+   *   若 BMI088 冷启动时读 chip id 连续失败, 就会永久卡在这里, 而它是在
+   *   RobotInit() 内执行的 —— 后面的 ChassisInit() 与整个任务循环都不会跑,
+   *   表现为"上电后轮子完全没反应"。这属于硬件/供电/SPI 问题(见 robot_config.h),
+   *   不在本文件可修范围。
    *
    * @note 这里【不】取 0 点, 只起算计时窗口: INS_Init() 返回时 EKF 刚初始化、
    *       yaw 还在收敛, 单点采样会被收敛残差污染。真正的 0 点由 CalcOffsetAngle()
