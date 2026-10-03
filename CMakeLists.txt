@@ -28,6 +28,7 @@ endif() # Debug Release RelWithDebInfo MinSizeRel
 # set(ROBOT_TYPE "sentry_omni_chassis")
  set(ROBOT_TYPE "sentry_omni_gimbal")
 # set(ROBOT_TYPE "infantry_wheel_legged_sjtu")
+# set(ROBOT_TYPE "buzzer_bot")  # 蜂鸣器音乐演示机：上电延迟 1 s 自动播放组曲
 
 set(ROBOT_CMAKE "${CMAKE_SOURCE_DIR}/UserApp/robot/${ROBOT_TYPE}/robot.cmake")
 if (NOT EXISTS "${ROBOT_CMAKE}")

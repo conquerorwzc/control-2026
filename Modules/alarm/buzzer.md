@@ -76,6 +76,7 @@ BuzzerResult_e result = BuzzerPlayScore(&kStartupScore, 1, &request_id);
 - C 常量曲谱必须填写预计算频率，不能在静态初始化表达式里调用 `BuzzerMidiToFrequency()`；此函数用于运行时换算。
 - `BuzzerPauseMusic()`、`BuzzerResumeMusic()`、`BuzzerSetMusicSpeed()`、`BuzzerCancel()` 和 `BuzzerStop()` 用于控制请求。
 - 曲谱最多 128 个音符，BPM 为 30~300，每个音符在原始 BPM 下至少 10 ms；变速后短于服务间隔的音符可能被跳过。
+- 超过 128 音符的长曲目（如整曲 MIDI）参考 `Modules/alarm/music/`：`tools/midi_to_score.py` 从 MIDI 提取单声部主旋律并按上限切段，`buzzer_music` 的 `BuzzerMusicSuitePlay()` + 周期 `BuzzerMusicSuiteService()` 把多段曲谱按 FIFO 顺序连续播放（段数不受请求池限制）。
 - `BuzzerSetMusicSpeed()` 接收 250~4000 千分比，1000 表示原速。只改变音符时值，不改变音高或音色调制频率。
 - 暂停作用于全部音乐请求且保持暂停标志，恢复后才继续；抢占和暂停均冻结音符进度、包络和调制进度。
 
