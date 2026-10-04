@@ -70,6 +70,7 @@ typedef enum
 
 /* 电机控制设置,包括闭环类型,反转标志和反馈来源 */
 /* 为了6020电流环临时拉了一点 */
+//todo：适配了电流环，建议更新合并到dev的module层
 typedef enum
 {
     GM6020_VOLTAGE_CONTROL = 0,
