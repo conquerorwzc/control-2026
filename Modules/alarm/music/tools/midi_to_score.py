@@ -171,6 +171,30 @@ def top_voice_melody(notes):
     return melody
 
 
+def merge_voices(note_groups):
+    """把多个声部的音符合并成一条单声部旋律线。
+
+    与 top_voice_melody() 只保留顶音、忽略内声部不同：这里**每个起音都保留**（取该时刻
+    最高音），新起音截断前一个音（抢入），因此两个声部的旋律/伴奏材料都会被织进来，
+    不丢音。返回 [start, end, pitch, velocity, chord]。
+    """
+    onsets = {}
+    for notes in note_groups:
+        for start, end, pitch, velocity in notes:
+            onsets.setdefault(start, []).append((end, pitch, velocity))
+
+    merged = []
+    for start in sorted(onsets):
+        end, pitch, velocity = max(onsets[start], key=lambda item: item[1])
+        chord = sorted((p, v) for _e, p, v in onsets[start])
+        merged.append([start, end, pitch, velocity, chord])
+
+    for index in range(len(merged) - 1):  # 抢入：后起音截断前音
+        if merged[index][1] > merged[index + 1][0]:
+            merged[index][1] = merged[index + 1][0]
+    return [note for note in merged if note[1] > note[0]]
+
+
 def fill_silences(melody, backup_notes, gap_ms, tick_to_ms):
     """主旋律停顿超过 gap_ms 时，用伴奏轨顶音填补，避免长时间空白。"""
     filled = []
@@ -409,7 +433,10 @@ def main():
                         help='和弦分解：旋律音前自低向高琶音的最多音数（0 关闭，默认 3）')
     parser.add_argument('--roll-note-ms', type=float, default=40.0, help='和弦分解单个琶音音的时值')
     parser.add_argument('--min-pitch', default='auto',
-                        help="音高下限（MIDI 音号）；低于下限的音符逐八度上移。'auto'（默认）取主旋律最低音")
+                        help="音高下限，低于下限的音符逐八度上移。可写 MIDI 音号（57=A3）或频率 Hz（220）；"
+                             "'auto'（默认）取主旋律最低音")
+    parser.add_argument('--merge-voices', action='store_true',
+                        help='把旋律轨与伴奏轨交织合并成一条线（每个起音都保留，不丢伴奏/内声部）')
     args = parser.parse_args()
     args.symbol = 'k' + camel_case(args.name)
     if not args.title:
@@ -436,9 +463,22 @@ def main():
     if args.melody_track >= len(tracks) or args.backup_track >= len(tracks):
         raise SystemExit('轨下标越界（该 MIDI 共 %d 轨）' % len(tracks))
 
-    melody = top_voice_melody(track_notes(tracks[args.melody_track]))
-    pitch_floor = min(note[2] for note in melody) if args.min_pitch == 'auto' else int(args.min_pitch)
-    melody = fill_silences(melody, track_notes(tracks[args.backup_track]), args.fill_gap_ms, tick_to_ms)
+    def resolve_pitch_floor(value, melody_notes):
+        """'auto' 取主旋律最低音；数值可写 MIDI 音号或频率 Hz（>127 视为 Hz）。"""
+        if value == 'auto':
+            return min(note[2] for note in melody_notes)
+        number = int(value)
+        if number > 127:  # 按频率 Hz 处理
+            number = int(round(69 + 12 * math.log2(number / 440.0)))
+        return number
+
+    if args.merge_voices:
+        melody = merge_voices([track_notes(tracks[args.melody_track]), track_notes(tracks[args.backup_track])])
+        pitch_floor = resolve_pitch_floor(args.min_pitch, melody)
+    else:
+        melody = top_voice_melody(track_notes(tracks[args.melody_track]))
+        pitch_floor = resolve_pitch_floor(args.min_pitch, melody)
+        melody = fill_silences(melody, track_notes(tracks[args.backup_track]), args.fill_gap_ms, tick_to_ms)
     melody_ms = simplify(melody, tick_to_ms, args.legato_ms, args.min_note_ms)
     melody_ms = apply_pitch_floor(melody_ms, pitch_floor)
     melody_ms = normalize_velocity(melody_ms)
