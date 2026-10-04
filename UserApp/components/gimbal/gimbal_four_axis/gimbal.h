@@ -7,8 +7,8 @@
 #ifndef PI
 #define PI 3.14159265358979f
 #endif
-#define UP_ANGLE 0.83f
-#define DOWN_ANGLE (-0.54f)
+#define UP_ANGLE 1.83f
+#define DOWN_ANGLE (0.36f)
 typedef enum {
     GIMBAL_POWER_OFF = 0,  // 电机零输出，不代表承重机构保持当前位置
     GIMBAL_ON,
@@ -30,6 +30,29 @@ typedef struct {
     Gimbal_Big_Pitch_Pose_e big_pitch_pose;  // 大 Pitch 目标姿态，不表示已经到位
     Gimbal_Mode_e gimbal_mode;
 } Gimbal_Ctrl_Cmd_s;
+/* 重力补偿极性定义
+ *      o--------o---------Δ
+ *     大pitch  小pitch    负载
+ *     逆时针旋转 angle增加极性为正
+ */
+typedef struct {
+    float big_pitch_scale_nm;    // 大轴近端重力矩系数，单位 N*m；不含小轴末端偏心项
+    float small_pitch_scale_nm;  // 小轴末端重力矩系数，单位 N*m；同时作用于大轴
+
+    float big_pitch_zero_rad;    // 两轴连线水平时的大轴电机反馈角，单位 rad
+    float small_pitch_zero_rad;  // 大轴处于上述零位时，末端重心方向水平的小轴反馈角
+
+    // 关节角到电机控制坐标的方向映射：正向直连为 1，反向直连为 -1。
+    float big_pitch_direction;
+    float small_pitch_direction;
+} GravityFeedforward_Init_Config_s;
+
+typedef struct {
+    GravityFeedforward_Init_Config_s config;
+
+    float big_pitch_feedforward;    // 最终大轴补偿力矩，单位 N*m，在速度 PID 后独立叠加
+    float small_pitch_feedforward;  // 最终小轴补偿力矩，单位 N*m
+} GravityFeedforwardInstance;
 
 typedef struct {
     Motor_Init_Config_s big_yaw_motor_config;      // DM-J4310
@@ -38,8 +61,7 @@ typedef struct {
     Motor_Init_Config_s small_pitch_motor_config;  // DM-J4310
     PID_Init_Config_s Yaw_Follow_PID;
     IMU_Init_Config_s imu_init_config;  // IMU 安装在枪口/小 Pitch 上，用于绝对姿态反馈
-    float big_pitch_feedforward_scale;    // 大 Pitch 重力补偿系数，使用 DM 力矩输出单位
-    float small_pitch_feedforward_scale;  // 小 Pitch 重力补偿系数，使用 DM 力矩输出单位
+    GravityFeedforward_Init_Config_s gravity_config;  // 串联双 Pitch 重力补偿配置
 } Gimbal_Init_Config_s;
 
 typedef struct {
@@ -50,6 +72,7 @@ typedef struct {
     DMMotorInstance* small_pitch_motor;
     PIDInstance yaw_follow;
     INS_t* gimbal_IMU_data;  // 枪口 IMU 数据；电机编码器用于关节相对角度和机械限位
+    GravityFeedforwardInstance gravity_feedforward;
 } GimbalInstance;
 /**
  * @brief 初始化云台,会被RobotInit()调用

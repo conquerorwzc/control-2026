@@ -40,7 +40,7 @@ static void RemoteControlSet()
     if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
     {
         float delta = Delta_Yaw(robot->gimbal);
-        if (delta < 50.0f)
+        if (delta < 15.0f && delta > -15.0f)
         {
             gimbal_ctrl_cmd->yaw -= 0.001f * (float)rc_data[TEMP].rc.rocker_r_;
             gimbal_ctrl_cmd->big_yaw -= PIDCalculate(&robot->gimbal->yaw_follow, delta, 0.0f);
