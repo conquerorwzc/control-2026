@@ -231,8 +231,13 @@ static void DartShootModeChangeHandler(DartShootInstance *instance) {
       break;
 
     case DART_SHOOT_MODE_TRIGGER:
-      DartShootDisableBelt(instance);  // 同步带失能; yaw 交给 DartShootYawHandler 按摇杆指令管理
-      LOGINFO("[dart_shoot] mode -> TRIGGER: yaw(position) + trigger motor(speed loop)");
+      // 同步带保持使能并锁定在上一次的目标位置: 中档拉到哪, 切到上档就锁在哪
+      // (之前处于失能档时可能被手推动, 从当前位置重新锁)
+      if (!instance->belt_enabled) {
+        DartShootSyncBeltTarget(instance);
+        DartShootEnableBelt(instance);
+      }
+      LOGINFO("[dart_shoot] mode -> TRIGGER: belt holds position, yaw + trigger motor enabled");
       break;
 
     case DART_SHOOT_MODE_DISABLED:
@@ -325,6 +330,7 @@ void DartShootTask(DartShootInstance *instance) {
       DartShootYawHandler(instance, dt);
       break;
     case DART_SHOOT_MODE_TRIGGER:
+      DartShootBeltHandler(instance, dt);  // belt_dir = 0: 只保持位置环给定, 锁定不动
       DartShootYawHandler(instance, dt);
       DartShootTriggerHandler(instance);
       break;
