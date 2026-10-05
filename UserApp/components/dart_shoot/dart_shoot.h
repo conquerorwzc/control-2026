@@ -16,6 +16,8 @@
  *   2. 扳机位置电机用速度环: 上层只给方向(±1), 偏出阈值时按 param.trigger_speed 转,
  *      没有指令时直接失能(不发电流, 而不是速度环给 0).
  *   3. 舵机: 转到给定角度, 或停止 PWM 脉冲输出(失能).
+ *   4. 档位决定跑哪几路: AIM = 同步带 + yaw; TRIGGER = yaw + 扳机位置电机; DISABLED = 全部失能.
+ *      哪根摇杆对应哪一路由上层决定(组件只认 ctrl_cmd 里的方向).
  *
  * 方向: 累加的正方向与实车相反时, 改 robot_config.h 中对应电机配置的 _reverse 参数
  *       (同步带两个电机要一起改), 组件不需要额外的方向参数.
@@ -37,7 +39,7 @@
 typedef enum {
   DART_SHOOT_MODE_DISABLED = 0,  // 全部执行器失能(上电默认, 安全状态)
   DART_SHOOT_MODE_AIM,           // 同步带 + yaw: 位置累加
-  DART_SHOOT_MODE_TRIGGER,       // 只允许扳机位置电机: 速度环
+  DART_SHOOT_MODE_TRIGGER,       // yaw(位置累加) + 扳机位置电机(速度环), 同步带失能
 } DartShoot_Mode_e;
 
 /**

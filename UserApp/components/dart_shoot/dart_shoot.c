@@ -139,16 +139,13 @@ static void DartShootTriggerHandler(DartShootInstance *instance) {
 }
 
 /**
- * @brief AIM 档位: 同步带与 yaw 位置累加
+ * @brief 同步带: 位置累加, 没有新指令时位置环顶住最后一个目标位置
  *
- * @note  摇杆只决定累加方向, 速率由 param 决定;
- *        同步带没有新指令时保持最后一个目标位置(位置环继续顶住),
- *        yaw 没有新指令时直接失能.
+ * @note  摇杆只决定累加方向, 速率由 param.belt_pos_rate 决定
  */
-static void DartShootAimHandler(DartShootInstance *instance, float dt) {
+static void DartShootBeltHandler(DartShootInstance *instance, float dt) {
   DartShoot_Ctrl_Cmd_s *cmd = &instance->ctrl_cmd;
 
-  // ---------------- 同步带: 位置累加 + 保持 ----------------
   if (cmd->belt_dir != 0) {
     if (!instance->belt_enabled) {
       DartShootEnableBelt(instance);
@@ -161,8 +158,16 @@ static void DartShootAimHandler(DartShootInstance *instance, float dt) {
       DJIMotorSetPIDRef(instance->belt_motor[i], instance->belt_target);
     }
   }
+}
 
-  // ---------------- yaw: 位置累加, 无指令时失能 ----------------
+/**
+ * @brief yaw: 位置累加, 没有新指令时直接失能(AIM 与 TRIGGER 档都会调用)
+ *
+ * @note  摇杆只决定累加方向, 速率由 param.yaw_pos_rate 决定
+ */
+static void DartShootYawHandler(DartShootInstance *instance, float dt) {
+  DartShoot_Ctrl_Cmd_s *cmd = &instance->ctrl_cmd;
+
   if (cmd->yaw_dir != 0) {
     if (!instance->yaw_enabled) {
       DartShootSyncYawTarget(instance);  // 失能期间可能被手推动, 从当前位置重新开始累加
@@ -226,9 +231,8 @@ static void DartShootModeChangeHandler(DartShootInstance *instance) {
       break;
 
     case DART_SHOOT_MODE_TRIGGER:
-      DartShootDisableBelt(instance);
-      DartShootDisableYaw(instance);
-      LOGINFO("[dart_shoot] mode -> TRIGGER: only trigger motor(speed loop) enabled");
+      DartShootDisableBelt(instance);  // 同步带失能; yaw 交给 DartShootYawHandler 按摇杆指令管理
+      LOGINFO("[dart_shoot] mode -> TRIGGER: yaw(position) + trigger motor(speed loop)");
       break;
 
     case DART_SHOOT_MODE_DISABLED:
@@ -317,9 +321,11 @@ void DartShootTask(DartShootInstance *instance) {
 
   switch (instance->ctrl_cmd.mode) {
     case DART_SHOOT_MODE_AIM:
-      DartShootAimHandler(instance, dt);
+      DartShootBeltHandler(instance, dt);
+      DartShootYawHandler(instance, dt);
       break;
     case DART_SHOOT_MODE_TRIGGER:
+      DartShootYawHandler(instance, dt);
       DartShootTriggerHandler(instance);
       break;
     case DART_SHOOT_MODE_DISABLED:
