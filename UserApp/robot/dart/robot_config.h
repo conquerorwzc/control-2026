@@ -16,7 +16,7 @@
 #define ONE_BOARD
 
 // 遥控器参数(robot.c 使用)
-#define DART_RC_DIR_THRESHOLD 250         // 摇杆只看正负:偏出该阈值才算有方向指令
+#define DART_RC_DIR_THRESHOLD 50         // 摇杆只看正负:偏出该阈值才算有方向指令
 #define DART_STATUS_LOG_PERIOD_MS 1000.0f // 状态日志周期
 
 // 同步带电机参数模板,两个电机在同一条同步带上,参数一致,只有id与装配方向不同
@@ -31,7 +31,7 @@
             {                                                                                                          \
                 .angle_PID =                                                                                           \
                     {                                                                                                  \
-                        .Kp = 0.0f,                                                                                   \
+                        .Kp = 18.0f,                                                                                   \
                         .Ki = 0.0f,                                                                                    \
                         .Kd = 0.0f,                                                                                    \
                         .IntegralLimit = 20000.0f,                                                                      \
@@ -40,7 +40,7 @@
                     },                                                                                                 \
                 .speed_PID =                                                                                           \
                     {                                                                                                  \
-                        .Kp = 1.0f,                                                                                    \
+                        .Kp = 0.85f,                                                                                    \
                         .Ki = 0.1f,                                                                                   \
                         .Kd = 0.0f,                                                                                    \
                         .IntegralLimit = 6000.0f,                                                                      \
@@ -81,7 +81,7 @@ static DartShoot_Init_Config_s dart_shoot_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 30.0f,
+                            .Kp = 60.0f,
                             .Ki = 0.0f,
                             .Kd = 0.0f,
                             .IntegralLimit = 1000.0f,
@@ -90,8 +90,8 @@ static DartShoot_Init_Config_s dart_shoot_init_config = {
                         },
                     .speed_PID =
                         {
-                            .Kp = 1.0f,
-                            .Ki = 0.2f,
+                            .Kp = 1.5f,
+                            .Ki = 0.4f,
                             .Kd = 0.0f,
                             .IntegralLimit = 3000.0f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit,
@@ -122,8 +122,8 @@ static DartShoot_Init_Config_s dart_shoot_init_config = {
                 {
                     .speed_PID =
                         {
-                            .Kp = 1.0f,
-                            .Ki = 0.0f,
+                            .Kp = 0.9f,
+                            .Ki = 0.1f,
                             .Kd = 0.0f,
                             .IntegralLimit = 8000.0f,
                             .Improve = PID_Integral_Limit,
@@ -159,9 +159,9 @@ static DartShoot_Init_Config_s dart_shoot_init_config = {
         {
             // 位置累加:摇杆只决定方向,目标位置按下面的速率(单位:电机总角度/秒)乘控制周期累加
             // TODO 实测:速率不要超过对应角度环的 MaxOut(速度限幅),否则目标会一直跑在前面追不上
-            .belt_pos_rate = 200.0f,       // 同步带累加速率(3508 输出轴 2000/19.2 ≈ 104°/s)
-            .yaw_pos_rate = 150.0f,        // yaw 累加速率(2006 输出轴 1500/36 ≈ 42°/s)
-            .trigger_speed = 100.0f,       // 扳机位置电机的速度参考(度/秒),摇杆偏出阈值时按它转
+            .belt_pos_rate = 5000.0f,       // 同步带累加速率(3508 输出轴 2000/19.2 ≈ 104°/s)
+            .yaw_pos_rate = 15000.0f,        // yaw 累加速率(2006 输出轴 1500/36 ≈ 42°/s)
+            .trigger_speed = 5000.0f,       // 扳机位置电机的速度参考(度/秒),摇杆偏出阈值时按它转
             // 270° 舵机: 行程 0~270° 对应 0.5ms~2.5ms, 135° 刚好是行程中点(1.5ms)
             // TODO 实测:左拨杆中档/上档对应的舵机角度,用 DartShootSetServoAngle() 扫描确定
             .servo_angle_mid = 135.0f,
