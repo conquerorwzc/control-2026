@@ -521,3 +521,6 @@ static Chassis_Init_Config_s chassis_init_config = {
             .MaxOut = 40000.0f,
         },
 };
+//#define BUZZER_BOT_SUITE kRinascitaSuite
+#define BUZZER_BOT_SERVICE_PERIOD_MS 20.0f
+#define BUZZER_BOT_SUITE kWuciYouciSuite

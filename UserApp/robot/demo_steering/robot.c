@@ -20,10 +20,15 @@
 #include "ins_task.h"
 #include "robot_config.h"
 #include "user_lib.h"
-
+#include "bsp_dwt.h"
+#include "buzzer.h"
+#include "rinascita_suite.h"
+#include "wuci_youci_suite.h"
+static uint8_t music_submitted;
 static RobotInstance *robot;
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
-
+static float phase_mark_ms;
+static float service_mark_ms;
 /* 自检打印的计时锚点, 使用 DWT 时间轴(ms) */
 static uint32_t last_report_ms;
 #if DEMO_SPIN_TEST
@@ -37,7 +42,7 @@ static uint32_t spin_start_ms;
  * IMU 的 Yaw 给出"底盘相对上电朝向转过了多少度", 写进 offset_angle 后组件就会
  * 把平移指令始终解算到【上电时的车头朝向】上, 于是能一边自旋一边直行。
  */
-static INS_t *ins;              /* INS_Init() 返回的单例(见 ins_task.c: 重复调用直接返回) */
+ INS_t *ins;              /* INS_Init() 返回的单例(见 ins_task.c: 重复调用直接返回) */
 static float imu_boot_yaw;      /* 上电朝向对应的 YawTotalAngle, 即"虚拟云台 0 点" */
 static uint8_t boot_yaw_valid;  /* 0 = 仍在采样窗口内, 还没定出 0 点 */
 static uint32_t boot_yaw_start_ms;
@@ -539,9 +544,12 @@ void RobotInit() {
 #if DEMO_RUDDER_ONLY_TEST
   LOGWARNING("[demo] RUDDER-ONLY TEST: wheels are locked at zero speed, the car will NOT drive.");
 #endif
+    music_submitted=0;
+
 }
 
 void RobotTask() {
+    float now_ms = DWT_GetTimeline_ms();
   RemoteControlSet();   // 1. 摇杆 -> vx/vy/wz 与 chassis_mode
   EmergencyHandler();   // 2. 失联/急停兜底(会清掉 offset_angle)
   CalcOffsetAngle();    // 3. 定 offset_angle —— 必须在 ChassisTask() 之前, 组件要用它做坐标变换
@@ -549,4 +557,11 @@ void RobotTask() {
   SpinTest();
   ConnectivityReport();
   DebugWheelDump();
+    if (!music_submitted) {
+        music_submitted = BuzzerMusicSuitePlay(&BUZZER_BOT_SUITE, NULL) == BUZZER_OK;
+    }
+    if (now_ms - service_mark_ms >= BUZZER_BOT_SERVICE_PERIOD_MS) {
+        service_mark_ms = now_ms;
+        BuzzerMusicSuiteService();
+    }
 }
