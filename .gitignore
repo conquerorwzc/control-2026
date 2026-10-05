@@ -103,6 +103,7 @@ JLinkLog.txt
 
 # cmake build directory
 cmake-build-debug/
+cmake-build-debug-stm32/
 
 *.jdebug.user
 *.jdebug
