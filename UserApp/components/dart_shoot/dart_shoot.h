@@ -5,21 +5,23 @@
  ******************************************************************************
  * @attention
  * 机构组成(全部挂在 CAN1 上, 舵机为 PWM):
- *   - 同步带电机 x2 (M3508): 通过同步带把装载飞镖的滑块拉下来, 拉到扳机位置
+ *   - 同步带电机 x2 (M3508): 通过同步带把装载飞镖的滑块拉下来
  *   - yaw 电机 x1 (M2006): 瞄准轴
- *   - 扳机位置电机 x1 (M3508): 调整扳机的机械位置(换弹/标定时使用)
- *   - PWM 舵机 x1: 把扳机拉下来, 释放滑块, 滑块飞出并发射飞镖
+ *   - 扳机位置电机 x1 (M3508): 调整扳机的机械位置
+ *   - PWM 舵机 x1: 把扳机拉下来, 释放滑块
  *
  * 控制方式(组件内没有自动发射流程, 全部由上层按周期下发):
- *   1. 同步带 / yaw 使用「位置环 + 位置累加」:
- *      摇杆只决定累加方向, 累加速率由 param 的 belt_pos_rate / yaw_pos_rate 决定;
- *      同步带在收到新指令前保持累加得到的最后一个目标位置(顶住不动),
- *      yaw 在没有新指令时直接失能(不发电流).
- *   2. 扳机位置电机使用速度环: 速度参考为 0 时直接失能, 而不是速度环给 0.
- *   3. 舵机: 转到参数给定的角度, 或停止 PWM 输出(失能).
+ *   1. 同步带 / yaw 用「位置环 + 位置累加」: 上层只给累加方向(±1), 速率由 param 决定;
+ *      同步带没有新指令时保持最后一个目标位置(位置环顶住), yaw 没有新指令时直接失能.
+ *   2. 扳机位置电机用速度环: 上层只给方向(±1), 偏出阈值时按 param.trigger_speed 转,
+ *      没有指令时直接失能(不发电流, 而不是速度环给 0).
+ *   3. 舵机: 转到给定角度, 或停止 PWM 脉冲输出(失能).
  *
- * 参考单位: 电机总角度/总角速度, 即 dji_motor 的 measure.total_angle (度) 与
- *           measure.speed_aps (度/秒). M3508/M2006 的编码器都在减速箱前, 角度为转子侧角度.
+ * 方向: 累加的正方向与实车相反时, 改 robot_config.h 中对应电机配置的 _reverse 参数
+ *       (同步带两个电机要一起改), 组件不需要额外的方向参数.
+ *
+ * 单位: 位置用 dji_motor 的 measure.total_angle(度), 速度用 measure.speed_aps(度/秒);
+ *       M3508/M2006 的编码器都在减速箱前, 因此都是转子侧角度.
  ******************************************************************************
  */
 #pragma once
@@ -34,8 +36,8 @@
  */
 typedef enum {
   DART_SHOOT_MODE_DISABLED = 0,  // 全部执行器失能(上电默认, 安全状态)
-  DART_SHOOT_MODE_AIM,           // 同步带 + yaw: 位置累加, 同步带无指令时保持位置
-  DART_SHOOT_MODE_TRIGGER,       // 只允许扳机位置电机: 速度环, 无指令时失能
+  DART_SHOOT_MODE_AIM,           // 同步带 + yaw: 位置累加
+  DART_SHOOT_MODE_TRIGGER,       // 只允许扳机位置电机: 速度环
 } DartShoot_Mode_e;
 
 /**
@@ -48,26 +50,16 @@ typedef enum {
 } DartServo_Cmd_e;
 
 /**
- * @brief 机构与控制参数, 与实车有关的量都要实测确定
+ * @brief 机构参数, 与实车有关的量都要实测确定
  */
 typedef struct {
-  /* ---------------- 位置累加(同步带 / yaw) ---------------- */
-  int8_t belt_direction;      // 摇杆前推时同步带的累加方向: 1 或 -1, 实测确定
-  int8_t yaw_direction;       // 摇杆右推时 yaw 的累加方向: 1 或 -1, 实测确定
   float belt_pos_rate;        // 同步带位置累加速率, 单位: 电机总角度/秒
   float yaw_pos_rate;         // yaw 位置累加速率, 单位: 电机总角度/秒
-  float belt_target_limit;    // 同步带软限位(相对进入 AIM 档时的位置), 0 = 不限幅
-  float yaw_target_limit;     // yaw 软限位(相对进入 AIM 档时的位置), 0 = 不限幅
-  /* ---------------- 扳机位置电机 ---------------- */
-  float trigger_speed_limit;  // 扳机位置电机速度限幅(度/秒)
-  /* ---------------- PWM 舵机 ---------------- */
-  float servo_angle_mid;      // 左拨杆中档时舵机角度(°)
-  float servo_angle_up;       // 左拨杆上档时舵机角度(°)
-  float servo_angle_min;      // 舵机机械最小角度(°), 用于角度->脉宽线性映射
-  float servo_angle_max;      // 舵机机械最大角度(°)
-  float servo_min_pulse_s;    // 最小角度对应脉宽(s), 常见 0.0005
-  float servo_max_pulse_s;    // 最大角度对应脉宽(s), 常见 0.0025
-  float servo_period_s;       // 舵机 PWM 周期(s), 模拟舵机通常为 0.02(50Hz)
+  float trigger_speed;        // 扳机位置电机的速度参考(度/秒), 摇杆偏出阈值时按它转
+  float servo_angle_mid;      // 左拨杆中档时的舵机角度(°)
+  float servo_angle_up;       // 左拨杆上档时的舵机角度(°)
+  float servo_min_pulse_s;    // 0° 对应的舵机脉宽(s), 常见 0.0005
+  float servo_max_pulse_s;    // 180° 对应的舵机脉宽(s), 常见 0.0025
 } DartShoot_Param_s;
 
 /**
@@ -76,32 +68,27 @@ typedef struct {
 typedef struct {
   DartShoot_Mode_e mode;      // 工作档位
   int8_t belt_dir;            // 同步带累加方向: -1 / 0 / +1, 0 表示保持当前目标位置
-  int8_t yaw_dir;             // yaw 累加方向: -1 / 0 / +1, 0 表示直接失能
-  float trigger_speed;        // 扳机位置电机速度参考(度/秒), 0 表示失能
+  int8_t yaw_dir;             // yaw 累加方向: -1 / 0 / +1, 0 表示失能
+  int8_t trigger_dir;         // 扳机位置电机转向: -1 / 0 / +1, 0 表示失能
   DartServo_Cmd_e servo_cmd;  // 舵机指令
 } DartShoot_Ctrl_Cmd_s;
 
 /**
- * @brief 反馈数据, 供上层状态显示与调试
+ * @brief 反馈数据
  */
 typedef struct {
-  DartShoot_Mode_e mode;       // 当前工作档位
-  uint8_t belt_online;         // 两个同步带电机是否都在线
-  uint8_t yaw_online;          // yaw 电机是否在线
-  uint8_t trigger_online;      // 扳机位置电机是否在线
-  uint8_t belt_enabled;        // 同步带是否使能
-  uint8_t yaw_enabled;         // yaw 是否使能
-  uint8_t trigger_enabled;     // 扳机位置电机是否使能
-  uint8_t servo_enabled;       // 舵机是否使能(PWM 是否在输出脉冲)
-  uint8_t belt_limited;        // 同步带是否已顶到软限位
-  uint8_t yaw_limited;         // yaw 是否已顶到软限位
-  float belt_target;           // 同步带目标位置(电机总角度)
-  float belt_position;         // 同步带当前位置(两个电机平均 total_angle)
-  float yaw_target;            // yaw 目标位置(电机总角度)
-  float yaw_position;          // yaw 当前位置(电机总角度)
-  float yaw_speed;             // yaw 当前速度反馈(度/秒)
-  float trigger_speed;         // 扳机位置电机当前速度反馈(度/秒)
-  float servo_angle;           // 当前舵机角度(°)
+  DartShoot_Mode_e mode;    // 当前档位
+  uint8_t online;           // 4 个电机是否都在线(离线时 dji_motor 会打印总线与 ID)
+  uint8_t belt_enabled;     // 同步带是否使能
+  uint8_t yaw_enabled;      // yaw 是否使能
+  uint8_t trigger_enabled;  // 扳机位置电机是否使能
+  uint8_t servo_enabled;    // 舵机是否使能(PWM 是否在输出脉冲)
+  float belt_target;        // 同步带目标位置(电机总角度)
+  float belt_position;      // 同步带当前位置(两个电机平均 total_angle)
+  float yaw_target;         // yaw 目标位置(电机总角度)
+  float yaw_position;       // yaw 当前位置(电机总角度)
+  float trigger_speed;      // 扳机位置电机速度反馈(度/秒)
+  float servo_angle;        // 当前舵机角度(°)
 } DartShoot_Feed_s;
 
 /**
@@ -129,20 +116,16 @@ typedef struct {
   ServoInstance *trigger_servo;                             // 拉扳机的 PWM 舵机
 
   /* ------------- 以下为内部状态, 上层不需要读写 ------------- */
-  DartShoot_Mode_e mode;         // 上一次的工作档位, 用于检测档位切换
-  DartServo_Cmd_e servo_cmd;     // 上一次的舵机指令, 只在变化时动作
-  uint8_t belt_enabled;          // 同步带当前是否使能
-  uint8_t yaw_enabled;           // yaw 当前是否使能
-  uint8_t trigger_enabled;       // 扳机位置电机当前是否使能
-  uint8_t servo_enabled;         // 舵机当前是否使能
-  uint8_t belt_limited;          // 同步带是否顶到软限位
-  uint8_t yaw_limited;           // yaw 是否顶到软限位
-  float belt_target;             // 同步带累加得到的目标位置
-  float belt_origin;             // 同步带软限位基准(进入 AIM 档时的位置)
-  float yaw_target;              // yaw 累加得到的目标位置
-  float yaw_origin;              // yaw 软限位基准(进入 AIM 档时的位置)
-  float servo_angle;             // 当前下发的舵机角度(°)
-  uint32_t dt_cnt;               // 位置累加用的时间戳计数
+  DartShoot_Mode_e mode;      // 上一次的工作档位, 用于检测档位切换
+  DartServo_Cmd_e servo_cmd;  // 上一次的舵机指令, 只在变化时动作
+  uint8_t belt_enabled;       // 同步带当前是否使能
+  uint8_t yaw_enabled;        // yaw 当前是否使能
+  uint8_t trigger_enabled;    // 扳机位置电机当前是否使能
+  uint8_t servo_enabled;      // 舵机当前是否使能
+  float belt_target;          // 同步带累加得到的目标位置
+  float yaw_target;           // yaw 累加得到的目标位置
+  float servo_angle;          // 当前下发的舵机角度(°)
+  uint32_t dt_cnt;            // 位置累加用的时间戳计数
 } DartShootInstance;
 
 /**
@@ -185,12 +168,12 @@ void DartShootSetBeltDir(DartShootInstance *instance, int8_t dir);
 void DartShootSetYawDir(DartShootInstance *instance, int8_t dir);
 
 /**
- * @brief 设置扳机位置电机速度参考(仅在 DART_SHOOT_MODE_TRIGGER 下生效)
+ * @brief 设置扳机位置电机转向(仅在 DART_SHOOT_MODE_TRIGGER 下生效)
  *
  * @param instance 实例指针
- * @param speed 速度参考(度/秒), 会被 trigger_speed_limit 限幅; 0 表示失能
+ * @param dir -1 / 0 / +1; 0 表示没有指令, 电机直接失能
  */
-void DartShootSetTriggerSpeed(DartShootInstance *instance, float speed);
+void DartShootSetTriggerDir(DartShootInstance *instance, int8_t dir);
 
 /**
  * @brief 设置舵机指令(失能 / 中档角度 / 上档角度)
@@ -204,8 +187,7 @@ void DartShootSetServo(DartShootInstance *instance, DartServo_Cmd_e servo_cmd);
 /**
  * @brief 直接设置舵机角度(°)(调试用): 会立刻使能舵机并转到该角度
  *
- * @note  会被限制在 servo_angle_min ~ servo_angle_max 内; 角度到脉宽的映射由
- *        servo_min_pulse_s / servo_max_pulse_s / servo_period_s 决定
+ * @note  角度按 0~180° 线性映射到 servo_min_pulse_s ~ servo_max_pulse_s
  * @param instance 实例指针
  * @param angle 目标角度(°)
  */
