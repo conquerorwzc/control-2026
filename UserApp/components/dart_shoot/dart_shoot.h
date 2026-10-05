@@ -17,7 +17,7 @@
  *   2. 扳机位置电机用速度环: 上层只给方向(±1), 偏出阈值时按 param.trigger_speed 转,
  *      没有指令时直接失能(不发电流, 而不是速度环给 0).
  *   3. 舵机: 转到给定角度, 或停止 PWM 脉冲输出(失能).
- *   4. 档位决定跑哪几路: AIM = 同步带 + yaw; TRIGGER = 同步带(锁位) + yaw + 扳机位置电机;
+ *   4. 档位决定跑哪几路: AIM = 只有同步带; TRIGGER = 同步带(锁位) + yaw + 扳机位置电机;
  *      DISABLED = 全部失能. 哪根摇杆对应哪一路由上层决定(组件只认 ctrl_cmd 里的方向).
  *
  * 方向: 累加的正方向与实车相反时, 改 robot_config.h 中对应电机配置的 _reverse 参数
@@ -39,8 +39,8 @@
  */
 typedef enum {
   DART_SHOOT_MODE_DISABLED = 0,  // 全部执行器失能(上电默认, 安全状态)
-  DART_SHOOT_MODE_AIM,           // 同步带 + yaw: 位置累加
-  DART_SHOOT_MODE_TRIGGER,       // 同步带锁位 + yaw(位置累加) + 扳机位置电机(速度环)
+  DART_SHOOT_MODE_AIM,           // 同步带(位置累加): 中档
+  DART_SHOOT_MODE_TRIGGER,       // 同步带锁位 + yaw(位置累加) + 扳机位置电机(速度环): 上档
 } DartShoot_Mode_e;
 
 /**
@@ -72,7 +72,7 @@ typedef struct {
 typedef struct {
   DartShoot_Mode_e mode;      // 工作档位
   int8_t belt_dir;            // 同步带累加方向: -1 / 0 / +1, 0 表示保持当前目标位置
-  int8_t yaw_dir;             // yaw 累加方向: -1 / 0 / +1, 0 表示失能
+  int8_t yaw_dir;             // yaw 累加方向: -1 / 0 / +1, 0 表示失能(只有 TRIGGER 档使用)
   int8_t trigger_dir;         // 扳机位置电机转向: -1 / 0 / +1, 0 表示失能
   DartServo_Cmd_e servo_cmd;  // 舵机指令
 } DartShoot_Ctrl_Cmd_s;
@@ -164,7 +164,7 @@ void DartShootSetMode(DartShootInstance *instance, DartShoot_Mode_e mode);
 void DartShootSetBeltDir(DartShootInstance *instance, int8_t dir);
 
 /**
- * @brief 设置 yaw 位置累加方向(仅在 DART_SHOOT_MODE_AIM 下生效)
+ * @brief 设置 yaw 位置累加方向(仅在 DART_SHOOT_MODE_TRIGGER 下生效)
  *
  * @param instance 实例指针
  * @param dir -1 / 0 / +1; 0 表示没有新指令, yaw 直接失能

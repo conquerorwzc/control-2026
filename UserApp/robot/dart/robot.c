@@ -2,7 +2,7 @@
 // Created by PC on 2025/11/18.
 // 飞镖机器人: 纯遥控器遥操作
 //   右拨杆(switch_right): 下档 = 4 个电机 + 舵机全部失能
-//                         中档 = 左摇杆竖直控同步带 + 右摇杆水平控 yaw
+//                         中档 = 左摇杆竖直控同步带(yaw 不用)
 //                         上档 = 左摇杆水平控 yaw + 右摇杆竖直控扳机位置电机(同步带锁定在上次位置)
 //   左拨杆(switch_left):  下档 = 舵机失能; 中档 = 转到角度1; 上档 = 转到角度2
 //
@@ -61,9 +61,9 @@ static void DartUpdateCommand(void) {
   // ---- 摇杆: 各执行器指令 ----
   switch (robot->dart_mode) {
     case DART_SHOOT_MODE_AIM:
-      // 左摇杆竖直: 同步带累加方向; 右摇杆水平: yaw 累加方向(只看方向, 与摇杆大小无关)
+      // 左摇杆竖直: 同步带累加方向; yaw 在中档不使用, 交给上档的左摇杆水平
       DartShootSetBeltDir(dart, StickToDirection(robot->rc_data[TEMP].rc.rocker_l1, DART_RC_DIR_THRESHOLD));
-      DartShootSetYawDir(dart, StickToDirection(robot->rc_data[TEMP].rc.rocker_r_, DART_RC_DIR_THRESHOLD));
+      DartShootSetYawDir(dart, 0);
       DartShootSetTriggerDir(dart, 0);
       break;
 

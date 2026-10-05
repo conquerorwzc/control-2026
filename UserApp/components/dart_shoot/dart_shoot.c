@@ -161,7 +161,7 @@ static void DartShootBeltHandler(DartShootInstance *instance, float dt) {
 }
 
 /**
- * @brief yaw: 位置累加, 没有新指令时直接失能(AIM 与 TRIGGER 档都会调用)
+ * @brief yaw: 位置累加, 没有新指令时直接失能(只有 TRIGGER 档调用)
  *
  * @note  摇杆只决定累加方向, 速率由 param.yaw_pos_rate 决定
  */
@@ -326,8 +326,7 @@ void DartShootTask(DartShootInstance *instance) {
 
   switch (instance->ctrl_cmd.mode) {
     case DART_SHOOT_MODE_AIM:
-      DartShootBeltHandler(instance, dt);
-      DartShootYawHandler(instance, dt);
+      DartShootBeltHandler(instance, dt);  // 中档只有同步带, yaw 不使用
       break;
     case DART_SHOOT_MODE_TRIGGER:
       DartShootBeltHandler(instance, dt);  // belt_dir = 0: 只保持位置环给定, 锁定不动
