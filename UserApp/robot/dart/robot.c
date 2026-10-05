@@ -62,7 +62,8 @@ static void DartUpdateCommand(void) {
   switch (robot->dart_mode) {
     case DART_SHOOT_MODE_AIM:
       // 左摇杆竖直: 同步带累加方向; yaw 在中档不使用, 交给上档的左摇杆水平
-      DartShootSetBeltDir(dart, StickToDirection(robot->rc_data[TEMP].rc.rocker_l1, DART_RC_DIR_THRESHOLD));
+      // 前面的负号是极性: 实车摇杆前推时同步带往反方向走, 所以取反; 装配/接线改了就把负号去掉
+      DartShootSetBeltDir(dart, -StickToDirection(robot->rc_data[TEMP].rc.rocker_l1, DART_RC_DIR_THRESHOLD));
       DartShootSetYawDir(dart, 0);
       DartShootSetTriggerDir(dart, 0);
       break;
@@ -70,9 +71,10 @@ static void DartUpdateCommand(void) {
     case DART_SHOOT_MODE_TRIGGER:
       // 上档: 左摇杆水平 -> yaw 累加方向, 右摇杆竖直 -> 扳机位置电机
       // 同步带 belt_dir = 0: 组件保持位置环给定, 锁死在中档拉到的位置上
+      // 前面的负号是极性: 实车摇杆右推(上推)时机构往反方向走, 所以取反; 装配/接线改了就把负号去掉
       DartShootSetBeltDir(dart, 0);
-      DartShootSetYawDir(dart, StickToDirection(robot->rc_data[TEMP].rc.rocker_l_, DART_RC_DIR_THRESHOLD));
-      DartShootSetTriggerDir(dart, StickToDirection(robot->rc_data[TEMP].rc.rocker_r1, DART_RC_DIR_THRESHOLD));
+      DartShootSetYawDir(dart, -StickToDirection(robot->rc_data[TEMP].rc.rocker_l_, DART_RC_DIR_THRESHOLD));
+      DartShootSetTriggerDir(dart, -StickToDirection(robot->rc_data[TEMP].rc.rocker_r1, DART_RC_DIR_THRESHOLD));
       break;
 
     case DART_SHOOT_MODE_DISABLED:
