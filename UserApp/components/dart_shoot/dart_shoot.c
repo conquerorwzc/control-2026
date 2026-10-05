@@ -148,6 +148,7 @@ static void DartShootBeltHandler(DartShootInstance *instance, float dt) {
 
   if (cmd->belt_dir != 0) {
     if (!instance->belt_enabled) {
+      DartShootSyncBeltTarget(instance);  // 失能期间可能被手推动, 从当前位置重新开始累加
       DartShootEnableBelt(instance);
     }
     instance->belt_target += (float)cmd->belt_dir * instance->param.belt_pos_rate * dt;
@@ -223,11 +224,15 @@ static void DartShootModeChangeHandler(DartShootInstance *instance) {
   switch (instance->mode) {
     case DART_SHOOT_MODE_AIM:
       DartShootDisableTrigger(instance);
-      DartShootSyncBeltTarget(instance);
       DartShootSyncYawTarget(instance);
-      DartShootEnableBelt(instance);
-      DartShootDisableYaw(instance);  // yaw 等到有摇杆指令时再使能
-      LOGINFO("[dart_shoot] mode -> AIM: belt holds position, yaw waits for stick");
+      DartShootDisableYaw(instance);  // yaw 中档不使用(只有上档用左摇杆水平控制)
+      // 同步带已经使能时(从上档切回来)什么都不要做: 重新同步目标或 PIDClear 会瞬间丢掉
+      // 保持力矩, 机构会往下掉一下再被位置环抓回来, 表现为抽动一下
+      if (!instance->belt_enabled) {
+        DartShootSyncBeltTarget(instance);
+        DartShootEnableBelt(instance);
+      }
+      LOGINFO("[dart_shoot] mode -> AIM: belt holds position");
       break;
 
     case DART_SHOOT_MODE_TRIGGER:
