@@ -15,7 +15,6 @@
 /* Private variables ---------------------------------------------------------*/
 RobotInstance* robot = NULL;
 static DartShootInstance* dart = NULL;
-static RC_ctrl_t* rc_data = NULL;
 static float status_log_time = 0.0f;  // 状态日志时间戳
 
 /*
@@ -46,11 +45,11 @@ static void DartUpdateCommand(void) {
   robot->rc_online = RemoteControlIsOnline();
 
   // ---- 右拨杆: 选档位 ----
-  if (rc_data == NULL || !robot->rc_online) {
+  if (robot->rc_data == NULL || !robot->rc_online) {
     robot->dart_mode = DART_SHOOT_MODE_DISABLED;  // 遥控器离线或尚未初始化: 全部失能
-  } else if (switch_is_mid(rc_data[TEMP].rc.switch_right)) {
+  } else if (switch_is_mid(robot->rc_data[TEMP].rc.switch_right)) {
     robot->dart_mode = DART_SHOOT_MODE_AIM;
-  } else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
+  } else if (switch_is_up(robot->rc_data[TEMP].rc.switch_right)) {
     robot->dart_mode = DART_SHOOT_MODE_TRIGGER;
   } else {
     robot->dart_mode = DART_SHOOT_MODE_DISABLED;  // 下档与异常值都当作失能档
@@ -61,8 +60,8 @@ static void DartUpdateCommand(void) {
   switch (robot->dart_mode) {
     case DART_SHOOT_MODE_AIM:
       // 左摇杆竖直: 同步带累加方向; 右摇杆水平: yaw 累加方向(只看方向, 与摇杆大小无关)
-      DartShootSetBeltDir(dart, StickToDirection(rc_data[TEMP].rc.rocker_l1, DART_RC_DIR_THRESHOLD));
-      DartShootSetYawDir(dart, StickToDirection(rc_data[TEMP].rc.rocker_r_, DART_RC_DIR_THRESHOLD));
+      DartShootSetBeltDir(dart, StickToDirection(robot->rc_data[TEMP].rc.rocker_l1, DART_RC_DIR_THRESHOLD));
+      DartShootSetYawDir(dart, StickToDirection(robot->rc_data[TEMP].rc.rocker_r_, DART_RC_DIR_THRESHOLD));
       DartShootSetTriggerDir(dart, 0);
       break;
 
@@ -70,7 +69,7 @@ static void DartUpdateCommand(void) {
       // 只有扳机位置电机可用: 右摇杆竖直 -> 转向, 摇杆回中后组件直接让电机失能
       DartShootSetBeltDir(dart, 0);
       DartShootSetYawDir(dart, 0);
-      DartShootSetTriggerDir(dart, StickToDirection(rc_data[TEMP].rc.rocker_r1, DART_RC_DIR_THRESHOLD));
+      DartShootSetTriggerDir(dart, StickToDirection(robot->rc_data[TEMP].rc.rocker_r1, DART_RC_DIR_THRESHOLD));
       break;
 
     case DART_SHOOT_MODE_DISABLED:
@@ -83,9 +82,9 @@ static void DartUpdateCommand(void) {
 
   // ---- 左拨杆: 舵机(下档失能 / 中档角度1 / 上档角度2) ----
   // 右拨杆下档时组件内部会强制舵机失能, 这里的指令优先级更低
-  if (robot->rc_online && switch_is_mid(rc_data[TEMP].rc.switch_left)) {
+  if (robot->rc_online && switch_is_mid(robot->rc_data[TEMP].rc.switch_left)) {
     DartShootSetServo(dart, DART_SERVO_CMD_ANGLE_MID);
-  } else if (robot->rc_online && switch_is_up(rc_data[TEMP].rc.switch_left)) {
+  } else if (robot->rc_online && switch_is_up(robot->rc_data[TEMP].rc.switch_left)) {
     DartShootSetServo(dart, DART_SERVO_CMD_ANGLE_UP);
   } else {
     DartShootSetServo(dart, DART_SERVO_CMD_DISABLED);
@@ -93,7 +92,10 @@ static void DartUpdateCommand(void) {
 }
 
 /**
- * @brief 周期性状态日志: 档位/在线状态/位置/使能状态
+ * @brief 周期性状态日志: 输入(拨杆/摇杆/档位)与输出(目标位置/下发给电机的 pid_ref/使能状态)
+ *
+ * @note  pid_ref 就是位置环的给定值: 摇杆推动时它不变 -> 断在组件之前(档位或摇杆方向);
+ *        它变了但电机不动 -> 断在组件之后(使能状态或 CAN)。
  */
 static void DartStatusLog(void) {
   float now = DWT_GetTimeline_ms();
@@ -102,17 +104,28 @@ static void DartStatusLog(void) {
   }
   status_log_time = now;
 
-  char belt_pos[16], belt_tgt[16], yaw_pos[16], yaw_tgt[16], trig_spd[16], servo_ang[16];
+  char belt_pos[16], belt_tgt[16], belt_pid[16], yaw_pos[16], yaw_tgt[16], yaw_pid[16], servo_ang[16];
   Float2Str(belt_pos, dart->feed.belt_position);
   Float2Str(belt_tgt, dart->feed.belt_target);
+  Float2Str(belt_pid, dart->belt_motor[0]->motor_controller.pid_ref);
   Float2Str(yaw_pos, dart->feed.yaw_position);
   Float2Str(yaw_tgt, dart->feed.yaw_target);
-  Float2Str(trig_spd, dart->feed.trigger_speed);
+  Float2Str(yaw_pid, dart->yaw_motor->motor_controller.pid_ref);
   Float2Str(servo_ang, dart->feed.servo_angle);
 
-  LOGINFO("[dart] mode %d rc %d online %d | belt %s/%s en %d | yaw %s/%s en %d | trigger %s en %d | servo %s en %d",
-          robot->dart_mode, robot->rc_online, dart->feed.online, belt_pos, belt_tgt, dart->feed.belt_enabled, yaw_pos,
-          yaw_tgt, dart->feed.yaw_enabled, trig_spd, dart->feed.trigger_enabled, servo_ang, dart->feed.servo_enabled);
+  if (robot->rc_data == NULL) {
+    LOGERROR("[dart] rc_data is NULL: RemoteControlInit() did not run");
+  } else {
+    LOGINFO("[dart] in : sw %d/%d stick %d %d %d %d | rc %d mode %d", robot->rc_data[TEMP].rc.switch_left,
+            robot->rc_data[TEMP].rc.switch_right, robot->rc_data[TEMP].rc.rocker_l1, robot->rc_data[TEMP].rc.rocker_l_,
+            robot->rc_data[TEMP].rc.rocker_r1, robot->rc_data[TEMP].rc.rocker_r_, robot->rc_online, robot->dart_mode);
+  }
+
+  LOGINFO("[dart] out: belt pos/tgt/pid %s/%s/%s en %d | yaw pos/tgt/pid %s/%s/%s en %d | trig dir %d en %d | "
+          "servo %s en %d | motors %d",
+          belt_pos, belt_tgt, belt_pid, dart->feed.belt_enabled, yaw_pos, yaw_tgt, yaw_pid, dart->feed.yaw_enabled,
+          dart->ctrl_cmd.trigger_dir, dart->feed.trigger_enabled, servo_ang, dart->feed.servo_enabled,
+          dart->feed.online);
 }
 
 /*=======对外接口: 原型见 robot.h=======*/
@@ -122,11 +135,11 @@ static void DartStatusLog(void) {
 void RobotInit(void) {
   robot = (RobotInstance*)zmalloc(sizeof(RobotInstance));
 
-  // 遥控器: 老遥控器(DT7)在C板上使用USART3, 自研板需选用带反相器的串口
+  // 遥控器: 老遥控器(DT7/DBUS)在C板上使用USART3, 自研板需选用带反相器的串口
 #ifdef STM32F407xx
-  rc_data = RemoteControlInit(&huart3);
+  robot->rc_data = RemoteControlInit(&huart3);
 #elifdef STM32H723xx
-  rc_data = RemoteControlInit(&huart5);
+  robot->rc_data = RemoteControlInit(&huart5);
 #endif
 
   // 发射机构组件(同步带 3508 x2 + yaw 2006 + 扳机位置 3508 + 拉扳机舵机)

@@ -9,10 +9,12 @@
 #include <stdint.h>
 
 #include "dart_shoot.h"
+#include "remote_control.h"
 
 /* 机器人主实例结构体 */
 typedef struct {
   DartShootInstance* dart_shoot;  // 发射机构组件
+  RC_ctrl_t* rc_data;             // 遥控器数据(RemoteControlInit 的返回值)
   DartShoot_Mode_e dart_mode;     // 档位, 由遥控器右拨杆选择(遥控器离线时为 DISABLED)
   uint8_t rc_online;              // 遥控器是否在线
 } RobotInstance;
