@@ -59,7 +59,8 @@ typedef struct {
   float servo_angle_mid;      // 左拨杆中档时的舵机角度(°)
   float servo_angle_up;       // 左拨杆上档时的舵机角度(°)
   float servo_min_pulse_s;    // 0° 对应的舵机脉宽(s), 常见 0.0005
-  float servo_max_pulse_s;    // 180° 对应的舵机脉宽(s), 常见 0.0025
+  float servo_max_pulse_s;    // 行程上端对应的舵机脉宽(s): 180° 舵机常见 0.0025, 270° 舵机也是 0.0025
+                              // 行程上端角度 = DART_SERVO_ANGLE_RANGE(见 dart_shoot.c)
 } DartShoot_Param_s;
 
 /**
@@ -187,7 +188,7 @@ void DartShootSetServo(DartShootInstance *instance, DartServo_Cmd_e servo_cmd);
 /**
  * @brief 直接设置舵机角度(°)(调试用): 会立刻使能舵机并转到该角度
  *
- * @note  角度按 0~180° 线性映射到 servo_min_pulse_s ~ servo_max_pulse_s
+ * @note  角度按 0~DART_SERVO_ANGLE_RANGE(270°, 见 dart_shoot.c) 线性映射到 servo_min_pulse_s ~ servo_max_pulse_s
  * @param instance 实例指针
  * @param angle 目标角度(°)
  */

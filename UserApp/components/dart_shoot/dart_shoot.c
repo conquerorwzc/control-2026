@@ -7,8 +7,9 @@
 /* 单周期最大累加时间(s): 任务被阻塞时不让位置一次性累加过多 */
 #define DART_POS_DT_MAX_S 0.01f
 
-/* 舵机角度按 0~180° 线性映射到 servo_min_pulse_s ~ servo_max_pulse_s */
-#define DART_SERVO_ANGLE_RANGE 180.0f
+/* 舵机角度按 0~DART_SERVO_ANGLE_RANGE(°) 线性映射到 servo_min_pulse_s ~ servo_max_pulse_s
+ * 实车用 270° 舵机(0.5ms~2.5ms 对应 0~270°), 换舵机时改这里和 param 里的脉宽参数 */
+#define DART_SERVO_ANGLE_RANGE 270.0f
 
 /*
  * 本文件不写函数前置声明: 私有函数按"被调用者在前"的顺序定义, 对外接口声明在 dart_shoot.h 中。

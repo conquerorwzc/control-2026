@@ -64,8 +64,9 @@ DartShootTask(dart);                           // RobotTask() 中 1kHz 调用
 - `belt_pos_rate` / `yaw_pos_rate`：位置累加速率（电机总角度/秒），**必须小于对应电机角度环的
   `MaxOut`（速度限幅）**，否则目标会一直跑在前面追不上。
 - `servo_angle_mid` / `servo_angle_up`：左拨杆中档/上档对应的舵机角度，用
-  `DartShootSetServoAngle()` 或临时改宏扫描确定；角度按 0~180° 线性映射到
-  `servo_min_pulse_s` ~ `servo_max_pulse_s`，占空比用 `pwm_instance->period` 计算。
+  `DartShootSetServoAngle()` 或临时改宏扫描确定；角度按 0~`DART_SERVO_ANGLE_RANGE`
+  （实车 270° 舵机，见 `dart_shoot.c`）线性映射到 `servo_min_pulse_s` ~ `servo_max_pulse_s`
+  （270° 舵机为 0.5ms~2.5ms，135° = 行程中点 1.5ms），占空比用 `pwm_instance->period` 计算。
 - `trigger_speed`：扳机位置电机的速度参考（度/秒），摇杆偏出阈值时按这个速度转。
 - 角度环 PID 的 `MaxOut` 是速度环参考限幅（度/秒），也是位置跟踪的能力上限；速度环 PID 的
   `MaxOut` 是电流指令限幅（C620 为 ±16384，C610 为 ±10000）。
