@@ -13,8 +13,12 @@
  *   - 丝杆逻辑坐标:   0 = 丝杆零点(校准顶到的硬限位), 数值越大射力越大(方向按实机标定)
  *   - yaw 逻辑坐标:   0 = 开机位置
  *   - 舵机: 直接给角度, 映射到脉宽见 DART_SERVO_* 宏
- *   - 所有电机角度均为转子侧(编码器在减速箱前): 3508 输出轴角度 = 总角度/19.2,
- *     2006 输出轴角度 = 总角度/36; 换算成输出轴/皮带行程再填宏
+ *   - 所有电机角度均为转子侧(编码器在减速箱前): 3508(P19) 输出轴角度 = 总角度/19,
+ *     2006 输出轴角度 = 总角度/36
+ *   - 同步带行程换算(带轮直径 33.62mm, 周长 ~105.62mm, 减速比 19):
+ *       转子角度 = 行程(mm) / 105.62 * 360 * 19 ≈ 行程(mm) * 64.76
+ *       行程(mm) = 转子角度 / 64.76
+ *     满行程约 1m ≈ 64760° 转子侧; 丝杆行程由导程决定, 需另测, 勿用带轮公式
  *
  * @attention 所有行程/角度/力矩参数均为占位初值, 必须按实机机械结构标定;
  *            电机方向不对时只翻转对应 DART_XXX_REVERSE 宏;
@@ -64,15 +68,15 @@
  * 上电使能后自动执行一次: 同步带顶释放方向硬限位(两侧零点同步) -> 扳机丝杆顶硬限位(丝杆零点);
  * 校准全程严格限制电机力矩, 完成后才允许储能/发射。
  * 各机构专用的顶限位速度/方向/限流见 DART_BELT_CALI_* 与 DART_SCREW_CALI_*。 */
-#define DART_BELT_CALI_SPEED_DPS 8.0f          // 同步带顶硬限位速度 (deg/s)
+#define DART_BELT_CALI_SPEED_DPS 360.0f          // 同步带顶硬限位速度 (deg/s)
 #define DART_BELT_CALI_DIRECTION (-1.0f)       // 同步带释放方向符号(零点取这一端); 实机相反时改 +1.0f
 #define DART_BELT_CALI_MAX_OUT 1500.0f         // 同步带校准严格限流 (M3508 满量程 16384)
 #define DART_BELT_CALI_INTEGRAL_LIMIT 800.0f   // 同步带校准积分限幅
 #define DART_BELT_CALI_TIMEOUT_MS 8000         // 同步带校准单步超时 (ms)
-#define DART_BELT_CALI_BACKOFF_DEG 15.0f       // 顶到限位后回撤距离, 即释放位置(回缩位) (deg)
+#define DART_BELT_CALI_BACKOFF_DEG 360.0f       // 顶到限位后回撤距离, 即释放位置(回缩位) (deg)
 #define DART_BELT_CALI_BACKOFF_SPEED_DPS 20.0f // 顶到限位后回撤限速 (deg/s, 顶死后必须慢速退开)
-#define DART_CALI_STALL_SPEED_DPS 2.0f         // 堵转判定(同步带/丝杆共用): 速度阈值 (deg/s)
-#define DART_CALI_STALL_MS 300                 // 堵转判定(同步带/丝杆共用): 持续时间 (ms)
+#define DART_CALI_STALL_SPEED_DPS 20.0f         // 堵转判定(同步带/丝杆共用): 速度阈值 (deg/s)
+#define DART_CALI_STALL_MS 500                 // 堵转判定(同步带/丝杆共用): 持续时间 (ms)
 #define DART_CALI_START_GRACE_MS 500           // 顶限位起步宽限: 进入步骤后先忽略堵转判定, 防起步误判
 
 /* ================= 同步带(储能)参数 =================
@@ -129,6 +133,7 @@
 #define DART_SERVO_ANGLE_MAX_DEG 270.0f         // 舵机机械角度上限 (deg, 实车 270° 舵机; 180° 舵机改 180)
 #define DART_SERVO_CATCH_DEG 135.0f             // 卡位角: 扣住发射平台(待发/上电默认), 行程中点
 #define DART_SERVO_RELEASE_DEG 0.0f             // 释放角: 放开发射平台(发射)
+#define DART_SERVO_ADJ_DPS 60.0f                // 调试档舵机角度增量速度 (deg/s, 摇杆松手即停, 防误触发)
 #define DART_SERVO_SETTLE_MS 300                // 舵机动作等待时间 (ms, 开环无反馈)
 #define DART_FIRE_DWELL_MS 500                  // 发射时释放角保持时间 (ms)
 
@@ -155,8 +160,10 @@
  *             动一下左开关(下->中)开始自动校准 -> 之后正常操作 */
 
 /* ================= 调试点动参数 ================= */
-#define DART_DEBUG_BELT_MAX_SPEED_DPS 60.0f   // 同步带点动满杆速度 (deg/s)
-#define DART_DEBUG_SCREW_MAX_SPEED_DPS 60.0f  // 扳机丝杆点动满杆速度 (deg/s)
+/* 调试点动速度(转子侧). 同步带: 3000°/s ≈ 46mm/s(1m 行程点动需要这个量级);
+ * 丝杆导程未标定前先用较小值. 均为满杆对应值, 实际随摇杆线性缩放. */
+#define DART_DEBUG_BELT_MAX_SPEED_DPS 3000.0f  // 同步带点动满杆速度 (deg/s)
+#define DART_DEBUG_SCREW_MAX_SPEED_DPS 600.0f  // 扳机丝杆点动满杆速度 (deg/s)
 
 /* ================= 任务周期 ================= */
 #define DART_SYNC_WARN_PERIOD_MS 1000  // 同步偏差告警的最小打印间隔

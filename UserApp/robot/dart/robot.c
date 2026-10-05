@@ -7,6 +7,7 @@
 #include "robot.h"
 
 #include "bsp_log.h"
+#include "dart_buzzer.h"
 #include "main.h"
 #include "robot_config.h"
 #include "user_lib.h"
@@ -14,6 +15,8 @@
 static RobotInstance* robot = NULL;
 static DartLauncherInstance* launcher = NULL;
 static RC_ctrl_t* rc_data = NULL;
+static bool rc_was_online = true;   // 用于失联/恢复边沿提示
+static bool was_debug_mode = false; // 用于进入调试档边沿提示
 
 /* 摇杆/拨轮归一化 [-1, 1], 带死区 */
 static float StickToNorm(int16_t stick) {
@@ -30,6 +33,19 @@ static void SafetyUpdate(void) {
   bool enable = online && !switch_is_down(rc_data[TEMP].rc.switch_right);
   DartLauncherSetEnable(launcher, enable, !debug);
   robot->robot_mode = enable ? ROBOT_POWER_ON : ROBOT_EMERGENCY_STOP;
+
+  // 失联/恢复边沿提示(持续指示由 dart_buzzer 维护)
+  if (online != rc_was_online) {
+    if (online) {
+      DartBuzzerRcOk();
+    } else {
+      DartBuzzerRcLost();
+    }
+    rc_was_online = online;
+  }
+  // 进入调试档边沿提示
+  if (debug && !was_debug_mode) DartBuzzerDebugMode();
+  was_debug_mode = debug;
 }
 
 /* 遥控器输入解析与命令分发 */
@@ -46,10 +62,11 @@ static void RCCommandUpdate(void) {
   // 右开关上档 = 调试点动
   bool debug = switch_is_up(rc->rc.switch_right);
   if (debug) {
-    // 调试档: 右摇杆竖直给舵机角度(标定卡位角/释放角), 左摇杆水平点动扳机丝杆
-    float servo_angle = DART_SERVO_ANGLE_MIN_DEG +
-                        (power_stick + 1.0f) * 0.5f * (DART_SERVO_ANGLE_MAX_DEG - DART_SERVO_ANGLE_MIN_DEG);
-    DartLauncherSetServoAngle(launcher, servo_angle);
+    // 调试档: 右摇杆竖直 = 舵机角度增量(松手即停, 防松手跳变误触发)
+    if (power_stick != 0.0f) {
+      DartLauncherAdjustServoAngle(launcher, power_stick * DART_SERVO_ADJ_DPS * DART_TASK_DT_S);
+    }
+    // 左摇杆竖直 = 同步带点动(上推=储能方向); 左摇杆水平 = 丝杆点动(右推=正方向)
     DartLauncherSetDebugJog(launcher, true, StickToNorm(rc->rc.rocker_l1) * DART_DEBUG_BELT_MAX_SPEED_DPS,
                             StickToNorm(rc->rc.rocker_l_) * DART_DEBUG_SCREW_MAX_SPEED_DPS);
   } else {

@@ -4,6 +4,8 @@
  */
 #include "dart_launcher.h"
 
+#include "dart_buzzer.h"
+
 #include <math.h>
 
 #include "bsp_dwt.h"
@@ -163,6 +165,7 @@ static void EnterFault(DartLauncherInstance* inst) {
   inst->fire_step = FIRE_STEP_RELEASE;
   SetServoAngle(inst, DART_SERVO_CATCH_DEG);  // 故障时舵机回卡位角(保持扣住)
   StopAllMotors(inst);
+  DartBuzzerFault();
 }
 
 /* 开始一次零位校准(同步带 -> 扳机丝杆) */
@@ -179,6 +182,8 @@ static void StartCalibration(DartLauncherInstance* inst, uint32_t now) {
   ClearScrewPid(inst);
   EnableAllMotors(inst);  // 故障恢复路径上电机可能处于停机状态
   inst->state = DART_STATE_CALIBRATING;
+  DartBuzzerFaultCleared();
+  DartBuzzerCaliStart();
   LOGINFO("[dart] start zero calibration (belt + screw)");
 }
 
@@ -260,6 +265,7 @@ static void HandleCalibrating(DartLauncherInstance* inst, uint32_t now) {
       if (ScrewPositionReached(inst)) {
         inst->is_calibrated = true;
         inst->state = DART_STATE_IDLE;
+        DartBuzzerCaliDone();
         LOGINFO("[dart] calibration done (belt + screw)");
       } else if (now - inst->step_start_ms > DART_SCREW_CALI_TIMEOUT_MS) {
         LOGERROR("[dart] fault: screw calibration backoff timeout");
@@ -331,6 +337,7 @@ static void HandleCharging(DartLauncherInstance* inst, uint32_t now) {
       SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_BELT_HOME_SPEED_DPS);
       if (BeltPositionReached(inst, DART_BELT_HOME_DEG)) {
         inst->state = DART_STATE_READY;
+        DartBuzzerChargeDone();
         LOGINFO("[dart] charged, ready to fire");
       } else if (now - inst->step_start_ms > DART_RETRACT_TIMEOUT_MS) {
         LOGERROR("[dart] fault: retract timeout");
@@ -372,6 +379,7 @@ static void HandleFiring(DartLauncherInstance* inst, uint32_t now) {
       if (now - inst->step_start_ms >= DART_SERVO_SETTLE_MS) {
         inst->fire_step = FIRE_STEP_RELEASE;
         inst->state = DART_STATE_IDLE;
+        DartBuzzerFireDone();
         LOGINFO("[dart] fire sequence done, back to idle");
       }
       break;
@@ -394,6 +402,7 @@ static void HandleCommand(DartLauncherInstance* inst, uint32_t now) {
         StartCalibration(inst, now);
       } else {
         LOGWARNING("[dart] calibrate command ignored");
+        DartBuzzerCmdRejected();
       }
       break;
 
@@ -402,9 +411,11 @@ static void HandleCommand(DartLauncherInstance* inst, uint32_t now) {
         inst->charge_step = CHARGE_STEP_PREP_SCREW;
         inst->step_start_ms = now;
         inst->state = DART_STATE_CHARGING;
+        DartBuzzerChargeStart();
         LOGINFO("[dart] charge sequence start");
       } else {
         LOGWARNING("[dart] charge command ignored");
+        DartBuzzerCmdRejected();
       }
       break;
 
@@ -413,9 +424,11 @@ static void HandleCommand(DartLauncherInstance* inst, uint32_t now) {
         inst->fire_step = FIRE_STEP_RELEASE;
         inst->step_start_ms = now;
         inst->state = DART_STATE_FIRING;
+        DartBuzzerFire();
         LOGINFO("[dart] fire sequence start");
       } else {
         LOGWARNING("[dart] fire command ignored");
+        DartBuzzerCmdRejected();
       }
       break;
 
@@ -498,6 +511,7 @@ void DartLauncherSetEnable(DartLauncherInstance* inst, bool enable, bool auto_ca
   if (enable && !inst->enabled) {
     inst->enabled = true;
     EnableAllMotors(inst);
+    DartBuzzerEnableOk();
     // 重同步(实车教训): 失能期间机构可能被手推动, 重新使能时把 yaw 目标同步到当前位置并清 PID,
     // 避免使能瞬间输出跳变; 正常档位切换(持续使能)不做清零, 否则积分清零会丢保持力矩引起抽动
     inst->yaw_angle_target = inst->yaw_motor->measure.total_angle;
@@ -537,6 +551,7 @@ void DartLauncherSetEnable(DartLauncherInstance* inst, bool enable, bool auto_ca
     }
     inst->enabled = false;
     StopAllMotors(inst);
+    DartBuzzerDisable();
   }
 }
 
@@ -555,6 +570,13 @@ void DartLauncherAdjustScrewPos(DartLauncherInstance* inst, float delta_deg) {
 void DartLauncherSetServoAngle(DartLauncherInstance* inst, float angle_deg) {
   if (inst == NULL) return;
   SetServoAngle(inst, angle_deg);
+}
+
+void DartLauncherAdjustServoAngle(DartLauncherInstance* inst, float delta_deg) {
+  if (inst == NULL) return;
+  // 仅 IDLE 生效: 序列中舵机由状态机接管, 防止摇杆误改卡位/释放角
+  if (inst->state != DART_STATE_IDLE) return;
+  SetServoAngle(inst, inst->servo_angle_deg + delta_deg);
 }
 
 void DartLauncherSetYawRate(DartLauncherInstance* inst, float rate_dps) {

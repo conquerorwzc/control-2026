@@ -142,6 +142,11 @@ void DartLauncherAdjustScrewPos(DartLauncherInstance* inst, float delta_deg);
 void DartLauncherSetServoAngle(DartLauncherInstance* inst, float angle_deg);
 
 /**
+ * @brief 舵机角度增量(自动限幅), 调试档用: 松手即停, 防止绝对映射松手跳变误触发
+ */
+void DartLauncherAdjustServoAngle(DartLauncherInstance* inst, float delta_deg);
+
+/**
  * @brief 设置 yaw 角速度指令, 由状态机积分成角度目标
  */
 void DartLauncherSetYawRate(DartLauncherInstance* inst, float rate_dps);
