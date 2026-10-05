@@ -2,24 +2,32 @@
 
 #include "bsp_dwt.h"
 #include "bsp_log.h"
+#include "math.h"
 #include "user_lib.h"
+
+/* 判定"有速度指令"的阈值(度/秒), 小于该值的速度参考视为没有指令 -> 失能 */
+#define DART_TRIGGER_CMD_EPS 1.0f
+
+/* 单周期最大累加时间(s): 任务被阻塞时不让位置一次性累加过多 */
+#define DART_POS_DT_MAX_S 0.01f
 
 /* Private function prototypes -----------------------------------------------*/
 static void DartShootModeChangeHandler(DartShootInstance *instance);
-static void DartShootStoppedHandler(DartShootInstance *instance);
-static void DartShootManualHandler(DartShootInstance *instance);
-static void DartShootAutoHandler(DartShootInstance *instance);
-static void DartShootEnterState(DartShootInstance *instance, DartShoot_State_e state);
-static void DartShootEnableAll(DartShootInstance *instance);
-static void DartShootStopAll(DartShootInstance *instance);
-static void DartShootSetPullSpeed(DartShootInstance *instance, float speed);
-static void DartShootSetTriggerSpeed(DartShootInstance *instance, float speed);
-static float DartShootGetPullPosition(DartShootInstance *instance);
-static float DartShootGetPullSpeed(DartShootInstance *instance);
-static uint8_t DartShootPullStalled(DartShootInstance *instance);
-static uint8_t DartShootPullArrived(DartShootInstance *instance);
-static uint8_t DartShootAllMotorOnline(DartShootInstance *instance);
-static void DartShootRaiseError(DartShootInstance *instance, DartShoot_Error_e error);
+static void DartShootAimHandler(DartShootInstance *instance, float dt);
+static void DartShootTriggerHandler(DartShootInstance *instance);
+static void DartShootDisabledHandler(DartShootInstance *instance);
+static void DartShootServoHandler(DartShootInstance *instance);
+static void DartShootSyncBeltTarget(DartShootInstance *instance);
+static void DartShootSyncYawTarget(DartShootInstance *instance);
+static float DartShootGetBeltPosition(DartShootInstance *instance);
+static float DartShootGetYawPosition(DartShootInstance *instance);
+static void DartShootEnableBelt(DartShootInstance *instance);
+static void DartShootDisableBelt(DartShootInstance *instance);
+static void DartShootEnableYaw(DartShootInstance *instance);
+static void DartShootDisableYaw(DartShootInstance *instance);
+static void DartShootEnableTrigger(DartShootInstance *instance);
+static void DartShootDisableTrigger(DartShootInstance *instance);
+static void DartShootApplyLimit(float *target, float origin, float limit, uint8_t *limited, const char *tag);
 static void DartShootUpdateFeed(DartShootInstance *instance);
 
 /* Private user code ---------------------------------------------------------*/
@@ -30,34 +38,40 @@ DartShootInstance *DartShootInit(DartShoot_Init_Config_s *init_config) {
   DartShootInstance *instance = (DartShootInstance *)zmalloc(sizeof(DartShootInstance));
   instance->param = init_config->param;
 
-  // 同步带电机 x2: 全部使用速度环, 上电先给 0 速度, 防止乱转
-  for (uint8_t i = 0; i < DART_SHOOT_PULL_MOTOR_NUM; i++) {
-    instance->pull_motor[i] = DJIMotorInit(&init_config->pull_motor_config[i]);
-    DJIMotorOuterLoop(instance->pull_motor[i], SPEED_LOOP);
-    DJIMotorSetPIDRef(instance->pull_motor[i], 0.0f);
+  // 同步带电机 x2 与 yaw 电机: 位置环, 上电先把目标位置同步到当前角度
+  for (uint8_t i = 0; i < DART_SHOOT_BELT_MOTOR_NUM; i++) {
+    instance->belt_motor[i] = DJIMotorInit(&init_config->belt_motor_config[i]);
   }
+  instance->yaw_motor = DJIMotorInit(&init_config->yaw_motor_config);
 
-  // 扳机位置调整电机: 速度环
+  // 扳机位置电机: 速度环
   instance->trigger_motor = DJIMotorInit(&init_config->trigger_motor_config);
-  DJIMotorOuterLoop(instance->trigger_motor, SPEED_LOOP);
-  DJIMotorSetPIDRef(instance->trigger_motor, 0.0f);
 
   // 拉扳机的 PWM 舵机
   instance->trigger_servo = ServoInit(&init_config->trigger_servo_config);
 
-  instance->ctrl_cmd.mode = DART_SHOOT_MODE_STOPPED;
-  instance->ctrl_cmd.cmd = DART_SHOOT_CMD_NONE;
-  instance->ctrl_cmd.servo_angle = instance->param.servo_lock_angle;
-  instance->mode = DART_SHOOT_MODE_STOPPED;
-  instance->state = DART_SHOOT_STATE_STOPPED;
-  instance->error = DART_SHOOT_ERROR_NONE;
+  instance->ctrl_cmd.mode = DART_SHOOT_MODE_DISABLED;
+  instance->ctrl_cmd.belt_dir = 0;
+  instance->ctrl_cmd.yaw_dir = 0;
+  instance->ctrl_cmd.trigger_speed = 0.0f;
+  instance->ctrl_cmd.servo_cmd = DART_SERVO_CMD_DISABLED;
+  instance->mode = DART_SHOOT_MODE_DISABLED;
+  instance->servo_cmd = DART_SERVO_CMD_DISABLED;
+  instance->servo_enabled = 0;
+  instance->servo_angle = 0.0f;
 
-  // 上电安全状态: 电机不输出, 舵机回锁止位(扳机不动作)
-  DartShootSetServoAngle(instance, instance->param.servo_lock_angle);
-  DartShootStopAll(instance);
+  // 上电安全状态: 4 个电机不输出电流, 舵机不输出脉冲
+  DartShootDisableBelt(instance);
+  DartShootDisableYaw(instance);
+  DartShootDisableTrigger(instance);
+  ServoStop(instance->trigger_servo);
+
+  DartShootSyncBeltTarget(instance);
+  DartShootSyncYawTarget(instance);
+  DWT_GetDeltaT(&instance->dt_cnt);  // 丢弃第一次 dt
   DartShootUpdateFeed(instance);
 
-  LOGINFO("[dart_shoot] init done, pull motor num: %d", DART_SHOOT_PULL_MOTOR_NUM);
+  LOGINFO("[dart_shoot] init done, belt motor num: %d", DART_SHOOT_BELT_MOTOR_NUM);
   return instance;
 }
 
@@ -69,26 +83,30 @@ void DartShootTask(DartShootInstance *instance) {
     return;
   }
 
+  float dt = DWT_GetDeltaT(&instance->dt_cnt);
+  dt = float_constrain(dt, 0.0f, DART_POS_DT_MAX_S);  // 防止任务被阻塞时位置一次性累加过多
+
   DartShootModeChangeHandler(instance);
 
   switch (instance->ctrl_cmd.mode) {
-    case DART_SHOOT_MODE_MANUAL:
-      DartShootManualHandler(instance);
+    case DART_SHOOT_MODE_AIM:
+      DartShootAimHandler(instance, dt);
       break;
-    case DART_SHOOT_MODE_AUTO:
-      DartShootAutoHandler(instance);
+    case DART_SHOOT_MODE_TRIGGER:
+      DartShootTriggerHandler(instance);
       break;
-    case DART_SHOOT_MODE_STOPPED:
+    case DART_SHOOT_MODE_DISABLED:
     default:
-      DartShootStoppedHandler(instance);
+      DartShootDisabledHandler(instance);
       break;
   }
 
+  DartShootServoHandler(instance);
   DartShootUpdateFeed(instance);
 }
 
 /**
- * @brief 设置工作模式
+ * @brief 设置工作档位
  */
 void DartShootSetMode(DartShootInstance *instance, DartShoot_Mode_e mode) {
   if (instance == NULL) {
@@ -98,282 +116,50 @@ void DartShootSetMode(DartShootInstance *instance, DartShoot_Mode_e mode) {
 }
 
 /**
- * @brief 下发一次性指令
+ * @brief 设置同步带位置累加方向
  */
-void DartShootSendCmd(DartShootInstance *instance, DartShoot_Cmd_e cmd) {
+void DartShootSetBeltDir(DartShootInstance *instance, int8_t dir) {
   if (instance == NULL) {
     return;
   }
-  instance->ctrl_cmd.cmd = cmd;
+  instance->ctrl_cmd.belt_dir = (dir > 0) ? 1 : ((dir < 0) ? -1 : 0);
 }
 
 /**
- * @brief 手动设置输出, 仅在 DART_SHOOT_MODE_MANUAL 下生效
+ * @brief 设置 yaw 位置累加方向
  */
-void DartShootSetManualOutput(DartShootInstance *instance, float pull_speed, float trigger_speed, float servo_angle) {
+void DartShootSetYawDir(DartShootInstance *instance, int8_t dir) {
   if (instance == NULL) {
     return;
   }
-  instance->ctrl_cmd.pull_speed = pull_speed;
-  instance->ctrl_cmd.trigger_speed = trigger_speed;
-  instance->ctrl_cmd.servo_angle = servo_angle;
+  instance->ctrl_cmd.yaw_dir = (dir > 0) ? 1 : ((dir < 0) ? -1 : 0);
 }
 
-/* Private function ----------------------------------------------------------*/
 /**
- * @brief 模式切换处理: 进入停机时立刻停止输出, 进入其他模式时使能电机
+ * @brief 设置扳机位置电机速度参考
  */
-static void DartShootModeChangeHandler(DartShootInstance *instance) {
-  if (instance->mode == instance->ctrl_cmd.mode) {
+void DartShootSetTriggerSpeed(DartShootInstance *instance, float speed) {
+  if (instance == NULL) {
     return;
   }
-  instance->mode = instance->ctrl_cmd.mode;
-
-  switch (instance->mode) {
-    case DART_SHOOT_MODE_MANUAL:
-      DartShootEnableAll(instance);
-      DartShootEnterState(instance, DART_SHOOT_STATE_MANUAL);
-      break;
-    case DART_SHOOT_MODE_AUTO:
-      DartShootEnableAll(instance);
-      DartShootSetServoAngle(instance, instance->param.servo_lock_angle);
-      DartShootEnterState(instance, DART_SHOOT_STATE_IDLE);
-      break;
-    case DART_SHOOT_MODE_STOPPED:
-    default:
-      DartShootSetServoAngle(instance, instance->param.servo_lock_angle);
-      DartShootStopAll(instance);
-      DartShootEnterState(instance, DART_SHOOT_STATE_STOPPED);
-      break;
-  }
+  instance->ctrl_cmd.trigger_speed = speed;
 }
 
 /**
- * @brief 停机: 电机不输出, 舵机保持在锁止位
+ * @brief 设置舵机指令
  */
-static void DartShootStoppedHandler(DartShootInstance *instance) {
-  DartShootStopAll(instance);
-  instance->ctrl_cmd.cmd = DART_SHOOT_CMD_NONE;  // 停机状态下丢弃所有指令
-}
-
-/**
- * @brief 手动: 直接把 cmd 中的速度/角度下发给执行器
- */
-static void DartShootManualHandler(DartShootInstance *instance) {
-  DartShoot_Ctrl_Cmd_s *cmd = &instance->ctrl_cmd;
-
-  float pull_speed = float_constrain(cmd->pull_speed, -instance->param.pull_speed_limit, instance->param.pull_speed_limit);
-  DartShootSetPullSpeed(instance, pull_speed);
-  DartShootSetTriggerSpeed(instance, cmd->trigger_speed);
-  DartShootSetServoAngle(instance, cmd->servo_angle);
-
-  instance->state = DART_SHOOT_STATE_MANUAL;
-  cmd->cmd = DART_SHOOT_CMD_NONE;
-}
-
-/**
- * @brief 自动: 状态机, 完成 回零-拉滑块-击发-复位 流程
- */
-static void DartShootAutoHandler(DartShootInstance *instance) {
-  DartShoot_Ctrl_Cmd_s *cmd = &instance->ctrl_cmd;
-  float now = DWT_GetTimeline_ms();
-
-  // 扳机位置调整电机: 任何时候都跟随 cmd.trigger_speed(默认 0, 可用于调整扳机位置)
-  DartShootSetTriggerSpeed(instance, cmd->trigger_speed);
-
-  // 异常状态: 只接受 CMD_RESET
-  if (instance->state == DART_SHOOT_STATE_ERROR) {
-    DartShootSetPullSpeed(instance, 0.0f);
-    if (cmd->cmd == DART_SHOOT_CMD_RESET) {
-      instance->error = DART_SHOOT_ERROR_NONE;
-      DartShootSetServoAngle(instance, instance->param.servo_lock_angle);
-      DartShootEnterState(instance, DART_SHOOT_STATE_IDLE);
-    }
-    cmd->cmd = DART_SHOOT_CMD_NONE;
+void DartShootSetServo(DartShootInstance *instance, DartServo_Cmd_e servo_cmd) {
+  if (instance == NULL) {
     return;
   }
-
-  // 处理一次性指令
-  switch (cmd->cmd) {
-    case DART_SHOOT_CMD_HOME:
-      DartShootEnterState(instance, DART_SHOOT_STATE_HOMING);
-      break;
-    case DART_SHOOT_CMD_PULL:
-      if (instance->state == DART_SHOOT_STATE_IDLE) {
-        DartShootEnterState(instance, DART_SHOOT_STATE_PULLING);
-      } else {
-        LOGWARNING("[dart_shoot] pull ignored, state: %d", instance->state);
-      }
-      break;
-    case DART_SHOOT_CMD_FIRE:
-      if (instance->state == DART_SHOOT_STATE_READY) {
-        DartShootEnterState(instance, DART_SHOOT_STATE_RELEASING);
-      } else {
-        LOGWARNING("[dart_shoot] fire ignored, not ready, state: %d", instance->state);
-      }
-      break;
-    case DART_SHOOT_CMD_RELOAD:
-      DartShootEnterState(instance, DART_SHOOT_STATE_RELOADING);
-      break;
-    case DART_SHOOT_CMD_ABORT:
-      DartShootSetPullSpeed(instance, 0.0f);
-      DartShootEnterState(instance, DART_SHOOT_STATE_IDLE);
-      break;
-    default:
-      break;
-  }
-  cmd->cmd = DART_SHOOT_CMD_NONE;
-
-  // 运动中若电机离线, 直接进入异常
-  if (!DartShootAllMotorOnline(instance) && instance->online_latched &&
-      (instance->state == DART_SHOOT_STATE_HOMING || instance->state == DART_SHOOT_STATE_PULLING ||
-       instance->state == DART_SHOOT_STATE_RELEASING || instance->state == DART_SHOOT_STATE_RELOADING)) {
-    DartShootRaiseError(instance, DART_SHOOT_ERROR_MOTOR_OFFLINE);
-    return;
-  }
-
-  switch (instance->state) {
-    case DART_SHOOT_STATE_IDLE:
-      DartShootSetPullSpeed(instance, 0.0f);
-      break;
-
-    // 回零: 沿拉滑块的反方向低速运动, 直到堵转(机械限位), 该位置即为零点
-    case DART_SHOOT_STATE_HOMING:
-      DartShootSetPullSpeed(instance, -instance->param.pull_direction * instance->param.home_speed);
-      if (DartShootPullStalled(instance)) {
-        DartShootSetPullSpeed(instance, 0.0f);
-        instance->pull_zero_angle = DartShootGetPullPosition(instance);
-        instance->pull_start_angle = instance->pull_zero_angle;
-        instance->is_homed = 1;
-        LOGINFO("[dart_shoot] homing done");
-        DartShootEnterState(instance, DART_SHOOT_STATE_IDLE);
-      } else if (now - instance->state_start_time > instance->param.home_timeout_ms) {
-        DartShootRaiseError(instance, DART_SHOOT_ERROR_HOME_TIMEOUT);
-      }
-      break;
-
-    // 拉滑块: 速度环给定拉滑块速度, 走到扳机位(行程到位或顶到扳机堵转)后停下
-    case DART_SHOOT_STATE_PULLING:
-      DartShootSetPullSpeed(instance, instance->param.pull_direction * instance->param.pull_speed);
-      if (DartShootPullArrived(instance)) {
-        DartShootSetPullSpeed(instance, 0.0f);
-        instance->pull_time_ms = now - instance->state_start_time;
-        DartShootEnterState(instance, DART_SHOOT_STATE_READY);
-      } else if (now - instance->state_start_time > instance->param.pull_timeout_ms) {
-        DartShootRaiseError(instance, DART_SHOOT_ERROR_PULL_TIMEOUT);
-      }
-      break;
-
-    // 就位: 滑块由扳机挡住, 同步带不再出力, 等待击发指令
-    case DART_SHOOT_STATE_READY:
-      DartShootSetPullSpeed(instance, 0.0f);
-      break;
-
-    // 击发: 舵机拉下扳机, 滑块飞出; 保持一段时间后进入复位
-    case DART_SHOOT_STATE_RELEASING:
-      DartShootSetPullSpeed(instance, 0.0f);
-      if (now - instance->state_start_time >= instance->param.servo_release_time_ms) {
-        instance->fire_time_ms = now - instance->state_start_time;
-        DartShootEnterState(instance, DART_SHOOT_STATE_RELOADING);
-      }
-      break;
-
-    // 复位: 舵机回锁止位, 同步带反向把滑块收回零点
-    case DART_SHOOT_STATE_RELOADING:
-      DartShootSetServoAngle(instance, instance->param.servo_lock_angle);
-      DartShootSetPullSpeed(instance, -instance->param.pull_direction * instance->param.reload_speed);
-      if (DartShootPullStalled(instance) ||
-          fabsf(DartShootGetPullPosition(instance) - instance->pull_start_angle) <
-              instance->param.pull_position_tolerance) {
-        DartShootSetPullSpeed(instance, 0.0f);
-        DartShootEnterState(instance, DART_SHOOT_STATE_IDLE);
-      } else if (now - instance->state_start_time > instance->param.reload_timeout_ms) {
-        DartShootRaiseError(instance, DART_SHOOT_ERROR_RELOAD_TIMEOUT);
-      }
-      break;
-
-    default:
-      break;
-  }
-}
-
-/**
- * @brief 状态切换, 并执行进入该状态时需要立刻完成的动作
- */
-static void DartShootEnterState(DartShootInstance *instance, DartShoot_State_e state) {
-  instance->state = state;
-  instance->state_start_time = DWT_GetTimeline_ms();
-  instance->stall_timing = 0;
-
-  switch (state) {
-    case DART_SHOOT_STATE_PULLING:
-      // 记录本次拉滑块的起点, 用于行程计算(未回零时也可工作)
-      instance->pull_start_angle = DartShootGetPullPosition(instance);
-      break;
-    case DART_SHOOT_STATE_RELEASING:
-      // 舵机拉下扳机, 释放滑块
-      DartShootSetServoAngle(instance, instance->param.servo_release_angle);
-      instance->fire_count++;
-      break;
-    case DART_SHOOT_STATE_RELOADING:
-      DartShootSetServoAngle(instance, instance->param.servo_lock_angle);
-      break;
-    case DART_SHOOT_STATE_IDLE:
-    case DART_SHOOT_STATE_HOMING:
-    case DART_SHOOT_STATE_READY:
-    case DART_SHOOT_STATE_ERROR:
-    case DART_SHOOT_STATE_STOPPED:
-    case DART_SHOOT_STATE_MANUAL:
-    default:
-      break;
-  }
-}
-
-/**
- * @brief 使能三个 3508
- */
-static void DartShootEnableAll(DartShootInstance *instance) {
-  for (uint8_t i = 0; i < DART_SHOOT_PULL_MOTOR_NUM; i++) {
-    DJIMotorEnable(instance->pull_motor[i]);
-  }
-  DJIMotorEnable(instance->trigger_motor);
-}
-
-/**
- * @brief 停止三个 3508(直接给 0 电流)
- */
-static void DartShootStopAll(DartShootInstance *instance) {
-  for (uint8_t i = 0; i < DART_SHOOT_PULL_MOTOR_NUM; i++) {
-    DJIMotorStop(instance->pull_motor[i]);
-  }
-  DJIMotorStop(instance->trigger_motor);
-}
-
-/**
- * @brief 设置两个同步带电机的速度参考(度/秒), 两个电机使用同一参考值
- */
-static void DartShootSetPullSpeed(DartShootInstance *instance, float speed) {
-  for (uint8_t i = 0; i < DART_SHOOT_PULL_MOTOR_NUM; i++) {
-    DJIMotorOuterLoop(instance->pull_motor[i], SPEED_LOOP);
-    DJIMotorSetPIDRef(instance->pull_motor[i], speed);
-  }
-}
-
-/**
- * @brief 设置扳机调整电机的速度参考(度/秒)
- */
-static void DartShootSetTriggerSpeed(DartShootInstance *instance, float speed) {
-  float limit = instance->param.trigger_speed_limit;
-  speed = float_constrain(speed, -limit, limit);
-  DJIMotorOuterLoop(instance->trigger_motor, SPEED_LOOP);
-  DJIMotorSetPIDRef(instance->trigger_motor, speed);
+  instance->ctrl_cmd.servo_cmd = servo_cmd;
 }
 
 /**
  * @brief 设置舵机角度(°): 线性映射为脉宽, 再转换为 PWM 占空比
  */
 void DartShootSetServoAngle(DartShootInstance *instance, float angle) {
-  if (instance->trigger_servo == NULL) {
+  if (instance == NULL || instance->trigger_servo == NULL) {
     return;
   }
   float min_angle = instance->param.servo_angle_min;
@@ -392,117 +178,294 @@ void DartShootSetServoAngle(DartShootInstance *instance, float angle) {
   float duty = pulse / instance->param.servo_period_s;
   duty = float_constrain(duty, 0.0f, 1.0f);
 
+  ServoStart(instance->trigger_servo);  // 失能状态下调用本函数时自动恢复输出
   ServoSetAngle(instance->trigger_servo, duty);
-  instance->servo_angle_cmd = angle;
+  instance->servo_enabled = 1;
+  instance->servo_angle = angle;
+}
+
+/* Private function ----------------------------------------------------------*/
+/**
+ * @brief 档位切换处理: 进入各档位时立刻把执行器设置到正确的状态
+ */
+static void DartShootModeChangeHandler(DartShootInstance *instance) {
+  if (instance->mode == instance->ctrl_cmd.mode) {
+    return;
+  }
+  instance->mode = instance->ctrl_cmd.mode;
+
+  switch (instance->mode) {
+    case DART_SHOOT_MODE_AIM:
+      DartShootDisableTrigger(instance);
+      // 失能期间机构可能被手推动, 重新同步目标位置, 避免使能瞬间跳变
+      DartShootSyncBeltTarget(instance);
+      DartShootSyncYawTarget(instance);
+      DartShootEnableBelt(instance);
+      DartShootDisableYaw(instance);  // yaw 等到有摇杆指令时再使能
+      LOGINFO("[dart_shoot] mode -> AIM: belt holds position, yaw waits for stick");
+      break;
+
+    case DART_SHOOT_MODE_TRIGGER:
+      DartShootDisableBelt(instance);
+      DartShootDisableYaw(instance);
+      LOGINFO("[dart_shoot] mode -> TRIGGER: only trigger motor(speed loop) enabled");
+      break;
+
+    case DART_SHOOT_MODE_DISABLED:
+    default:
+      DartShootDisabledHandler(instance);
+      LOGWARNING("[dart_shoot] mode -> DISABLED: all actuators off");
+      break;
+  }
 }
 
 /**
- * @brief 同步带滑块位置: 取两个电机总角度的平均值
+ * @brief AIM 档位: 同步带与 yaw 位置累加
+ *
+ * @note  摇杆只决定累加方向, 速率由 param 决定;
+ *        同步带没有新指令时保持最后一个目标位置(位置环继续顶住),
+ *        yaw 没有新指令时直接失能.
  */
-static float DartShootGetPullPosition(DartShootInstance *instance) {
+static void DartShootAimHandler(DartShootInstance *instance, float dt) {
+  DartShoot_Ctrl_Cmd_s *cmd = &instance->ctrl_cmd;
+
+  // ---------------- 同步带: 位置累加 + 保持 ----------------
+  if (cmd->belt_dir != 0) {
+    if (!instance->belt_enabled) {
+      DartShootEnableBelt(instance);
+    }
+    instance->belt_target += (float)cmd->belt_dir * (float)instance->param.belt_direction *
+                             instance->param.belt_pos_rate * dt;
+    DartShootApplyLimit(&instance->belt_target, instance->belt_origin, instance->param.belt_target_limit,
+                        &instance->belt_limited, "belt");
+  }
+  if (instance->belt_enabled) {
+    // 位置环给定: 无指令时给定值不变, 同步带就停在最后一个目标位置上
+    for (uint8_t i = 0; i < DART_SHOOT_BELT_MOTOR_NUM; i++) {
+      DJIMotorSetPIDRef(instance->belt_motor[i], instance->belt_target);
+    }
+  }
+
+  // ---------------- yaw: 位置累加, 无指令时失能 ----------------
+  if (cmd->yaw_dir != 0) {
+    if (!instance->yaw_enabled) {
+      DartShootSyncYawTarget(instance);  // 失能期间可能被手推动, 从当前位置重新开始累加
+      DartShootEnableYaw(instance);
+    }
+    instance->yaw_target +=
+        (float)cmd->yaw_dir * (float)instance->param.yaw_direction * instance->param.yaw_pos_rate * dt;
+    DartShootApplyLimit(&instance->yaw_target, instance->yaw_origin, instance->param.yaw_target_limit,
+                        &instance->yaw_limited, "yaw");
+    DJIMotorSetPIDRef(instance->yaw_motor, instance->yaw_target);
+  } else if (instance->yaw_enabled) {
+    DartShootDisableYaw(instance);
+  }
+}
+
+/**
+ * @brief TRIGGER 档位: 只驱动扳机位置电机(速度环), 无指令时失能
+ */
+static void DartShootTriggerHandler(DartShootInstance *instance) {
+  float speed = instance->ctrl_cmd.trigger_speed;
+
+  if (fabsf(speed) > DART_TRIGGER_CMD_EPS) {
+    if (!instance->trigger_enabled) {
+      DartShootEnableTrigger(instance);
+    }
+    speed = float_constrain(speed, -instance->param.trigger_speed_limit, instance->param.trigger_speed_limit);
+    DJIMotorOuterLoop(instance->trigger_motor, SPEED_LOOP);
+    DJIMotorSetPIDRef(instance->trigger_motor, speed);
+  } else if (instance->trigger_enabled) {
+    // 摇杆没有输入: 直接失能(不发电流), 而不是速度环给定 0
+    DartShootDisableTrigger(instance);
+  }
+}
+
+/**
+ * @brief 失能档位: 所有电机停止输出
+ */
+static void DartShootDisabledHandler(DartShootInstance *instance) {
+  DartShootDisableBelt(instance);
+  DartShootDisableYaw(instance);
+  DartShootDisableTrigger(instance);
+}
+
+/**
+ * @brief 舵机处理: 只在指令变化时动作(失能时整体失能优先)
+ */
+static void DartShootServoHandler(DartShootInstance *instance) {
+  DartServo_Cmd_e want = instance->ctrl_cmd.servo_cmd;
+  if (instance->mode == DART_SHOOT_MODE_DISABLED) {
+    want = DART_SERVO_CMD_DISABLED;  // 整体失能时舵机一并失能
+  }
+  if (want == instance->servo_cmd) {
+    return;
+  }
+  instance->servo_cmd = want;
+
+  switch (want) {
+    case DART_SERVO_CMD_ANGLE_MID:
+      DartShootSetServoAngle(instance, instance->param.servo_angle_mid);
+      LOGINFO("[dart_shoot] servo -> mid angle");
+      break;
+    case DART_SERVO_CMD_ANGLE_UP:
+      DartShootSetServoAngle(instance, instance->param.servo_angle_up);
+      LOGINFO("[dart_shoot] servo -> up angle");
+      break;
+    case DART_SERVO_CMD_DISABLED:
+    default:
+      ServoStop(instance->trigger_servo);
+      instance->servo_enabled = 0;
+      LOGWARNING("[dart_shoot] servo disabled");
+      break;
+  }
+}
+
+/**
+ * @brief 把同步带目标位置同步到当前位置, 并把它作为软限位基准
+ */
+static void DartShootSyncBeltTarget(DartShootInstance *instance) {
+  instance->belt_target = DartShootGetBeltPosition(instance);
+  instance->belt_origin = instance->belt_target;
+  instance->belt_limited = 0;
+}
+
+/**
+ * @brief 把 yaw 目标位置同步到当前位置, 并把它作为软限位基准
+ */
+static void DartShootSyncYawTarget(DartShootInstance *instance) {
+  instance->yaw_target = DartShootGetYawPosition(instance);
+  instance->yaw_origin = instance->yaw_target;
+  instance->yaw_limited = 0;
+}
+
+/**
+ * @brief 同步带当前位置: 取两个电机总角度的平均值
+ */
+static float DartShootGetBeltPosition(DartShootInstance *instance) {
   float sum = 0.0f;
-  for (uint8_t i = 0; i < DART_SHOOT_PULL_MOTOR_NUM; i++) {
-    sum += instance->pull_motor[i]->measure.total_angle;
+  for (uint8_t i = 0; i < DART_SHOOT_BELT_MOTOR_NUM; i++) {
+    sum += instance->belt_motor[i]->measure.total_angle;
   }
-  return sum / (float)DART_SHOOT_PULL_MOTOR_NUM;
+  return sum / (float)DART_SHOOT_BELT_MOTOR_NUM;
 }
 
 /**
- * @brief 同步带电机平均速度(度/秒)
+ * @brief yaw 当前位置(电机总角度)
  */
-static float DartShootGetPullSpeed(DartShootInstance *instance) {
-  float sum = 0.0f;
-  for (uint8_t i = 0; i < DART_SHOOT_PULL_MOTOR_NUM; i++) {
-    sum += instance->pull_motor[i]->measure.speed_aps;
-  }
-  return sum / (float)DART_SHOOT_PULL_MOTOR_NUM;
+static float DartShootGetYawPosition(DartShootInstance *instance) {
+  return instance->yaw_motor->measure.total_angle;
 }
 
 /**
- * @brief 判断同步带是否已经顶到机械限位(扳机/零点):
- *        电流超过阈值或底层 PID 报堵转, 并连续保持 pull_stall_time_ms
+ * @brief 使能同步带电机并清空 PID 状态, 避免重新使能时输出跳变
  */
-static uint8_t DartShootPullStalled(DartShootInstance *instance) {
-  float current = 0.0f;
-  uint8_t pid_blocked = 0;
+static void DartShootEnableBelt(DartShootInstance *instance) {
+  for (uint8_t i = 0; i < DART_SHOOT_BELT_MOTOR_NUM; i++) {
+    DJIMotorOuterLoop(instance->belt_motor[i], ANGLE_LOOP);
+    PIDClear(&instance->belt_motor[i]->motor_controller.angle_PID);
+    PIDClear(&instance->belt_motor[i]->motor_controller.speed_PID);
+    DJIMotorEnable(instance->belt_motor[i]);
+    DJIMotorSetPIDRef(instance->belt_motor[i], instance->belt_target);
+  }
+  instance->belt_enabled = 1;
+}
 
-  for (uint8_t i = 0; i < DART_SHOOT_PULL_MOTOR_NUM; i++) {
-    current += fabsf((float)instance->pull_motor[i]->measure.real_current);
-    if (instance->pull_motor[i]->motor_controller.speed_PID.ERRORHandler.ERRORType == PID_MOTOR_BLOCKED_ERROR) {
-      instance->pull_motor[i]->motor_controller.speed_PID.ERRORHandler.ERRORType = PID_ERROR_NONE;
-      instance->pull_motor[i]->motor_controller.speed_PID.ERRORHandler.ERRORCount = 0;
-      pid_blocked = 1;
+/**
+ * @brief 同步带失能(不给电流, 不发速度/力矩)
+ */
+static void DartShootDisableBelt(DartShootInstance *instance) {
+  for (uint8_t i = 0; i < DART_SHOOT_BELT_MOTOR_NUM; i++) {
+    DJIMotorStop(instance->belt_motor[i]);
+  }
+  instance->belt_enabled = 0;
+}
+
+/**
+ * @brief 使能 yaw 电机并清空 PID 状态
+ */
+static void DartShootEnableYaw(DartShootInstance *instance) {
+  DJIMotorOuterLoop(instance->yaw_motor, ANGLE_LOOP);
+  PIDClear(&instance->yaw_motor->motor_controller.angle_PID);
+  PIDClear(&instance->yaw_motor->motor_controller.speed_PID);
+  DJIMotorEnable(instance->yaw_motor);
+  DJIMotorSetPIDRef(instance->yaw_motor, instance->yaw_target);
+  instance->yaw_enabled = 1;
+}
+
+/**
+ * @brief yaw 失能(不给电流)
+ */
+static void DartShootDisableYaw(DartShootInstance *instance) {
+  DJIMotorStop(instance->yaw_motor);
+  instance->yaw_enabled = 0;
+  instance->yaw_limited = 0;
+}
+
+/**
+ * @brief 使能扳机位置电机并清空 PID 状态
+ */
+static void DartShootEnableTrigger(DartShootInstance *instance) {
+  DJIMotorOuterLoop(instance->trigger_motor, SPEED_LOOP);
+  PIDClear(&instance->trigger_motor->motor_controller.speed_PID);
+  DJIMotorEnable(instance->trigger_motor);
+  instance->trigger_enabled = 1;
+}
+
+/**
+ * @brief 扳机位置电机失能(不给电流, 轴可以自由推动)
+ */
+static void DartShootDisableTrigger(DartShootInstance *instance) {
+  DJIMotorStop(instance->trigger_motor);
+  instance->trigger_enabled = 0;
+}
+
+/**
+ * @brief 软限位: limit <= 0 表示不限幅, 顶到限位时目标保持在限位处并打印一次警告
+ */
+static void DartShootApplyLimit(float *target, float origin, float limit, uint8_t *limited, const char *tag) {
+  if (limit <= 0.0f) {
+    return;
+  }
+
+  float clamped = float_constrain(*target, origin - limit, origin + limit);
+  if (clamped != *target) {
+    if (!*limited) {
+      LOGWARNING("[dart_shoot] %s target hit soft limit", tag);
     }
+    *limited = 1;
+  } else if (*limited) {
+    *limited = 0;
   }
-  current /= (float)DART_SHOOT_PULL_MOTOR_NUM;
-
-  if (pid_blocked || current > instance->param.pull_current_threshold) {
-    float now = DWT_GetTimeline_ms();
-    if (!instance->stall_timing) {
-      instance->stall_timing = 1;
-      instance->stall_start_time = now;
-    }
-    if (now - instance->stall_start_time >= instance->param.pull_stall_time_ms) {
-      return 1;
-    }
-  } else {
-    instance->stall_timing = 0;
-  }
-  return 0;
-}
-
-/**
- * @brief 判断滑块是否已经拉到扳机位: 行程到位, 或者已经顶住扳机(堵转)
- */
-static uint8_t DartShootPullArrived(DartShootInstance *instance) {
-  float traveled = fabsf(DartShootGetPullPosition(instance) - instance->pull_start_angle);
-  if (traveled + instance->param.pull_position_tolerance >= instance->param.pull_travel) {
-    return 1;
-  }
-  return DartShootPullStalled(instance);
-}
-
-/**
- * @brief 三个 3508 是否都在线
- */
-static uint8_t DartShootAllMotorOnline(DartShootInstance *instance) {
-  for (uint8_t i = 0; i < DART_SHOOT_PULL_MOTOR_NUM; i++) {
-    if (!DaemonIsOnline(instance->pull_motor[i]->daemon)) {
-      return 0;
-    }
-  }
-  return DaemonIsOnline(instance->trigger_motor->daemon);
-}
-
-/**
- * @brief 进入异常状态: 停止同步带并让舵机回锁止位
- */
-static void DartShootRaiseError(DartShootInstance *instance, DartShoot_Error_e error) {
-  instance->error = error;
-  DartShootSetPullSpeed(instance, 0.0f);
-  DartShootSetServoAngle(instance, instance->param.servo_lock_angle);
-  DartShootEnterState(instance, DART_SHOOT_STATE_ERROR);
-  LOGERROR("[dart_shoot] error code: %d", error);
+  *target = clamped;
 }
 
 /**
  * @brief 更新反馈数据
  */
 static void DartShootUpdateFeed(DartShootInstance *instance) {
-  if (DartShootAllMotorOnline(instance)) {
-    instance->online_latched = 1;
+  instance->feed.mode = instance->mode;
+  instance->feed.belt_online = 1;
+  for (uint8_t i = 0; i < DART_SHOOT_BELT_MOTOR_NUM; i++) {
+    if (!DaemonIsOnline(instance->belt_motor[i]->daemon)) {
+      instance->feed.belt_online = 0;
+    }
   }
+  instance->feed.yaw_online = DaemonIsOnline(instance->yaw_motor->daemon);
+  instance->feed.trigger_online = DaemonIsOnline(instance->trigger_motor->daemon);
 
-  instance->feed.state = instance->state;
-  instance->feed.error = instance->error;
-  instance->feed.is_homed = instance->is_homed;
-  instance->feed.is_ready = (instance->state == DART_SHOOT_STATE_READY);
-  instance->feed.is_online = DartShootAllMotorOnline(instance);
-  instance->feed.fire_count = instance->fire_count;
-  instance->feed.pull_position = DartShootGetPullPosition(instance) - instance->pull_zero_angle;
-  instance->feed.pull_traveled = fabsf(DartShootGetPullPosition(instance) - instance->pull_start_angle);
-  instance->feed.pull_time_ms = instance->pull_time_ms;
-  instance->feed.fire_time_ms = instance->fire_time_ms;
-  instance->feed.servo_angle = instance->servo_angle_cmd;
-  instance->feed.pull_speed = DartShootGetPullSpeed(instance);
+  instance->feed.belt_enabled = instance->belt_enabled;
+  instance->feed.yaw_enabled = instance->yaw_enabled;
+  instance->feed.trigger_enabled = instance->trigger_enabled;
+  instance->feed.servo_enabled = instance->servo_enabled;
+  instance->feed.belt_limited = instance->belt_limited;
+  instance->feed.yaw_limited = instance->yaw_limited;
+
+  instance->feed.belt_target = instance->belt_target;
+  instance->feed.belt_position = DartShootGetBeltPosition(instance);
+  instance->feed.yaw_target = instance->yaw_target;
+  instance->feed.yaw_position = DartShootGetYawPosition(instance);
+  instance->feed.yaw_speed = instance->yaw_motor->measure.speed_aps;
+  instance->feed.trigger_speed = instance->trigger_motor->measure.speed_aps;
+  instance->feed.servo_angle = instance->servo_angle;
 }

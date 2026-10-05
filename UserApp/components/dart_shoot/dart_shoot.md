@@ -1,77 +1,69 @@
-# dart_shoot — 飞镖发射机构组件
+# dart_shoot — 飞镖发射机构组件（遥操作版）
 
 ## 机构组成
 
-| 执行器 | 型号 | 数量 | 作用 | 闭环 |
-|--------|------|------|------|------|
-| 同步带电机 | M3508 | 2 | 通过同步带把装载飞镖的滑块拉下来，拉到扳机的位置 | 速度环 |
-| 扳机调整电机 | M3508 | 1 | 调整扳机的机械位置（换弹/调整时使用，不参与发射流程） | 速度环 |
-| 扳机舵机 | PWM 舵机 | 1 | 把扳机拉下来，释放滑块，滑块飞出并发射飞镖 | 位置（角度） |
+| 执行器 | 型号 | 数量 | CAN ID | 作用 | 闭环 |
+|--------|------|------|--------|------|------|
+| yaw 电机 | M2006 + C610 | 1 | CAN1 / 1 | 瞄准轴 | 位置环（速度环串级） |
+| 同步带电机 | M3508 + C620 | 2 | CAN1 / 2、4 | 通过同步带把装载飞镖的滑块拉下来，拉到扳机位置 | 位置环（速度环串级） |
+| 扳机位置电机 | M3508 + C620 | 1 | CAN1 / 3 | 调整扳机的机械位置（换弹/标定时使用） | 速度环 |
+| 拉扳机舵机 | PWM 舵机 | 1 | TIM1_CH1 (PE9) | 把扳机拉下来，释放滑块，滑块飞出 | 角度（脉宽） |
 
-> 三个 3508 全部使用速度环：速度环参考值与反馈值单位均为 **度/秒（deg/s）**，即 `dji_motor` 中的
-> `measure.speed_aps`（换算关系见 `Modules/general_def.h` 的 `RPM_2_ANGLE_PER_SEC`）。
+> 单位约定：位置/角度用 `dji_motor` 的 `measure.total_angle`（度），速度用 `measure.speed_aps`（度/秒）。
+> M3508 / M2006 的编码器都在减速箱前，所以这些角度都是**转子侧**角度：
+> 3508 输出轴角度 = 总角度 / 19.2，2006 输出轴角度 = 总角度 / 36。
+> 同步带右电机装配相反，配置里 `motor_reverse_flag` 与 `feedback_reverse_flag` 同时取反，
+> 因此两个电机的 `total_angle` 方向一致，可以共用一个目标位置。
 
-## 工作流程
+## 控制逻辑
 
-```
-                  CMD_HOME                 CMD_PULL                 CMD_FIRE
-  STOPPED ──► IDLE ──────► HOMING ──► IDLE ──────► PULLING ──► READY ──────► RELEASING
-               ▲                                                                   │
-               │                                              servo_release_time_ms │
-               └───────────────────── RELOADING ◄───────────────────────────────────┘
-```
+组件内**没有自动发射流程**，全部由上层（遥控器）按周期驱动。三个档位：
 
-1. **HOMING（回零）**：同步带沿拉滑块的反方向低速运动，直到电流超过阈值或底层 PID 报堵转
-   （顶到机械限位），把该位置记为滑块零点。回零不是必须的：拉滑块的到位判定以「本次拉滑块的起点」
-   为基准，未回零也能工作，但回零后 `feed.pull_position` 才有统一的参考。
-2. **PULLING（拉滑块）**：两个同步带电机以速度环输出 `pull_direction * pull_speed`，
-   把滑块往下拉。满足下面任意一条即认为到位：
-   - 行程到位：`|当前总角度 - 起点总角度| + 容差 >= pull_travel`（推荐，需实测标定）；
-   - 堵转到位：平均电流超过 `pull_current_threshold` 或 PID 报堵转，并连续保持 `pull_stall_time_ms`。
-3. **READY（就位）**：滑块被扳机挡住，同步带速度给定 0，等待击发指令。
-4. **RELEASING（击发）**：舵机转到 `servo_release_angle` 把扳机拉下来，滑块飞出、飞镖发射，
-   保持 `servo_release_time_ms`。
-5. **RELOADING（复位）**：舵机回 `servo_lock_angle`，同步带反向以 `reload_speed` 把滑块收回起点，
-   到位（或堵转、或超时）后回到 IDLE，可以开始下一次发射。
+| 档位 | 同步带 | yaw | 扳机位置电机 | 舵机 |
+|------|--------|-----|--------------|------|
+| `DART_SHOOT_MODE_DISABLED` | 失能 | 失能 | 失能 | 失能（强制） |
+| `DART_SHOOT_MODE_AIM` | 位置累加；无指令时**保持**目标位置顶住 | 位置累加；无指令时**失能** | 失能 | 由左拨杆指令决定 |
+| `DART_SHOOT_MODE_TRIGGER` | 失能 | 失能 | 速度环；速度为 0 时**失能** | 由左拨杆指令决定 |
 
-超时（拉滑块/回零/复位）与电机离线都会进入 **ERROR** 状态：同步带停止输出、舵机回锁止位，
-需要上层下发 `DART_SHOOT_CMD_RESET` 才能回到 IDLE。
+- **位置累加**：上层只给方向（`belt_dir` / `yaw_dir` = -1/0/+1），组件按
+  `目标位置 += 方向 × direction × pos_rate × dt` 累加，再把这个目标位置交给角度环。
+  摇杆推多少无关，所以手感是"摇杆控制转向、位置环保证不丢步"。
+- **保持位置**：同步带在 `belt_dir == 0` 时停止累加，但角度环继续给定同一个目标位置，
+  因此同步带顶在原地不动；`yaw_dir == 0` 时 yaw 直接 `DJIMotorStop()`（不给电流，轴可被手动推动）。
+- **失能语义**：`DJIMotorStop()` 让 DJI 电机发送 0 电流（电调仍在上电状态），
+  不是速度环给定 0；舵机失能是 `ServoStop()`，即停止 PWM 脉冲输出。
+- **重同步**：进入 `AIM` 档、以及 yaw 从失能恢复时，都会把累加目标重新同步到当前角度并清空
+  PID 积分（`PIDClear`），避免失能期间机构被手推动后使能瞬间跳变。
+- **软限位**：累加式控制没有机械零点，`belt_target_limit` / `yaw_target_limit` 以
+  "进入 `AIM` 档时的位置"为基准限制累加范围（置 0 表示不限幅），顶到限位会打印一次警告。
 
 ## API
 
 ```c
 DartShootInstance *dart = DartShootInit(&dart_shoot_init_config);  // RobotInit()
 
-DartShootSetMode(dart, DART_SHOOT_MODE_AUTO);      // 切换工作模式
-DartShootSendCmd(dart, DART_SHOOT_CMD_HOME);       // 一次性指令：回零/拉滑块/击发/复位/清异常
-DartShootSetManualOutput(dart, 2000.0f, 0.0f, 45.0f);  // 手动模式：同步带速度 / 扳机电机速度 / 舵机角度
-DartShootSetServoAngle(dart, 80.0f);               // 直接设置舵机角度（调试用）
+DartShootSetMode(dart, DART_SHOOT_MODE_AIM);   // 档位: DISABLED / AIM / TRIGGER
+DartShootSetBeltDir(dart, 1);                  // 同步带累加方向: -1 / 0 / +1
+DartShootSetYawDir(dart, -1);                  // yaw 累加方向: -1 / 0 / +1
+DartShootSetTriggerSpeed(dart, 800.0f);        // 扳机位置电机速度参考(度/秒), 0 = 失能
+DartShootSetServo(dart, DART_SERVO_CMD_ANGLE_MID);  // 舵机: DISABLED / ANGLE_MID / ANGLE_UP
+DartShootSetServoAngle(dart, 45.0f);           // 调试用: 直接使能并转到指定角度
 
-DartShootTask(dart);                               // RobotTask() 中 1kHz 调用
+DartShootTask(dart);                           // RobotTask() 中 1kHz 调用
 ```
 
-- 上层通过 `dart->ctrl_cmd`（`DartShoot_Ctrl_Cmd_s`）下发命令，通过 `dart->feed`（`DartShoot_Feed_s`）
-  读取状态：当前状态、异常码、是否回零、是否就位、滑块位置、拉滑块/击发耗时、击发次数等。
-- 一次性指令 **只需在需要的时刻下发一次**，组件执行后会自动把 `ctrl_cmd.cmd` 清为
-  `DART_SHOOT_CMD_NONE`；不要在每个控制周期重复下发同一条指令。
-- 模式语义：
-  - `DART_SHOOT_MODE_STOPPED`：电机不输出（`DJIMotorStop`），舵机回锁止位，上电默认状态；
-  - `DART_SHOOT_MODE_MANUAL`：直接把 `ctrl_cmd` 中的速度和舵机角度下发给执行器，用于调试；
-  - `DART_SHOOT_MODE_AUTO`：由状态机完成回零-拉滑块-击发-复位流程。
+上层通过 `dart->ctrl_cmd`（`DartShoot_Ctrl_Cmd_s`）下发命令，通过 `dart->feed`（`DartShoot_Feed_s`）
+读取状态：当前档位、各执行器使能与在线状态、同步带/yaw 的目标与当前位置、速度、舵机角度、是否顶到软限位。
 
 ## 参数标定要点（robot 层 robot_config.h）
 
-- `pull_direction`：拉滑块时同步带电机的转向，实测确定；回零/复位方向取其反方向。
-- `pull_travel`：滑块从起点到扳机位的行程，单位是**电机总角度**（`measure.total_angle`）：
-
-$$
-\text{电机总角度} = \frac{\text{滑块行程(mm)}}{\text{同步带轮周长(mm)}} \times 360 \times \text{减速比}
-$$
-
-  M3508 编码器在转子侧，减速比约 19.2，即输出轴转一圈约 \(19.2 \times 360 = 6912\) 度。
-  调试方法：进入手动测试模式，用左摇杆把滑块拉到扳机位，读取日志里的 `pos` 即为 `pull_travel`。
-- `pull_current_threshold`：到位/堵转判定的电流阈值，3508 反馈的 `real_current` 是 C620 原始值
-  （约 ±16384 对应 ±20A），默认 6000 约等于 7.3A。
-- `servo_lock_angle` / `servo_release_angle`：舵机的锁止位与释放位角度，用手动测试模式的拨轮扫描确定，
-  再用右摇杆增量微调找到准确位置。角度到脉宽的映射由 `servo_min_pulse_s` / `servo_max_pulse_s` /
-  `servo_period_s` 决定，舵机 PWM 周期必须与定时器配置一致（组件会在运行时重设 ARR 与 CCR）。
+- `belt_direction` / `yaw_direction`：摇杆前推（右推）时执行器的累加方向，实测后改成 ±1。
+- `belt_pos_rate` / `yaw_pos_rate`：位置累加速率（电机总角度/秒），**必须小于对应电机角度环的
+  `MaxOut`（速度限幅）**，否则目标会一直跑在前面追不上。
+- `belt_target_limit` / `yaw_target_limit`：软限位（相对进入 `AIM` 档时的位置），按实际行程标定；
+  同步带建议保留（防止一直拉到底顶死），yaw 视机构是否需要防绕线决定。
+- `servo_angle_mid` / `servo_angle_up`：左拨杆中档/上档对应的舵机角度，用
+  `DartShootSetServoAngle()` 或临时改宏扫描确定；角度到脉宽的映射由
+  `servo_min_pulse_s` / `servo_max_pulse_s` / `servo_period_s` 决定。
+- 角度环 PID 的 `MaxOut` 是速度环参考限幅（度/秒），也是位置跟踪的能力上限；速度环 PID 的
+  `MaxOut` 是电流指令限幅（C620 为 ±16384，C610 为 ±10000）。

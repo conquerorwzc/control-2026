@@ -42,4 +42,18 @@ typedef struct
 
 ServoInstance *ServoInit(Servo_Init_Config_s *Servo_Init_Config);
 void ServoSetAngle(ServoInstance *servo, float angle);
+
+/**
+ * @brief 舵机失能: PWM 舵机停止脉冲输出, 总线舵机发送卸载指令
+ * @note  PWM 舵机的定时器当前只挂载了这一个通道, 停止时该定时器会一起停止
+ * @param servo 舵机实例
+ */
+void ServoStop(ServoInstance *servo);
+
+/**
+ * @brief 舵机恢复输出: 重新使能 PWM(总线舵机重发上一次的角度指令)
+ * @note  恢复后需要重新调用 ServoSetAngle() 才能真正转到目标角度
+ * @param servo 舵机实例
+ */
+void ServoStart(ServoInstance *servo);
 #endif // SERVO_MOTOR_H

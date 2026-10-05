@@ -59,6 +59,55 @@ void ServoSetAngle(ServoInstance *servo, float angle)
     }
 }
 
+/*
+ * @brief 舵机失能: PWM 舵机停止脉冲输出(舵机失去信号), 总线舵机发送卸载指令
+ */
+void ServoStop(ServoInstance *servo)
+{
+    if (servo == NULL)
+        return;
+
+    switch (servo->servo_type)
+    {
+    case Bus_Servo:
+        if (servo->usart_instance != NULL)
+            USARTSend(servo->usart_instance, servo_unload, 6, USART_TRANSFER_DMA);
+        break;
+    case PWM_Servo:
+        if (servo->pwm_instance != NULL)
+            PWMStop(servo->pwm_instance);
+        break;
+    default:
+        break;
+    }
+}
+
+/*
+ * @brief 舵机恢复输出: 重新使能 PWM 并下发上一次的占空比, 总线舵机重发上一次的角度指令
+ */
+void ServoStart(ServoInstance *servo)
+{
+    if (servo == NULL)
+        return;
+
+    switch (servo->servo_type)
+    {
+    case Bus_Servo:
+        if (servo->usart_instance != NULL)
+            USARTSend(servo->usart_instance, servo_angle_write, 16, USART_TRANSFER_DMA);
+        break;
+    case PWM_Servo:
+        if (servo->pwm_instance != NULL)
+        {
+            PWMStart(servo->pwm_instance);
+            PWMSetDutyRatio(servo->pwm_instance, servo->angle); // 恢复上次的占空比
+        }
+        break;
+    default:
+        break;
+    }
+}
+
 //@todo 只读取了角度 还有电压，动作是否完成等 且只支持一个串口
 static void DecodeServo()
 {
