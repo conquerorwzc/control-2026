@@ -491,21 +491,28 @@ DartLauncherInstance* DartLauncherInit(void) {
   return inst;
 }
 
-void DartLauncherSetEnable(DartLauncherInstance* inst, bool enable) {
+void DartLauncherSetEnable(DartLauncherInstance* inst, bool enable, bool auto_cali) {
   if (inst == NULL) return;
   uint32_t now = (uint32_t)DWT_GetTimeline_ms();
 
   if (enable && !inst->enabled) {
     inst->enabled = true;
     EnableAllMotors(inst);
+    // 重同步(实车教训): 失能期间机构可能被手推动, 重新使能时把 yaw 目标同步到当前位置并清 PID,
+    // 避免使能瞬间输出跳变; 正常档位切换(持续使能)不做清零, 否则积分清零会丢保持力矩引起抽动
+    inst->yaw_angle_target = inst->yaw_motor->measure.total_angle;
+    PIDClear(&inst->yaw_motor->motor_controller.angle_PID);
+    PIDClear(&inst->yaw_motor->motor_controller.speed_PID);
+    ClearBeltPid(inst);
+    ClearScrewPid(inst);
     // 失能时被中止的序列统一回 IDLE 兜底
     if (inst->state == DART_STATE_CALIBRATING || inst->state == DART_STATE_CHARGING ||
         inst->state == DART_STATE_FIRING) {
       if (inst->state == DART_STATE_CHARGING && inst->is_calibrated) inst->recovery_retract = true;
       inst->state = DART_STATE_IDLE;
     }
-    // 上电后开始工作时必须先完成一次零位校准
-    if (!inst->is_calibrated && inst->state == DART_STATE_IDLE && !inst->recovery_retract) {
+    // 上电后开始工作时必须先完成一次零位校准(调试档传 auto_cali=false: 先点动验方向, 手动校准)
+    if (auto_cali && !inst->is_calibrated && inst->state == DART_STATE_IDLE && !inst->recovery_retract) {
       StartCalibration(inst, now);
     }
   } else if (!enable && inst->enabled) {

@@ -21,11 +21,14 @@ static float StickToNorm(int16_t stick) {
   return (float)stick / (float)DART_STICK_FULL;
 }
 
-/* 使能/失能与急停: 右开关下档或遥控器离线即全部停机 */
+/* 使能/失能与急停: 右开关下档或遥控器离线即全部停机
+ * 调试档(右开关上)使能时不自动校准: 上电即可在 IDLE 点动验方向,
+ * 之后拨回中档并动一下左开关(下->中)即开始校准 */
 static void SafetyUpdate(void) {
   bool online = RemoteControlIsOnline() == 1;
+  bool debug = switch_is_up(rc_data[TEMP].rc.switch_right);
   bool enable = online && !switch_is_down(rc_data[TEMP].rc.switch_right);
-  DartLauncherSetEnable(launcher, enable);
+  DartLauncherSetEnable(launcher, enable, !debug);
   robot->robot_mode = enable ? ROBOT_POWER_ON : ROBOT_EMERGENCY_STOP;
 }
 
@@ -36,23 +39,24 @@ static void RCCommandUpdate(void) {
   // 右摇杆水平 -> yaw 角速度
   DartLauncherSetYawRate(launcher, StickToNorm(rc->rc.rocker_r_) * DART_YAW_SENSITIVITY_DPS);
 
-  // 侧边拨轮归一化
-  float dial = StickToNorm(rc->rc.dial);
+  // 右摇杆竖直 -> 正常档: 射力(丝杆位置)微调; 调试档: 舵机角度
+  // (侧边拨轮已弃用: 实车拨轮损坏)
+  float power_stick = StickToNorm(rc->rc.rocker_r1);
 
   // 右开关上档 = 调试点动
   bool debug = switch_is_up(rc->rc.switch_right);
   if (debug) {
-    // 调试档: 拨轮直接给舵机角度(标定卡位角/释放角), 左摇杆水平点动扳机丝杆
-    float servo_angle =
-        DART_SERVO_ANGLE_MIN_DEG + (dial + 1.0f) * 0.5f * (DART_SERVO_ANGLE_MAX_DEG - DART_SERVO_ANGLE_MIN_DEG);
+    // 调试档: 右摇杆竖直给舵机角度(标定卡位角/释放角), 左摇杆水平点动扳机丝杆
+    float servo_angle = DART_SERVO_ANGLE_MIN_DEG +
+                        (power_stick + 1.0f) * 0.5f * (DART_SERVO_ANGLE_MAX_DEG - DART_SERVO_ANGLE_MIN_DEG);
     DartLauncherSetServoAngle(launcher, servo_angle);
     DartLauncherSetDebugJog(launcher, true, StickToNorm(rc->rc.rocker_l1) * DART_DEBUG_BELT_MAX_SPEED_DPS,
                             StickToNorm(rc->rc.rocker_l_) * DART_DEBUG_SCREW_MAX_SPEED_DPS);
   } else {
     DartLauncherSetDebugJog(launcher, false, 0.0f, 0.0f);
-    // 侧边拨轮 -> 射力(丝杆位置)微调, 仅 IDLE/READY 生效(launcher 内部约束)
-    if (dial != 0.0f) {
-      DartLauncherAdjustScrewPos(launcher, dial * DART_SCREW_ADJ_DPS * DART_TASK_DT_S);
+    // 右摇杆竖直 -> 射力(丝杆位置)微调, 仅 IDLE/READY 生效(launcher 内部约束)
+    if (power_stick != 0.0f) {
+      DartLauncherAdjustScrewPos(launcher, power_stick * DART_SCREW_ADJ_DPS * DART_TASK_DT_S);
     }
   }
 

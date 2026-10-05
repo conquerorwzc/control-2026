@@ -13,6 +13,8 @@
  *   - 丝杆逻辑坐标:   0 = 丝杆零点(校准顶到的硬限位), 数值越大射力越大(方向按实机标定)
  *   - yaw 逻辑坐标:   0 = 开机位置
  *   - 舵机: 直接给角度, 映射到脉宽见 DART_SERVO_* 宏
+ *   - 所有电机角度均为转子侧(编码器在减速箱前): 3508 输出轴角度 = 总角度/19.2,
+ *     2006 输出轴角度 = 总角度/36; 换算成输出轴/皮带行程再填宏
  *
  * @attention 所有行程/角度/力矩参数均为占位初值, 必须按实机机械结构标定;
  *            电机方向不对时只翻转对应 DART_XXX_REVERSE 宏;
@@ -103,7 +105,7 @@
 #define DART_SCREW_MAX_OUT 6000.0f         // 正常工作电流限幅
 #define DART_SCREW_INTEGRAL_LIMIT 2000.0f  // 正常工作积分限幅
 #define DART_SCREW_MAX_SPEED_DPS 300.0f    // 位置环输出限幅 = 最大速度
-#define DART_SCREW_ADJ_DPS 60.0f           // 拨轮满行程时射力调节速度 (deg/s)
+#define DART_SCREW_ADJ_DPS 60.0f           // 右摇杆竖直满行程时射力调节速度 (deg/s)
 #define DART_SCREW_SETTLE_TIMEOUT_MS 2000  // 储能前丝杆就位超时 (ms)
 
 /* 扳机丝杆零位校准(与同步带校准同一次自动执行) */
@@ -121,11 +123,11 @@
 #define DART_SERVO_PWM_TIM (&htim1)             // ← 舵机 PWM 定时器(待定, 按实际接线改)
 #define DART_SERVO_PWM_CHANNEL (TIM_CHANNEL_1)  // ← 舵机 PWM 通道
 #define DART_SERVO_PWM_PERIOD_S (0.02f)         // 50Hz PWM 周期 (s)
-#define DART_SERVO_PULSE_MIN_US 500.0f          // 角度下限对应脉宽 (us)
-#define DART_SERVO_PULSE_MAX_US 2500.0f         // 角度上限对应脉宽 (us)
+#define DART_SERVO_PULSE_MIN_US 500.0f          // 0° 对应脉宽 (us, 实车 270° 舵机)
+#define DART_SERVO_PULSE_MAX_US 2500.0f         // 行程上限对应脉宽 (us, 实车 270° 舵机)
 #define DART_SERVO_ANGLE_MIN_DEG 0.0f           // 舵机机械角度下限 (deg)
-#define DART_SERVO_ANGLE_MAX_DEG 180.0f         // 舵机机械角度上限 (deg)
-#define DART_SERVO_CATCH_DEG 90.0f              // 卡位角: 扣住发射平台(待发/上电默认)
+#define DART_SERVO_ANGLE_MAX_DEG 270.0f         // 舵机机械角度上限 (deg, 实车 270° 舵机; 180° 舵机改 180)
+#define DART_SERVO_CATCH_DEG 135.0f             // 卡位角: 扣住发射平台(待发/上电默认), 行程中点
 #define DART_SERVO_RELEASE_DEG 0.0f             // 释放角: 放开发射平台(发射)
 #define DART_SERVO_SETTLE_MS 300                // 舵机动作等待时间 (ms, 开环无反馈)
 #define DART_FIRE_DWELL_MS 500                  // 发射时释放角保持时间 (ms)
@@ -142,13 +144,15 @@
 #define DART_STICK_FULL 660      // 摇杆满行程
 #define DART_TASK_DT_S 0.001f    // RobotTask 标称周期 (s)
 
-/* DR16 操作映射:
- *   右开关: 下 = 安全停机(全部电机停); 中 = 使能(上电首次使能自动校准); 上 = 使能 + 调试点动
+/* DR16 操作映射(侧边拨轮已弃用: 实车拨轮损坏, 原拨轮功能移到右摇杆竖直):
+ *   右开关: 下 = 安全停机(全部电机停); 中 = 使能(首次使能自动校准); 上 = 使能+调试点动(不自动校准)
  *   左开关: 下 = 待机; 中(上升沿) = 储能命令(故障/未校准时为重新校准); 上(上升沿) = 发射命令
  *   右摇杆水平: yaw 增量式角度目标
- *   侧边拨轮:    正常档 = 射力(丝杆位置)微调, 仅 IDLE/READY 生效
+ *   右摇杆竖直:  正常档 = 射力(丝杆位置)微调, 仅 IDLE/READY 生效
  *                调试档 = 直接给舵机角度(满行程映射角度范围, 标定卡位角/释放角用)
- *   调试档(右开关上): 左摇杆竖直 = 双同步带电机同速点动; 左摇杆水平 = 扳机丝杆点动 */
+ *   调试档(右开关上): 左摇杆竖直 = 双同步带电机同速点动; 左摇杆水平 = 扳机丝杆点动
+ *   调试流程: 上电右开关拨上档(不自动校准) -> 点动验方向/扫舵机角度 -> 拨回中档,
+ *             动一下左开关(下->中)开始自动校准 -> 之后正常操作 */
 
 /* ================= 调试点动参数 ================= */
 #define DART_DEBUG_BELT_MAX_SPEED_DPS 60.0f   // 同步带点动满杆速度 (deg/s)

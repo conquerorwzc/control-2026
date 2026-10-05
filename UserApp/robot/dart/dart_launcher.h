@@ -120,10 +120,11 @@ typedef struct {
 DartLauncherInstance* DartLauncherInit(void);
 
 /**
- * @brief 使能/失能发射架; 失能立即停机并中止进行中的序列,
- *        重新使能时若未校准则自动开始零位校准
+ * @brief 使能/失能发射架; 失能立即停机并中止进行中的序列;
+ *        重新使能时会重同步 yaw 目标并清 PID(防失能期间被手推动后跳变);
+ *        auto_cali = true 且未校准时自动开始零位校准, 调试档传 false(先点动验方向, 手动校准)
  */
-void DartLauncherSetEnable(DartLauncherInstance* inst, bool enable);
+void DartLauncherSetEnable(DartLauncherInstance* inst, bool enable, bool auto_cali);
 
 /**
  * @brief 下发一次性命令(校准/储能/发射), 非法状态下忽略
