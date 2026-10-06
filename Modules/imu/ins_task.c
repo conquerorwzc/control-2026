@@ -176,7 +176,7 @@ static void INS_CalibrateGyroForDebug(uint16_t sample_count) {
       BMI088_Read(&BMI088);
       IMU_Temperature_Ctrl();
       DWT_Delay(0.001);
-    } while (BMI088.Temperature <= 39.0f || BMI088.Temperature >= 41.0f);
+    } while (BMI088.Temperature <= 39.5f || BMI088.Temperature >= 40.5f);
 
     // 累加陀螺仪读数
     for (uint8_t j = 0; j < 3; j++) {
@@ -237,12 +237,32 @@ INS_t *INS_Init(IMU_Init_Config_s *imu_init_config) {
 #endif
   // 使用我们的调试校准函数来测量陀螺仪零偏值，绕过预定义值
 
-  // imu heat init
-  PID_Init_Config_s config = {.MaxOut = 2000,
-                              .IntegralLimit = 300,
+  /**
+   * imu heat init —— IMU 恒温控制 PID。
+   *
+   * 输出被直接当作 TIM10_CH1 的比较值(见 IMUPWMSet), 而 TIM10 是
+   * Prescaler=167 / Period=5000-1, 所以【占空比上限 = MaxOut / 4999】。
+   *
+   * 【2026-09 调整: 加快冷启动升温】
+   *   原值 .MaxOut = 2000 → 占空比上限仅 40%。
+   *   而 Kp = 1000 使得升温阶段比例项严重饱和(室温 20℃ 时误差 20℃ → 20000),
+   *   即整个升温过程加热器【恒定跑在 40% 上限】, 属于纯功率受限。
+   *   因此调 PID 的 Kp/Ki 无法提速, 只能抬高这个上限。
+   *
+   *   新值 .MaxOut = 3000 → 占空比上限 60%(加热功率 +50%)。
+   *        .IntegralLimit 300 → 500(原 300/4999≈6% 额外占空比, 约 2.4℃ 积分跨度, 偏紧)。
+   *
+   * @attention 抬上限会同时放大【过冲】。温度若冲过 41℃ 上界, 那段
+   *   "等待 IMU 进入 39~41℃" 的门控反而要等它降回来, 可能更慢。
+   *   若实测出现过冲后长时间徘徊, 应回调 MaxOut 或加过冲抑制。
+   * @note 40% 这个原值可能是为保护加热电阻/PCB 定的, 上调属于硬件相关改动。
+   *   首次上电请留意加热区域温升是否异常。
+   */
+  PID_Init_Config_s config = {.MaxOut = 4500,
+                              .IntegralLimit = 1000,
                               .DeadBand = 0,
                               .Kp = 1000,
-                              .Ki = 20,
+                              .Ki = 30,
                               .Kd = 0,
                               .Improve = 0x01};  // enable integratiaon limit
   PIDInit(&TempCtrl, &config);

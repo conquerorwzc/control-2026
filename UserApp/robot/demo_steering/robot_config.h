@@ -213,47 +213,30 @@
 #define DEMO_IMU_SETTLE_MS 500
 
 /**
- * @brief IMU 初始化配置 —— 采用【离线零偏】, 这是全仓库其它机器人一致的做法。
+ * @brief IMU 初始化配置。
  *
- * 【为什么必须用离线零偏, 不能用在线标定】
- *   IMU_Init_Config_s 里的 offset_flag 决定走哪条路:
+ * offset_flag 决定陀螺零偏从哪来, 【这里取 0 = 在线标定】, 是本 demo 的既定选择:
  *
- *     offset_flag = 0  INS_Init() 调用 INS_CalibrateGyroForDebug(5000):
- *                      - 内部有【无超时】的温度门控:
- *                            while (BMI088.Temperature <= 39 || >= 41);
- *                        必须等 IMU 加热到 39~41℃ 才肯采样。冷机要等几十秒,
- *                        而且温度是浮点 PID 控的, 很可能一直在窗口边缘来回,
- *                        于是【永远进不去】—— 表现为上电后长时间没反应。
- *                      - 就算温度刚好, 5000 个样本每个还带 1ms 延时 = 固定 +5s。
- *                      - 加上前面 1000 次预热(+1s), 至少 6 秒起步。
- *     offset_flag = 1  直接采用下面 GyroOffset 里的离线值, 上述阻塞【全部跳过】。
+ *   offset_flag = 0  INS_Init() 调用 INS_CalibrateGyroForDebug(5000) 现场标定。
+ *                    精度好(在 40℃ 标定, 与运行时温控目标一致), 代价是【启动慢】:
+ *                      - 内含无超时的温度门控, 要等 IMU 进入 39~41℃;
+ *                      - 之后 5000 个样本, 每个样本带 1ms 延时, 固定再 +5s 起。
+ *                    这些都在 RobotInit() 内同步阻塞, 期间底盘任务尚未启动。
+ *   offset_flag = 1  直接采用 GyroOffset 的离线值, 跳过上述全部开销, 启动快。
+ *                    (仓库里 infantry_mecanum / sentry / hero_rabbit 等用的是这种)
  *
- *   本仓库的 infantry_mecanum / infantry_six_wheel / sentry_omni_gimbal /
- *   hero_rabbit / infantry_wheel_legged_sjtu 全都用 offset_flag=1。
+ * @attention 若要缩短启动时间, 【先确认是否允许改零偏来源】, 不要擅自把
+ *            offset_flag 改成 1 —— 那会改变 yaw 的精度特性。
  *
- * 【还有一个无法在这里消除的阻塞点】
- *   INS_Init() 里有一句:
- *       while (BMI088Init(&hspi1, 0) != BMI088_NO_ERROR);
- *   这是【无超时的死循环】。BMI088 冷启动时第一次读 chip id 容易失败
- *   (BMI088driver.c 读到错的 ID 就返回 BMI088_NO_SENSOR), 一旦连续读错就永远卡住,
- *   而且卡在 RobotInit() 里 —— 整车的 ChassisInit() 和任务循环都不会执行,
- *   表现为"上电后轮子完全没反应"。
- *   @note 这句在 Modules/imu/ 里, 属于公共模块, 不在本文件的修改范围。
- *         它只会因为【硬件/供电/SPI 时序】触发; 若频繁出现, 请检查:
- *           - BMI088 的 3.3V 供电与上电时序(电源未稳时 SPI 读会失败)
- *           - SPI1 的 CS/SCK/MISO/MOSI 接线与片选
- *           - 上电后复位是否给足了 BMI088 的启动时间
- *
- * GyroOffset 三个值是陀螺仪三轴零偏(单位 rad/s), 用 driver 头文件里
- * 为本板预设的那组即可; 若发现静止时 yaw 漂移明显, 可以自行实测替换。
+ * @note 下面 GyroOffset 三个值仅在 offset_flag = 1 时被采用;
+ *       offset_flag = 0 时它们不参与, 保留是为了切换方便。
  */
 static IMU_Init_Config_s imu_init_config = {.flag = 1,
-                                            .offset_flag = 0,  // 1 = 离线零偏, 跳过在线标定的温度门控
+                                            .offset_flag = 0,  // 0 = 在线标定(本 demo 的既定选择)
                                             .scale = {1.0f, 1.0f, 1.0f},
                                             .Yaw = 0.0f,
                                             .Pitch = 0.0f,
                                             .Roll = 0.0f,
-                                            // 取自 BMI088driver.h 为本板预设的 GxOFFSET/GyOFFSET/GzOFFSET
                                             .GyroOffset = {0.0007222f, -0.001786f, 0.0004346f}};
 
 /* ========================== 四、遥控器与底盘手感 ========================== */
