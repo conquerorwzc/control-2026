@@ -60,8 +60,8 @@
  * 两个同步带电机镜像安装, 配置使得逻辑正方向均为储能方向;
  * 若实机转向与定义相反, 翻转对应宏即可。 */
 #define DART_YAW_REVERSE MOTOR_DIRECTION_NORMAL
-#define DART_BELT_L_REVERSE MOTOR_DIRECTION_NORMAL
-#define DART_BELT_R_REVERSE MOTOR_DIRECTION_REVERSE  // 对置安装, 需反转
+#define DART_BELT_L_REVERSE MOTOR_DIRECTION_REVERSE
+#define DART_BELT_R_REVERSE MOTOR_DIRECTION_NORMAL  // 对置安装, 需反转
 #define DART_SCREW_REVERSE MOTOR_DIRECTION_NORMAL
 
 /* ================= 零位校准参数 =================
@@ -138,9 +138,9 @@
 #define DART_FIRE_DWELL_MS 500                  // 发射时释放角保持时间 (ms)
 
 /* ================= yaw 参数 ================= */
-#define DART_YAW_SENSITIVITY_DPS 60.0f   // 满杆 yaw 角速度 (deg/s)
-#define DART_YAW_SOFT_LIMIT_DEG 500.0f   // 相对开机位置的软限位 (deg)
-#define DART_YAW_LEAD_LIMIT_DEG 30.0f    // 目标角超前反馈的限幅, 防目标跑飞 (deg)
+#define DART_YAW_SENSITIVITY_DPS 10000.0f   // 满杆 yaw 角速度 (deg/s)
+#define DART_YAW_SOFT_LIMIT_DEG 20000.0f   // 相对开机位置的软限位 (deg)
+#define DART_YAW_LEAD_LIMIT_DEG 10000.0f    // 目标角超前反馈的限幅, 防目标跑飞 (deg)
 #define DART_YAW_MAX_OUT 4000.0f         // 电流限幅 (M2006/C610 满量程 10000)
 #define DART_YAW_INTEGRAL_LIMIT 1500.0f  // 积分限幅
 
@@ -161,9 +161,15 @@
 
 /* ================= 调试点动参数 ================= */
 /* 调试点动速度(转子侧). 同步带: 3000°/s ≈ 46mm/s(1m 行程点动需要这个量级);
- * 丝杆导程未标定前先用较小值. 均为满杆对应值, 实际随摇杆线性缩放. */
-#define DART_DEBUG_BELT_MAX_SPEED_DPS 3000.0f  // 同步带点动满杆速度 (deg/s)
-#define DART_DEBUG_SCREW_MAX_SPEED_DPS 600.0f  // 扳机丝杆点动满杆速度 (deg/s)
+ * 丝杆导程未标定前先用较小值. 均为满杆对应值, 实际随摇杆线性缩放.
+ * 同步带点动采用"两侧共用同一虚拟位置目标 + 位置环": 摇杆给速率, 目标积分推进, 两侧速度差
+ * 不会累计成位置偏差(与储能流程同一机制); 摇杆回中后目标保持, 位置环继续收敛两侧偏差. */
+#define DART_DEBUG_BELT_MAX_SPEED_DPS 5000.0f  // 同步带点动满杆速率 (deg/s)
+#define DART_DEBUG_SCREW_MAX_SPEED_DPS 5000.0f // 扳机丝杆点动满杆速度 (deg/s)
+#define DART_DEBUG_BELT_SYNC_SPEED_DPS 300.0f  // 摇杆回中后的两侧偏差收敛限速 (deg/s)
+#define DART_DEBUG_BELT_SYNC_WARN_DEG 200.0f   // 点动偏差告警阈值(相对进入点动时的基准, 转子侧 ≈3mm)
+#define DART_DEBUG_BELT_MAX_ERR_DEG 500.0f     // 目标超前实测的上限: 超过则暂停积分(顶到限位/跟不上时不跑飞)
+#define DART_DEBUG_LOG_PERIOD_MS 500           // 调试档状态日志周期 (ms)
 
 /* ================= 任务周期 ================= */
 #define DART_SYNC_WARN_PERIOD_MS 1000  // 同步偏差告警的最小打印间隔

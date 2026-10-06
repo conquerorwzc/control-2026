@@ -460,11 +460,53 @@ static void MonitorBeltSync(DartLauncherInstance* inst, uint32_t now) {
   }
 }
 
-/* 调试点动: 双带电机同速 + 扳机丝杆点动 */
-static void ApplyDebugJog(DartLauncherInstance* inst) {
-  SetBeltSpeed(inst, inst->debug_belt_speed_dps);
+/* 调试点动: 同步带两侧共用同一"虚拟位置目标"(位置环)消除速度差累计, 丝杆速度环点动
+ * @note 之前两侧各自跑速度环, 负载/摩擦不同会导致实际速度不一致, 位置差会一直累计;
+ *       现在摇杆只给速率, 目标积分推进, 两侧位置环跟踪同一目标 -> 严格同步 */
+static void ApplyDebugJog(DartLauncherInstance* inst, float dt_s, uint32_t now) {
+  DJIMotorInstance* belt_l = inst->belt_motor[0];
+  DJIMotorInstance* belt_r = inst->belt_motor[1];
+
+  if (!inst->debug_belt_synced) {
+    // 进入点动/重新取得控制权: 目标取两侧当前位置平均(两侧已有偏差时会被收敛到同一目标)
+    inst->debug_belt_target = 0.5f * (belt_l->measure.total_angle + belt_r->measure.total_angle);
+    inst->debug_belt_dev_base = belt_l->measure.total_angle - belt_r->measure.total_angle;
+    inst->debug_belt_synced = true;
+  }
+
+  // 摇杆给速率 -> 积分出两侧共用的位置目标
+  // 目标超前实测过多(顶到机械限位/电机跟不上)时暂停积分, 避免摇杆反向时要先"回绕"误差
+  float follow_err = inst->debug_belt_target - 0.5f * (belt_l->measure.total_angle + belt_r->measure.total_angle);
+  if (fabsf(follow_err) < DART_DEBUG_BELT_MAX_ERR_DEG) {
+    inst->debug_belt_target += inst->debug_belt_speed_dps * dt_s;
+  }
+
+  // 位置环限速: 跟随摇杆速率; 摇杆回中后仍保留较小限速用于收敛两侧已有偏差
+  float limit = fabsf(inst->debug_belt_speed_dps);
+  if (limit < DART_DEBUG_BELT_SYNC_SPEED_DPS) limit = DART_DEBUG_BELT_SYNC_SPEED_DPS;
+  for (int i = 0; i < 2; i++) {
+    inst->belt_motor[i]->motor_controller.angle_PID.MaxOut = limit;
+    DJIMotorOuterLoop(inst->belt_motor[i], ANGLE_LOOP);
+    DJIMotorSetPIDRef(inst->belt_motor[i], inst->debug_belt_target);
+  }
+
+  // 丝杆点动: 单电机, 速度环即可
   DJIMotorOuterLoop(inst->screw_motor, SPEED_LOOP);
   DJIMotorSetPIDRef(inst->screw_motor, inst->debug_screw_speed_dps);
+
+  // 两侧偏差监测(以进入点动时的位置差为基准) + 限频状态日志, 便于实机排查同步问题
+  float dev = (belt_l->measure.total_angle - belt_r->measure.total_angle) - inst->debug_belt_dev_base;
+  if (now - inst->debug_log_ms >= DART_DEBUG_LOG_PERIOD_MS) {
+    inst->debug_log_ms = now;
+    if (fabsf(dev) > DART_DEBUG_BELT_SYNC_WARN_DEG) {
+      LOGERROR("[dart] debug jog belt sync dev %d deg (L %d, R %d, tgt %d)", (int)dev,
+               (int)belt_l->measure.total_angle, (int)belt_r->measure.total_angle, (int)inst->debug_belt_target);
+    } else {
+      LOGINFO("[dart] debug jog spd %d/%d deg/s, pos %d/%d, dev %d", (int)belt_l->measure.speed_aps,
+              (int)belt_r->measure.speed_aps, (int)belt_l->measure.total_angle, (int)belt_r->measure.total_angle,
+              (int)dev);
+    }
+  }
 }
 
 /* ==================== 对外接口 ==================== */
@@ -611,8 +653,9 @@ void DartLauncherTask(DartLauncherInstance* inst) {
   }
 
   if (inst->debug_jog && inst->state == DART_STATE_IDLE) {
-    ApplyDebugJog(inst);
+    ApplyDebugJog(inst, dt_s, now);
   } else {
+    inst->debug_belt_synced = false;  // 点动结束/状态机接管: 下次点动重新同步虚拟目标
     switch (inst->state) {
       case DART_STATE_IDLE:
         HandleIdle(inst, now);

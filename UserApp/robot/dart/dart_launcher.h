@@ -110,8 +110,12 @@ typedef struct {
 
   // 调试点动(右开关上档)
   bool debug_jog;
-  float debug_belt_speed_dps;
-  float debug_screw_speed_dps;
+  float debug_belt_speed_dps;   // 同步带点动速率(deg/s), 用于积分出两侧共用的位置目标
+  float debug_screw_speed_dps;  // 丝杆点动速度(deg/s), 速度环
+  float debug_belt_target;      // 同步带虚拟位置目标(转子侧 total_angle 坐标), 两侧共用
+  bool debug_belt_synced;       // 进入点动时是否已把目标同步到两侧当前位置
+  float debug_belt_dev_base;    // 进入点动时的两侧位置差基准(用于偏差告警)
+  uint32_t debug_log_ms;        // 调试档状态日志限频
 } DartLauncherInstance;
 
 /**
@@ -152,7 +156,10 @@ void DartLauncherAdjustServoAngle(DartLauncherInstance* inst, float delta_deg);
 void DartLauncherSetYawRate(DartLauncherInstance* inst, float rate_dps);
 
 /**
- * @brief 调试点动(仅 IDLE 态生效): 同步带双电机同速点动 + 扳机丝杆点动
+ * @brief 调试点动(仅 IDLE 态生效): 同步带两侧同步点动 + 扳机丝杆点动
+ * @param belt_speed_dps 同步带点动速率(deg/s): 两侧共用同一虚拟位置目标按此速率推进,
+ *                       位置环保证两侧不累计偏差; 0 = 目标保持, 位置环继续收敛已有偏差
+ * @param screw_speed_dps 丝杆点动速度(deg/s, 速度环): 0 = 停止
  */
 void DartLauncherSetDebugJog(DartLauncherInstance* inst, bool enable, float belt_speed_dps, float screw_speed_dps);
 
