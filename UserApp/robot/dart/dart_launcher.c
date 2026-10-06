@@ -398,7 +398,11 @@ static void HandleCommand(DartLauncherInstance* inst, uint32_t now) {
 
   switch (cmd) {
     case DART_CMD_CALIBRATE:
-      if (inst->state == DART_STATE_IDLE || inst->state == DART_STATE_FAULT) {
+      if (inst->debug_jog) {
+        // 调试档 = 纯手动点动: 不接受校准命令(否则状态机会抢占点动); 请拨回中档再校准
+        LOGWARNING("[dart] calibrate command ignored in debug mode (switch to normal mode)");
+        DartBuzzerCmdRejected();
+      } else if (inst->state == DART_STATE_IDLE || inst->state == DART_STATE_FAULT) {
         StartCalibration(inst, now);
       } else {
         LOGWARNING("[dart] calibrate command ignored");
@@ -650,6 +654,17 @@ void DartLauncherTask(DartLauncherInstance* inst) {
   if (inst->state == DART_STATE_FAULT) {
     StopAllMotors(inst);
     return;
+  }
+
+  // 调试档 = 纯手动: 拨到调试档(右开关上)时, 正在进行的自动校准立即中止
+  // (使能时右开关还没拨到上档/先在中档使能过, 都会遇到这种情况)
+  if (inst->debug_jog && inst->state == DART_STATE_CALIBRATING) {
+    inst->state = DART_STATE_IDLE;
+    inst->is_calibrated = false;
+    inst->belt_zero_valid = false;
+    inst->screw_zero_valid = false;
+    inst->debug_belt_synced = false;
+    LOGWARNING("[dart] auto calibration aborted: debug mode (jog only, calibrate in normal mode)");
   }
 
   if (inst->debug_jog && inst->state == DART_STATE_IDLE) {
