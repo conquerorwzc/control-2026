@@ -159,11 +159,11 @@ static void EnterFault(DartLauncherInstance* inst) {
   DartBuzzerFault();
 }
 
-/* 开始一次零位校准(同步带 -> 扳机丝杆) */
+/* 开始一次零位校准(当前只做同步带; 丝杆不自动校零) */
 static void StartCalibration(DartLauncherInstance* inst, uint32_t now) {
   inst->is_calibrated = false;
   inst->belt_zero_valid = false;
-  inst->screw_zero_valid = false;
+  // 丝杆不参与自动校准: screw_zero_valid 保持有效(零点=开机位置), 否则位置环会一直抱死
   inst->recovery_retract = false;
   inst->cali_step = CALI_STEP_BELT_DRIVE_TO_STOP;
   inst->cali_start_ms = now;
@@ -174,7 +174,7 @@ static void StartCalibration(DartLauncherInstance* inst, uint32_t now) {
   inst->state = DART_STATE_CALIBRATING;
   DartBuzzerFaultCleared();
   DartBuzzerCaliStart();
-  LOGINFO("[dart] start zero calibration (belt + screw)");
+  LOGINFO("[dart] start zero calibration (belt only)");
 }
 
 /* ==================== 状态处理 ==================== */
@@ -209,18 +209,29 @@ static void HandleCalibrating(DartLauncherInstance* inst, uint32_t now) {
       ApplyScrewPosition(inst);
       SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_BELT_CALI_BACKOFF_SPEED_DPS);
       if (BeltPositionReached(inst, DART_BELT_HOME_DEG)) {
-        // 同步带完成, 接着校准扳机丝杆零点
+        // 自动校准到此结束(只做同步带): 同步带两侧零点已同步;
+        // 丝杆不做自动校零, 直接以"开机位置"为零点(见 DartLauncherInit 里的 screw_zero_valid)
         ResetStallState(inst);
         ClearScrewPid(inst);
-        inst->cali_step = CALI_STEP_SCREW_DRIVE_TO_STOP;
-        inst->step_start_ms = now;
-        LOGINFO("[dart] belt zero done, start screw zero calibration");
+        inst->is_calibrated = true;
+        inst->state = DART_STATE_IDLE;
+        inst->cali_step = CALI_STEP_BELT_DRIVE_TO_STOP;
+        DartBuzzerCaliDone();
+        LOGINFO("[dart] calibration done (belt only, screw calibration disabled)");
       } else if (now - inst->step_start_ms > DART_BELT_CALI_TIMEOUT_MS) {
         LOGERROR("[dart] fault: belt calibration backoff timeout");
         EnterFault(inst);
       }
       break;
 
+#if 0 /* ===== 扳机丝杆零位校准: 自动校准中已停用(按要求注释保留, 未编译) =====
+       * 恢复方法:
+       *   1. 本段 #if 0 改回 #if 1;
+       *   2. 上面 BELT_BACKOFF 完成分支改回: ResetStallState/ClearScrewPid 后
+       *      cali_step = CALI_STEP_SCREW_DRIVE_TO_STOP, 并去掉 is_calibrated/state/cali_step 三行;
+       *   3. StartCalibration()、失能中止(DartLauncherSetEnable)、调试档中止(DartLauncherTask)
+       *      三处恢复 inst->screw_zero_valid = false;
+       *   4. DartLauncherInit() 去掉 screw_zero_valid = true; (改为由校准置位) */
     case CALI_STEP_SCREW_DRIVE_TO_STOP:
       SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_BELT_HOME_SPEED_DPS);  // 带保持释放位置
       // 丝杆低速顶硬限位(力矩由 ApplyScrewTorqueLimit 严格限制)
@@ -250,6 +261,7 @@ static void HandleCalibrating(DartLauncherInstance* inst, uint32_t now) {
       if (ScrewPositionReached(inst)) {
         inst->is_calibrated = true;
         inst->state = DART_STATE_IDLE;
+        inst->cali_step = CALI_STEP_BELT_DRIVE_TO_STOP;
         DartBuzzerCaliDone();
         LOGINFO("[dart] calibration done (belt + screw)");
       } else if (now - inst->step_start_ms > DART_SCREW_CALI_TIMEOUT_MS) {
@@ -257,6 +269,7 @@ static void HandleCalibrating(DartLauncherInstance* inst, uint32_t now) {
         EnterFault(inst);
       }
       break;
+#endif
 
     default:
       inst->cali_step = CALI_STEP_BELT_DRIVE_TO_STOP;
@@ -462,10 +475,18 @@ static void ApplyDebugJog(DartLauncherInstance* inst, float dt_s, uint32_t now) 
   }
 
   // 摇杆给速率 -> 积分出两侧共用的位置目标
+  float actual = 0.5f * (belt_l->measure.total_angle + belt_r->measure.total_angle);
+  float rate = inst->debug_belt_speed_dps;
+  float follow_err = inst->debug_belt_target - actual;
+  // 反向指令: 先把目标重同步到实际位置。否则目标还停在上次的位置(超前), 位置环会继续按正误差出力,
+  // 表现就是"往反方向打杆, 机构先往原方向走一段才反向"(回绕量=松手后锁不住的漂移量)
+  if (rate != 0.0f && follow_err != 0.0f && ((rate > 0.0f) != (follow_err > 0.0f))) {
+    inst->debug_belt_target = actual;
+    follow_err = 0.0f;
+  }
   // 目标超前实测过多(顶到机械限位/电机跟不上)时暂停积分, 避免摇杆反向时要先"回绕"误差
-  float follow_err = inst->debug_belt_target - 0.5f * (belt_l->measure.total_angle + belt_r->measure.total_angle);
   if (fabsf(follow_err) < DART_DEBUG_BELT_MAX_ERR_DEG) {
-    inst->debug_belt_target += inst->debug_belt_speed_dps * dt_s;
+    inst->debug_belt_target += rate * dt_s;
   }
 
   // 位置环限速: 跟随摇杆速率; 摇杆回中后仍保留较小限速用于收敛两侧已有偏差
@@ -489,9 +510,12 @@ static void ApplyDebugJog(DartLauncherInstance* inst, float dt_s, uint32_t now) 
       LOGERROR("[dart] debug jog belt sync dev %d deg (L %d, R %d, tgt %d)", (int)dev,
                (int)belt_l->measure.total_angle, (int)belt_r->measure.total_angle, (int)inst->debug_belt_target);
     } else {
-      LOGINFO("[dart] debug jog spd %d/%d deg/s, pos %d/%d, dev %d", (int)belt_l->measure.speed_aps,
+      // cur = 实际电流, iout = 速度环积分项(f_Integral_Limit 硬钳在 DART_BELT_INTEGRAL_LIMIT):
+      // 松手后若 iout 贴着积分限幅、位置还在往释放方向退, 说明保持力矩不够 -> 调大该宏
+      LOGINFO("[dart] debug jog spd %d/%d pos %d/%d dev %d err %d cur %d/%d iout %d", (int)belt_l->measure.speed_aps,
               (int)belt_r->measure.speed_aps, (int)belt_l->measure.total_angle, (int)belt_r->measure.total_angle,
-              (int)dev);
+              (int)dev, (int)follow_err, (int)belt_l->measure.real_current, (int)belt_r->measure.real_current,
+              (int)belt_l->motor_controller.speed_PID.Iout);
     }
   }
 }
@@ -526,7 +550,13 @@ DartLauncherInstance* DartLauncherInit(void) {
 
   inst->yaw_boot_angle = inst->yaw_motor->measure.total_angle;
   inst->yaw_angle_target = inst->yaw_boot_angle;
-  inst->screw_pos_deg = DART_SCREW_POS_DEFAULT_DEG;
+  // 丝杆不参与自动校准: 直接把零点定为开机位置(offset=0), 上电即允许位置环工作;
+  // DART_SCREW_POS_* 因此是"相对开机位置"的角度(不同上电位置会差一个常量, 需要绝对重复性时再恢复丝杆校零)
+  inst->screw_zero_offset = 0.0f;
+  inst->screw_zero_valid = true;
+  // 上电目标 = 0: 保持开机位置不动(不让扳机自己走到默认射力位置), 射力由操作手用右摇杆竖直调整;
+  // 若希望上电就到默认射力位置, 把下面一行改成 DART_SCREW_POS_DEFAULT_DEG
+  inst->screw_pos_deg = 0.0f;
   inst->belt_pos_target = DART_BELT_HOME_DEG;
   inst->state = DART_STATE_IDLE;
   inst->last_ms = (uint32_t)DWT_GetTimeline_ms();
@@ -564,7 +594,6 @@ void DartLauncherSetEnable(DartLauncherInstance* inst, bool enable, bool auto_ca
         inst->state = DART_STATE_IDLE;
         inst->is_calibrated = false;
         inst->belt_zero_valid = false;
-        inst->screw_zero_valid = false;
         break;
       case DART_STATE_CHARGING:
         inst->state = DART_STATE_IDLE;
@@ -645,7 +674,6 @@ void DartLauncherTask(DartLauncherInstance* inst) {
     inst->state = DART_STATE_IDLE;
     inst->is_calibrated = false;
     inst->belt_zero_valid = false;
-    inst->screw_zero_valid = false;
     inst->debug_belt_synced = false;
     LOGWARNING("[dart] auto calibration aborted: debug mode (jog only, calibrate in normal mode)");
   }

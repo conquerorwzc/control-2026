@@ -7,8 +7,9 @@
  *   - 扳机舵机(PWM, 50Hz 占空比->角度, 开环): 扳机的发射动作, 卡位角扣住发射平台 / 释放角放开发射。
  *
  * 分步操作流程(由上层命令驱动):
- *   1. 上电使能后自动执行一次校准: 同步带顶释放方向硬限位(堵转检测, 同步两带电机零点)
- *      -> 扳机丝杆顶硬限位(丝杆零点), 完成后退回默认射力位置; 校准全程严格限制电机力矩;
+ *   1. 上电使能后自动执行一次校准: **只做同步带**——顶释放方向硬限位(堵转检测, 同步两侧零点)
+ *      -> 回撤到释放位置; 全程严格限制电机力矩。
+ *      扳机丝杆**不自动校零**(校准代码已注释停用), 它以"开机位置"为位置零点;
  *   2. 储能命令: 扳机丝杆先到射力位置 -> 双带电机同步把平台向后拉指定行程
  *      (扳机锁定态是单向通道, 平台会滑过扳机, 不会堵转) -> 限速复位到释放位置;
  *   3. 就绪(READY)后可随时调射力(丝杆位置);
@@ -39,12 +40,12 @@ typedef enum {
   DART_CMD_FIRE,       // 发射
 } Dart_Cmd_e;
 
-/* 校准子步骤(同步带 -> 丝杆, 顺序执行) */
+/* 校准子步骤(当前只走同步带两步; 丝杆两步已停用, 枚举保留便于恢复) */
 typedef enum {
   CALI_STEP_BELT_DRIVE_TO_STOP = 0,  // 同步带顶释放方向硬限位(低力矩)
-  CALI_STEP_BELT_BACKOFF,            // 同步带回撤到释放位置
-  CALI_STEP_SCREW_DRIVE_TO_STOP,     // 扳机丝杆顶硬限位(低力矩)
-  CALI_STEP_SCREW_BACKOFF,           // 丝杆退开限位到默认射力位置
+  CALI_STEP_BELT_BACKOFF,            // 同步带回撤到释放位置 -> 校准结束
+  CALI_STEP_SCREW_DRIVE_TO_STOP,     // [停用] 扳机丝杆顶硬限位(低力矩)
+  CALI_STEP_SCREW_BACKOFF,           // [停用] 丝杆退开限位到默认射力位置
 } Dart_Cali_Step_e;
 
 /* 储能子步骤 */
@@ -70,14 +71,14 @@ typedef struct {
 
   Dart_State_e state;
   bool enabled;           // 遥控器使能标志(失能即全部停机)
-  bool is_calibrated;     // 本次上电校准(同步带+丝杆)是否已完成
+  bool is_calibrated;     // 本次上电校准是否已完成(当前=同步带校准完成)
   bool belt_zero_valid;   // 同步带零点是否有效(顶到释放方向硬限位后置位)
-  bool screw_zero_valid;  // 丝杆零点是否有效(顶到硬限位后置位)
+  bool screw_zero_valid;  // 丝杆位置参考是否可用(不自动校零时上电即置位, 零点=开机位置)
   bool recovery_retract;  // 储能中断后, 重新使能须先回撤挡块
 
   // 逻辑坐标零点
   float belt_zero_offset[2];  // 同步带: 释放方向硬限位处的 total_angle
-  float screw_zero_offset;    // 丝杆: 硬限位处的 total_angle
+  float screw_zero_offset;    // 丝杆: 零点处的 total_angle(不自动校零时为 0, 即开机位置)
   float yaw_boot_angle;       // yaw 开机角度
 
   // 控制目标(逻辑坐标)
@@ -104,7 +105,7 @@ typedef struct {
   bool debug_jog;
   float debug_belt_speed_dps;   // 同步带点动速率(deg/s), 用于积分出两侧共用的位置目标
   float debug_screw_speed_dps;  // 丝杆点动速度(deg/s), 速度环
-  float debug_belt_target;      // 同步带虚拟位置目标(转子侧 total_angle 坐标), 两侧共用
+  float debug_belt_target;      // 同步带虚拟位置目标(转子侧 total_angle 坐标), 两侧共用; 反向指令时重同步到实际位置
   bool debug_belt_synced;       // 进入点动时是否已把目标同步到两侧当前位置
   float debug_belt_dev_base;    // 进入点动时的两侧位置差基准(用于偏差告警)
   uint32_t debug_log_ms;        // 调试档状态日志限频

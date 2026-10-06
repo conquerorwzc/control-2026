@@ -65,13 +65,14 @@
 #define DART_SCREW_REVERSE MOTOR_DIRECTION_NORMAL
 
 /* ================= 零位校准参数 =================
- * 上电使能后自动执行一次: 同步带顶释放方向硬限位(两侧零点同步) -> 扳机丝杆顶硬限位(丝杆零点);
- * 校准全程严格限制电机力矩, 完成后才允许储能/发射。
- * 各机构专用的顶限位速度/方向/限流见 DART_BELT_CALI_* 与 DART_SCREW_CALI_*。 */
-#define DART_BELT_CALI_SPEED_DPS 1000.0f          // 同步带顶硬限位速度 (deg/s)
+ * 上电使能后自动执行一次, **只做同步带**: 顶释放方向硬限位(两侧零点同步) -> 回撤到释放位置;
+ * 全程严格限制电机力矩, 完成后才允许储能/发射。
+ * 扳机丝杆**不参与自动校准**(dart_launcher.c 里丝杆校准代码已 #if 0 停用),
+ * 丝杆零点直接取"开机位置", 因此 DART_SCREW_POS_* 是相对开机位置的角度。 */
+#define DART_BELT_CALI_SPEED_DPS 3000.0f          // 同步带顶硬限位速度 (deg/s)
 #define DART_BELT_CALI_DIRECTION (-1.0f)       // 同步带释放方向符号(零点取这一端); 实机相反时改 +1.0f
-#define DART_BELT_CALI_MAX_OUT 4000.0f         // 同步带校准严格限流 (M3508 满量程 16384)
-#define DART_BELT_CALI_INTEGRAL_LIMIT 800.0f   // 同步带校准积分限幅
+#define DART_BELT_CALI_MAX_OUT 12000.0f         // 同步带校准严格限流 (M3508 满量程 16384)
+#define DART_BELT_CALI_INTEGRAL_LIMIT 4000.0f  // 同步带校准积分限幅(速度给定0时保持力矩只来自积分, 太小会锁不住往下漂)
 #define DART_BELT_CALI_TIMEOUT_MS 8000         // 同步带校准单步超时 (ms)
 #define DART_BELT_CALI_BACKOFF_DEG 360.0f       // 顶到限位后回撤距离, 即释放位置(回缩位) (deg)
 #define DART_BELT_CALI_BACKOFF_SPEED_DPS 20.0f // 顶到限位后回撤限速 (deg/s, 顶死后必须慢速退开)
@@ -88,10 +89,10 @@
 #define DART_BELT_CHARGE_DEG 360.0f               // 储能行程: 零位起沿储能方向的电机轴角度 (deg, 实机标定, 须小于滑台行程)
 #define DART_BELT_POS_TOL_DEG 3.0f                // 位置到位容差 (deg)
 #define DART_BELT_MAX_OUT 12000.0f                 // 正常工作电流限幅
-#define DART_BELT_INTEGRAL_LIMIT 3000.0f          // 正常工作积分限幅
-#define DART_BELT_MAX_SPEED_DPS 360.0f            // 位置环速度硬上限 (各阶段限速都会被它再钳一次)
+#define DART_BELT_INTEGRAL_LIMIT 8000.0f          // 正常工作积分限幅(速度给定0时的保持力矩来源; f_Integral_Limit 会把 Iout 硬钳在这里)
+#define DART_BELT_MAX_SPEED_DPS 3600.0f            // 位置环速度硬上限 (各阶段限速都会被它再钳一次)
 #define DART_BELT_HOME_SPEED_DPS 120.0f           // 复位到释放位置/挡块回撤限速 (deg/s)
-#define DART_BELT_CHARGE_SPEED_DPS 120.0f         // 储能拉拽限速 (deg/s)
+#define DART_BELT_CHARGE_SPEED_DPS 1200.0f         // 储能拉拽限速 (deg/s)
 #define DART_BELT_SYNC_WARN_DEG 10.0f             // 双电机位置偏差告警阈值 (deg)
 #define DART_CHARGE_STALL_SPEED_DPS 3.0f          // 储能堵转看门狗速度阈值 (deg/s, 超滑台行程会顶死)
 #define DART_CHARGE_STALL_MS 300                  // 储能堵转看门狗持续时间 (ms)
@@ -101,10 +102,12 @@
 /* ================= 扳机丝杆(射力)参数 =================
  * 扳机整体装在丝杆上, 由 M3508 位置环控制;
  * 丝杆位置决定卡住发射平台时拉簧的拉伸量, 直接影响发射力量和速度(可调)。
- * 逻辑坐标以丝杆零点(校准顶到的硬限位)为 0, 数值越大射力越大(方向按实机标定)。 */
-#define DART_SCREW_POS_DEFAULT_DEG 30.0f   // 默认射力位置(相对丝杆零点, deg)
-#define DART_SCREW_POS_MIN_DEG 10.0f       // 射力位置下限(须 >= DART_SCREW_CALI_BACKOFF_DEG, 避免压在限位上)
-#define DART_SCREW_POS_MAX_DEG 90.0f       // 射力位置上限(须 < 丝杆行程对应的电机角度)
+ * 逻辑坐标零点 = 开机位置(不做自动校零), 数值越大射力越大(方向按实机标定)。
+ * @note 每次上电的开机位置不同, 所以射力位置只在上电后相对可重复;
+ *       需要跨上电绝对重复, 就恢复 dart_launcher.c 里的丝杆零位校准(#if 0 那段)。 */
+#define DART_SCREW_POS_DEFAULT_DEG 30.0f   // 默认射力位置(相对开机位置, deg)
+#define DART_SCREW_POS_MIN_DEG 10.0f       // 射力位置下限(相对开机位置, deg)
+#define DART_SCREW_POS_MAX_DEG 90.0f       // 射力位置上限(相对开机位置, 须 < 丝杆可走行程)
 #define DART_SCREW_POS_TOL_DEG 2.0f        // 位置到位容差 (deg)
 #define DART_SCREW_MAX_OUT 6000.0f         // 正常工作电流限幅
 #define DART_SCREW_INTEGRAL_LIMIT 2000.0f  // 正常工作积分限幅
@@ -112,7 +115,8 @@
 #define DART_SCREW_ADJ_DPS 60.0f           // 右摇杆竖直满行程时射力调节速度 (deg/s)
 #define DART_SCREW_SETTLE_TIMEOUT_MS 2000  // 储能前丝杆就位超时 (ms)
 
-/* 扳机丝杆零位校准(与同步带校准同一次自动执行) */
+/* 扳机丝杆零位校准参数: **[已停用]** 自动校准不再执行丝杆校零, 这些宏当前无引用,
+ * 仅保留供恢复 dart_launcher.c 里 #if 0 那段丝杆校准代码时使用 */
 #define DART_SCREW_CALI_SPEED_DPS 3600.0f        // 顶硬限位速度 (deg/s)
 #define DART_SCREW_CALI_DIRECTION (-1.0f)     // 顶限位方向(零点取这一端); 实机零点在另一端时改 +1.0f
 #define DART_SCREW_CALI_MAX_OUT 3000.0f       // 校准严格限流 (M3508 满量程 16384)
@@ -132,14 +136,14 @@
 #define DART_SERVO_ANGLE_MIN_DEG 0.0f           // 舵机机械角度下限 (deg)
 #define DART_SERVO_ANGLE_MAX_DEG 270.0f         // 舵机机械角度上限 (deg, 实车 270° 舵机; 180° 舵机改 180)
 #define DART_SERVO_CATCH_DEG 135.0f             // 卡位角: 扣住发射平台(待发/上电默认), 行程中点
-#define DART_SERVO_RELEASE_DEG 0.0f             // 释放角: 放开发射平台(发射)
+#define DART_SERVO_RELEASE_DEG 140.0f             // 释放角: 放开发射平台(发射)
 #define DART_SERVO_ADJ_DPS 60.0f                // 调试档舵机角度增量速度 (deg/s, 摇杆松手即停, 防误触发)
 #define DART_SERVO_SETTLE_MS 300                // 舵机动作等待时间 (ms, 开环无反馈)
 #define DART_FIRE_DWELL_MS 500                  // 发射时释放角保持时间 (ms)
 
 /* ================= yaw 参数 ================= */
 #define DART_YAW_SENSITIVITY_DPS 10000.0f   // 满杆 yaw 角速度 (deg/s)
-#define DART_YAW_SOFT_LIMIT_DEG 20000.0f   // 相对开机位置的软限位 (deg)
+#define DART_YAW_SOFT_LIMIT_DEG 200000.0f   // 相对开机位置的软限位 (deg)
 #define DART_YAW_LEAD_LIMIT_DEG 10000.0f    // 目标角超前反馈的限幅, 防目标跑飞 (deg)
 #define DART_YAW_MAX_OUT 4000.0f         // 电流限幅 (M2006/C610 满量程 10000)
 #define DART_YAW_INTEGRAL_LIMIT 1500.0f  // 积分限幅
@@ -241,7 +245,7 @@
           {                                                                             \
               .speed_PID =                                                              \
                   {                                                                     \
-                      .Kp = 5.0f,                                                       \
+                      .Kp = 2.0f,                                                       \
                       .Ki = 0.8f,                                                       \
                       .Kd = 0.0f,                                                       \
                       .MaxOut = DART_BELT_MAX_OUT,                                      \
@@ -284,7 +288,7 @@
           {                                                                      \
               .speed_PID =                                                       \
                   {                                                              \
-                      .Kp = 5.0f,                                                \
+                      .Kp = 2.0f,                                                \
                       .Ki = 0.5f,                                                \
                       .Kd = 0.0f,                                                \
                       .MaxOut = DART_SCREW_MAX_OUT,                              \
