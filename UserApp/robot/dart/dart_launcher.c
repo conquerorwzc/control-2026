@@ -100,22 +100,10 @@ static void SetServoAngle(DartLauncherInstance* inst, float angle_deg) {
   PWMSetDutyRatio(inst->servo_pwm, ServoAngleToDuty(angle_deg));
 }
 
-/* 堵转检测: 速度低于阈值持续 need_ms 判定堵转 */
-static bool CheckStall(StallDetector_s* det, DJIMotorInstance* motor, float speed_thresh_dps, uint32_t need_ms,
-                       uint32_t now) {
-  if (fabsf(motor->measure.speed_aps) > speed_thresh_dps) {
-    det->tracking = false;
-    return false;
-  }
-  if (!det->tracking) {
-    det->tracking = true;
-    det->start_ms = now;
-    return false;
-  }
-  return (now - det->start_ms) >= need_ms;
-}
-
-/* PID 自带堵转检测(PID_ErrorHandle)作为备份判据, 读后清标志防死锁 */
+/* 堵转判据(唯一来源): PID_ErrorHandle 置起的堵转标志位
+ * 触发条件见 controller.c f_PID_ErrorHandle: 速度给定/输出有效, 且 |ref-measure|/|ref| > 0.95
+ * 连续累计 > 500 次 PID 计算(1kHz 下约 0.5s); 与校准速度大小无关, 不需要额外整定速度阈值。
+ * 读后清标志, 便于下一阶段重新判断。 */
 static bool ConsumePidBlocked(DJIMotorInstance* motor) {
   PID_ErrorHandler_t* handler = &motor->motor_controller.speed_PID.ERRORHandler;
   if (handler->ERRORType == PID_MOTOR_BLOCKED_ERROR) {
@@ -124,6 +112,17 @@ static bool ConsumePidBlocked(DJIMotorInstance* motor) {
     return true;
   }
   return false;
+}
+
+/* 进入新阶段前清掉堵转标志与两侧记录 */
+static void ResetStallState(DartLauncherInstance* inst) {
+  for (int i = 0; i < 2; i++) {
+    inst->stalled_flag[i] = false;
+    inst->belt_motor[i]->motor_controller.speed_PID.ERRORHandler.ERRORType = PID_ERROR_NONE;
+    inst->belt_motor[i]->motor_controller.speed_PID.ERRORHandler.ERRORCount = 0;
+  }
+  inst->screw_motor->motor_controller.speed_PID.ERRORHandler.ERRORType = PID_ERROR_NONE;
+  inst->screw_motor->motor_controller.speed_PID.ERRORHandler.ERRORCount = 0;
 }
 
 static void StopAllMotors(DartLauncherInstance* inst) {
@@ -136,14 +135,6 @@ static void EnableAllMotors(DartLauncherInstance* inst) {
   DJIMotorEnable(inst->yaw_motor);
   for (int i = 0; i < 2; i++) DJIMotorEnable(inst->belt_motor[i]);
   DJIMotorEnable(inst->screw_motor);
-}
-
-static void ResetStallDetectors(DartLauncherInstance* inst) {
-  for (int i = 0; i < 2; i++) {
-    inst->stall[i].tracking = false;
-    inst->stall[i].start_ms = 0;
-    inst->stalled_flag[i] = false;
-  }
 }
 
 static void ClearBeltPid(DartLauncherInstance* inst) {
@@ -176,8 +167,7 @@ static void StartCalibration(DartLauncherInstance* inst, uint32_t now) {
   inst->recovery_retract = false;
   inst->cali_step = CALI_STEP_BELT_DRIVE_TO_STOP;
   inst->cali_start_ms = now;
-  inst->screw_stall.tracking = false;
-  ResetStallDetectors(inst);
+  ResetStallState(inst);
   ClearBeltPid(inst);
   ClearScrewPid(inst);
   EnableAllMotors(inst);  // 故障恢复路径上电机可能处于停机状态
@@ -194,13 +184,9 @@ static void HandleCalibrating(DartLauncherInstance* inst, uint32_t now) {
     case CALI_STEP_BELT_DRIVE_TO_STOP:
       ApplyScrewPosition(inst);  // 丝杆零点未标定前保持不动(速度环抱死)
       SetBeltSpeed(inst, DART_BELT_CALI_DIRECTION * DART_BELT_CALI_SPEED_DPS);
-      if (now - inst->step_start_ms > DART_CALI_START_GRACE_MS) {  // 起步宽限, 防起步误判堵转
-        for (int i = 0; i < 2; i++) {
-          bool stalled = CheckStall(&inst->stall[i], inst->belt_motor[i], DART_CALI_STALL_SPEED_DPS,
-                                    DART_CALI_STALL_MS, now) ||
-                         ConsumePidBlocked(inst->belt_motor[i]);
-          if (stalled) inst->stalled_flag[i] = true;
-        }
+      // 堵转判据只认 PID 堵转标志位(不看速度阈值/时间等其它条件)
+      for (int i = 0; i < 2; i++) {
+        if (ConsumePidBlocked(inst->belt_motor[i])) inst->stalled_flag[i] = true;
       }
       if (inst->stalled_flag[0] && inst->stalled_flag[1]) {
         // 双电机各记硬限位处编码器值, 零点即完成同步
@@ -224,7 +210,7 @@ static void HandleCalibrating(DartLauncherInstance* inst, uint32_t now) {
       SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_BELT_CALI_BACKOFF_SPEED_DPS);
       if (BeltPositionReached(inst, DART_BELT_HOME_DEG)) {
         // 同步带完成, 接着校准扳机丝杆零点
-        inst->screw_stall.tracking = false;
+        ResetStallState(inst);
         ClearScrewPid(inst);
         inst->cali_step = CALI_STEP_SCREW_DRIVE_TO_STOP;
         inst->step_start_ms = now;
@@ -240,9 +226,8 @@ static void HandleCalibrating(DartLauncherInstance* inst, uint32_t now) {
       // 丝杆低速顶硬限位(力矩由 ApplyScrewTorqueLimit 严格限制)
       DJIMotorOuterLoop(inst->screw_motor, SPEED_LOOP);
       DJIMotorSetPIDRef(inst->screw_motor, DART_SCREW_CALI_DIRECTION * DART_SCREW_CALI_SPEED_DPS);
-      if (now - inst->step_start_ms > DART_CALI_START_GRACE_MS &&
-          (CheckStall(&inst->screw_stall, inst->screw_motor, DART_CALI_STALL_SPEED_DPS, DART_CALI_STALL_MS, now) ||
-           ConsumePidBlocked(inst->screw_motor))) {
+      // 同上: 只认 PID 堵转标志位
+      if (ConsumePidBlocked(inst->screw_motor)) {
         // 记丝杆零点, 并退开限位到默认射力位置
         inst->screw_zero_offset = inst->screw_motor->measure.total_angle;
         inst->screw_zero_valid = true;
@@ -296,7 +281,7 @@ static void HandleCharging(DartLauncherInstance* inst, uint32_t now) {
       // 拉伸量由扳机丝杆位置(射力)决定, 必须先就位再拉拽
       SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_BELT_HOME_SPEED_DPS);
       if (ScrewPositionReached(inst)) {
-        ResetStallDetectors(inst);
+        ResetStallState(inst);
         inst->charge_step = CHARGE_STEP_DRIVE;
         inst->step_start_ms = now;
       } else if (now - inst->step_start_ms > DART_SCREW_SETTLE_TIMEOUT_MS) {
@@ -314,12 +299,10 @@ static void HandleCharging(DartLauncherInstance* inst, uint32_t now) {
         LOGINFO("[dart] charge stroke done, reset to release position");
       } else {
         // 堵转看门狗: 单向扳机不会阻挡平台, 顶死只可能是超过滑台行程等异常, 直接故障停机
+        // 判据同样只认 PID 堵转标志位
         bool stalled = false;
         for (int i = 0; i < 2; i++) {
-          bool motor_stalled = CheckStall(&inst->stall[i], inst->belt_motor[i], DART_CHARGE_STALL_SPEED_DPS,
-                                          DART_CHARGE_STALL_MS, now) ||
-                               ConsumePidBlocked(inst->belt_motor[i]);
-          if (motor_stalled) stalled = true;
+          if (ConsumePidBlocked(inst->belt_motor[i])) stalled = true;
         }
         if (stalled) {
           LOGERROR("[dart] fault: belt stalled during charge (check charge travel vs slide range)");

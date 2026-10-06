@@ -68,9 +68,9 @@
  * 上电使能后自动执行一次: 同步带顶释放方向硬限位(两侧零点同步) -> 扳机丝杆顶硬限位(丝杆零点);
  * 校准全程严格限制电机力矩, 完成后才允许储能/发射。
  * 各机构专用的顶限位速度/方向/限流见 DART_BELT_CALI_* 与 DART_SCREW_CALI_*。 */
-#define DART_BELT_CALI_SPEED_DPS 360.0f          // 同步带顶硬限位速度 (deg/s)
+#define DART_BELT_CALI_SPEED_DPS 1000.0f          // 同步带顶硬限位速度 (deg/s)
 #define DART_BELT_CALI_DIRECTION (-1.0f)       // 同步带释放方向符号(零点取这一端); 实机相反时改 +1.0f
-#define DART_BELT_CALI_MAX_OUT 1500.0f         // 同步带校准严格限流 (M3508 满量程 16384)
+#define DART_BELT_CALI_MAX_OUT 4000.0f         // 同步带校准严格限流 (M3508 满量程 16384)
 #define DART_BELT_CALI_INTEGRAL_LIMIT 800.0f   // 同步带校准积分限幅
 #define DART_BELT_CALI_TIMEOUT_MS 8000         // 同步带校准单步超时 (ms)
 #define DART_BELT_CALI_BACKOFF_DEG 360.0f       // 顶到限位后回撤距离, 即释放位置(回缩位) (deg)
@@ -87,7 +87,7 @@
 #define DART_BELT_HOME_DEG DART_BELT_CALI_BACKOFF_DEG  // 释放位置(回缩位): 挡块退出发射平台活动范围
 #define DART_BELT_CHARGE_DEG 360.0f               // 储能行程: 零位起沿储能方向的电机轴角度 (deg, 实机标定, 须小于滑台行程)
 #define DART_BELT_POS_TOL_DEG 3.0f                // 位置到位容差 (deg)
-#define DART_BELT_MAX_OUT 8000.0f                 // 正常工作电流限幅
+#define DART_BELT_MAX_OUT 12000.0f                 // 正常工作电流限幅
 #define DART_BELT_INTEGRAL_LIMIT 3000.0f          // 正常工作积分限幅
 #define DART_BELT_MAX_SPEED_DPS 360.0f            // 位置环速度硬上限 (各阶段限速都会被它再钳一次)
 #define DART_BELT_HOME_SPEED_DPS 120.0f           // 复位到释放位置/挡块回撤限速 (deg/s)
@@ -113,9 +113,9 @@
 #define DART_SCREW_SETTLE_TIMEOUT_MS 2000  // 储能前丝杆就位超时 (ms)
 
 /* 扳机丝杆零位校准(与同步带校准同一次自动执行) */
-#define DART_SCREW_CALI_SPEED_DPS 8.0f        // 顶硬限位速度 (deg/s)
+#define DART_SCREW_CALI_SPEED_DPS 3600.0f        // 顶硬限位速度 (deg/s)
 #define DART_SCREW_CALI_DIRECTION (-1.0f)     // 顶限位方向(零点取这一端); 实机零点在另一端时改 +1.0f
-#define DART_SCREW_CALI_MAX_OUT 1500.0f       // 校准严格限流 (M3508 满量程 16384)
+#define DART_SCREW_CALI_MAX_OUT 3000.0f       // 校准严格限流 (M3508 满量程 16384)
 #define DART_SCREW_CALI_INTEGRAL_LIMIT 800.0f // 校准积分限幅
 #define DART_SCREW_CALI_TIMEOUT_MS 8000       // 顶限位/退开单步超时 (ms)
 #define DART_SCREW_CALI_BACKOFF_DEG 5.0f      // 找到零点后至少退开距离 (deg)
@@ -218,7 +218,7 @@
 
 /**
  * @brief 同步带电机(M3508)配置: 位置环串级速度环
- * @note 速度环启用 PID_ErrorHandle 作为堵转检测的备份判据
+ * @note 速度环必须启用 PID_ErrorHandle: 它是校准/储能堵转判据的唯一来源, 删掉就无法顶限位找零点
  */
 #define DART_BELT_MOTOR_CONFIG(can_h, _id, _reverse)                                    \
   {                                                                                     \
@@ -261,7 +261,7 @@
 
 /**
  * @brief 扳机丝杆电机(M3508)配置: 位置环串级速度环
- * @note 速度环启用 PID_ErrorHandle 作为丝杆零点校准堵转检测的备份判据
+ * @note 速度环必须启用 PID_ErrorHandle: 丝杆零点校准的堵转判据就是它置起的标志位
  */
 #define DART_SCREW_MOTOR_CONFIG(can_h, _id, _reverse)                            \
   {                                                                              \

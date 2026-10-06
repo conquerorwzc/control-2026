@@ -61,12 +61,6 @@ typedef enum {
   FIRE_STEP_RESET,        // 舵机回卡位角待下一发
 } Dart_Fire_Step_e;
 
-/* 堵转检测器(速度低于阈值持续指定时间) */
-typedef struct {
-  bool tracking;
-  uint32_t start_ms;
-} StallDetector_s;
-
 /* 发射架实例 */
 typedef struct {
   DJIMotorInstance* yaw_motor;      // M2006 发射架 yaw
@@ -103,10 +97,8 @@ typedef struct {
   uint32_t last_ms;       // 上次任务时间戳, 用于 yaw 积分
   uint32_t sync_warn_ms;  // 同步偏差告警限频
 
-  // 堵转检测
-  StallDetector_s stall[2];   // 两个同步带电机
-  StallDetector_s screw_stall;  // 扳机丝杆
-  bool stalled_flag[2];       // 同步带校准阶段各电机堵转记录
+  // 堵转判据: 只用 dji_motor/controller 的 PID 堵转标志位(PID_MOTOR_BLOCKED_ERROR)
+  bool stalled_flag[2];  // 同步带两侧顶限位记录(两侧都置位才算找到零点)
 
   // 调试点动(右开关上档)
   bool debug_jog;
