@@ -86,19 +86,50 @@ static void SentryRefereeSend() {
 
 #if defined(USE_DUAL_RC)
 /**
+ * @brief 底盘旋转速度(wz)的设置, 一律由下位机决定
+ * @note  上位机(导航)下发的 wz 不参与控制: 协议 §3.2 中上位机 wz 不产生转向,
+ *        旋转量由底盘自己的小陀螺(拨轮)或跟随云台的 PID 给出
+ */
+static void ChassisRotateSet() {
+  if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
+    if (rc_data[TEMP].rc.dial > 330) {
+      chassis_ctrl_cmd->wz = 4000;
+    } else if (rc_data[TEMP].rc.dial > 20) {
+      chassis_ctrl_cmd->wz = 1000;
+    } else if (rc_data[TEMP].rc.dial > -20) {
+      chassis_ctrl_cmd->wz = 0;
+    } else if (rc_data[TEMP].rc.dial > -330) {
+      chassis_ctrl_cmd->wz = -1000;
+    } else {
+      chassis_ctrl_cmd->wz = -4000;
+    }
+  } else if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
+    /* 主动跟随量, 另一部分在 chassis 任务中根据云台误差角计算 */
+    chassis_ctrl_cmd->wz = (1.0f) * (float)rc_data[TEMP].rc.rocker_r_;
+  } else {
+    chassis_ctrl_cmd->wz = 0.0f;
+  }
+}
+
+/**
  * @brief 控制输入为遥控器(调试时)的模式和控制量设置
  *
  */
 static void RemoteControlSet() {
+  /* 右拨杆[中]/[上]时底盘处于小陀螺, 云台还会扫头 —— 此时云台指向与底盘朝向不再同步,
+   * 平移指令一律按底盘坐标系解释, 不再随云台旋转 */
+  uint8_t chassis_frame_cmd = 0;
   // 右[中]，云台底盘使能
   if (switch_is_mid(rc_data[TEMP].rc.switch_right))
   {
     chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+    chassis_frame_cmd = 1;
   }
   // 右[上]，云台底盘使能+扫头
   else if (switch_is_up(rc_data[TEMP].rc.switch_right))
   {
     chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+    chassis_frame_cmd = 1;
   }
   // 左[中],云台加自瞄
   if (switch_is_mid(rc_data[TEMP].rc.switch_left))
@@ -120,38 +151,31 @@ static void RemoteControlSet() {
   {
     chassis_ctrl_cmd->vx = 60.0f * (float)robot->rc_data[TEMP].rc.rocker_l_;  // l_水平方向，最大660*60=39600
     chassis_ctrl_cmd->vy = 60.0f * (float)robot->rc_data[TEMP].rc.rocker_l1;  // l1竖直方向，最大660*60
-    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
-      if (rc_data[TEMP].rc.dial>330) {
-        chassis_ctrl_cmd->wz = 2000;
-      }
-      else if (rc_data[TEMP].rc.dial > 20) {
-        chassis_ctrl_cmd->wz = 1000;
-      }
-      else if (rc_data[TEMP].rc.dial> -20) {
-        chassis_ctrl_cmd->wz = 0;
-      }
-      else if (rc_data[TEMP].rc.dial > -330) {
-        chassis_ctrl_cmd->wz = -1000;
-      }
-      else {
-        chassis_ctrl_cmd->wz = -2000;
-      }
-
-    }
-    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
-      chassis_ctrl_cmd->wz =
-          (1.0f) *
-          (float)rc_data[TEMP]
-              .rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
-    }
-
-  } else if (robot->control_mode == NAVIGATOR_MODE)  // 自动控制，直接收上位机控制量
+    // 右拨杆[中]/[上]: 底盘系; 其余情况: 云台系(以云台指向为前方, 由底盘任务按云台角度旋转)
+    chassis_ctrl_cmd->cmd_frame = chassis_frame_cmd ? CHASSIS_CMD_CHASSIS_FRAME : CHASSIS_CMD_GIMBAL_FRAME;
+    ChassisRotateSet();
+  } else if (robot->control_mode == NAVIGATOR_MODE)  // 自动控制，上位机只给平移速度
   {
-    chassis_ctrl_cmd->vx = -robot->navigator_data->robot_cmd.speed_vector.vy * 10000;
-    // vx_initial = -robot->navigator_data->robot_cmd.speed_vector.vx*5000;
-    chassis_ctrl_cmd->vy = robot->navigator_data->robot_cmd.speed_vector.vx * 10000;
-    chassis_ctrl_cmd->wz = robot->navigator_data->robot_cmd.speed_vector.wz * 0;
-    // gimbal_ctrl_cmd->yaw-=robot->navigator_data->robot_cmd.speed_vector.wz*0.01;
+    static uint8_t nav_offline_logged = 0;
+    robot_cmd_t navigator_cmd;
+
+    /* 取一次导航指令, 内含 500ms 看门狗: 超时返回 0 且指令已被置零 */
+    if (NavigatorGetCmd(&navigator_cmd) == 0) {
+      if (!nav_offline_logged) {
+        LOGWARNING("[navigator] no valid cmd within %dms, speed forced to zero", NAV_CMD_TIMEOUT_MS);
+        nav_offline_logged = 1;
+      }
+    } else {
+      nav_offline_logged = 0;
+    }
+
+    /* 导航指令一律按【底盘坐标系】使用: 以底盘正前方为 +x, 不随云台指向旋转(底盘任务不再做 offset_angle 映射);
+     * 轴向映射沿用协议 §3.2: 上位机 vx -> 底盘 +y, 上位机 vy 取负 -> 底盘 +x; 量纲 10000:1(协议 §3.3) */
+    chassis_ctrl_cmd->cmd_frame = CHASSIS_CMD_CHASSIS_FRAME;
+    chassis_ctrl_cmd->vx = -navigator_cmd.speed_vector.vy * NAV_SPEED_SCALE;
+    chassis_ctrl_cmd->vy = navigator_cmd.speed_vector.vx * NAV_SPEED_SCALE;
+    /* wz 仍然由下位机控制(小陀螺/跟随), 不使用上位机下发的 wz */
+    ChassisRotateSet();
   }
 
   *rc_data_last = *rc_data;
@@ -487,7 +511,7 @@ void RobotInit() {
 #endif
 
   // robot->vision_recv_data = VisionInit(&gimbal_init_config.imu_init_config);
-  // robot->navigator_data = navigator_init(&huart1);
+  robot->navigator_data = navigator_init(&huart1);  // 导航串口: USART1, 115200 8N1
 
   robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
   robot->sentry_mode = 1;
@@ -497,7 +521,6 @@ void RobotInit() {
   robot->chassis = ChassisInit(&chassis_init_config);
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
-  // navigator_data  = robot->navigator_data;
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发频率) */
@@ -524,7 +547,7 @@ void RobotTask() {
   GimbalTask();
 #endif
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
-  // navigator_send(&huart1, robot->referee_data);
+  navigator_send(&huart1, robot->referee_data);  // 反馈 0x0001 / 0x000B, 内部按 50Hz 定频
   RobotCMDTask();
   // SuperCapControl();
   chassis_ctrl_cmd->max_power = 120;

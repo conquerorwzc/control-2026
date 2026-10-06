@@ -1,408 +1,361 @@
+/**
+ * @file    navigator.c
+ * @brief   下位机侧导航通信协议实现 (SRM 校内赛导航通信协议 V1.0.0)
+ * @note    串口: USART1, 115200 8N1, 无流控; 全部小端
+ *          上 -> 下: 19 字节速度指令帧(无 cmd_id)
+ *          下 -> 上: 9+data_length 字节反馈帧(有 cmd_id: 0x0001 / 0x000B)
+ */
 #include "navigator.h"
-#include "bsp_dwt.h"
+
+#include "bsp_log.h"
 #include "bsp_usart.h"
 #include "crc_func.h"
+#include "daemon.h"
 #include "referee.h"
 
-static navigator_send_t send_data;
-static USARTInstance *navigator_usart_instance ;
+/* 模块运行时数据 */
 static navigator_recv_t recv_data;
-// 接收状态变量
-static recv_state_t recv_state = RECV_STATE_SOF;
-static uint8_t recv_buffer[NAVIGATOR_RECV_SIZE];
-static uint16_t recv_index = 0;
-static uint16_t expected_data_len = 0;
-static uint8_t current_packet_id = 0;
-static uint32_t last_packet_time = 0;
-static uint32_t test_flag=0;
-// 缓冲区最大尺寸
-#define BUFFER_MAX_SIZE    256
-static uint8_t internal_tx_buffer[BUFFER_MAX_SIZE];
+static USARTInstance *navigator_usart_instance = NULL;
+static DaemonInstance *navigator_daemon_instance = NULL;
 
-static uint8_t* protocol_packed(const uint8_t* data_ptr, uint16_t pack_id, uint16_t data_len, uint8_t data_id, uint8_t* tx_buff, uint16_t* tx_buff_len)
-{
-  // 1. 参数有效性检查
-  if (tx_buff == NULL || tx_buff_len == NULL) {
-    return NULL;
+/* 发送缓冲必须是静态的: DMA 发送期间不能被改写 */
+static uint8_t tx_buffer[2][BUFFER_MAX_SIZE];
+static uint8_t tx_seq = 0;         /* 下->上 帧流水号, 每帧自增、自然回绕 */
+static uint8_t tx_slot = 0;        /* 反馈包轮询槽位: 0 -> 0x0001, 1 -> 0x000B */
+static uint32_t last_send_tick = 0;
+
+/* ============================ 协议层: 打包 ============================ */
+
+/**
+ * @brief 按协议打包一帧 下->上 反馈帧
+ * @param cmd_id   命令码, 位于偏移 5-6 (小端)
+ * @param data     数据段首地址
+ * @param data_len 数据段长度
+ * @param buffer   输出缓冲, 长度需 >= 9 + data_len
+ * @return 帧总长度 = 9 + data_len
+ * @note  crc16 覆盖偏移 0 到 7+data_len-1, 必须包含 cmd_id
+ */
+static uint16_t NavigatorPackFrame(uint16_t cmd_id, const uint8_t *data, uint8_t data_len, uint8_t *buffer) {
+  uint16_t index = 0;
+
+  /* 帧头: sof + data_length + seq + crc8(偏移 0-3) */
+  buffer[index++] = PROTOCOL_SOF;
+  buffer[index++] = (uint8_t)(data_len & 0xFF);
+  buffer[index++] = (uint8_t)((data_len >> 8) & 0xFF);
+  buffer[index++] = tx_seq++;
+  buffer[index++] = get_CRC8_check_sum(buffer, 4, PROTOCOL_CRC8_INIT);
+
+  /* cmd_id, 小端, 偏移 5-6 */
+  buffer[index++] = (uint8_t)(cmd_id & 0xFF);
+  buffer[index++] = (uint8_t)((cmd_id >> 8) & 0xFF);
+
+  /* 数据段 */
+  if (data != NULL && data_len > 0) {
+    memcpy(&buffer[index], data, data_len);
+    index = (uint16_t)(index + data_len);
   }
 
-  // 2. 计算总帧长并检查缓冲区是否足够
-  uint16_t total_frame_len = PROTOCOL_HEADER_LEN + 2 + data_len + 2;
-  if (total_frame_len > BUFFER_MAX_SIZE) {
-    *tx_buff_len = 0;
-    return NULL;
-  }
+  /* 帧尾 CRC16, 低字节在前, 覆盖范围包含 cmd_id 与数据段 */
+  uint16_t crc16 = get_CRC16_check_sum(buffer, index, PROTOCOL_CRC16_INIT);
+  buffer[index++] = (uint8_t)(crc16 & 0xFF);
+  buffer[index++] = (uint8_t)((crc16 >> 8) & 0xFF);
 
-  // 3. 填充帧头
-  uint16_t current_index = 0;
-  tx_buff[current_index++] = PROTOCOL_SOF;                  // sof
-  tx_buff[current_index++] = data_len&0xFF;
-  tx_buff[current_index++]=(data_len>>8) &0xFF;
-  tx_buff[current_index++] = data_id;                       // 包序号
-  tx_buff[current_index++] = get_CRC8_check_sum(&tx_buff[0], 4, PROTOCOL_CRC8_INIT); // crc
-
-  // 4.填充包序号
-  tx_buff[current_index++] = (pack_id >> 0)  & 0xFF;
-  tx_buff[current_index++] = (pack_id >> 8)  & 0xFF;
-  // tx_buff[current_index++] = (time_stamp >> 16) & 0xFF;
-  // tx_buff[current_index++] = (time_stamp >> 24) & 0xFF;
-
-  // 5. 填充数据段
-  if (data_ptr != NULL && data_len > 0) {
-    memcpy(&tx_buff[current_index], data_ptr, data_len);
-    current_index += data_len;
-  }
-
-  // 6. 计算并填充帧尾CRC16
-  uint16_t checksum_len = PROTOCOL_HEADER_LEN + 2 + data_len;
-  uint16_t frame_crc16 = get_CRC16_check_sum(&tx_buff[0], checksum_len, PROTOCOL_CRC16_INIT);
-  tx_buff[current_index++] = frame_crc16 & 0xFF;
-  tx_buff[current_index++] = (frame_crc16 >> 8) & 0xFF;
-
-  // 7. 设置最终帧长并返回
-  *tx_buff_len = total_frame_len;
-  return tx_buff;
+  return index;
 }
 
-uint8_t *protocol_pack(uint16_t pack_id, const uint8_t *data, uint8_t data_len, uint8_t data_id, uint16_t *packed_length) {
-  // 调用核心打包函数，使用静态的 internal_tx_buffer
-  return protocol_packed(data, pack_id, data_len, data_id, internal_tx_buffer, packed_length);
+/**
+ * @brief 打包并发送一帧反馈, 非阻塞
+ * @return 1: 已启动发送; 0: 串口忙(本轮跳过)或发送失败
+ * @note  上一帧未发完时直接跳过, 保证帧与帧之间留有空闲, 不背靠背连发
+ */
+static uint8_t NavigatorTransmit(uint16_t cmd_id, const uint8_t *data, uint8_t data_len, uint8_t *buffer) {
+  if (navigator_usart_instance == NULL || navigator_usart_instance->usart_handle == NULL) {
+    return 0;
+  }
+
+  UART_HandleTypeDef *huart = navigator_usart_instance->usart_handle;
+  if (huart->gState != HAL_UART_STATE_READY) {
+    return 0;
+  }
+
+  uint16_t frame_len = NavigatorPackFrame(cmd_id, data, data_len, buffer);
+  return (HAL_UART_Transmit_DMA(huart, buffer, frame_len) == HAL_OK) ? 1 : 0;
 }
 
-uint8_t protocol_send(UART_HandleTypeDef* huart, uint16_t pack_id, const uint8_t* data_ptr, uint8_t data_len, uint8_t data_id, uint32_t timeout) {
-  if (huart == NULL) {
+void navigator_send(UART_HandleTypeDef *instance, referee_info_t *referee_data) {
+  (void)instance; /* 串口实例在 navigator_init() 中注册, 这里直接使用注册实例 */
+  if (referee_data == NULL || navigator_usart_instance == NULL) {
+    return;
+  }
+
+  /* 定频发送, 与速度指令的接收解耦; 函数非阻塞, 可以放在 1kHz 的机器人任务里 */
+  uint32_t now = HAL_GetTick();
+  if ((uint32_t)(now - last_send_tick) < NAV_FEEDBACK_PERIOD_MS) {
+    return;
+  }
+  last_send_tick = now;
+
+  if (tx_slot == 0) {
+    /* cmd_id = 0x0001 比赛状态, 数据段 11 字节 */
+    nav_game_status_t game_status;
+    game_status.game_type = referee_data->GameState.game_type;
+    game_status.game_progress = referee_data->GameState.game_progress;
+    game_status.stage_remain_time = referee_data->GameState.stage_remain_time;
+    game_status.sync_time_stamp = referee_data->GameState.SyncTimeStamp;
+    NavigatorTransmit(NAV_CMD_ID_GAME_STATUS, (const uint8_t *)&game_status, sizeof(game_status), tx_buffer[0]);
+  } else {
+    /* cmd_id = 0x000B 机器人状态, 数据段 13 字节 */
+    nav_robot_status_t robot_status;
+    memset(&robot_status, 0, sizeof(robot_status));
+    robot_status.robot_id = referee_data->GameRobotState.robot_id;
+    robot_status.robot_level = referee_data->GameRobotState.robot_level;
+    robot_status.current_hp = referee_data->GameRobotState.current_HP;
+    robot_status.maximum_hp = referee_data->GameRobotState.maximum_HP;
+    robot_status.shooter_barrel_cooling_value = referee_data->GameRobotState.shooter_barrel_cooling_value;
+    robot_status.shooter_barrel_heat_limit = referee_data->GameRobotState.shooter_barrel_heat_limit;
+    robot_status.chassis_power_limit = referee_data->GameRobotState.chassis_power_limit;
+    robot_status.power_management_gimbal_output = referee_data->GameRobotState.power_management_gimbal_output;
+    robot_status.power_management_chassis_output = referee_data->GameRobotState.power_management_chassis_output;
+    robot_status.power_management_shooter_output = referee_data->GameRobotState.power_management_shooter_output;
+    NavigatorTransmit(NAV_CMD_ID_ROBOT_STATUS, (const uint8_t *)&robot_status, sizeof(robot_status), tx_buffer[1]);
+  }
+
+  tx_slot ^= 1;
+}
+
+/* ============================ 协议层: 解析 ============================ */
+
+/**
+ * @brief 解析一帧 上->下 速度指令帧
+ * @param frame 指向帧起点(SOF), 调用者保证可读 NAV_CMD_FRAME_LEN 字节
+ * @param cmd   输出: 校验通过时写入 12 字节数据段(vx/vy/wz)
+ * @param seq   输出: 帧流水号, 可为 NULL
+ * @return 1: 校验全部通过; 0: 该位置不是合法帧(调用者应滑动 1 字节重新同步)
+ * @note   data_length 必须为 12, 长度不符的帧整帧丢弃, 即使 CRC 全对也不写入控制量
+ */
+static uint8_t NavigatorParseCmdFrame(const uint8_t *frame, robot_cmd_t *cmd, uint8_t *seq) {
+  /* 1. 帧头 CRC8, 覆盖偏移 0-3, 初值 0xFF */
+  if (get_CRC8_check_sum((unsigned char *)frame, 4, PROTOCOL_CRC8_INIT) != frame[4]) {
     return 0;
   }
 
-  uint16_t packed_length = 0;
-  uint8_t local_buffer[BUFFER_MAX_SIZE];  // 使用局部缓冲区
-
-  // 1. 打包到局部缓冲区
-  uint8_t *packed_data = protocol_packed(data_ptr, pack_id, data_len, data_id, local_buffer, &packed_length);
-
-  // 2. 检查打包是否成功
-  if (packed_data == NULL || packed_length == 0) {
+  /* 2. 数据段长度必须为 12 */
+  uint16_t data_length = (uint16_t)(frame[1] | (frame[2] << 8));
+  if (data_length != NAV_CMD_DATA_LEN) {
     return 0;
   }
 
-  // 3. 使用DMA传输局部缓冲区
-  HAL_StatusTypeDef hal_status = HAL_UART_Transmit_DMA(huart, packed_data, packed_length);
-  if (hal_status != HAL_OK) {
+  /* 3. CRC16, 覆盖偏移 0 到 5+data_length-1, 不包含自身 */
+  uint16_t crc16_calc =
+      get_CRC16_check_sum((uint8_t *)frame, PROTOCOL_HEADER_LEN + NAV_CMD_DATA_LEN, PROTOCOL_CRC16_INIT);
+  uint16_t crc16_recv = (uint16_t)(frame[PROTOCOL_HEADER_LEN + NAV_CMD_DATA_LEN] |
+                                   (frame[PROTOCOL_HEADER_LEN + NAV_CMD_DATA_LEN + 1] << 8));
+  if (crc16_calc != crc16_recv) {
     return 0;
   }
 
-  // 4. 等待DMA传输完成
-  uint32_t start_tick = HAL_GetTick();
-  while (huart->gState == HAL_UART_STATE_BUSY_TX) {
-    if ((HAL_GetTick() - start_tick) > timeout) {
-      HAL_UART_DMAStop(huart);
-      return 0;
-    }
+  memcpy(cmd, &frame[PROTOCOL_HEADER_LEN], NAV_CMD_DATA_LEN);
+  if (seq != NULL) {
+    *seq = frame[3]; /* seq 只记录, 不作为有效性条件 */
   }
   return 1;
 }
 
-// ========== RoboMaster C型开发板发送的数据包发送函数 ==========
-
 /**
- * @brief 发送Debug数据
- * @param huart UART句柄
- * @param name 调试数据名称
- * @param type 数据类型
- * @param data 数据值
- * @return 发送成功返回1，失败返回0
+ * @brief 串口接收回调: 从 DMA 缓冲里按 SOF 滑动查找并解析速度指令帧
+ * @note  在 USART1 的 DMA/IDLE 中断上下文被 bsp_usart 调用
+ *        上位机按 100Hz 定频单帧发送, 帧间有空闲, 因此一次回调通常包含一整帧;
+ *        但这里仍然用滑动窗口, 遇到 CRC 失败只丢 1 字节继续找, 不清空整个缓冲
  */
-static uint8_t send_debug_data(UART_HandleTypeDef* huart, const char* name, uint8_t type, float data)
-{
-    if (huart == NULL || name == NULL) return 0;
+static void DecodeNavigator(void) {
+  if (navigator_usart_instance == NULL) {
+    return;
+  }
 
-    debug_data_t debug_data;
-    memset(&debug_data, 0, sizeof(debug_data));
+  uint8_t *buffer = navigator_usart_instance->recv_buff;
+  uint16_t buffer_size = navigator_usart_instance->recv_buff_size;
+  uint16_t index = 0;
+  uint8_t frame_received = 0;
 
-    // 安全拷贝名称
-    strncpy(debug_data.name, name, sizeof(debug_data.name) - 1);
-    debug_data.type = type;
-    debug_data.data = data;
-
-    uint32_t timestamp = HAL_GetTick();
-    return protocol_send(huart, timestamp,
-                        (uint8_t*)&debug_data,
-                        sizeof(debug_data),
-                        PKT_ID_DEBUG, 10);
-}
-
-/**
- * @brief 发送机器人状态信息
- * @param huart UART句柄
- * @param state_info 状态信息结构体指针
- * @return 发送成功返回1，失败返回0
- */
-static uint8_t send_robot_state_info(UART_HandleTypeDef* huart, const robot_state_info_t* state_info)
-{
-    if (huart == NULL || state_info == NULL) return 0;
-
-    uint32_t timestamp = HAL_GetTick();
-    return protocol_send(huart, timestamp,
-                        (uint8_t*)state_info,
-                        sizeof(robot_state_info_t),
-                        PKT_ID_ROBOT_STATE_INFO, 10);
-}
-
-/**
- * @brief 发送事件数据
- * @param huart UART句柄
- * @param event_data 事件数据结构体指针
- * @return 发送成功返回1，失败返回0
- */
-static uint8_t send_event_data(UART_HandleTypeDef* huart, const event_data_t* event_data)
-{
-    if (huart == NULL || event_data == NULL) return 0;
-
-    uint32_t timestamp = HAL_GetTick();
-    return protocol_send(huart, timestamp,
-                        (uint8_t*)event_data,
-                        sizeof(event_data_t),
-                        PKT_ID_EVENT, 10);
-}
-
-/**
- * @brief 发送所有机器人血量数据
- * @param huart UART句柄
- * @param robot_hp 血量数据结构体指针
- * @return 发送成功返回1，失败返回0
- */
-static uint8_t send_all_robot_hp(UART_HandleTypeDef* huart, const ext_game_robot_HP_t* robot_hp)
-{
-    if (huart == NULL || robot_hp == NULL) return 0;
-
-    return protocol_send(huart, 0x0003,
-                        (uint8_t*)robot_hp,
-                        sizeof(ext_game_robot_HP_t),
-                        PKT_ID_ALL_ROBOT_HP, 10);
-}
-
-/**
- * @brief 发送游戏状态数据
- * @param huart UART句柄
- * @param game_status 游戏状态结构体指针
- * @return 发送成功返回1，失败返回0
- */
-static uint8_t send_game_status(UART_HandleTypeDef* huart, const ext_game_state_t* game_status)
-{
-    if (huart == NULL||game_status==NULL) return 0;
-    return protocol_send(huart, 0x0001,
-                        (uint8_t*)game_status,
-                        sizeof(game_status_t),
-                        PKT_ID_GAME_STATUS, 10);
-}
-
-/**
- * @brief 发送机器人运动数据
- * @param huart UART句柄
- * @param vx x方向速度
- * @param vy y方向速度
- * @param wz z轴角速度
- * @return 发送成功返回1，失败返回0
- */
-static uint8_t send_robot_motion(UART_HandleTypeDef* huart, const robot_motion_t* motion)
-{
-    if (huart == NULL||motion==NULL) return 0;
-
-
-    uint32_t timestamp = HAL_GetTick();
-    return protocol_send(huart, timestamp,
-                        (uint8_t*)motion,
-                        sizeof(robot_motion_t),
-                        PKT_ID_ROBOT_MOTION, 10);
-}
-
-/**
- * @brief 发送地面机器人位置数据
- * @param huart UART句柄
- * @param position 位置数据结构体指针
- * @return 发送成功返回1，失败返回0
- */
-static uint8_t send_ground_robot_position(UART_HandleTypeDef* huart, const ground_robot_position_t* position)
-{
-    if (huart == NULL || position == NULL) return 0;
-
-    uint32_t timestamp = HAL_GetTick();
-    return protocol_send(huart, timestamp,
-                        (uint8_t*)position,
-                        sizeof(ground_robot_position_t),
-                        PKT_ID_GROUND_ROBOT_POS, 10);
-}
-
-/**
- * @brief 发送RFID状态数据
- * @param huart UART句柄
- * @param rfid_status RFID状态结构体指针
- * @return 发送成功返回1，失败返回0
- */
-static uint8_t send_rfid_status(UART_HandleTypeDef* huart, const rfid_status_t* rfid_status)
-{
-    if (huart == NULL || rfid_status == NULL) return 0;
-
-    uint32_t timestamp = HAL_GetTick();
-    return protocol_send(huart, timestamp,
-                        (uint8_t*)rfid_status,
-                        sizeof(rfid_status_t),
-                        PKT_ID_RFID_STATUS, 10);
-}
-
-/**
- * @brief 发送机器人状态数据
- * @param huart UART句柄
- * @param robot_status 机器人状态结构体指针
- * @return 发送成功返回1，失败返回0
- */
-static uint8_t send_robot_status(UART_HandleTypeDef* huart, const ext_game_robot_state_t* robot_status)
-{
-    if (huart == NULL || robot_status == NULL) return 0;
-
-    uint32_t timestamp = HAL_GetTick();
-    return protocol_send(huart, 0x00B,
-                        (uint8_t*)robot_status,
-                        sizeof(ext_game_robot_state_t),
-                        PKT_ID_ROBOT_STATUS, 10);
-}
-
-/**
- * @brief 发送云台关节状态
- * @param huart UART句柄
- * @param joint_state 关节状态结构体指针
- */
-static  uint8_t send_joint_state(UART_HandleTypeDef* huart, const joint_state_t* joint_state)
-{
-    if (huart == NULL||joint_state==NULL) return 0;
-
-    uint32_t timestamp = HAL_GetTick();
-    return protocol_send(huart, timestamp,
-                        (uint8_t*)joint_state,
-                        sizeof(joint_state_t),
-                        PKT_ID_JOINT_STATE, 10);
-}
-
-
-
-// void update_senddata(void) {
-//   send_data.game_status.game_type=0x0A;
-//   send_data.game_status.game_progress=0x0B;
-//   // send_data.game_status.stage_remain_time=0xAABB;
-//   send_data.game_status.sync_time_stamp=0xEFEFEFEFEFEFEFEF;
-//   if (test_flag<40) {
-//     test_flag++;
-//     send_data.game_status.stage_remain_time=0x102C;
-//   }else if (test_flag>=40&&test_flag<=80) {
-//     send_data.game_status.stage_remain_time=0x011C;
-//     test_flag++;
-//   }else if (test_flag>80) {
-//     test_flag=0;
-//   }
-// }
-
-void navigator_send(UART_HandleTypeDef *instance,referee_info_t* referee_data) {
-  // update_senddata();
-  //send_all_robot_hp(instance,&referee_data->GameRobotHP);
-  // send_event_data(instance,&send_data.event_data);
-  send_game_status(instance,&referee_data->GameState);
-  // send_ground_robot_position(instance,&send_data.ground_robot_position);
-  // send_joint_state(instance,&send_data.joint_state);
-  // send_rfid_status(instance,&send_data.rfid_status);
-  // send_robot_motion(instance,&send_data.robot_motion);
-  // send_robot_state_info(instance,&send_data.state_info);
-   send_robot_status(instance,&referee_data->GameRobotState);
-
-}
-
-static void DecodeNavigator() {
-    if (navigator_usart_instance == NULL) {
-        return;
+  while ((uint16_t)(index + NAV_CMD_FRAME_LEN) <= buffer_size) {
+    if (buffer[index] != PROTOCOL_SOF) {
+      index++; /* 不是帧头, 继续找 */
+      continue;
     }
 
-    uint8_t* buffer = navigator_usart_instance->recv_buff;
-    uint8_t buffer_size = navigator_usart_instance->recv_buff_size;
-
-    // 检查最小长度
-    if (buffer_size < PROTOCOL_HEADER_LEN + 4 + 2) { // 帧头 + 时间戳 + CRC16
-        return;
+    robot_cmd_t cmd;
+    uint8_t seq = 0;
+    if (NavigatorParseCmdFrame(&buffer[index], &cmd, &seq) == 0) {
+      recv_data.error_cnt++;
+      index++; /* 丢 1 字节后重新同步(滑动窗口), 不清空整个缓冲 */
+      continue;
     }
 
-    // 查找帧头
-    uint16_t index = 0;
-    uint16_t processed_len = 0;
+    /* 校验通过: 采用最后一次有效指令, 并持续保持该速度(协议没有超时保护, 由看门狗兜底) */
+    recv_data.robot_cmd = cmd;
+    recv_data.seq = seq;
+    recv_data.last_update_ms = HAL_GetTick();
+    recv_data.rx_frame_cnt++;
+    recv_data.data_valid = 1;
+    DaemonReload(navigator_daemon_instance);
 
-    while (index < buffer_size) {
-        // 查找SOF
-        if (buffer[index] == PROTOCOL_SOF) {
-            // 检查剩余长度是否足够
-            if (index + PROTOCOL_HEADER_LEN > buffer_size) {
-                break;
-            }
+    frame_received = 1;
+    index = (uint16_t)(index + NAV_CMD_FRAME_LEN);
+  }
 
-            // 解析帧头
-            HeaderFrame* header = (HeaderFrame*)&buffer[index];
-
-            // 检查数据长度是否合理
-            uint16_t total_frame_len = PROTOCOL_HEADER_LEN + 4 + header->len + 2;
-            if (index + total_frame_len > buffer_size) {
-                index++;
-                continue; // 数据不完整，继续查找
-            }
-
-            // 校验帧头CRC8
-            uint8_t crc8_calc = get_CRC8_check_sum(&buffer[index], 4, PROTOCOL_CRC8_INIT);
-            if (crc8_calc != header->crc) {
-                index++;
-                continue; // CRC校验失败，继续查找
-            }
-
-            // 计算数据段CRC16 - 只计算有效数据部分
-            uint16_t data_len_for_crc = PROTOCOL_HEADER_LEN + header->len;
-            uint16_t crc16_calc = get_CRC16_check_sum(&buffer[index], data_len_for_crc, PROTOCOL_CRC16_INIT);
-
-            // 正确获取接收到的CRC16（使用固定索引，不依赖total_frame_len）
-            uint16_t crc16_recv = (buffer[index + data_len_for_crc + 1] << 8) | buffer[index + data_len_for_crc];
-
-            if (crc16_calc != crc16_recv) {
-                index++;
-                continue; // CRC16校验失败，继续查找
-            }
-
-            // 校验通过，处理数据包
-            uint16_t data_index = index + PROTOCOL_HEADER_LEN; // 跳过帧头和时间戳
-            uint8_t check_len=sizeof(navigator_recv_t)-6;
-            if (header->len == (check_len)) {
-                memcpy(&recv_data, &buffer[data_index], check_len);
-                recv_data.last_update_time=DWT_GetTimeline_ms()/1000;
-            }
-            // 移动索引到下一帧
-            index += total_frame_len;
-            processed_len = index;
-        } else {
-            index++;
-        }
-    }
-
-    // 清除已处理的数据
-    if (processed_len > 0) {
-        if (processed_len < buffer_size) {
-            uint16_t remaining_len = buffer_size - processed_len;
-            memmove(buffer, &buffer[processed_len], remaining_len);
-            memset(&buffer[remaining_len], 0, buffer_size - remaining_len);
-        } else {
-            memset(buffer, 0, buffer_size);
-        }
-    }
+  /* 本轮解析出过完整帧就清空缓冲, 防止残留字节在下一次回调中被误判成帧头
+   * (bsp_usart 在回调返回后同样会清空缓冲, 这里只是提前做掉) */
+  if (frame_received) {
+    memset(buffer, 0, buffer_size);
+  }
 }
 
-navigator_recv_t* navigator_init(UART_HandleTypeDef *usart_handle) {
-  USART_Init_Config_s conf;
-  conf.module_callback = DecodeNavigator;
-  conf.recv_buff_size = NAVIGATOR_RECV_SIZE;
-  conf.usart_handle =usart_handle;
+uint8_t NavigatorGetCmd(robot_cmd_t *cmd) {
+  if (cmd == NULL) {
+    return 0;
+  }
+
+  /* 看门狗: 超过 NAV_CMD_TIMEOUT_MS 没有收到有效帧则判定上位机离线
+   * data_valid 保证上电后、收到第一帧之前不会误判为有效 */
+  uint8_t valid = (uint8_t)(((uint32_t)(HAL_GetTick() - recv_data.last_update_ms) <= NAV_CMD_TIMEOUT_MS) &&
+                            (recv_data.data_valid != 0));
+  recv_data.data_valid = valid;
+
+  if (valid) {
+    *cmd = recv_data.robot_cmd; /* 采用最后一次有效指令 */
+  } else {
+    memset(cmd, 0, sizeof(robot_cmd_t)); /* 超时: 速度归零 */
+  }
+
+  return valid;
+}
+
+/**
+ * @brief 离线回调, 由 daemon 任务在 500ms 未收到有效帧时调用
+ * @note  打开 DMA 接收后再用 DMA/IT 发送, HAL 存在 __HAL_LOCK 互锁导致再也进不了
+ *        接收中断的可能(见 master_process.c 的说明), 因此离线时重启串口服务
+ */
+static void NavigatorOfflineCallback(void *id) {
+  (void)id;
+  if (navigator_usart_instance != NULL) {
+    USARTServiceInit(navigator_usart_instance);
+    LOGWARNING("[navigator] nav link offline, restart usart1 rx.");
+  }
+}
+
+navigator_recv_t *navigator_init(UART_HandleTypeDef *usart_handle) {
+  if (usart_handle == NULL) {
+    return NULL;
+  }
+  if (navigator_usart_instance != NULL) {
+    return &recv_data; /* 导航串口只允许注册一次 */
+  }
+
+  USART_Init_Config_s conf = {
+      .module_callback = DecodeNavigator,
+      .recv_buff_size = NAVIGATOR_RECV_SIZE,
+      .usart_handle = usart_handle,
+  };
   navigator_usart_instance = USARTRegister(&conf);
 
+  Daemon_Init_Config_s daemon_conf = {
+      .reload_count = NAV_DAEMON_RELOAD_COUNT,
+      .init_count = NAV_DAEMON_RELOAD_COUNT,
+      .callback = NavigatorOfflineCallback,
+      .owner_id = navigator_usart_instance,
+  };
+  navigator_daemon_instance = DaemonRegister(&daemon_conf);
+
+  NavigatorSelfTest();
+  LOGINFO("[navigator] protocol V1.0.0 ready on usart1 (115200 8N1)");
 
   return &recv_data;
 }
+
+/* ============================ 协议自检 ============================ */
+
+#ifdef ESC_DEBUG
+#define NAV_SELFTEST_CHECK(cond, name)                            \
+  do {                                                            \
+    if (!(cond)) {                                                \
+      ok = 0;                                                     \
+      LOGERROR("[navigator] self-test FAILED: %s", name);         \
+    }                                                             \
+  } while (0)
+
+void NavigatorSelfTest(void) {
+  static const uint8_t kCrcSeed[9] = {'1', '2', '3', '4', '5', '6', '7', '8', '9'};
+
+  /* 文档 §5.1: 上->下 三条参考帧 */
+  static const uint8_t kRefVx1[NAV_CMD_FRAME_LEN] = {0xA5, 0x0C, 0x00, 0x01, 0x26, 0x00, 0x00, 0x80, 0x3F, 0x00,
+                                                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x6B, 0xA3};
+  static const uint8_t kRefStop[NAV_CMD_FRAME_LEN] = {0xA5, 0x0C, 0x00, 0x01, 0x26, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x18, 0x9F};
+  static const uint8_t kRefVx1VyNeg1Wz3[NAV_CMD_FRAME_LEN] = {0xA5, 0x0C, 0x00, 0x01, 0x26, 0x00, 0x00, 0x80, 0x3F,
+                                                              0x00, 0x00, 0x80, 0xBF, 0x00, 0x00, 0x40, 0x40, 0xD3, 0x96};
+  /* 文档 §4.3: 下->上 0x0001 参考帧 */
+  static const uint8_t kRefGameStatus[20] = {0xA5, 0x0B, 0x00, 0x01, 0x5C, 0x01, 0x00, 0xAA, 0x2C, 0x01,
+                                             0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11, 0xEF, 0x74};
+
+  uint8_t ok = 1;
+  uint8_t seq = 0;
+  robot_cmd_t cmd;
+  uint8_t frame[32];
+
+  /* 1. / 2. CRC 自检值 */
+  NAV_SELFTEST_CHECK(get_CRC8_check_sum((unsigned char *)kCrcSeed, 9, PROTOCOL_CRC8_INIT) == 0x0B, "crc8 self-check");
+  NAV_SELFTEST_CHECK(get_CRC16_check_sum((uint8_t *)kCrcSeed, 9, PROTOCOL_CRC16_INIT) == 0x6F91, "crc16 self-check");
+
+  /* 3. 逐字节解析 §5.1 参考帧 */
+  memset(&cmd, 0, sizeof(cmd));
+  NAV_SELFTEST_CHECK(NavigatorParseCmdFrame(kRefVx1, &cmd, &seq) == 1, "parse vx=1,vy=0,wz=0");
+  NAV_SELFTEST_CHECK(cmd.speed_vector.vx == 1.0f && cmd.speed_vector.vy == 0.0f && cmd.speed_vector.wz == 0.0f,
+                     "vx=1,vy=0,wz=0 values");
+  NAV_SELFTEST_CHECK(seq == 0x01, "seq of reference frame");
+
+  memset(&cmd, 0xFF, sizeof(cmd));
+  NAV_SELFTEST_CHECK(NavigatorParseCmdFrame(kRefStop, &cmd, &seq) == 1, "parse stop frame");
+  NAV_SELFTEST_CHECK(cmd.speed_vector.vx == 0.0f && cmd.speed_vector.vy == 0.0f && cmd.speed_vector.wz == 0.0f,
+                     "stop frame values");
+
+  NAV_SELFTEST_CHECK(NavigatorParseCmdFrame(kRefVx1VyNeg1Wz3, &cmd, &seq) == 1, "parse vx=1,vy=-1,wz=3");
+  NAV_SELFTEST_CHECK(cmd.speed_vector.vx == 1.0f && cmd.speed_vector.vy == -1.0f && cmd.speed_vector.wz == 3.0f,
+                     "vx=1,vy=-1,wz=3 values");
+
+  /* 5. data_length != 12: 整帧丢弃 */
+  memcpy(frame, kRefVx1, NAV_CMD_FRAME_LEN);
+  frame[1] = 0x0D;
+  NAV_SELFTEST_CHECK(NavigatorParseCmdFrame(frame, &cmd, &seq) == 0, "reject data_length != 12");
+
+  /* CRC16 出错: 整帧丢弃 */
+  memcpy(frame, kRefVx1, NAV_CMD_FRAME_LEN);
+  frame[5] ^= 0x01;
+  NAV_SELFTEST_CHECK(NavigatorParseCmdFrame(frame, &cmd, &seq) == 0, "reject crc16 error");
+
+  /* 4. 用 §4.3 的参数组 0x0001 反馈帧, 与参考帧逐字节比对 */
+  nav_game_status_t game_status;
+  memset(&game_status, 0, sizeof(game_status));
+  game_status.game_type = 0xA;
+  game_status.game_progress = 0xA;
+  game_status.stage_remain_time = 300;
+  game_status.sync_time_stamp = 0x1122334455667788ULL;
+
+  uint8_t seq_backup = tx_seq;
+  tx_seq = 0x01; /* 参考帧的 seq = 1 */
+  uint16_t frame_len = NavigatorPackFrame(NAV_CMD_ID_GAME_STATUS, (const uint8_t *)&game_status,
+                                          sizeof(game_status), frame);
+  tx_seq = seq_backup;
+  NAV_SELFTEST_CHECK(frame_len == sizeof(kRefGameStatus), "0x0001 frame length");
+  NAV_SELFTEST_CHECK(memcmp(frame, kRefGameStatus, sizeof(kRefGameStatus)) == 0, "0x0001 frame bytes");
+
+  if (ok) {
+    LOGINFO("[navigator] protocol self-test PASSED");
+  } else {
+    LOGERROR("[navigator] protocol self-test FAILED, check crc table / frame layout!");
+  }
+}
+#else
+void NavigatorSelfTest(void) {
+  /* Release 构建不带日志, 自检仅在 Debug(ESC_DEBUG) 下编译 */
+}
+#endif

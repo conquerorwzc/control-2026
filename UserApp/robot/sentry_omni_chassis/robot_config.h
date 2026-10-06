@@ -27,6 +27,10 @@
 #define VISION_USE_VCP  // 使用虚拟串口发送视觉数据
 // #define VISION_USE_UART // 使用串口发送视觉数据
 
+// 导航速度指令缩放: 底盘速度环参考值与上位机数值约为 10000:1(协议 §3.3)
+// 注意: 协议层不做限幅, 起步请让上位机把指令限制在 vx/vy <= 0.2
+#define NAV_SPEED_SCALE 10000.0f
+
 
 
 //can通信任务初始化时间 单位ms
