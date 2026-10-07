@@ -9,7 +9,7 @@
  * | 使能成功       | 单短高滴                     |
  * | 失能/急停      | 低双鸣                       |
  * | 进入调试档     | 短高滴 x2                    |
- * | 校准开始       | 渐高三连滴 (Do-Mi-So)        |
+ * | 校准开始       | 渐高三连滴 (Do-Mi-So) + **BGM《无刺有刺》** |
  * | 校准完成       | 上行双音 (Mi-So)             |
  * | 储能开始       | 单中鸣                       |
  * | 储能完成 READY | 上行双音 (So-Do') + SUCCESS  |
@@ -34,6 +34,11 @@ void DartBuzzerFireDone(void);
 void DartBuzzerCmdRejected(void);
 void DartBuzzerFault(void);
 void DartBuzzerFaultCleared(void);
+
+/* 校准 BGM(《无刺有刺》组曲): 校准开始播放, 校准完成/故障/中止/失能自动停止 */
+void DartBuzzerCaliBgmStart(void);
+void DartBuzzerCaliBgmStop(void);
+void DartBuzzerService(void);  // 组曲分段补队, 由 RobotTask 周期调用
 
 /* 持续指示 */
 void DartBuzzerRcLost(void);

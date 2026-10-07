@@ -7,6 +7,8 @@
 #include <stddef.h>
 
 #include "buzzer.h"
+#include "buzzer_music.h"
+#include "wuci_youci_suite.h"
 
 /* 持续指示 source_id, 与告警级别共同区分来源 */
 #define DART_BUZZER_SRC_FAULT 1
@@ -66,6 +68,7 @@ static const Buzzer_Score_s kChargeDoneScore = {
 void DartBuzzerEnableOk(void) { PlayTone(880000, 50, 90); }
 
 void DartBuzzerDisable(void) {
+  DartBuzzerCaliBgmStop();  // 失能/急停即停 BGM
   // 只提示失能, 不清持续指示(失联指示由 RC 恢复清除, 故障指示由校准恢复清除)
   Buzzer_Tone_Config_s tone = {
       .frequency_millihz = 440000,
@@ -92,7 +95,20 @@ void DartBuzzerDebugMode(void) {
 
 void DartBuzzerCaliStart(void) { BuzzerPlayScore(&kCaliStartScore, 1, NULL); }
 
-void DartBuzzerCaliDone(void) { BuzzerPlayScore(&kCaliDoneScore, 1, NULL); }
+/* ---- 校准 BGM(无刺有刺组曲): 校准开始播放, 校准完成/故障/中止/失能即停 ---- */
+void DartBuzzerCaliBgmStart(void) {
+  BuzzerMusicSuiteStop();  // 防上一次组曲残留
+  BuzzerMusicSuitePlay(&kWuciYouciSuite, NULL);
+}
+
+void DartBuzzerCaliBgmStop(void) { BuzzerMusicSuiteStop(); }
+
+void DartBuzzerService(void) { BuzzerMusicSuiteService(); }  // 组曲分段补队, 须周期调用
+
+void DartBuzzerCaliDone(void) {
+  DartBuzzerCaliBgmStop();  // 校准完成即停 BGM
+  BuzzerPlayScore(&kCaliDoneScore, 1, NULL);
+}
 
 void DartBuzzerChargeStart(void) { PlayTone(659000, 80, 95); }
 
@@ -111,6 +127,7 @@ void DartBuzzerFireDone(void) { PlayTone(880000, 45, 80); }
 void DartBuzzerCmdRejected(void) { BuzzerNotify(BUZZER_PATTERN_WARNING, NULL); }
 
 void DartBuzzerFault(void) {
+  DartBuzzerCaliBgmStop();  // 故障即停 BGM
   BuzzerNotify(BUZZER_PATTERN_ERROR, NULL);
   BuzzerSetIndicator(DART_BUZZER_SRC_FAULT, BUZZER_PATTERN_ERROR, ALARM_LEVEL_HIGH, NULL);
 }
