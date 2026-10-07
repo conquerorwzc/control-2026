@@ -9,6 +9,7 @@
  *
  */
 #include "bsp_usart.h"
+#include "bsp_dwt.h"
 #include "bsp_log.h"
 #include "stdlib.h"
 #include "memory.h"
@@ -17,6 +18,17 @@
 /* usart服务实例,所有注册了usart的模块信息会被保存在这里 */
 static uint8_t idx;
 static USARTInstance *usart_instance[DEVICE_USART_CNT] = {NULL};
+
+/* 串口错误统计: 前 USART_ERR_VERBOSE_CNT 次完整打印, 之后按 1Hz 汇总
+ * (噪声错误可能几十条/秒, 逐条打印会把有效日志全部淹掉) */
+#define USART_ERR_VERBOSE_CNT 3
+typedef struct {
+    uint32_t total;       // 累计错误次数
+    uint32_t total_last;  // 上次汇总时的累计值(算速率)
+    uint32_t pe, fe, ne, ore;  // 累计分类次数
+    float log_time;       // 上次汇总时间
+} UsartErrStat_s;
+static UsartErrStat_s usart_err_stat[DEVICE_USART_CNT];
 
 /**
  * @brief 启动串口服务,会在每个实例注册之后自动启用接收,当前实现为DMA接收,后续可能添加IT和BLOCKING接收
@@ -121,6 +133,8 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
  * @brief 当串口发送/接收出现错误时,会调用此函数,此时这个函数要做的就是重新启动接收
  *
  * @note  最常见的错误:奇偶校验/溢出/帧错误
+ *        ORE(溢出)多是 CPU/DMA 来不及处理(中断占用久、日志过多);
+ *        FE/NE/PE(帧错/噪声/校验错)才是线上干扰(走线、共地、EMI), 两者排查方向完全不同
  *
  * @param huart 发生错误的串口
  */
@@ -130,9 +144,51 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
     {
         if (huart == usart_instance[i]->usart_handle)
         {
-            HAL_UARTEx_ReceiveToIdle_DMA(usart_instance[i]->usart_handle, usart_instance[i]->recv_buff, usart_instance[i]->recv_buff_size);
-            __HAL_DMA_DISABLE_IT(usart_instance[i]->usart_handle->hdmarx, DMA_IT_HT);
-            LOGWARNING("[bsp_usart] USART error callback triggered, instance idx [%d]", i);
+            uint32_t err = huart->ErrorCode;
+            UsartErrStat_s *stat = &usart_err_stat[i];
+
+            /* 清错误标志兜底: HAL 中断里一般已清 ORE, 但残留标志会让本回调被反复触发 */
+            __HAL_UART_CLEAR_PEFLAG(huart);
+            __HAL_UART_CLEAR_FEFLAG(huart);
+            __HAL_UART_CLEAR_NEFLAG(huart);
+            __HAL_UART_CLEAR_OREFLAG(huart);
+            huart->ErrorCode = HAL_UART_ERROR_NONE;
+
+            /* 重新挂接收 */
+            USARTServiceInit(usart_instance[i]);
+            /* 重挂结果检测: 若 HAL 状态没回到 BUSY_RX, 说明这次重挂没生效(该串口会一直收不到数据) */
+            if (huart->RxState != HAL_UART_STATE_BUSY_RX)
+            {
+                LOGERROR("[bsp_usart] RX re-arm FAILED, RxState 0x%X, idx [%d]", (unsigned)huart->RxState, i);
+            }
+
+            /* ---- 错误统计: 前几次完整打印, 之后 1Hz 汇总, 避免刷屏淹没有效日志 ---- */
+            stat->total++;
+            if (err & HAL_UART_ERROR_PE) stat->pe++;
+            if (err & HAL_UART_ERROR_FE) stat->fe++;
+            if (err & HAL_UART_ERROR_NE) stat->ne++;
+            if (err & HAL_UART_ERROR_ORE) stat->ore++;
+
+            if (stat->total <= USART_ERR_VERBOSE_CNT)
+            {
+                LOGWARNING("[bsp_usart] USART error callback triggered, idx [%d], ErrorCode 0x%X (PE %d, FE %d, NE %d, ORE %d), total %d",
+                           i, (unsigned)err,
+                           (err & HAL_UART_ERROR_PE) ? 1 : 0, (err & HAL_UART_ERROR_FE) ? 1 : 0,
+                           (err & HAL_UART_ERROR_NE) ? 1 : 0, (err & HAL_UART_ERROR_ORE) ? 1 : 0,
+                           (int)stat->total);
+            }
+            else
+            {
+                float now = DWT_GetTimeline_ms();
+                if (now - stat->log_time >= 1000.0f)
+                {
+                    stat->log_time = now;
+                    LOGWARNING("[bsp_usart] USART error %d/s, total %d (PE %d, FE %d, NE %d, ORE %d), idx [%d]",
+                               (int)(stat->total - stat->total_last), (int)stat->total, (int)stat->pe, (int)stat->fe,
+                               (int)stat->ne, (int)stat->ore, i);
+                    stat->total_last = stat->total;
+                }
+            }
             return;
         }
     }
