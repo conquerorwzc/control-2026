@@ -33,6 +33,23 @@ static void ApplyScrewTorqueLimit(DartLauncherInstance* inst) {
   inst->screw_motor->motor_controller.speed_PID.IntegralLimit = integral;
 }
 
+/* 双带速度环积分互融 + 差模力矩偏置注入(每周期)
+ *   shared = (I0+I1)/2 —— 差模偏置在求和中抵消, 即"共模积分";
+ *   两台 Iout 向 shared ± belt_diff_torque 靠拢(系数 DART_BELT_INTEGRAL_BLEND):
+ *   - 互融: 摩擦差异/起动不对称不再被各自积分"记住"固化(修稳态力矩差);
+ *   - 差模: 位置纠偏以力矩偏置 ±Ib 注入, 两台速度给定保持相同 -> P 项一致, 电流差只剩 2*Ib(有上限)。 */
+static void BlendBeltIntegrals(DartLauncherInstance* inst) {
+  PIDInstance* pid0 = &inst->belt_motor[0]->motor_controller.speed_PID;
+  PIDInstance* pid1 = &inst->belt_motor[1]->motor_controller.speed_PID;
+  float shared = 0.5f * (pid0->Iout + pid1->Iout);
+  float bias = inst->belt_zero_valid ? inst->belt_diff_torque : 0.0f;
+  float blend = DART_BELT_INTEGRAL_BLEND;
+  float target0 = shared + bias;
+  float target1 = shared - bias;
+  pid0->Iout += blend * (target0 - pid0->Iout);
+  pid1->Iout += blend * (target1 - pid1->Iout);
+}
+
 /* 双同步带电机同速控制(速度环), 逻辑正方向 = 储能方向 */
 static void SetBeltSpeed(DartLauncherInstance* inst, float speed_dps) {
   for (int i = 0; i < 2; i++) {
@@ -41,8 +58,59 @@ static void SetBeltSpeed(DartLauncherInstance* inst, float speed_dps) {
   }
 }
 
-/* 双同步带电机同一逻辑位置目标(位置环串级), 保证严格同步
- * speed_limit_dps: 本阶段限速, 通过角度环 MaxOut 实现, 再被 DART_BELT_MAX_SPEED_DPS 钳一次 */
+/* 双带共模/差模解耦(每周期一次, 同步带位置控制的唯一出口) —— 差模在**力矩级**
+ *   共模: 两侧平均位置跟目标 -> 速度给定 v_common, 两台**完全相同**(P 项一致, 稳态出力均分)
+ *   差模: 位置差收敛到基准 -> 输出**力矩偏置**(经积分互融注入两台速度环 Iout, ±Ib, 有上限)
+ *   @note 差模不能走速度给定: v_ref 差经速度环 Kp 放大成 P 项差(2*Kp_s*v_diff),
+ *         会持续制造几千的 real_current 差 —— 积分互融压不掉 P 项。力矩级注入后,
+ *         稳态电流差 = 2*Ib, 仅在需要对齐时存在且被 DART_BELT_SYNC_TORQUE_MAX 钳幅。 */
+static void BeltSyncUpdate(DartLauncherInstance* inst) {
+  float p0 = inst->belt_motor[0]->measure.total_angle;
+  float p1 = inst->belt_motor[1]->measure.total_angle;
+  float dev = p0 - p1;
+  /* 负载感知模式切换(判据滤波 + 回差 + 最短驻留三重防抖), 判据 = 两台 real_current **绝对值之和**:
+   *   > DART_BELT_SYNC_LOAD_ON  -> **力矩同步**(带载: 拉拽/保持): 负载路径不对称(皮带张紧/摩擦)是
+   *     机械事实, 硬锁偏差=持续较劲=电流差; 软基准放行慢漂移, 只纠窜动 -> 均流;
+   *   < DART_BELT_SYNC_LOAD_OFF -> **位置同步**(空载移动): 硬基准锁死偏差值 -> 两侧走位齐。
+   *   ON/OFF 之间保持原模式(回差); 判据先低通(real_current 噪声大, 不滤会在阈值附近反复横跳),
+   *   切换后最短驻留一段时间(切换本身有扰动: 清差模积分/基准跳变), 不许连续翻转。 */
+  float load_raw = fabsf(inst->belt_motor[0]->measure.real_current) + fabsf(inst->belt_motor[1]->measure.real_current);
+  inst->belt_load_filt += (load_raw - inst->belt_load_filt) * (DART_TASK_DT_S / DART_BELT_SYNC_LOAD_LPF_TAU_S);
+  bool torque_sync = inst->belt_torque_sync;
+  if (inst->belt_load_filt > DART_BELT_SYNC_LOAD_ON) {
+    torque_sync = true;
+  } else if (inst->belt_load_filt < DART_BELT_SYNC_LOAD_OFF) {
+    torque_sync = false;
+  }
+  uint32_t mode_ms = (uint32_t)DWT_GetTimeline_ms();
+  if (torque_sync != inst->belt_torque_sync && (mode_ms - inst->belt_mode_switch_ms) < DART_BELT_SYNC_MODE_DWELL_MS) {
+    torque_sync = inst->belt_torque_sync;  // 驻留期内不切换
+  }
+  if (torque_sync != inst->belt_torque_sync) {
+    inst->belt_diff_pid.Iout = 0.0f;
+    inst->belt_torque_sync = torque_sync;
+    inst->belt_mode_switch_ms = mode_ms;
+    LOGINFO("[dart] belt sync mode -> %s (load %d)", torque_sync ? "torque-balance" : "position-lock",
+            (int)inst->belt_load_filt);
+  }
+
+  if (inst->belt_torque_sync && DART_BELT_SYNC_BASELINE_TAU_S > 0.0f) {
+    inst->belt_diff_ref += (dev - inst->belt_diff_ref) * (DART_TASK_DT_S / DART_BELT_SYNC_BASELINE_TAU_S);
+  } else {
+    inst->belt_diff_ref = inst->belt_diff_base;
+  }
+  float v_common = PIDCalculate(&inst->belt_common_pid, 0.5f * (p0 + p1), inst->belt_common_ref);
+  inst->belt_diff_torque = PIDCalculate(&inst->belt_diff_pid, dev - inst->belt_diff_ref, 0.0f);
+  VAL_LIMIT(inst->belt_diff_torque, -DART_BELT_SYNC_TORQUE_MAX, DART_BELT_SYNC_TORQUE_MAX);
+  VAL_LIMIT(v_common, -DART_BELT_MAX_SPEED_DPS, DART_BELT_MAX_SPEED_DPS);
+  for (int i = 0; i < 2; i++) {
+    DJIMotorOuterLoop(inst->belt_motor[i], SPEED_LOOP);
+    DJIMotorSetPIDRef(inst->belt_motor[i], v_common);  // 两机同一速度给定
+  }
+}
+
+/* 双同步带电机同一逻辑位置目标(共模/差模解耦), 保证均载与严格同步
+ * speed_limit_dps: 本阶段限速, 通过共模环 MaxOut 实现, 再被 DART_BELT_MAX_SPEED_DPS 钳一次 */
 static void SetBeltPosition(DartLauncherInstance* inst, float pos_deg, float speed_limit_dps) {
   inst->belt_pos_target = pos_deg;
   if (!inst->belt_zero_valid) {
@@ -50,20 +118,30 @@ static void SetBeltPosition(DartLauncherInstance* inst, float pos_deg, float spe
     return;
   }
   float limit = speed_limit_dps < DART_BELT_MAX_SPEED_DPS ? speed_limit_dps : DART_BELT_MAX_SPEED_DPS;
-  for (int i = 0; i < 2; i++) {
-    inst->belt_motor[i]->motor_controller.angle_PID.MaxOut = limit;  // 限速(位置环输出=速度给定)
-    DJIMotorOuterLoop(inst->belt_motor[i], ANGLE_LOOP);
-    DJIMotorSetPIDRef(inst->belt_motor[i], inst->belt_zero_offset[i] + pos_deg);
-  }
+  inst->belt_common_pid.MaxOut = limit;
+  // 共模目标 = 逻辑目标折算到两侧平均坐标; 差模基准 = 两侧"应有"的位置差(零点之差, 即逻辑差为 0)
+  inst->belt_common_ref = 0.5f * (inst->belt_zero_offset[0] + inst->belt_zero_offset[1]) + pos_deg;
+  inst->belt_diff_base = inst->belt_zero_offset[0] - inst->belt_zero_offset[1];
+  BeltSyncUpdate(inst);
 }
 
-/* 双带电机是否都到达逻辑目标位置 */
+/* 双带是否到达逻辑目标位置: 以**两侧平均位置**判到位(挡块位置 ≈ 两侧平均)。
+ * @warning 不能按"每侧各自 ±容差"判: 力矩同步模式下差模有意放行两侧变形差(均流),
+ *          单侧误差可达上千度, 按单侧判会永远"没到位" -> 堵转/超时误报故障
+ *          (踩过: 拉到位仍进 FAULT, 把容差改到 3000 才不报 —— 那是在掩盖判据错误)。
+ *          单侧只留宽松健全性上限(END_TOL): 防"一侧到位另一侧卡死远端"的真异常。 */
 static bool BeltPositionReached(DartLauncherInstance* inst, float pos_deg) {
-  for (int i = 0; i < 2; i++) {
-    float err = (inst->belt_zero_offset[i] + pos_deg) - inst->belt_motor[i]->measure.total_angle;
-    if (fabsf(err) > DART_BELT_POS_TOL_DEG) return false;
-  }
+  if (!inst->belt_zero_valid) return false;
+  float e0 = (inst->belt_zero_offset[0] + pos_deg) - inst->belt_motor[0]->measure.total_angle;
+  float e1 = (inst->belt_zero_offset[1] + pos_deg) - inst->belt_motor[1]->measure.total_angle;
+  if (fabsf(0.5f * (e0 + e1)) > DART_BELT_POS_TOL_DEG) return false;
+  if (fabsf(e0) > DART_BELT_END_TOL_DEG || fabsf(e1) > DART_BELT_END_TOL_DEG) return false;
   return true;
+}
+
+/* 校准回撤步的时间预算(回撤距离/限速 + 2s 余量), 超时判定与日志共用 */
+static uint32_t BeltBackoffBudgetMs(void) {
+  return (uint32_t)(DART_BELT_CALI_BACKOFF_DEG / DART_BELT_CALI_BACKOFF_SPEED_DPS * 1000.0f) + 4000u;
 }
 
 /* 扳机丝杆是否到达目标位置(射力位置, 相对丝杆零点) */
@@ -100,29 +178,31 @@ static void SetServoAngle(DartLauncherInstance* inst, float angle_deg) {
   PWMSetDutyRatio(inst->servo_pwm, ServoAngleToDuty(angle_deg));
 }
 
-/* 堵转判据(唯一来源): PID_ErrorHandle 置起的堵转标志位
- * 触发条件见 controller.c f_PID_ErrorHandle: 速度给定/输出有效, 且 |ref-measure|/|ref| > 0.95
- * 连续累计 > 500 次 PID 计算(1kHz 下约 0.5s); 与校准速度大小无关, 不需要额外整定速度阈值。
- * 读后清标志, 便于下一阶段重新判断。 */
-static bool ConsumePidBlocked(DJIMotorInstance* motor) {
-  PID_ErrorHandler_t* handler = &motor->motor_controller.speed_PID.ERRORHandler;
-  if (handler->ERRORType == PID_MOTOR_BLOCKED_ERROR) {
-    handler->ERRORType = PID_ERROR_NONE;
-    handler->ERRORCount = 0;
-    return true;
+/* 堵转判据(唯一来源): 速度阈值。
+ * 实测角速度(measure.speed_aps, 单位 deg/s)持续低于 DART_CALI_STALL_SPEED_DPS 且累计
+ * 达到 DART_CALI_STALL_MS -> 判定堵转。调用侧负责起步宽限(DART_CALI_START_GRACE_MS)。
+ * @note 不使用 PID 的 PID_ErrorHandle 堵转标志位: 它一旦置位(ERRORType)不手动清就一直挂着,
+ *       会把"已经过去的堵转"带到后续阶段造成误故障; 速度阈值判据没有这种状态残留。 */
+static bool CheckStall(StallDetector_s* det, DJIMotorInstance* motor, uint32_t now) {
+  if (fabsf(motor->measure.speed_aps) > DART_CALI_STALL_SPEED_DPS) {
+    det->tracking = false;
+    return false;
   }
-  return false;
+  if (!det->tracking) {
+    det->tracking = true;
+    det->start_ms = now;
+    return false;
+  }
+  return (now - det->start_ms) >= DART_CALI_STALL_MS;
 }
 
-/* 进入新阶段前清掉堵转标志与两侧记录 */
+/* 进入新阶段/新步骤前清掉堵转记录 */
 static void ResetStallState(DartLauncherInstance* inst) {
   for (int i = 0; i < 2; i++) {
     inst->stalled_flag[i] = false;
-    inst->belt_motor[i]->motor_controller.speed_PID.ERRORHandler.ERRORType = PID_ERROR_NONE;
-    inst->belt_motor[i]->motor_controller.speed_PID.ERRORHandler.ERRORCount = 0;
+    inst->stall[i].tracking = false;
   }
-  inst->screw_motor->motor_controller.speed_PID.ERRORHandler.ERRORType = PID_ERROR_NONE;
-  inst->screw_motor->motor_controller.speed_PID.ERRORHandler.ERRORCount = 0;
+  inst->screw_stall.tracking = false;
 }
 
 static void StopAllMotors(DartLauncherInstance* inst) {
@@ -142,6 +222,8 @@ static void ClearBeltPid(DartLauncherInstance* inst) {
     PIDClear(&inst->belt_motor[i]->motor_controller.speed_PID);
     PIDClear(&inst->belt_motor[i]->motor_controller.angle_PID);
   }
+  PIDClear(&inst->belt_common_pid);
+  PIDClear(&inst->belt_diff_pid);
 }
 
 static void ClearScrewPid(DartLauncherInstance* inst) {
@@ -150,12 +232,21 @@ static void ClearScrewPid(DartLauncherInstance* inst) {
 }
 
 static void EnterFault(DartLauncherInstance* inst) {
+  /* @warning 故障**不断力矩**: 弹簧负载下断力矩=机构被拉簧带飞(失控加速+反拖发电,
+   * 反电动势过压, 实车险些打坏硬件, 靠扳机卡住才没出事)。故障=保持当前位置(限力),
+   * 由操作手排查; 只有失能(右开关下档)才真正断输出。 */
   inst->state = DART_STATE_FAULT;
   inst->cali_step = CALI_STEP_BELT_DRIVE_TO_STOP;
   inst->charge_step = CHARGE_STEP_PREP_SCREW;
   inst->fire_step = FIRE_STEP_RELEASE;
   SetServoAngle(inst, DART_SERVO_CATCH_DEG);  // 故障时舵机回卡位角(保持扣住)
-  StopAllMotors(inst);
+  // 记录故障时刻位置为保持目标(逻辑坐标); 零点无效时退化为速度环 0 抱死
+  if (inst->belt_zero_valid) {
+    inst->fault_hold_pos = 0.5f * ((inst->belt_motor[0]->measure.total_angle - inst->belt_zero_offset[0]) +
+                                   (inst->belt_motor[1]->measure.total_angle - inst->belt_zero_offset[1]));
+  } else {
+    inst->fault_hold_pos = 0.0f;
+  }
   DartBuzzerFault();
 }
 
@@ -174,6 +265,7 @@ static void StartCalibration(DartLauncherInstance* inst, uint32_t now) {
   inst->state = DART_STATE_CALIBRATING;
   DartBuzzerFaultCleared();
   DartBuzzerCaliStart();
+  DartBuzzerCaliBgmStart();  // 校准 BGM(无刺有刺), 校准完成/故障/中止/失能即停
   LOGINFO("[dart] start zero calibration (belt only)");
 }
 
@@ -184,9 +276,11 @@ static void HandleCalibrating(DartLauncherInstance* inst, uint32_t now) {
     case CALI_STEP_BELT_DRIVE_TO_STOP:
       ApplyScrewPosition(inst);  // 丝杆零点未标定前保持不动(速度环抱死)
       SetBeltSpeed(inst, DART_BELT_CALI_DIRECTION * DART_BELT_CALI_SPEED_DPS);
-      // 堵转判据只认 PID 堵转标志位(不看速度阈值/时间等其它条件)
-      for (int i = 0; i < 2; i++) {
-        if (ConsumePidBlocked(inst->belt_motor[i])) inst->stalled_flag[i] = true;
+      // 堵转判据: 速度阈值(不用 PID 堵转标志位); 起步先宽限, 防速度还没上来就误判
+      if (now - inst->step_start_ms > DART_CALI_START_GRACE_MS) {
+        for (int i = 0; i < 2; i++) {
+          if (CheckStall(&inst->stall[i], inst->belt_motor[i], now)) inst->stalled_flag[i] = true;
+        }
       }
       if (inst->stalled_flag[0] && inst->stalled_flag[1]) {
         // 双电机各记硬限位处编码器值, 零点即完成同步
@@ -198,7 +292,11 @@ static void HandleCalibrating(DartLauncherInstance* inst, uint32_t now) {
         ClearBeltPid(inst);
         inst->cali_step = CALI_STEP_BELT_BACKOFF;
         inst->step_start_ms = now;
-        LOGINFO("[dart] belt zero found, back off to release position");
+        inst->cali_log_ms = now;
+        LOGINFO("[dart] belt zero found (L %d, R %d, diff %d), step 1/2 done; back off %d deg at %d deg/s (budget %d ms)",
+                (int)inst->belt_zero_offset[0], (int)inst->belt_zero_offset[1],
+                (int)(inst->belt_zero_offset[0] - inst->belt_zero_offset[1]), (int)DART_BELT_CALI_BACKOFF_DEG,
+                (int)DART_BELT_CALI_BACKOFF_SPEED_DPS, (int)BeltBackoffBudgetMs());
       } else if (now - inst->cali_start_ms > DART_BELT_CALI_TIMEOUT_MS) {
         LOGERROR("[dart] fault: belt calibration stall timeout");
         EnterFault(inst);
@@ -217,10 +315,25 @@ static void HandleCalibrating(DartLauncherInstance* inst, uint32_t now) {
         inst->state = DART_STATE_IDLE;
         inst->cali_step = CALI_STEP_BELT_DRIVE_TO_STOP;
         DartBuzzerCaliDone();
-        LOGINFO("[dart] calibration done (belt only, screw calibration disabled)");
-      } else if (now - inst->step_start_ms > DART_BELT_CALI_TIMEOUT_MS) {
-        LOGERROR("[dart] fault: belt calibration backoff timeout");
-        EnterFault(inst);
+        LOGINFO("[dart] calibration done (belt only): is_calibrated=1, belt_zero_valid=%d",
+                inst->belt_zero_valid ? 1 : 0);
+      } else {
+        // 回撤超时按"回撤距离 / 回撤限速"动态算, 不再用为顶限位步设的通用超时:
+        // 例: BACKOFF=3600° @20°/s 需要 180s, 而 DART_BELT_CALI_TIMEOUT_MS=8s -> 必然误报故障
+        uint32_t budget_ms = BeltBackoffBudgetMs();
+        // 1Hz 打印回撤进度(离目标还差多少): 判据是 |两带各自的位置误差| <= DART_BELT_POS_TOL_DEG
+        if (now - inst->cali_log_ms >= 1000u) {
+          inst->cali_log_ms = now;
+          LOGINFO("[dart] backoff %d/%d ms, L err %d, R err %d, tol %d", (int)(now - inst->step_start_ms),
+                  (int)budget_ms,
+                  (int)((inst->belt_zero_offset[0] + DART_BELT_HOME_DEG) - inst->belt_motor[0]->measure.total_angle),
+                  (int)((inst->belt_zero_offset[1] + DART_BELT_HOME_DEG) - inst->belt_motor[1]->measure.total_angle),
+                  (int)DART_BELT_POS_TOL_DEG);
+        }
+        if (now - inst->step_start_ms > budget_ms) {
+          LOGERROR("[dart] fault: belt calibration backoff timeout");
+          EnterFault(inst);
+        }
       }
       break;
 
@@ -237,8 +350,9 @@ static void HandleCalibrating(DartLauncherInstance* inst, uint32_t now) {
       // 丝杆低速顶硬限位(力矩由 ApplyScrewTorqueLimit 严格限制)
       DJIMotorOuterLoop(inst->screw_motor, SPEED_LOOP);
       DJIMotorSetPIDRef(inst->screw_motor, DART_SCREW_CALI_DIRECTION * DART_SCREW_CALI_SPEED_DPS);
-      // 同上: 只认 PID 堵转标志位
-      if (ConsumePidBlocked(inst->screw_motor)) {
+      // 同上: 速度阈值判据 + 起步宽限
+      if (now - inst->step_start_ms > DART_CALI_START_GRACE_MS &&
+          CheckStall(&inst->screw_stall, inst->screw_motor, now)) {
         // 记丝杆零点, 并退开限位到默认射力位置
         inst->screw_zero_offset = inst->screw_motor->measure.total_angle;
         inst->screw_zero_valid = true;
@@ -279,13 +393,9 @@ static void HandleCalibrating(DartLauncherInstance* inst, uint32_t now) {
 
 static void HandleIdle(DartLauncherInstance* inst, uint32_t now) {
   (void)now;
+  // @note 失能中止储能后的复位(recovery_retract)已提到 DartLauncherTask 里统一处理;
+  //       放在这里会被调试档(跳过 HandleIdle)漏掉 -> 标志永不清, 之后储能命令一直被拒
   SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_BELT_HOME_SPEED_DPS);
-  if (inst->recovery_retract) {
-    if (BeltPositionReached(inst, DART_BELT_HOME_DEG)) {
-      inst->recovery_retract = false;
-      LOGINFO("[dart] recovery retract done");
-    }
-  }
 }
 
 static void HandleCharging(DartLauncherInstance* inst, uint32_t now) {
@@ -298,7 +408,10 @@ static void HandleCharging(DartLauncherInstance* inst, uint32_t now) {
         inst->charge_step = CHARGE_STEP_DRIVE;
         inst->step_start_ms = now;
       } else if (now - inst->step_start_ms > DART_SCREW_SETTLE_TIMEOUT_MS) {
-        LOGERROR("[dart] fault: screw not in position before charge");
+        // 把目标/实测/容差打出来: 是"没走到"还是"容差太紧"一眼可辨
+        LOGERROR("[dart] fault: screw not in position before charge (tgt %d, cur %d, tol %d, zero_valid %d)",
+                 (int)(inst->screw_zero_offset + inst->screw_pos_deg), (int)inst->screw_motor->measure.total_angle,
+                 (int)DART_SCREW_POS_TOL_DEG, inst->screw_zero_valid ? 1 : 0);
         EnterFault(inst);
       }
       break;
@@ -311,15 +424,30 @@ static void HandleCharging(DartLauncherInstance* inst, uint32_t now) {
         inst->step_start_ms = now;
         LOGINFO("[dart] charge stroke done, reset to release position");
       } else {
-        // 堵转看门狗: 单向扳机不会阻挡平台, 顶死只可能是超过滑台行程等异常, 直接故障停机
-        // 判据同样只认 PID 堵转标志位
+        // 堵转看门狗: 同步带机械耦合, **两侧同时转不动**才算顶死(超滑台行程等异常);
+        // 单侧慢=负载不均/偏差, 由差模环自动纠偏处理, 不停机不故障
         bool stalled = false;
-        for (int i = 0; i < 2; i++) {
-          if (ConsumePidBlocked(inst->belt_motor[i])) stalled = true;
+        if (now - inst->step_start_ms > DART_CALI_START_GRACE_MS) {
+          stalled = true;
+          for (int i = 0; i < 2; i++) {
+            if (!CheckStall(&inst->stall[i], inst->belt_motor[i], now)) stalled = false;
+          }
         }
         if (stalled) {
-          LOGERROR("[dart] fault: belt stalled during charge (check charge travel vs slide range)");
-          EnterFault(inst);
+          // 两侧同时顶死: 离目标近 = 拉到机械末端(正常完成!); 离目标远 = 真卡滞/超行程(故障)
+          // (踩过: 目标恰好在机械末端 -> 到位容差永远判不到 -> 误报故障 -> 断力矩被拉簧带飞)
+          float err0 = fabsf((inst->belt_zero_offset[0] + DART_BELT_CHARGE_DEG) - inst->belt_motor[0]->measure.total_angle);
+          float err1 = fabsf((inst->belt_zero_offset[1] + DART_BELT_CHARGE_DEG) - inst->belt_motor[1]->measure.total_angle);
+          float err_max = err0 > err1 ? err0 : err1;
+          if (err_max < DART_BELT_END_TOL_DEG) {
+            ResetStallState(inst);
+            inst->charge_step = CHARGE_STEP_RETRACT;
+            inst->step_start_ms = now;
+            LOGINFO("[dart] charge stroke done at hard stop (err %d deg), reset to release position", (int)err_max);
+          } else {
+            LOGERROR("[dart] fault: belt stalled during charge far from target (err %d deg, check charge travel)", (int)err_max);
+            EnterFault(inst);
+          }
         } else if (now - inst->step_start_ms > DART_CHARGE_TIMEOUT_MS) {
           LOGERROR("[dart] fault: charge timeout");
           EnterFault(inst);
@@ -395,7 +523,7 @@ static void HandleCommand(DartLauncherInstance* inst, uint32_t now) {
   switch (cmd) {
     case DART_CMD_CALIBRATE:
       if (inst->debug_jog) {
-        // 调试档 = 纯手动点动: 不接受校准命令(否则状态机会抢占点动); 请拨回中档再校准
+        // 调试档 = 纯手动点动: 校准/储能/发射命令一律拒绝(否则状态机会抢占点动); 请拨回中档再操作
         LOGWARNING("[dart] calibrate command ignored in debug mode (switch to normal mode)");
         DartBuzzerCmdRejected();
       } else if (inst->state == DART_STATE_IDLE || inst->state == DART_STATE_FAULT) {
@@ -407,20 +535,35 @@ static void HandleCommand(DartLauncherInstance* inst, uint32_t now) {
       break;
 
     case DART_CMD_CHARGE:
-      if (inst->state == DART_STATE_IDLE && inst->is_calibrated && !inst->recovery_retract) {
+      if (inst->debug_jog) {
+        // 调试档 = 纯手动: 校准/储能/发射命令一律拒绝(否则状态机会从点动手里抢占机构)
+        LOGWARNING("[dart] charge command ignored in debug mode (switch to normal mode)");
+        DartBuzzerCmdRejected();
+      } else if (inst->state == DART_STATE_IDLE && inst->is_calibrated && !inst->recovery_retract) {
         inst->charge_step = CHARGE_STEP_PREP_SCREW;
         inst->step_start_ms = now;
         inst->state = DART_STATE_CHARGING;
         DartBuzzerChargeStart();
-        LOGINFO("[dart] charge sequence start");
+        LOGINFO("[dart] charge sequence start (belt target %d deg, screw pos %d deg)", (int)DART_BELT_CHARGE_DEG,
+                (int)inst->screw_pos_deg);
+      } else if (inst->recovery_retract) {
+        // 上一次储能被失能中止, 挡块还没回到释放位置: 正在自动复位, 复位完成后重新拨一次即可
+        LOGWARNING("[dart] charge ignored: recovery retract in progress (block not at release position yet)");
+        DartBuzzerCmdRejected();
       } else {
-        LOGWARNING("[dart] charge command ignored");
+        // 三个门槛: 必须在 IDLE / 已完成校准 / 无待复位动作。日志把实际值打出来, 便于定位被拒原因
+        LOGWARNING("[dart] charge ignored: state=%d (need IDLE=%d), is_calibrated=%d, recovery_retract=%d",
+                   (int)inst->state, (int)DART_STATE_IDLE, inst->is_calibrated ? 1 : 0,
+                   inst->recovery_retract ? 1 : 0);
         DartBuzzerCmdRejected();
       }
       break;
 
     case DART_CMD_FIRE:
-      if (inst->state == DART_STATE_READY) {
+      if (inst->debug_jog) {
+        LOGWARNING("[dart] fire command ignored in debug mode (switch to normal mode)");
+        DartBuzzerCmdRejected();
+      } else if (inst->state == DART_STATE_READY) {
         inst->fire_step = FIRE_STEP_RELEASE;
         inst->step_start_ms = now;
         inst->state = DART_STATE_FIRING;
@@ -449,58 +592,103 @@ static void ApplyYaw(DartLauncherInstance* inst, float dt_s) {
   DJIMotorSetPIDRef(inst->yaw_motor, inst->yaw_angle_target);
 }
 
-/* 双带电机同步偏差监测 */
+/* 双带电机同步偏差监测
+ * @note 只在"需要同步"的阶段检查: 校准回撤时零点刚建立、两条带起步有先后(静摩擦释放),
+ *       此时报偏差没有意义(实测会立刻误报); 储能/就绪/发射才是必须同步的窗口。
+ *       偏差由差模环(BeltSyncUpdate)自动纠偏, 这里**只告警不停机**——不同步是被"解决"的,
+ *       不作为故障条件(阈值 DART_BELT_SYNC_WARN_DEG)。 */
 static void MonitorBeltSync(DartLauncherInstance* inst, uint32_t now) {
   if (!inst->belt_zero_valid) return;
+  if (inst->state == DART_STATE_CALIBRATING) return;
   float pos0 = inst->belt_motor[0]->measure.total_angle - inst->belt_zero_offset[0];
   float pos1 = inst->belt_motor[1]->measure.total_angle - inst->belt_zero_offset[1];
   if (fabsf(pos0 - pos1) > DART_BELT_SYNC_WARN_DEG && now - inst->sync_warn_ms > DART_SYNC_WARN_PERIOD_MS) {
     inst->sync_warn_ms = now;
-    LOGERROR("[dart] belt motors sync deviation exceeded");
+    LOGERROR("[dart] belt motors sync deviation exceeded: %d deg (L %d, R %d, thr %d)",
+             (int)(pos0 - pos1), (int)pos0, (int)pos1, (int)DART_BELT_SYNC_WARN_DEG);
   }
 }
 
-/* 调试点动: 同步带两侧共用同一"虚拟位置目标"(位置环)消除速度差累计, 丝杆速度环点动
- * @note 之前两侧各自跑速度环, 负载/摩擦不同会导致实际速度不一致, 位置差会一直累计;
- *       现在摇杆只给速率, 目标积分推进, 两侧位置环跟踪同一目标 -> 严格同步 */
+/* 调试点动: 同步带走共模/差模(两侧共用虚拟目标 + 均载 + 自动纠偏), 丝杆走虚拟位置目标 + 位置环
+ * @note 之前两侧各自跑速度环, 负载/摩擦不同会导致位置差累计、出力不均(一侧扛载一侧被拖着走);
+ *       现在摇杆只给速率, 目标积分推进, 共模给两侧**相同**速度给定(均载), 差模自动收敛偏差。
+ *       顶到机械限位/跟不上时暂停目标积分, 反向打杆先重同步, 不会出现"先往原方向走一段才反向"。 */
 static void ApplyDebugJog(DartLauncherInstance* inst, float dt_s, uint32_t now) {
   DJIMotorInstance* belt_l = inst->belt_motor[0];
   DJIMotorInstance* belt_r = inst->belt_motor[1];
 
   if (!inst->debug_belt_synced) {
-    // 进入点动/重新取得控制权: 目标取两侧当前位置平均(两侧已有偏差时会被收敛到同一目标)
+    // 进入点动/重新取得控制权: 目标取两侧当前位置平均(两侧已有偏差时会被差模收敛)
     inst->debug_belt_target = 0.5f * (belt_l->measure.total_angle + belt_r->measure.total_angle);
     inst->debug_belt_dev_base = belt_l->measure.total_angle - belt_r->measure.total_angle;
+    inst->belt_diff_base = inst->debug_belt_dev_base;
+    inst->belt_diff_ref = inst->debug_belt_dev_base;
     inst->debug_belt_synced = true;
   }
+  if (!inst->debug_screw_synced) {
+    inst->debug_screw_target = inst->screw_motor->measure.total_angle;
+    inst->debug_screw_synced = true;
+  }
 
-  // 摇杆给速率 -> 积分出两侧共用的位置目标
+  // ---- 同步带: 摇杆给速率 -> 积分出两侧共用的虚拟位置目标 ----
   float actual = 0.5f * (belt_l->measure.total_angle + belt_r->measure.total_angle);
   float rate = inst->debug_belt_speed_dps;
   float follow_err = inst->debug_belt_target - actual;
-  // 反向指令: 先把目标重同步到实际位置。否则目标还停在上次的位置(超前), 位置环会继续按正误差出力,
-  // 表现就是"往反方向打杆, 机构先往原方向走一段才反向"(回绕量=松手后锁不住的漂移量)
+  // 反向指令: 先把目标重同步到实际位置。否则目标还停在上次的位置(超前), 会先"回绕"误差
   if (rate != 0.0f && follow_err != 0.0f && ((rate > 0.0f) != (follow_err > 0.0f))) {
     inst->debug_belt_target = actual;
     follow_err = 0.0f;
   }
+  // 摇杆松手沿: 点动中目标领跑实际最多 MAX_ERR(追杆滞后), 松手若只冻结目标, 机构会继续
+  // 追这段滞后量("松手后飘一段才停", 回中限速小追得还慢) -> 把目标一次性收回实际, 立即停住,
+  // 之后目标保持(位置环顶住, 不会被手推走)
+  if (rate == 0.0f && inst->debug_belt_rate_last != 0.0f) {
+    inst->debug_belt_target = actual;
+    follow_err = 0.0f;
+  }
+  inst->debug_belt_rate_last = rate;
   // 目标超前实测过多(顶到机械限位/电机跟不上)时暂停积分, 避免摇杆反向时要先"回绕"误差
   if (fabsf(follow_err) < DART_DEBUG_BELT_MAX_ERR_DEG) {
     inst->debug_belt_target += rate * dt_s;
   }
-
-  // 位置环限速: 跟随摇杆速率; 摇杆回中后仍保留较小限速用于收敛两侧已有偏差
+  // 共模/差模: 限速放共模环(摇杆回中后仍保留较小限速用于收敛); 差模基准由 BeltSyncUpdate 软基准维护
   float limit = fabsf(inst->debug_belt_speed_dps);
   if (limit < DART_DEBUG_BELT_SYNC_SPEED_DPS) limit = DART_DEBUG_BELT_SYNC_SPEED_DPS;
-  for (int i = 0; i < 2; i++) {
-    inst->belt_motor[i]->motor_controller.angle_PID.MaxOut = limit;
-    DJIMotorOuterLoop(inst->belt_motor[i], ANGLE_LOOP);
-    DJIMotorSetPIDRef(inst->belt_motor[i], inst->debug_belt_target);
-  }
+  inst->belt_common_pid.MaxOut = limit;
+  inst->belt_common_ref = inst->debug_belt_target;
+  BeltSyncUpdate(inst);
 
-  // 丝杆点动: 单电机, 速度环即可
+  // ---- 丝杆: 速度前馈 + P 跟踪(虚拟位置目标) ----
+  // 纯位置环追杆的速度上限 = 角度环Kp × 跟踪误差上限(15×200°=3000°/s), 带载更慢 -> 点动发肉;
+  // 前馈把摇杆速率**直接**给速度环, P 只负责收敛误差: 响应即时(不再靠拉大角度环Kp硬抬),
+  // 松手后仍由虚拟目标顶住不滑走, 顶限位暂停积分/反向重同步保护不变。
+  // READY 态不许动丝杆: 平台被扳机锁住、拉簧带载, 移动丝杆=带载推棘爪(误释放/卡滞风险),
+  // 保持射力位置, 点动只给同步带; IDLE 态丝杆照常点动
+  if (inst->state != DART_STATE_READY) {
+  float s_actual = inst->screw_motor->measure.total_angle;
+  float s_rate = inst->debug_screw_speed_dps;
+  float s_follow_err = inst->debug_screw_target - s_actual;
+  if (s_rate != 0.0f && s_follow_err != 0.0f && ((s_rate > 0.0f) != (s_follow_err > 0.0f))) {
+    inst->debug_screw_target = s_actual;
+    s_follow_err = 0.0f;
+  }
+  // 松手沿同同步带: 目标收回实际, 立即停住(否则追杆滞后量会"松手后飘一段")
+  if (s_rate == 0.0f && inst->debug_screw_rate_last != 0.0f) {
+    inst->debug_screw_target = s_actual;
+    s_follow_err = 0.0f;
+  }
+  inst->debug_screw_rate_last = s_rate;
+  if (fabsf(s_follow_err) < DART_DEBUG_SCREW_MAX_ERR_DEG) {
+    inst->debug_screw_target += s_rate * dt_s;
+  }
+  float s_v_cmd = s_rate + DART_DEBUG_SCREW_KP * s_follow_err;
+  float s_cap = (s_rate == 0.0f) ? DART_DEBUG_SCREW_HOLD_SPEED_DPS : DART_SCREW_MAX_SPEED_DPS;
+  VAL_LIMIT(s_v_cmd, -s_cap, s_cap);
   DJIMotorOuterLoop(inst->screw_motor, SPEED_LOOP);
-  DJIMotorSetPIDRef(inst->screw_motor, inst->debug_screw_speed_dps);
+  DJIMotorSetPIDRef(inst->screw_motor, s_v_cmd);
+  } else {
+    ApplyScrewPosition(inst);  // 丝杆保持射力位置不动
+  }
 
   // 两侧偏差监测(以进入点动时的位置差为基准) + 限频状态日志, 便于实机排查同步问题
   float dev = (belt_l->measure.total_angle - belt_r->measure.total_angle) - inst->debug_belt_dev_base;
@@ -558,6 +746,31 @@ DartLauncherInstance* DartLauncherInit(void) {
   // 若希望上电就到默认射力位置, 把下面一行改成 DART_SCREW_POS_DEFAULT_DEG
   inst->screw_pos_deg = 0.0f;
   inst->belt_pos_target = DART_BELT_HOME_DEG;
+  inst->cali_log_ms = 0;
+  ResetStallState(inst);  // 堵转检测器/记录清零(速度阈值判据, 无残留状态)
+  // 双带共模/差模解耦控制器(均载 + 自动纠偏), 参数见 robot_config.h DART_BELT_POS_* / DART_BELT_SYNC_*
+  PID_Init_Config_s belt_common_cfg = {
+      .Kp = DART_BELT_POS_KP,
+      .Ki = DART_BELT_POS_KI,
+      .Kd = 0.0f,
+      .MaxOut = DART_BELT_MAX_SPEED_DPS,
+      .IntegralLimit = 0.0f,
+      .DeadBand = 0.0f,
+      .Improve = PID_Integral_Limit | PID_Trapezoid_Intergral,
+  };
+  PIDInit(&inst->belt_common_pid, &belt_common_cfg);
+  PID_Init_Config_s belt_diff_cfg = {
+      .Kp = DART_BELT_SYNC_KP,
+      .Ki = DART_BELT_SYNC_KI,
+      .Kd = DART_BELT_SYNC_KD,
+      .MaxOut = DART_BELT_SYNC_TORQUE_MAX,
+      .IntegralLimit = DART_BELT_SYNC_KI_LIMIT,  // 积分限幅 << 输出限幅, 防灌满卡死
+      .DeadBand = 0.0f,
+      .Derivative_LPF_RC = DART_BELT_SYNC_KD_LPF_RC,
+      // 微分取测量值(=两侧位置差): D 项正比于两侧相对速度, 是"阻尼器"(修运动中一快一慢)
+      .Improve = PID_Integral_Limit | PID_Trapezoid_Intergral | PID_Derivative_On_Measurement | PID_DerivativeFilter,
+  };
+  PIDInit(&inst->belt_diff_pid, &belt_diff_cfg);
   inst->state = DART_STATE_IDLE;
   inst->last_ms = (uint32_t)DWT_GetTimeline_ms();
   return inst;
@@ -569,6 +782,7 @@ void DartLauncherSetEnable(DartLauncherInstance* inst, bool enable, bool auto_ca
 
   if (enable && !inst->enabled) {
     inst->enabled = true;
+    inst->pending_cmd = DART_CMD_NONE;  // 清掉失能前潜伏的命令, 防止使能瞬间自动执行
     EnableAllMotors(inst);
     DartBuzzerEnableOk();
     // 重同步(实车教训): 失能期间机构可能被手推动, 重新使能时把 yaw 目标同步到当前位置并清 PID,
@@ -608,6 +822,7 @@ void DartLauncherSetEnable(DartLauncherInstance* inst, bool enable, bool auto_ca
         break;
     }
     inst->enabled = false;
+    inst->pending_cmd = DART_CMD_NONE;  // 失能时清命令队列: 存在的命令不允许潜伏到下次使能后才执行
     StopAllMotors(inst);
     DartBuzzerDisable();
   }
@@ -620,7 +835,9 @@ void DartLauncherSetCommand(DartLauncherInstance* inst, Dart_Cmd_e cmd) {
 
 void DartLauncherAdjustScrewPos(DartLauncherInstance* inst, float delta_deg) {
   if (inst == NULL) return;
-  if (inst->state != DART_STATE_IDLE && inst->state != DART_STATE_READY) return;
+  // 仅 IDLE 生效: READY 时平台被扳机锁住、拉簧带载, 移动丝杆=带载推棘爪, 有误释放/卡滞风险;
+  // 射力在待机调好后再储能(READY 也无法重新储能, 须发射回待机)
+  if (inst->state != DART_STATE_IDLE) return;
   inst->screw_pos_deg += delta_deg;
   VAL_LIMIT(inst->screw_pos_deg, DART_SCREW_POS_MIN_DEG, DART_SCREW_POS_MAX_DEG);
 }
@@ -660,28 +877,52 @@ void DartLauncherTask(DartLauncherInstance* inst) {
   // 校准完成前严格限制同步带/丝杆力矩(所有模式生效)
   ApplyBeltTorqueLimit(inst);
   ApplyScrewTorqueLimit(inst);
+  BlendBeltIntegrals(inst);  // 双带速度环积分互融: 稳态力矩均分(修 real_current 一大一小)
 
   HandleCommand(inst, now);
 
   if (inst->state == DART_STATE_FAULT) {
-    StopAllMotors(inst);
+    // 故障保持(不断力矩, 见 EnterFault 注释): 双带保持故障位置、丝杆保持、yaw 断力矩(无弹簧负载)
+    SetBeltPosition(inst, inst->fault_hold_pos, DART_BELT_HOME_SPEED_DPS);
+    ApplyScrewPosition(inst);
+    DJIMotorStop(inst->yaw_motor);
     return;
   }
 
-  // 调试档 = 纯手动: 拨到调试档(右开关上)时, 正在进行的自动校准立即中止
+  // 调试档 = 纯手动: 拨到调试档(右开关上)时, 正在进行的自动校准/储能立即中止, 机构交还手动点动
   // (使能时右开关还没拨到上档/先在中档使能过, 都会遇到这种情况)
-  if (inst->debug_jog && inst->state == DART_STATE_CALIBRATING) {
+  if (inst->debug_jog && (inst->state == DART_STATE_CALIBRATING || inst->state == DART_STATE_CHARGING)) {
+    if (inst->state == DART_STATE_CALIBRATING) {
+      inst->is_calibrated = false;
+      inst->belt_zero_valid = false;
+      DartBuzzerCaliBgmStop();  // 校准中止即停 BGM
+      LOGWARNING("[dart] auto calibration aborted: debug mode (jog only, commands rejected in debug)");
+    } else {
+      // 储能中止: 挡块可能已被拉离释放位置 -> 挂回撤标志, 回撤完成前点动不接管(复用失能中止的恢复逻辑)
+      if (inst->is_calibrated && inst->charge_step != CHARGE_STEP_PREP_SCREW) inst->recovery_retract = true;
+      inst->charge_step = CHARGE_STEP_PREP_SCREW;
+      LOGWARNING("[dart] charge sequence aborted: debug mode");
+    }
     inst->state = DART_STATE_IDLE;
-    inst->is_calibrated = false;
-    inst->belt_zero_valid = false;
     inst->debug_belt_synced = false;
-    LOGWARNING("[dart] auto calibration aborted: debug mode (jog only, calibrate in normal mode)");
+    inst->debug_screw_synced = false;
   }
 
-  if (inst->debug_jog && inst->state == DART_STATE_IDLE) {
+  // 失能中止储能后的复位: 优先于调试档点动和 IDLE 保持执行。
+  // (原先只在 HandleIdle 里做, 调试档会跳过 HandleIdle -> recovery_retract 永不清, 储能命令一直被拒)
+  if (inst->state == DART_STATE_IDLE && inst->recovery_retract) {
+    SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_BELT_HOME_SPEED_DPS);
+    if (BeltPositionReached(inst, DART_BELT_HOME_DEG)) {
+      inst->recovery_retract = false;
+      LOGINFO("[dart] recovery retract done (block back at release position)");
+    }
+  } else if (inst->debug_jog && (inst->state == DART_STATE_IDLE || inst->state == DART_STATE_READY)) {
+    // 调试点动: IDLE 全部可动; READY 只动同步带(平台被扳机锁住, 丝杆/舵机锁定, 见 ApplyDebugJog)
     ApplyDebugJog(inst, dt_s, now);
   } else {
-    inst->debug_belt_synced = false;  // 点动结束/状态机接管: 下次点动重新同步虚拟目标
+    // 点动结束/状态机接管: 下次点动重新同步虚拟目标
+    inst->debug_belt_synced = false;
+    inst->debug_screw_synced = false;
     switch (inst->state) {
       case DART_STATE_IDLE:
         HandleIdle(inst, now);

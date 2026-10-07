@@ -62,6 +62,14 @@ typedef enum {
   FIRE_STEP_RESET,        // 舵机回卡位角待下一发
 } Dart_Fire_Step_e;
 
+/* 速度阈值堵转检测器: 速度给定有效时, 实测角速度持续低于阈值即判定堵转
+ * @note 不再使用 PID 的堵转标志位(PID_ErrorHandle): 它置位后不手动清就一直挂着,
+ *       容易把"已经过去的堵转"带到后续阶段造成误故障 */
+typedef struct {
+  bool tracking;      // 是否正在累计"低速"时长
+  uint32_t start_ms;  // 开始累计的时刻
+} StallDetector_s;
+
 /* 发射架实例 */
 typedef struct {
   DJIMotorInstance* yaw_motor;      // M2006 发射架 yaw
@@ -97,17 +105,37 @@ typedef struct {
   uint32_t cali_start_ms;
   uint32_t last_ms;       // 上次任务时间戳, 用于 yaw 积分
   uint32_t sync_warn_ms;  // 同步偏差告警限频
+  uint32_t cali_log_ms;   // 校准进度日志限频
 
-  // 堵转判据: 只用 dji_motor/controller 的 PID 堵转标志位(PID_MOTOR_BLOCKED_ERROR)
-  bool stalled_flag[2];  // 同步带两侧顶限位记录(两侧都置位才算找到零点)
+  // 堵转判据: 速度阈值(DART_CALI_STALL_SPEED_DPS/MS), 不用 PID 堵转标志位
+  StallDetector_s stall[2];      // 两个同步带电机
+  StallDetector_s screw_stall;   // 扳机丝杆(丝杆校准已 #if 0 停用, 保留供恢复)
+  bool stalled_flag[2];          // 同步带两侧顶限位记录(两侧都置位才算找到零点)
+
+  // 双带共模/差模解耦(均载 + 自动纠偏): 共模让两侧平均位置跟目标, 两电机得到**完全相同**的速度给定
+  // (P 项一致, 稳态出力均担); 差模把两侧位置差收敛到基准, 输出为**力矩偏置**(经积分互融注入, 有上限)
+  PIDInstance belt_common_pid;  // 共模位置环: measure=两侧平均位置, ref=belt_common_ref -> 速度给定
+  PIDInstance belt_diff_pid;    // 差模纠偏环: measure=两侧位置差, ref=belt_diff_ref -> 力矩偏置
+  float belt_common_ref;        // 共模目标 (转子侧 total_angle 坐标)
+  float fault_hold_pos;         // 故障保持目标(逻辑坐标): 故障不断力矩, 保持当前位置防拉簧带飞
+  float belt_diff_base;         // 差模基准(硬): 校准后=两零点之差, 点动=进入点动时的位置差
+  float belt_diff_ref;          // 差模基准(当前): 位置同步模式=硬基准; 力矩同步模式=以 TAU 跟随实际偏差
+  bool belt_torque_sync;        // 当前模式: true=力矩同步(带载, 软基准均流), false=位置同步(空载, 硬基准锁偏差)
+  float belt_load_filt;         // 负载判据滤波值(两台 |real_current| 之和的低通)
+  uint32_t belt_mode_switch_ms; // 上次模式切换时刻(最短驻留防翻转)
+  float belt_diff_torque;       // 差模力矩偏置(±, DART_BELT_SYNC_TORQUE_MAX 钳幅), 由 BlendBeltIntegrals 注入
 
   // 调试点动(右开关上档)
   bool debug_jog;
   float debug_belt_speed_dps;   // 同步带点动速率(deg/s), 用于积分出两侧共用的位置目标
-  float debug_screw_speed_dps;  // 丝杆点动速度(deg/s), 速度环
+  float debug_screw_speed_dps;  // 丝杆点动速率(deg/s), 用于积分出虚拟位置目标
   float debug_belt_target;      // 同步带虚拟位置目标(转子侧 total_angle 坐标), 两侧共用; 反向指令时重同步到实际位置
   bool debug_belt_synced;       // 进入点动时是否已把目标同步到两侧当前位置
-  float debug_belt_dev_base;    // 进入点动时的两侧位置差基准(用于偏差告警)
+  float debug_belt_dev_base;    // 进入点动时的两侧位置差基准(用于纠偏与偏差告警)
+  float debug_screw_target;     // 丝杆虚拟位置目标(转子侧 total_angle 坐标); 与同步带同机制, 顶限位暂停积分
+  bool debug_screw_synced;      // 进入点动时是否已把丝杆目标同步到当前位置
+  float debug_belt_rate_last;   // 上周期点动速率(松手沿检测: 松手瞬间收回目标, 防"松手后飘一段")
+  float debug_screw_rate_last;
   uint32_t debug_log_ms;        // 调试档状态日志限频
 } DartLauncherInstance;
 
@@ -129,7 +157,8 @@ void DartLauncherSetEnable(DartLauncherInstance* inst, bool enable, bool auto_ca
 void DartLauncherSetCommand(DartLauncherInstance* inst, Dart_Cmd_e cmd);
 
 /**
- * @brief 扳机丝杆位置(射力)微调, 自动限幅, 仅 IDLE/READY 生效
+ * @brief 扳机丝杆位置(射力)微调, 自动限幅, **仅 IDLE 生效**
+ *        (READY 时平台被扳机锁住、拉簧带载, 动丝杆=带载推棘爪, 有误释放/卡滞风险)
  */
 void DartLauncherAdjustScrewPos(DartLauncherInstance* inst, float delta_deg);
 
@@ -149,10 +178,12 @@ void DartLauncherAdjustServoAngle(DartLauncherInstance* inst, float delta_deg);
 void DartLauncherSetYawRate(DartLauncherInstance* inst, float rate_dps);
 
 /**
- * @brief 调试点动(仅 IDLE 态生效): 同步带两侧同步点动 + 扳机丝杆点动
+ * @brief 调试点动(IDLE/READY 生效; READY 只动同步带——平台被扳机锁住, 丝杆锁定):
+ *        同步带两侧同步点动 + 扳机丝杆点动
  * @param belt_speed_dps 同步带点动速率(deg/s): 两侧共用同一虚拟位置目标按此速率推进,
  *                       位置环保证两侧不累计偏差; 0 = 目标保持, 位置环继续收敛已有偏差
- * @param screw_speed_dps 丝杆点动速度(deg/s, 速度环): 0 = 停止
+ * @param screw_speed_dps 丝杆点动速率(deg/s): 与同步带同机制积分出虚拟位置目标,
+ *                       0 = 目标保持(位置环顶住不滑走), 顶限位时暂停积分不持续出力
  */
 void DartLauncherSetDebugJog(DartLauncherInstance* inst, bool enable, float belt_speed_dps, float screw_speed_dps);
 
