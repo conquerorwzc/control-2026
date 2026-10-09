@@ -37,6 +37,17 @@ static float ClampFloat(float value, float min_value, float max_value) {
 }
 
 /**
+ * @brief 遥控器左摇杆(平移)死区处理
+ * @note  遥控器插在云台板上, 这里在转发 CAN 之前对摇杆原值做死区,
+ *        只在死区内归零, 不做"扣掉死区后重新缩放", 死区外与原值一致, 因此不会改变满杆时的最大速度
+ * @param value 摇杆原始值, 满量程约 ±660
+ * @return 死区内返回 0, 死区外原样返回
+ */
+static int16_t LeftStickDeadzone(int16_t value) {
+  return (value > -RC_LEFT_STICK_DEADZONE && value < RC_LEFT_STICK_DEADZONE) ? 0 : value;
+}
+
+/**
  * @brief 将pitch电机机械限位(电机total_angle域)实时映射到IMU pitch控制域
  *        这样车体倾斜时限位会跟随IMU反馈平移，避免固定IMU角限位误判
  */
@@ -448,9 +459,11 @@ void Gimbal_CANCommSend()
     return;
   }
 
-  send_data->Rc_vx = rc_data->rc.rocker_l_ + rc_data[TEMP].key[KEY_PRESS].d * 660 - rc_data[TEMP].key[KEY_PRESS].a * 660;
+  send_data->Rc_vx = LeftStickDeadzone(rc_data->rc.rocker_l_) +
+                     rc_data[TEMP].key[KEY_PRESS].d * 660 - rc_data[TEMP].key[KEY_PRESS].a * 660;
 
-  send_data->Rc_vy = rc_data->rc.rocker_l1 + rc_data[TEMP].key[KEY_PRESS].w * 660 - rc_data[TEMP].key[KEY_PRESS].s * 660;
+  send_data->Rc_vy = LeftStickDeadzone(rc_data->rc.rocker_l1) +
+                     rc_data[TEMP].key[KEY_PRESS].w * 660 - rc_data[TEMP].key[KEY_PRESS].s * 660;
 
   send_data->Rotate_speed = rc_data->rc.rocker_r_ + rc_data[TEMP].mouse.x * 2.0f;
 
@@ -469,9 +482,11 @@ void Gimbal_CANCommSend()
     return;
   }
 
-  send_data_new->Rc_vx = vt13_rc_data->rc.rocker_l_ + vt13_rc_data->mouse_key.keyboard.d * 660 - vt13_rc_data->mouse_key.keyboard.a * 660;
+  send_data_new->Rc_vx = LeftStickDeadzone(vt13_rc_data->rc.rocker_l_) +
+                         vt13_rc_data->mouse_key.keyboard.d * 660 - vt13_rc_data->mouse_key.keyboard.a * 660;
 
-  send_data_new->Rc_vy = vt13_rc_data->rc.rocker_l1 + vt13_rc_data->mouse_key.keyboard.w * 660 - vt13_rc_data->mouse_key.keyboard.s * 660;
+  send_data_new->Rc_vy = LeftStickDeadzone(vt13_rc_data->rc.rocker_l1) +
+                         vt13_rc_data->mouse_key.keyboard.w * 660 - vt13_rc_data->mouse_key.keyboard.s * 660;
 
   send_data_new->Rotate_speed = vt13_rc_data->rc.rocker_r_ + vt13_rc_data->mouse_key.mouse.x * 2;
 
