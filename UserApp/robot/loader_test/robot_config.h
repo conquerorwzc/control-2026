@@ -72,7 +72,7 @@ static Motor_Init_Config_s loader_motor_config = {
                     .Kp = 0.6f,
                     .Ki = 0.1f,
                     .Kd = 0.0f,
-                    .MaxOut = 3.0f,  // 速度环输出为力矩参考(N·m),DM4310力矩上限为10N·m
+                    .MaxOut = 7.0f,  // 速度环输出为力矩参考(N·m),DM4310力矩上限为10N·m
                     .DeadBand = 0.01f,
                     .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                     .IntegralLimit = 5.0f,
@@ -85,8 +85,8 @@ static Motor_Init_Config_s loader_motor_config = {
             /* 拨盘与电机正方向相反,故两个方向标志一起取反(力矩取反+反馈取反).
                注意位置环+速度环串级时二者必须同时取反:只反一个会使负反馈变成正反馈,电机会飞车.
                若实车发现方向又反了,把这两个标志一起改回MOTOR_DIRECTION_NORMAL/FEEDBACK_DIRECTION_NORMAL即可 */
-            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
-            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
             .angle_feedback_source = MOTOR_FEED,
             .speed_feedback_source = MOTOR_FEED,
             .feedforward_flag = SPEED_FEEDFORWARD,
