@@ -1,0 +1,129 @@
+/**
+******************************************************************************
+* @file    chassis.h
+* @author  NeoZeng
+* @author  Annotation and Modification By SRM-Control 2026
+* @date    2025/10/10
+* @copyright Copyright (c) SHU SRM 2026 all rights reserved
+* @brief   Mecanum Chassis Module
+******************************************************************************
+* @attention
+* Mecanum Chassis Motor Layout:
+*
+*          motor[0]     motor[1]
+*        Left Front   Right Front
+*             ╭─────────────╮
+*             │      ↑      │
+*             │    Front    │
+*             ╰─────────────╯
+*          motor[2]     motor[3]
+*        Left Rear    Right Rear
+*
+* @note    Motor Index:
+*          motor[0] - Left Front Wheel
+*          motor[1] - Right Front Wheel
+*          motor[2] - Left Rear Wheel
+*          motor[3] - Right Rear Wheel
+******************************************************************************
+*/
+#pragma once
+
+#include "dji_motor.h"
+#include "ins_task.h"
+
+typedef enum
+{
+    CHASSIS_POWER_OFF = 0, // 电流零输入
+    CHASSIS_ROTATE,        // 小陀螺模式
+    CHASSIS_FOLLOW,        // 跟随模式，底盘叠加角度环控制
+    CHASSIS_HOLD,          // 航向保持模式
+} Chassis_Mode_e;
+
+/* 控制量 vx/vy 所在的坐标系 */
+typedef enum
+{
+    CHASSIS_CMD_GIMBAL_FRAME = 0, // 云台系: 以云台当前指向为 +x, 按 offset_angle 旋转到底盘系(默认, 遥控器指令)
+    CHASSIS_CMD_CHASSIS_FRAME,    // 底盘系: 以底盘正前方为 +x, 直接使用, 不随云台旋转(导航/上位机指令)
+} Chassis_Cmd_Frame_e;
+
+typedef struct
+{
+    // 控制部分
+    float vx; // 前进方向速度
+    float vy; // 横移方向速度
+    float wz; // 旋转速度
+    Chassis_Mode_e chassis_mode;
+    Chassis_Cmd_Frame_e cmd_frame; // vx/vy 所在的坐标系, 默认云台系
+    float offset_angle;            // 底盘和归中位置的夹角
+    float yaw_hold_ref;            // 航向保持目标角度
+    int chassis_speed_buff;
+    uint16_t max_power; // 最大功率限制
+    // UI部分
+    //  ...
+    uint8_t SuperCapBoost;
+} Chassis_Ctrl_Cmd_s;
+
+#pragma pack()
+// 超级电容策略结构体
+
+typedef enum
+{
+    SAFETY_MODE = 0,      // 安全模式，超电电压低于8伏时进入，大于18伏退出，底盘限制30W
+    PASSIVE_MODE,         // 被动模式，超电电压正常时的工作模式
+    ACTIVE_MODE,          // ，主动模式，主动使用超电能量
+    CHARGING_MODE,        // 充电模式，衰减底盘功率，保障电容电压健康
+    FORCED_CHARGING_MODE, // 强制充电模式，更极端的功率衰减，强制超电快速充电
+} SuperCapMode;
+
+typedef struct
+{
+    float k0;
+    float k1;
+    float k2;
+    float k3;
+    float k4;
+    float k5;
+} Power_Param_3508_s;
+
+// 机器人底盘修改的参数,单位为mm(毫米)
+typedef struct
+{
+    float wheel_base;               // 纵向轴距(前进后退方向)
+    float track_width;              // 横向轮距(左右平移方向)
+    float center_gimbal_offset_x;   // 云台旋转中心距底盘几何中心的距离,前后方向,云台位于正中心时默认设为0
+    float center_gimbal_offset_y;   // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
+    float wheel_radius;             // 轮子半径
+    float wheel_reduction_ratio;    // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
+    Power_Param_3508_s power_param; // 3508功率模型参数，采用中科大的模型
+} Chassis_Param_s;
+
+typedef struct
+{
+    Chassis_Param_s chassis_param;
+    Motor_Init_Config_s wheel_motor_config[4];
+    PID_Init_Config_s follow_pid;
+    PID_Init_Config_s yaw_hold_pid;
+    IMU_Init_Config_s imu_init_config;
+    uint8_t enable_yaw_hold;
+} Chassis_Init_Config_s;
+
+typedef struct
+{
+    Chassis_Ctrl_Cmd_s chassis_ctrl_cmd;
+    DJIMotorInstance *wheel_motor[4]; // left right forward back
+    SuperCapMode super_cap_mode;
+    INS_t *chassis_IMU;
+    PIDInstance yaw_hold_pid;
+} ChassisInstance;
+
+/**
+ * @brief 底盘应用初始化,请在开启rtos之前调用(目前会被RobotInit()调用)
+ *
+ */
+ChassisInstance *ChassisInit(Chassis_Init_Config_s *chassis_init_config);
+
+/**
+ * @brief 底盘应用任务,放入实时系统以一定频率运行
+ *
+ */
+void ChassisTask();
