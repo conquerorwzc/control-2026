@@ -5,10 +5,10 @@
 * @author  Annotation and Modification By SRM-Control 2026
 * @date    2025/10/10
 * @copyright Copyright (c) SHU SRM 2026 all rights reserved
-* @brief   Mecanum Chassis Module
+* @brief   Omni Chassis Module
 ******************************************************************************
 * @attention
-* Mecanum Chassis Motor Layout:
+* Omni Chassis Motor Layout (body frame: +x forward, +y left, +z up):
 *
 *          motor[0]     motor[1]
 *        Left Front   Right Front
@@ -49,12 +49,13 @@ typedef enum
 typedef struct
 {
     // 控制部分
-    float vx; // 前进方向速度
-    float vy; // 横移方向速度
-    float wz; // 旋转速度
+    // 与导航轴向一致；数值暂为旧控制倍率下的参考量，并非 m/s、rad/s。
+    float vx; // +x 向前
+    float vy; // +y 向左
+    float wz; // +z 向上，+wz 俯视逆时针；目标仍由下位机生成
     Chassis_Mode_e chassis_mode;
     Chassis_Cmd_Frame_e cmd_frame; // vx/vy 所在的坐标系, 默认云台系
-    float offset_angle;            // 底盘和归中位置的夹角
+    float offset_angle;            // 云台相对底盘的偏角，逆时针为正，单位度
     float yaw_hold_ref;            // 航向保持目标角度
     int chassis_speed_buff;
     uint16_t max_power; // 最大功率限制

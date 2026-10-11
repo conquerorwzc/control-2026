@@ -70,7 +70,8 @@ static void CalcOffsetAngle() {
   } else if (delta <= -180.0f) {
     delta += 360.0f;
   }
-  chassis_ctrl_cmd->offset_angle = delta;
+  // 双板上传的是原始 yaw 编码器角；转换为云台相对底盘的逆时针正偏角。
+  chassis_ctrl_cmd->offset_angle = -delta;
 }
 
 static void SentryRefereeSend() {
@@ -88,24 +89,25 @@ static void SentryRefereeSend() {
 /**
  * @brief 底盘旋转速度(wz)的设置, 一律由下位机决定
  * @note  上位机(导航)下发的 wz 不参与控制: 协议 §3.2 中上位机 wz 不产生转向,
- *        旋转量由底盘自己的小陀螺(拨轮)或跟随云台的 PID 给出
+ *        旋转量由底盘自己的小陀螺(拨轮)或跟随云台的 PID 给出。
+ *        新 wz 以逆时针为正；拨轮/右摇杆旧输入取反以保持原操作方向。
  */
 static void ChassisRotateSet() {
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
     if (rc_data[TEMP].rc.dial > 330) {
-      chassis_ctrl_cmd->wz = 4000;
+      chassis_ctrl_cmd->wz = -4000;
     } else if (rc_data[TEMP].rc.dial > 20) {
-      chassis_ctrl_cmd->wz = 1000;
+      chassis_ctrl_cmd->wz = -1000;
     } else if (rc_data[TEMP].rc.dial > -20) {
       chassis_ctrl_cmd->wz = 0;
     } else if (rc_data[TEMP].rc.dial > -330) {
-      chassis_ctrl_cmd->wz = -1000;
+      chassis_ctrl_cmd->wz = 1000;
     } else {
-      chassis_ctrl_cmd->wz = -4000;
+      chassis_ctrl_cmd->wz = 4000;
     }
   } else if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
     /* 主动跟随量, 另一部分在 chassis 任务中根据云台误差角计算 */
-    chassis_ctrl_cmd->wz = (1.0f) * (float)rc_data[TEMP].rc.rocker_r_;
+    chassis_ctrl_cmd->wz = -(float)rc_data[TEMP].rc.rocker_r_;
   } else {
     chassis_ctrl_cmd->wz = 0.0f;
   }
@@ -149,8 +151,8 @@ static void RemoteControlSet() {
   // 底盘控制部分,系数需要调整
   if (robot->control_mode == MANUAL_MODE)  // 手动控制，遥控器控制量
   {
-    chassis_ctrl_cmd->vx = 60.0f * (float)robot->rc_data[TEMP].rc.rocker_l_;  // l_水平方向，最大660*60=39600
-    chassis_ctrl_cmd->vy = 60.0f * (float)robot->rc_data[TEMP].rc.rocker_l1;  // l1竖直方向，最大660*60
+    chassis_ctrl_cmd->vx = 60.0f * (float)robot->rc_data[TEMP].rc.rocker_l1;  // 前进为 +x
+    chassis_ctrl_cmd->vy = -60.0f * (float)robot->rc_data[TEMP].rc.rocker_l_;  // 左移为 +y
     // 右拨杆[中]/[上]: 底盘系; 其余情况: 云台系(以云台指向为前方, 由底盘任务按云台角度旋转)
     chassis_ctrl_cmd->cmd_frame = chassis_frame_cmd ? CHASSIS_CMD_CHASSIS_FRAME : CHASSIS_CMD_GIMBAL_FRAME;
     ChassisRotateSet();
@@ -169,11 +171,11 @@ static void RemoteControlSet() {
       nav_offline_logged = 0;
     }
 
-    /* 导航指令一律按【底盘坐标系】使用: 以底盘正前方为 +x, 不随云台指向旋转(底盘任务不再做 offset_angle 映射);
-     * 轴向映射沿用协议 §3.2: 上位机 vx -> 底盘 +y, 上位机 vy 取负 -> 底盘 +x; 量纲 10000:1(协议 §3.3) */
+    /* 导航与底盘均为右手系: +x 向前、+y 向左、+z 向上。
+     * 直接对应 vx/vy，不交换轴；当前仅统一轴向，暂保留旧控制倍率。 */
     chassis_ctrl_cmd->cmd_frame = CHASSIS_CMD_CHASSIS_FRAME;
-    chassis_ctrl_cmd->vx = -navigator_cmd.speed_vector.vy * NAV_SPEED_SCALE;
-    chassis_ctrl_cmd->vy = navigator_cmd.speed_vector.vx * NAV_SPEED_SCALE;
+    chassis_ctrl_cmd->vx = navigator_cmd.speed_vector.vx * NAV_SPEED_SCALE;
+    chassis_ctrl_cmd->vy = navigator_cmd.speed_vector.vy * NAV_SPEED_SCALE;
     /* wz 仍然由下位机控制(小陀螺/跟随), 不使用上位机下发的 wz */
     ChassisRotateSet();
   }
@@ -182,30 +184,30 @@ static void RemoteControlSet() {
 }
 
 static void MouseKeySet() {
-  vy_initial += (float)((rc_data[TEMP].key[KEY_PRESS].w) - rc_data[TEMP].key[KEY_PRESS].s) *
+  vx_initial += (float)((rc_data[TEMP].key[KEY_PRESS].w) - rc_data[TEMP].key[KEY_PRESS].s) *
                 (float)chassis_ctrl_cmd->chassis_speed_buff;
-  vx_initial += (float)(rc_data[TEMP].key[KEY_PRESS].a - rc_data[TEMP].key[KEY_PRESS].d) *
-                (float)-chassis_ctrl_cmd->chassis_speed_buff;
+  vy_initial += (float)(rc_data[TEMP].key[KEY_PRESS].a - rc_data[TEMP].key[KEY_PRESS].d) *
+                (float)chassis_ctrl_cmd->chassis_speed_buff;
 
   // 缓加速
   if (abs(vx_initial) <= 10000) {
     x_speed_time = time;
     chassis_ctrl_cmd->vx = vx_initial;
   }  // 速度绝对值在10000以下输出控制量=输入控制量
-  if (vx_initial > 10000 && chassis_ctrl_cmd->vx <= 60.0f * (float)rc_data[TEMP].rc.rocker_l_) {
+  if (vx_initial > 10000 && chassis_ctrl_cmd->vx <= 60.0f * (float)rc_data[TEMP].rc.rocker_l1) {
     chassis_ctrl_cmd->vx = 10000 + (time - x_speed_time) * 10000;
   }
-  if (vx_initial < -10000 && chassis_ctrl_cmd->vx >= 60.0f * (float)rc_data[TEMP].rc.rocker_l_) {
+  if (vx_initial < -10000 && chassis_ctrl_cmd->vx >= 60.0f * (float)rc_data[TEMP].rc.rocker_l1) {
     chassis_ctrl_cmd->vx = -10000 - (time - x_speed_time) * 10000;
   }  // 速度绝对值在10000以上输出控制量=10000+10000t(s)
   if (abs(vy_initial) <= 10000) {
     y_speed_time = time;
     chassis_ctrl_cmd->vy = vy_initial;
   }  // 速度绝对值在10000以下输出控制量=输入控制量
-  if (vy_initial > 10000 && chassis_ctrl_cmd->vy <= 60.0f * (float)rc_data[TEMP].rc.rocker_l1) {
+  if (vy_initial > 10000 && chassis_ctrl_cmd->vy <= -60.0f * (float)rc_data[TEMP].rc.rocker_l_) {
     chassis_ctrl_cmd->vy = 10000 + (time - y_speed_time) * 10000;
   }
-  if (vy_initial < -10000 && chassis_ctrl_cmd->vy >= 60.0f * (float)rc_data[TEMP].rc.rocker_l1) {
+  if (vy_initial < -10000 && chassis_ctrl_cmd->vy >= -60.0f * (float)rc_data[TEMP].rc.rocker_l_) {
     chassis_ctrl_cmd->vy = -10000 - (time - y_speed_time) * 10000;
   }  // 速度绝对值在10000以上输出控制量=10000+10000t(s)
 
@@ -275,7 +277,7 @@ static void MouseKeySet() {
   // {
   //   case 0:
   //     chassis_ctrl_cmd-> chassis_mode = CHASSIS_FOLLOW ;
-  //     chassis_ctrl_cmd->wz+=(float)rc_data[TEMP].mouse.x * 30.0f; //主动跟随量
+  //     chassis_ctrl_cmd->wz-=(float)rc_data[TEMP].mouse.x * 30.0f; //主动跟随量
   //     break;
   //   default:
   //     chassis_ctrl_cmd-> chassis_mode = CHASSIS_ROTATE ;
@@ -310,12 +312,12 @@ static void RemoteControlSet() {
   // 底盘控制部分,系数需要调整
   if (robot->control_mode == MANUAL_MODE)  // 手动控制，遥控器控制量
   {
-    vx_initial = 80.0f * (float)vt13_rc_data->rc.rocker_l_;  // l_水平方向，最大660*60=39600
-    vy_initial = 80.0f * (float)vt13_rc_data->rc.rocker_l1;  // l1竖直方向，最大660*60
+    vx_initial = 80.0f * (float)vt13_rc_data->rc.rocker_l1;  // 前进为 +x
+    vy_initial = -80.0f * (float)vt13_rc_data->rc.rocker_l_;  // 左移为 +y
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE)
-      chassis_ctrl_cmd->wz = 10.0f * (float)vt13_rc_data->rc.dial;  // 小陀螺模式下的旋转分量，如果是跟随，则在底盘任务中计算旋转分量
+      chassis_ctrl_cmd->wz = -10.0f * (float)vt13_rc_data->rc.dial;  // 保持拨轮原操作方向
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
-      chassis_ctrl_cmd->wz = (2.0f) * (float)vt13_rc_data->rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
+      chassis_ctrl_cmd->wz = -2.0f * (float)vt13_rc_data->rc.rocker_r_;  // 主动跟随量，逆时针为正
     }
     auto_mode_time=time;
   }
@@ -387,12 +389,12 @@ static void ModeControl() {
     if (robot->chassis->chassis_ctrl_cmd.vx==0&&robot->chassis->chassis_ctrl_cmd.vy==0) {
       robot->sentry_mode=OFFENSE_POSE;    //高于50%血或占据堡垒进入进攻姿态
       if (robot->chassis->chassis_ctrl_cmd.chassis_mode==CHASSIS_ROTATE)
-      robot->chassis->chassis_ctrl_cmd.wz+=1000;
+      robot->chassis->chassis_ctrl_cmd.wz-=1000;
     }
     else {
       robot->sentry_mode=MOBILITY_POSE;
       if (robot->chassis->chassis_ctrl_cmd.chassis_mode==CHASSIS_ROTATE)
-        robot->chassis->chassis_ctrl_cmd.wz-=1000;
+        robot->chassis->chassis_ctrl_cmd.wz+=1000;
     }
 }
 static void SuperCapControl() {

@@ -1,10 +1,10 @@
 /**
- * @file    chassis.h
+ * @file    chassis.c
  * @author  NeoZeng
  * @author  Annotation and Modification By SRM-Control 2026
  * @date    2025/10/10
  * @copyright Copyright (c) SHU SRM 2026 all rights reserved
- * @brief   Mecanum Chassis Module
+ * @brief   Omni Chassis Module
  */
 #include "chassis.h"
 
@@ -32,15 +32,16 @@ static float k0, k1, k2, k3, k4, k5;     // 中科大的功率模型
 static uint8_t super_cap_error_flag = 0; // 电容故障标志
 
 /**
- * @brief 计算每个轮毂电机的输出,正运动学解算
- *        用宏进行预替换减小开销,运动解算具体过程参考教程
+ * @brief 底盘机体系逆解: +x 向前、+y 向左、+wz 俯视逆时针。
+ *        轮序为左前、右前、左后、右后，沿用现有电机正反向配置。
+ *        本阶段仅统一坐标，保留旧速度倍率和旋转系数，尚未换算为 SI 轮速。
  */
-static void MecanumCalculate()
+static void OmniCalculate()
 {
-    vt_lf = -chassis_vx - chassis_vy - chassis_ctrl_cmd->wz * lf_radius;
-    vt_rf = -chassis_vx + chassis_vy - chassis_ctrl_cmd->wz * rf_radius;
-    vt_lb = chassis_vx - chassis_vy - chassis_ctrl_cmd->wz * lb_radius;
-    vt_rb = chassis_vx + chassis_vy - chassis_ctrl_cmd->wz * rb_radius;
+    vt_lf = -chassis_vx + chassis_vy + chassis_ctrl_cmd->wz * lf_radius;
+    vt_rf = chassis_vx + chassis_vy + chassis_ctrl_cmd->wz * rf_radius;
+    vt_lb = -chassis_vx - chassis_vy + chassis_ctrl_cmd->wz * lb_radius;
+    vt_rb = chassis_vx - chassis_vy + chassis_ctrl_cmd->wz * rb_radius;
 }
 
 /**
@@ -282,7 +283,7 @@ void ChassisTask()
     // 根据控制模式设定旋转速度
     switch (chassis_ctrl_cmd->chassis_mode)
     {
-    case CHASSIS_FOLLOW: // 跟随云台,不单独设置pid,以误差角度平方为速度输出
+    case CHASSIS_FOLLOW: // offset_angle 为云台相对底盘的逆时针偏角，PID 输出同向 wz
         chassis_ctrl_cmd->wz += PIDCalculate(&follow_pid, chassis_ctrl_cmd->offset_angle, 0);
         break;
     case CHASSIS_ROTATE: // 自旋,同时保持全向机动;当前wz维持定值,后续增加不规则的变速策略
@@ -304,19 +305,20 @@ void ChassisTask()
     }
     else
     {
-        // 底盘逆时针旋转为角度正方向;云台命令的方向以云台指向的方向为x,采用右手系(x指向正北时y在正东)
+        // 两坐标系均为前 x、左 y；offset_angle 为云台相对底盘逆时针偏角，单位度。
+        // 云台系向量转换到底盘系: v_body = R(offset_angle) * v_gimbal。
         static float sin_theta, cos_theta;
         cos_theta = arm_cos_f32(chassis_ctrl_cmd->offset_angle * DEGREE_2_RAD);
         sin_theta = arm_sin_f32(chassis_ctrl_cmd->offset_angle * DEGREE_2_RAD);
-        chassis_vx = chassis_ctrl_cmd->vx * cos_theta + chassis_ctrl_cmd->vy * sin_theta;
-        chassis_vy = -chassis_ctrl_cmd->vx * sin_theta + chassis_ctrl_cmd->vy * cos_theta;
+        chassis_vx = chassis_ctrl_cmd->vx * cos_theta - chassis_ctrl_cmd->vy * sin_theta;
+        chassis_vy = chassis_ctrl_cmd->vx * sin_theta + chassis_ctrl_cmd->vy * cos_theta;
     }
 
     // 根据电机的反馈速度和IMU(如果有)计算真实速度
     EstimateSpeed();
 
-    // 根据控制模式进行正运动学解算,计算底盘输出
-    MecanumCalculate();
+    // 逆运动学解算，计算四轮速度参考
+    OmniCalculate();
 
     // SuperCapSendMessage(chassis->super_cap, (int16_t)300, referee_data->PowerHeatData.buffer_energy,
     //                       referee_data->GameRobotState.power_management_chassis_output);

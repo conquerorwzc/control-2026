@@ -25,6 +25,9 @@
  *   [5..16]  vx, vy, wz (float32 LE)
  *   [17..18] crc16 = CRC16(byte[0..16], init 0xFFFF, poly 0x8408), 低字节在前
  *
+ * 速度坐标约定: 底盘机体系右手系，+vx 向前、+vy 向左、+z 向上，+wz 俯视逆时针。
+ * sentry_omni_chassis 的 vx/vy 与协议同轴；wz 字段仍不参与控制，旋转目标由下位机生成。
+ *
  * 下 -> 上 (9 + data_length B, 帧头之后多一个 2 B 的 cmd_id):
  *   [0]      0xA5
  *   [1..2]   data_length (uint16 LE)
