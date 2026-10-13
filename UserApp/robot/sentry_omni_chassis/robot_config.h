@@ -148,8 +148,8 @@ static Chassis_Init_Config_s chassis_init_config = {
         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
     },
     .wz_hold_pid = {
-        // yaw2.csv：起停仍有反向偏转，小幅增强即时抑制；新值待起停页复测。
-        .Kp = 0.9f, .Ki = 0.0f, .Kd = 0.0f,
+        // yaw3.csv 保留 P=0.9；用户实测 1.0 会使拨轮旋转急停过猛，不再提高公共 wz 增益。
+        .Kp = 0.9f, .Ki = 0.0f, .Kd = 0.0f, // 起步电流/功率饱和不能靠加 P 消除
         .DeadBand = 0.03f,       // rad/s；降低静止 gyro 噪声引起的速度修正
         .MaxOut = 1.5f,         // 角速度修正上限 rad/s，给增强后的 P 留出余量
         .IntegralLimit = 0.0f,
@@ -157,7 +157,7 @@ static Chassis_Init_Config_s chassis_init_config = {
     },
     .enable_yaw_hold = 1,
     .yaw_hold_pid = {
-        .Kp = 0.12f, .Ki = 0.0f, .Kd = 0.0f, // 平动1.csv 复核：加强小角差纠偏；新值待复测
+        .Kp = 0.12f, .Ki = 0.0f, .Kd = 0.0f, // yaw3.csv 复核保留；避免继续放大受限工况的角速度请求
         .DeadBand = 0.3f,        // deg
         .MaxOut = 1.2f,          // 航向环角速度贡献上限 rad/s；10 deg 达到上限
         .IntegralLimit = 0.0f,

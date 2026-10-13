@@ -1,6 +1,6 @@
 # 电机速度环、三轴速度外环和航向保持 PID 采集
 
-当前阶段：**起步/刹车偏航诊断**。根据 yaw2.csv 的短时偏航及反向角速度，将 **wz Kp 从 0.8 小幅提高到 1.0**，MaxOut=1.5 rad/s；yaw 保持 Kp=0.12 rad/s/deg、MaxOut=1.2 rad/s。两环 Ki=Kd=0、积分限幅 0，yaw 死区 0.3°、wz 死区 0.03 rad/s 保留，新值尚待实车验证。vx/vy 仍为 P=0.4，平动指令与速度限幅不变，不加入自动减速。默认 `CHASSIS_VOFA_MODE=2`、`CHASSIS_TUNING_VOFA_VIEW=8`、`enable_speed_hold=1`、`enable_yaw_hold=1`。四电机、观测器、物理参数与 120 W 功率分配逻辑不改，仅增加同周期限功率前后指令快照。依据见 [yaw2 复核与起停采集](yaw_tuning/2026-10-14-yaw2/yaw2复核与起停采集.md)。
+当前阶段：**yaw3 起步/刹车复核**。yaw3.csv 确认实际 **wz Kp=0.9，本轮最终保留 0.9**；用户已实测 1.0 会使拨轮旋转急停过猛，因此撤回本轮拟提高到 1.0 的调整。MaxOut=1.5 rad/s；yaw 保持 Kp=0.12 rad/s/deg、MaxOut=1.2 rad/s。两环 Ki=Kd=0、积分限幅 0，yaw 死区 0.3°、wz 死区 0.03 rad/s 保留。起步存在电机 ±16000 输出饱和及 120 W 功率削减，继续加公共 wz P 不能保证消除该工况偏航，还会影响主动旋转急停。vx/vy 仍为 P=0.4，平动指令与速度限幅不变，不加入自动减速。默认 `CHASSIS_VOFA_MODE=2`、`CHASSIS_TUNING_VOFA_VIEW=8`、`enable_speed_hold=1`、`enable_yaw_hold=1`。四电机 PI、观测器、物理参数、功率分配逻辑和采集通道保留。依据见 [yaw3 起停分析与调参](yaw_tuning/2026-10-14-yaw3/yaw3起停分析与调参.md)。
 
 采集使用原裁判 **USART6，460800、8N1、JustFloat、250 Hz（4 ms）、25 路**。本轮没有修改 Modules 层，也没有加入自动运动或串口在线调参。
 
