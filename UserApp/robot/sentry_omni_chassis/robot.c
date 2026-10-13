@@ -2,6 +2,8 @@
 
 #include "can_comm.h"
 #include "general_def.h"
+#include "FreeRTOS.h"
+#include "task.h"
 #include "master_process.h"
 #include "new_RC_VT13.h"
 #include "robot_config.h"
@@ -87,6 +89,23 @@ static void SentryRefereeSend() {
 
 }
 
+// 通道归一化后直接生成目标速度；限制异常越量程输入，不添加额外速度倍率。
+static float RemoteChannelToSpeed(int16_t channel, float max_speed) {
+  float normalized = (float)channel / REMOTE_CHANNEL_MAX;
+  if (normalized > 1.0f) normalized = 1.0f;
+  if (normalized < -1.0f) normalized = -1.0f;
+  return normalized * max_speed;
+}
+
+// 拨轮正方向保持顺时针；死区内为零，其余分为正反低速和高速两档，单位 rad/s。
+static float RemoteDialToWz(int16_t dial) {
+  if (dial > 330) return -REMOTE_SPIN_HIGH_RADPS;
+  if (dial > 20) return -REMOTE_SPIN_LOW_RADPS;
+  if (dial < -330) return REMOTE_SPIN_HIGH_RADPS;
+  if (dial < -20) return REMOTE_SPIN_LOW_RADPS;
+  return 0.0f;
+}
+
 #if defined(USE_DUAL_RC)
 /**
  * @brief 底盘旋转速度(wz)的设置, 一律由下位机决定
@@ -96,20 +115,10 @@ static void SentryRefereeSend() {
  */
 static void ChassisRotateSet() {
   if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE) {
-    if (rc_data[TEMP].rc.dial > 330) {
-      chassis_ctrl_cmd->wz = -4000;
-    } else if (rc_data[TEMP].rc.dial > 20) {
-      chassis_ctrl_cmd->wz = -1000;
-    } else if (rc_data[TEMP].rc.dial > -20) {
-      chassis_ctrl_cmd->wz = 0;
-    } else if (rc_data[TEMP].rc.dial > -330) {
-      chassis_ctrl_cmd->wz = 1000;
-    } else {
-      chassis_ctrl_cmd->wz = 4000;
-    }
+    chassis_ctrl_cmd->wz = RemoteDialToWz(rc_data[TEMP].rc.dial);
   } else if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
     /* 主动跟随量, 另一部分在 chassis 任务中根据云台误差角计算 */
-    chassis_ctrl_cmd->wz = -(float)rc_data[TEMP].rc.rocker_r_;
+    chassis_ctrl_cmd->wz = -RemoteChannelToSpeed(rc_data[TEMP].rc.rocker_r_, REMOTE_FOLLOW_MAX_WZ_RADPS);
   } else {
     chassis_ctrl_cmd->wz = 0.0f;
   }
@@ -150,11 +159,13 @@ static void RemoteControlSet() {
     robot->control_mode = MANUAL_MODE;
   }
 
-  // 底盘控制部分,系数需要调整
+  // 摇杆直接生成 m/s 目标，各轴满量程 2 m/s。
   if (robot->control_mode == MANUAL_MODE)  // 手动控制，遥控器控制量
   {
-    chassis_ctrl_cmd->vx = 60.0f * (float)robot->rc_data[TEMP].rc.rocker_l1;  // 前进为 +x
-    chassis_ctrl_cmd->vy = -60.0f * (float)robot->rc_data[TEMP].rc.rocker_l_;  // 左移为 +y
+    chassis_ctrl_cmd->vx = RemoteChannelToSpeed(robot->rc_data[TEMP].rc.rocker_l1,
+                                               REMOTE_MAX_LINEAR_SPEED_MPS);  // 前进为 +x
+    chassis_ctrl_cmd->vy = -RemoteChannelToSpeed(robot->rc_data[TEMP].rc.rocker_l_,
+                                                REMOTE_MAX_LINEAR_SPEED_MPS);  // 左移为 +y
     // 右拨杆[中]/[上]: 底盘系; 其余情况: 云台系(以云台指向为前方, 由底盘任务按云台角度旋转)
     chassis_ctrl_cmd->cmd_frame = chassis_frame_cmd ? CHASSIS_CMD_CHASSIS_FRAME : CHASSIS_CMD_GIMBAL_FRAME;
     ChassisRotateSet();
@@ -311,15 +322,16 @@ static void RemoteControlSet() {
     if (abs(vt13_rc_data->rc.dial) > 20) chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
   }
 
-  // 底盘控制部分,系数需要调整
+  // 新遥控同样直接生成 SI 目标速度。
   if (robot->control_mode == MANUAL_MODE)  // 手动控制，遥控器控制量
   {
-    vx_initial = 80.0f * (float)vt13_rc_data->rc.rocker_l1;  // 前进为 +x
-    vy_initial = -80.0f * (float)vt13_rc_data->rc.rocker_l_;  // 左移为 +y
+    vx_initial = RemoteChannelToSpeed(vt13_rc_data->rc.rocker_l1, REMOTE_MAX_LINEAR_SPEED_MPS);  // 前进为 +x
+    vy_initial = -RemoteChannelToSpeed(vt13_rc_data->rc.rocker_l_, REMOTE_MAX_LINEAR_SPEED_MPS);  // 左移为 +y
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_ROTATE)
-      chassis_ctrl_cmd->wz = -10.0f * (float)vt13_rc_data->rc.dial;  // 保持拨轮原操作方向
+      chassis_ctrl_cmd->wz = RemoteDialToWz(vt13_rc_data->rc.dial);
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_FOLLOW) {
-      chassis_ctrl_cmd->wz = -2.0f * (float)vt13_rc_data->rc.rocker_r_;  // 主动跟随量，逆时针为正
+      chassis_ctrl_cmd->wz = -RemoteChannelToSpeed(vt13_rc_data->rc.rocker_r_,
+                                                 2.0f * REMOTE_FOLLOW_MAX_WZ_RADPS);  // 保持原主动跟随范围
     }
     auto_mode_time=time;
   }
@@ -384,6 +396,49 @@ static void EmergencyHandler() {
     chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
   }
 #endif
+}
+
+// 在急停检查之后选择 HOLD；首次进入锁当前连续角度，拨轮主动旋转后重新锁定。
+static void YawHoldControlSet() {
+  static uint8_t active = 0;
+  static uint8_t step_armed = 0;
+  uint8_t hold_selected = 0;
+  int16_t dial = 0;
+  int16_t yaw_stick = 0;
+#if defined(USE_DUAL_RC)
+  hold_selected = switch_is_mid(rc_data[TEMP].rc.switch_right);
+  dial = rc_data[TEMP].rc.dial;
+  yaw_stick = rc_data[TEMP].rc.rocker_r_;
+#elif defined(USE_DUAL_RC_NEW)
+  hold_selected = switch_middle(vt13_rc_data->rc.mode_switch);
+  dial = vt13_rc_data->rc.dial;
+  yaw_stick = vt13_rc_data->rc.rocker_r_;
+#endif
+  if (!chassis_init_config.enable_yaw_hold || !hold_selected || robot->control_mode != MANUAL_MODE ||
+      chassis_ctrl_cmd->chassis_mode == CHASSIS_POWER_OFF || dial > 20 || dial < -20 ||
+      robot->chassis->chassis_IMU == NULL || !robot->chassis->chassis_IMU->init ||
+      !robot->chassis->speed_observer.valid) {
+    active = 0;
+    step_armed = 0;
+    return;
+  }
+
+  if (!active) {
+    taskENTER_CRITICAL();
+    chassis_ctrl_cmd->yaw_hold_ref = robot->chassis->chassis_IMU->YawTotalAngle;
+    taskEXIT_CRITICAL();
+    active = 1;
+    step_armed = yaw_stick > -REMOTE_YAW_HOLD_REARM && yaw_stick < REMOTE_YAW_HOLD_REARM;
+  } else if (step_armed && (yaw_stick > REMOTE_YAW_HOLD_TRIGGER || yaw_stick < -REMOTE_YAW_HOLD_TRIGGER)) {
+    // 右拨为顺时针负角度，左拨为逆时针正角度，沿用原转向操作方向。
+    chassis_ctrl_cmd->yaw_hold_ref += yaw_stick > 0 ? -REMOTE_YAW_HOLD_STEP_DEG : REMOTE_YAW_HOLD_STEP_DEG;
+    step_armed = 0;
+  } else if (yaw_stick > -REMOTE_YAW_HOLD_REARM && yaw_stick < REMOTE_YAW_HOLD_REARM) {
+    step_armed = 1;
+  }
+  chassis_ctrl_cmd->chassis_mode = CHASSIS_HOLD;
+  chassis_ctrl_cmd->cmd_frame = CHASSIS_CMD_CHASSIS_FRAME;
+  chassis_ctrl_cmd->wz = 0.0f; // 目标角速度由航向环生成，避免叠加拨轮或旧跟随量。
 }
 
 static void ModeControl() {
@@ -554,13 +609,9 @@ void RobotCMDTask() {
   CalcOffsetAngle();
   RemoteControlSet();
   // MouseKeySet();
-  // 遥控生成器保留旧档位数值，在进入底盘接口前转换为 SI；导航平移已经是 m/s。
-  if (robot->control_mode == MANUAL_MODE) {
-    chassis_ctrl_cmd->vx *= REMOTE_LINEAR_TO_MPS;
-    chassis_ctrl_cmd->vy *= REMOTE_LINEAR_TO_MPS;
-  }
-  chassis_ctrl_cmd->wz *= REMOTE_SPIN_TO_RADPS;
+  // 遥控和导航均已生成 SI 目标速度，不再按轮径、减速比进行二次转换。
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
+  YawHoldControlSet(); // 只在手动、安全使能且选择保持时切入，不能覆盖 POWER_OFF。
 }
 
 void RobotTask() {

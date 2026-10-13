@@ -104,7 +104,7 @@ typedef struct
     Chassis_Param_s chassis_param;
     Motor_Init_Config_s wheel_motor_config[4];
     PID_Init_Config_s follow_pid;
-    PID_Init_Config_s yaw_hold_pid; // 角度误差单位度，输出必须为 rad/s（当前机器人未启用）
+    PID_Init_Config_s yaw_hold_pid; // 角度误差单位度，输出为 rad/s；由 enable_yaw_hold 配置初始化
     PID_Init_Config_s vx_hold_pid;  // 整车速度外环：输入/修正输出均为 m/s
     PID_Init_Config_s vy_hold_pid;  // 整车速度外环：输入/修正输出均为 m/s
     PID_Init_Config_s wz_hold_pid;  // 整车速度外环：输入/修正输出均为 rad/s
@@ -121,7 +121,7 @@ typedef struct
 
 typedef struct
 {
-    // 同一轮 EstimateSpeed 的输入快照，供应用层 VOFA 标定使用；不参与控制。
+    // 同一底盘周期的 EstimateSpeed/PowerControl 快照，供应用层 VOFA 诊断；不参与控制。
     float sample_time; // 启动后 s
     float dt;          // 本轮 EKF 步长 s
     float gyro[3];     // 安装校正、零偏扣除后的底盘系 rad/s
@@ -129,6 +129,10 @@ typedef struct
     float center_accel[2]; // 实际送入速度观测器的中心加速度 m/s^2
     float motor_speed[4];  // LF/ID1, RF/ID4, LB/ID2, RB/ID3，电机轴 deg/s
     float temperature;     // BMI088 摄氏度
+    float requested_power; // 限制前电流指令估算的正功率之和 W，不是实测电功率
+    float power_limit_scale; // 本轮功率分配比例；1 为未缩减
+    float motor_requested_current[4]; // 限功率前逻辑电流指令，协议码值；数组为 LF/RF/LB/RB
+    float motor_limited_current[4]; // 限功率后逻辑电流指令，尚未执行 CAN 极性/停机处理
     uint32_t imu_count;     // INS 更新计数低 24 位，可精确转 float
     uint16_t status;       // 位定义见 speed_observer/噪声标定采集说明.md
 } ChassisObserverTelemetry_s;

@@ -35,11 +35,11 @@
 #if CHASSIS_VOFA_MODE < 0 || CHASSIS_VOFA_MODE > 2
 #error Unsupported CHASSIS_VOFA_MODE
 #endif
-// 调参页：0=单电机，1=vx，2=vy，3=wz，4=yaw_hold，5=四电机同步。
+// 调参页：0=单电机，1=vx，2=vy，3=wz，4=yaw_hold，5=四电机，6=平移/wz，7=三轴同步，8=起停诊断。
 #ifndef CHASSIS_TUNING_VOFA_VIEW
-#define CHASSIS_TUNING_VOFA_VIEW 5
+#define CHASSIS_TUNING_VOFA_VIEW 8
 #endif
-#if CHASSIS_TUNING_VOFA_VIEW < 0 || CHASSIS_TUNING_VOFA_VIEW > 5
+#if CHASSIS_TUNING_VOFA_VIEW < 0 || CHASSIS_TUNING_VOFA_VIEW > 8
 #error Unsupported CHASSIS_TUNING_VOFA_VIEW
 #endif
 #ifndef CHASSIS_VOFA_MOTOR_ID
@@ -48,7 +48,7 @@
 #if CHASSIS_VOFA_MOTOR_ID < 1 || CHASSIS_VOFA_MOTOR_ID > 4
 #error Unsupported CHASSIS_VOFA_MOTOR_ID
 #endif
-// 四电机同步采集：460800 baud、4ms/250Hz，占 56.4%，低于无线透传 1Mbps 上限。
+// PID 采集：460800 baud、4ms/250Hz，占 56.4%，低于无线透传 1Mbps 上限。
 #ifndef CHASSIS_TUNING_VOFA_BAUDRATE
 #define CHASSIS_TUNING_VOFA_BAUDRATE 460800u
 #endif
@@ -63,11 +63,17 @@
 // 物理参数：长度配置仍为 mm，进入运动学时统一转 m。
 #define CHASSIS_WHEEL_RADIUS_MM 76.475f
 #define CHASSIS_WHEEL_REDUCTION 19.0f
-// 仅用于旧遥控档位向 SI 迁移，保持其理想轮速参考；导航直接使用 m/s。
-#define REMOTE_LINEAR_TO_MPS (1.4142135623730951f * (CHASSIS_WHEEL_RADIUS_MM * 0.001f) * \
-                             (3.14159265358979323846f / 180.0f) / CHASSIS_WHEEL_REDUCTION)
-#define REMOTE_SPIN_TO_RADPS (CHASSIS_WHEEL_RADIUS_MM / CHASSIS_WHEEL_REDUCTION * \
-                             (3.14159265358979323846f / 180.0f) * (3.14159265358979323846f / 180.0f))
+// 遥控原始通道 [-660, 660] 直接映射为 SI 目标速度，与轮径/减速比无关。
+#define REMOTE_CHANNEL_MAX 660.0f
+#define REMOTE_MAX_LINEAR_SPEED_MPS 2.0f  // vx/vy 各轴满量程；未对合速度限幅
+#define REMOTE_SPIN_LOW_RADPS 1.5f
+#define REMOTE_SPIN_HIGH_RADPS 5.0f
+// 保持原跟随模式右摇杆的满量程角速度，独立于拨轮两档设置。
+#define REMOTE_FOLLOW_MAX_WZ_RADPS 0.8092162f
+// 航向采集：右摇杆每次越过触发阈值给一个角度阶跃，回中后可再次触发。
+#define REMOTE_YAW_HOLD_STEP_DEG 10.0f
+#define REMOTE_YAW_HOLD_TRIGGER 330
+#define REMOTE_YAW_HOLD_REARM 100
 
 
 
@@ -125,27 +131,36 @@
 })
 
 static Chassis_Init_Config_s chassis_init_config = {
-    // 三轴速度外环：目标速度前馈 + PID 修正。保守调试初值，尚未实车整定。
-    .enable_speed_hold = 0, // 带载电机速度环整定期间关闭三轴外环，完成后恢复为 1。
+    // vx/vy 按用户约定共用纯 P=0.4；wz 增强平动抗偏航，保持零积分避免拖尾。
+    .enable_speed_hold = 1,
     .vx_hold_pid = {
-        .Kp = 0.2f, .Ki = 0.0f, .Kd = 0.0f,
+        .Kp = 0.4f, .Ki = 0.0f, .Kd = 0.0f, // 联合数据复核后增强 P，纯前后跟随候选，待复测
         .DeadBand = 0.01f,       // m/s
         .MaxOut = 0.5f,         // 速度修正上限 m/s，不是整车速度上限
         .IntegralLimit = 0.2f,
         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
     },
     .vy_hold_pid = {
-        .Kp = 0.2f, .Ki = 0.0f, .Kd = 0.0f,
+        .Kp = 0.4f, .Ki = 0.0f, .Kd = 0.0f, // 按用户要求沿用 vx 参数，不单独整定
         .DeadBand = 0.01f,
         .MaxOut = 0.5f,
         .IntegralLimit = 0.2f,
         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
     },
     .wz_hold_pid = {
-        .Kp = 0.2f, .Ki = 0.0f, .Kd = 0.0f,
-        .DeadBand = 0.02f,       // rad/s
-        .MaxOut = 1.0f,         // 角速度修正上限 rad/s
-        .IntegralLimit = 0.4f,
+        // yaw2.csv：起停仍有反向偏转，小幅增强即时抑制；新值待起停页复测。
+        .Kp = 0.9f, .Ki = 0.0f, .Kd = 0.0f,
+        .DeadBand = 0.03f,       // rad/s；降低静止 gyro 噪声引起的速度修正
+        .MaxOut = 1.5f,         // 角速度修正上限 rad/s，给增强后的 P 留出余量
+        .IntegralLimit = 0.0f,
+        .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+    },
+    .enable_yaw_hold = 1,
+    .yaw_hold_pid = {
+        .Kp = 0.12f, .Ki = 0.0f, .Kd = 0.0f, // 平动1.csv 复核：加强小角差纠偏；新值待复测
+        .DeadBand = 0.3f,        // deg
+        .MaxOut = 1.2f,          // 航向环角速度贡献上限 rad/s；10 deg 达到上限
+        .IntegralLimit = 0.0f,
         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
     },
     // 2026-10-12 CSV 首轮整定：优先纯平动 vx/vy、纯转动 wz，保留机械运动加速度。
@@ -191,15 +206,15 @@ static Chassis_Init_Config_s chassis_init_config = {
     .wheel_motor_config[1] = WHEEL_MOTOR_CONFIG(&hcan1,4),
     .wheel_motor_config[2] = WHEEL_MOTOR_CONFIG(&hcan1,2),
     .wheel_motor_config[3] = WHEEL_MOTOR_CONFIG(&hcan1,3),
-    // 跟随角度环：输入度，输出 rad/s；旧增益与输出限幅同步换算。
+    // 跟随角度环：输入度，输出 rad/s；保留此前已换算的实际增益与限幅。
     .follow_pid={
-        .Kp = -70.0f * REMOTE_SPIN_TO_RADPS,
+        .Kp = -0.08582596f,
         .Ki = 0.0f,
         .Kd = 0.0f,
         .DeadBand = 1.0f,
-        .IntegralLimit = 1000.0f * REMOTE_SPIN_TO_RADPS,
+        .IntegralLimit = 1.2260851f,
         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-        .MaxOut = 20000.0f * REMOTE_SPIN_TO_RADPS,
+        .MaxOut = 24.5217023f,
     },
 
 

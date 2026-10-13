@@ -116,12 +116,13 @@ static void PowerControl()
         motor_speed_fdb[i] = (float)chassis->wheel_motor[i]->measure.speed_aps / 6.f;
     }
 
-    // 获取当前电机参考电流，统一位单位为A
+    // 获取当前电机参考电流，单位为协议码值；下方功率公式内转换为 A。
     float motor_current_list[4];
     float motor_real_current_list[4];
     for (int i = 0; i < 4; i++)
     {
         motor_current_list[i] = (float)chassis->wheel_motor[i]->motor_controller.final_output;
+        chassis->observer_telemetry.motor_requested_current[i] = motor_current_list[i];
         motor_real_current_list[i] = (float)chassis->wheel_motor[i]->measure.real_current;
     }
 
@@ -158,10 +159,14 @@ static void PowerControl()
         power += initial_give_real_power[i];
     }
 
+    // 同周期诊断快照，不改变功率分配算法。
+    chassis->observer_telemetry.requested_power = initial_total_power;
+    chassis->observer_telemetry.power_limit_scale = 1.0f;
     // 功率超限时进行动态调整
     if (initial_total_power > (float)chassis_ctrl_cmd->max_power)
     {
         float power_scale = (float)chassis_ctrl_cmd->max_power / initial_total_power; // 削减功率比例
+        chassis->observer_telemetry.power_limit_scale = power_scale;
         float scaled_give_power[4];
         // 计算缩放后的功率目标
         for (int i = 0; i < 4; i++)
@@ -212,6 +217,8 @@ static void PowerControl()
     for (int i = 0; i < 4; i++)
     {
         chassis->wheel_motor[i]->motor_controller.final_output = (int16_t)(motor_current_list[i]);
+        chassis->observer_telemetry.motor_limited_current[i] =
+            chassis->wheel_motor[i]->motor_controller.final_output;
     }
 }
 
@@ -286,11 +293,7 @@ static float YawHoldCompensate()
     if (!yaw_hold_active)
     {
         yaw_hold_active = 1;
-        chassis->yaw_hold_pid.Iout = 0.0f;
-        chassis->yaw_hold_pid.ITerm = 0.0f;
-        chassis->yaw_hold_pid.Last_ITerm = 0.0f;
-        chassis->yaw_hold_pid.Last_Err = 0.0f;
-        chassis->yaw_hold_pid.Last_Output = 0.0f;
+        PIDClear(&chassis->yaw_hold_pid); // 同时重置 DWT 时间戳，避免模式切换后的长 dt。
     }
 
     chassis->yaw_hold_updated = 1u;
@@ -356,6 +359,8 @@ void ChassisTask()
 {
     chassis->yaw_hold_updated = 0u;
     chassis->speed_hold_updated = 0u;
+    if (chassis_ctrl_cmd->chassis_mode != CHASSIS_HOLD)
+        yaw_hold_active = 0; // 非 HOLD 时不会调用补偿函数，必须在这里清除进入状态。
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_POWER_OFF)
     {
         // 如果出现重要模块离线或遥控器设置为急停,让电机停止

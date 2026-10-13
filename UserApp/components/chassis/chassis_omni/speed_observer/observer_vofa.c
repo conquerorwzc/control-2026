@@ -153,14 +153,141 @@ static void FourMotorVOFASend(const ChassisInstance *chassis, uint32_t period_ms
     VOFAJustFloatSend(data, kChannelCount);
 }
 
+// 同帧记录平移与旋转，避免单轴页遗漏平移刹停后的 wz 和积分状态。
+static void TranslationWzVOFASend(const ChassisInstance *chassis, uint8_t motor_id, uint32_t period_ms)
+{
+    const uint8_t index = MotorIndex(motor_id);
+    const DJIMotorInstance *wheel = chassis->wheel_motor[index];
+    if (wheel == NULL || !TelemetryReady(period_ms)) return;
+    const MotorTelemetry motor = MotorSnapshot(wheel);
+    uint32_t status = chassis->observer_telemetry.status;
+    status |= ((uint32_t)chassis->chassis_ctrl_cmd.chassis_mode & 7u) << 16;
+    if (motor.enabled) status |= 1u << 19;
+    if (status & (1u << (8u + index))) status |= 1u << 20;
+    if (chassis->speed_hold_updated) status |= 1u << 21;
+
+    float data[kChannelCount] = {
+        (float)sequence, chassis->observer_telemetry.sample_time,
+        (float)CHASSIS_TUNING_TRANSLATION_WZ, (float)status,             // 0~3
+        chassis->target_velocity.vx, chassis->speed_observer.fused.vx,  // 4~5
+        chassis->vx_hold_pid.Output, chassis->control_velocity.vx,     // 6~7
+        chassis->target_velocity.vy, chassis->speed_observer.fused.vy,  // 8~9
+        chassis->target_velocity.wz, chassis->speed_observer.fused.wz,  // 10~11
+        chassis->wz_hold_pid.Pout, chassis->wz_hold_pid.Iout,            // 12~13
+        chassis->wz_hold_pid.Output, chassis->control_velocity.wz,      // 14~15
+        chassis->speed_observer.wheel.vx, chassis->speed_observer.wheel.vy, // 16~17
+        chassis->speed_observer.wheel.wz, chassis->observer_telemetry.gyro[2], // 18~19
+        chassis->vx_hold_pid.Kp, chassis->vx_hold_pid.Ki,                // 20~21
+        chassis->wz_hold_pid.Kp, chassis->wz_hold_pid.Ki,                // 22~23
+        motor.applied_output,                                         // 24: 代表电机逻辑电流指令
+    };
+    VOFAJustFloatSend(data, kChannelCount);
+}
+
+// 三轴使用对称的目标/反馈/修正/逆解通道，保持 25 路和既有串口带宽。
+static void ThreeAxesVOFASend(const ChassisInstance *chassis, uint8_t motor_id, uint32_t period_ms)
+{
+    const uint8_t index = MotorIndex(motor_id);
+    const DJIMotorInstance *wheel = chassis->wheel_motor[index];
+    if (wheel == NULL || !TelemetryReady(period_ms)) return;
+    const MotorTelemetry motor = MotorSnapshot(wheel);
+    uint32_t status = chassis->observer_telemetry.status;
+    status |= ((uint32_t)chassis->chassis_ctrl_cmd.chassis_mode & 7u) << 16;
+    if (motor.enabled) status |= 1u << 19;
+    if (status & (1u << (8u + index))) status |= 1u << 20;
+    if (chassis->speed_hold_updated) status |= 1u << 21;
+
+    float data[kChannelCount] = {
+        (float)sequence, chassis->observer_telemetry.sample_time,
+        (float)CHASSIS_TUNING_THREE_AXES, (float)status,                  // 0~3
+        chassis->target_velocity.vx, chassis->speed_observer.fused.vx,   // 4~5
+        chassis->vx_hold_pid.Output, chassis->control_velocity.vx,      // 6~7
+        chassis->target_velocity.vy, chassis->speed_observer.fused.vy,   // 8~9
+        chassis->vy_hold_pid.Output, chassis->control_velocity.vy,      // 10~11
+        chassis->target_velocity.wz, chassis->speed_observer.fused.wz,   // 12~13
+        chassis->wz_hold_pid.Output, chassis->control_velocity.wz,      // 14~15
+        chassis->speed_observer.wheel.vx, chassis->speed_observer.wheel.vy, // 16~17
+        chassis->speed_observer.wheel.wz, chassis->observer_telemetry.gyro[2], // 18~19
+        chassis->vx_hold_pid.Kp, chassis->vy_hold_pid.Kp, chassis->wz_hold_pid.Kp, // 20~22
+        (float)chassis->chassis_ctrl_cmd.max_power, motor.applied_output, // 23~24
+    };
+    VOFAJustFloatSend(data, kChannelCount);
+}
+
+// 同帧对齐起停、航向和限功率前后四轮指令，保持既有 25 路/104 字节带宽。
+static void StartStopVOFASend(const ChassisInstance *chassis, uint32_t period_ms)
+{
+    for (int i = 0; i < 4; ++i)
+        if (chassis->wheel_motor[i] == NULL) return;
+    if (!TelemetryReady(period_ms)) return;
+
+    float yaw_measure = 0.0f;
+    uint8_t all_enabled = 1u;
+    float limited[4];
+    taskENTER_CRITICAL();
+    if (chassis->yaw_hold_updated)
+        yaw_measure = chassis->yaw_hold_pid.Measure;
+    else if (chassis->chassis_IMU != NULL)
+        yaw_measure = chassis->chassis_IMU->YawTotalAngle;
+    for (int id = 1; id <= 4; ++id)
+    {
+        const uint8_t index = MotorIndex((uint8_t)id);
+        const uint8_t enabled = chassis->wheel_motor[index]->stop_flag != MOTOR_STOP;
+        if (!enabled) all_enabled = 0u;
+        limited[id - 1] = enabled ? chassis->observer_telemetry.motor_limited_current[index] : 0.0f;
+    }
+    taskEXIT_CRITICAL();
+
+    uint32_t status = chassis->observer_telemetry.status;
+    status |= ((uint32_t)chassis->chassis_ctrl_cmd.chassis_mode & 7u) << 16;
+    if (all_enabled) status |= 1u << 19;
+    if ((status & (0x0fu << 8)) == (0x0fu << 8)) status |= 1u << 20;
+    if (chassis->speed_hold_updated && chassis->yaw_hold_updated) status |= 1u << 21;
+    const float yaw_ref = chassis->yaw_hold_updated ? chassis->yaw_hold_pid.Ref :
+                                                   chassis->chassis_ctrl_cmd.yaw_hold_ref;
+    float data[kChannelCount] = {
+        (float)sequence, chassis->observer_telemetry.sample_time,
+        (float)CHASSIS_TUNING_START_STOP, (float)status,                // 0~3
+        yaw_ref, yaw_measure, yaw_ref - yaw_measure,                   // 4~6: deg
+        chassis->yaw_hold_updated ? chassis->yaw_hold_pid.Output : 0.0f, // 7: rad/s，本轮角环贡献
+        chassis->target_velocity.vx, chassis->speed_observer.fused.vx, // 8~9: m/s
+        chassis->target_velocity.vy, chassis->speed_observer.fused.vy, // 10~11: m/s
+        chassis->target_velocity.wz, chassis->speed_observer.fused.wz, // 12~13: rad/s
+        chassis->control_velocity.wz,                                // 14: rad/s
+        chassis->observer_telemetry.requested_power,                  // 15: model W
+        chassis->observer_telemetry.power_limit_scale,                // 16: 0~1
+    };
+    for (int id = 1; id <= 4; ++id)
+    {
+        data[16 + id] = chassis->observer_telemetry.motor_requested_current[MotorIndex((uint8_t)id)];
+        data[20 + id] = limited[id - 1]; // 逻辑极性/协议码值；CAN 打包还会执行电机方向变换。
+    }
+    VOFAJustFloatSend(data, kChannelCount);
+}
+
 void ChassisTuningVOFASend(const ChassisInstance *chassis, ChassisTuningView_e view,
                           uint8_t motor_id, uint32_t period_ms)
 {
-    if (chassis == NULL || (unsigned)view > CHASSIS_TUNING_FOUR_MOTORS ||
+    if (chassis == NULL || (unsigned)view > CHASSIS_TUNING_START_STOP ||
         motor_id < 1u || motor_id > 4u || period_ms == 0u) return;
     if (view == CHASSIS_TUNING_FOUR_MOTORS)
     {
         FourMotorVOFASend(chassis, period_ms);
+        return;
+    }
+    if (view == CHASSIS_TUNING_TRANSLATION_WZ)
+    {
+        TranslationWzVOFASend(chassis, motor_id, period_ms);
+        return;
+    }
+    if (view == CHASSIS_TUNING_THREE_AXES)
+    {
+        ThreeAxesVOFASend(chassis, motor_id, period_ms);
+        return;
+    }
+    if (view == CHASSIS_TUNING_START_STOP)
+    {
+        StartStopVOFASend(chassis, period_ms);
         return;
     }
     const uint8_t index = MotorIndex(motor_id);
