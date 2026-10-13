@@ -13,35 +13,94 @@
 #include "general_def.h"
 #include "referee.h"
 #include "user_lib.h"
+#include "FreeRTOS.h"
+#include "task.h"
 
 static ChassisInstance *chassis;
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd; // 声明但不初始化
 static Chassis_Param_s chassis_param;        // 声明为静态局部变量
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
-static float chassis_vx, chassis_vy; // 将云台系的速度投影到底盘
+static float chassis_vx, chassis_vy, chassis_wz;
 static referee_info_t *referee_data;
 static float vt_lf, vt_rf, vt_lb, vt_rb; // 底盘速度解算后的临时输出,待进行限幅
-static float lf_radius;
-static float rf_radius;
-static float lb_radius;
-static float rb_radius;
 static PIDInstance follow_pid;
 static uint8_t yaw_hold_active;
 static float power;
 static float k0, k1, k2, k3, k4, k5;     // 中科大的功率模型
 static uint8_t super_cap_error_flag = 0; // 电容故障标志
+static uint32_t observer_clock;
 
-/**
- * @brief 底盘机体系逆解: +x 向前、+y 向左、+wz 俯视逆时针。
- *        轮序为左前、右前、左后、右后，沿用现有电机正反向配置。
- *        本阶段仅统一坐标，保留旧速度倍率和旋转系数，尚未换算为 SI 轮速。
- */
+// 与速度观测器一致，避免 -Ofast 将 NaN/Inf 检查优化掉。
+static uint8_t SpeedFinite(float value)
+{
+    uint32_t bits;
+    memcpy(&bits, &value, sizeof(bits));
+    return (bits & 0x7f800000u) != 0x7f800000u;
+}
+
+static void ResetSpeedHold()
+{
+    PIDClear(&chassis->vx_hold_pid);
+    PIDClear(&chassis->vy_hold_pid);
+    PIDClear(&chassis->wz_hold_pid);
+    chassis->speed_hold_correction = (Speed_s){0};
+    chassis->speed_hold_active = 0u;
+}
+
+/** @brief 三轴速度外环，目标前馈 + PID 修正；只修改局部逆解输入。 */
+static void SpeedHoldControl()
+{
+    Speed_s target = {.vx = chassis_vx, .vy = chassis_vy, .wz = chassis_wz};
+    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_POWER_OFF ||
+        !SpeedFinite(target.vx) || !SpeedFinite(target.vy) || !SpeedFinite(target.wz))
+    {
+        target = (Speed_s){0};
+        ResetSpeedHold();
+    }
+    else if (!chassis->enable_speed_hold || !chassis->speed_observer.valid)
+        ResetSpeedHold(); // 暂退为原有速度前馈；不改变已有电机急停策略。
+    else if (!chassis->speed_hold_active)
+    {
+        // 刚使能/恢复测速时先预置历史，下一周期再计算，避免长间隔积分和微分冲击。
+        ResetSpeedHold();
+        chassis->vx_hold_pid.Last_Measure = chassis->speed_observer.fused.vx;
+        chassis->vy_hold_pid.Last_Measure = chassis->speed_observer.fused.vy;
+        chassis->wz_hold_pid.Last_Measure = chassis->speed_observer.fused.wz;
+        chassis->vx_hold_pid.Last_Err = target.vx - chassis->speed_observer.fused.vx;
+        chassis->vy_hold_pid.Last_Err = target.vy - chassis->speed_observer.fused.vy;
+        chassis->wz_hold_pid.Last_Err = target.wz - chassis->speed_observer.fused.wz;
+        chassis->speed_hold_active = 1u;
+    }
+    else
+    {
+        Speed_s correction = {
+            .vx = PIDCalculate(&chassis->vx_hold_pid, chassis->speed_observer.fused.vx, target.vx),
+            .vy = PIDCalculate(&chassis->vy_hold_pid, chassis->speed_observer.fused.vy, target.vy),
+            .wz = PIDCalculate(&chassis->wz_hold_pid, chassis->speed_observer.fused.wz, target.wz),
+        };
+        chassis->speed_hold_updated = 1u;
+        if (SpeedFinite(correction.vx) && SpeedFinite(correction.vy) && SpeedFinite(correction.wz))
+            chassis->speed_hold_correction = correction;
+        else
+            ResetSpeedHold();
+    }
+    chassis->target_velocity = target;
+    chassis_vx = target.vx + chassis->speed_hold_correction.vx;
+    chassis_vy = target.vy + chassis->speed_hold_correction.vy;
+    chassis_wz = target.wz + chassis->speed_hold_correction.wz;
+    chassis->control_velocity = (Speed_s){.vx = chassis_vx, .vy = chassis_vy, .wz = chassis_wz};
+}
+
+/** @brief SI 底盘速度逆解为电机轴速度参考，单位 deg/s。 */
 static void OmniCalculate()
 {
-    vt_lf = -chassis_vx + chassis_vy + chassis_ctrl_cmd->wz * lf_radius;
-    vt_rf = chassis_vx + chassis_vy + chassis_ctrl_cmd->wz * rf_radius;
-    vt_lb = -chassis_vx - chassis_vy + chassis_ctrl_cmd->wz * lb_radius;
-    vt_rb = chassis_vx - chassis_vy + chassis_ctrl_cmd->wz * rb_radius;
+    const Speed_s body = {.vx = chassis_vx, .vy = chassis_vy, .wz = chassis_wz};
+    float motor_speed[4];
+    OmniInverse(&chassis->speed_observer.model, &body, motor_speed);
+    vt_lf = motor_speed[0];
+    vt_rf = motor_speed[1];
+    vt_lb = motor_speed[2];
+    vt_rb = motor_speed[3];
 }
 
 /**
@@ -50,7 +109,7 @@ static void OmniCalculate()
  */
 static void PowerControl()
 {
-    // 获取电机速度反馈,化成单位rad/s
+    // 获取电机速度反馈，deg/s 转 rpm（下方功率公式再转 rad/s）
     float motor_speed_fdb[4];
     for (int i = 0; i < 4; i++)
     {
@@ -169,18 +228,47 @@ static void LimitChassisOutput()
     PowerControl();
 }
 
-/**
- * @brief 根据每个轮子的速度反馈,计算底盘的实际运动速度,逆运动解算
- *        对于双板的情况,考虑增加来自底盘板IMU的数据
- *
- */
+/** @brief 编码器正解与 EKF；短临界区只复制传感器，矩阵运算在区外执行。 */
 static void EstimateSpeed()
 {
-    // 根据电机速度和陀螺仪的角速度进行解算,还可以利用加速度计判断是否打滑(如果有)
-    // chassis_feedback_data.vx vy wz =
-    // DJIMotor得改otherfeed
-}
+    const float dt = DWT_GetDeltaT(&observer_clock);
+    SpeedObserverInput_s input = {0};
+    ChassisObserverTelemetry_s *telemetry = &chassis->observer_telemetry;
+    telemetry->sample_time = DWT_GetTimeline_s();
+    telemetry->dt = dt;
+    // 临界区只复制同一轮传感器快照，解算与融合在区外完成。
+    taskENTER_CRITICAL();
+    for (int i = 0; i < 4; ++i)
+    {
+        input.motor_speed[i] = chassis->wheel_motor[i]->measure.speed_aps;
+        input.wheel_stamp[i] = chassis->wheel_motor[i]->feed_cnt;
+        input.wheel_online[i] = DaemonIsOnline(chassis->wheel_motor[i]->daemon);
+        telemetry->motor_speed[i] = input.motor_speed[i];
+    }
+    if (chassis->chassis_IMU != NULL && chassis->chassis_IMU->init)
+    {
+        input.imu_ready = 1u;
+        input.imu_stamp = QEKF_INS.UpdateCount;
+        input.gyro_z = chassis->chassis_IMU->Gyro[2];
+        input.accel_x = chassis->chassis_IMU->MotionAccel_b[0];
+        input.accel_y = chassis->chassis_IMU->MotionAccel_b[1];
+        input.accel_lpf = chassis->chassis_IMU->AccelLPF;
+        telemetry->imu_count = (uint32_t)(input.imu_stamp & 0x00ffffffu);
+        telemetry->temperature = BMI088.Temperature;
+        for (int i = 0; i < 3; ++i)
+        {
+            telemetry->gyro[i] = chassis->chassis_IMU->Gyro[i];
+            telemetry->motion_accel[i] = chassis->chassis_IMU->MotionAccel_b[i];
+        }
+    }
+    taskEXIT_CRITICAL();
 
+    SpeedObserverUpdate(&chassis->speed_observer, &input, dt);
+    telemetry->center_accel[0] = chassis->speed_observer.center_accel[0];
+    telemetry->center_accel[1] = chassis->speed_observer.center_accel[1];
+    telemetry->status = chassis->speed_observer.status;
+    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_POWER_OFF) telemetry->status |= (1u << 7);
+}
 static float YawHoldCompensate()
 {
     if (chassis == NULL || chassis_ctrl_cmd == NULL || chassis->chassis_IMU == NULL || !chassis->chassis_IMU->init)
@@ -205,6 +293,7 @@ static float YawHoldCompensate()
         chassis->yaw_hold_pid.Last_Output = 0.0f;
     }
 
+    chassis->yaw_hold_updated = 1u;
     return PIDCalculate(&chassis->yaw_hold_pid, chassis->chassis_IMU->YawTotalAngle, chassis_ctrl_cmd->yaw_hold_ref);
 }
 
@@ -214,10 +303,6 @@ ChassisInstance *ChassisInit(Chassis_Init_Config_s *chassis_init_config)
 
     chassis_param = chassis_init_config->chassis_param; // 在运行时赋值
 
-    float half_wheel_base = chassis_param.wheel_base / 2.0f;
-    float half_track_width = chassis_param.track_width / 2.0f;
-    float center_gimbal_offset_x = chassis_param.center_gimbal_offset_x;
-    float center_gimbal_offset_y = chassis_param.center_gimbal_offset_y;
     k0 = chassis_param.power_param.k0;
     k1 = chassis_param.power_param.k1;
     k2 = chassis_param.power_param.k2;
@@ -225,30 +310,32 @@ ChassisInstance *ChassisInit(Chassis_Init_Config_s *chassis_init_config)
     k4 = chassis_param.power_param.k4;
     k5 = chassis_param.power_param.k5;
 
-    lf_radius = sqrtf((half_track_width + center_gimbal_offset_x) * (half_track_width + center_gimbal_offset_x) +
-                      (half_wheel_base - center_gimbal_offset_y) * (half_wheel_base - center_gimbal_offset_y)) *
-                DEGREE_2_RAD;
-
-    rf_radius = sqrtf((half_track_width - center_gimbal_offset_x) * (half_track_width - center_gimbal_offset_x) +
-                      (half_wheel_base - center_gimbal_offset_y) * (half_wheel_base - center_gimbal_offset_y)) *
-                DEGREE_2_RAD;
-
-    lb_radius = sqrtf((half_track_width + center_gimbal_offset_x) * (half_track_width + center_gimbal_offset_x) +
-                      (half_wheel_base + center_gimbal_offset_y) * (half_wheel_base + center_gimbal_offset_y)) *
-                DEGREE_2_RAD;
-
-    rb_radius = sqrtf((half_track_width - center_gimbal_offset_x) * (half_track_width - center_gimbal_offset_x) +
-                      (half_wheel_base + center_gimbal_offset_y) * (half_wheel_base + center_gimbal_offset_y)) *
-                DEGREE_2_RAD;
-
     PIDInit(&follow_pid, &chassis_init_config->follow_pid);
+    PIDInit(&chassis_instance->vx_hold_pid, &chassis_init_config->vx_hold_pid);
+    PIDInit(&chassis_instance->vy_hold_pid, &chassis_init_config->vy_hold_pid);
+    PIDInit(&chassis_instance->wz_hold_pid, &chassis_init_config->wz_hold_pid);
+    chassis_instance->enable_speed_hold = chassis_init_config->enable_speed_hold;
 
     if (chassis_init_config->enable_yaw_hold)
     {
         PIDInit(&chassis_instance->yaw_hold_pid, &chassis_init_config->yaw_hold_pid);
-        chassis_instance->chassis_IMU = INS_Init(&chassis_init_config->imu_init_config);
     }
 
+    SpeedObserver_Init_Config_s observer_config = {
+        .filter = chassis_init_config->observer_config,
+        .wheel_base = chassis_param.wheel_base * 0.001f,
+        .track_width = chassis_param.track_width * 0.001f,
+        .wheel_radius = chassis_param.wheel_radius * 0.001f,
+        .reduction = chassis_param.wheel_reduction_ratio,
+        .imu_offset = {chassis_init_config->observer_imu_offset[0], chassis_init_config->observer_imu_offset[1]},
+        .sensor_timeout = chassis_init_config->observer_sensor_timeout,
+        .use_imu = chassis_init_config->observer_imu_calibrated,
+        .use_accel = chassis_init_config->observer_accel_enabled,
+    };
+    SpeedObserverInit(&chassis_instance->speed_observer, &observer_config);
+    if (chassis_init_config->enable_imu_sampling || chassis_init_config->observer_imu_calibrated || chassis_init_config->enable_yaw_hold)
+        chassis_instance->chassis_IMU = INS_Init(&chassis_init_config->imu_init_config);
+    DWT_GetDeltaT(&observer_clock);
     for (int i = 0; i < 4; i++)
     {
         chassis_init_config->wheel_motor_config[i].controller_setting_init_config.angle_feedback_source = MOTOR_FEED;
@@ -267,7 +354,8 @@ ChassisInstance *ChassisInit(Chassis_Init_Config_s *chassis_init_config)
 /* 机器人底盘控制核心任务 */
 void ChassisTask()
 {
-
+    chassis->yaw_hold_updated = 0u;
+    chassis->speed_hold_updated = 0u;
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_POWER_OFF)
     {
         // 如果出现重要模块离线或遥控器设置为急停,让电机停止
@@ -280,17 +368,17 @@ void ChassisTask()
         for (int i = 0; i < 4; i++)
             DJIMotorEnable(chassis->wheel_motor[i]);
     }
+    chassis_wz = chassis_ctrl_cmd->wz; // 局部叠加角度环，避免修改并累加外部目标
     // 根据控制模式设定旋转速度
     switch (chassis_ctrl_cmd->chassis_mode)
     {
     case CHASSIS_FOLLOW: // offset_angle 为云台相对底盘的逆时针偏角，PID 输出同向 wz
-        chassis_ctrl_cmd->wz += PIDCalculate(&follow_pid, chassis_ctrl_cmd->offset_angle, 0);
+        chassis_wz += PIDCalculate(&follow_pid, chassis_ctrl_cmd->offset_angle, 0);
         break;
     case CHASSIS_ROTATE: // 自旋,同时保持全向机动;当前wz维持定值,后续增加不规则的变速策略
-        // chassis_cmd_recv.wz = 4000;
         break;
     case CHASSIS_HOLD:
-        chassis_ctrl_cmd->wz += YawHoldCompensate();
+        chassis_wz += YawHoldCompensate();
         break;
     default:
         break;
@@ -314,8 +402,12 @@ void ChassisTask()
         chassis_vy = chassis_ctrl_cmd->vx * sin_theta + chassis_ctrl_cmd->vy * cos_theta;
     }
 
-    // 根据电机的反馈速度和IMU(如果有)计算真实速度
+    // 更新轮速正解与速度观测器，再在底盘机体系完成三轴速度外环。
     EstimateSpeed();
+    SpeedHoldControl();
+    if (chassis->speed_observer.valid) chassis->observer_telemetry.status |= (1u << 12);
+    if (chassis->speed_hold_active) chassis->observer_telemetry.status |= (1u << 13);
+    if (chassis->yaw_hold_updated) chassis->observer_telemetry.status |= (1u << 14);
 
     // 逆运动学解算，计算四轮速度参考
     OmniCalculate();

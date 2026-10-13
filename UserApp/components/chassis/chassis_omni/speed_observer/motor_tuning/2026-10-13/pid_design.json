@@ -1,0 +1,1162 @@
+{
+  "parameters": {
+    "Kp": 1.8,
+    "Ki": 8.0,
+    "Kd": 0,
+    "IntegralLimit": 6000,
+    "MaxOut": 16000,
+    "DeadBand": 0
+  },
+  "objective": "40% X + 40% Y + 20% spin; 60% small-signal tracking + 40% load-step recovery, normalized 1s IAE. Assumed PM>=45deg; nominal XY overshoot<=15%, spin<=25%; worst assumed step overshoot<=30%. Engineering weights, not user-specified thresholds.",
+  "grid_scope": "Kp 1.4..2.5 step .1; Ki 0,1,2,3.2,4,5,6,7,8,8.8,9.6,10,12,16,20. Grid optimum only, not proven global optimum.",
+  "top_candidates": [
+    {
+      "Kp": 1.8,
+      "Ki": 8.8,
+      "score": 0.08612944666167126,
+      "worst_assumed_PM": 45.20665392265289,
+      "cases": {
+        "vx": {
+          "overshoot_percent": 14.893043889557367,
+          "rise_ms": 69.0,
+          "settling_2percent_s": 0.545,
+          "normalized_IAE_1s": 0.0791368798333259
+        },
+        "vy": {
+          "overshoot_percent": 14.026925504710963,
+          "rise_ms": 63.0,
+          "settling_2percent_s": 0.527,
+          "normalized_IAE_1s": 0.07314000530569267
+        },
+        "wz": {
+          "overshoot_percent": 6.913778275391547,
+          "rise_ms": 30.000000000000007,
+          "settling_2percent_s": 0.342,
+          "normalized_IAE_1s": 0.03500945639884065
+        }
+      },
+      "load_disturbance": {
+        "vx": {
+          "normalized_IAE_1s": 0.11357387470251651,
+          "peak_speed_error_deg_s": 422.06399435942086,
+          "error_at_1s_deg_s": -0.5508425152632128
+        },
+        "vy": {
+          "normalized_IAE_1s": 0.11351463215728115,
+          "peak_speed_error_deg_s": 429.50786787218885,
+          "error_at_1s_deg_s": -0.9182001523337601
+        },
+        "wz": {
+          "normalized_IAE_1s": 0.1130962295359787,
+          "peak_speed_error_deg_s": 480.9380226194427,
+          "error_at_1s_deg_s": -2.9549607082925933
+        }
+      },
+      "worst_envelope_step": {
+        "overshoot_percent": 25.96524861579601,
+        "rise_ms": 12.0,
+        "settling_2percent_s": 0.256,
+        "normalized_IAE_1s": 0.03063055460712599
+      }
+    },
+    {
+      "Kp": 1.8,
+      "Ki": 8,
+      "score": 0.09099093295476376,
+      "worst_assumed_PM": 45.57628022508255,
+      "cases": {
+        "vx": {
+          "overshoot_percent": 13.914273205589645,
+          "rise_ms": 70.0,
+          "settling_2percent_s": 0.581,
+          "normalized_IAE_1s": 0.08012114575782528
+        },
+        "vy": {
+          "overshoot_percent": 13.086758111670305,
+          "rise_ms": 64.0,
+          "settling_2percent_s": 0.56,
+          "normalized_IAE_1s": 0.07398614215287552
+        },
+        "wz": {
+          "overshoot_percent": 6.254581444227081,
+          "rise_ms": 30.000000000000007,
+          "settling_2percent_s": 0.35000000000000003,
+          "normalized_IAE_1s": 0.03490632072714709
+        }
+      },
+      "load_disturbance": {
+        "vx": {
+          "normalized_IAE_1s": 0.1247354371869698,
+          "peak_speed_error_deg_s": 427.87811471903143,
+          "error_at_1s_deg_s": -1.8178646789236437
+        },
+        "vy": {
+          "normalized_IAE_1s": 0.12463174572052876,
+          "peak_speed_error_deg_s": 435.1010241290641,
+          "error_at_1s_deg_s": -2.3298060079018676
+        },
+        "wz": {
+          "normalized_IAE_1s": 0.12397095129672668,
+          "peak_speed_error_deg_s": 484.2986810967246,
+          "error_at_1s_deg_s": -5.048223818498405
+        }
+      },
+      "worst_envelope_step": {
+        "overshoot_percent": 25.26016049940816,
+        "rise_ms": 12.0,
+        "settling_2percent_s": 0.26,
+        "normalized_IAE_1s": 0.030614015053778202
+      }
+    },
+    {
+      "Kp": 1.8,
+      "Ki": 7,
+      "score": 0.09826738096151812,
+      "worst_assumed_PM": 46.03712844304254,
+      "cases": {
+        "vx": {
+          "overshoot_percent": 12.629110412209265,
+          "rise_ms": 73.00000000000001,
+          "settling_2percent_s": 0.632,
+          "normalized_IAE_1s": 0.0812820567651873
+        },
+        "vy": {
+          "overshoot_percent": 11.855126294014017,
+          "rise_ms": 66.0,
+          "settling_2percent_s": 0.609,
+          "normalized_IAE_1s": 0.07497682269549683
+        },
+        "wz": {
+          "overshoot_percent": 5.409262610176224,
+          "rise_ms": 31.0,
+          "settling_2percent_s": 0.356,
+          "normalized_IAE_1s": 0.034638789232565
+        }
+      },
+      "load_disturbance": {
+        "vx": {
+          "normalized_IAE_1s": 0.141850140572388,
+          "peak_speed_error_deg_s": 435.79207130776336,
+          "error_at_1s_deg_s": -5.443915042741826
+        },
+        "vy": {
+          "normalized_IAE_1s": 0.14166871669836908,
+          "peak_speed_error_deg_s": 442.71736068125506,
+          "error_at_1s_deg_s": -6.110492361957692
+        },
+        "wz": {
+          "normalized_IAE_1s": 0.14056972524656236,
+          "peak_speed_error_deg_s": 488.8463852098635,
+          "error_at_1s_deg_s": -9.658407083385898
+        }
+      },
+      "worst_envelope_step": {
+        "overshoot_percent": 24.37781714808789,
+        "rise_ms": 12.0,
+        "settling_2percent_s": 0.263,
+        "normalized_IAE_1s": 0.030547725215241288
+      }
+    },
+    {
+      "Kp": 1.7,
+      "Ki": 7,
+      "score": 0.10036484634043827,
+      "worst_assumed_PM": 47.87389205591885,
+      "cases": {
+        "vx": {
+          "overshoot_percent": 13.670167410591239,
+          "rise_ms": 75.00000000000001,
+          "settling_2percent_s": 0.624,
+          "normalized_IAE_1s": 0.08484782001780941
+        },
+        "vy": {
+          "overshoot_percent": 12.850940104957553,
+          "rise_ms": 69.0,
+          "settling_2percent_s": 0.601,
+          "normalized_IAE_1s": 0.07832561672452232
+        },
+        "wz": {
+          "overshoot_percent": 5.998495604726362,
+          "rise_ms": 33.0,
+          "settling_2percent_s": 0.37,
+          "normalized_IAE_1s": 0.036623655979153964
+        }
+      },
+      "load_disturbance": {
+        "vx": {
+          "normalized_IAE_1s": 0.1423228172978445,
+          "peak_speed_error_deg_s": 453.26953760325824,
+          "error_at_1s_deg_s": -3.3408661238300916
+        },
+        "vy": {
+          "normalized_IAE_1s": 0.14215682244594202,
+          "peak_speed_error_deg_s": 460.80314524597037,
+          "error_at_1s_deg_s": -4.057467386667665
+        },
+        "wz": {
+          "normalized_IAE_1s": 0.14114550557217911,
+          "peak_speed_error_deg_s": 510.9879522976462,
+          "error_at_1s_deg_s": -7.750437402787548
+        }
+      },
+      "worst_envelope_step": {
+        "overshoot_percent": 21.675591763147285,
+        "rise_ms": 12.999999999999998,
+        "settling_2percent_s": 0.278,
+        "normalized_IAE_1s": 0.03148642104369491
+      }
+    },
+    {
+      "Kp": 1.6,
+      "Ki": 7,
+      "score": 0.10255520171972542,
+      "worst_assumed_PM": 49.64446694284204,
+      "cases": {
+        "vx": {
+          "overshoot_percent": 14.839548767073275,
+          "rise_ms": 78.0,
+          "settling_2percent_s": 0.613,
+          "normalized_IAE_1s": 0.0886576262694863
+        },
+        "vy": {
+          "overshoot_percent": 13.971964613160237,
+          "rise_ms": 72.00000000000001,
+          "settling_2percent_s": 0.592,
+          "normalized_IAE_1s": 0.08191125881928965
+        },
+        "wz": {
+          "overshoot_percent": 6.677218300284715,
+          "rise_ms": 35.0,
+          "settling_2percent_s": 0.381,
+          "normalized_IAE_1s": 0.03878559354190774
+        }
+      },
+      "load_disturbance": {
+        "vx": {
+          "normalized_IAE_1s": 0.14267525799245964,
+          "peak_speed_error_deg_s": 472.1380751624904,
+          "error_at_1s_deg_s": -1.4682589156480184
+        },
+        "vy": {
+          "normalized_IAE_1s": 0.14253272832091743,
+          "peak_speed_error_deg_s": 480.358283191092,
+          "error_at_1s_deg_s": -2.2160206985021835
+        },
+        "wz": {
+          "normalized_IAE_1s": 0.1416390032906239,
+          "peak_speed_error_deg_s": 535.198151512558,
+          "error_at_1s_deg_s": -5.954949403113618
+        }
+      },
+      "worst_envelope_step": {
+        "overshoot_percent": 19.15406120080725,
+        "rise_ms": 13.999999999999998,
+        "settling_2percent_s": 0.29,
+        "normalized_IAE_1s": 0.03254450507569632
+      }
+    },
+    {
+      "Kp": 1.8,
+      "Ki": 6,
+      "score": 0.10723364231277023,
+      "worst_assumed_PM": 46.496528178976675,
+      "cases": {
+        "vx": {
+          "overshoot_percent": 11.26580077939401,
+          "rise_ms": 75.00000000000001,
+          "settling_2percent_s": 0.6940000000000001,
+          "normalized_IAE_1s": 0.08220921019608639
+        },
+        "vy": {
+          "overshoot_percent": 10.55243264464032,
+          "rise_ms": 69.0,
+          "settling_2percent_s": 0.666,
+          "normalized_IAE_1s": 0.07575516805555808
+        },
+        "wz": {
+          "overshoot_percent": 4.53655434145499,
+          "rise_ms": 32.0,
+          "settling_2percent_s": 0.355,
+          "normalized_IAE_1s": 0.03412688898652812
+        }
+      },
+      "load_disturbance": {
+        "vx": {
+          "normalized_IAE_1s": 0.16357752661877506,
+          "peak_speed_error_deg_s": 444.57055733807016,
+          "error_at_1s_deg_s": -13.28421565117527
+        },
+        "vy": {
+          "normalized_IAE_1s": 0.16329708154120315,
+          "peak_speed_error_deg_s": 451.1542757413626,
+          "error_at_1s_deg_s": -14.010022032792909
+        },
+        "wz": {
+          "normalized_IAE_1s": 0.1615878443549458,
+          "peak_speed_error_deg_s": 493.78163918994454,
+          "error_at_1s_deg_s": -18.09346941227959
+        }
+      },
+      "worst_envelope_step": {
+        "overshoot_percent": 23.50812132515121,
+        "rise_ms": 12.0,
+        "settling_2percent_s": 0.26,
+        "normalized_IAE_1s": 0.03039378347621824
+      }
+    },
+    {
+      "Kp": 1.7,
+      "Ki": 6,
+      "score": 0.10968624489839755,
+      "worst_assumed_PM": 48.388631969246745,
+      "cases": {
+        "vx": {
+          "overshoot_percent": 12.222168126369514,
+          "rise_ms": 78.0,
+          "settling_2percent_s": 0.687,
+          "normalized_IAE_1s": 0.08606432497456293
+        },
+        "vy": {
+          "overshoot_percent": 11.464483360057699,
+          "rise_ms": 72.00000000000001,
+          "settling_2percent_s": 0.661,
+          "normalized_IAE_1s": 0.07935886076785202
+        },
+        "wz": {
+          "overshoot_percent": 5.05542973364268,
+          "rise_ms": 34.0,
+          "settling_2percent_s": 0.375,
+          "normalized_IAE_1s": 0.0361993378376849
+        }
+      },
+      "load_disturbance": {
+        "vx": {
+          "normalized_IAE_1s": 0.16460292738848048,
+          "peak_speed_error_deg_s": 462.9442481957811,
+          "error_at_1s_deg_s": -9.906547443630895
+        },
+        "vy": {
+          "normalized_IAE_1s": 0.16432389660889243,
+          "peak_speed_error_deg_s": 470.1225911189067,
+          "error_at_1s_deg_s": -10.751944391913213
+        },
+        "wz": {
+          "normalized_IAE_1s": 0.16265584925145127,
+          "peak_speed_error_deg_s": 516.6327697234437,
+          "error_at_1s_deg_s": -15.284810468860796
+        }
+      },
+      "worst_envelope_step": {
+        "overshoot_percent": 20.739390059155973,
+        "rise_ms": 12.999999999999998,
+        "settling_2percent_s": 0.28,
+        "normalized_IAE_1s": 0.03136139142120094
+      }
+    },
+    {
+      "Kp": 1.6,
+      "Ki": 6,
+      "score": 0.11224002757579635,
+      "worst_assumed_PM": 50.22508748865251,
+      "cases": {
+        "vx": {
+          "overshoot_percent": 13.300456831088248,
+          "rise_ms": 81.0,
+          "settling_2percent_s": 0.677,
+          "normalized_IAE_1s": 0.09020333707835529
+        },
+        "vy": {
+          "overshoot_percent": 12.495072274809838,
+          "rise_ms": 75.00000000000001,
+          "settling_2percent_s": 0.653,
+          "normalized_IAE_1s": 0.08323423753313754
+        },
+        "wz": {
+          "overshoot_percent": 5.6545650312683104,
+          "rise_ms": 36.00000000000001,
+          "settling_2percent_s": 0.392,
+          "normalized_IAE_1s": 0.03846294285969127
+        }
+      },
+      "load_disturbance": {
+        "vx": {
+          "normalized_IAE_1s": 0.1654786457977874,
+          "peak_speed_error_deg_s": 482.7987997509719,
+          "error_at_1s_deg_s": -6.575329445949675
+        },
+        "vy": {
+          "normalized_IAE_1s": 0.1652087886415256,
+          "peak_speed_error_deg_s": 490.64967434085685,
+          "error_at_1s_deg_s": -7.546574666392267
+        },
+        "wz": {
+          "normalized_IAE_1s": 0.1636183376948129,
+          "peak_speed_error_deg_s": 541.6599150985277,
+          "error_at_1s_deg_s": -12.501109653539363
+        }
+      },
+      "worst_envelope_step": {
+        "overshoot_percent": 18.13420393281968,
+        "rise_ms": 13.999999999999998,
+        "settling_2percent_s": 0.297,
+        "normalized_IAE_1s": 0.0324512300984554
+      }
+    }
+  ],
+  "grid_best": {
+    "Kp": 1.8,
+    "Ki": 8.8
+  },
+  "recommendation_note": "Integral gain rounded down from grid optimum for first hardware validation; no firmware parameters were changed.",
+  "recommended_nominal_cases": {
+    "vx": {
+      "overshoot_percent": 13.914273205589645,
+      "rise_ms": 70.0,
+      "settling_2percent_s": 0.581,
+      "normalized_IAE_1s": 0.08012114575782528
+    },
+    "vy": {
+      "overshoot_percent": 13.086758111670305,
+      "rise_ms": 64.0,
+      "settling_2percent_s": 0.56,
+      "normalized_IAE_1s": 0.07398614215287552
+    },
+    "wz": {
+      "overshoot_percent": 6.254581444227081,
+      "rise_ms": 30.000000000000007,
+      "settling_2percent_s": 0.35000000000000003,
+      "normalized_IAE_1s": 0.03490632072714709
+    }
+  },
+  "recommended_load_recovery": {
+    "vx": {
+      "normalized_IAE_1s": 0.1247354371869698,
+      "peak_speed_error_deg_s": 427.87811471903143,
+      "error_at_1s_deg_s": -1.8178646789236437
+    },
+    "vy": {
+      "normalized_IAE_1s": 0.12463174572052876,
+      "peak_speed_error_deg_s": 435.1010241290641,
+      "error_at_1s_deg_s": -2.3298060079018676
+    },
+    "wz": {
+      "normalized_IAE_1s": 0.12397095129672668,
+      "peak_speed_error_deg_s": 484.2986810967246,
+      "error_at_1s_deg_s": -5.048223818498405
+    }
+  },
+  "model": "d(v)/dt = g*u - a*v - friction*sign(v) + constant; v=rotor deg/s, u=current code",
+  "physical_modal_fits_40ms": {
+    "vx": {
+      "g": 10.42806825456354,
+      "a": 0.0,
+      "friction": 28746.42969142067,
+      "constant": 1173.4762366889427,
+      "r2": 0.6233768054218618,
+      "heldout_r2": 0.5300683329557548
+    },
+    "vy": {
+      "g": 11.454823082433697,
+      "a": 0.0,
+      "friction": 31915.389314870063,
+      "constant": -277.0131847396043,
+      "r2": 0.7144351846220165,
+      "heldout_r2": 0.7412449608307408
+    },
+    "wz": {
+      "g": 24.424735073872245,
+      "a": 0.7457215005759732,
+      "friction": 12946.665150432027,
+      "constant": 63.25771414210761,
+      "r2": 0.7479481668998402,
+      "heldout_r2": 0.7497829274296295
+    }
+  },
+  "individual_rotation_fits_40ms": [
+    {
+      "id": 1,
+      "g": 25.448308052999536,
+      "a": 0.980528587842441,
+      "friction": 17488.14075126108,
+      "constant": -6139.934132052064,
+      "r2": 0.7162964643896423
+    },
+    {
+      "id": 2,
+      "g": 23.460229937053782,
+      "a": 0.17553827226779564,
+      "friction": 14030.06804019296,
+      "constant": -1738.9619766990597,
+      "r2": 0.6670104284421746
+    },
+    {
+      "id": 3,
+      "g": 26.269880069174523,
+      "a": 0.7892634607760355,
+      "friction": 12844.007778132529,
+      "constant": 4796.633331244601,
+      "r2": 0.7162965416340387
+    },
+    {
+      "id": 4,
+      "g": 21.09465446459821,
+      "a": 0.9131849467827339,
+      "friction": 8060.2618643822525,
+      "constant": 2945.103164605521,
+      "r2": 0.6245959737382691
+    }
+  ],
+  "current_and_transport_envelope": "assumed current time constant 0.5..2ms, effective delay 2..8ms including 2ms CAN hold. Simulation uses 2..6ms transport plus hold. Not measured worst-case bounds.",
+  "old_model_margins": {
+    "assumed_models": 90,
+    "min_phase_margin": {
+      "g": 40,
+      "a": 0,
+      "delay_ms": 8.0,
+      "current_tau_ms": 2.0,
+      "crossover_Hz": 24.350301947022313,
+      "phase_margin_deg": 2.857286010672169,
+      "gain_margin_dB": 0.308532614141924
+    },
+    "min_gain_margin": {
+      "g": 40,
+      "a": 0,
+      "delay_ms": 8.0,
+      "current_tau_ms": 2.0,
+      "crossover_Hz": 24.350301947022313,
+      "phase_margin_deg": 2.857286010672169,
+      "gain_margin_dB": 0.308532614141924
+    },
+    "crossover_range_Hz": [
+      5.077015021786518,
+      25.38420416483355
+    ]
+  },
+  "candidate_model_margins": {
+    "assumed_models": 90,
+    "min_phase_margin": {
+      "g": 40,
+      "a": 0,
+      "delay_ms": 8.0,
+      "current_tau_ms": 2.0,
+      "crossover_Hz": 11.365977907375386,
+      "phase_margin_deg": 45.576278027436445,
+      "gain_margin_dB": 7.064558826666593
+    },
+    "min_gain_margin": {
+      "g": 40,
+      "a": 0,
+      "delay_ms": 8.0,
+      "current_tau_ms": 2.0,
+      "crossover_Hz": 11.365977907375386,
+      "phase_margin_deg": 45.576278027436445,
+      "gain_margin_dB": 7.064558826666593
+    },
+    "crossover_range_Hz": [
+      2.3780504481839473,
+      11.47346199317351
+    ]
+  },
+  "simulation_cases": [
+    {
+      "g": 8,
+      "a": 0,
+      "transport_delay_ms": 2,
+      "current_tau_ms": 0.5,
+      "overshoot_percent": 16.16550111908537,
+      "rise_ms": 90.00000000000001,
+      "settling_2percent_s": 0.642,
+      "normalized_IAE_1s": 0.09919623556967751
+    },
+    {
+      "g": 8,
+      "a": 0,
+      "transport_delay_ms": 2,
+      "current_tau_ms": 2,
+      "overshoot_percent": 16.444081386613263,
+      "rise_ms": 88.00000000000001,
+      "settling_2percent_s": 0.638,
+      "normalized_IAE_1s": 0.1000444936208275
+    },
+    {
+      "g": 8,
+      "a": 0,
+      "transport_delay_ms": 6,
+      "current_tau_ms": 0.5,
+      "overshoot_percent": 16.998985851501747,
+      "rise_ms": 83.0,
+      "settling_2percent_s": 0.632,
+      "normalized_IAE_1s": 0.10171418707050114
+    },
+    {
+      "g": 8,
+      "a": 0,
+      "transport_delay_ms": 6,
+      "current_tau_ms": 2,
+      "overshoot_percent": 17.325347714748407,
+      "rise_ms": 82.0,
+      "settling_2percent_s": 0.628,
+      "normalized_IAE_1s": 0.10268002194684409
+    },
+    {
+      "g": 8,
+      "a": 0.75,
+      "transport_delay_ms": 2,
+      "current_tau_ms": 0.5,
+      "overshoot_percent": 12.529450093583705,
+      "rise_ms": 95.0,
+      "settling_2percent_s": 0.638,
+      "normalized_IAE_1s": 0.09088016656490566
+    },
+    {
+      "g": 8,
+      "a": 0.75,
+      "transport_delay_ms": 2,
+      "current_tau_ms": 2,
+      "overshoot_percent": 12.754490088967119,
+      "rise_ms": 93.00000000000001,
+      "settling_2percent_s": 0.635,
+      "normalized_IAE_1s": 0.09164421822743515
+    },
+    {
+      "g": 8,
+      "a": 0.75,
+      "transport_delay_ms": 6,
+      "current_tau_ms": 0.5,
+      "overshoot_percent": 13.202543927816945,
+      "rise_ms": 88.00000000000001,
+      "settling_2percent_s": 0.629,
+      "normalized_IAE_1s": 0.09314386406079035
+    },
+    {
+      "g": 8,
+      "a": 0.75,
+      "transport_delay_ms": 6,
+      "current_tau_ms": 2,
+      "overshoot_percent": 13.466304013277753,
+      "rise_ms": 86.0,
+      "settling_2percent_s": 0.626,
+      "normalized_IAE_1s": 0.09401290222115644
+    },
+    {
+      "g": 8,
+      "a": 1.5,
+      "transport_delay_ms": 2,
+      "current_tau_ms": 0.5,
+      "overshoot_percent": 9.208613724052327,
+      "rise_ms": 101.0,
+      "settling_2percent_s": 0.62,
+      "normalized_IAE_1s": 0.08314856644688232
+    },
+    {
+      "g": 8,
+      "a": 1.5,
+      "transport_delay_ms": 2,
+      "current_tau_ms": 2,
+      "overshoot_percent": 9.384080252039606,
+      "rise_ms": 99.0,
+      "settling_2percent_s": 0.617,
+      "normalized_IAE_1s": 0.08381297919285836
+    },
+    {
+      "g": 8,
+      "a": 1.5,
+      "transport_delay_ms": 6,
+      "current_tau_ms": 0.5,
+      "overshoot_percent": 9.732912356422174,
+      "rise_ms": 94.0,
+      "settling_2percent_s": 0.611,
+      "normalized_IAE_1s": 0.08511427322067253
+    },
+    {
+      "g": 8,
+      "a": 1.5,
+      "transport_delay_ms": 6,
+      "current_tau_ms": 2,
+      "overshoot_percent": 9.938834360615179,
+      "rise_ms": 92.0,
+      "settling_2percent_s": 0.608,
+      "normalized_IAE_1s": 0.08587003148886468
+    },
+    {
+      "g": 13,
+      "a": 0,
+      "transport_delay_ms": 2,
+      "current_tau_ms": 0.5,
+      "overshoot_percent": 11.75927585380876,
+      "rise_ms": 60.00000000000001,
+      "settling_2percent_s": 0.535,
+      "normalized_IAE_1s": 0.06563593102564863
+    },
+    {
+      "g": 13,
+      "a": 0,
+      "transport_delay_ms": 2,
+      "current_tau_ms": 2,
+      "overshoot_percent": 12.029259063173514,
+      "rise_ms": 58.0,
+      "settling_2percent_s": 0.533,
+      "normalized_IAE_1s": 0.06639620693397573
+    },
+    {
+      "g": 13,
+      "a": 0,
+      "transport_delay_ms": 6,
+      "current_tau_ms": 0.5,
+      "overshoot_percent": 12.586566898917063,
+      "rise_ms": 53.00000000000001,
+      "settling_2percent_s": 0.528,
+      "normalized_IAE_1s": 0.06793575803645843
+    },
+    {
+      "g": 13,
+      "a": 0,
+      "transport_delay_ms": 6,
+      "current_tau_ms": 2,
+      "overshoot_percent": 12.945788811960025,
+      "rise_ms": 51.00000000000001,
+      "settling_2percent_s": 0.526,
+      "normalized_IAE_1s": 0.06889448704777949
+    },
+    {
+      "g": 13,
+      "a": 0.75,
+      "transport_delay_ms": 2,
+      "current_tau_ms": 0.5,
+      "overshoot_percent": 9.318358318647956,
+      "rise_ms": 63.0,
+      "settling_2percent_s": 0.512,
+      "normalized_IAE_1s": 0.060185223662767316
+    },
+    {
+      "g": 13,
+      "a": 0.75,
+      "transport_delay_ms": 2,
+      "current_tau_ms": 2,
+      "overshoot_percent": 9.541069298876614,
+      "rise_ms": 60.00000000000001,
+      "settling_2percent_s": 0.509,
+      "normalized_IAE_1s": 0.06086297830872262
+    },
+    {
+      "g": 13,
+      "a": 0.75,
+      "transport_delay_ms": 6,
+      "current_tau_ms": 0.5,
+      "overshoot_percent": 9.999778804026471,
+      "rise_ms": 55.00000000000001,
+      "settling_2percent_s": 0.505,
+      "normalized_IAE_1s": 0.06223487911402483
+    },
+    {
+      "g": 13,
+      "a": 0.75,
+      "transport_delay_ms": 6,
+      "current_tau_ms": 2,
+      "overshoot_percent": 10.296451678338393,
+      "rise_ms": 53.00000000000001,
+      "settling_2percent_s": 0.502,
+      "normalized_IAE_1s": 0.06309263395810706
+    },
+    {
+      "g": 13,
+      "a": 1.5,
+      "transport_delay_ms": 2,
+      "current_tau_ms": 0.5,
+      "overshoot_percent": 7.027665481919398,
+      "rise_ms": 65.99999999999999,
+      "settling_2percent_s": 0.47600000000000003,
+      "normalized_IAE_1s": 0.05499790766645686
+    },
+    {
+      "g": 13,
+      "a": 1.5,
+      "transport_delay_ms": 2,
+      "current_tau_ms": 2,
+      "overshoot_percent": 7.204009088725005,
+      "rise_ms": 63.0,
+      "settling_2percent_s": 0.47400000000000003,
+      "normalized_IAE_1s": 0.05558331177175505
+    },
+    {
+      "g": 13,
+      "a": 1.5,
+      "transport_delay_ms": 6,
+      "current_tau_ms": 0.5,
+      "overshoot_percent": 7.567868820950352,
+      "rise_ms": 58.00000000000001,
+      "settling_2percent_s": 0.46900000000000003,
+      "normalized_IAE_1s": 0.05676463373750793
+    },
+    {
+      "g": 13,
+      "a": 1.5,
+      "transport_delay_ms": 6,
+      "current_tau_ms": 2,
+      "overshoot_percent": 7.804256556596223,
+      "rise_ms": 55.00000000000001,
+      "settling_2percent_s": 0.467,
+      "normalized_IAE_1s": 0.0575081525678421
+    },
+    {
+      "g": 23,
+      "a": 0,
+      "transport_delay_ms": 2,
+      "current_tau_ms": 0.5,
+      "overshoot_percent": 7.800775186787723,
+      "rise_ms": 34.0,
+      "settling_2percent_s": 0.402,
+      "normalized_IAE_1s": 0.03955485583628654
+    },
+    {
+      "g": 23,
+      "a": 0,
+      "transport_delay_ms": 2,
+      "current_tau_ms": 2,
+      "overshoot_percent": 8.082818155171111,
+      "rise_ms": 32.0,
+      "settling_2percent_s": 0.4,
+      "normalized_IAE_1s": 0.04027127705752223
+    },
+    {
+      "g": 23,
+      "a": 0,
+      "transport_delay_ms": 6,
+      "current_tau_ms": 0.5,
+      "overshoot_percent": 8.785509104730371,
+      "rise_ms": 26.000000000000004,
+      "settling_2percent_s": 0.397,
+      "normalized_IAE_1s": 0.04193628883569262
+    },
+    {
+      "g": 23,
+      "a": 0,
+      "transport_delay_ms": 6,
+      "current_tau_ms": 2,
+      "overshoot_percent": 9.628087033833355,
+      "rise_ms": 24.0,
+      "settling_2percent_s": 0.395,
+      "normalized_IAE_1s": 0.04330747843607707
+    },
+    {
+      "g": 23,
+      "a": 0.75,
+      "transport_delay_ms": 2,
+      "current_tau_ms": 0.5,
+      "overshoot_percent": 6.285548191619306,
+      "rise_ms": 36.00000000000001,
+      "settling_2percent_s": 0.367,
+      "normalized_IAE_1s": 0.03621029166239505
+    },
+    {
+      "g": 23,
+      "a": 0.75,
+      "transport_delay_ms": 2,
+      "current_tau_ms": 2,
+      "overshoot_percent": 6.521557791687682,
+      "rise_ms": 33.0,
+      "settling_2percent_s": 0.365,
+      "normalized_IAE_1s": 0.036846871032361145
+    },
+    {
+      "g": 23,
+      "a": 0.75,
+      "transport_delay_ms": 6,
+      "current_tau_ms": 0.5,
+      "overshoot_percent": 7.111935970931005,
+      "rise_ms": 27.000000000000004,
+      "settling_2percent_s": 0.361,
+      "normalized_IAE_1s": 0.038331783691995754
+    },
+    {
+      "g": 23,
+      "a": 0.75,
+      "transport_delay_ms": 6,
+      "current_tau_ms": 2,
+      "overshoot_percent": 7.859860387412332,
+      "rise_ms": 25.0,
+      "settling_2percent_s": 0.359,
+      "normalized_IAE_1s": 0.039600646784700363
+    },
+    {
+      "g": 23,
+      "a": 1.5,
+      "transport_delay_ms": 2,
+      "current_tau_ms": 0.5,
+      "overshoot_percent": 4.829576025949289,
+      "rise_ms": 37.00000000000001,
+      "settling_2percent_s": 0.321,
+      "normalized_IAE_1s": 0.03295985391620341
+    },
+    {
+      "g": 23,
+      "a": 1.5,
+      "transport_delay_ms": 2,
+      "current_tau_ms": 2,
+      "overshoot_percent": 5.01926959855028,
+      "rise_ms": 34.0,
+      "settling_2percent_s": 0.319,
+      "normalized_IAE_1s": 0.03350561420135061
+    },
+    {
+      "g": 23,
+      "a": 1.5,
+      "transport_delay_ms": 6,
+      "current_tau_ms": 0.5,
+      "overshoot_percent": 5.497250121198771,
+      "rise_ms": 27.999999999999996,
+      "settling_2percent_s": 0.315,
+      "normalized_IAE_1s": 0.0347867571483584
+    },
+    {
+      "g": 23,
+      "a": 1.5,
+      "transport_delay_ms": 6,
+      "current_tau_ms": 2,
+      "overshoot_percent": 6.146226429597479,
+      "rise_ms": 26.000000000000004,
+      "settling_2percent_s": 0.313,
+      "normalized_IAE_1s": 0.03593575863811712
+    },
+    {
+      "g": 35,
+      "a": 0,
+      "transport_delay_ms": 2,
+      "current_tau_ms": 0.5,
+      "overshoot_percent": 5.658714911953555,
+      "rise_ms": 21.0,
+      "settling_2percent_s": 0.3,
+      "normalized_IAE_1s": 0.026827658398330446
+    },
+    {
+      "g": 35,
+      "a": 0,
+      "transport_delay_ms": 2,
+      "current_tau_ms": 2,
+      "overshoot_percent": 6.086515174075879,
+      "rise_ms": 19.0,
+      "settling_2percent_s": 0.298,
+      "normalized_IAE_1s": 0.027701552773891688
+    },
+    {
+      "g": 35,
+      "a": 0,
+      "transport_delay_ms": 6,
+      "current_tau_ms": 0.5,
+      "overshoot_percent": 11.677301997504475,
+      "rise_ms": 13.999999999999998,
+      "settling_2percent_s": 0.295,
+      "normalized_IAE_1s": 0.030585906211825633
+    },
+    {
+      "g": 35,
+      "a": 0,
+      "transport_delay_ms": 6,
+      "current_tau_ms": 2,
+      "overshoot_percent": 18.553972473854465,
+      "rise_ms": 13.999999999999998,
+      "settling_2percent_s": 0.293,
+      "normalized_IAE_1s": 0.0328272896443726
+    },
+    {
+      "g": 35,
+      "a": 0.75,
+      "transport_delay_ms": 2,
+      "current_tau_ms": 0.5,
+      "overshoot_percent": 4.59357130741278,
+      "rise_ms": 22.000000000000004,
+      "settling_2percent_s": 0.26,
+      "normalized_IAE_1s": 0.024486741084444517
+    },
+    {
+      "g": 35,
+      "a": 0.75,
+      "transport_delay_ms": 2,
+      "current_tau_ms": 2,
+      "overshoot_percent": 4.957815746093552,
+      "rise_ms": 19.0,
+      "settling_2percent_s": 0.259,
+      "normalized_IAE_1s": 0.025271049733655498
+    },
+    {
+      "g": 35,
+      "a": 0.75,
+      "transport_delay_ms": 6,
+      "current_tau_ms": 0.5,
+      "overshoot_percent": 10.472633050234425,
+      "rise_ms": 13.999999999999998,
+      "settling_2percent_s": 0.255,
+      "normalized_IAE_1s": 0.028032376848710513
+    },
+    {
+      "g": 35,
+      "a": 0.75,
+      "transport_delay_ms": 6,
+      "current_tau_ms": 2,
+      "overshoot_percent": 17.240923036581602,
+      "rise_ms": 13.999999999999998,
+      "settling_2percent_s": 0.253,
+      "normalized_IAE_1s": 0.030257694228527077
+    },
+    {
+      "g": 35,
+      "a": 1.5,
+      "transport_delay_ms": 2,
+      "current_tau_ms": 0.5,
+      "overshoot_percent": 3.5560582132086127,
+      "rise_ms": 22.000000000000004,
+      "settling_2percent_s": 0.21,
+      "normalized_IAE_1s": 0.022185998570665263
+    },
+    {
+      "g": 35,
+      "a": 1.5,
+      "transport_delay_ms": 2,
+      "current_tau_ms": 2,
+      "overshoot_percent": 3.8561209939237395,
+      "rise_ms": 19.0,
+      "settling_2percent_s": 0.20800000000000002,
+      "normalized_IAE_1s": 0.02286880431741531
+    },
+    {
+      "g": 35,
+      "a": 1.5,
+      "transport_delay_ms": 6,
+      "current_tau_ms": 0.5,
+      "overshoot_percent": 9.288229491475718,
+      "rise_ms": 15.0,
+      "settling_2percent_s": 0.20500000000000002,
+      "normalized_IAE_1s": 0.02548097729192594
+    },
+    {
+      "g": 35,
+      "a": 1.5,
+      "transport_delay_ms": 6,
+      "current_tau_ms": 2,
+      "overshoot_percent": 15.949262933972964,
+      "rise_ms": 13.999999999999998,
+      "settling_2percent_s": 0.203,
+      "normalized_IAE_1s": 0.027690350796423655
+    },
+    {
+      "g": 40,
+      "a": 0,
+      "transport_delay_ms": 2,
+      "current_tau_ms": 0.5,
+      "overshoot_percent": 5.107946053337531,
+      "rise_ms": 17.0,
+      "settling_2percent_s": 0.267,
+      "normalized_IAE_1s": 0.023660919961985053
+    },
+    {
+      "g": 40,
+      "a": 0,
+      "transport_delay_ms": 2,
+      "current_tau_ms": 2,
+      "overshoot_percent": 5.953541926677874,
+      "rise_ms": 15.0,
+      "settling_2percent_s": 0.265,
+      "normalized_IAE_1s": 0.024710691877151986
+    },
+    {
+      "g": 40,
+      "a": 0,
+      "transport_delay_ms": 6,
+      "current_tau_ms": 0.5,
+      "overshoot_percent": 16.787557690744404,
+      "rise_ms": 12.0,
+      "settling_2percent_s": 0.262,
+      "normalized_IAE_1s": 0.028253517495041822
+    },
+    {
+      "g": 40,
+      "a": 0,
+      "transport_delay_ms": 6,
+      "current_tau_ms": 2,
+      "overshoot_percent": 25.26016049940816,
+      "rise_ms": 12.0,
+      "settling_2percent_s": 0.26,
+      "normalized_IAE_1s": 0.030614015053778202
+    },
+    {
+      "g": 40,
+      "a": 0.75,
+      "transport_delay_ms": 2,
+      "current_tau_ms": 0.5,
+      "overshoot_percent": 4.152002203238703,
+      "rise_ms": 18.0,
+      "settling_2percent_s": 0.226,
+      "normalized_IAE_1s": 0.02156923960023388
+    },
+    {
+      "g": 40,
+      "a": 0.75,
+      "transport_delay_ms": 2,
+      "current_tau_ms": 2,
+      "overshoot_percent": 4.928015013456166,
+      "rise_ms": 15.0,
+      "settling_2percent_s": 0.225,
+      "normalized_IAE_1s": 0.022530395076480574
+    },
+    {
+      "g": 40,
+      "a": 0.75,
+      "transport_delay_ms": 6,
+      "current_tau_ms": 0.5,
+      "overshoot_percent": 15.64293412212756,
+      "rise_ms": 12.0,
+      "settling_2percent_s": 0.221,
+      "normalized_IAE_1s": 0.025990368541384697
+    },
+    {
+      "g": 40,
+      "a": 0.75,
+      "transport_delay_ms": 6,
+      "current_tau_ms": 2,
+      "overshoot_percent": 23.97722599764407,
+      "rise_ms": 12.0,
+      "settling_2percent_s": 0.22,
+      "normalized_IAE_1s": 0.02834935839233103
+    },
+    {
+      "g": 40,
+      "a": 1.5,
+      "transport_delay_ms": 2,
+      "current_tau_ms": 0.5,
+      "overshoot_percent": 3.2192726430671614,
+      "rise_ms": 18.0,
+      "settling_2percent_s": 0.17500000000000002,
+      "normalized_IAE_1s": 0.019503936352642474
+    },
+    {
+      "g": 40,
+      "a": 1.5,
+      "transport_delay_ms": 2,
+      "current_tau_ms": 2,
+      "overshoot_percent": 3.9227930721813964,
+      "rise_ms": 16.0,
+      "settling_2percent_s": 0.17300000000000001,
+      "normalized_IAE_1s": 0.020365951421909754
+    },
+    {
+      "g": 40,
+      "a": 1.5,
+      "transport_delay_ms": 6,
+      "current_tau_ms": 0.5,
+      "overshoot_percent": 14.514748550011024,
+      "rise_ms": 12.0,
+      "settling_2percent_s": 0.17,
+      "normalized_IAE_1s": 0.023729110209739317
+    },
+    {
+      "g": 40,
+      "a": 1.5,
+      "transport_delay_ms": 6,
+      "current_tau_ms": 2,
+      "overshoot_percent": 22.75336554883105,
+      "rise_ms": 12.0,
+      "settling_2percent_s": 0.168,
+      "normalized_IAE_1s": 0.026095129112824182
+    }
+  ]
+}

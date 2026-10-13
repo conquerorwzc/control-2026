@@ -108,3 +108,5 @@ cmake-build-debug/
 *.jdebug
 
 *.log
+/Utils
+/doc

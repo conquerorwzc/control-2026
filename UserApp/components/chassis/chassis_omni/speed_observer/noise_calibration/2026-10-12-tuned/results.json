@@ -1,0 +1,210 @@
+{
+  "inputs": {
+    "static": {
+      "path": "C:\\Users\\Dai\\Desktop\\静止.csv",
+      "sha256": "2a939bc8bd02a2f99aac51a5a8940b9e5bc3b82e1e75461ec346e8c331a88735",
+      "rows": 7564
+    },
+    "translation": {
+      "path": "C:\\Users\\Dai\\Desktop\\平动.csv",
+      "sha256": "6222091a02a1654fa741ed97ef4a3b54c28d0f45b96d87a807665a66da1b6758",
+      "rows": 2877
+    },
+    "rotation": {
+      "path": "C:\\Users\\Dai\\Desktop\\转动（包括顺逆时针）.csv",
+      "sha256": "0bac861ab6572df5dbf1447cdc57181c8e01441d62470db46f1e88e7b9a07468",
+      "rows": 2005
+    },
+    "new_rotation": {
+      "path": "C:\\Users\\Dai\\Desktop\\new.csv",
+      "sha256": "10a9e6f1ef493e3ea09cff7c03f08bad0dc37fa5f4311e347ecca33c45f779d9",
+      "rows": 2444
+    }
+  },
+  "priority": "pure translation vx/vy; pure rotation wz; coupling secondary",
+  "physical_motion": "user confirms eccentric mechanical/gimbal motion; retain acceleration",
+  "new_quiet_count": 92,
+  "new_quiet_center_ax": {
+    "mean": 0.001622826086956515,
+    "std": 0.18868199952770168,
+    "variance": 0.035600896945771614,
+    "min": -0.4771,
+    "max": 0.4149
+  },
+  "new_quiet_center_ay": {
+    "mean": 0.002340217391304348,
+    "std": 0.013117030786558306,
+    "variance": 0.0001720564966555184,
+    "min": -0.0342,
+    "max": 0.0364
+  },
+  "new_quiet_gyro_z": {
+    "mean": 0.0003326086956521742,
+    "std": 0.013619177725220137,
+    "variance": 0.00018548200191113236,
+    "min": -0.0276,
+    "max": 0.0342
+  },
+  "translation_local_noise": [
+    {
+      "count": 131,
+      "variance": [
+        0.0005185225831744713,
+        0.00022223053573457592,
+        0.0011038330749273515
+      ],
+      "mad_variance": [
+        0.0001888302618625312,
+        0.000143762708350081,
+        0.0010779472902542728
+      ]
+    },
+    {
+      "count": 180,
+      "variance": [
+        0.00015780902667672408,
+        0.0003484831317874653,
+        0.00087021840882148
+      ],
+      "mad_variance": [
+        0.00011303804131331162,
+        0.00015785858217903507,
+        0.0007807956101616356
+      ]
+    }
+  ],
+  "translation_consistency": [
+    {
+      "axis": 0,
+      "eligible_intervals": 286,
+      "q_effective": 0.020537432588790948,
+      "q_full_second_moment": 0.6032546366347645,
+      "identification_squared_error_cap": 0.01467138688768301,
+      "model_increment_error": {
+        "mean": -0.003991323541148054,
+        "std": 0.11661832872241983,
+        "variance": 0.013599834594010369,
+        "min": -0.9197043380915279,
+        "max": 0.8900270815448782
+      },
+      "direction_checks": {
+        "-1": {
+          "count": 138,
+          "q_effective": 0.014088026808814599
+        },
+        "1": {
+          "count": 148,
+          "q_effective": 0.02655106770795809
+        }
+      }
+    },
+    {
+      "axis": 1,
+      "eligible_intervals": 327,
+      "q_effective": 0.03167288660959131,
+      "q_full_second_moment": 0.3964924330916272,
+      "identification_squared_error_cap": 0.012701087472757286,
+      "model_increment_error": {
+        "mean": 0.005855411609219232,
+        "std": 0.094426481330146,
+        "variance": 0.00891636037639241,
+        "min": -0.6084298392101611,
+        "max": 0.9998094979790357
+      },
+      "direction_checks": {
+        "-1": {
+          "count": 177,
+          "q_effective": 0.027228142574079503
+        },
+        "1": {
+          "count": 150,
+          "q_effective": 0.03691768457149525
+        }
+      }
+    }
+  ],
+  "rotation": {
+    "rotation": {
+      "steady_count": 682,
+      "wheel_minus_gyro": {
+        "mean": 0.005044134897360695,
+        "std": 0.10436903815600101,
+        "variance": 0.010892896125608795,
+        "min": -0.2507999999999999,
+        "max": 0.2645999999999997
+      },
+      "wheel_minus_gyro_mse": 0.010902367434017596,
+      "local_noise": {
+        "count": 537,
+        "variance": [
+          0.0003325310656551799,
+          0.0003486946597810038,
+          0.0033776098521263796
+        ],
+        "mad_variance": [
+          0.00022896488627745026,
+          0.00028085804909483707,
+          0.002882313973291586
+        ]
+      },
+      "qz_increment_count": 1030,
+      "qz_raw": 1.5573506334290128
+    },
+    "new_rotation": {
+      "steady_count": 1572,
+      "wheel_minus_gyro": {
+        "mean": -0.009153562340966932,
+        "std": 0.11183791624444153,
+        "variance": 0.01250771950989872,
+        "min": -0.34359999999999946,
+        "max": 0.25900000000000034
+      },
+      "wheel_minus_gyro_mse": 0.012583550648854962,
+      "local_noise": {
+        "count": 1370,
+        "variance": [
+          0.00040479659450219104,
+          0.0005674334511447141,
+          0.003844771656560539
+        ],
+        "mad_variance": [
+          0.00039791673044425137,
+          0.0005535973988108209,
+          0.0032961421627276757
+        ]
+      },
+      "qz_increment_count": 2140,
+      "qz_raw": 1.3942985089504745
+    }
+  },
+  "config": {
+    "initial_variance": [
+      0.25,
+      0.25,
+      0.25
+    ],
+    "process_noise": [
+      0.025,
+      0.035,
+      1.5
+    ],
+    "wheel_variance": [
+      0.0007,
+      0.0005,
+      0.015
+    ],
+    "gyro_variance": 0.0002,
+    "accel_variance": [
+      0.04,
+      0.0002
+    ],
+    "max_dt": 0.05
+  },
+  "limits": [
+    "effective first tuning; no independent absolute velocity reference",
+    "old translation input conditioned approximately at 50Hz; 1kHz history unavailable",
+    "local polynomial noise estimate assumes smooth motion in short windows",
+    "fixed diagonal covariance approximates correlated/state-dependent errors",
+    "initial variance and time limits retained, not identified from these CSVs"
+  ]
+}

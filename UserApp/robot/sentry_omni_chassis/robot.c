@@ -5,9 +5,11 @@
 #include "master_process.h"
 #include "new_RC_VT13.h"
 #include "robot_config.h"
+#include "speed_observer/observer_vofa.h"
 #include "user_lib.h"
 
 static RobotInstance *robot;
+volatile ChassisTuningView_e chassis_tuning_vofa_view = CHASSIS_TUNING_VOFA_VIEW;
 
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
@@ -172,10 +174,10 @@ static void RemoteControlSet() {
     }
 
     /* 导航与底盘均为右手系: +x 向前、+y 向左、+z 向上。
-     * 直接对应 vx/vy，不交换轴；当前仅统一轴向，暂保留旧控制倍率。 */
+     * 直接对应 vx/vy，单位 m/s，不使用经验倍率。 */
     chassis_ctrl_cmd->cmd_frame = CHASSIS_CMD_CHASSIS_FRAME;
-    chassis_ctrl_cmd->vx = navigator_cmd.speed_vector.vx * NAV_SPEED_SCALE;
-    chassis_ctrl_cmd->vy = navigator_cmd.speed_vector.vy * NAV_SPEED_SCALE;
+    chassis_ctrl_cmd->vx = navigator_cmd.speed_vector.vx;
+    chassis_ctrl_cmd->vy = navigator_cmd.speed_vector.vy;
     /* wz 仍然由下位机控制(小陀螺/跟随), 不使用上位机下发的 wz */
     ChassisRotateSet();
   }
@@ -515,7 +517,18 @@ void RobotInit() {
   // robot->vision_recv_data = VisionInit(&gimbal_init_config.imu_init_config);
   robot->navigator_data = navigator_init(&huart1);  // 导航串口: USART1, 115200 8N1
 
+#if CHASSIS_VOFA_MODE != 0
+  // 保留下游代码读取的零初始化数据对象，但不注册裁判串口/守护任务。
+  robot->referee_data = (referee_info_t *)zmalloc(sizeof(referee_info_t));
+#if CHASSIS_VOFA_MODE == 2
+  // 此时 USART6 尚未注册接收/DMA；只为 PID 采集设置波特率，正常裁判配置仍由硬件初始化。
+  huart6.Init.BaudRate = CHASSIS_TUNING_VOFA_BAUDRATE;
+  if (HAL_UART_Init(&huart6) != HAL_OK) Error_Handler();
+#endif
+  ObserverVOFAInit(&huart6);
+#else
   robot->referee_data = RefereeInit(&huart6);  // 裁判系统初始化
+#endif
   robot->sentry_mode = 1;
 
   robot->super_cap = SuperCapInit(&super_cap_config);
@@ -541,6 +554,12 @@ void RobotCMDTask() {
   CalcOffsetAngle();
   RemoteControlSet();
   // MouseKeySet();
+  // 遥控生成器保留旧档位数值，在进入底盘接口前转换为 SI；导航平移已经是 m/s。
+  if (robot->control_mode == MANUAL_MODE) {
+    chassis_ctrl_cmd->vx *= REMOTE_LINEAR_TO_MPS;
+    chassis_ctrl_cmd->vy *= REMOTE_LINEAR_TO_MPS;
+  }
+  chassis_ctrl_cmd->wz *= REMOTE_SPIN_TO_RADPS;
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
 }
 
@@ -555,6 +574,12 @@ void RobotTask() {
   chassis_ctrl_cmd->max_power = 120;
   // ModeControl();
   ChassisTask();
+#if CHASSIS_VOFA_MODE == 1
+  ObserverVOFASend(robot->chassis, CHASSIS_VOFA_MOTOR_ID);
+#elif CHASSIS_VOFA_MODE == 2
+  ChassisTuningVOFASend(robot->chassis, chassis_tuning_vofa_view,
+                       CHASSIS_VOFA_MOTOR_ID, CHASSIS_TUNING_VOFA_PERIOD_MS);
+#endif
   // SuperCapSendMessage(robot->super_cap,
   //     (int16_t)robot->referee_data->GameRobotState.chassis_power_limit,
   //     robot->referee_data->PowerHeatData.buffer_energy,

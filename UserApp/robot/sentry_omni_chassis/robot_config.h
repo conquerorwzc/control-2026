@@ -27,9 +27,47 @@
 #define VISION_USE_VCP  // 使用虚拟串口发送视觉数据
 // #define VISION_USE_UART // 使用串口发送视觉数据
 
-// 导航速度指令缩放: 底盘速度环参考值与上位机数值约为 10000:1(协议 §3.3)
-// 注意: 协议层不做限幅, 起步请让上位机把指令限制在 vx/vy <= 0.2
-#define NAV_SPEED_SCALE 10000.0f
+// 两种采集均独占原裁判 USART6，USART1 导航和 CAN 遥控保持工作。
+// 0=正常裁判通信，1=原噪声采集，2=新增 PID 调参采集；不可混发。
+#ifndef CHASSIS_VOFA_MODE
+#define CHASSIS_VOFA_MODE 2
+#endif
+#if CHASSIS_VOFA_MODE < 0 || CHASSIS_VOFA_MODE > 2
+#error Unsupported CHASSIS_VOFA_MODE
+#endif
+// 调参页：0=单电机，1=vx，2=vy，3=wz，4=yaw_hold，5=四电机同步。
+#ifndef CHASSIS_TUNING_VOFA_VIEW
+#define CHASSIS_TUNING_VOFA_VIEW 5
+#endif
+#if CHASSIS_TUNING_VOFA_VIEW < 0 || CHASSIS_TUNING_VOFA_VIEW > 5
+#error Unsupported CHASSIS_TUNING_VOFA_VIEW
+#endif
+#ifndef CHASSIS_VOFA_MOTOR_ID
+#define CHASSIS_VOFA_MOTOR_ID 1
+#endif
+#if CHASSIS_VOFA_MOTOR_ID < 1 || CHASSIS_VOFA_MOTOR_ID > 4
+#error Unsupported CHASSIS_VOFA_MOTOR_ID
+#endif
+// 四电机同步采集：460800 baud、4ms/250Hz，占 56.4%，低于无线透传 1Mbps 上限。
+#ifndef CHASSIS_TUNING_VOFA_BAUDRATE
+#define CHASSIS_TUNING_VOFA_BAUDRATE 460800u
+#endif
+#ifndef CHASSIS_TUNING_VOFA_PERIOD_MS
+#define CHASSIS_TUNING_VOFA_PERIOD_MS 4
+#endif
+#if CHASSIS_TUNING_VOFA_PERIOD_MS < 1 || CHASSIS_TUNING_VOFA_BAUDRATE == 0 || \
+    CHASSIS_TUNING_VOFA_BAUDRATE * CHASSIS_TUNING_VOFA_PERIOD_MS * 4u < 1040000u * 5u
+#error CHASSIS_TUNING_VOFA bandwidth must leave at least 20 percent margin
+#endif
+
+// 物理参数：长度配置仍为 mm，进入运动学时统一转 m。
+#define CHASSIS_WHEEL_RADIUS_MM 76.475f
+#define CHASSIS_WHEEL_REDUCTION 19.0f
+// 仅用于旧遥控档位向 SI 迁移，保持其理想轮速参考；导航直接使用 m/s。
+#define REMOTE_LINEAR_TO_MPS (1.4142135623730951f * (CHASSIS_WHEEL_RADIUS_MM * 0.001f) * \
+                             (3.14159265358979323846f / 180.0f) / CHASSIS_WHEEL_REDUCTION)
+#define REMOTE_SPIN_TO_RADPS (CHASSIS_WHEEL_RADIUS_MM / CHASSIS_WHEEL_REDUCTION * \
+                             (3.14159265358979323846f / 180.0f) * (3.14159265358979323846f / 180.0f))
 
 
 
@@ -50,7 +88,7 @@
 #define GYRO2GIMBAL_DIR_PITCH 1  // 陀螺仪数据相较于云台的pitch的方向,1为相同,-1为相反
 #define GYRO2GIMBAL_DIR_ROLL 1   // 陀螺仪数据相较于云台的roll的方向,1为相同,-1为相反
 
-//轮电机参数模板，追求响应一致，所以参数一样的，只有id有所区别
+// 四电机共用速度环；2026-10-13 带载日志设计，平动响应优先，待实机验证。
 #define WHEEL_MOTOR_CONFIG(handle, id) \
 ((Motor_Init_Config_s) { \
     .can_init_config = { \
@@ -59,10 +97,10 @@
     }, \
     .controller_param_init_config = { \
         .speed_PID = { \
-            .Kp = 4, \
-            .Ki = 0, \
-            .Kd = 0, \
-            .IntegralLimit = 8000, \
+            .Kp = 2.2f, \
+            .Ki = 4.0f, \
+            .Kd = 0.0f, \
+            .IntegralLimit = 5000.0f, \
             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement, \
             .MaxOut = 16000, \
         }, \
@@ -87,6 +125,51 @@
 })
 
 static Chassis_Init_Config_s chassis_init_config = {
+    // 三轴速度外环：目标速度前馈 + PID 修正。保守调试初值，尚未实车整定。
+    .enable_speed_hold = 0, // 带载电机速度环整定期间关闭三轴外环，完成后恢复为 1。
+    .vx_hold_pid = {
+        .Kp = 0.2f, .Ki = 0.0f, .Kd = 0.0f,
+        .DeadBand = 0.01f,       // m/s
+        .MaxOut = 0.5f,         // 速度修正上限 m/s，不是整车速度上限
+        .IntegralLimit = 0.2f,
+        .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+    },
+    .vy_hold_pid = {
+        .Kp = 0.2f, .Ki = 0.0f, .Kd = 0.0f,
+        .DeadBand = 0.01f,
+        .MaxOut = 0.5f,
+        .IntegralLimit = 0.2f,
+        .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+    },
+    .wz_hold_pid = {
+        .Kp = 0.2f, .Ki = 0.0f, .Kd = 0.0f,
+        .DeadBand = 0.02f,       // rad/s
+        .MaxOut = 1.0f,         // 角速度修正上限 rad/s
+        .IntegralLimit = 0.4f,
+        .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+    },
+    // 2026-10-12 CSV 首轮整定：优先纯平动 vx/vy、纯转动 wz，保留机械运动加速度。
+    // 以下均为方差/噪声密度；依据与限制见 speed_observer/noise_calibration/2026-10-12-tuned/整定说明.md。
+    .observer_config = {
+        .initial_variance = {0.25f, 0.25f, 0.25f},
+        .process_noise = {0.025f, 0.035f, 1.5f},  // Q=q*dt；xy 采用稳健过程一致性，wz 保留起停变化
+        .wheel_variance = {0.0007f, 0.0005f, 0.015f},
+        .gyro_variance = 0.0002f,
+        .accel_variance = {0.04f, 0.0002f}, // 新版匹配低通后的静止随机噪声，不含真实周期运动
+        .max_dt = 0.05f,
+    },
+    .enable_imu_sampling = 1, // 开启 BMI088/INS 采集任务，采集开关与融合开关独立
+    .observer_imu_calibrated = 1, // 已按实机验证结果启用 gyro_z 观测
+    .observer_accel_enabled = 1,  // 已按实机验证结果启用去重力、杆臂补偿后的加速度预测
+    .observer_imu_offset = {0.0f, -0.1335f}, // 中心 -> IMU：位于 -y（右侧）约 133.5 mm，单位 m
+    .observer_sensor_timeout = 0.02f,
+    .imu_init_config = {
+        .flag = 1,
+        .scale = {1.0f, 1.0f, 1.0f},
+        .offset_flag = 0, // 启用 INS 时沿用启动静止零偏标定
+        .Yaw = 180.0f, .Pitch = 0.0f, .Roll = 0.0f, // 原始 +X 朝后、+Y 朝右、+Z 朝上，校正为底盘系
+        .CenterOffset = {0.0f, 0.0f, 0.0f}, // 杆臂由速度观测器适配层补偿，避免重复
+    },
     .chassis_param =
         {
             // 机器人底盘修改的参数,单位为mm(毫米)
@@ -94,8 +177,8 @@ static Chassis_Init_Config_s chassis_init_config = {
             .track_width = 345.96f,             // 横向轮距(左右平移方向)
             .center_gimbal_offset_x = 0.0f,    // 云台旋转中心距底盘几何中心的距离,前后方向,云台位于正中心时默认设为0
             .center_gimbal_offset_y = 0.0f,    // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
-            .wheel_radius = 76.475f,             // 轮子半径
-            .wheel_reduction_ratio = 19.0f,  // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
+            .wheel_radius = CHASSIS_WHEEL_RADIUS_MM,             // 轮子半径
+            .wheel_reduction_ratio = CHASSIS_WHEEL_REDUCTION,  // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
             //3508功率模型参数
       .power_param.k0=0.7441993412640775f,
       .power_param.k1=0.0090164284468539646f,
@@ -108,15 +191,15 @@ static Chassis_Init_Config_s chassis_init_config = {
     .wheel_motor_config[1] = WHEEL_MOTOR_CONFIG(&hcan1,4),
     .wheel_motor_config[2] = WHEEL_MOTOR_CONFIG(&hcan1,2),
     .wheel_motor_config[3] = WHEEL_MOTOR_CONFIG(&hcan1,3),
-    //跟随PID
+    // 跟随角度环：输入度，输出 rad/s；旧增益与输出限幅同步换算。
     .follow_pid={
-        .Kp = -70.0f,
+        .Kp = -70.0f * REMOTE_SPIN_TO_RADPS,
         .Ki = 0.0f,
         .Kd = 0.0f,
         .DeadBand = 1.0f,
-        .IntegralLimit = 1000.0f,
+        .IntegralLimit = 1000.0f * REMOTE_SPIN_TO_RADPS,
         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-        .MaxOut = 20000.0f,
+        .MaxOut = 20000.0f * REMOTE_SPIN_TO_RADPS,
     },
 
 
