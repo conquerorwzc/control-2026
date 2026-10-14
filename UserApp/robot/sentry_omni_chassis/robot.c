@@ -187,134 +187,18 @@ static void RemoteControlSet() {
     }
 
     /* 导航与底盘均为右手系: +x 向前、+y 向左、+z 向上。
-     * 直接对应 vx/vy，单位 m/s，不使用经验倍率。 */
-    chassis_ctrl_cmd->cmd_frame = CHASSIS_CMD_CHASSIS_FRAME;
-    chassis_ctrl_cmd->vx = navigator_cmd.speed_vector.vx;
-    chassis_ctrl_cmd->vy = navigator_cmd.speed_vector.vy;
-    /* wz 仍然由下位机控制(小陀螺/跟随), 不使用上位机下发的 wz */
-    ChassisRotateSet();
+     * 直接对应 vx/vy，单位 m/s，*/
+      chassis_ctrl_cmd->cmd_frame = CHASSIS_CMD_CHASSIS_FRAME;
+      chassis_ctrl_cmd->vx = navigator_cmd.speed_vector.vx;
+      chassis_ctrl_cmd->vy = navigator_cmd.speed_vector.vy;
+      chassis_ctrl_cmd->wz = navigator_cmd.speed_vector.wz;
+      // 直接跟踪角速度，不叠加跟随角度环或航向保持。
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
   }
 
   *rc_data_last = *rc_data;
 }
 
-static void MouseKeySet() {
-  vx_initial += (float)((rc_data[TEMP].key[KEY_PRESS].w) - rc_data[TEMP].key[KEY_PRESS].s) *
-                (float)chassis_ctrl_cmd->chassis_speed_buff;
-  vy_initial += (float)(rc_data[TEMP].key[KEY_PRESS].a - rc_data[TEMP].key[KEY_PRESS].d) *
-                (float)chassis_ctrl_cmd->chassis_speed_buff;
-
-  // 缓加速
-  if (abs(vx_initial) <= 10000) {
-    x_speed_time = time;
-    chassis_ctrl_cmd->vx = vx_initial;
-  }  // 速度绝对值在10000以下输出控制量=输入控制量
-  if (vx_initial > 10000 && chassis_ctrl_cmd->vx <= 60.0f * (float)rc_data[TEMP].rc.rocker_l1) {
-    chassis_ctrl_cmd->vx = 10000 + (time - x_speed_time) * 10000;
-  }
-  if (vx_initial < -10000 && chassis_ctrl_cmd->vx >= 60.0f * (float)rc_data[TEMP].rc.rocker_l1) {
-    chassis_ctrl_cmd->vx = -10000 - (time - x_speed_time) * 10000;
-  }  // 速度绝对值在10000以上输出控制量=10000+10000t(s)
-  if (abs(vy_initial) <= 10000) {
-    y_speed_time = time;
-    chassis_ctrl_cmd->vy = vy_initial;
-  }  // 速度绝对值在10000以下输出控制量=输入控制量
-  if (vy_initial > 10000 && chassis_ctrl_cmd->vy <= -60.0f * (float)rc_data[TEMP].rc.rocker_l_) {
-    chassis_ctrl_cmd->vy = 10000 + (time - y_speed_time) * 10000;
-  }
-  if (vy_initial < -10000 && chassis_ctrl_cmd->vy >= -60.0f * (float)rc_data[TEMP].rc.rocker_l_) {
-    chassis_ctrl_cmd->vy = -10000 - (time - y_speed_time) * 10000;
-  }  // 速度绝对值在10000以上输出控制量=10000+10000t(s)
-
-  if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON) {
-    gimbal_ctrl_cmd->yaw -= (float)rc_data[TEMP].mouse.x * 0.007f;    // 横向灵敏度调节
-    gimbal_ctrl_cmd->pitch += (float)rc_data[TEMP].mouse.y * 0.003f;  // 纵向灵敏度调节 (负号反转Y轴)
-  }
-  switch (rc_data[TEMP].mouse.press_r % 2) {  // 右键进入自瞄预备模式
-    case 1:
-      if (has_non_zero_data(vision_recv_data) == 1) {
-        gimbal_ctrl_cmd->gimbal_mode = GIMBAL_VISION;  // 右键自瞄开启
-
-        gimbal_ctrl_cmd->yaw = 1.0f * vision_recv_data->gimbal_receive.yaw;
-        gimbal_ctrl_cmd->pitch = vision_recv_data->gimbal_receive.pitch;
-        // shoot_ctrl_cmd->load_mode=vision_recv_data->shoot_receive.fire_flag;
-      } else
-        gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;  // 人工操控模式
-      break;
-    default:
-      break;
-  }
-  switch (rc_data[TEMP].mouse.press_l % 2)  // 左键发射
-  {
-    case 0:
-      if (!switch_is_up(rc_data[TEMP].rc.switch_left)) {
-        shoot_ctrl_cmd->load_mode = LOAD_STOP;
-        trigger_time = time;
-      }
-      break;
-    default:
-      switch (rc_data[TEMP].key_count[KEY_PRESS][Key_E] % 2)  // E键设置发射模式
-      {
-        case 0:  // 单发+长按连发
-          if (shoot_ctrl_cmd->friction_mode == FRICTION_ON &&
-              (vision_recv_data->shoot_receive.fire_flag || rc_data[TEMP].mouse.press_r % 2 == 0))  // 需预先开启摩擦轮
-          {
-            shoot_ctrl_cmd->load_mode = LOAD_1_BULLET;
-            if (time - trigger_time > 1.0f)  // 长按检测，1秒
-            {
-              shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
-            }
-            break;
-            default:  // 连发
-              if (shoot_ctrl_cmd->friction_mode == FRICTION_ON) shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
-              break;
-          }
-      }
-      break;
-  }
-
-  switch (rc_data[TEMP].key_count[KEY_PRESS][Key_C] % 4)  // C键设置底盘速度
-  {
-    case 0:
-      chassis_ctrl_cmd->chassis_speed_buff = 10000;
-      break;
-    case 1:
-      chassis_ctrl_cmd->chassis_speed_buff = 20000;
-      break;
-    case 2:
-      chassis_ctrl_cmd->chassis_speed_buff = 30000;
-      break;
-    default:
-      chassis_ctrl_cmd->chassis_speed_buff = 40000;
-      break;
-  }
-  // switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Q]%2) //新增Q自旋开启
-  // {
-  //   case 0:
-  //     chassis_ctrl_cmd-> chassis_mode = CHASSIS_FOLLOW ;
-  //     chassis_ctrl_cmd->wz-=(float)rc_data[TEMP].mouse.x * 30.0f; //主动跟随量
-  //     break;
-  //   default:
-  //     chassis_ctrl_cmd-> chassis_mode = CHASSIS_ROTATE ;
-  //     break;
-  // }
-
-  switch (rc_data[TEMP].key[KEY_PRESS].shift)  // 待添加 按shift允许超功率 消耗缓冲能量
-  {
-    case 1:
-
-      break;
-
-    default:
-
-      break;
-  }
-  if (gimbal_ctrl_cmd->pitch > PITCH_MAX_ANGLE) {
-    gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
-  } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
-    gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
-  }
-}
 
 #elifdef USE_DUAL_RC_NEW
 static void RemoteControlSet() {
@@ -363,7 +247,6 @@ static void RemoteControlSet() {
   // }  // 速度绝对值在10000以上输出控制量=10000+10000t(s)
 }
 
-static void MouseKeySet() {}
 
 #endif
 

@@ -1,5 +1,6 @@
 #include "speed_observer.h"
 
+#include "bsp_dwt.h"
 #include "user_lib.h"
 
 #include <math.h>
@@ -28,6 +29,7 @@ struct SpeedObserverInstance
     float center_accel[2];
     uint64_t imu_stamp;
     uint32_t wheel_stamp[4], wheel_seen[4];
+    uint32_t dt;
     float wheel_age[4], imu_age, correction_age;
 };
 
@@ -104,6 +106,7 @@ SpeedObserverInstance *SpeedObserverInit(const SpeedObserver_Init_Config_s *init
     memcpy(observer->imu_offset, init->imu_offset, sizeof(observer->imu_offset));
     observer->config = init->filter;
     observer->initialized = 1u;
+    DWT_GetDeltaT(&observer->dt);
     return observer;
 }
 
@@ -316,7 +319,7 @@ static uint8_t CheckResult(SpeedObserverInstance *observer, const FilterResult_s
     return 1u;
 }
 
-uint8_t SpeedObserverUpdate(SpeedObserverInstance *observer, const SpeedObserverInput_s *input, float dt)
+static uint8_t UpdateWithDt(SpeedObserverInstance *observer, const SpeedObserverInput_s *input, float dt)
 {
     ObserverInput_s checked = {0};
     if (!CheckInput(observer, input, dt, &checked))
@@ -357,6 +360,13 @@ uint8_t SpeedObserverUpdate(SpeedObserverInstance *observer, const SpeedObserver
     if (checked.feedback_valid)
         observer->output.status |= kSpeedObserverValid;
     return 1u;
+}
+
+uint8_t SpeedObserverUpdate(SpeedObserverInstance *observer, const SpeedObserverInput_s *input)
+{
+    if (observer == NULL)
+        return 0u;
+    return UpdateWithDt(observer, input, DWT_GetDeltaT(&observer->dt));
 }
 
 const SpeedObserver_s *SpeedObserverGetResult(const SpeedObserverInstance *observer)

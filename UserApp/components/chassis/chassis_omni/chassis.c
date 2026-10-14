@@ -9,7 +9,6 @@
 #include "chassis.h"
 
 #include "arm_math.h"
-#include "bsp_dwt.h"
 #include "general_def.h"
 #include "referee.h"
 #include "user_lib.h"
@@ -28,7 +27,6 @@ static uint8_t yaw_hold_active;
 static float power;
 static float k0, k1, k2, k3, k4, k5;     // 中科大的功率模型
 static uint8_t super_cap_error_flag = 0; // 电容故障标志
-static uint32_t observer_clock;
 
 static void ResetSpeedHold()
 {
@@ -203,9 +201,7 @@ static void LimitChassisOutput()
 /** @brief 编码器正解与 EKF；短临界区只复制传感器，矩阵运算在区外执行。 */
 static void EstimateSpeed()
 {
-    const float dt = DWT_GetDeltaT(&observer_clock);
     SpeedObserverInput_s input = {0};
-    // 临界区只复制同一轮传感器快照，解算与融合在区外完成。
     taskENTER_CRITICAL();
     for (int i = 0; i < 4; ++i)
     {
@@ -223,8 +219,7 @@ static void EstimateSpeed()
         input.accel_lpf = chassis->chassis_IMU->AccelLPF;
     }
     taskEXIT_CRITICAL();
-
-    SpeedObserverUpdate(chassis->speed_observer, &input, dt);
+    SpeedObserverUpdate(chassis->speed_observer, &input);
 }
 static float YawHoldCompensate()
 {
@@ -266,12 +261,10 @@ ChassisInstance *ChassisInit(Chassis_Init_Config_s *chassis_init_config)
     PIDInit(&chassis_instance->vx_hold_pid, &chassis_init_config->vx_hold_pid);
     PIDInit(&chassis_instance->vy_hold_pid, &chassis_init_config->vy_hold_pid);
     PIDInit(&chassis_instance->wz_hold_pid, &chassis_init_config->wz_hold_pid);
-
     PIDInit(&chassis_instance->yaw_hold_pid, &chassis_init_config->yaw_hold_pid);
 
     chassis_instance->speed_observer = SpeedObserverInit(&chassis_init_config->observer_init_config);
     chassis_instance->chassis_IMU = INS_Init(&chassis_init_config->imu_init_config);
-    DWT_GetDeltaT(&observer_clock);
     for (int i = 0; i < 4; i++)
     {
         chassis_init_config->wheel_motor_config[i].controller_setting_init_config.angle_feedback_source = MOTOR_FEED;

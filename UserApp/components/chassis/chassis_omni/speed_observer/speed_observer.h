@@ -63,6 +63,6 @@ typedef struct {
 typedef struct SpeedObserverInstance SpeedObserverInstance;
 
 SpeedObserverInstance *SpeedObserverInit(const SpeedObserver_Init_Config_s *config);
-uint8_t SpeedObserverUpdate(SpeedObserverInstance *observer, const SpeedObserverInput_s *input, float dt);
+uint8_t SpeedObserverUpdate(SpeedObserverInstance *observer, const SpeedObserverInput_s *input);
 const SpeedObserver_s *SpeedObserverGetResult(const SpeedObserverInstance *observer);
 void SpeedObserverInverse(const SpeedObserverInstance *observer, const Speed_s *body, float motor_speed[4]);
