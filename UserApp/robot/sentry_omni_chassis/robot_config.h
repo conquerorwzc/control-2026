@@ -27,39 +27,6 @@
 #define VISION_USE_VCP  // 使用虚拟串口发送视觉数据
 // #define VISION_USE_UART // 使用串口发送视觉数据
 
-// 两种采集均独占原裁判 USART6，USART1 导航和 CAN 遥控保持工作。
-// 0=正常裁判通信，1=原噪声采集，2=新增 PID 调参采集；不可混发。
-#ifndef CHASSIS_VOFA_MODE
-#define CHASSIS_VOFA_MODE 2
-#endif
-#if CHASSIS_VOFA_MODE < 0 || CHASSIS_VOFA_MODE > 2
-#error Unsupported CHASSIS_VOFA_MODE
-#endif
-// 调参页：0=单电机，1=vx，2=vy，3=wz，4=yaw_hold，5=四电机，6=平移/wz，7=三轴同步，8=起停诊断。
-#ifndef CHASSIS_TUNING_VOFA_VIEW
-#define CHASSIS_TUNING_VOFA_VIEW 8
-#endif
-#if CHASSIS_TUNING_VOFA_VIEW < 0 || CHASSIS_TUNING_VOFA_VIEW > 8
-#error Unsupported CHASSIS_TUNING_VOFA_VIEW
-#endif
-#ifndef CHASSIS_VOFA_MOTOR_ID
-#define CHASSIS_VOFA_MOTOR_ID 1
-#endif
-#if CHASSIS_VOFA_MOTOR_ID < 1 || CHASSIS_VOFA_MOTOR_ID > 4
-#error Unsupported CHASSIS_VOFA_MOTOR_ID
-#endif
-// PID 采集：460800 baud、4ms/250Hz，占 56.4%，低于无线透传 1Mbps 上限。
-#ifndef CHASSIS_TUNING_VOFA_BAUDRATE
-#define CHASSIS_TUNING_VOFA_BAUDRATE 460800u
-#endif
-#ifndef CHASSIS_TUNING_VOFA_PERIOD_MS
-#define CHASSIS_TUNING_VOFA_PERIOD_MS 4
-#endif
-#if CHASSIS_TUNING_VOFA_PERIOD_MS < 1 || CHASSIS_TUNING_VOFA_BAUDRATE == 0 || \
-    CHASSIS_TUNING_VOFA_BAUDRATE * CHASSIS_TUNING_VOFA_PERIOD_MS * 4u < 1040000u * 5u
-#error CHASSIS_TUNING_VOFA bandwidth must leave at least 20 percent margin
-#endif
-
 // 物理参数：长度配置仍为 mm，进入运动学时统一转 m。
 #define CHASSIS_WHEEL_RADIUS_MM 76.475f
 #define CHASSIS_WHEEL_REDUCTION 19.0f

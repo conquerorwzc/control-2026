@@ -43,7 +43,6 @@ static void ResetSpeedHold()
     PIDClear(&chassis->vx_hold_pid);
     PIDClear(&chassis->vy_hold_pid);
     PIDClear(&chassis->wz_hold_pid);
-    chassis->speed_hold_correction = (Speed_s){0};
     chassis->speed_hold_active = 0u;
 }
 
@@ -51,6 +50,7 @@ static void ResetSpeedHold()
 static void SpeedHoldControl()
 {
     Speed_s target = {.vx = chassis_vx, .vy = chassis_vy, .wz = chassis_wz};
+    Speed_s correction = {0};
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_POWER_OFF ||
         !SpeedFinite(target.vx) || !SpeedFinite(target.vy) || !SpeedFinite(target.wz))
     {
@@ -73,22 +73,19 @@ static void SpeedHoldControl()
     }
     else
     {
-        Speed_s correction = {
+        const Speed_s pid_output = {
             .vx = PIDCalculate(&chassis->vx_hold_pid, chassis->speed_observer.fused.vx, target.vx),
             .vy = PIDCalculate(&chassis->vy_hold_pid, chassis->speed_observer.fused.vy, target.vy),
             .wz = PIDCalculate(&chassis->wz_hold_pid, chassis->speed_observer.fused.wz, target.wz),
         };
-        chassis->speed_hold_updated = 1u;
-        if (SpeedFinite(correction.vx) && SpeedFinite(correction.vy) && SpeedFinite(correction.wz))
-            chassis->speed_hold_correction = correction;
+        if (SpeedFinite(pid_output.vx) && SpeedFinite(pid_output.vy) && SpeedFinite(pid_output.wz))
+            correction = pid_output;
         else
             ResetSpeedHold();
     }
-    chassis->target_velocity = target;
-    chassis_vx = target.vx + chassis->speed_hold_correction.vx;
-    chassis_vy = target.vy + chassis->speed_hold_correction.vy;
-    chassis_wz = target.wz + chassis->speed_hold_correction.wz;
-    chassis->control_velocity = (Speed_s){.vx = chassis_vx, .vy = chassis_vy, .wz = chassis_wz};
+    chassis_vx = target.vx + correction.vx;
+    chassis_vy = target.vy + correction.vy;
+    chassis_wz = target.wz + correction.wz;
 }
 
 /** @brief SI 底盘速度逆解为电机轴速度参考，单位 deg/s。 */
@@ -122,7 +119,6 @@ static void PowerControl()
     for (int i = 0; i < 4; i++)
     {
         motor_current_list[i] = (float)chassis->wheel_motor[i]->motor_controller.final_output;
-        chassis->observer_telemetry.motor_requested_current[i] = motor_current_list[i];
         motor_real_current_list[i] = (float)chassis->wheel_motor[i]->measure.real_current;
     }
 
@@ -159,14 +155,10 @@ static void PowerControl()
         power += initial_give_real_power[i];
     }
 
-    // 同周期诊断快照，不改变功率分配算法。
-    chassis->observer_telemetry.requested_power = initial_total_power;
-    chassis->observer_telemetry.power_limit_scale = 1.0f;
     // 功率超限时进行动态调整
     if (initial_total_power > (float)chassis_ctrl_cmd->max_power)
     {
         float power_scale = (float)chassis_ctrl_cmd->max_power / initial_total_power; // 削减功率比例
-        chassis->observer_telemetry.power_limit_scale = power_scale;
         float scaled_give_power[4];
         // 计算缩放后的功率目标
         for (int i = 0; i < 4; i++)
@@ -217,8 +209,6 @@ static void PowerControl()
     for (int i = 0; i < 4; i++)
     {
         chassis->wheel_motor[i]->motor_controller.final_output = (int16_t)(motor_current_list[i]);
-        chassis->observer_telemetry.motor_limited_current[i] =
-            chassis->wheel_motor[i]->motor_controller.final_output;
     }
 }
 
@@ -240,9 +230,6 @@ static void EstimateSpeed()
 {
     const float dt = DWT_GetDeltaT(&observer_clock);
     SpeedObserverInput_s input = {0};
-    ChassisObserverTelemetry_s *telemetry = &chassis->observer_telemetry;
-    telemetry->sample_time = DWT_GetTimeline_s();
-    telemetry->dt = dt;
     // 临界区只复制同一轮传感器快照，解算与融合在区外完成。
     taskENTER_CRITICAL();
     for (int i = 0; i < 4; ++i)
@@ -250,7 +237,6 @@ static void EstimateSpeed()
         input.motor_speed[i] = chassis->wheel_motor[i]->measure.speed_aps;
         input.wheel_stamp[i] = chassis->wheel_motor[i]->feed_cnt;
         input.wheel_online[i] = DaemonIsOnline(chassis->wheel_motor[i]->daemon);
-        telemetry->motor_speed[i] = input.motor_speed[i];
     }
     if (chassis->chassis_IMU != NULL && chassis->chassis_IMU->init)
     {
@@ -260,21 +246,10 @@ static void EstimateSpeed()
         input.accel_x = chassis->chassis_IMU->MotionAccel_b[0];
         input.accel_y = chassis->chassis_IMU->MotionAccel_b[1];
         input.accel_lpf = chassis->chassis_IMU->AccelLPF;
-        telemetry->imu_count = (uint32_t)(input.imu_stamp & 0x00ffffffu);
-        telemetry->temperature = BMI088.Temperature;
-        for (int i = 0; i < 3; ++i)
-        {
-            telemetry->gyro[i] = chassis->chassis_IMU->Gyro[i];
-            telemetry->motion_accel[i] = chassis->chassis_IMU->MotionAccel_b[i];
-        }
     }
     taskEXIT_CRITICAL();
 
     SpeedObserverUpdate(&chassis->speed_observer, &input, dt);
-    telemetry->center_accel[0] = chassis->speed_observer.center_accel[0];
-    telemetry->center_accel[1] = chassis->speed_observer.center_accel[1];
-    telemetry->status = chassis->speed_observer.status;
-    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_POWER_OFF) telemetry->status |= (1u << 7);
 }
 static float YawHoldCompensate()
 {
@@ -293,10 +268,9 @@ static float YawHoldCompensate()
     if (!yaw_hold_active)
     {
         yaw_hold_active = 1;
-        PIDClear(&chassis->yaw_hold_pid); // 同时重置 DWT 时间戳，避免模式切换后的长 dt。
+        PIDClear(&chassis->yaw_hold_pid);
     }
 
-    chassis->yaw_hold_updated = 1u;
     return PIDCalculate(&chassis->yaw_hold_pid, chassis->chassis_IMU->YawTotalAngle, chassis_ctrl_cmd->yaw_hold_ref);
 }
 
@@ -357,8 +331,6 @@ ChassisInstance *ChassisInit(Chassis_Init_Config_s *chassis_init_config)
 /* 机器人底盘控制核心任务 */
 void ChassisTask()
 {
-    chassis->yaw_hold_updated = 0u;
-    chassis->speed_hold_updated = 0u;
     if (chassis_ctrl_cmd->chassis_mode != CHASSIS_HOLD)
         yaw_hold_active = 0; // 非 HOLD 时不会调用补偿函数，必须在这里清除进入状态。
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_POWER_OFF)
@@ -410,9 +382,6 @@ void ChassisTask()
     // 更新轮速正解与速度观测器，再在底盘机体系完成三轴速度外环。
     EstimateSpeed();
     SpeedHoldControl();
-    if (chassis->speed_observer.valid) chassis->observer_telemetry.status |= (1u << 12);
-    if (chassis->speed_hold_active) chassis->observer_telemetry.status |= (1u << 13);
-    if (chassis->yaw_hold_updated) chassis->observer_telemetry.status |= (1u << 14);
 
     // 逆运动学解算，计算四轮速度参考
     OmniCalculate();

@@ -119,43 +119,20 @@ typedef struct
     float observer_sensor_timeout;  // 观测器采样新鲜度限制，s；不修改底盘急停策略
 } Chassis_Init_Config_s;
 
-typedef struct
-{
-    // 同一底盘周期的 EstimateSpeed/PowerControl 快照，供应用层 VOFA 诊断；不参与控制。
-    float sample_time; // 启动后 s
-    float dt;          // 本轮 EKF 步长 s
-    float gyro[3];     // 安装校正、零偏扣除后的底盘系 rad/s
-    float motion_accel[3]; // INS 去重力、低通后的底盘系 m/s^2，尚未补偿杆臂
-    float center_accel[2]; // 实际送入速度观测器的中心加速度 m/s^2
-    float motor_speed[4];  // LF/ID1, RF/ID4, LB/ID2, RB/ID3，电机轴 deg/s
-    float temperature;     // BMI088 摄氏度
-    float requested_power; // 限制前电流指令估算的正功率之和 W，不是实测电功率
-    float power_limit_scale; // 本轮功率分配比例；1 为未缩减
-    float motor_requested_current[4]; // 限功率前逻辑电流指令，协议码值；数组为 LF/RF/LB/RB
-    float motor_limited_current[4]; // 限功率后逻辑电流指令，尚未执行 CAN 极性/停机处理
-    uint32_t imu_count;     // INS 更新计数低 24 位，可精确转 float
-    uint16_t status;       // 位定义见 speed_observer/噪声标定采集说明.md
-} ChassisObserverTelemetry_s;
 
 typedef struct
 {
     Chassis_Ctrl_Cmd_s chassis_ctrl_cmd;
     DJIMotorInstance *wheel_motor[4]; // LF/ID1, RF/ID4, LB/ID2, RB/ID3
     SpeedObserver_s speed_observer; // wheel 为轮速正解，fused 为卡尔曼融合速度
-    Speed_s target_velocity;    // 角度环叠加、坐标转换后的原始底盘速度目标
-    Speed_s control_velocity;   // 前馈目标 + 速度 PID 修正，实际送入逆运动学
-    Speed_s speed_hold_correction; // 三轴速度 PID 本轮修正量
     PIDInstance vx_hold_pid;
     PIDInstance vy_hold_pid;
     PIDInstance wz_hold_pid;
     uint8_t enable_speed_hold;
     uint8_t speed_hold_active;       // 三轴 PID 已预置历史并处于闭环状态
-    uint8_t speed_hold_updated;      // 仅采集标记：本周期实际计算三轴 PID（首次预置不算）
-    ChassisObserverTelemetry_s observer_telemetry;
     SuperCapMode super_cap_mode;
     INS_t *chassis_IMU;
     PIDInstance yaw_hold_pid;
-    uint8_t yaw_hold_updated; // 仅采集标记：本周期是否实际调用航向 PID，不改变控制行为
 } ChassisInstance;
 
 /**
