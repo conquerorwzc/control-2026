@@ -1,12 +1,39 @@
 #include "speed_observer.h"
 
+#include "user_lib.h"
+
 #include <math.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 
+typedef struct {
+    float radius, x_projection, y_projection, motor_per_linear;
+} OmniKinematics;
+
+typedef struct {
+    float last_gyro, angular_accel, squared_wz;
+    uint8_t seeded;
+} SpeedObserverLeverArm_s; // 杆臂补偿
+
+struct SpeedObserverInstance
+{
+    SpeedObserver_s output;
+    OmniKinematics model;
+    SpeedObserverConfig_s config;
+    float covariance[3][3];
+    uint8_t initialized, seeded, have_accel;
+    float imu_offset[2], timeout;
+    SpeedObserverLeverArm_s lever_arm;
+    float center_accel[2];
+    uint64_t imu_stamp;
+    uint32_t wheel_stamp[4], wheel_seen[4];
+    float wheel_age[4], imu_age, correction_age;
+};
+
 // 长度为 m，减速比为电机转速 / 轮转速；几何尺寸和减速比应为正。
-static OmniKinematics OmniKinematicsInit(float wheel_base, float track_width, float wheel_radius,
-                                                float reduction) {
+static OmniKinematics OmniKinematicsInit(float wheel_base, float track_width, float wheel_radius, float reduction)
+{
     const float half_base = wheel_base * 0.5f;
     const float half_track = track_width * 0.5f;
     OmniKinematics model;
@@ -18,7 +45,8 @@ static OmniKinematics OmniKinematicsInit(float wheel_base, float track_width, fl
 }
 
 // 使用实测电机轴速度 deg/s 进行最小二乘正解。
-static Speed_s OmniForward(const OmniKinematics *model, const float motor_speed[4]) {
+static Speed_s OmniForward(const OmniKinematics *model, const float motor_speed[4])
+{
     const float scale = 0.25f / model->motor_per_linear;
     Speed_s body;
     body.vx = (-motor_speed[0] + motor_speed[1] - motor_speed[2] + motor_speed[3]) * scale / model->x_projection;
@@ -27,157 +55,174 @@ static Speed_s OmniForward(const OmniKinematics *model, const float motor_speed[
     return body;
 }
 
+static void OmniInverse(const OmniKinematics *model, const Speed_s *body, float motor_speed[4])
+{
+    const float x = model->x_projection * body->vx;
+    const float y = model->y_projection * body->vy;
+    const float spin = model->radius * body->wz;
+    motor_speed[0] = (-x + y + spin) * model->motor_per_linear;
+    motor_speed[1] = (x + y + spin) * model->motor_per_linear;
+    motor_speed[2] = (-x - y + spin) * model->motor_per_linear;
+    motor_speed[3] = (x - y + spin) * model->motor_per_linear;
+}
 // 按 IEEE-754 位模式检查，避免 -Ofast 优化掉 NaN/Inf 判断。
-static uint8_t Finite(float value) {
+static uint8_t Finite(float value)
+{
     uint32_t bits;
     memcpy(&bits, &value, sizeof(bits));
     return (bits & 0x7f800000u) != 0x7f800000u;
 }
 
-static uint8_t VelocityValid(const Speed_s *v) { return v != NULL && Finite(v->vx) && Finite(v->vy) && Finite(v->wz); }
-
-uint8_t SpeedObserverInit(SpeedObserver_s *observer, const SpeedObserver_Init_Config_s *init) {
-    if (observer == NULL || init == NULL) return 0u;
+static uint8_t CheckInit(SpeedObserverInstance *observer, const SpeedObserver_Init_Config_s *init)
+{
+    if (observer == NULL || init == NULL)
+        return 0u;
     const SpeedObserverConfig_s *config = &init->filter;
     memset(observer, 0, sizeof(*observer));
-    for (int i = 0; i < 3; ++i)
-        if (!Finite(config->initial_variance[i]) || config->initial_variance[i] <= 0.0f ||
-            !Finite(config->process_noise[i]) || config->process_noise[i] <= 0.0f ||
-            !Finite(config->wheel_variance[i]) || config->wheel_variance[i] <= 0.0f)
+    // 固定滤波参数由机器人配置保证；这里只检查运动学除数和时间限制。
+    const float positive[] = {init->wheel_base, init->track_width, init->wheel_radius,
+                              init->reduction, init->sensor_timeout, config->max_dt};
+    for (int i = 0; i < 6; ++i)
+        if (!Finite(positive[i]) || positive[i] <= 0.0f)
             return 0u;
-    for (int i = 0; i < 2; ++i)
-        if (!Finite(config->accel_variance[i]) || config->accel_variance[i] < 0.0f) return 0u;
-    if (!Finite(config->gyro_variance) || config->gyro_variance <= 0.0f || !Finite(config->max_dt) ||
-        config->max_dt <= 0.0f)
-        return 0u;
-    if (!Finite(init->wheel_base) || init->wheel_base <= 0.0f || !Finite(init->track_width) ||
-        init->track_width <= 0.0f || !Finite(init->wheel_radius) || init->wheel_radius <= 0.0f ||
-        !Finite(init->reduction) || init->reduction <= 0.0f || !Finite(init->sensor_timeout) ||
-        init->sensor_timeout <= 0.0f || !Finite(init->imu_offset[0]) || !Finite(init->imu_offset[1]))
-        return 0u;
+    return 1u;
+}
+
+SpeedObserverInstance *SpeedObserverInit(const SpeedObserver_Init_Config_s *init)
+{
+    SpeedObserverInstance *observer = zmalloc(sizeof(*observer));
+    if (observer == NULL)
+        return NULL;
+    if (!CheckInit(observer, init))
+    {
+        free(observer);
+        return NULL;
+    }
     observer->model = OmniKinematicsInit(init->wheel_base, init->track_width, init->wheel_radius, init->reduction);
-    observer->use_imu = init->use_imu;
-    observer->use_accel = init->use_imu && init->use_accel;
     observer->timeout = init->sensor_timeout;
     observer->correction_age = init->sensor_timeout + 1.0f;
     memcpy(observer->imu_offset, init->imu_offset, sizeof(observer->imu_offset));
-    observer->config = *config;
+    observer->config = init->filter;
     observer->initialized = 1u;
-    return 1u;
+    return observer;
 }
 
-static uint8_t Reset(SpeedObserver_s *observer, const Speed_s *velocity) {
-    if (observer == NULL || !observer->initialized || !VelocityValid(velocity)) return 0u;
-    observer->fused = *velocity;
-    memset(observer->covariance, 0, sizeof(observer->covariance));
-    for (int i = 0; i < 3; ++i) observer->covariance[i][i] = observer->config.initial_variance[i];
-    observer->seeded = 1u;
-    observer->used_gyro = observer->used_accel = 0u;
-    return 1u;
-}
-
-typedef struct {
+typedef struct
+{
     Speed_s wheel;
     float gyro_z, accel_x, accel_y;
     uint8_t wheel_valid, gyro_valid, accel_valid;
 } FilterInput_s;
 
+typedef struct
+{
+    Speed_s fused;
+    float covariance[3][3];
+} FilterResult_s;
+
+typedef struct
+{
+    FilterInput_s sample;
+    uint8_t dt_valid, feedback_valid, imu_new, accel_new;
+} ObserverInput_s;
+
 // 单轴量测校正，Joseph 形式保持协方差对称与半正定。
-static void Correct(float state[3], float p[3][3], int axis, float measurement, float variance) {
+static void Correct(float state[3], float p[3][3], int axis, float measurement, float variance)
+{
     float gain[3], a[3][3], ap[3][3] = {{0}}, updated[3][3] = {{0}};
     const float innovation = measurement - state[axis];
     const float s = p[axis][axis] + variance;
-    for (int i = 0; i < 3; ++i) {
+    for (int i = 0; i < 3; ++i)
+    {
         gain[i] = p[i][axis] / s;
         state[i] += gain[i] * innovation;
-        for (int j = 0; j < 3; ++j) a[i][j] = (i == j ? 1.0f : 0.0f) - (j == axis ? gain[i] : 0.0f);
+        for (int j = 0; j < 3; ++j)
+            a[i][j] = (i == j ? 1.0f : 0.0f) - (j == axis ? gain[i] : 0.0f);
     }
     for (int i = 0; i < 3; ++i)
         for (int j = 0; j < 3; ++j)
-            for (int k = 0; k < 3; ++k) ap[i][j] += a[i][k] * p[k][j];
+            for (int k = 0; k < 3; ++k)
+                ap[i][j] += a[i][k] * p[k][j];
     for (int i = 0; i < 3; ++i)
-        for (int j = 0; j < 3; ++j) {
-            for (int k = 0; k < 3; ++k) updated[i][j] += ap[i][k] * a[j][k];
+        for (int j = 0; j < 3; ++j)
+        {
+            for (int k = 0; k < 3; ++k)
+                updated[i][j] += ap[i][k] * a[j][k];
             updated[i][j] += gain[i] * variance * gain[j];
         }
     memcpy(p, updated, sizeof(updated));
 }
 
-static uint8_t FilterUpdate(SpeedObserver_s *observer, const FilterInput_s *input, float dt) {
-    if (observer == NULL || !observer->initialized || input == NULL || !Finite(dt) || dt <= 0.0f ||
-        dt > observer->config.max_dt || (input->wheel_valid && !VelocityValid(&input->wheel)) ||
-        (input->gyro_valid && !Finite(input->gyro_z)) ||
-        (input->accel_valid && (!Finite(input->accel_x) || !Finite(input->accel_y))))
-        return 0u;
-    if (!observer->seeded) {
-        if (!input->wheel_valid) return 0u;
+static void FilterCalculate(const SpeedObserverInstance *observer, const FilterInput_s *input, float dt,
+                            FilterResult_s *result)
+{
+    // 输入已经通过 CheckInput；这里只计算候选结果。
+    float state[3];
+    float (*p)[3] = result->covariance;
+    memset(p, 0, sizeof(result->covariance));
+    if (!observer->seeded)
+    {
         // 首帧轮速只用于初始化，不重复校正。
-        if (!Reset(observer, &input->wheel)) return 0u;
-        if (input->gyro_valid) {
-            float state[3] = {observer->fused.vx, observer->fused.vy, observer->fused.wz};
-            Correct(state, observer->covariance, 2, input->gyro_z, observer->config.gyro_variance);
-            observer->fused.wz = state[2];
-            observer->used_gyro = 1u;
+        state[0] = input->wheel.vx;
+        state[1] = input->wheel.vy;
+        state[2] = input->wheel.wz;
+        for (int i = 0; i < 3; ++i)
+            p[i][i] = observer->config.initial_variance[i];
+    }
+    else
+    {
+        state[0] = observer->output.fused.vx;
+        state[1] = observer->output.fused.vy;
+        state[2] = observer->output.fused.wz;
+        float f[3][3] = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
+        float fp[3][3] = {{0}};
+        if (input->accel_valid)
+        {
+            // 机体系速度导数 = 机体系惯性加速度 - 角速度叉乘速度。
+            f[0][1] = state[2] * dt;
+            f[0][2] = state[1] * dt;
+            f[1][0] = -state[2] * dt;
+            f[1][2] = -state[0] * dt;
+            const float vx = state[0], vy = state[1];
+            state[0] += (input->accel_x + state[2] * vy) * dt;
+            state[1] += (input->accel_y - state[2] * vx) * dt;
         }
-        return 1u;
-    }
-    float state[3] = {observer->fused.vx, observer->fused.vy, observer->fused.wz};
-    float f[3][3] = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
-    float fp[3][3] = {{0}}, p[3][3] = {{0}};
-    if (input->accel_valid) {
-        // 机体系速度导数 = 机体系惯性加速度 - 角速度叉乘速度。
-        f[0][1] = state[2] * dt;
-        f[0][2] = state[1] * dt;
-        f[1][0] = -state[2] * dt;
-        f[1][2] = -state[0] * dt;
-        const float vx = state[0], vy = state[1];
-        state[0] += (input->accel_x + state[2] * vy) * dt;
-        state[1] += (input->accel_y - state[2] * vx) * dt;
-    }
-    // 加速度不可用时，按机体系速度随机游走预测。
-    for (int i = 0; i < 3; ++i)
-        for (int j = 0; j < 3; ++j)
-            for (int k = 0; k < 3; ++k) fp[i][j] += f[i][k] * observer->covariance[k][j];
-    for (int i = 0; i < 3; ++i)
-        for (int j = 0; j < 3; ++j)
-            for (int k = 0; k < 3; ++k) p[i][j] += fp[i][k] * f[j][k];
-    for (int i = 0; i < 3; ++i) p[i][i] += observer->config.process_noise[i] * dt;
-    if (input->accel_valid)
-        for (int i = 0; i < 2; ++i) p[i][i] += observer->config.accel_variance[i] * dt * dt;
-    if (input->wheel_valid) {
-        const float wheel[3] = {input->wheel.vx, input->wheel.vy, input->wheel.wz};
-        for (int i = 0; i < 3; ++i) Correct(state, p, i, wheel[i], observer->config.wheel_variance[i]);
-    }
-    if (input->gyro_valid) Correct(state, p, 2, input->gyro_z, observer->config.gyro_variance);
-    // 仅提交有限结果，失败更新不覆盖已有融合状态。
-    for (int i = 0; i < 3; ++i) {
-        if (!Finite(state[i]) || !Finite(p[i][i]) || p[i][i] < 0.0f) return 0u;
-        for (int j = i; j < 3; ++j) {
-            if (!Finite(p[i][j]) || !Finite(p[j][i])) return 0u;
-            p[j][i] = p[i][j] = 0.5f * (p[i][j] + p[j][i]);
+        // 加速度不可用时，按机体系速度随机游走预测。
+        for (int i = 0; i < 3; ++i)
+            for (int j = 0; j < 3; ++j)
+                for (int k = 0; k < 3; ++k)
+                    fp[i][j] += f[i][k] * observer->covariance[k][j];
+        for (int i = 0; i < 3; ++i)
+            for (int j = 0; j < 3; ++j)
+                for (int k = 0; k < 3; ++k)
+                    p[i][j] += fp[i][k] * f[j][k];
+        for (int i = 0; i < 3; ++i)
+            p[i][i] += observer->config.process_noise[i] * dt;
+        if (input->accel_valid)
+            for (int i = 0; i < 2; ++i)
+                p[i][i] += observer->config.accel_variance[i] * dt * dt;
+        if (input->wheel_valid)
+        {
+            const float wheel[3] = {input->wheel.vx, input->wheel.vy, input->wheel.wz};
+            for (int i = 0; i < 3; ++i)
+                Correct(state, p, i, wheel[i], observer->config.wheel_variance[i]);
         }
     }
-    observer->fused = (Speed_s){state[0], state[1], state[2]};
-    memcpy(observer->covariance, p, sizeof(p));
-    observer->used_gyro = input->gyro_valid;
-    observer->used_accel = input->accel_valid;
-    return 1u;
+    if (input->gyro_valid)
+        Correct(state, p, 2, input->gyro_z, observer->config.gyro_variance);
+    for (int i = 0; i < 3; ++i)
+        for (int j = i + 1; j < 3; ++j)
+            p[j][i] = p[i][j] = 0.5f * p[i][j] + 0.5f * p[j][i];
+    result->fused = (Speed_s){state[0], state[1], state[2]};
 }
 
 static uint8_t LeverArmUpdate(SpeedObserverLeverArm_s *filter, float ax, float ay, float gyro_z, float offset_x,
-                              float offset_y, float dt, float time_constant, float center_accel[2]) {
-    if (filter == NULL) return 0u;
-    if (center_accel == NULL || !Finite(ax) || !Finite(ay) || !Finite(gyro_z) || !Finite(offset_x) ||
-        !Finite(offset_y) || !Finite(dt) || dt <= 0.0f || !Finite(time_constant) || time_constant < 0.0f) {
-        *filter = (SpeedObserverLeverArm_s){0};
-        return 0u;
-    }
+                              float offset_y, float dt, float time_constant, float center_accel[2])
+{
+    // 只计算历史和中心加速度，统一由最终滤波结果检查处理数值异常。
     const float squared_wz = gyro_z * gyro_z;
-    if (!Finite(squared_wz)) {
-        *filter = (SpeedObserverLeverArm_s){0};
-        return 0u;
-    }
-    if (!filter->seeded) {
+    if (!filter->seeded)
+    {
         // 首帧或恢复帧只建立差分历史，避免启动冲击。
         *filter = (SpeedObserverLeverArm_s){.last_gyro = gyro_z, .squared_wz = squared_wz, .seeded = 1u};
         return 0u;
@@ -191,10 +236,6 @@ static uint8_t LeverArmUpdate(SpeedObserverLeverArm_s *filter, float ax, float a
     // 切向和向心项均使用匹配低通，减少起停时与 INS 加速度的相位差。
     const float center_x = ax + angular_accel * offset_y + filtered_squared_wz * offset_x;
     const float center_y = ay - angular_accel * offset_x + filtered_squared_wz * offset_y;
-    if (!Finite(angular_accel) || !Finite(filtered_squared_wz) || !Finite(center_x) || !Finite(center_y)) {
-        *filter = (SpeedObserverLeverArm_s){0};
-        return 0u;
-    }
     filter->last_gyro = gyro_z;
     filter->angular_accel = angular_accel;
     filter->squared_wz = filtered_squared_wz;
@@ -203,84 +244,132 @@ static uint8_t LeverArmUpdate(SpeedObserverLeverArm_s *filter, float ax, float a
     return 1u;
 }
 
-uint8_t SpeedObserverUpdate(SpeedObserver_s *observer, const SpeedObserverInput_s *input, float dt) {
-    if (observer == NULL || !observer->initialized || input == NULL) return 0u;
-    const uint8_t dt_valid = Finite(dt) && dt > 0.0f && dt <= observer->config.max_dt;
-    if (dt_valid)
-        observer->correction_age += dt;
-    else
+// 只检查输入并维护采样资格，不执行运动学、杆臂补偿或滤波计算。
+static uint8_t CheckInput(SpeedObserverInstance *observer, const SpeedObserverInput_s *input, float dt,
+                          ObserverInput_s *checked)
+{
+    if (observer == NULL || input == NULL || !observer->initialized)
+        return 0u;
+    observer->output.status = input->imu_ready ? kSpeedObserverImuReady : 0u;
+    if (!Finite(dt) || dt <= 0.0f)
+    {
+        observer->lever_arm = (SpeedObserverLeverArm_s){0};
+        observer->have_accel = 0u;
+        observer->imu_age = 0.0f;
         observer->correction_age = observer->timeout + 1.0f;
-    observer->valid = 0u;
-    observer->status = input->imu_ready ? 1u : 0u;
-    const uint32_t *wheel_stamp = input->wheel_stamp;
-    const uint8_t *wheel_online = input->wheel_online;
-    const uint64_t imu_stamp = observer->use_imu && input->imu_ready ? input->imu_stamp : 0u;
-    const float gyro_z = input->gyro_z, accel_x = input->accel_x, accel_y = input->accel_y;
-    const float accel_lpf = input->accel_lpf;
-    observer->wheel = OmniForward(&observer->model, input->motor_speed);
-    FilterInput_s sample = {.wheel = observer->wheel, .wheel_valid = 1u};
-    for (int i = 0; i < 4; ++i) {
-        if (wheel_online[i]) observer->status |= (uint16_t)(1u << (8 + i));
-        observer->wheel_age[i] += dt;
-        if (wheel_stamp[i] != observer->wheel_seen[i]) observer->wheel_age[i] = 0.0f;
-        observer->wheel_seen[i] = wheel_stamp[i];
-        if (!wheel_online[i] || wheel_stamp[i] == 0 || wheel_stamp[i] == observer->wheel_stamp[i] ||
-            observer->wheel_age[i] > observer->timeout)
-            sample.wheel_valid = 0u;
+        return 0u;
     }
-    // 暂停、时钟异常或 INS 重启时清空差分历史，避免角加速度冲击。
-    if (dt_valid) {
-        observer->imu_age += dt;
-        observer->gyro_dt += dt;
-    }
-    if (!dt_valid || imu_stamp == 0 || imu_stamp < observer->imu_stamp || observer->imu_age > observer->timeout ||
-        observer->gyro_dt > observer->timeout) {
-        observer->lever_arm = (SpeedObserverLeverArm_s){0};
-        observer->have_accel = 0u;
-    }
-    if (imu_stamp != 0 && imu_stamp != observer->imu_stamp) {
-        sample.gyro_z = gyro_z;
-        sample.gyro_valid = Finite(gyro_z);
-        observer->have_accel = 0u;
-        if (observer->use_accel && dt_valid) {
-            observer->have_accel =
-                LeverArmUpdate(&observer->lever_arm, accel_x, accel_y, gyro_z, observer->imu_offset[0],
-                               observer->imu_offset[1], observer->gyro_dt, accel_lpf, observer->center_accel);
-        }
-        observer->gyro_dt = observer->imu_age = 0.0f;
-        observer->imu_stamp = imu_stamp;
-    }
-    sample.accel_valid = observer->have_accel && observer->imu_age <= observer->timeout;
-    sample.accel_x = observer->center_accel[0];
-    sample.accel_y = observer->center_accel[1];
-    if (sample.wheel_valid) observer->status |= (1u << 1);
-    if (sample.gyro_valid) observer->status |= (1u << 2);
-    if (sample.accel_valid) observer->status |= (1u << 3);
-    observer->updated = 0u;
-    if (dt > observer->config.max_dt) {
-        observer->status |= (1u << 6);
-        // 调试暂停等长间隔不强行积分；仅用新鲜轮速重置估计，不改任何电机指令。
-        if (sample.wheel_valid)
-            observer->updated = Reset(observer, &sample.wheel);
-        else
-            observer->seeded = 0u;
-        observer->lever_arm = (SpeedObserverLeverArm_s){0};
-        observer->have_accel = 0u;
-    } else
-        observer->updated = FilterUpdate(observer, &sample, dt);
-    if (observer->updated) {
-        observer->status |= (1u << 4);
-
-        if (sample.wheel_valid) {
-            memcpy(observer->wheel_stamp, wheel_stamp, sizeof(observer->wheel_stamp));
-            observer->correction_age = 0.0f;
-        }
-    }
-    if (observer->seeded) observer->status |= (1u << 5);
-    observer->valid = dt_valid && observer->updated && observer->seeded &&
-                      observer->correction_age <= observer->timeout && Finite(observer->fused.vx) &&
-                      Finite(observer->fused.vy) && Finite(observer->fused.wz);
+    checked->dt_valid = dt <= observer->config.max_dt;
+    observer->correction_age = checked->dt_valid ? observer->correction_age + dt : observer->timeout + 1.0f;
+    uint8_t wheels_available = 1u;
+    FilterInput_s *sample = &checked->sample;
+    sample->wheel_valid = 1u;
     for (int i = 0; i < 4; ++i)
-        if (!wheel_online[i] || observer->wheel_age[i] > observer->timeout) observer->valid = 0u;
-    return observer->updated;
+    {
+        if (input->wheel_online[i])
+            observer->output.status |= (uint16_t)(1u << (8 + i));
+        observer->wheel_age[i] = input->wheel_stamp[i] != observer->wheel_seen[i] ? 0.0f : observer->wheel_age[i] + dt;
+        observer->wheel_seen[i] = input->wheel_stamp[i];
+        if (!input->wheel_online[i] || input->wheel_stamp[i] == 0 ||
+            observer->wheel_age[i] > observer->timeout || !Finite(input->motor_speed[i]))
+            wheels_available = 0u;
+        if (input->wheel_stamp[i] == observer->wheel_stamp[i])
+            sample->wheel_valid = 0u;
+    }
+    sample->wheel_valid &= wheels_available;
+    checked->feedback_valid = checked->dt_valid && wheels_available &&
+                              (sample->wheel_valid || observer->correction_age <= observer->timeout);
+    const uint64_t stamp = input->imu_ready ? input->imu_stamp : 0u;
+    if (checked->dt_valid)
+        observer->imu_age += dt;
+    checked->imu_new = stamp != 0 && stamp != observer->imu_stamp;
+    sample->gyro_z = input->gyro_z;
+    sample->gyro_valid = checked->dt_valid && checked->imu_new && Finite(input->gyro_z);
+    checked->accel_new = sample->gyro_valid && Finite(input->accel_x) && Finite(input->accel_y) &&
+                         Finite(input->accel_lpf) && input->accel_lpf >= 0.0f;
+    // 超时、重启、暂停或坏样本共用一次历史清空。
+    if (!checked->dt_valid || stamp == 0 || stamp < observer->imu_stamp ||
+        observer->imu_age > observer->timeout || (checked->imu_new && !checked->accel_new))
+    {
+        observer->lever_arm = (SpeedObserverLeverArm_s){0};
+        observer->have_accel = 0u;
+    }
+    if (!checked->dt_valid)
+    {
+        observer->seeded = 0u;
+        observer->output.status |= kSpeedObserverTimingReset;
+    }
+    return 1u;
+}
+
+// 仅检查最终速度和协方差对角线；异常时丢弃本周期结果并清空计算历史。
+static uint8_t CheckResult(SpeedObserverInstance *observer, const FilterResult_s *result)
+{
+    const float velocity[3] = {result->fused.vx, result->fused.vy, result->fused.wz};
+    for (int i = 0; i < 3; ++i)
+        if (!Finite(velocity[i]) || !Finite(result->covariance[i][i]) || result->covariance[i][i] < 0.0f)
+        {
+            observer->seeded = observer->have_accel = 0u;
+            observer->lever_arm = (SpeedObserverLeverArm_s){0};
+            return 0u;
+        }
+    return 1u;
+}
+
+uint8_t SpeedObserverUpdate(SpeedObserverInstance *observer, const SpeedObserverInput_s *input, float dt)
+{
+    ObserverInput_s checked = {0};
+    if (!CheckInput(observer, input, dt, &checked))
+        return 0u;
+
+    // 计算阶段只使用输入检查给出的资格，不重复检查传感器或中间结果。
+    FilterInput_s *sample = &checked.sample;
+    observer->output.wheel = sample->wheel = OmniForward(&observer->model, input->motor_speed);
+    if (checked.imu_new)
+    {
+        if (checked.accel_new)
+            observer->have_accel = LeverArmUpdate(&observer->lever_arm, input->accel_x, input->accel_y, input->gyro_z,
+                                                  observer->imu_offset[0], observer->imu_offset[1], observer->imu_age,
+                                                  input->accel_lpf, observer->center_accel);
+        observer->imu_age = 0.0f;
+        observer->imu_stamp = input->imu_stamp;
+    }
+    sample->accel_valid = observer->have_accel;
+    sample->accel_x = observer->center_accel[0];
+    sample->accel_y = observer->center_accel[1];
+    observer->output.status |= (uint16_t)((sample->wheel_valid << 1) | (sample->gyro_valid << 2) | (sample->accel_valid << 3));
+    if (!observer->seeded && !sample->wheel_valid)
+        return 0u;
+    FilterResult_s result;
+    FilterCalculate(observer, sample, checked.dt_valid ? dt : 0.0f, &result);
+    if (!CheckResult(observer, &result))
+        return 0u;
+
+    observer->output.fused = result.fused;
+    memcpy(observer->covariance, result.covariance, sizeof(result.covariance));
+    observer->seeded = 1u;
+    observer->output.status |= kSpeedObserverUpdated | kSpeedObserverSeeded;
+    if (sample->wheel_valid)
+    {
+        memcpy(observer->wheel_stamp, input->wheel_stamp, sizeof(observer->wheel_stamp));
+        observer->correction_age = 0.0f;
+    }
+    if (checked.feedback_valid)
+        observer->output.status |= kSpeedObserverValid;
+    return 1u;
+}
+
+const SpeedObserver_s *SpeedObserverGetResult(const SpeedObserverInstance *observer)
+{
+    return observer == NULL ? NULL : &observer->output;
+}
+
+void SpeedObserverInverse(const SpeedObserverInstance *observer, const Speed_s *body, float motor_speed[4])
+{
+    if (observer == NULL)
+    {
+        memset(motor_speed, 0, 4 * sizeof(*motor_speed));
+        return;
+    }
+    OmniInverse(&observer->model, body, motor_speed);
 }

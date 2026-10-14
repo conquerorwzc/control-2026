@@ -30,58 +30,33 @@ static float k0, k1, k2, k3, k4, k5;     // 中科大的功率模型
 static uint8_t super_cap_error_flag = 0; // 电容故障标志
 static uint32_t observer_clock;
 
-// 与速度观测器一致，避免 -Ofast 将 NaN/Inf 检查优化掉。
-static uint8_t SpeedFinite(float value)
-{
-    uint32_t bits;
-    memcpy(&bits, &value, sizeof(bits));
-    return (bits & 0x7f800000u) != 0x7f800000u;
-}
-
 static void ResetSpeedHold()
 {
     PIDClear(&chassis->vx_hold_pid);
     PIDClear(&chassis->vy_hold_pid);
     PIDClear(&chassis->wz_hold_pid);
-    chassis->speed_hold_active = 0u;
 }
 
 /** @brief 三轴速度外环，目标前馈 + PID 修正；只修改局部逆解输入。 */
 static void SpeedHoldControl()
 {
+    const SpeedObserver_s *speed = SpeedObserverGetResult(chassis->speed_observer);//更新速度
     Speed_s target = {.vx = chassis_vx, .vy = chassis_vy, .wz = chassis_wz};
     Speed_s correction = {0};
-    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_POWER_OFF ||
-        !SpeedFinite(target.vx) || !SpeedFinite(target.vy) || !SpeedFinite(target.wz))
+    if (chassis_ctrl_cmd->chassis_mode == CHASSIS_POWER_OFF)
     {
         target = (Speed_s){0};
         ResetSpeedHold();
     }
-    else if (!chassis->enable_speed_hold || !chassis->speed_observer.valid)
+    else if (speed == NULL || !(speed->status & kSpeedObserverValid))
         ResetSpeedHold(); // 暂退为原有速度前馈；不改变已有电机急停策略。
-    else if (!chassis->speed_hold_active)
-    {
-        // 刚使能/恢复测速时先预置历史，下一周期再计算，避免长间隔积分和微分冲击。
-        ResetSpeedHold();
-        chassis->vx_hold_pid.Last_Measure = chassis->speed_observer.fused.vx;
-        chassis->vy_hold_pid.Last_Measure = chassis->speed_observer.fused.vy;
-        chassis->wz_hold_pid.Last_Measure = chassis->speed_observer.fused.wz;
-        chassis->vx_hold_pid.Last_Err = target.vx - chassis->speed_observer.fused.vx;
-        chassis->vy_hold_pid.Last_Err = target.vy - chassis->speed_observer.fused.vy;
-        chassis->wz_hold_pid.Last_Err = target.wz - chassis->speed_observer.fused.wz;
-        chassis->speed_hold_active = 1u;
-    }
     else
     {
-        const Speed_s pid_output = {
-            .vx = PIDCalculate(&chassis->vx_hold_pid, chassis->speed_observer.fused.vx, target.vx),
-            .vy = PIDCalculate(&chassis->vy_hold_pid, chassis->speed_observer.fused.vy, target.vy),
-            .wz = PIDCalculate(&chassis->wz_hold_pid, chassis->speed_observer.fused.wz, target.wz),
+        correction = (Speed_s){
+            .vx = PIDCalculate(&chassis->vx_hold_pid, speed->fused.vx, target.vx),
+            .vy = PIDCalculate(&chassis->vy_hold_pid, speed->fused.vy, target.vy),
+            .wz = PIDCalculate(&chassis->wz_hold_pid, speed->fused.wz, target.wz),
         };
-        if (SpeedFinite(pid_output.vx) && SpeedFinite(pid_output.vy) && SpeedFinite(pid_output.wz))
-            correction = pid_output;
-        else
-            ResetSpeedHold();
     }
     chassis_vx = target.vx + correction.vx;
     chassis_vy = target.vy + correction.vy;
@@ -93,7 +68,7 @@ static void OmniCalculate()
 {
     const Speed_s body = {.vx = chassis_vx, .vy = chassis_vy, .wz = chassis_wz};
     float motor_speed[4];
-    OmniInverse(&chassis->speed_observer.model, &body, motor_speed);
+    SpeedObserverInverse(chassis->speed_observer, &body, motor_speed);
     vt_lf = motor_speed[0];
     vt_rf = motor_speed[1];
     vt_lb = motor_speed[2];
@@ -249,7 +224,7 @@ static void EstimateSpeed()
     }
     taskEXIT_CRITICAL();
 
-    SpeedObserverUpdate(&chassis->speed_observer, &input, dt);
+    SpeedObserverUpdate(chassis->speed_observer, &input, dt);
 }
 static float YawHoldCompensate()
 {
@@ -291,27 +266,11 @@ ChassisInstance *ChassisInit(Chassis_Init_Config_s *chassis_init_config)
     PIDInit(&chassis_instance->vx_hold_pid, &chassis_init_config->vx_hold_pid);
     PIDInit(&chassis_instance->vy_hold_pid, &chassis_init_config->vy_hold_pid);
     PIDInit(&chassis_instance->wz_hold_pid, &chassis_init_config->wz_hold_pid);
-    chassis_instance->enable_speed_hold = chassis_init_config->enable_speed_hold;
 
-    if (chassis_init_config->enable_yaw_hold)
-    {
-        PIDInit(&chassis_instance->yaw_hold_pid, &chassis_init_config->yaw_hold_pid);
-    }
+    PIDInit(&chassis_instance->yaw_hold_pid, &chassis_init_config->yaw_hold_pid);
 
-    SpeedObserver_Init_Config_s observer_config = {
-        .filter = chassis_init_config->observer_config,
-        .wheel_base = chassis_param.wheel_base * 0.001f,
-        .track_width = chassis_param.track_width * 0.001f,
-        .wheel_radius = chassis_param.wheel_radius * 0.001f,
-        .reduction = chassis_param.wheel_reduction_ratio,
-        .imu_offset = {chassis_init_config->observer_imu_offset[0], chassis_init_config->observer_imu_offset[1]},
-        .sensor_timeout = chassis_init_config->observer_sensor_timeout,
-        .use_imu = chassis_init_config->observer_imu_calibrated,
-        .use_accel = chassis_init_config->observer_accel_enabled,
-    };
-    SpeedObserverInit(&chassis_instance->speed_observer, &observer_config);
-    if (chassis_init_config->enable_imu_sampling || chassis_init_config->observer_imu_calibrated || chassis_init_config->enable_yaw_hold)
-        chassis_instance->chassis_IMU = INS_Init(&chassis_init_config->imu_init_config);
+    chassis_instance->speed_observer = SpeedObserverInit(&chassis_init_config->observer_init_config);
+    chassis_instance->chassis_IMU = INS_Init(&chassis_init_config->imu_init_config);
     DWT_GetDeltaT(&observer_clock);
     for (int i = 0; i < 4; i++)
     {

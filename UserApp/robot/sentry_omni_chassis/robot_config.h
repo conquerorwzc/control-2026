@@ -27,11 +27,10 @@
 #define VISION_USE_VCP  // 使用虚拟串口发送视觉数据
 // #define VISION_USE_UART // 使用串口发送视觉数据
 
-// 物理参数：长度配置仍为 mm，进入运动学时统一转 m。
-#define CHASSIS_WHEEL_RADIUS_MM 76.475f
-#define CHASSIS_WHEEL_REDUCTION 19.0f
+
 // 遥控原始通道 [-660, 660] 直接映射为 SI 目标速度，与轮径/减速比无关。
 #define REMOTE_CHANNEL_MAX 660.0f
+#define REMOTE_DIAL_DEADBAND 20.0f
 #define REMOTE_MAX_LINEAR_SPEED_MPS 2.0f  // vx/vy 各轴满量程；未对合速度限幅
 #define REMOTE_SPIN_LOW_RADPS 1.5f
 #define REMOTE_SPIN_HIGH_RADPS 5.0f
@@ -98,8 +97,6 @@
 })
 
 static Chassis_Init_Config_s chassis_init_config = {
-    // vx/vy 按用户约定共用纯 P=0.4；wz 增强平动抗偏航，保持零积分避免拖尾。
-    .enable_speed_hold = 1,
     .vx_hold_pid = {
         .Kp = 0.4f, .Ki = 0.0f, .Kd = 0.0f, // 联合数据复核后增强 P，纯前后跟随候选，待复测
         .DeadBand = 0.01f,       // m/s
@@ -122,7 +119,6 @@ static Chassis_Init_Config_s chassis_init_config = {
         .IntegralLimit = 0.0f,
         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
     },
-    .enable_yaw_hold = 1,
     .yaw_hold_pid = {
         .Kp = 0.12f, .Ki = 0.0f, .Kd = 0.0f, // yaw3.csv 复核保留；避免继续放大受限工况的角速度请求
         .DeadBand = 0.3f,        // deg
@@ -130,21 +126,23 @@ static Chassis_Init_Config_s chassis_init_config = {
         .IntegralLimit = 0.0f,
         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
     },
-    // 2026-10-12 CSV 首轮整定：优先纯平动 vx/vy、纯转动 wz，保留机械运动加速度。
-    // 以下均为方差/噪声密度；依据与限制见 speed_observer/noise_calibration/2026-10-12-tuned/整定说明.md。
-    .observer_config = {
-        .initial_variance = {0.25f, 0.25f, 0.25f},
-        .process_noise = {0.025f, 0.035f, 1.5f},  // Q=q*dt；xy 采用稳健过程一致性，wz 保留起停变化
-        .wheel_variance = {0.0007f, 0.0005f, 0.015f},
-        .gyro_variance = 0.0002f,
-        .accel_variance = {0.04f, 0.0002f}, // 新版匹配低通后的静止随机噪声，不含真实周期运动
-        .max_dt = 0.05f,
+    // 滤波参数为方差/噪声密度；依据与限制见 speed_observer/noise_calibration/2026-10-12-tuned/整定说明.md。
+    .observer_init_config = {
+        .filter = {
+            .initial_variance = {0.25f, 0.25f, 0.25f},
+            .process_noise = {0.025f, 0.035f, 1.5f},  // Q=q*dt；xy 采用稳健过程一致性，wz 保留起停变化
+            .wheel_variance = {0.0007f, 0.0005f, 0.015f},
+            .gyro_variance = 0.0002f,
+            .accel_variance = {0.04f, 0.0002f}, // 新版匹配低通后的静止随机噪声，不含真实周期运动
+            .max_dt = 0.05f,
+        },
+        .wheel_base = 0.34596f, // m
+        .track_width = 0.34596f, // m
+        .wheel_radius = 0.076475f, // m
+        .reduction = 19.2f, // 电机转速 / 轮转速
+        .imu_offset = {0.0f, -0.1335f}, // 中心 -> IMU：位于 -y（右侧）约 133.5 mm，单位 m
+        .sensor_timeout = 0.02f,
     },
-    .enable_imu_sampling = 1, // 开启 BMI088/INS 采集任务，采集开关与融合开关独立
-    .observer_imu_calibrated = 1, // 已按实机验证结果启用 gyro_z 观测
-    .observer_accel_enabled = 1,  // 已按实机验证结果启用去重力、杆臂补偿后的加速度预测
-    .observer_imu_offset = {0.0f, -0.1335f}, // 中心 -> IMU：位于 -y（右侧）约 133.5 mm，单位 m
-    .observer_sensor_timeout = 0.02f,
     .imu_init_config = {
         .flag = 1,
         .scale = {1.0f, 1.0f, 1.0f},
@@ -154,13 +152,6 @@ static Chassis_Init_Config_s chassis_init_config = {
     },
     .chassis_param =
         {
-            // 机器人底盘修改的参数,单位为mm(毫米)
-            .wheel_base = 345.96f,              // 纵向轴距(前进后退方向)
-            .track_width = 345.96f,             // 横向轮距(左右平移方向)
-            .center_gimbal_offset_x = 0.0f,    // 云台旋转中心距底盘几何中心的距离,前后方向,云台位于正中心时默认设为0
-            .center_gimbal_offset_y = 0.0f,    // 云台旋转中心距底盘几何中心的距离,左右方向,云台位于正中心时默认设为0
-            .wheel_radius = CHASSIS_WHEEL_RADIUS_MM,             // 轮子半径
-            .wheel_reduction_ratio = CHASSIS_WHEEL_REDUCTION,  // 电机减速比,因为编码器量测的是转子的速度而不是输出轴的速度故需进行转换
             //3508功率模型参数
       .power_param.k0=0.7441993412640775f,
       .power_param.k1=0.0090164284468539646f,

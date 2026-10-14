@@ -50,7 +50,6 @@ typedef enum
 typedef struct
 {
     // 控制部分
-    // SI 速度目标，与导航同轴；原点为底盘几何中心。
     float vx; // m/s，+x 朝电池安装方向
     float vy; // m/s，+y 向左
     float wz; // rad/s，+wz 俯视逆时针；目标仍由下位机生成
@@ -104,19 +103,12 @@ typedef struct
     Chassis_Param_s chassis_param;
     Motor_Init_Config_s wheel_motor_config[4];
     PID_Init_Config_s follow_pid;
-    PID_Init_Config_s yaw_hold_pid; // 角度误差单位度，输出为 rad/s；由 enable_yaw_hold 配置初始化
+    PID_Init_Config_s yaw_hold_pid; // 角度误差单位度，输出为 rad/s
     PID_Init_Config_s vx_hold_pid;  // 整车速度外环：输入/修正输出均为 m/s
     PID_Init_Config_s vy_hold_pid;  // 整车速度外环：输入/修正输出均为 m/s
     PID_Init_Config_s wz_hold_pid;  // 整车速度外环：输入/修正输出均为 rad/s
-    uint8_t enable_speed_hold;     // 三轴速度外环开关，适用于所有底盘使能模式
     IMU_Init_Config_s imu_init_config;
-    uint8_t enable_imu_sampling; // 独立开启 INS 采集，用于安装方向核对，不自动启用速度融合
-    uint8_t enable_yaw_hold;
-    SpeedObserverConfig_s observer_config;
-    uint8_t observer_imu_calibrated; // 仅在 INS 输出轴向和陀螺仪零偏核对后置 1
-    uint8_t observer_accel_enabled; // 还需确认重力补偿与安装偏移后置 1
-    float observer_imu_offset[2];   // 底盘中心 -> IMU，底盘系 m；INS CenterOffset 必须保持 0
-    float observer_sensor_timeout;  // 观测器采样新鲜度限制，s；不修改底盘急停策略
+    SpeedObserver_Init_Config_s observer_init_config;
 } Chassis_Init_Config_s;
 
 
@@ -124,15 +116,13 @@ typedef struct
 {
     Chassis_Ctrl_Cmd_s chassis_ctrl_cmd;
     DJIMotorInstance *wheel_motor[4]; // LF/ID1, RF/ID4, LB/ID2, RB/ID3
-    SpeedObserver_s speed_observer; // wheel 为轮速正解，fused 为卡尔曼融合速度
+    SpeedObserverInstance *speed_observer; // 通过 SpeedObserverGetResult 读取速度和状态
     PIDInstance vx_hold_pid;
     PIDInstance vy_hold_pid;
     PIDInstance wz_hold_pid;
-    uint8_t enable_speed_hold;
-    uint8_t speed_hold_active;       // 三轴 PID 已预置历史并处于闭环状态
+    PIDInstance yaw_hold_pid;
     SuperCapMode super_cap_mode;
     INS_t *chassis_IMU;
-    PIDInstance yaw_hold_pid;
 } ChassisInstance;
 
 /**

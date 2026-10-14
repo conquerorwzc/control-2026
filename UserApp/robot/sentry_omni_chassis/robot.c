@@ -87,23 +87,27 @@ static void SentryRefereeSend() {
 
 }
 
-// 通道归一化后直接生成目标速度；限制异常越量程输入，不添加额外速度倍率。
 static float RemoteChannelToSpeed(int16_t channel, float max_speed) {
-  float normalized = (float)channel / REMOTE_CHANNEL_MAX;
-  if (normalized > 1.0f) normalized = 1.0f;
-  if (normalized < -1.0f) normalized = -1.0f;
-  return normalized * max_speed;
+    float normalized = (float)channel / REMOTE_CHANNEL_MAX;
+
+    if (normalized > 1.0f) {
+        normalized = 1.0f;
+    } else if (normalized < -1.0f) {
+        normalized = -1.0f;
+    }
+
+    return normalized * max_speed;
 }
 
-// 拨轮正方向保持顺时针；死区内为零，其余分为正反低速和高速两档，单位 rad/s。
 static float RemoteDialToWz(int16_t dial) {
-  if (dial > 330) return -REMOTE_SPIN_HIGH_RADPS;
-  if (dial > 20) return -REMOTE_SPIN_LOW_RADPS;
-  if (dial < -330) return REMOTE_SPIN_HIGH_RADPS;
-  if (dial < -20) return REMOTE_SPIN_LOW_RADPS;
-  return 0.0f;
-}
+    if (dial >= -REMOTE_DIAL_DEADBAND &&
+        dial <= REMOTE_DIAL_DEADBAND) {
+        return 0.0f;
+        }
 
+    return -RemoteChannelToSpeed(
+        dial, REMOTE_SPIN_HIGH_RADPS);
+}
 #if defined(USE_DUAL_RC)
 /**
  * @brief 底盘旋转速度(wz)的设置, 一律由下位机决定
@@ -317,7 +321,7 @@ static void RemoteControlSet() {
   static float auto_mode_time = 0;
   if (switch_middle(vt13_rc_data->rc.mode_switch) || switch_right(vt13_rc_data->rc.mode_switch)) {
     chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
-    if (abs(vt13_rc_data->rc.dial) > 20) chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+    if (abs(vt13_rc_data->rc.dial) > REMOTE_DIAL_DEADBAND) chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
   }
 
   // 新遥控同样直接生成 SI 目标速度。
@@ -398,6 +402,7 @@ static void EmergencyHandler() {
 
 // 在急停检查之后选择 HOLD；首次进入锁当前连续角度，拨轮主动旋转后重新锁定。
 static void YawHoldControlSet() {
+  const SpeedObserver_s *speed = SpeedObserverGetResult(robot->chassis->speed_observer);
   static uint8_t active = 0;
   static uint8_t step_armed = 0;
   uint8_t hold_selected = 0;
@@ -412,10 +417,10 @@ static void YawHoldControlSet() {
   dial = vt13_rc_data->rc.dial;
   yaw_stick = vt13_rc_data->rc.rocker_r_;
 #endif
-  if (!chassis_init_config.enable_yaw_hold || !hold_selected || robot->control_mode != MANUAL_MODE ||
-      chassis_ctrl_cmd->chassis_mode == CHASSIS_POWER_OFF || dial > 20 || dial < -20 ||
+  if (!hold_selected || robot->control_mode != MANUAL_MODE ||
+      chassis_ctrl_cmd->chassis_mode == CHASSIS_POWER_OFF || abs(dial) > REMOTE_DIAL_DEADBAND ||
       robot->chassis->chassis_IMU == NULL || !robot->chassis->chassis_IMU->init ||
-      !robot->chassis->speed_observer.valid) {
+      speed == NULL || !(speed->status & kSpeedObserverValid)) {
     active = 0;
     step_armed = 0;
     return;
@@ -528,7 +533,7 @@ static void DualBoardCtrlSet() {
 
     if (switch_is_mid(rc_data_old->Switch_right)) {
       // gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-      if (abs(rc_data_old->Spin_speed) > 20) {
+      if (abs(rc_data_old->Spin_speed) > REMOTE_DIAL_DEADBAND) {
         chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
       } else
         chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
@@ -570,7 +575,6 @@ void RobotInit() {
   // robot->vision_recv_data = VisionInit(&gimbal_init_config.imu_init_config);
   robot->navigator_data = navigator_init(&huart1);  // 导航串口: USART1, 115200 8N1
 
-  // 结构调整期间 USART6 暂不注册 VOFA/裁判协议，保留下游读取的零初始化对象。
   robot->referee_data = (referee_info_t *)zmalloc(sizeof(referee_info_t));
   robot->sentry_mode = 1;
 
@@ -597,7 +601,6 @@ void RobotCMDTask() {
   CalcOffsetAngle();
   RemoteControlSet();
   // MouseKeySet();
-  // 遥控和导航均已生成 SI 目标速度，不再按轮径、减速比进行二次转换。
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
   YawHoldControlSet(); // 只在手动、安全使能且选择保持时切入，不能覆盖 POWER_OFF。
 }
