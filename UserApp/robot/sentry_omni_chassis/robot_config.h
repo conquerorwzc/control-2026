@@ -31,16 +31,8 @@
 // 遥控原始通道 [-660, 660] 直接映射为 SI 目标速度，与轮径/减速比无关。
 #define REMOTE_CHANNEL_MAX 660.0f
 #define REMOTE_DIAL_DEADBAND 20.0f
-#define REMOTE_MAX_LINEAR_SPEED_MPS 2.0f  // vx/vy 各轴满量程；未对合速度限幅
-#define REMOTE_SPIN_LOW_RADPS 1.5f
-#define REMOTE_SPIN_HIGH_RADPS 5.0f
-// 保持原跟随模式右摇杆的满量程角速度，独立于拨轮两档设置。
-#define REMOTE_FOLLOW_MAX_WZ_RADPS 0.8092162f
-// 航向采集：右摇杆每次越过触发阈值给一个角度阶跃，回中后可再次触发。
-#define REMOTE_YAW_HOLD_STEP_DEG 10.0f
-#define REMOTE_YAW_HOLD_TRIGGER 330
-#define REMOTE_YAW_HOLD_REARM 100
-
+#define REMOTE_SPEEDMAX 2.0f  //m/s vx/vy 各轴满量程；未对合速度限幅
+#define REMOTE_ROTATEMAX 5.0f
 
 
 //can通信任务初始化时间 单位ms
@@ -97,36 +89,6 @@
 })
 
 static Chassis_Init_Config_s chassis_init_config = {
-    .vx_hold_pid = {
-        .Kp = 0.4f, .Ki = 0.0f, .Kd = 0.0f, // 联合数据复核后增强 P，纯前后跟随候选，待复测
-        .DeadBand = 0.01f,       // m/s
-        .MaxOut = 0.5f,         // 速度修正上限 m/s，不是整车速度上限
-        .IntegralLimit = 0.2f,
-        .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-    },
-    .vy_hold_pid = {
-        .Kp = 0.4f, .Ki = 0.0f, .Kd = 0.0f, // 按用户要求沿用 vx 参数，不单独整定
-        .DeadBand = 0.01f,
-        .MaxOut = 0.5f,
-        .IntegralLimit = 0.2f,
-        .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-    },
-    .wz_hold_pid = {
-        // yaw3.csv 保留 P=0.9；用户实测 1.0 会使拨轮旋转急停过猛，不再提高公共 wz 增益。
-        .Kp = 0.9f, .Ki = 0.0f, .Kd = 0.0f, // 起步电流/功率饱和不能靠加 P 消除
-        .DeadBand = 0.03f,       // rad/s；降低静止 gyro 噪声引起的速度修正
-        .MaxOut = 1.5f,         // 角速度修正上限 rad/s，给增强后的 P 留出余量
-        .IntegralLimit = 0.0f,
-        .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-    },
-    .yaw_hold_pid = {
-        .Kp = 0.12f, .Ki = 0.0f, .Kd = 0.0f, // yaw3.csv 复核保留；避免继续放大受限工况的角速度请求
-        .DeadBand = 0.3f,        // deg
-        .MaxOut = 1.2f,          // 航向环角速度贡献上限 rad/s；10 deg 达到上限
-        .IntegralLimit = 0.0f,
-        .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-    },
-    // 滤波参数为方差/噪声密度；依据与限制见 speed_observer/noise_calibration/2026-10-12-tuned/整定说明.md。
     .observer_init_config = {
         .filter = {
             .initial_variance = {0.25f, 0.25f, 0.25f},
@@ -164,17 +126,35 @@ static Chassis_Init_Config_s chassis_init_config = {
     .wheel_motor_config[1] = WHEEL_MOTOR_CONFIG(&hcan1,4),
     .wheel_motor_config[2] = WHEEL_MOTOR_CONFIG(&hcan1,2),
     .wheel_motor_config[3] = WHEEL_MOTOR_CONFIG(&hcan1,3),
-    // 跟随角度环：输入度，输出 rad/s；保留此前已换算的实际增益与限幅。
-    .follow_pid={
-        .Kp = -0.08582596f,
-        .Ki = 0.0f,
-        .Kd = 0.0f,
-        .DeadBand = 1.0f,
-        .IntegralLimit = 1.2260851f,
+    .vx_hold_pid = {
+        .Kp = 0.4f, .Ki = 0.0f, .Kd = 0.0f, // 联合数据复核后增强 P，纯前后跟随候选，待复测
+        .DeadBand = 0.01f,       // m/s
+        .MaxOut = 0.5f,         // 速度修正上限 m/s，不是整车速度上限
+        .IntegralLimit = 0.2f,
         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-        .MaxOut = 24.5217023f,
     },
-
+    .vy_hold_pid = {
+        .Kp = 0.4f, .Ki = 0.0f, .Kd = 0.0f, // 按用户要求沿用 vx 参数，不单独整定
+        .DeadBand = 0.01f,
+        .MaxOut = 0.5f,
+        .IntegralLimit = 0.2f,
+        .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+    },
+    .wz_hold_pid = {
+        // yaw3.csv 保留 P=0.9；用户实测 1.0 会使拨轮旋转急停过猛，不再提高公共 wz 增益。
+        .Kp = 0.9f, .Ki = 0.0f, .Kd = 0.0f, // 起步电流/功率饱和不能靠加 P 消除
+        .DeadBand = 0.03f,       // rad/s；降低静止 gyro 噪声引起的速度修正
+        .MaxOut = 1.5f,         // 角速度修正上限 rad/s，给增强后的 P 留出余量
+        .IntegralLimit = 0.0f,
+        .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+    },
+    .yaw_hold_pid = {
+        .Kp = 0.12f, .Ki = 0.0f, .Kd = 0.0f, // yaw3.csv 复核保留；避免继续放大受限工况的角速度请求
+        .DeadBand = 0.3f,        // deg
+        .MaxOut = 1.2f,          // 航向环角速度贡献上限 rad/s；10 deg 达到上限
+        .IntegralLimit = 0.0f,
+        .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
+    },
 
 };
 

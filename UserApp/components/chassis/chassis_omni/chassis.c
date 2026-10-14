@@ -38,7 +38,7 @@ static void ResetSpeedHold()
 /** @brief 三轴速度外环，目标前馈 + PID 修正；只修改局部逆解输入。 */
 static void SpeedHoldControl()
 {
-    const SpeedObserver_s *speed = SpeedObserverGetResult(chassis->speed_observer);//更新速度
+    const SpeedObserver_s *speed = SpeedObserverGetResult(chassis->speed_observer); // 读取已有速度估计
     Speed_s target = {.vx = chassis_vx, .vy = chassis_vy, .wz = chassis_wz};
     Speed_s correction = {0};
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_POWER_OFF)
