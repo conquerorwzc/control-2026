@@ -99,6 +99,7 @@ __attribute__((noreturn)) void StartINSTASK(void const *argument) {
 
 /**
  * @brief 【新增】IMU杆臂补偿 (消除高速旋转时的向心加速度)
+ * todo：只补偿了向心加速度貌似没有补偿切向加速度--dqc
  * @param accel 当前三轴加速度 (m/s^2) [将被就地修改]
  * @param gyro  当前三轴角速度 (rad/s)
  * @param offset IMU中心到旋转中心的偏移量 (m)

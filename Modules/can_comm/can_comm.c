@@ -108,6 +108,7 @@ void CANCommSend(CANCommInstance *instance, uint8_t *data)
 {
     static uint8_t crc8;
     static uint8_t send_len;
+    //todo: send_data_len>data本身长度，会导致访问越界的内存地址，有风险，而且增加了不必要的冗余增加can负载，建议修复，但是不知道怎么修复因为data指针传进来已经丢失了本身结构体长度信息，所以无法用sizeof判断大小
     // 将data copy到raw_sendbuf中,计算crc8
     memcpy(instance->raw_sendbuf + 2, data, instance->send_data_len);
     crc8 = crc_8(data, instance->send_data_len);

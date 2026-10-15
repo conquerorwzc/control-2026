@@ -270,10 +270,17 @@ static void DecodeDJIMotor(CANInstance* _instance) {
   measure->last_ecd = measure->ecd;
   measure->ecd = ((uint16_t)rxbuff[0]) << 8 | rxbuff[1];
   measure->angle_single_round = ECD_ANGLE_COEF_DJI * (float)measure->ecd;
+  float speed_aps = RPM_2_ANGLE_PER_SEC * (float)((int16_t)(rxbuff[2] << 8 | rxbuff[3]));
+  float real_current = (float)((int16_t)(rxbuff[4] << 8 | rxbuff[5]));
+  // 先统一反馈方向，再滤波，确保本次采样与历史滤波值使用相同的方向约定。
+  if (motor->motor_settings.feedback_reverse_flag == FEEDBACK_DIRECTION_REVERSE) {
+    speed_aps = -speed_aps;
+    real_current = -real_current;
+  }
   measure->speed_aps = (1.0f - SPEED_SMOOTH_COEF) * measure->speed_aps +
-                          RPM_2_ANGLE_PER_SEC * SPEED_SMOOTH_COEF * (float)((int16_t)(rxbuff[2] << 8 | rxbuff[3]));
+                          SPEED_SMOOTH_COEF * speed_aps;
   measure->real_current = (1.0f - CURRENT_SMOOTH_COEF) * measure->real_current +
-                          CURRENT_SMOOTH_COEF * (float)((int16_t)(rxbuff[4] << 8 | rxbuff[5]));
+                          CURRENT_SMOOTH_COEF * real_current;
   measure->temperature = rxbuff[6];
 
   // 多圈角度计算,前提是假设两次采样间电机转过的角度小于180°,自己画个图就清楚计算过程了
@@ -284,8 +291,6 @@ static void DecodeDJIMotor(CANInstance* _instance) {
   measure->total_angle = measure->total_round * 360 + measure->angle_single_round;
 
   if (motor->motor_settings.feedback_reverse_flag == FEEDBACK_DIRECTION_REVERSE) {
-    measure->speed_aps = -measure->speed_aps;
-    measure->real_current = -measure->real_current;
     measure->total_angle = -measure->total_angle;
   }
 }
