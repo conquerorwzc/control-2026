@@ -19,7 +19,7 @@ typedef struct {
 
 struct SpeedObserverInstance
 {
-    SpeedObserver_s output;
+    SpeedObserverResult_s output;
     OmniKinematics model;
     SpeedObserverConfig_s config;
     float covariance[3][3];
@@ -369,7 +369,7 @@ uint8_t SpeedObserverUpdate(SpeedObserverInstance *observer, const SpeedObserver
     return UpdateWithDt(observer, input, DWT_GetDeltaT(&observer->dt));
 }
 
-const SpeedObserver_s *SpeedObserverGetResult(const SpeedObserverInstance *observer)
+const SpeedObserverResult_s *SpeedObserverGetResult(const SpeedObserverInstance *observer)
 {
     return observer == NULL ? NULL : &observer->output;
 }

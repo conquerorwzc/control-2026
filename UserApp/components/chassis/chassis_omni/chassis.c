@@ -16,6 +16,7 @@
 #include "task.h"
 
 static ChassisInstance *chassis;
+static SpeedObserverInstance *observer;
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd; // 声明但不初始化
 static Chassis_Param_s chassis_param;        // 声明为静态局部变量
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
@@ -38,7 +39,7 @@ static void ResetSpeedHold()
 /** @brief 三轴速度外环，目标前馈 + PID 修正；只修改局部逆解输入。 */
 static void SpeedHoldControl()
 {
-    const SpeedObserver_s *speed = SpeedObserverGetResult(chassis->speed_observer); // 读取已有速度估计
+    const SpeedObserverResult_s *speed = chassis->speed;
     Speed_s target = {.vx = chassis_vx, .vy = chassis_vy, .wz = chassis_wz};
     Speed_s correction = {0};
     if (chassis_ctrl_cmd->chassis_mode == CHASSIS_POWER_OFF)
@@ -66,7 +67,7 @@ static void OmniCalculate()
 {
     const Speed_s body = {.vx = chassis_vx, .vy = chassis_vy, .wz = chassis_wz};
     float motor_speed[4];
-    SpeedObserverInverse(chassis->speed_observer, &body, motor_speed);
+    SpeedObserverInverse(observer, &body, motor_speed);
     vt_lf = motor_speed[0];
     vt_rf = motor_speed[1];
     vt_lb = motor_speed[2];
@@ -219,7 +220,7 @@ static void EstimateSpeed()
         input.accel_lpf = chassis->chassis_IMU->AccelLPF;
     }
     taskEXIT_CRITICAL();
-    SpeedObserverUpdate(chassis->speed_observer, &input);
+    SpeedObserverUpdate(observer, &input);
 }
 static float YawHoldCompensate()
 {
@@ -263,7 +264,8 @@ ChassisInstance *ChassisInit(Chassis_Init_Config_s *chassis_init_config)
     PIDInit(&chassis_instance->wz_hold_pid, &chassis_init_config->wz_hold_pid);
     PIDInit(&chassis_instance->yaw_hold_pid, &chassis_init_config->yaw_hold_pid);
 
-    chassis_instance->speed_observer = SpeedObserverInit(&chassis_init_config->observer_init_config);
+    observer = SpeedObserverInit(&chassis_init_config->observer_init_config);
+    chassis_instance->speed = SpeedObserverGetResult(observer);
     chassis_instance->chassis_IMU = INS_Init(&chassis_init_config->imu_init_config);
     for (int i = 0; i < 4; i++)
     {

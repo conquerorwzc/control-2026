@@ -58,11 +58,11 @@ typedef struct {
     Speed_s wheel;
     Speed_s fused;
     uint16_t status; // kSpeedObserverUpdated / kSpeedObserverValid 等状态位
-} SpeedObserver_s;
+} SpeedObserverResult_s;
 
 typedef struct SpeedObserverInstance SpeedObserverInstance;
 
 SpeedObserverInstance *SpeedObserverInit(const SpeedObserver_Init_Config_s *config);
 uint8_t SpeedObserverUpdate(SpeedObserverInstance *observer, const SpeedObserverInput_s *input);
-const SpeedObserver_s *SpeedObserverGetResult(const SpeedObserverInstance *observer);
+const SpeedObserverResult_s *SpeedObserverGetResult(const SpeedObserverInstance *observer);
 void SpeedObserverInverse(const SpeedObserverInstance *observer, const Speed_s *body, float motor_speed[4]);

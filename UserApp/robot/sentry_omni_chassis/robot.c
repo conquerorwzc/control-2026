@@ -36,8 +36,6 @@ CANCommInstance *can_comm_instance = NULL;
 static Referee_Data *referee_data;
 static float time = 0; // 判断按钮按下需要重复读取时间，这里简化成一次读取
 
-static float x_speed_time = 0; // x方向加速触发时间
-static float y_speed_time = 0; // y方向加速触发时间
 static float vx_initial;       // x轴输入控制量
 static float vy_initial;       // y轴输入控制量
 // static  DJIMotorInstance* debug_motor;
@@ -289,7 +287,7 @@ static void YawHoldControlSet()
     if (!active)
     {
 
-        if (fabsf(robot->chassis->speed_observer) >= 0.1f)
+        if (robot->chassis->speed == NULL || fabsf(robot->chassis->speed->fused.wz) >= 0.1f)
         {
             chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
             return;

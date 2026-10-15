@@ -116,7 +116,7 @@ typedef struct
 {
     Chassis_Ctrl_Cmd_s chassis_ctrl_cmd;
     DJIMotorInstance *wheel_motor[4]; // LF/ID1, RF/ID4, LB/ID2, RB/ID3
-    SpeedObserverInstance *speed_observer; // 通过 SpeedObserverGetResult 读取速度和状态
+    const SpeedObserverResult_s *speed; // 只读结果，直接指向观测器的 wheel、fused 和 status
     PIDInstance vx_hold_pid;
     PIDInstance vy_hold_pid;
     PIDInstance wz_hold_pid;
