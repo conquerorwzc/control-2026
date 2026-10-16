@@ -1,14 +1,13 @@
 #pragma once
 
-#include "dji_motor.h"
 #include "dmmotor.h"
 #include "ins_task.h"
 // 大 Pitch 电机反馈坐标中的标定目标，单位 rad；须确认安装零位、方向和传动比。
 #ifndef PI
 #define PI 3.14159265358979f
 #endif
-#define UP_ANGLE 1.83f
-#define DOWN_ANGLE (0.36f)
+#define UP_ANGLE 0.76f
+#define DOWN_ANGLE 1.51
 typedef enum {
     GIMBAL_POWER_OFF = 0,  // 电机零输出，不代表承重机构保持当前位置
     GIMBAL_ON,
@@ -56,7 +55,7 @@ typedef struct {
 
 typedef struct {
     Motor_Init_Config_s big_yaw_motor_config;      // DM-J4310
-    Motor_Init_Config_s small_yaw_motor_config;    // GM6020
+    Motor_Init_Config_s small_yaw_motor_config;    // DM-J4310
     Motor_Init_Config_s big_pitch_motor_config;    // DM-J4310
     Motor_Init_Config_s small_pitch_motor_config;  // DM-J4310
     PID_Init_Config_s Yaw_Follow_PID;
@@ -67,7 +66,7 @@ typedef struct {
 typedef struct {
     Gimbal_Ctrl_Cmd_s gimbal_ctrl_cmd;
     DMMotorInstance* big_yaw_motor;
-    DJIMotorInstance* small_yaw_motor;
+    DMMotorInstance* small_yaw_motor;
     DMMotorInstance* big_pitch_motor;
     DMMotorInstance* small_pitch_motor;
     PIDInstance yaw_follow;

@@ -97,14 +97,20 @@ JLinkLog.txt
 
 # IDE / Editor
 .history/
+/.idea/*.iml
 
 # macOS
 .DS_Store
 
 # cmake build directory
 cmake-build-debug/
-doc
+
 *.jdebug.user
 *.jdebug
 
 *.log
+/Utils
+/doc
+
+# Local tuning data, reports, scripts and tests
+/tuning/

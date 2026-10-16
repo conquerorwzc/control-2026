@@ -67,7 +67,7 @@ static void StopGimbal(void)
     DMMotorStop(gimbal->big_pitch_motor);
     DMMotorStop(gimbal->small_pitch_motor);
     DMMotorStop(gimbal->big_yaw_motor);
-    DJIMotorStop(gimbal->small_yaw_motor);
+    DMMotorStop(gimbal->small_yaw_motor);
     if (gimbal_enabled) {
         ResetController(&gimbal->big_pitch_motor->motor_controller);
         ResetController(&gimbal->small_pitch_motor->motor_controller);
@@ -137,8 +137,8 @@ GimbalInstance *GimbalInit(Gimbal_Init_Config_s *gimbal_init_config)
     gimbal->big_yaw_motor = DMMotorInit(big_yaw_config);
     DMMotorStop(gimbal->big_yaw_motor);
 
-    gimbal->small_yaw_motor = DJIMotorInit(small_yaw_config);
-    DJIMotorStop(gimbal->small_yaw_motor);
+    gimbal->small_yaw_motor = DMMotorInit(small_yaw_config);
+    DMMotorStop(gimbal->small_yaw_motor);
 
     return gimbal;
 }
@@ -163,7 +163,7 @@ void GimbalTask(void)
     // 必须先更新前馈，再计算两轴 PID。
     UpdateGimbalGravity();
     // 小轴角度反馈为 deg，速度反馈为 rad/s；角度 PID 的输出须按 rad/s 整定。
-    DJIMotorSetPIDRef(gimbal->small_yaw_motor, gimbal_ctrl_cmd->yaw);
+    DMMotorSetPIDRef(gimbal->small_yaw_motor, gimbal_ctrl_cmd->yaw);
     DMMotorSetPIDRef(gimbal->small_pitch_motor, gimbal_ctrl_cmd->pitch);
     if (gimbal_ctrl_cmd->big_pitch_pose == GIMBAL_BIG_PITCH_VERTICAL)
     {
@@ -177,5 +177,5 @@ void GimbalTask(void)
     DMMotorEnable(gimbal->big_pitch_motor);
     DMMotorEnable(gimbal->small_pitch_motor);
     DMMotorEnable(gimbal->big_yaw_motor);
-    DJIMotorEnable(gimbal->small_yaw_motor);
+    DMMotorEnable(gimbal->small_yaw_motor);
 }

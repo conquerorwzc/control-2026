@@ -14,7 +14,8 @@ static RC_ctrl_t *rc_data;
 static float yaw_delta;
 float Delta_Yaw(const GimbalInstance *gimbal_ins)
 {
-    const float small_yaw_deg = gimbal_ins->small_yaw_motor->measure.total_angle;
+    // DM-J4310 的累计角度反馈为 rad，follow 偏角继续统一使用 deg。
+    const float small_yaw_deg = gimbal_ins->small_yaw_motor->measure.total_angle / DEGREE_2_RAD;
     const float offset = small_yaw_deg - ALIGN_DEG;
     return offset;
 }
@@ -40,11 +41,11 @@ static void RemoteControlSet()
     if (gimbal_ctrl_cmd->gimbal_mode == GIMBAL_ON)
     {
         float delta = Delta_Yaw(robot->gimbal);
-        if (delta < 15.0f && delta > -15.0f)
+        if (1)
         {
-            gimbal_ctrl_cmd->yaw -= 0.001f * (float)rc_data[TEMP].rc.rocker_r_;
-            gimbal_ctrl_cmd->big_yaw -= PIDCalculate(&robot->gimbal->yaw_follow, delta, 0.0f);
-            gimbal_ctrl_cmd->big_yaw -= 0.0008f * (float)rc_data[TEMP].rc.rocker_r_; //主动跟随量
+            gimbal_ctrl_cmd->yaw += 0.0001f * (float)rc_data[TEMP].rc.rocker_r_;
+            // gimbal_ctrl_cmd->big_yaw -= PIDCalculate(&robot->gimbal->yaw_follow, delta, 0.0f);
+            // gimbal_ctrl_cmd->big_yaw -= 0.0008f * (float)rc_data[TEMP].rc.rocker_r_; //主动跟随量
         }
         else
         {
