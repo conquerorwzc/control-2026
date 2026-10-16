@@ -22,7 +22,7 @@
 #define LOADER_HOME_SLOT_COUNT 12U
 #define LOADER_HOME_SLOT_RAD (LOADER_ONE_TURN_RAD / (float)LOADER_HOME_SLOT_COUNT)
 /* 固定齿位对应的4310输出轴绝对反馈角度(rad),由台架实测得到 */
-#define LOADER_HOME_POSITION_RAD (-0.869573593f)
+#define LOADER_HOME_POSITION_RAD (1.79617786)
 /* 十二个齿位等价;回位沿正转方向最多走一个齿距,稳定后解锁拨弹 */
 /* 回位仅适度增强位置环,速度环沿用正常增益,避免两环同时放大引起抖动 */
 #define LOADER_HOME_ANGLE_KP_SCALE 2.0f
@@ -40,8 +40,8 @@
 #define LOADER_JAM_TORQUE_NM 1.6f
 #define LOADER_JAM_DETECT_MS 150U
 /* 卡弹恢复:退半格、按配置时间保持,再正转到最近的等价齿位 */
-#define LOADER_JAM_BACKOFF_RAD (15.0f * DEGREE_2_RAD)
-#define LOADER_JAM_BACKOFF_KP_SCALE 2.0f
+#define LOADER_JAM_BACKOFF_RAD (20.0f * DEGREE_2_RAD)
+#define LOADER_JAM_BACKOFF_KP_SCALE 3.0f
 #define LOADER_JAM_BACKOFF_MAX_SPEED_RAD_S 15.0f
 /* 回退到位后的稳定确认时间(ms),独立于普通回位的100ms等待 */
 #define LOADER_JAM_BACKOFF_SETTLE_MS 20U

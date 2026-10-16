@@ -41,7 +41,7 @@
 #define LOADER_STEP_ANGLE_DEG 30.0f
 /* 遥控器拨杆[中]/[上]时的步进间隔(ms),正转(右拨杆)与反转(左拨杆)共用同一组参数 */
 #define LOADER_STEP_PERIOD_MID_MS 700
-#define LOADER_STEP_PERIOD_UP_MS 50
+#define LOADER_STEP_PERIOD_UP_MS 67
 
 /* 步进折算出的平均角速度(rad/s),作为速度环的前馈值:
    让速度环直接按目标转速运行,角度环只负责修正残差,
@@ -60,7 +60,7 @@ static Motor_Init_Config_s loader_motor_config = {
             .speed_feedforward_ptr = &loader_speed_feedforward,
             .angle_PID =
                 {
-                    .Kp = 10.0f,         // 角度环增益,误差1rad对应12rad/s的速度参考
+                    .Kp = 12.0f,         // 角度环增益,误差1rad对应12rad/s的速度参考
                     .Ki = 0.0f,          // 速度前馈已提供主要的速度参考,无需积分(纯比例)
                     .Kd = 0.0f,
                     .MaxOut = 15.0f,     // 角度环输出为速度参考(rad/s),DM4310速度上限为30rad/s
@@ -85,8 +85,8 @@ static Motor_Init_Config_s loader_motor_config = {
             /* 拨盘与电机正方向相反,故两个方向标志一起取反(力矩取反+反馈取反).
                注意位置环+速度环串级时二者必须同时取反:只反一个会使负反馈变成正反馈,电机会飞车.
                若实车发现方向又反了,把这两个标志一起改回MOTOR_DIRECTION_NORMAL/FEEDBACK_DIRECTION_NORMAL即可 */
-            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
-            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
+            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
             .angle_feedback_source = MOTOR_FEED,
             .speed_feedback_source = MOTOR_FEED,
             .feedforward_flag = SPEED_FEEDFORWARD,
