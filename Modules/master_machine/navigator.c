@@ -3,7 +3,7 @@
  * @brief   下位机侧导航通信协议实现 (SRM 校内赛导航通信协议 V1.0.0)
  * @note    串口: USART1, 115200 8N1, 无流控; 全部小端
  *          上 -> 下: 19 字节速度指令帧(无 cmd_id)
- *          下 -> 上: 9+data_length 字节反馈帧(有 cmd_id: 0x0001 / 0x000B)
+ *          下 -> 上: 9+data_length 字节反馈帧(有 cmd_id: 0x0001 / 0x000B / 0x000C)
  */
 #include "navigator.h"
 
@@ -19,9 +19,9 @@ static USARTInstance *navigator_usart_instance = NULL;
 static DaemonInstance *navigator_daemon_instance = NULL;
 
 /* 发送缓冲必须是静态的: DMA 发送期间不能被改写 */
-static uint8_t tx_buffer[2][BUFFER_MAX_SIZE];
+static uint8_t tx_buffer[3][BUFFER_MAX_SIZE];
 static uint8_t tx_seq = 0;         /* 下->上 帧流水号, 每帧自增、自然回绕 */
-static uint8_t tx_slot = 0;        /* 反馈包轮询槽位: 0 -> 0x0001, 1 -> 0x000B */
+static uint8_t tx_slot = 0;        /* 反馈包轮询槽位: 0 -> 0x0001, 1 -> 0x000B, 2 -> 0x000C */
 static uint32_t last_send_tick = 0;
 
 /* ============================ 协议层: 打包 ============================ */
@@ -103,7 +103,7 @@ void navigator_send(UART_HandleTypeDef *instance, referee_info_t *referee_data) 
     game_status.stage_remain_time = referee_data->GameState.stage_remain_time;
     game_status.sync_time_stamp = referee_data->GameState.SyncTimeStamp;
     NavigatorTransmit(NAV_CMD_ID_GAME_STATUS, (const uint8_t *)&game_status, sizeof(game_status), tx_buffer[0]);
-  } else {
+  } else if (tx_slot == 1) {
     /* cmd_id = 0x000B 机器人状态, 数据段 13 字节 */
     nav_robot_status_t robot_status;
     memset(&robot_status, 0, sizeof(robot_status));
@@ -118,9 +118,13 @@ void navigator_send(UART_HandleTypeDef *instance, referee_info_t *referee_data) 
     robot_status.power_management_chassis_output = referee_data->GameRobotState.power_management_chassis_output;
     robot_status.power_management_shooter_output = referee_data->GameRobotState.power_management_shooter_output;
     NavigatorTransmit(NAV_CMD_ID_ROBOT_STATUS, (const uint8_t *)&robot_status, sizeof(robot_status), tx_buffer[1]);
+  } else {
+    /* cmd_id = 0x000C 机器人速度和 yaw, 数据段 16 字节 */
+    Robot_Speed robot_speed = referee_data->Speed;
+    NavigatorTransmit(NAV_CMD_ID_ROBOT_SPEED, (const uint8_t *)&robot_speed, sizeof(robot_speed), tx_buffer[2]);
   }
 
-  tx_slot ^= 1;
+  tx_slot = (uint8_t)((tx_slot + 1) % 3);
 }
 
 /* ============================ 协议层: 解析 ============================ */

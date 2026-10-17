@@ -362,6 +362,16 @@ static void SuperCapControl()
                         robot->referee_data->PowerHeatData.buffer_energy,
                         robot->referee_data->GameRobotState.power_management_chassis_output);
 }
+void Navigator_pack()
+{
+    if (robot->chassis->speed != NULL && robot->chassis->chassis_IMU != NULL && robot->chassis->chassis_IMU->init))
+        {
+            robot->referee_data->Speed.vx = robot->chassis->speed->fused.vx;
+            robot->referee_data->Speed.vy = robot->chassis->speed->fused.vy;
+            robot->referee_data->Speed.wz = robot->chassis->speed->fused.wz;
+            robot->referee_data->Speed.yaw = robot->chassis->chassis_IMU->Yaw;
+        }
+}
 void Chassis_CANCommSend()
 {
 #ifdef USE_DUAL_RC
@@ -428,6 +438,7 @@ static void DualBoardCtrlSet()
     }
 }
 
+
 void RobotInit()
 {
     // 要在云台和底盘任务开始之前完成该任务的初始化
@@ -491,12 +502,13 @@ void RobotTask()
     GimbalTask();
 #endif
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
-    navigator_send(&huart1, robot->referee_data); // 反馈 0x0001 / 0x000B, 内部按 50Hz 定频
     RobotCMDTask();
     // SuperCapControl();
     chassis_ctrl_cmd->max_power = 120;
     // ModeControl();
     ChassisTask();
+    Navigator_pack();
+    navigator_send(&huart1, robot->referee_data); // 每 10ms 轮流反馈 0x0001 / 0x000B / 0x000C
     // SuperCapSendMessage(robot->super_cap,
     //     (int16_t)robot->referee_data->GameRobotState.chassis_power_limit,
     //     robot->referee_data->PowerHeatData.buffer_energy,

@@ -35,6 +35,7 @@ typedef struct {
   ext_sentry_info_t SentryInfo;                    // 0x020D
   // 自定义交互数据的接收
   Communicate_ReceiveData_t ReceiveData;
+  Robot_Speed Speed;  // 导航反馈数据，由应用层填入
 
   uint8_t init_flag;
 } referee_info_t;

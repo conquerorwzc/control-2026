@@ -37,7 +37,8 @@
  *   [5..6]   cmd_id (uint16 LE)
  *   [7..]    data (data_length 字节)
  *   [末 2]   crc16 = CRC16(byte[0 .. 7+len-1], init 0xFFFF), 低字节在前, 含 cmd_id
- *   cmd_id = 0x0001 比赛状态(11 B) / 0x000B 机器人状态(13 B), 每个包独立成帧
+ *   cmd_id = 0x0001 比赛状态(11 B) / 0x000B 机器人状态(13 B) / 0x000C 机器人速度和 yaw(16 B)
+ *   每个包独立成帧; 0x000C 数据顺序为 vx/vy/wz/yaw, 单位依次为 m/s、m/s、rad/s、度
  *
  * 自检: CRC8("123456789") = 0x0B, CRC16("123456789") = 0x6F91
  * =========================================================================== */
@@ -58,12 +59,14 @@
 /* 下 -> 上: 反馈包 cmd_id 与数据段长度 */
 #define NAV_CMD_ID_GAME_STATUS   0x0001u /* 比赛状态 */
 #define NAV_CMD_ID_ROBOT_STATUS  0x000Bu /* 机器人状态 */
+#define NAV_CMD_ID_ROBOT_SPEED   0x000Cu /* 机器人速度 */
 #define NAV_GAME_STATUS_DATA_LEN  11
 #define NAV_ROBOT_STATUS_DATA_LEN 13
+#define NAV_ROBOT_SPEED_DATA_LEN  16
 
 /* 时序参数 */
 #define NAV_CMD_TIMEOUT_MS      500 /* 看门狗: 超过该时间未收到有效帧 -> 速度归零(协议 §6.1.7) */
-#define NAV_FEEDBACK_PERIOD_MS  10  /* 反馈帧节拍 10ms, 两个包轮流发 -> 各自 50Hz(协议 §6.2.4) */
+#define NAV_FEEDBACK_PERIOD_MS  10  /* 反馈帧节拍 10ms, 三个包轮流发 -> 各自约 33.3Hz */
 #define NAV_DAEMON_RELOAD_COUNT 50  /* daemon 任务 100Hz, 50 拍 = 500ms 未收到有效帧即判离线 */
 
 #pragma pack(push, 1)
@@ -114,6 +117,7 @@ _Static_assert(sizeof(HeaderFrame) == PROTOCOL_HEADER_LEN, "HeaderFrame 必须�
 _Static_assert(sizeof(robot_cmd_t) == NAV_CMD_DATA_LEN, "上->下数据段必须为 12 字节");
 _Static_assert(sizeof(nav_game_status_t) == NAV_GAME_STATUS_DATA_LEN, "0x0001 数据段必须为 11 字节");
 _Static_assert(sizeof(nav_robot_status_t) == NAV_ROBOT_STATUS_DATA_LEN, "0x000B 数据段必须为 13 字节");
+_Static_assert(sizeof(Robot_Speed) == NAV_ROBOT_SPEED_DATA_LEN, "0x000C 数据段必须为 16 字节");
 
 /* 模块运行时状态(不是线上帧结构, 保持自然对齐) */
 typedef struct {
@@ -133,9 +137,10 @@ typedef struct {
 navigator_recv_t *navigator_init(UART_HandleTypeDef *usart_handle);
 
 /**
- * @brief 发送反馈包(0x0001 比赛状态 / 0x000B 机器人状态), 定频轮流发送
+ * @brief 发送反馈包(0x0001 比赛状态 / 0x000B 机器人状态 / 0x000C 机器人速度和 yaw), 定频轮流发送
  * @param instance     导航串口句柄, 保留形参以兼容原有调用点(内部使用注册的串口实例)
  * @param referee_data 裁判系统数据, 未接裁判系统时其内容为 0, 仍然照常发帧
+ *                     Speed 由应用层填入融合速度与底盘 IMU yaw
  * @note  本函数非阻塞, 可直接放在 1kHz 的机器人任务里调用
  */
 void navigator_send(UART_HandleTypeDef *instance, referee_info_t *referee_data);

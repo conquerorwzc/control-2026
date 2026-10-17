@@ -438,6 +438,13 @@ typedef enum
 
 } UI_Graph_Color_e;
 
+typedef struct
+{
+    float vx;   // 底盘融合速度，m/s
+    float vy;   // 底盘融合速度，m/s
+    float wz;   // 底盘融合角速度，rad/s
+    float yaw;  // 底盘 IMU 偏航角，度
+} Robot_Speed; // 速度和 yaw，导航 0x000C 数据段
 #pragma pack()
 
 #endif
