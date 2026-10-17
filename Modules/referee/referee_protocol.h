@@ -444,7 +444,7 @@ typedef struct
     float vy;   // 底盘融合速度，m/s
     float wz;   // 底盘融合角速度，rad/s
     float yaw;  // 底盘 IMU 偏航角，度
-} Robot_Speed; // 速度和 yaw，导航 0x000C 数据段
+} Robot_Speed; // 速度和 yaw，导航 0x00010 数据段
 #pragma pack()
 
 #endif
