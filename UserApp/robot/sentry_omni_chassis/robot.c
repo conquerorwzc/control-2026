@@ -364,12 +364,12 @@ static void SuperCapControl()
 }
 void Navigator_pack()
 {
-    if (robot->chassis->speed != NULL && robot->chassis->chassis_IMU != NULL && robot->chassis->chassis_IMU->init))
+    if (robot->chassis->speed != NULL && robot->chassis->chassis_IMU != NULL && robot->chassis->chassis_IMU->init)
         {
-            robot->referee_data->Speed.vx = robot->chassis->speed->fused.vx;
-            robot->referee_data->Speed.vy = robot->chassis->speed->fused.vy;
-            robot->referee_data->Speed.wz = robot->chassis->speed->fused.wz;
-            robot->referee_data->Speed.yaw = robot->chassis->chassis_IMU->Yaw;
+            robot->navigator_send_data->vx = robot->chassis->speed->fused.vx;
+            robot->navigator_send_data->vy = robot->chassis->speed->fused.vy;
+            robot->navigator_send_data->wz = robot->chassis->speed->fused.wz;
+            robot->navigator_send_data->yaw = robot->chassis->chassis_IMU->Yaw;
         }
 }
 void Chassis_CANCommSend()
@@ -470,6 +470,8 @@ void RobotInit()
     robot->super_cap = SuperCapInit(&super_cap_config);
 
     robot->chassis = ChassisInit(&chassis_init_config);
+    
+    robot->navigator_send_data = (navigator_send_t *)zmalloc(sizeof(navigator_send_t));
     // 初始化控制命令指针
     chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
 }
@@ -508,7 +510,7 @@ void RobotTask()
     // ModeControl();
     ChassisTask();
     Navigator_pack();
-    navigator_send(&huart1, robot->referee_data); // 每 10ms 轮流反馈 0x0001 / 0x000B / 0x000C
+    navigator_send(&huart1, robot->referee_data, robot->navigator_send_data); // 每 10ms 轮流反馈 0x0001 / 0x000B / 0x0010
     // SuperCapSendMessage(robot->super_cap,
     //     (int16_t)robot->referee_data->GameRobotState.chassis_power_limit,
     //     robot->referee_data->PowerHeatData.buffer_energy,

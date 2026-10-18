@@ -130,6 +130,7 @@ typedef struct {
   referee_info_t* referee_data;     // 用于获取裁判系统的数据
   Vision_Receive_s* vision_recv_data;
   navigator_recv_t* navigator_data;    //从导航获取的控制指令
+  navigator_send_t* navigator_send_data;   //要发送给导航的控制指令
   SuperCapInstance* super_cap;
   ChassisInstance* chassis;
   GimbalInstance* gimbal;

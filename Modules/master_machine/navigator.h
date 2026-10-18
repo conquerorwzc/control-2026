@@ -37,8 +37,8 @@
  *   [5..6]   cmd_id (uint16 LE)
  *   [7..]    data (data_length 字节)
  *   [末 2]   crc16 = CRC16(byte[0 .. 7+len-1], init 0xFFFF), 低字节在前, 含 cmd_id
- *   cmd_id = 0x0001 比赛状态(11 B) / 0x000B 机器人状态(13 B) / 0x00010 机器人速度和 yaw(16 B)
- *   每个包独立成帧; 0x000C 数据顺序为 vx/vy/wz/yaw, 单位依次为 m/s、m/s、rad/s、度
+ *   cmd_id = 0x0001 比赛状态(11 B) / 0x000B 机器人状态(13 B) / 0x0010 机器人速度和 yaw(16 B)
+ *   每个包独立成帧; 0x0010 数据顺序为 vx/vy/wz/yaw, 单位依次为 m/s、m/s、rad/s、度
  *
  * 自检: CRC8("123456789") = 0x0B, CRC16("123456789") = 0x6F91
  * =========================================================================== */
@@ -110,6 +110,13 @@ typedef struct {
   uint8_t power_management_shooter_output : 1; /* bit2 */
 } __attribute__((__packed__)) nav_robot_status_t;
 
+typedef struct {
+    float vx;   // 底盘融合速度，m/s
+    float vy;   // 底盘融合速度，m/s
+    float wz;   // 底盘融合角速度，rad/s
+    float yaw;  // 底盘 IMU 偏航角，度
+} navigator_send_t;
+
 #pragma pack(pop)
 
 /* 线上帧结构体长度必须与协议一致, 改动数据段会在编译期直接报错 */
@@ -117,7 +124,7 @@ _Static_assert(sizeof(HeaderFrame) == PROTOCOL_HEADER_LEN, "HeaderFrame 必须�
 _Static_assert(sizeof(robot_cmd_t) == NAV_CMD_DATA_LEN, "上->下数据段必须为 12 字节");
 _Static_assert(sizeof(nav_game_status_t) == NAV_GAME_STATUS_DATA_LEN, "0x0001 数据段必须为 11 字节");
 _Static_assert(sizeof(nav_robot_status_t) == NAV_ROBOT_STATUS_DATA_LEN, "0x000B 数据段必须为 13 字节");
-_Static_assert(sizeof(Robot_Speed) == NAV_ROBOT_SPEED_DATA_LEN, "0x0010 数据段必须为 16 字节");
+_Static_assert(sizeof(navigator_send_t) == NAV_ROBOT_SPEED_DATA_LEN, "0x0010 数据段必须为 16 字节");
 
 /* 模块运行时状态(不是线上帧结构, 保持自然对齐) */
 typedef struct {
@@ -129,6 +136,7 @@ typedef struct {
   uint8_t data_valid;       /* 1: 指令仍在超时窗口内 */
 } navigator_recv_t;
 
+
 /**
  * @brief 导航模块初始化, 注册 USART1 接收与离线守护 daemon
  * @param usart_handle 导航串口句柄(C 板固定为 &huart1)
@@ -137,13 +145,13 @@ typedef struct {
 navigator_recv_t *navigator_init(UART_HandleTypeDef *usart_handle);
 
 /**
- * @brief 发送反馈包(0x0001 比赛状态 / 0x000B 机器人状态 / 0x000C 机器人速度和 yaw), 定频轮流发送
+ * @brief 发送反馈包(0x0001 比赛状态 / 0x000B 机器人状态 / 0x0010 机器人速度和 yaw), 定频轮流发送
  * @param instance     导航串口句柄, 保留形参以兼容原有调用点(内部使用注册的串口实例)
  * @param referee_data 裁判系统数据, 未接裁判系统时其内容为 0, 仍然照常发帧
  *                     Speed 由应用层填入融合速度与底盘 IMU yaw
  * @note  本函数非阻塞, 可直接放在 1kHz 的机器人任务里调用
  */
-void navigator_send(UART_HandleTypeDef *instance, referee_info_t *referee_data);
+void navigator_send(UART_HandleTypeDef *instance, referee_info_t *referee_data, navigator_send_t *Speed);
 
 /**
  * @brief 取一次导航速度指令, 内含 500ms 看门狗

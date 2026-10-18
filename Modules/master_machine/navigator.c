@@ -3,7 +3,7 @@
  * @brief   下位机侧导航通信协议实现 (SRM 校内赛导航通信协议 V1.0.0)
  * @note    串口: USART1, 115200 8N1, 无流控; 全部小端
  *          上 -> 下: 19 字节速度指令帧(无 cmd_id)
- *          下 -> 上: 9+data_length 字节反馈帧(有 cmd_id: 0x0001 / 0x000B / 0x000C)
+ *          下 -> 上: 9+data_length 字节反馈帧(有 cmd_id: 0x0001 / 0x000B / 0x0010)
  */
 #include "navigator.h"
 
@@ -21,7 +21,7 @@ static DaemonInstance *navigator_daemon_instance = NULL;
 /* 发送缓冲必须是静态的: DMA 发送期间不能被改写 */
 static uint8_t tx_buffer[3][BUFFER_MAX_SIZE];
 static uint8_t tx_seq = 0;         /* 下->上 帧流水号, 每帧自增、自然回绕 */
-static uint8_t tx_slot = 0;        /* 反馈包轮询槽位: 0 -> 0x0001, 1 -> 0x000B, 2 -> 0x000C */
+static uint8_t tx_slot = 0;        /* 反馈包轮询槽位: 0 -> 0x0001, 1 -> 0x000B, 2 -> 0x0010 */
 static uint32_t last_send_tick = 0;
 
 /* ============================ 协议层: 打包 ============================ */
@@ -82,7 +82,7 @@ static uint8_t NavigatorTransmit(uint16_t cmd_id, const uint8_t *data, uint8_t d
   return (HAL_UART_Transmit_DMA(huart, buffer, frame_len) == HAL_OK) ? 1 : 0;
 }
 
-void navigator_send(UART_HandleTypeDef *instance, referee_info_t *referee_data) {
+void navigator_send(UART_HandleTypeDef *instance, referee_info_t *referee_data, navigator_send_t *robot_speed) {
   (void)instance; /* 串口实例在 navigator_init() 中注册, 这里直接使用注册实例 */
   if (referee_data == NULL || navigator_usart_instance == NULL) {
     return;
@@ -119,9 +119,9 @@ void navigator_send(UART_HandleTypeDef *instance, referee_info_t *referee_data) 
     robot_status.power_management_shooter_output = referee_data->GameRobotState.power_management_shooter_output;
     NavigatorTransmit(NAV_CMD_ID_ROBOT_STATUS, (const uint8_t *)&robot_status, sizeof(robot_status), tx_buffer[1]);
   } else {
-    /* cmd_id = 0x000C 机器人速度和 yaw, 数据段 16 字节 */
-    Robot_Speed robot_speed = referee_data->Speed;
-    NavigatorTransmit(NAV_CMD_ID_ROBOT_SPEED, (const uint8_t *)&robot_speed, sizeof(robot_speed), tx_buffer[2]);
+    /* cmd_id = 0x0010 机器人速度和 yaw, 数据段 16 字节 */
+    navigator_send_t speed = *robot_speed  ; /* 假设 referee_info_t 中包含 navigator_send_t 类型的 Speed */
+    NavigatorTransmit(NAV_CMD_ID_ROBOT_SPEED, (const uint8_t *)&speed, sizeof(speed), tx_buffer[2]);
   }
 
   tx_slot = (uint8_t)((tx_slot + 1) % 3);
