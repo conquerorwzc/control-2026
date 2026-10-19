@@ -37,7 +37,7 @@
 /* 卡弹判据:目标超前、正向位移不足且力矩指令持续偏大 */
 #define LOADER_JAM_ERROR_RAD (10.0f * DEGREE_2_RAD)
 #define LOADER_JAM_PROGRESS_RAD (3.0f * DEGREE_2_RAD)
-#define LOADER_JAM_TORQUE_NM 1.6f
+#define LOADER_JAM_TORQUE_NM 4.0f
 #define LOADER_JAM_DETECT_MS 150U
 /* 卡弹恢复:退半格、按配置时间保持,再正转到最近的等价齿位 */
 #define LOADER_JAM_BACKOFF_RAD (20.0f * DEGREE_2_RAD)

@@ -60,7 +60,7 @@ static Motor_Init_Config_s loader_motor_config = {
             .speed_feedforward_ptr = &loader_speed_feedforward,
             .angle_PID =
                 {
-                    .Kp = 12.0f,         // 角度环增益,误差1rad对应12rad/s的速度参考
+                    .Kp = 15.0f,         // 角度环增益,误差1rad对应12rad/s的速度参考
                     .Ki = 0.0f,          // 速度前馈已提供主要的速度参考,无需积分(纯比例)
                     .Kd = 0.0f,
                     .MaxOut = 15.0f,     // 角度环输出为速度参考(rad/s),DM4310速度上限为30rad/s
@@ -69,7 +69,7 @@ static Motor_Init_Config_s loader_motor_config = {
                 },
             .speed_PID =
                 {
-                    .Kp = 0.6f,
+                    .Kp = 0.7f,
                     .Ki = 0.1f,
                     .Kd = 0.0f,
                     .MaxOut = 7.0f,  // 速度环输出为力矩参考(N·m),DM4310力矩上限为10N·m
