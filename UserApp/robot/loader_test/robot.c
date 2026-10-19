@@ -16,7 +16,7 @@
 #include "general_def.h"
 #include "robot_config.h"
 #include "user_lib.h"
-
+#include "shoot.h"
 /* Private define ----------------------------------------------------------- */
 #define LOADER_ONE_TURN_RAD (2.0f * PI)
 #define LOADER_HOME_SLOT_COUNT 12U
