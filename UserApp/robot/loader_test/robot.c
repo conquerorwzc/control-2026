@@ -34,11 +34,20 @@
 #define LOADER_HOME_TIMEOUT_MS 10000U
 /* 反馈超过此时间未更新时停止输出,恢复后重新回位 */
 #define LOADER_FEEDBACK_TIMEOUT_MS 100U
-/* 卡弹判据:目标超前、正向位移不足且力矩指令持续偏大 */
+/* 推链力矩前馈(N·m):弹链阻力主要靠它承担,速度环只补残差.
+   实测需要约6N·m才能稳定推过弹链,故前馈给4N·m,剩余部分由速度环P/I项补足 */
+#define LOADER_PUSH_TORQUE_NM 4.0f
+/* 目标角领先实测角超过该阈值才给推链前馈:停在齿位时撤掉,避免长期顶住弹链 */
+#define LOADER_PUSH_GATE_RAD (1.0f * DEGREE_2_RAD)
+/* 总力矩指令上限(含前馈):DMMotorSetPIDRef内部是"速度环输出 + 前馈",
+   单靠speed_PID.MaxOut限不住总和,必须在robot.c里统一夹住.
+   取7.5N·m,比推过弹链所需的6N·m留25%余量,同时低于DM4310峰值力矩,避免压变形弹丸 */
+#define LOADER_TORQUE_LIMIT_NM 7.5f
+/* 卡弹判据:目标超前、正向位移不足且力矩指令已接近上限(而不是"稍微用点力") */
 #define LOADER_JAM_ERROR_RAD (10.0f * DEGREE_2_RAD)
 #define LOADER_JAM_PROGRESS_RAD (3.0f * DEGREE_2_RAD)
-#define LOADER_JAM_TORQUE_NM 4.0f
-#define LOADER_JAM_DETECT_MS 150U
+#define LOADER_JAM_TORQUE_NM (0.85f * LOADER_TORQUE_LIMIT_NM)
+#define LOADER_JAM_DETECT_MS 300U
 /* 卡弹恢复:退半格、按配置时间保持,再正转到最近的等价齿位 */
 #define LOADER_JAM_BACKOFF_RAD (20.0f * DEGREE_2_RAD)
 #define LOADER_JAM_BACKOFF_KP_SCALE 3.0f
@@ -96,6 +105,7 @@ static uint32_t loader_jam_settle_time;
 static uint32_t loader_jam_hold_time;
 
 /* Private function prototypes --------------------------------------------- */
+static void LoaderApplyRef(float target_angle);
 static void LoaderDisable(void);
 static uint8_t LoaderFeedbackIsFresh(void);
 static void LoaderHome(void);
@@ -112,6 +122,22 @@ static void RemoteControlDebug(void);
 /* Private user code -------------------------------------------------------- */
 
 /**
+ * @brief 下发目标角度,并把最终力矩指令夹到LOADER_TORQUE_LIMIT_NM
+ *
+ * DMMotorSetPIDRef内部先算速度环(输出已被speed_PID.MaxOut限幅),
+ * 再把力矩前馈直接加到结果上,所以两者的和可能超过任何单个限幅值;
+ * 在这里统一夹一次,保证输出到DM4310的力矩指令不会超过机构承受上限
+ *
+ * @param target_angle 位置环的目标角度(rad)
+ */
+static void LoaderApplyRef(float target_angle)
+{
+    DMMotorSetPIDRef(robot->loader_motor, target_angle);
+    LIMIT_MIN_MAX(robot->loader_motor->motor_controller.final_output, -LOADER_TORQUE_LIMIT_NM,
+                  LOADER_TORQUE_LIMIT_NM);
+}
+
+/**
  * @brief 拨弹盘失能:停止力矩输出,并把目标角度同步为当前角度,
  *        这样重新使能时位置环误差为0,电机不会因目标突变而猛冲
  */
@@ -123,6 +149,7 @@ static void LoaderDisable(void)
     robot->loader_motor->motor_controller.angle_PID.MaxOut = loader_normal_angle_max_out;
     robot->loader_motor->motor_controller.speed_PID.Kp = loader_normal_speed_kp;
     loader_speed_feedforward = 0.0f;
+    loader_torque_feedforward = 0.0f;
     robot->target_angle = robot->loader_motor->measure.total_angle;
 }
 
@@ -191,15 +218,18 @@ static void LoaderHome(void)
     }
 
     /* 普通正向回位和卡弹后对齐共用增强参数,避免普通回位仍以约1.2N·m等待积分 */
+    home_error = fabsf(loader_home_target_angle - current_angle);
     robot->loader_motor->motor_controller.angle_PID.Kp = loader_normal_angle_kp * LOADER_HOME_ANGLE_KP_SCALE;
     robot->loader_motor->motor_controller.angle_PID.MaxOut = LOADER_HOME_MAX_SPEED_RAD_S;
     robot->loader_motor->motor_controller.speed_PID.Kp = loader_normal_speed_kp * LOADER_HOME_SPEED_KP_SCALE;
     loader_speed_feedforward = 0.0f;
+    /* 回位要顶开弹链阻力:速度参考被限在6rad/s,速度环饱和推力只有4.2N·m,不够顶开弹链,
+       故用推链前馈补足;到位后撤掉,避免停在齿位时长期顶住弹丸 */
+    loader_torque_feedforward = (home_error > LOADER_HOME_ANGLE_TOLERANCE_RAD) ? LOADER_PUSH_TORQUE_NM : 0.0f;
     robot->target_angle = loader_home_target_angle;
     DMMotorEnable(robot->loader_motor);
-    DMMotorSetPIDRef(robot->loader_motor, robot->target_angle);
+    LoaderApplyRef(robot->target_angle);
 
-    home_error = fabsf(loader_home_target_angle - current_angle);
     if (home_error <= LOADER_HOME_ANGLE_TOLERANCE_RAD &&
         (loader_jam_state == LOADER_JAM_REALIGN ||
          fabsf(robot->loader_motor->measure.velocity) <= LOADER_HOME_SPEED_TOLERANCE_RAD_S))
@@ -251,8 +281,15 @@ static void LoaderStep(uint32_t period_ms, float step_rate)
         loader_speed_feedforward = step_rate;
     }
 
+    /* 只在目标角仍领先实测角时给推链前馈:拨到齿位后撤掉,反转时目标角在后,同样为0,
+       避免停在齿位时电机长期以推链力矩顶住弹丸 */
+    loader_torque_feedforward = (robot->target_angle - robot->loader_motor->measure.total_angle >
+                                 LOADER_PUSH_GATE_RAD)
+                                    ? LOADER_PUSH_TORQUE_NM
+                                    : 0.0f;
+
     /* 角度环->速度环的串级计算在DMMotorSetPIDRef内部完成,其输出为力矩参考 */
-    DMMotorSetPIDRef(robot->loader_motor, robot->target_angle);
+    LoaderApplyRef(robot->target_angle);
 }
 
 /**
@@ -272,6 +309,7 @@ static void LoaderJamAbort(void)
     robot->loader_motor->motor_controller.angle_PID.MaxOut = loader_normal_angle_max_out;
     robot->loader_motor->motor_controller.speed_PID.Kp = loader_normal_speed_kp;
     loader_speed_feedforward = 0.0f;
+    loader_torque_feedforward = 0.0f;
     robot->target_angle = robot->loader_motor->measure.total_angle;
 }
 
@@ -319,7 +357,7 @@ static void LoaderJamCheck(void)
     if ((uint32_t)(now - loader_jam_window_time) < LOADER_JAM_DETECT_MS)
         return;
 
-    /* 用实测位置退15°,不追赶卡弹期间已经累积超前的步进目标 */
+    /* 用实测位置退LOADER_JAM_BACKOFF_RAD,不追赶卡弹期间已经累积超前的步进目标 */
     loader_jam_state = LOADER_JAM_BACKOFF;
     loader_jam_observing = 0;
     loader_jam_settling = 0;
@@ -330,11 +368,13 @@ static void LoaderJamCheck(void)
     robot->loader_motor->motor_controller.angle_PID.MaxOut = LOADER_JAM_BACKOFF_MAX_SPEED_RAD_S;
     robot->loader_motor->motor_controller.speed_PID.Kp = loader_normal_speed_kp;
     loader_speed_feedforward = 0.0f;
+    /* 退弹方向与推链相反,必须撤掉推链前馈,否则回退时还在往前顶 */
+    loader_torque_feedforward = 0.0f;
     robot->target_angle = loader_jam_backoff_target;
     PIDClear(&robot->loader_motor->motor_controller.angle_PID);
     PIDClear(&robot->loader_motor->motor_controller.speed_PID);
-    DMMotorSetPIDRef(robot->loader_motor, robot->target_angle);
-    LOGINFO("[loader] jam detected, backoff 15deg");
+    LoaderApplyRef(robot->target_angle);
+    LOGINFO("[loader] jam detected, backoff %ddeg", (int)(LOADER_JAM_BACKOFF_RAD * RAD_2_DEGREE + 0.5f));
 }
 
 /**
@@ -377,9 +417,11 @@ static void LoaderJamRecover(void)
         robot->loader_motor->motor_controller.angle_PID.MaxOut = LOADER_JAM_HOLD_MAX_SPEED_RAD_S;
     }
     loader_speed_feedforward = 0.0f;
+    /* 回退与保持阶段都不往前顶,推链前馈清零;正向对齐由LoaderHome重新给出 */
+    loader_torque_feedforward = 0.0f;
     robot->target_angle = loader_jam_backoff_target;
     DMMotorEnable(robot->loader_motor);
-    DMMotorSetPIDRef(robot->loader_motor, robot->target_angle);
+    LoaderApplyRef(robot->target_angle);
 
     if (loader_jam_state == LOADER_JAM_BACKOFF)
     {
@@ -399,7 +441,7 @@ static void LoaderJamRecover(void)
                 robot->loader_motor->motor_controller.angle_PID.MaxOut = LOADER_JAM_HOLD_MAX_SPEED_RAD_S;
                 PIDClear(&robot->loader_motor->motor_controller.angle_PID);
                 PIDClear(&robot->loader_motor->motor_controller.speed_PID);
-                DMMotorSetPIDRef(robot->loader_motor, robot->target_angle);
+                LoaderApplyRef(robot->target_angle);
                 LOGINFO("[loader] jam backoff done, hold %ums", (unsigned)LOADER_JAM_HOLD_MS);
             }
         }
@@ -460,6 +502,8 @@ static void LoaderSetMode(Loader_Mode_e mode)
         loader_step_immediate = 1;
         robot->target_angle = robot->loader_motor->measure.total_angle;
         loader_speed_feedforward = 0.0f;
+        /* 反向拨弹不需要推链前馈(LoaderStep也会按"目标角在后"自动清零),这里显式清掉 */
+        loader_torque_feedforward = 0.0f;
         robot->loader_motor->motor_controller.angle_PID.Kp = loader_normal_angle_kp;
         robot->loader_motor->motor_controller.angle_PID.MaxOut = loader_normal_angle_max_out;
         robot->loader_motor->motor_controller.speed_PID.Kp = loader_normal_speed_kp;
@@ -671,8 +715,9 @@ void RobotInit(void)
     robot->loader_motor = DMMotorInit(&loader_motor_config);
     /* 底层初始化会先使能电机,先置零力矩急停,再等待遥控器指令 */
     DMMotorStop(robot->loader_motor);
-    /* DM电机模块未复制速度前馈指针,在本机器人中补齐以避免步进控制解引用空指针 */
+    /* DM电机模块未复制速度/力矩前馈指针,在本机器人中补齐以避免步进控制解引用空指针 */
     robot->loader_motor->motor_controller.speed_feedforward_ptr = &loader_speed_feedforward;
+    robot->loader_motor->motor_controller.current_feedforward_ptr = &loader_torque_feedforward;
     loader_normal_angle_kp = robot->loader_motor->motor_controller.angle_PID.Kp;
     loader_normal_angle_max_out = robot->loader_motor->motor_controller.angle_PID.MaxOut;
     loader_normal_speed_kp = robot->loader_motor->motor_controller.speed_PID.Kp;

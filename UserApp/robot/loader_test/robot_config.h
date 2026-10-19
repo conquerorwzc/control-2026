@@ -53,11 +53,22 @@
 /* 速度前馈值,由robot.c按当前拨杆档位写入,通过DMMotor模块的SPEED_FEEDFORWARD作用到速度环 */
 static float loader_speed_feedforward = 0.0f;
 
+/* 推链力矩前馈值(N·m),由robot.c在"目标角还领先实测角"时写入,
+   通过DMMotor模块的CURRENT_FEEDFORWARD直接叠加到最终力矩指令(即速度环输出之后).
+   作用:弹链阻力无法靠速度环的P项克服——回位时速度参考被角度环限到6rad/s,
+   速度环饱和推力只有0.7×6=4.2N·m,再靠Ki(0.1)以0.7N·m/s慢慢爬,
+   而卡弹判据的观察窗口远小于积分爬升时间,于是"推得动的阻力"被误判成堵转.
+   前馈把这部分力矩直接补上,速度环只负责修残差,不必靠继续加大Kp换力矩(会引入抖动) */
+static float loader_torque_feedforward = 0.0f;
+
 /* 拨弹盘电机(DM4310)配置:角度环+速度环串级,最终输出为力矩参考,由DMMotor模块下发 */
 static Motor_Init_Config_s loader_motor_config = {
     .controller_param_init_config =
         {
             .speed_feedforward_ptr = &loader_speed_feedforward,
+            /* 力矩前馈指针:注意DMMotorInit没有复制它,需要在RobotInit里补到电机实例上,
+               否则feedforward_flag里的CURRENT_FEEDFORWARD会解引用空指针 */
+            .current_feedforward_ptr = &loader_torque_feedforward,
             .angle_PID =
                 {
                     .Kp = 15.0f,         // 角度环增益,误差1rad对应12rad/s的速度参考
@@ -89,7 +100,7 @@ static Motor_Init_Config_s loader_motor_config = {
             .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
             .angle_feedback_source = MOTOR_FEED,
             .speed_feedback_source = MOTOR_FEED,
-            .feedforward_flag = SPEED_FEEDFORWARD,
+            .feedforward_flag = SPEED_FEEDFORWARD | CURRENT_FEEDFORWARD,
         },
     .motor_type = J4310,
     .can_init_config =
