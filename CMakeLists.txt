@@ -28,8 +28,8 @@ endif() # Debug Release RelWithDebInfo MinSizeRel
 # set(ROBOT_TYPE "sentry_omni_chassis")
 # set(ROBOT_TYPE "sentry_omni_gimbal")
 # set(ROBOT_TYPE "infantry_wheel_legged_sjtu")
- set(ROBOT_TYPE "loader_test")
-
+# set(ROBOT_TYPE "loader_test")
+set(ROBOT_TYPE "sentry_friction")
 set(ROBOT_CMAKE "${CMAKE_SOURCE_DIR}/UserApp/robot/${ROBOT_TYPE}/robot.cmake")
 if (NOT EXISTS "${ROBOT_CMAKE}")
     message(FATAL_ERROR "Unknown ROBOT_TYPE '${ROBOT_TYPE}': ${ROBOT_CMAKE} does not exist")
@@ -123,9 +123,7 @@ endif ()
 set_source_files_properties(${ASM_SOURCES} PROPERTIES COMPILE_FLAGS "-x assembler-with-cpp")
 
 # build binary and hex file
-add_executable(${PROJECT_NAME}.elf ${SOURCES} ${ASM_SOURCES} ${LINKER_SCRIPT}
-        UserApp/components/shoot/shoot_dm_single/shoot.c
-        UserApp/components/shoot/shoot_dm_single/shoot.h)
+add_executable(${PROJECT_NAME}.elf ${SOURCES} ${ASM_SOURCES} ${LINKER_SCRIPT})
 target_link_libraries(${PROJECT_NAME}.elf ${DSP_NAME} m) # link DSP lib and math lib
 
 add_custom_command(
