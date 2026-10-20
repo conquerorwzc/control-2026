@@ -7,39 +7,26 @@ static RobotInstance *robot = &robot_instance;
 
 static void RemoteControlSet(void)
 {
-    Shoot_Ctrl_Cmd_s *shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
-
+    Shoot_Ctrl_Cmd_s *cmd = &robot->shoot->shoot_ctrl_cmd;
     robot->robot_mode = ROBOT_POWER_OFF;
-    shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
-    shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
-    shoot_ctrl_cmd->friction_speed = 0.0f;
-
-    // 遥控器离线或拨杆值无效时保持关闭，不沿用上一次的开启命令。
+    *cmd = (Shoot_Ctrl_Cmd_s){0}; // 每周期从关闭状态生成命令，离线不保留旧命令。
     if (robot->rc_data == NULL || !RemoteControlIsOnline())
         return;
 
-    uint8_t switch_left = robot->rc_data[TEMP].rc.switch_left;
-    uint8_t switch_right = robot->rc_data[TEMP].rc.switch_right;
-    if (switch_is_off(switch_right))
+    uint8_t left = robot->rc_data[TEMP].rc.switch_left;
+    uint8_t right = robot->rc_data[TEMP].rc.switch_right;
+    if (switch_is_off(right) || !(switch_is_mid(left) || switch_is_up(left)))
         return;
 
-    // 与 infantry_mecanum 的摩擦轮映射一致：左中/上开启，左下关闭。
-    // 右拨杆不控制摩擦轮，保留给后续底盘/云台功能。
-    if (switch_is_mid(switch_left))
+    robot->robot_mode = ROBOT_POWER_ON;
+    cmd->shoot_mode = SHOOT_ON;
+    cmd->friction_mode = FRICTION_ON;
+    cmd->friction_speed = switch_is_mid(left) ? FRICTION_SPEED_MID_APS : FRICTION_SPEED_UP_APS;
+    // 左中/上才接受右拨杆；右下停止，右中/上分别慢速/快速连发。
+    if (switch_is_mid(right) || switch_is_up(right))
     {
-        robot->robot_mode = ROBOT_POWER_ON;
-        shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
-        shoot_ctrl_cmd->friction_mode = FRICTION_ON;
-        // 先以配置下限作为固定测试转速，需要其他目标时修改这里。
-        shoot_ctrl_cmd->friction_speed = 10000;
-    }
-    if(switch_is_up(switch_left))
-    {
-        robot->robot_mode = ROBOT_POWER_ON;
-        shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
-        shoot_ctrl_cmd->friction_mode = FRICTION_ON;
-        // 先以配置下限作为固定测试转速，需要其他目标时修改这里。
-        shoot_ctrl_cmd->friction_speed = 30000;
+        cmd->load_mode = LOAD_BURSTFIRE;
+        cmd->load_period_ms = switch_is_mid(right) ? LOADER_STEP_PERIOD_MID_MS : LOADER_STEP_PERIOD_UP_MS;
     }
 }
 

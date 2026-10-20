@@ -1,4 +1,4 @@
-# 三摩擦轮发射测试机器人，不包含底盘和云台组件。
+# J4310 拨弹盘与三摩擦轮测试机器人，不包含底盘和云台组件。
 set(SHOOT_TYPE shoot_dm_single)
 add_compile_definitions(FRICTION_NUM=3)
 
