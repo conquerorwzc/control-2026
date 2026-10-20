@@ -55,10 +55,10 @@ static float loader_speed_feedforward = 0.0f;
 
 /* 推链力矩前馈值(N·m),由robot.c在"目标角还领先实测角"时写入,
    通过DMMotor模块的CURRENT_FEEDFORWARD直接叠加到最终力矩指令(即速度环输出之后).
-   作用:弹链阻力无法靠速度环的P项克服——回位时速度参考被角度环限到6rad/s,
-   速度环饱和推力只有0.7×6=4.2N·m,再靠Ki(0.1)以0.7N·m/s慢慢爬,
-   而卡弹判据的观察窗口远小于积分爬升时间,于是"推得动的阻力"被误判成堵转.
-   前馈把这部分力矩直接补上,速度环只负责修残差,不必靠继续加大Kp换力矩(会引入抖动) */
+   控制结构不变:外层仍是位置环(角度环->速度环),前馈只把力矩基点抬高,位置闭环继续把拨盘拉到目标角度.
+   作用:弹链阻力无法只靠速度环的P项克服——回位时速度参考被角度环限到6rad/s,
+   速度环饱和推力只有0.7×6=4.2N·m,再靠Ki(0.1)以0.7N·m/s慢慢爬,顶开弹链要等很久.
+   前馈给3N·m垫底,剩余部分由位置环残差补足,不必靠继续加大Kp换力矩(会引入抖动) */
 static float loader_torque_feedforward = 0.0f;
 
 /* 拨弹盘电机(DM4310)配置:角度环+速度环串级,最终输出为力矩参考,由DMMotor模块下发 */
@@ -71,7 +71,7 @@ static Motor_Init_Config_s loader_motor_config = {
             .current_feedforward_ptr = &loader_torque_feedforward,
             .angle_PID =
                 {
-                    .Kp = 15.0f,         // 角度环增益,误差1rad对应12rad/s的速度参考
+                    .Kp = 8.0f,         // 角度环增益,误差1rad对应12rad/s的速度参考
                     .Ki = 0.0f,          // 速度前馈已提供主要的速度参考,无需积分(纯比例)
                     .Kd = 0.0f,
                     .MaxOut = 15.0f,     // 角度环输出为速度参考(rad/s),DM4310速度上限为30rad/s
@@ -80,7 +80,7 @@ static Motor_Init_Config_s loader_motor_config = {
                 },
             .speed_PID =
                 {
-                    .Kp = 0.7f,
+                    .Kp = 0.6f,
                     .Ki = 0.1f,
                     .Kd = 0.0f,
                     .MaxOut = 7.0f,  // 速度环输出为力矩参考(N·m),DM4310力矩上限为10N·m

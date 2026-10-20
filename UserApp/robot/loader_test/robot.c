@@ -34,39 +34,17 @@
 #define LOADER_HOME_TIMEOUT_MS 10000U
 /* 反馈超过此时间未更新时停止输出,恢复后重新回位 */
 #define LOADER_FEEDBACK_TIMEOUT_MS 100U
-/* 推链力矩前馈(N·m):弹链阻力主要靠它承担,速度环只补残差.
-   实测需要约6N·m才能稳定推过弹链,故前馈给4N·m,剩余部分由速度环P/I项补足 */
-#define LOADER_PUSH_TORQUE_NM 4.0f
+/* 推链力矩前馈(N·m):弹链阻力的基础份量由它承担,控制结构仍是位置环(角度环->速度环),
+   前馈只是把速度环输出抬高一个基点,位置闭环照样把拨盘拉到目标角度.
+   取3N·m:比推过弹链所需的约6N·m小,剩余部分由位置环残差(速度环P/I项)补足,
+   既能顶开阻力,又不会在齿位之间空推时用力过猛 */
+#define LOADER_PUSH_TORQUE_NM 3.0f
 /* 目标角领先实测角超过该阈值才给推链前馈:停在齿位时撤掉,避免长期顶住弹链 */
 #define LOADER_PUSH_GATE_RAD (1.0f * DEGREE_2_RAD)
 /* 总力矩指令上限(含前馈):DMMotorSetPIDRef内部是"速度环输出 + 前馈",
    单靠speed_PID.MaxOut限不住总和,必须在robot.c里统一夹住.
    取7.5N·m,比推过弹链所需的6N·m留25%余量,同时低于DM4310峰值力矩,避免压变形弹丸 */
 #define LOADER_TORQUE_LIMIT_NM 7.5f
-/* 卡弹判据:目标超前、正向位移不足且力矩指令已接近上限(而不是"稍微用点力") */
-#define LOADER_JAM_ERROR_RAD (10.0f * DEGREE_2_RAD)
-#define LOADER_JAM_PROGRESS_RAD (3.0f * DEGREE_2_RAD)
-#define LOADER_JAM_TORQUE_NM (0.85f * LOADER_TORQUE_LIMIT_NM)
-#define LOADER_JAM_DETECT_MS 300U
-/* 卡弹恢复:退半格、按配置时间保持,再正转到最近的等价齿位 */
-#define LOADER_JAM_BACKOFF_RAD (20.0f * DEGREE_2_RAD)
-#define LOADER_JAM_BACKOFF_KP_SCALE 3.0f
-#define LOADER_JAM_BACKOFF_MAX_SPEED_RAD_S 15.0f
-/* 回退到位后的稳定确认时间(ms),独立于普通回位的100ms等待 */
-#define LOADER_JAM_BACKOFF_SETTLE_MS 20U
-#define LOADER_JAM_HOLD_MAX_SPEED_RAD_S 2.0f
-/* 回退稳定后的额外保持时间(ms);0表示下一控制周期直接进入正向对齐 */
-#define LOADER_JAM_HOLD_MS 0U
-#define LOADER_JAM_RECOVERY_TIMEOUT_MS 2000U
-
-typedef enum
-{
-    LOADER_JAM_NORMAL = 0,
-    LOADER_JAM_BACKOFF,
-    LOADER_JAM_HOLD,
-    LOADER_JAM_REALIGN,
-    LOADER_JAM_FAULT,
-} Loader_Jam_State_e;
 
 /* Intermediate variables calculated by private functions ------------------ */
 static RobotInstance *robot;
@@ -93,16 +71,6 @@ static uint32_t loader_home_settle_time;
 /* 电机反馈时间戳由每帧反馈更新的DWT计数推导,用于识别运行中断线 */
 static uint32_t loader_last_feed_count;
 static uint32_t loader_last_feed_time;
-/* 正向卡弹观察窗口与自动恢复状态 */
-static Loader_Jam_State_e loader_jam_state;
-static uint8_t loader_jam_observing;
-static uint8_t loader_jam_settling;
-static float loader_jam_window_angle;
-static float loader_jam_backoff_target;
-static uint32_t loader_jam_window_time;
-static uint32_t loader_jam_recovery_time;
-static uint32_t loader_jam_settle_time;
-static uint32_t loader_jam_hold_time;
 
 /* Private function prototypes --------------------------------------------- */
 static void LoaderApplyRef(float target_angle);
@@ -110,10 +78,6 @@ static void LoaderDisable(void);
 static uint8_t LoaderFeedbackIsFresh(void);
 static void LoaderHome(void);
 static void LoaderStep(uint32_t period_ms, float step_rate);
-static void LoaderJamAbort(void);
-static void LoaderJamFault(void);
-static void LoaderJamCheck(void);
-static void LoaderJamRecover(void);
 static void LoaderSetMode(Loader_Mode_e mode);
 static void RemoteControlSet(void);
 static void LoaderControl(void);
@@ -203,10 +167,9 @@ static void LoaderHome(void)
         loader_home_start_time = now;
         loader_home_settling = 0;
         loader_home_target_valid = 1;
-        loader_jam_observing = 0;
         PIDClear(&robot->loader_motor->motor_controller.angle_PID);
         PIDClear(&robot->loader_motor->motor_controller.speed_PID);
-        LOGINFO("[loader] homing forward, jam:%u", (unsigned)loader_jam_state);
+        LOGINFO("[loader] homing forward");
     }
 
     if ((uint32_t)(now - loader_home_start_time) > LOADER_HOME_TIMEOUT_MS)
@@ -231,13 +194,11 @@ static void LoaderHome(void)
     LoaderApplyRef(robot->target_angle);
 
     if (home_error <= LOADER_HOME_ANGLE_TOLERANCE_RAD &&
-        (loader_jam_state == LOADER_JAM_REALIGN ||
-         fabsf(robot->loader_motor->measure.velocity) <= LOADER_HOME_SPEED_TOLERANCE_RAD_S))
+        fabsf(robot->loader_motor->measure.velocity) <= LOADER_HOME_SPEED_TOLERANCE_RAD_S)
     {
-        if (loader_jam_state == LOADER_JAM_REALIGN ||
-            (loader_home_settling && (uint32_t)(now - loader_home_settle_time) >= LOADER_HOME_SETTLE_MS))
+        if (loader_home_settling && (uint32_t)(now - loader_home_settle_time) >= LOADER_HOME_SETTLE_MS)
         {
-            /* 自动恢复经过齿位即接续正向拨弹;上电回位仍需低速稳定100ms */
+            /* 上电回位需要低速稳定100ms才算到位 */
             loader_home_done = 1;
             robot->loader_motor->motor_controller.angle_PID.Kp = loader_normal_angle_kp;
             robot->loader_motor->motor_controller.angle_PID.MaxOut = loader_normal_angle_max_out;
@@ -245,7 +206,6 @@ static void LoaderHome(void)
             loader_step_time = now;
             loader_step_started = 0;
             loader_step_immediate = 1;
-            loader_jam_observing = 0;
             LOGINFO("[loader] homing done in %ums", (unsigned)(now - loader_home_start_time));
         }
         else if (!loader_home_settling)
@@ -293,178 +253,6 @@ static void LoaderStep(uint32_t period_ms, float step_rate)
 }
 
 /**
- * @brief 遥控器离开正向档时取消未完成的卡弹恢复,反向指令从实际位置开始
- */
-static void LoaderJamAbort(void)
-{
-    if (loader_jam_state == LOADER_JAM_NORMAL || loader_jam_state == LOADER_JAM_FAULT)
-        return;
-
-    loader_jam_state = LOADER_JAM_NORMAL;
-    loader_jam_observing = 0;
-    loader_home_done = 1;
-    loader_home_target_valid = 0;
-    loader_step_started = 0;
-    robot->loader_motor->motor_controller.angle_PID.Kp = loader_normal_angle_kp;
-    robot->loader_motor->motor_controller.angle_PID.MaxOut = loader_normal_angle_max_out;
-    robot->loader_motor->motor_controller.speed_PID.Kp = loader_normal_speed_kp;
-    loader_speed_feedforward = 0.0f;
-    loader_torque_feedforward = 0.0f;
-    robot->target_angle = robot->loader_motor->measure.total_angle;
-}
-
-/**
- * @brief 恢复超时或反馈中断时锁定零力矩,仅在双下档清除故障
- */
-static void LoaderJamFault(void)
-{
-    loader_jam_state = LOADER_JAM_FAULT;
-    loader_jam_observing = 0;
-    loader_home_done = 0;
-    loader_home_target_valid = 0;
-    robot->loader_motor->motor_controller.angle_PID.Kp = loader_normal_angle_kp;
-    robot->loader_motor->motor_controller.angle_PID.MaxOut = loader_normal_angle_max_out;
-    robot->loader_motor->motor_controller.speed_PID.Kp = loader_normal_speed_kp;
-    LoaderDisable();
-    LOGERROR("[loader] jam recovery failed, switch both down to reset");
-}
-
-/**
- * @brief 正向回位或拨弹时检测持续卡弹;只使用已下发的力矩参考和新鲜的角度反馈
- */
-static void LoaderJamCheck(void)
-{
-    uint32_t now = osKernelSysTick();
-    float current_angle = robot->loader_motor->measure.total_angle;
-
-    /* 正向回位还未开始步进,但目标已确定时也必须检查是否被弹丸挡住 */
-    if ((!loader_step_started && !(loader_home_target_valid && !loader_home_done && !loader_home_failed)) ||
-        robot->target_angle - current_angle <= LOADER_JAM_ERROR_RAD ||
-        robot->loader_motor->motor_controller.final_output < LOADER_JAM_TORQUE_NM)
-    {
-        loader_jam_observing = 0;
-        return;
-    }
-
-    if (!loader_jam_observing || current_angle - loader_jam_window_angle >= LOADER_JAM_PROGRESS_RAD)
-    {
-        loader_jam_observing = 1;
-        loader_jam_window_time = now;
-        loader_jam_window_angle = current_angle;
-        return;
-    }
-
-    if ((uint32_t)(now - loader_jam_window_time) < LOADER_JAM_DETECT_MS)
-        return;
-
-    /* 用实测位置退LOADER_JAM_BACKOFF_RAD,不追赶卡弹期间已经累积超前的步进目标 */
-    loader_jam_state = LOADER_JAM_BACKOFF;
-    loader_jam_observing = 0;
-    loader_jam_settling = 0;
-    loader_jam_recovery_time = now;
-    loader_jam_backoff_target = current_angle - LOADER_JAM_BACKOFF_RAD;
-    /* 回退期间单独增强位置环;同步提高其限幅,避免增大的Kp被原2rad/s限幅截断 */
-    robot->loader_motor->motor_controller.angle_PID.Kp = loader_normal_angle_kp * LOADER_JAM_BACKOFF_KP_SCALE;
-    robot->loader_motor->motor_controller.angle_PID.MaxOut = LOADER_JAM_BACKOFF_MAX_SPEED_RAD_S;
-    robot->loader_motor->motor_controller.speed_PID.Kp = loader_normal_speed_kp;
-    loader_speed_feedforward = 0.0f;
-    /* 退弹方向与推链相反,必须撤掉推链前馈,否则回退时还在往前顶 */
-    loader_torque_feedforward = 0.0f;
-    robot->target_angle = loader_jam_backoff_target;
-    PIDClear(&robot->loader_motor->motor_controller.angle_PID);
-    PIDClear(&robot->loader_motor->motor_controller.speed_PID);
-    LoaderApplyRef(robot->target_angle);
-    LOGINFO("[loader] jam detected, backoff %ddeg", (int)(LOADER_JAM_BACKOFF_RAD * RAD_2_DEGREE + 0.5f));
-}
-
-/**
- * @brief 卡弹后退15°并短暂保持,再复用正向回位逻辑对齐最近齿位
- */
-static void LoaderJamRecover(void)
-{
-    uint32_t now = osKernelSysTick();
-    float current_angle = robot->loader_motor->measure.total_angle;
-
-    /* 2s分别限制回退和正向对齐,中间保持时间不计入回退超时 */
-    if (loader_jam_state != LOADER_JAM_HOLD &&
-        (uint32_t)(now - loader_jam_recovery_time) > LOADER_JAM_RECOVERY_TIMEOUT_MS)
-    {
-        LoaderJamFault();
-        return;
-    }
-
-    if (loader_jam_state == LOADER_JAM_REALIGN)
-    {
-        LoaderHome();
-        if (loader_home_done)
-        {
-            loader_jam_state = LOADER_JAM_NORMAL;
-            loader_jam_observing = 0;
-            LOGINFO("[loader] jam recovery done");
-        }
-        return;
-    }
-
-    /* 回退使用增强Kp;暂停时恢复正常Kp并保持回退位置 */
-    if (loader_jam_state == LOADER_JAM_BACKOFF)
-    {
-        robot->loader_motor->motor_controller.angle_PID.Kp = loader_normal_angle_kp * LOADER_JAM_BACKOFF_KP_SCALE;
-        robot->loader_motor->motor_controller.angle_PID.MaxOut = LOADER_JAM_BACKOFF_MAX_SPEED_RAD_S;
-    }
-    else
-    {
-        robot->loader_motor->motor_controller.angle_PID.Kp = loader_normal_angle_kp;
-        robot->loader_motor->motor_controller.angle_PID.MaxOut = LOADER_JAM_HOLD_MAX_SPEED_RAD_S;
-    }
-    loader_speed_feedforward = 0.0f;
-    /* 回退与保持阶段都不往前顶,推链前馈清零;正向对齐由LoaderHome重新给出 */
-    loader_torque_feedforward = 0.0f;
-    robot->target_angle = loader_jam_backoff_target;
-    DMMotorEnable(robot->loader_motor);
-    LoaderApplyRef(robot->target_angle);
-
-    if (loader_jam_state == LOADER_JAM_BACKOFF)
-    {
-        if (fabsf(loader_jam_backoff_target - current_angle) <= LOADER_HOME_ANGLE_TOLERANCE_RAD &&
-            fabsf(robot->loader_motor->measure.velocity) <= LOADER_HOME_SPEED_TOLERANCE_RAD_S)
-        {
-            if (!loader_jam_settling)
-            {
-                loader_jam_settling = 1;
-                loader_jam_settle_time = now;
-            }
-            else if ((uint32_t)(now - loader_jam_settle_time) >= LOADER_JAM_BACKOFF_SETTLE_MS)
-            {
-                loader_jam_state = LOADER_JAM_HOLD;
-                loader_jam_hold_time = now;
-                robot->loader_motor->motor_controller.angle_PID.Kp = loader_normal_angle_kp;
-                robot->loader_motor->motor_controller.angle_PID.MaxOut = LOADER_JAM_HOLD_MAX_SPEED_RAD_S;
-                PIDClear(&robot->loader_motor->motor_controller.angle_PID);
-                PIDClear(&robot->loader_motor->motor_controller.speed_PID);
-                LoaderApplyRef(robot->target_angle);
-                LOGINFO("[loader] jam backoff done, hold %ums", (unsigned)LOADER_JAM_HOLD_MS);
-            }
-        }
-        else
-        {
-            loader_jam_settling = 0;
-        }
-        return;
-    }
-
-    if ((uint32_t)(now - loader_jam_hold_time) >= LOADER_JAM_HOLD_MS)
-    {
-        loader_jam_state = LOADER_JAM_REALIGN;
-        loader_jam_recovery_time = now;
-        loader_home_done = 0;
-        loader_home_target_valid = 0;
-        loader_home_failed = 0;
-        loader_home_settling = 0;
-        LOGINFO("[loader] jam hold done, realign forward");
-    }
-}
-
-/**
  * @brief 拨弹盘模式切换:只在模式真正改变时做清理和日志
  *
  * @param mode 新的工作模式
@@ -476,13 +264,9 @@ static void LoaderSetMode(Loader_Mode_e mode)
     if (robot->loader_mode == mode)
         return;
 
-    /* 停止或手动反向立即退出回退/暂停/对齐流程,故障锁定除外 */
-    if ((previous_mode == LOADER_STEP_SLOW || previous_mode == LOADER_STEP_FAST) &&
-        mode != LOADER_STEP_SLOW && mode != LOADER_STEP_FAST)
-        LoaderJamAbort();
+    /* 停止或反向时清掉步进状态,重新给正向指令会重新寻找最近齿位 */
     robot->loader_mode = mode;
     loader_step_immediate = 0;
-    loader_jam_observing = 0;
 
     /* 从停止或反向切入正向时,重新寻找正转方向最近的等价齿位 */
     if ((mode == LOADER_STEP_SLOW || mode == LOADER_STEP_FAST) &&
@@ -568,13 +352,6 @@ static void RemoteControlSet(void)
     /* 两个拨杆都在下档时优先急停,不进入回位或步进模式 */
     if (switch_is_down(rc_data[TEMP].rc.switch_left) && switch_is_down(rc_data[TEMP].rc.switch_right))
     {
-        /* 故障必须经双下档才能复位,防止卡死后拨杆切换直接重新输出力矩 */
-        if (loader_jam_state == LOADER_JAM_FAULT)
-        {
-            loader_jam_state = LOADER_JAM_NORMAL;
-            loader_jam_observing = 0;
-            loader_home_failed = 0;
-        }
         LoaderSetMode(LOADER_DISABLE);
         DMMotorStop(robot->loader_motor);
         return;
@@ -616,24 +393,13 @@ static void LoaderControl(void)
         return;
     }
 
-    if (loader_jam_state == LOADER_JAM_FAULT)
-    {
-        LoaderDisable();
-        return;
-    }
-
     /* CAN反馈中断后不能继续追赶旧目标;恢复反馈后重新回位 */
     if (!feedback_fresh)
     {
-        if (loader_jam_state != LOADER_JAM_NORMAL)
-        {
-            LoaderJamFault();
-            return;
-        }
         loader_feedback_ready = 0;
         loader_home_done = 0;
         loader_home_target_valid = 0;
-        loader_jam_observing = 0;
+        loader_home_failed = 0;
         LoaderDisable();
         return;
     }
@@ -645,18 +411,10 @@ static void LoaderControl(void)
         loader_step_time = osKernelSysTick();
     }
 
-    if (loader_jam_state != LOADER_JAM_NORMAL)
-    {
-        LoaderJamRecover();
-        return;
-    }
-
     if (!loader_home_done &&
         (robot->loader_mode == LOADER_STEP_SLOW || robot->loader_mode == LOADER_STEP_FAST))
     {
         LoaderHome();
-        if (!loader_home_done && !loader_home_failed)
-            LoaderJamCheck();
         return;
     }
 
@@ -664,11 +422,9 @@ static void LoaderControl(void)
     {
     case LOADER_STEP_SLOW:
         LoaderStep(LOADER_STEP_PERIOD_MID_MS, LOADER_STEP_RATE_MID);
-        LoaderJamCheck();
         break;
     case LOADER_STEP_FAST:
         LoaderStep(LOADER_STEP_PERIOD_UP_MS, LOADER_STEP_RATE_UP);
-        LoaderJamCheck();
         break;
     case LOADER_STEP_SLOW_REVERSE:
         LoaderStep(LOADER_STEP_PERIOD_MID_MS, -LOADER_STEP_RATE_MID/2.0f);
