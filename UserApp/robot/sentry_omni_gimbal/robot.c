@@ -524,7 +524,7 @@ void RobotInit() {
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
 
-  robot->vision_recv_data = VisionInit(&gimbal_init_config.imu_init_config, &shoot_ctrl_cmd->initial_speed, &RefereeData->robot_id);
+  robot->vision_recv_data = VisionInit(&gimbal_init_config.imu_init_config);
   // robot->super_cap = SuperCapInit(&super_cap_config)
 
   shoot_ctrl_cmd->heat_mode=NO_CONTROL;
