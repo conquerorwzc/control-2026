@@ -41,12 +41,8 @@ static void RemoteControlSet(void)
         shoot_cmd->load_period_ms = switch_is_mid(right) ? LOADER_STEP_PERIOD_MID_MS : LOADER_STEP_PERIOD_UP_MS;
     }
 
-    // 沿用 demo 的小 Yaw 相对偏角和大 Yaw 跟随控制，目标角度单位为 deg。
-    float delta = robot->gimbal->small_yaw_motor->measure.total_angle - ALIGN_DEG;
-    if (delta > -15.0f && delta < 15.0f)
-        gimbal_cmd->yaw -= 0.001f * (float)robot->rc_data[TEMP].rc.rocker_r_;
-    gimbal_cmd->big_yaw -= PIDCalculate(&robot->gimbal->yaw_follow, delta, 0.0f);
-    gimbal_cmd->big_yaw -= 0.0008f * (float)robot->rc_data[TEMP].rc.rocker_r_;
+    // 同步新版四轴：小 Yaw 改为 J4310，IMU 目标仍为 deg；暂不启用大 Yaw 跟随。
+    gimbal_cmd->yaw += 0.0001f * (float)robot->rc_data[TEMP].rc.rocker_r_;
     gimbal_cmd->pitch += 0.0005f * (float)robot->rc_data[TEMP].rc.rocker_r1;
 }
 
