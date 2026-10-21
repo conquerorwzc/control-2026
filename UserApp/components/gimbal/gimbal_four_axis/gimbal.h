@@ -6,8 +6,8 @@
 #ifndef PI
 #define PI 3.14159265358979f
 #endif
-#define UP_ANGLE 0.76f
-#define DOWN_ANGLE 1.51
+#define UP_ANGLE 0.70f
+#define DOWN_ANGLE -1.2f
 typedef enum {
     GIMBAL_POWER_OFF = 0,  // 电机零输出，不代表承重机构保持当前位置
     GIMBAL_ON,

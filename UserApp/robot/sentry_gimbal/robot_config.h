@@ -46,8 +46,8 @@
     }
 
 // 保留当前遥控速度，单位为转子侧 °/s，不是 rpm。
-#define FRICTION_SPEED_MID_APS 10000.0f
-#define FRICTION_SPEED_UP_APS 30000.0f
+#define FRICTION_SPEED_MID_APS 4000.0f
+#define FRICTION_SPEED_UP_APS 15000.0f
 #define LOADER_STEP_PERIOD_MID_MS 700U
 #define LOADER_STEP_PERIOD_UP_MS 67U
 
@@ -154,7 +154,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
     .small_pitch_motor_config =
         {
             .controller_setting_init_config =
-                {.motor_reverse_flag = 1},
+                {.motor_reverse_flag = MOTOR_DIRECTION_NORMAL},
             .motor_type = J4310,
             .can_init_config =
                 {
@@ -236,8 +236,8 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .speed_PID =
                         {
-                            .Kp = 0.7f,                // N*m/(rad/s)，数值复用大 Pitch 速度环
-                            .Ki = 3.0f,                // N*m/rad，数值复用大 Pitch 速度环
+                            .Kp = 0.4f,                // N*m/(rad/s)，数值复用大 Pitch 速度环
+                            .Ki = 3.5f,                // N*m/rad，数值复用大 Pitch 速度环
                             .Kd = 0.0f,                // N*m/(rad/s^2)，速度误差微分增益
                             .DeadBand = 0.0f,          // rad/s，速度误差死区
                             .MaxOut = 1.5f,           // N*m，数值复用大 Pitch 速度环
@@ -246,7 +246,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                         },
                     .angle_PID =
                         {
-                            .Kp = 0.1f,                   // (rad/s)/deg，保留原小 Yaw IMU 角度环参数
+                            .Kp = 0.7f,                   // (rad/s)/deg，保留原小 Yaw IMU 角度环参数
                             .Ki = 0.0f,                   // (rad/s)/(deg*s)
                             .Kd = 0.0f,                   // (rad/s)/(deg/s)
                             .DeadBand = 0.15f,            // deg，IMU 角度误差死区
@@ -259,11 +259,11 @@ static Gimbal_Init_Config_s gimbal_init_config = {
     .gravity_config =
         {
             .big_pitch_scale_nm = 0.0f,    // N*m，大轴近端重力矩系数，不含小轴末端偏心项
-            .small_pitch_scale_nm = 0.0f,  // N*m，末端偏心重力矩系数，同时计入大 Pitch
-            .big_pitch_zero_rad = 3.5f,     // rad，两轴连线水平时的大轴反馈角
-            .small_pitch_zero_rad = 2.5f,   // rad，大轴处于上述零位时末端重心方向水平的小轴反馈角
-            .big_pitch_direction = -1.0f,   // 无量纲，正向直连为 1，反向直连为 -1
-            .small_pitch_direction = 1.0f,  // 无量纲，正向直连为 1，反向直连为 -1
+            .small_pitch_scale_nm = 0.0f,   //0.3f,  // N*m，末端偏心重力矩系数，同时计入大 Pitch
+            .big_pitch_zero_rad = -1.2f,     // rad，两轴连线水平时的大轴反馈角
+            .small_pitch_zero_rad = 0.89f,   // rad，大轴处于上述零位时末端重心方向水平的小轴反馈角
+            .big_pitch_direction = 1.0f,   // 无量纲，正向直连为 1，反向直连为 -1
+            .small_pitch_direction = -1.0f,  // 无量纲，正向直连为 1，反向直连为 -1
         },
     .imu_init_config =
         {
@@ -274,7 +274,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
             .Yaw = -90.0f,
             .Pitch = 0.0f,
             .Roll = 0.0f,
-            .GyroOffset = {0.00382259092, -0.00479286071, -0.00198436622},
+            .GyroOffset = {0.00312951463f, -0.00158894202f, 0.00152651884f},
         },
     // Follow 输出直接累加到大 Yaw 目标，单位 deg/次，当前实现未在累加处乘 dt。
     .Yaw_Follow_PID =

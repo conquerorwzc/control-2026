@@ -48,9 +48,19 @@ static void FrictionControl(void)
                               : 0.0f;
     for (int i = 0; i < FRICTION_NUM; ++i)
     {
-        // 关闭时保留原来的零速制动方式；总开关不能留下上一周期输出。
-        DJIMotorEnable(shoot->friction_motor[i]);
-        DJIMotorSetPIDRef(shoot->friction_motor[i], shoot->friction_coefficients[i] * shoot->friction_set);
+        DJIMotorInstance *motor = shoot->friction_motor[i];
+        if (shoot->friction_set == 0.0f || !DaemonIsOnline(motor->daemon) || motor->motor_can_instance->rx_len != 8U)
+        {
+            // 关闭或反馈掉线时发送零电流，不再用旧反馈计算零速制动。
+            DJIMotorStop(motor);
+            motor->motor_controller.pid_ref = 0.0f;
+            DJIMotorSetRef(motor, 0.0f);
+            PIDClear(&motor->motor_controller.speed_PID);
+            continue;
+        }
+        // 先更新输出再使能，避免恢复时发出上一周期残留的电流。
+        DJIMotorSetPIDRef(motor, shoot->friction_coefficients[i] * shoot->friction_set);
+        DJIMotorEnable(motor);
     }
 }
 
