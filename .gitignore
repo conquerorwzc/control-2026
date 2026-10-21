@@ -108,3 +108,4 @@ doc
 *.jdebug
 
 *.log
+/tuning

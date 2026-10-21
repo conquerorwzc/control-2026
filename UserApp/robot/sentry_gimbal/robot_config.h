@@ -49,7 +49,7 @@
 #define FRICTION_SPEED_MID_APS 4000.0f
 #define FRICTION_SPEED_UP_APS 15000.0f
 #define LOADER_STEP_PERIOD_MID_MS 700U
-#define LOADER_STEP_PERIOD_UP_MS 67U
+#define LOADER_STEP_PERIOD_UP_MS 50U // 20 Hz；改为 40U 即 25 Hz，无需增加遥控档位。
 
 static Shoot_Init_Config_s shoot_init_config = {
     .friction_motor_config = {
@@ -65,6 +65,20 @@ static Shoot_Init_Config_s shoot_init_config = {
     .loader_step_angle = 30.0f * DEGREE_2_RAD,
     .loader_angle_tolerance = 0.03f,
     .loader_period_ms = LOADER_STEP_PERIOD_UP_MS,
+    // TODO: 标定为弹丸刚抵到单发限位时的 measure.total_angle（rad）；0 仅为占位值。
+    .loader_contact_angle = 0.0f,
+    .loader_burst_pid = {
+        .Kp = 0.12f,
+        .Ki = 0.5f,
+        .Kd = 0.0f,
+        // TODO: 保留现有 PI 输出上限；相位力矩前馈在 PI 限幅之后叠加，尚未增加总输出限幅。
+        // 后续在 LoaderBurst 的力矩求和处统一处理；当前底层仍按协议范围 ±10 N*m 限幅。
+        .MaxOut = 7.0f,
+        // TODO: 暂保留现有死区。改为 0 后误差恰为 0 仍输出 0；届时在应用层保留 Iout 输出。
+        .DeadBand = 0.01f,
+        .IntegralLimit = 2.0f, // N*m，较原方案 ±1 放宽；复用现有库，不增加抗饱和包装。
+        .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit,
+    },
     // 沿用 loader_test 已配置的 J4310 总线、ID、方向和串级 PID；角度单位 rad。
     .loader_motor_config = {
         .controller_param_init_config = {
@@ -116,6 +130,7 @@ static Shoot_Init_Config_s shoot_init_config = {
 | 小 Pitch：DM-J4310 | IMU Pitch，° | `Gyro[0]`，rad/s | DM 力矩指令 |
  *
  */
+#if 0 // 拨弹盘调试期间停用云台，保留原配置供恢复。
 static Gimbal_Init_Config_s gimbal_init_config = {
     .big_pitch_motor_config =
         {
@@ -290,3 +305,4 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,  // 无量纲，优化功能位标志
         },
 };
+#endif

@@ -25,7 +25,7 @@ static void RemoteControlSet(void)
     // 左中/上才接受右拨杆；右下停止，右中/上分别慢速/快速连发。
     if (switch_is_mid(right) || switch_is_up(right))
     {
-        cmd->load_mode = LOAD_BURSTFIRE;
+        cmd->load_mode = LOAD_STEP; // 保持此机器人的原有位置步进，不启用速度连发。
         cmd->load_period_ms = switch_is_mid(right) ? LOADER_STEP_PERIOD_MID_MS : LOADER_STEP_PERIOD_UP_MS;
     }
 }
