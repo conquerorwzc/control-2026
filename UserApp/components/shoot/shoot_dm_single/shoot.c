@@ -117,8 +117,9 @@ static void LoaderBurst(uint32_t period, uint32_t now)
     shoot->loader_speed_ref += fmaxf(-change, fminf(change, speed - shoot->loader_speed_ref));
     shoot->loader_torque_feedforward = LoaderFeedforward();
     float torque = PIDCalculate(&motor->motor_controller.speed_PID, motor->measure.velocity, shoot->loader_speed_ref);
-    // 仅补偿阻力，不加入加速度前馈；总输出限幅和死区处理见 robot_config.h 的 TODO。
-    DMMotorSetRef(motor, torque + shoot->loader_torque_feedforward);
+    torque += shoot->loader_torque_feedforward; // 仅补偿阻力，不加入加速度前馈。
+    LIMIT_MIN_MAX(torque, -motor->motor_controller.speed_PID.MaxOut, motor->motor_controller.speed_PID.MaxOut);
+    DMMotorSetRef(motor, torque);
     DMMotorEnable(motor);
 }
 

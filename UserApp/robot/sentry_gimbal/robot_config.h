@@ -65,17 +65,14 @@ static Shoot_Init_Config_s shoot_init_config = {
     .loader_step_angle = 30.0f * DEGREE_2_RAD,
     .loader_angle_tolerance = 0.03f,
     .loader_period_ms = LOADER_STEP_PERIOD_UP_MS,
-    // TODO: 标定为弹丸刚抵到单发限位时的 measure.total_angle（rad）；0 仅为占位值。
-    .loader_contact_angle = 0.0f,
+    .loader_contact_angle = -2.04604435f,
     .loader_burst_pid = {
         .Kp = 0.12f,
         .Ki = 0.5f,
         .Kd = 0.0f,
-        // TODO: 保留现有 PI 输出上限；相位力矩前馈在 PI 限幅之后叠加，尚未增加总输出限幅。
-        // 后续在 LoaderBurst 的力矩求和处统一处理；当前底层仍按协议范围 ±10 N*m 限幅。
+        // N*m，同时用作 PI 输出限幅和 PI + 阻力前馈的总输出限幅。
         .MaxOut = 7.0f,
-        // TODO: 暂保留现有死区。改为 0 后误差恰为 0 仍输出 0；届时在应用层保留 Iout 输出。
-        .DeadBand = 0.01f,
+        .DeadBand = 0.0f, // 禁用死区；PID 库已修复零误差时丢失积分输出的问题。
         .IntegralLimit = 2.0f, // N*m，较原方案 ±1 放宽；复用现有库，不增加抗饱和包装。
         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit,
     },

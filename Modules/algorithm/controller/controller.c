@@ -158,8 +158,8 @@ float PIDCalculate(PIDInstance* pid, float measure, float ref) {
   pid->Ref = ref;
   pid->Err = pid->Ref - pid->Measure;
 
-  // 如果在死区外,则计算PID
-  if (abs(pid->Err) > pid->DeadBand) {
+  // DeadBand=0 禁用死区，误差恰为零时也正常计算并保留积分输出。
+  if (pid->DeadBand == 0.0f || abs(pid->Err) > pid->DeadBand) {
     // 基本的pid计算,使用位置式
     pid->Pout = pid->Kp * pid->Err;
     pid->ITerm = pid->Ki * pid->Err * pid->dt;
@@ -184,7 +184,7 @@ float PIDCalculate(PIDInstance* pid, float measure, float ref) {
 
     // 输出限幅
     f_Output_Limit(pid);
-  } else  // 进入死区, 则清空积分和输出
+  } else  // 非零死区内停止本次积分并输出零，保留累计 Iout。
   {
     pid->Output = 0;
     pid->ITerm = 0;
