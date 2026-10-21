@@ -258,9 +258,9 @@ static Gimbal_Init_Config_s gimbal_init_config = {
         },
     .gravity_config =
         {
-            .big_pitch_scale_nm = 0.0f,    // N*m，大轴近端重力矩系数，不含小轴末端偏心项
-            .small_pitch_scale_nm = 0.0f,   //0.3f,  // N*m，末端偏心重力矩系数，同时计入大 Pitch
-            .big_pitch_zero_rad = -1.2f,     // rad，两轴连线水平时的大轴反馈角
+            .big_pitch_scale_nm = 1.35f,    // N*m，大轴近端重力矩系数，不含小轴末端偏心项
+            .small_pitch_scale_nm = 0.15f,   //0.3f,  // N*m，末端偏心重力矩系数，同时计入大 Pitch
+            .big_pitch_zero_rad = -2.26f,     // rad，两轴连线水平时的大轴反馈角
             .small_pitch_zero_rad = 0.89f,   // rad，大轴处于上述零位时末端重心方向水平的小轴反馈角
             .big_pitch_direction = 1.0f,   // 无量纲，正向直连为 1，反向直连为 -1
             .small_pitch_direction = -1.0f,  // 无量纲，正向直连为 1，反向直连为 -1
@@ -274,7 +274,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
             .Yaw = -90.0f,
             .Pitch = 0.0f,
             .Roll = 0.0f,
-            .GyroOffset = {0.00312951463f, -0.00158894202f, 0.00152651884f},
+            .GyroOffset = {-0.00187805097f, -0.00366833573f, 0.000690503919f},
         },
     // Follow 输出直接累加到大 Yaw 目标，单位 deg/次，当前实现未在累加处乘 dt。
     .Yaw_Follow_PID =
