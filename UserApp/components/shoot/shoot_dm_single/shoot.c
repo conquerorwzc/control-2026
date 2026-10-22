@@ -84,7 +84,6 @@ static uint8_t LoaderJam(uint32_t period, uint32_t now)
     if (period == 0)
     {
         jammed = 0;
-        start_tick = now;
         angle_min = FLT_MAX;
         angle_max = -FLT_MAX;
         return 0;
@@ -96,7 +95,6 @@ static uint8_t LoaderJam(uint32_t period, uint32_t now)
     if (shoot->loader_speed_ref < 0.5f * speed || fabsf(motor->measure.velocity) >= 1.0f ||
         motor->measure.torque < 1.5f)
     {
-        start_tick = now;
         angle_min = FLT_MAX;
         angle_max = -FLT_MAX;
         return 0;
@@ -138,24 +136,24 @@ static void LoaderStop(void)
 
 static float LoaderFeedforward(void)
 {
-    // 将接触角前 5° 作为周期起点，避免提前加力段跨过取模边界。
-    float phase = fmodf(shoot->loader_motor->measure.total_angle - shoot->loader_contact_angle + 5.0f * DEGREE_2_RAD,
+    // 将接触角前 1° 作为周期起点，避免上升段跨过取模边界。
+    float phase = fmodf(shoot->loader_motor->measure.total_angle - shoot->loader_contact_angle + 1.0f * DEGREE_2_RAD,
                         shoot->loader_step_angle);
     if (phase < 0.0f)
         phase += shoot->loader_step_angle;
-    phase = phase * RAD_2_DEGREE - 5.0f;
+    phase = phase * RAD_2_DEGREE - 1.0f;
 
     float blend;
-    if (phase < -3.0f)
-        blend = (phase + 5.0f) / 2.0f;
-    else if (phase <= 4.0f)
-        return 3.0f;
-    else if (phase < 6.0f)
-        blend = (6.0f - phase) / 2.0f;
+    if (phase < 6.0f)
+        blend = (phase + 1.0f) / 7.0f;
+    else if (phase <= 16.0f)
+        return 3.6f;
+    else if (phase < 19.0f)
+        blend = (19.0f - phase) / 3.0f;
     else
-        return 1.0f;
-    // smoothstep：低阻 1 N*m，高阻 3 N*m，-5°~-3° 上升，+4°~+6° 下降。
-    return 1.0f + 2.0f * blend * blend * (3.0f - 2.0f * blend);
+        return 1.1f;
+    // smoothstep：低阻 1.1 N*m，高阻 3.6 N*m，-1°~+6° 上升，+16°~+19° 下降。
+    return 1.1f + 2.5f * blend * blend * (3.0f - 2.0f * blend);
 }
 
 static void LoaderBurst(uint32_t period, uint32_t now)
@@ -216,9 +214,8 @@ static void LoaderControl(void)
     DMMotorInstance *motor = shoot->loader_motor;
     uint32_t period = cmd->load_period_ms != 0 ? cmd->load_period_ms : shoot->loader_period_ms;
     // 只保留命令联动，不检查摩擦轮到速；拨弹盘自己离线时不继续追赶旧目标。
-    if (cmd->shoot_mode != SHOOT_ON || cmd->friction_mode != FRICTION_ON || shoot->friction_set == 0.0f ||
-        cmd->load_mode < LOAD_1_BULLET || cmd->load_mode > LOAD_STEP || period == 0 ||
-        shoot->loader_step_angle <= 0.0f || !DaemonIsOnline(motor->daemon) || motor->motor_can_instance->rx_len != 8U)
+    if (shoot->friction_set == 0.0f || cmd->load_mode == LOAD_STOP || period == 0 ||
+        !DaemonIsOnline(motor->daemon) || motor->motor_can_instance->rx_len != 8U)
     {
         LoaderStop();
         return;
