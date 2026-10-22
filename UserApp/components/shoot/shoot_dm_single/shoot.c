@@ -4,11 +4,13 @@
 #include "daemon.h"
 #include "general_def.h"
 #include "user_lib.h"
+#include <float.h>
 #include <math.h>
 
 static ShootInstance *shoot;
 static PID_Init_Config_s loader_step_pid;
 static PID_Init_Config_s loader_burst_pid;
+static float loader_angle_max_out;
 
 static float LimitFrictionSpeed(float speed)
 {
@@ -39,6 +41,7 @@ ShootInstance *ShootInit(Shoot_Init_Config_s *shoot_init_config)
     shoot->loader_contact_angle = shoot_init_config->loader_contact_angle;
     loader_step_pid = shoot_init_config->loader_motor_config.controller_param_init_config.speed_PID;
     loader_burst_pid = shoot_init_config->loader_burst_pid;
+    loader_angle_max_out = shoot_init_config->loader_motor_config.controller_param_init_config.angle_PID.MaxOut;
     shoot->loader_motor = DMMotorInit(&shoot_init_config->loader_motor_config);
     // 当前 DM 驱动没有复制此指针；存储属于实例，生命周期覆盖整个任务。
     shoot->loader_motor->motor_controller.speed_feedforward_ptr = &shoot->loader_speed_feedforward;
@@ -70,12 +73,59 @@ static void FrictionControl(void)
     }
 }
 
+// period 为当前连发周期；传入 0 清除卡弹标志及检测窗口。
+static uint8_t LoaderJam(uint32_t period, uint32_t now)
+{
+    static uint8_t jammed;
+    static uint32_t start_tick;
+    static float angle_min = FLT_MAX, angle_max = -FLT_MAX;
+    DMMotorInstance *motor = shoot->loader_motor;
+    float angle = motor->measure.total_angle;
+    if (period == 0)
+    {
+        jammed = 0;
+        start_tick = now;
+        angle_min = FLT_MAX;
+        angle_max = -FLT_MAX;
+        return 0;
+    }
+    if (jammed)
+        return 1;
+
+    float speed = shoot->loader_step_angle * 1000.0f / (float)period;
+    if (shoot->loader_speed_ref < 0.5f * speed || fabsf(motor->measure.velocity) >= 1.0f ||
+        motor->measure.torque < 1.5f)
+    {
+        start_tick = now;
+        angle_min = FLT_MAX;
+        angle_max = -FLT_MAX;
+        return 0;
+    }
+    if (angle_min > angle_max) // 首个满足条件的采样点开始计时，不另设候选状态。
+        start_tick = now;
+    angle_min = fminf(angle_min, angle);
+    angle_max = fmaxf(angle_max, angle);
+    if (angle_max - angle_min > 5.0f * DEGREE_2_RAD)
+    {
+        start_tick = now;
+        angle_min = angle_max = angle;
+    }
+    if ((uint32_t)(now - start_tick) >= 80U)
+        jammed = 1;
+    return jammed;
+}
+
 static void LoaderStop(void)
 {
     DMMotorStop(shoot->loader_motor);
     DMMotorSetRef(shoot->loader_motor, 0.0f);
+    LoaderJam(0, osKernelSysTick());
+    shoot->loader_motor->motor_controller.angle_PID.MaxOut = loader_angle_max_out;
     if (shoot->last_load_mode != LOAD_STOP)
     {
+        PIDSwitchConfig(&shoot->loader_motor->motor_controller.speed_PID,
+                        shoot->last_load_mode == LOAD_BURSTFIRE ? &loader_burst_pid : &loader_step_pid);
+        DMMotorOuterLoop(shoot->loader_motor, shoot->last_load_mode == LOAD_BURSTFIRE ? SPEED_LOOP : ANGLE_LOOP);
         PIDClear(&shoot->loader_motor->motor_controller.angle_PID);
         PIDClear(&shoot->loader_motor->motor_controller.speed_PID);
     }
@@ -123,6 +173,43 @@ static void LoaderBurst(uint32_t period, uint32_t now)
     DMMotorEnable(motor);
 }
 
+static uint8_t LoaderBack(uint32_t now)
+{
+    DMMotorInstance *motor = shoot->loader_motor;
+    // 正常连发为速度外环，切到位置外环时只锁定一次本次回退目标。
+    if (motor->motor_settings.outer_loop_type != ANGLE_LOOP)
+    {
+        shoot->loader_target = motor->measure.total_angle - 18.0f * DEGREE_2_RAD;
+        shoot->last_load_tick = now;
+        shoot->loader_speed_ref = 0.0f;
+        shoot->loader_speed_feedforward = 0.0f;
+        shoot->loader_torque_feedforward = 0.0f;
+        PIDSwitchConfig(&motor->motor_controller.speed_PID, &loader_step_pid);
+        motor->motor_controller.angle_PID.MaxOut = 4.0f;
+        motor->motor_controller.speed_PID.MaxOut = 3.0f;
+        PIDClear(&motor->motor_controller.angle_PID);
+        PIDClear(&motor->motor_controller.speed_PID);
+        DMMotorOuterLoop(motor, ANGLE_LOOP);
+    }
+
+    if (fabsf(shoot->loader_target - motor->measure.total_angle) < 3.0f * DEGREE_2_RAD ||
+        (uint32_t)(now - shoot->last_load_tick) >= 200U)
+    {
+        motor->motor_controller.angle_PID.MaxOut = loader_angle_max_out;
+        PIDSwitchConfig(&motor->motor_controller.speed_PID, &loader_burst_pid);
+        PIDClear(&motor->motor_controller.angle_PID);
+        PIDClear(&motor->motor_controller.speed_PID);
+        DMMotorOuterLoop(motor, SPEED_LOOP);
+        shoot->loader_speed_ref = motor->measure.velocity;
+        shoot->last_load_tick = now; // 恢复斜坡不累计回退期间的时间。
+        LoaderJam(0, now);
+        return 1;
+    }
+    DMMotorSetPIDRef(motor, shoot->loader_target);
+    DMMotorEnable(motor);
+    return 0;
+}
+
 static void LoaderControl(void)
 {
     const Shoot_Ctrl_Cmd_s *cmd = &shoot->shoot_ctrl_cmd;
@@ -141,6 +228,8 @@ static void LoaderControl(void)
     uint8_t mode_changed = cmd->load_mode != shoot->last_load_mode;
     if (mode_changed)
     {
+        LoaderJam(0, now);
+        motor->motor_controller.angle_PID.MaxOut = loader_angle_max_out;
         shoot->loader_target = motor->measure.total_angle;
         shoot->last_load_tick = cmd->load_mode == LOAD_BURSTFIRE ? now : now - period;
         shoot->loader_speed_ref = cmd->load_mode == LOAD_BURSTFIRE ? motor->measure.velocity : 0.0f;
@@ -155,7 +244,8 @@ static void LoaderControl(void)
 
     if (cmd->load_mode == LOAD_BURSTFIRE)
     {
-        LoaderBurst(period, now);
+        if (!LoaderJam(period, now) || LoaderBack(now))
+            LoaderBurst(period, now);
         shoot->last_load_mode = cmd->load_mode;
         return;
     }
