@@ -64,7 +64,6 @@ static Shoot_Init_Config_s shoot_init_config = {
     .friction_speed_max = FRICTION_SPEED_MAX_RPM * 6.0f,
     .loader_step_angle = 30.0f * DEGREE_2_RAD,
     .loader_angle_tolerance = 0.03f,
-    .loader_period_ms = LOADER_STEP_PERIOD_UP_MS,
     .loader_contact_angle = -2.04604435f,
     .loader_burst_pid = {
         .Kp = 0.16f,

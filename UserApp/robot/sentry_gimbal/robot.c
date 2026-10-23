@@ -42,7 +42,7 @@ static void RemoteControlSet(void)
             load_period_ms = LOADER_STEP_PERIOD_MID_MS;
         else if (robot->rc_data[TEMP].rc.dial > 100)
             load_period_ms = LOADER_STEP_PERIOD_UP_MS;
-        shoot_cmd->load_mode = load_period_ms == LOADER_STEP_PERIOD_MID_MS ? LOAD_STEP : LOAD_BURSTFIRE;
+        shoot_cmd->load_mode = load_period_ms == LOADER_STEP_PERIOD_MID_MS ? LOAD_1_BULLET : LOAD_BURSTFIRE;
         shoot_cmd->load_period_ms = load_period_ms;
     }
     else

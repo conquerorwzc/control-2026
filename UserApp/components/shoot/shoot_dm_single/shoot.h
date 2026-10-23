@@ -17,9 +17,7 @@ typedef enum
 {
     LOAD_STOP = 0,
     LOAD_1_BULLET,
-    LOAD_BURSTFIRE,
-    LOAD_REVERSE,
-    LOAD_STEP
+    LOAD_BURSTFIRE
 } Load_Mode_e;
 
 // 机器人层只填写命令；摩擦轮为转子侧 °/s，拨弹盘为 rad。
@@ -29,7 +27,7 @@ typedef struct
     Friction_Mode_e friction_mode;
     float friction_speed;
     Load_Mode_e load_mode;
-    uint32_t load_period_ms; // 每发周期：连发换算为速度，慢档/反转用于步进；0 使用初始化配置。
+    uint32_t load_period_ms; // 单发逐颗调度周期；连发换算为速度；拨弹时须为正值，单位 ms。
 } Shoot_Ctrl_Cmd_s;
 
 typedef struct
@@ -41,34 +39,27 @@ typedef struct
     float friction_speed_max;
     float loader_step_angle;      // 一发对应的 J4310 电机角度，rad，正值。
     float loader_angle_tolerance; // 到位误差，rad。
-    uint32_t loader_period_ms;
     float loader_contact_angle; // 弹丸刚抵到单发限位时的电机累计角度，rad。
     PID_Init_Config_s loader_burst_pid;
 } Shoot_Init_Config_s;
 
+// 电机累计角度目标使用 loader_motor->motor_controller.pid_ref；
+// 连发斜坡速度参考使用 loader_motor->motor_controller.speed_PID.Ref。
 typedef struct
 {
     Shoot_Ctrl_Cmd_s shoot_ctrl_cmd;
     DJIMotorInstance *friction_motor[FRICTION_NUM];
     DMMotorInstance *loader_motor;
-    float friction_coefficients[FRICTION_NUM];
-    float friction_speed_min;
-    float friction_speed_max;
+    const Shoot_Init_Config_s *config; // 引用长期有效的初始化配置，不重复复制固定参数。
     float friction_set;
-    float loader_step_angle;
-    float loader_angle_tolerance;
-    uint32_t loader_period_ms;
-    float loader_contact_angle;
-    float loader_target;
     float loader_speed_feedforward;
-    float loader_speed_ref;
     float loader_torque_feedforward;
     uint32_t last_load_tick;
     Load_Mode_e last_load_mode;
 } ShootInstance;
 
-/** @brief 注册三只 DJI 摩擦轮和一只 J4310；当前组件只初始化一个实例。 */
+/** @brief 注册三只 DJI 摩擦轮和一只 J4310；配置须在实例使用期间持续有效，当前仅初始化一个实例。 */
 ShootInstance *ShootInit(Shoot_Init_Config_s *shoot_init_config);
 
-/** @brief 单发进入时拨一格；LOAD_STEP/反转按间隔步进；连发采用速度环与相位力矩前馈。 */
+/** @brief 单发以位置双环按周期逐颗拨弹，连发使用速度环；两种模式共用自动退弹状态机。 */
 void ShootTask(void);
