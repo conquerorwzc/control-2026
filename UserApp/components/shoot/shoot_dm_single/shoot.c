@@ -41,8 +41,6 @@ ShootInstance *ShootInit(Shoot_Init_Config_s *shoot_init_config)
         DJIMotorStop(shoot->friction_motor[i]);
     }
     shoot->loader_motor = DMMotorInit(&shoot_init_config->loader_motor_config);
-    // 当前 DM 驱动没有复制此指针；存储属于实例，生命周期覆盖整个任务。
-    shoot->loader_motor->motor_controller.speed_feedforward_ptr = &shoot->loader_speed_feedforward;
     DMMotorStop(shoot->loader_motor);
     return shoot;
 }
@@ -89,7 +87,6 @@ static void LoaderMode(Load_Mode_e mode, uint32_t now)
     PIDClear(&motor->motor_controller.speed_PID);
     // Ref 同时保存连发斜坡状态，必须在清 PID 后重建。
     motor->motor_controller.speed_PID.Ref = mode == LOAD_BURSTFIRE ? motor->measure.velocity : 0.0f;
-    shoot->loader_speed_feedforward = 0.0f;
     shoot->loader_torque_feedforward = 0.0f;
     // 按阶段作为单发调度、连发斜坡或退弹开始的时间基准。
     shoot->last_load_tick = now;
@@ -185,7 +182,7 @@ static void LoaderStop(void)
     shoot->last_load_mode = LOAD_STOP;
 }
 
-// 目前仅用于连发：按实际拨盘角度所在的齿相位补偿阻力，返回力矩，单位 N*m。
+// 连发与单发推进段共用：按实际拨盘角度所在的齿相位补偿阻力，返回力矩，单位 N*m。
 static float LoaderFeedforward(void)
 {
     // 相位以接触角为 0°，30° 齿距取模到 [0°, 30°)。
@@ -195,8 +192,24 @@ static float LoaderFeedforward(void)
         phase += shoot->config->loader_step_angle;
     phase *= RAD_2_DEGREE;
 
-    // 五轮数据方程误差辨识：滑动负载近似单谐波；峰位与均值按当前弹链（后两轮）取值。
-    return 2.9f + 0.8f * cosf((phase - 9.0f) * 0.20943951f);
+    // 连发：五轮稳态数据辨识的单谐波滑动负载；峰位与均值按当前弹链（后两轮）取值。
+    if (shoot->shoot_ctrl_cmd.load_mode == LOAD_BURSTFIRE)
+        return 2.9f + 0.8f * cosf((phase - 9.0f) * 0.20943951f);
+
+    // 单发：准静态锚点曲线（静持0.4、爬行过限位2.5~2.7、硬突破4~5实测），
+    // 均值2.1低于连发，减少快段富余；峰区抬到3.8供突破，剩余由P+I补足。
+    float blend;
+    if (phase < 3.0f)
+        return 0.9f;
+    else if (phase < 13.0f)
+        blend = (phase - 3.0f) / 10.0f;
+    else if (phase <= 17.0f)
+        return 3.8f;
+    else if (phase < 23.0f)
+        blend = (23.0f - phase) / 6.0f;
+    else
+        return 0.9f;
+    return 0.9f + 2.9f * blend * blend * (3.0f - 2.0f * blend);
 }
 
 static void LoaderBurst(float speed, uint32_t now)
@@ -259,9 +272,15 @@ static void LoaderControl(void)
                 shoot->last_load_tick = now;
                 error = motor->motor_controller.pid_ref - motor->measure.total_angle;
             }
-            // 只在正向未到位时叠加速度前馈；到位或超调时清零，不添加单发力矩前馈。
-            shoot->loader_speed_feedforward = error > shoot->config->loader_angle_tolerance ? speed : 0.0f;
+            // 正向未到位时叠加相位力矩前馈；到位或超调后清零，不使用速度前馈。
+            shoot->loader_torque_feedforward =
+                error > shoot->config->loader_angle_tolerance ? LoaderFeedforward() : 0.0f;
             DMMotorSetPIDRef(motor, motor->motor_controller.pid_ref);
+            // 双环结果已写入final_output，力矩前馈叠加后统一限幅发送。
+            float torque = motor->motor_controller.final_output + shoot->loader_torque_feedforward;
+            LIMIT_MIN_MAX(torque, -motor->motor_controller.speed_PID.MaxOut,
+                          motor->motor_controller.speed_PID.MaxOut);
+            DMMotorSetRef(motor, torque);
             DMMotorEnable(motor);
         }
     }

@@ -52,7 +52,6 @@ typedef struct
     DMMotorInstance *loader_motor;
     const Shoot_Init_Config_s *config; // 引用长期有效的初始化配置，不重复复制固定参数。
     float friction_set;
-    float loader_speed_feedforward;
     float loader_torque_feedforward;
     uint32_t last_load_tick;
     Load_Mode_e last_load_mode;

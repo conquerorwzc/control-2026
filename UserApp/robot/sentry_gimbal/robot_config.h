@@ -24,7 +24,7 @@
                 .Kp = 0.12f,                                         \
                 .Ki = 0.08f,                                         \
                 .Kd = 0.0f,                                          \
-                .MaxOut = 6000.0f,                                   \
+                .MaxOut = 8000.0f,                                   \
                 .IntegralLimit = 1500.0f,                            \
                 .Improve = PID_Integral_Limit,                       \
             },                                                       \
@@ -46,7 +46,7 @@
     }
 
 // 保留当前遥控速度，单位为转子侧 °/s，不是 rpm。
-#define FRICTION_SPEED_MID_APS 6000.0f
+#define FRICTION_SPEED_MID_APS 36000.0f
 #define FRICTION_SPEED_UP_APS 15000.0f
 #define LOADER_STEP_PERIOD_MID_MS 700U
 #define LOADER_STEP_PERIOD_UP_MS 50U // 20 Hz；改为 40U 即 25 Hz，无需增加遥控档位。
@@ -63,7 +63,7 @@ static Shoot_Init_Config_s shoot_init_config = {
     .friction_speed_min = FRICTION_SPEED_MIN_RPM * 6.0f,
     .friction_speed_max = FRICTION_SPEED_MAX_RPM * 6.0f,
     .loader_step_angle = 30.0f * DEGREE_2_RAD,
-    .loader_angle_tolerance = 0.1f,
+    .loader_angle_tolerance = 0.03f, // 同时决定到位判定、力矩前馈门控与卡弹检测的“推进中”；放宽会让前馈提前退出、假到位并漂移齿相位。
     .loader_contact_angle = 11.5314331f,
     .loader_burst_pid = {
         .Kp = 0.16f,
@@ -82,7 +82,7 @@ static Shoot_Init_Config_s shoot_init_config = {
                 .Kp = 18.0f,
                 .Ki = 0.0f,
                 .Kd = 0.0f,
-                .MaxOut = 6.0f, // 位置环分量限幅；正向推进时还会叠加约0.748 rad/s速度前馈。
+                .MaxOut = 6.0f, // 位置环分量限幅；推进段另有相位力矩前馈不经此限幅。
                 .DeadBand = 0.005f,
             },
             .speed_PID = {
@@ -102,7 +102,6 @@ static Shoot_Init_Config_s shoot_init_config = {
             .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
             .angle_feedback_source = MOTOR_FEED,
             .speed_feedback_source = MOTOR_FEED,
-            .feedforward_flag = SPEED_FEEDFORWARD,
         },
         .motor_type = J4310,
         .can_init_config = {

@@ -1,6 +1,7 @@
 #include "robot.h"
 
 #include "robot_config.h"
+#include "vofa.h"
 
 static RobotInstance robot_instance;
 static RobotInstance *robot = &robot_instance;
@@ -68,6 +69,7 @@ void RobotInit(void)
     robot->rc_data = RemoteControlInit(&huart3);
     // robot->gimbal = GimbalInit(&gimbal_init_config);
     robot->shoot = ShootInit(&shoot_init_config);
+    VofaInit();
 }
 
 void RobotCMDTask(void)
@@ -80,6 +82,7 @@ void RobotTask(void)
     RobotCMDTask();
     // GimbalTask();
     ShootTask();
+    VofaTick();
 }
 
 RobotInstance *RobotGet(void)
