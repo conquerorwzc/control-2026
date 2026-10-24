@@ -118,8 +118,8 @@ static void RemoteControlSet() {
   // 左[中],云台加自瞄
   if (switch_is_mid(rc_data[TEMP].rc.switch_left)) {
     shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
-    // shoot_ctrl_cmd->friction_mode = FRICTION_ON;
-    shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
+    shoot_ctrl_cmd->friction_mode = FRICTION_ON;
+    // shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
     shoot_ctrl_cmd->load_mode = LOAD_STOP;
     gimbal_ctrl_cmd->gimbal_mode=GIMBAL_ON;
     if (has_non_zero_data(vision_recv_data)==1){
@@ -138,6 +138,9 @@ static void RemoteControlSet() {
   // 左[上],导航
   else if (switch_is_up(rc_data[TEMP].rc.switch_left))
   {
+      shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+      shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
+      shoot_ctrl_cmd->friction_mode = FRICTION_ON;
   }
   // 左[上],导航+自瞄
     if (switch_is_up(rc_data[TEMP].rc.switch_right))//除了右拨杆在上机器人使用扫头模式，其余都正常人为控制
@@ -160,6 +163,7 @@ static void RemoteControlSet() {
     }
     else if (robot->control_mode == NAVIGATOR_MODE) // 自动控制，直接接收上位机控制量
     {
+        shoot_ctrl_cmd->load_mode=LOAD_STOP;
       // gimbal_ctrl_cmd->gimbal_mode=GIMBAL_VISION;           //自瞄开启
       if (has_non_zero_data(vision_recv_data)==1){
         gimbal_ctrl_cmd->yaw+=vision_recv_data->gimbal_receive.yaw;
@@ -169,8 +173,8 @@ static void RemoteControlSet() {
             shoot_ctrl_cmd->load_mode=LOAD_STOP;
             break;
           default:
-            // shoot_ctrl_cmd->load_mode=LOAD_BURSTFIRE;
-            shoot_ctrl_cmd->load_mode=LOAD_STOP;
+            shoot_ctrl_cmd->load_mode=LOAD_BURSTFIRE;
+            // shoot_ctrl_cmd->load_mode=LOAD_STOP;
             break;
         }
         NotFoundTime=time;                   //识别到装甲板
