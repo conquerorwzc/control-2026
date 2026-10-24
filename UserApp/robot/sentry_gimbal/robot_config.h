@@ -46,7 +46,7 @@
     }
 
 // 保留当前遥控速度，单位为转子侧 °/s，不是 rpm。
-#define FRICTION_SPEED_MID_APS 4000.0f
+#define FRICTION_SPEED_MID_APS 6000.0f
 #define FRICTION_SPEED_UP_APS 15000.0f
 #define LOADER_STEP_PERIOD_MID_MS 700U
 #define LOADER_STEP_PERIOD_UP_MS 50U // 20 Hz；改为 40U 即 25 Hz，无需增加遥控档位。
@@ -63,8 +63,8 @@ static Shoot_Init_Config_s shoot_init_config = {
     .friction_speed_min = FRICTION_SPEED_MIN_RPM * 6.0f,
     .friction_speed_max = FRICTION_SPEED_MAX_RPM * 6.0f,
     .loader_step_angle = 30.0f * DEGREE_2_RAD,
-    .loader_angle_tolerance = 0.03f,
-    .loader_contact_angle = -2.04604435f,
+    .loader_angle_tolerance = 0.1f,
+    .loader_contact_angle = 11.5314331f,
     .loader_burst_pid = {
         .Kp = 0.16f,
         .Ki = 0.3f,
@@ -79,10 +79,10 @@ static Shoot_Init_Config_s shoot_init_config = {
     .loader_motor_config = {
         .controller_param_init_config = {
             .angle_PID = {
-                .Kp = 12.0f,
+                .Kp = 18.0f,
                 .Ki = 0.0f,
                 .Kd = 0.0f,
-                .MaxOut = 15.0f,
+                .MaxOut = 6.0f, // 位置环分量限幅；正向推进时还会叠加约0.748 rad/s速度前馈。
                 .DeadBand = 0.005f,
             },
             .speed_PID = {

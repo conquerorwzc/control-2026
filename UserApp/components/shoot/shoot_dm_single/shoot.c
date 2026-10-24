@@ -131,30 +131,31 @@ static uint8_t LoaderJam(float speed, uint32_t now)
         }
         angle_min = fminf(angle_min, angle);
         angle_max = fmaxf(angle_max, angle);
-        if (angle_max - angle_min > 5.0f * DEGREE_2_RAD)
+        if (angle_max - angle_min > 3.0f * DEGREE_2_RAD)
         {
             // 已移动超过候选范围，说明并非持续停滞；从当前角度重新累计窗口。
             start_tick = now;
             angle_min = angle_max = angle;
             return 0;
         }
-        // 无符号时间差兼容毫秒计数回绕；连续满足 80 ms 才确认卡弹。
+        // 无符号时间差兼容毫秒计数回绕；连续满足 70 ms 才确认卡弹。
         if ((uint32_t)(now - start_tick) < 80U)
             return 0;
 
         // 仅在确认瞬间设置一次实际角度减 18°，后续周期不再累加退角。
         resume_angle = motor->motor_controller.pid_ref;
         LoaderMode(LOAD_1_BULLET, now);
-        motor->motor_controller.pid_ref = angle - 18.0f * DEGREE_2_RAD;
+        motor->motor_controller.pid_ref = angle - 22.0f * DEGREE_2_RAD;
         motor->motor_controller.angle_PID.MaxOut = 4.0f;
         motor->motor_controller.speed_PID.MaxOut = 3.0f;
         loader_state = LOADER_BACK;
     }
         // 确认当周期直接执行退弹输出，不额外等待一个控制周期。
+        /* fall through */
     case LOADER_BACK:
-        // 到位只看角度误差；即使未到位，满 200 ms 也立即恢复原模式。
+        // 到位只看角度误差；即使未到位，满 180 ms 也立即恢复原模式。
         if (fabsf(motor->motor_controller.pid_ref - angle) < 3.0f * DEGREE_2_RAD ||
-            (uint32_t)(now - shoot->last_load_tick) >= 200U)
+            (uint32_t)(now - shoot->last_load_tick) >= 180U)
         {
             LoaderMode(mode, now);
             // 单发继续完成原来的那一颗，避免退弹后再额外追加一个齿距。
@@ -187,26 +188,15 @@ static void LoaderStop(void)
 // 目前仅用于连发：按实际拨盘角度所在的齿相位补偿阻力，返回力矩，单位 N*m。
 static float LoaderFeedforward(void)
 {
-    // 将接触角前 1° 作为周期起点，避免上升段跨过取模边界。
-    float phase = fmodf(shoot->loader_motor->measure.total_angle - shoot->config->loader_contact_angle +
-                            1.0f * DEGREE_2_RAD,
+    // 相位以接触角为 0°，30° 齿距取模到 [0°, 30°)。
+    float phase = fmodf(shoot->loader_motor->measure.total_angle - shoot->config->loader_contact_angle,
                         shoot->config->loader_step_angle);
     if (phase < 0.0f)
         phase += shoot->config->loader_step_angle;
-    // 接触角为 0°，当前 30° 齿距对应相位区间 [-1°, 29°)。
-    phase = phase * RAD_2_DEGREE - 1.0f;
+    phase *= RAD_2_DEGREE;
 
-    float blend;
-    if (phase < 6.0f)
-        blend = (phase + 1.0f) / 7.0f;
-    else if (phase <= 16.0f)
-        return 3.6f;
-    else if (phase < 19.0f)
-        blend = (19.0f - phase) / 3.0f;
-    else
-        return 1.1f;
-    // smoothstep：低阻 1.1 N*m，高阻 3.6 N*m，-1°~+6° 上升，+16°~+19° 下降。
-    return 1.1f + 2.5f * blend * blend * (3.0f - 2.0f * blend);
+    // 五轮数据方程误差辨识：滑动负载近似单谐波；峰位与均值按当前弹链（后两轮）取值。
+    return 2.9f + 0.8f * cosf((phase - 9.0f) * 0.20943951f);
 }
 
 static void LoaderBurst(float speed, uint32_t now)
