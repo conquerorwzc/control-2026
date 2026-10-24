@@ -64,11 +64,10 @@ static Shoot_Init_Config_s shoot_init_config = {
     .friction_speed_max = FRICTION_SPEED_MAX_RPM * 6.0f,
     .loader_step_angle = 30.0f * DEGREE_2_RAD,
     .loader_angle_tolerance = 0.03f,
-    .loader_period_ms = LOADER_STEP_PERIOD_UP_MS,
     .loader_contact_angle = -2.04604435f,
     .loader_burst_pid = {
-        .Kp = 0.12f,
-        .Ki = 0.5f,
+        .Kp = 0.16f,
+        .Ki = 0.3f,
         .Kd = 0.0f,
         // N*m，同时用作 PI 输出限幅和 PI + 阻力前馈的总输出限幅。
         .MaxOut = 7.0f,
