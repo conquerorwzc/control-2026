@@ -321,7 +321,10 @@ static void RemoteControlSet() {
   else if (switch_is_up(rc_data[TEMP].rc.switch_left)) {
     shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
-    shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+    shoot_ctrl_cmd->load_mode = LOAD_STOP;
+    if (vision_recv_data->shoot_receive.fire_flag) {
+      shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
+    }
   }
 
   // 人工和上位机控制共用原来的 Pitch 软件限位。
