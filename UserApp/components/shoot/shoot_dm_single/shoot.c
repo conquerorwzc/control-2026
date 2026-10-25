@@ -152,7 +152,7 @@ static uint8_t LoaderJam(float speed, uint32_t now)
     case LOADER_BACK:
         // 到位只看角度误差；即使未到位，满 180 ms 也立即恢复原模式。
         if (fabsf(motor->motor_controller.pid_ref - angle) < 3.0f * DEGREE_2_RAD ||
-            (uint32_t)(now - shoot->last_load_tick) >= 180U)
+            (uint32_t)(now - shoot->last_load_tick) >= 200U)
         {
             LoaderMode(mode, now);
             // 单发继续完成原来的那一颗，避免退弹后再额外追加一个齿距。
@@ -196,17 +196,17 @@ static float LoaderFeedforward(void)
     if (shoot->shoot_ctrl_cmd.load_mode == LOAD_BURSTFIRE)
         return 2.9f + 0.8f * cosf((phase - 9.0f) * 0.20943951f);
 
-    // 单发：准静态锚点曲线（静持0.4、爬行过限位2.5~2.7、硬突破4~5实测），
-    // 均值2.1低于连发，减少快段富余；峰区抬到3.8供突破，剩余由P+I补足。
+    // 单发：准静态锚点曲线。落座区移动负载实测延伸到约25°（10251445剩余退弹
+    // 全部位于φ22~26°、确认力矩2.2~3.8），平台延至24°后平滑回落；到位即门控关闭。
     float blend;
     if (phase < 3.0f)
         return 0.9f;
     else if (phase < 13.0f)
         blend = (phase - 3.0f) / 10.0f;
-    else if (phase <= 17.0f)
+    else if (phase <= 24.0f)
         return 3.8f;
-    else if (phase < 23.0f)
-        blend = (23.0f - phase) / 6.0f;
+    else if (phase < 29.5f)
+        blend = (29.5f - phase) / 5.5f;
     else
         return 0.9f;
     return 0.9f + 2.9f * blend * blend * (3.0f - 2.0f * blend);

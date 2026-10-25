@@ -16,10 +16,15 @@
 #define FRICTION_SPEED_MAX_RPM 16000.0f
 
 // 初版 PI：误差单位 °/s，输出为 C610 电流指令，1000 对应约 1A。
-// 三个轮子使用相同增益；6A 输出上限和 1.5A 积分上限均为初调值。
+// 三个轮子使用相同增益；8A 输出上限和 1.5A 积分上限均为初调值。
+// 定值电流前馈：三轮共用，指令单位同上，由驱动叠加在速度环输出之后（dji_motor.c，不占 PID 限幅）。
+// 数值取 vofa 通道 7-9 的稳态 Iout；注意与 MaxOut 之和别超过 C610 的 ±10000。
+// 电机停止时发送缓冲被驱动清零，前馈不会漏出；置 0 等价关闭。
+static float friction_current_ff = 530.0f;
 #define FRICTION_MOTOR_CONFIG(id)                                      \
     {                                                                \
         .controller_param_init_config = {                            \
+            .current_feedforward_ptr = &friction_current_ff,         \
             .speed_PID = {                                           \
                 .Kp = 0.12f,                                         \
                 .Ki = 0.08f,                                         \
@@ -36,7 +41,7 @@
             .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,      \
             .angle_feedback_source = MOTOR_FEED,                     \
             .speed_feedback_source = MOTOR_FEED,                     \
-            .feedforward_flag = FEEDFORWARD_NONE,                     \
+            .feedforward_flag = CURRENT_FEEDFORWARD,                 \
         },                                                           \
         .motor_type = M2006,                                         \
         .can_init_config = {                                        \
@@ -46,9 +51,9 @@
     }
 
 // 保留当前遥控速度，单位为转子侧 °/s，不是 rpm。
-#define FRICTION_SPEED_MID_APS 36000.0f
+#define FRICTION_SPEED_MID_APS 90000.0f
 #define FRICTION_SPEED_UP_APS 15000.0f
-#define LOADER_STEP_PERIOD_MID_MS 700U
+#define LOADER_STEP_PERIOD_MID_MS 500U
 #define LOADER_STEP_PERIOD_UP_MS 50U // 20 Hz；改为 40U 即 25 Hz，无需增加遥控档位。
 
 static Shoot_Init_Config_s shoot_init_config = {
@@ -83,14 +88,14 @@ static Shoot_Init_Config_s shoot_init_config = {
                 .Ki = 0.0f,
                 .Kd = 0.0f,
                 .MaxOut = 6.0f, // 位置环分量限幅；推进段另有相位力矩前馈不经此限幅。
-                .DeadBand = 0.005f,
+                .DeadBand = 0.0f,
             },
             .speed_PID = {
                 .Kp = 0.6f,
                 .Ki = 0.1f,
                 .Kd = 0.0f,
                 .MaxOut = 7.0f,
-                .DeadBand = 0.01f,
+                .DeadBand = 0.0f,
                 .IntegralLimit = 5.0f,
                 .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit,
             },
