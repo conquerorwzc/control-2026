@@ -20,13 +20,13 @@
 // 定值电流前馈：三轮共用，指令单位同上，由驱动叠加在速度环输出之后（dji_motor.c，不占 PID 限幅）。
 // 数值取 vofa 通道 7-9 的稳态 Iout；注意与 MaxOut 之和别超过 C610 的 ±10000。
 // 电机停止时发送缓冲被驱动清零，前馈不会漏出；置 0 等价关闭。
-static float friction_current_ff = 530.0f;
+static float friction_current_ff = 1100.0f;
 #define FRICTION_MOTOR_CONFIG(id)                                      \
     {                                                                \
         .controller_param_init_config = {                            \
             .current_feedforward_ptr = &friction_current_ff,         \
             .speed_PID = {                                           \
-                .Kp = 0.12f,                                         \
+                .Kp = 1.7f,                                         \
                 .Ki = 0.08f,                                         \
                 .Kd = 0.0f,                                          \
                 .MaxOut = 8000.0f,                                   \
@@ -51,9 +51,9 @@ static float friction_current_ff = 530.0f;
     }
 
 // 保留当前遥控速度，单位为转子侧 °/s，不是 rpm。
-#define FRICTION_SPEED_MID_APS 90000.0f
+#define FRICTION_SPEED_MID_APS 55000.0f
 #define FRICTION_SPEED_UP_APS 15000.0f
-#define LOADER_STEP_PERIOD_MID_MS 500U
+#define LOADER_STEP_PERIOD_MID_MS 1000U
 #define LOADER_STEP_PERIOD_UP_MS 50U // 20 Hz；改为 40U 即 25 Hz，无需增加遥控档位。
 
 static Shoot_Init_Config_s shoot_init_config = {
@@ -69,7 +69,7 @@ static Shoot_Init_Config_s shoot_init_config = {
     .friction_speed_max = FRICTION_SPEED_MAX_RPM * 6.0f,
     .loader_step_angle = 30.0f * DEGREE_2_RAD,
     .loader_angle_tolerance = 0.03f, // 同时决定到位判定、力矩前馈门控与卡弹检测的“推进中”；放宽会让前馈提前退出、假到位并漂移齿相位。
-    .loader_contact_angle = 11.5314331f,
+    .loader_contact_angle = 2.0056076f,
     .loader_burst_pid = {
         .Kp = 0.16f,
         .Ki = 0.3f,
