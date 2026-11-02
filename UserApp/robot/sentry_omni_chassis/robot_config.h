@@ -108,7 +108,8 @@ static Chassis_Init_Config_s chassis_init_config = {
     .imu_init_config = {
         .flag = 1,
         .scale = {1.0f, 1.0f, 1.0f},
-        .offset_flag = 0, // 启用 INS 时沿用启动静止零偏标定
+        .offset_flag = 1, // 启用 INS 时沿用启动静止零偏标定
+        .GyroOffset = {0.00268636597,0.000955541211,0.00167757343},
         .Yaw = 180.0f, .Pitch = 0.0f, .Roll = 0.0f, // 原始 +X 朝后、+Y 朝右、+Z 朝上，校正为底盘系
         .CenterOffset = {0.0f, 0.0f, 0.0f}, // 杆臂由速度观测器适配层补偿，避免重复
     },
