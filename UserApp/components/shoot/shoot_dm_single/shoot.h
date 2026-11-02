@@ -37,6 +37,8 @@ typedef struct
     float friction_coefficients[FRICTION_NUM];
     float friction_speed_min;
     float friction_speed_max;
+    float friction_single_current_ff; // 单发及仅开摩擦轮时的电流前馈，三轮共用。
+    float friction_burst_current_ff;  // 连发电流前馈，单位为 C610 电流指令。
     float loader_step_angle;      // 一发对应的 J4310 电机角度，rad，正值。
     float loader_angle_tolerance; // 到位误差，rad。
     float loader_contact_angle; // 弹丸刚抵到单发限位时的电机累计角度，rad。
@@ -52,6 +54,7 @@ typedef struct
     DMMotorInstance *loader_motor;
     const Shoot_Init_Config_s *config; // 引用长期有效的初始化配置，不重复复制固定参数。
     float friction_set;
+    float friction_current_ff; // 本周期选中的电流前馈，供三轮驱动读取。
     float loader_torque_feedforward;
     uint32_t last_load_tick;
     Load_Mode_e last_load_mode;

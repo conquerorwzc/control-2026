@@ -37,6 +37,8 @@ ShootInstance *ShootInit(Shoot_Init_Config_s *shoot_init_config)
     shoot->config = shoot_init_config;
     for (int i = 0; i < FRICTION_NUM; ++i)
     {
+        shoot_init_config->friction_motor_config[i].controller_param_init_config.current_feedforward_ptr =
+            &shoot->friction_current_ff;
         shoot->friction_motor[i] = DJIMotorInit(&shoot_init_config->friction_motor_config[i]);
         DJIMotorStop(shoot->friction_motor[i]);
     }
@@ -51,6 +53,12 @@ static void FrictionControl(void)
     shoot->friction_set = cmd->shoot_mode == SHOOT_ON && cmd->friction_mode == FRICTION_ON
                               ? LimitFrictionSpeed(cmd->friction_speed)
                               : 0.0f;
+    // 在计算速度 PI 前选择前馈；仅开摩擦轮时沿用单发值，关闭时清零。
+    shoot->friction_current_ff = 0.0f;
+    if (shoot->friction_set != 0.0f)
+        shoot->friction_current_ff = cmd->load_mode == LOAD_BURSTFIRE
+                                         ? shoot->config->friction_burst_current_ff
+                                         : shoot->config->friction_single_current_ff;
     for (int i = 0; i < FRICTION_NUM; ++i)
     {
         DJIMotorInstance *motor = shoot->friction_motor[i];
