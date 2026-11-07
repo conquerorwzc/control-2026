@@ -131,7 +131,7 @@ static Shoot_Init_Config_s shoot_init_config = {
 | 小 Pitch：DM-J4310 | IMU Pitch，° | `Gyro[0]`，rad/s | DM 力矩指令 |
  *
  */
-#if 0 // 拨弹盘调试期间停用云台，保留原配置供恢复。
+#if 1 // 启用云台初始化配置。
 static Gimbal_Init_Config_s gimbal_init_config = {
     .big_pitch_motor_config =
         {
@@ -150,17 +150,17 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                             .Ki = 3.0f,              // N*m/rad，速度误差积分增益
                             .Kd = 0.0f,              // N*m/(rad/s^2)，速度误差微分增益
                             .DeadBand = 0.0f,        // rad/s，速度误差死区
-                            .MaxOut = 1.5f,          // N*m，速度环输出力矩限幅,4310额定3，峰值7
+                            .MaxOut = 7.0f,          // N*m，速度环输出力矩限幅,4310额定3，峰值7
                             .IntegralLimit = 0.35f,  // N*m，积分输出限幅
                             .Improve = PID_Integral_Limit | PID_Trapezoid_Intergral,  // 无量纲，优化功能位标志
                         },
                     .angle_PID =
                         {
-                            .Kp = 18.0f,            // (rad/s)/rad = 1/s，角度误差到目标速度的比例增益
+                            .Kp = 50.0f,            // (rad/s)/rad = 1/s，角度误差到目标速度的比例增益
                             .Ki = 0.1f,             // (rad/s)/(rad*s) = 1/s^2，角度误差积分增益
-                            .Kd = 0.6f,             // (rad/s)/(rad/s)，无量纲，角度误差微分增益；启用微分先行
-                            .DeadBand = 0.005f,      // rad，约 0.573 deg，角度误差死区
-                            .MaxOut = 4.0f,         // rad/s，目标速度限幅；可减小以抑制目标切换时的速度尖峰
+                            .Kd = 0.0f,             // (rad/s)/(rad/s)，无量纲，角度误差微分增益；启用微分先行
+                            .DeadBand = 0.001f,      // rad，约 0.573 deg，角度误差死区
+                            .MaxOut = 8.0f,         // rad/s，目标速度限幅；可减小以抑制目标切换时的速度尖峰
                             //todo：lsy要求速度还要再快一点，思考一下怎么调参，因为两个角度直接切换目标突变太大导致会有一个尖峰，建议对速度规划/加一个斜坡去优化
                             .IntegralLimit = 0.5f,  // rad/s，积分输出限幅
                             .Improve = PID_Integral_Limit | PID_Derivative_On_Measurement,
@@ -170,7 +170,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
     .small_pitch_motor_config =
         {
             .controller_setting_init_config =
-                {.motor_reverse_flag = MOTOR_DIRECTION_NORMAL},
+                {.motor_reverse_flag = MOTOR_DIRECTION_REVERSE},
             .motor_type = J4310,
             .can_init_config =
                 {
@@ -182,21 +182,21 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .speed_PID =
                         {
-                            .Kp = 0.5f,              // N*m/(rad/s)，速度误差到力矩的比例增益
-                            .Ki = 1.5f,              // N*m/rad，速度误差积分增益
+                            .Kp = 0.6f,              // N*m/(rad/s)，速度误差到力矩的比例增益
+                            .Ki = 2.0f,              // N*m/rad，速度误差积分增益
                             .Kd = 0.0f,              // N*m/(rad/s^2)，速度误差微分增益
                             .DeadBand = 0.0f,        // rad/s，速度误差死区
-                            .MaxOut = 1.5f,          // N*m，速度环输出力矩限幅
-                            .IntegralLimit = 0.25f,  // N*m，积分输出限幅
+                            .MaxOut = 7.0f,          // N*m，速度环输出力矩限幅
+                            .IntegralLimit = 0.65f,  // N*m，积分输出限幅
                             .Improve = PID_Integral_Limit | PID_Trapezoid_Intergral,  // 无量纲，优化功能位标志
                         },
                     .angle_PID =
                         {
-                            .Kp = 0.50f,        // (rad/s)/deg，IMU 角度误差到目标速度的比例增益
+                            .Kp = 0.7f,        // (rad/s)/deg，IMU 角度误差到目标速度的比例增益
                             .Ki = 0.0f,         // (rad/s)/(deg*s)，角度误差积分增益
                             .Kd = 0.0f,         // (rad/s)/(deg/s)，角度误差微分增益
                             .DeadBand = 0.01f,  // deg，IMU 角度误差死区
-                            .MaxOut = 3.2f,     // rad/s，目标速度限幅；0.05 rad、2.5 Hz 的理想速度峰值为 0.785 rad/s
+                            .MaxOut = 8.0f,     // rad/s，目标速度限幅；0.05 rad、2.5 Hz 的理想速度峰值为 0.785 rad/s
                             .IntegralLimit = 0.0f,        // rad/s，积分输出限幅
                             .Improve = PID_IMPROVE_NONE,  // 无量纲，优化功能位标志
                         },
@@ -221,7 +221,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                             .Ki = 4.63f,             // N*m/rad，速度误差积分增益
                             .Kd = 0.00f,             // N*m/(rad/s^2)，速度误差微分增益
                             .DeadBand = 0.0f,        // rad/s，速度误差死区
-                            .MaxOut = 1.5f,          // N*m，速度环输出力矩限幅
+                            .MaxOut = 7.0f,          // N*m，速度环输出力矩限幅
                             .IntegralLimit = 0.35f,  // N*m，积分输出限幅
                             .Improve = PID_Integral_Limit | PID_Trapezoid_Intergral,  // 无量纲，优化功能位标志
                         },
@@ -256,7 +256,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                             .Ki = 3.5f,                // N*m/rad，数值复用大 Pitch 速度环
                             .Kd = 0.0f,                // N*m/(rad/s^2)，速度误差微分增益
                             .DeadBand = 0.0f,          // rad/s，速度误差死区
-                            .MaxOut = 1.5f,           // N*m，数值复用大 Pitch 速度环
+                            .MaxOut = 7.0f,           // N*m，数值复用大 Pitch 速度环
                             .IntegralLimit = 0.35f,   // N*m，数值复用大 Pitch 速度环
                             .Improve = PID_Integral_Limit | PID_Trapezoid_Intergral,
                         },
@@ -276,8 +276,8 @@ static Gimbal_Init_Config_s gimbal_init_config = {
         {
             .big_pitch_scale_nm = 1.35f,    // N*m，大轴近端重力矩系数，不含小轴末端偏心项
             .small_pitch_scale_nm = 0.15f,   //0.3f,  // N*m，末端偏心重力矩系数，同时计入大 Pitch
-            .big_pitch_zero_rad = -2.26f,     // rad，两轴连线水平时的大轴反馈角
-            .small_pitch_zero_rad = 0.89f,   // rad，大轴处于上述零位时末端重心方向水平的小轴反馈角
+            .big_pitch_zero_rad = -0.077f,     // rad，两轴连线水平时的大轴反馈角
+            .small_pitch_zero_rad = 0.87f,   // rad，大轴处于上述零位时末端重心方向水平的小轴反馈角
             .big_pitch_direction = 1.0f,   // 无量纲，正向直连为 1，反向直连为 -1
             .small_pitch_direction = -1.0f,  // 无量纲，正向直连为 1，反向直连为 -1
         },
