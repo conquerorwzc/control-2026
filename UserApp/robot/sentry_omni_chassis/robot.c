@@ -100,24 +100,26 @@ static float RemoteDialToWz(int16_t dial)
     if (dial >= -REMOTE_DIAL_DEADBAND && dial <= REMOTE_DIAL_DEADBAND)  return 0.0f;
     return -RemoteChannelToSpeed(dial, REMOTE_ROTATEMAX);
 }
+// 导航指令由云台板经 CAN2 0x210 的 nav_* 字段转发过来(导航小电脑接在云台板 USART1),
 // 导航和两种遥控共用三轴指令入口，保存本周期指令是否有效。
-static void NavigatorControlSet()
+// 参数用标量而非结构体指针, 这样 Send_Data_RC / Send_Data_RC_NEW 两种变体都能复用。
+static void NavigatorControlSet(float nav_vx, float nav_vy, float nav_wz, uint8_t nav_valid)
 {
     static uint8_t offline_logged = 0;
-    robot_cmd_t cmd;
-    nav_cmd_valid = NavigatorGetCmd(&cmd);
+    nav_cmd_valid = nav_valid ? 1u : 0u;
     if (!nav_cmd_valid)
     {
         if (!offline_logged)
-            LOGWARNING("[navigator] no valid cmd within %dms, speed forced to zero", NAV_CMD_TIMEOUT_MS);
+            LOGWARNING("[navigator] nav cmd invalid (gimbal USART1 offline), speed forced to zero");
         offline_logged = 1;
     }
     else
         offline_logged = 0;
     chassis_ctrl_cmd->cmd_frame = CHASSIS_CMD_CHASSIS_FRAME;
-    chassis_ctrl_cmd->vx = cmd.speed_vector.vx;
-    chassis_ctrl_cmd->vy = cmd.speed_vector.vy;
-    chassis_ctrl_cmd->wz = cmd.speed_vector.wz;
+    // 无效时显式下发零速; 云台板 FillNavCmd 已清零, 这里再兜一次, 防止双板链路半死时沿用陈旧值
+    chassis_ctrl_cmd->vx = nav_cmd_valid ? nav_vx : 0.0f;
+    chassis_ctrl_cmd->vy = nav_cmd_valid ? nav_vy : 0.0f;
+    chassis_ctrl_cmd->wz = nav_cmd_valid ? nav_wz : 0.0f;
     chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
 }
 
@@ -128,28 +130,23 @@ static void NavigatorControlSet()
  */
 static void RemoteControlSet()
 {
-    /* 右拨杆[中]/[上]时底盘处于小陀螺, 云台还会扫头 —— 此时云台指向与底盘朝向不再同步,
-     * 平移指令一律按底盘坐标系解释, 不再随云台旋转 */
+    /* 右拨杆[中]: 小陀螺, 平移按云台系 —— 底盘在转, "前进"跟着瞄准方向走
+     * 右拨杆[上]: 小陀螺 + 云台扫头, 云台指向不再代表底盘前方, 平移改按底盘系
+     * 右拨杆[下]: 不置位, 落到下面的云台系默认分支(同时 EmergencyHandler 会急停底盘) */
     uint8_t chassis_frame_cmd = 0;
-    // 右[中]，云台底盘使能
+    // 右[中]，小陀螺；保持云台系，不置位 chassis_frame_cmd
     if (switch_is_mid(rc_data[TEMP].rc.switch_right))
     {
         chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
-        chassis_frame_cmd = 1;
     }
-    // 右[上]，云台底盘使能+扫头
+    // 右[上]，小陀螺+扫头；平移按底盘系
     else if (switch_is_up(rc_data[TEMP].rc.switch_right))
     {
         chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
         chassis_frame_cmd = 1;
     }
-    // 左[中],云台加自瞄
-    if (switch_is_mid(rc_data[TEMP].rc.switch_left))
-    {
-        robot->control_mode = MANUAL_MODE;
-    }
-    // 左[上],导航+自瞄
-    else if (switch_is_up(rc_data[TEMP].rc.switch_left))
+    // 左[中]/[上]: 导航模式(速度指令来自导航小电脑); 左[下]或遥控断连: 手动
+    if (switch_is_mid(rc_data[TEMP].rc.switch_left) || switch_is_up(rc_data[TEMP].rc.switch_left))
     {
         robot->control_mode = NAVIGATOR_MODE;
     }
@@ -171,7 +168,8 @@ static void RemoteControlSet()
     }
     else if (robot->control_mode == NAVIGATOR_MODE)
     {
-        NavigatorControlSet();
+        NavigatorControlSet(rc_data_old->nav_vx, rc_data_old->nav_vy, rc_data_old->nav_wz,
+                            rc_data_old->nav_valid);
     }
 
     *rc_data_last = *rc_data;
@@ -198,7 +196,8 @@ static void RemoteControlSet()
     }
     else if (robot->control_mode == NAVIGATOR_MODE)
     {
-        NavigatorControlSet();
+        NavigatorControlSet(rc_data_new->nav_vx, rc_data_new->nav_vy, rc_data_new->nav_wz,
+                            rc_data_new->nav_valid);
         return;
     }
     // 不要换启动
@@ -276,7 +275,8 @@ static void YawHoldControlSet()
         return;
     }
 
-    chassis_ctrl_cmd->cmd_frame = CHASSIS_CMD_CHASSIS_FRAME;
+    // cmd_frame 统一由 RemoteControlSet() 决定(右[中]=云台系, 右[上]=底盘系, 导航=底盘系),
+    // 这里不再改写, 否则锁航向时会把右[中]的云台系冲回底盘系。
     if (fabsf(chassis_ctrl_cmd->wz) >= 0.05f || !robot->chassis->chassis_IMU->init)
     {
         active = 0;
@@ -297,6 +297,7 @@ static void YawHoldControlSet()
         active = 1;
     }
     chassis_ctrl_cmd->chassis_mode = CHASSIS_HOLD;
+    // 注意: 这里不能再写 cmd_frame, 见上面第 278 行的说明
 }
 //todo:模式决策是不是给上位机了，可以删掉吗？
 // static void ModeControl()
@@ -362,16 +363,22 @@ static void SuperCapControl()
                         robot->referee_data->PowerHeatData.buffer_energy,
                         robot->referee_data->GameRobotState.power_management_chassis_output);
 }
-void Navigator_pack()
+/* 底盘速度观测反馈: 经 CAN2 0x211 交给云台板, 由它组装导航 0x0010 帧。
+ * 只在观测器 kSpeedObserverValid(轮速反馈新鲜)时上报 fused, 否则显式写 0,
+ * 避免把陈旧估计当成真实速度发给导航端。 */
+static void FillSpeedFeedback()
 {
-    if (robot->chassis->speed != NULL && robot->chassis->chassis_IMU != NULL && robot->chassis->chassis_IMU->init)
-        {
-            robot->navigator_send_data->vx = robot->chassis->speed->fused.vx;
-            robot->navigator_send_data->vy = robot->chassis->speed->fused.vy;
-            robot->navigator_send_data->wz = robot->chassis->speed->fused.wz;
-            robot->navigator_send_data->yaw = robot->chassis->chassis_IMU->Yaw;
-        }
+    if (referee_data == NULL || robot->chassis == NULL)
+        return;
+    const SpeedObserverResult_s *speed = robot->chassis->speed;
+    const uint8_t speed_ok = (speed != NULL) && ((speed->status & kSpeedObserverValid) != 0u);
+    const uint8_t imu_ok = (robot->chassis->chassis_IMU != NULL) && (robot->chassis->chassis_IMU->init != 0u);
+    referee_data->fb_vx = speed_ok ? speed->fused.vx : 0.0f;
+    referee_data->fb_vy = speed_ok ? speed->fused.vy : 0.0f;
+    referee_data->fb_wz = speed_ok ? speed->fused.wz : 0.0f;
+    referee_data->fb_yaw = imu_ok ? robot->chassis->chassis_IMU->Yaw : 0.0f;
 }
+
 void Chassis_CANCommSend()
 {
 #ifdef USE_DUAL_RC
@@ -383,6 +390,7 @@ void Chassis_CANCommSend()
     referee_data->initial_speed = EncodeBulletSpeedToU16(robot->referee_data->ShootData.initial_speed);
     referee_data->shooter_17mm_barrel_heat = robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
     referee_data->robot_id = robot->referee_data->GameRobotState.robot_id;
+    FillSpeedFeedback();
     CANCommSend(can_comm_instance, (void *)referee_data);
 #elifdef USE_DUAL_RC_NEW
     if (can_comm_instance == NULL || vt13_rc_data == NULL)
@@ -393,6 +401,7 @@ void Chassis_CANCommSend()
     referee_data->initial_speed = EncodeBulletSpeedToU16(robot->referee_data->ShootData.initial_speed);
     referee_data->shooter_17mm_barrel_heat = robot->referee_data->PowerHeatData.shooter_17mm_barrel_heat;
     referee_data->robot_id = robot->referee_data->GameRobotState.robot_id;
+    FillSpeedFeedback();
     CANCommSend(can_comm_instance, (void *)referee_data);
 #endif
 }
@@ -436,6 +445,16 @@ static void DualBoardCtrlSet()
         vt13_rc_data->button_status.pause_flag = rc_data_new->Pause_flag;
 #endif
     }
+    else
+    {
+        /* 双板链路断开: 遥控与导航数据都不可信, 把导航指令标记为无效
+         * (EmergencyHandler 会在此基础上把底盘置 CHASSIS_POWER_OFF, 这里只是不让陈旧值被采用) */
+#ifdef USE_DUAL_RC
+        rc_data_old->nav_valid = 0;
+#elifdef USE_DUAL_RC_NEW
+        rc_data_new->nav_valid = 0;
+#endif
+    }
 }
 
 
@@ -462,7 +481,8 @@ void RobotInit()
 #endif
 
     // robot->vision_recv_data = VisionInit(&gimbal_init_config.imu_init_config);
-    robot->navigator_data = navigator_init(&huart1); // 导航串口: USART1, 115200 8N1
+    // 导航小电脑接在云台板 USART1, 本板不再注册导航串口;
+    // 导航速度指令经 CAN2 0x210 的 nav_* 字段获得, 速度反馈经 0x211 的 fb_* 字段回传。
 
     robot->referee_data = (referee_info_t *)zmalloc(sizeof(referee_info_t));
     robot->sentry_mode = 1;
@@ -470,8 +490,7 @@ void RobotInit()
     robot->super_cap = SuperCapInit(&super_cap_config);
 
     robot->chassis = ChassisInit(&chassis_init_config);
-    
-    robot->navigator_send_data = (navigator_send_t *)zmalloc(sizeof(navigator_send_t));
+
     // 初始化控制命令指针
     chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
 }
@@ -509,8 +528,8 @@ void RobotTask()
     chassis_ctrl_cmd->max_power = 120;
     // ModeControl();
     ChassisTask();
-    Navigator_pack();
-    navigator_send(&huart1, robot->referee_data, robot->navigator_send_data); // 每 10ms 轮流反馈 0x0001 / 0x000B / 0x0010
+    // 导航反馈(0x0001/0x000B/0x0010)已搬到云台板 USART1 发出;
+    // 本板的 fused 速度与 yaw 在 Chassis_CANCommSend() -> FillSpeedFeedback() 里经 CAN2 0x211 回传。
     // SuperCapSendMessage(robot->super_cap,
     //     (int16_t)robot->referee_data->GameRobotState.chassis_power_limit,
     //     robot->referee_data->PowerHeatData.buffer_energy,

@@ -179,11 +179,12 @@ static SuperCap_Init_Config_s super_cap_config = {
 #endif
 
 static CANComm_Init_Config_s comm_config = {
-  .recv_data_len = 30,        // 接收数据长度，根据实际需求调整
-  .send_data_len = 30,        // 发送数据长度，根据实际需求调整
-  .daemon_count = 10,      // 看门狗重载计数，根据实际需求调整
+  // 长度必须与对端(gimbal)的 send/recv_data_len 一一对应, 用 sizeof 直接绑定结构体
+  .recv_data_len = (uint8_t)sizeof(Send_Data_Up),  // 云台板 -> 底盘板: 遥控通道 + 导航指令
+  .send_data_len = (uint8_t)sizeof(Referee_Data),  // 底盘板 -> 云台板: 发射转发 + 速度反馈
+  .daemon_count = 10,      // 100ms 收不到云台板数据即判离线, EmergencyHandler 会急停
   .can_config = {
-    .can_handle = &hcan2,  // 假设使用CAN1，根据实际使用的CAN句柄调整
+    .can_handle = &hcan2,  // 双板通信走 CAN2
     .tx_id = BOARD_TX_ID,        // 发送ID，根据实际需求调整
     .rx_id = BOARD_RX_ID,        // 接收ID，根据实际需求调整
     .id = NULL                   // 将在CANCommInit中设置
