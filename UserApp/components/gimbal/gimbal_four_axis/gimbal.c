@@ -35,6 +35,13 @@ static int UpdateGimbalGravity(void)
     float small_feedforward =
         config->small_pitch_direction * end_gravity_nm;
 
+    // 上述力矩按电机编码器方向计算，先转换到 PID 输出坐标。
+    // DMMotorTask 发帧前会按 motor_reverse_flag 再次反向。
+    if (big_motor->motor_settings.motor_reverse_flag == MOTOR_DIRECTION_REVERSE)
+        big_feedforward = -big_feedforward;
+    if (small_motor->motor_settings.motor_reverse_flag == MOTOR_DIRECTION_REVERSE)
+        small_feedforward = -small_feedforward;
+
     // 统一安全检查，失败时清零两轴补偿。
     if (!DaemonIsOnline(big_motor->daemon) ||
         !DaemonIsOnline(small_motor->daemon) ||
