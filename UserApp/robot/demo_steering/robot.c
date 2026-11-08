@@ -3,8 +3,8 @@
 //
 // 底盘组件使用 dev 分支的 chassis_steering 版本(2026/1/1 重写版)。
 // 该组件的 ChassisInit() 会无条件注册 4 个 3508 + 4 个 6020, 没有使能掩码;
-// 超电与裁判系统都是可选的: 超电未配置时不注册 CAN 实例、不做状态机,
-// 没有裁判系统时功率上限退回 DEMO_CHASSIS_POWER_LIMIT(见 robot_config.h)。
+// HKUST 超电与裁判系统都是可选的: 超电未配置或离线时退回裁判系统功率上限，
+// 裁判系统尚未提供有效值时退回 DEMO_CHASSIS_POWER_LIMIT(见 robot_config.h)。
 // 因此本文件只负责:
 //   1. 初始化底盘与遥控器;
 //   2. 把摇杆映射成底盘指令;
@@ -20,14 +20,12 @@
 #include "ins_task.h"
 #include "robot_config.h"
 #include "user_lib.h"
-#include "bsp_dwt.h"
 #include "buzzer.h"
 #include "rinascita_suite.h"
 #include "wuci_youci_suite.h"
 static uint8_t music_submitted;
 static RobotInstance *robot;
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
-static float phase_mark_ms;
 static float service_mark_ms;
 /* 自检打印的计时锚点, 使用 DWT 时间轴(ms) */
 static uint32_t last_report_ms;
@@ -106,6 +104,14 @@ static void ConnectivityReport(void) {
     LOGINFO("[demo] rc NOT initialized");
   }
 #endif
+  Chassis_SuperCap_State_s cap_state;
+  ChassisGetSuperCapState(&cap_state);
+  if (cap_state.configured) {
+    LOGINFO("[demo] hkust cap online=%d error=%d energy=%d limit=%dW budget=%dW boost=%d",
+            (int)cap_state.online, (int)cap_state.error_code, (int)cap_state.energy,
+            (int)cap_state.reported_power_limit, (int)ChassisGetPowerLimit(),
+            (int)(chassis_ctrl_cmd->SuperCapBoost & 1U));
+  }
 }
 
 /**
@@ -322,7 +328,7 @@ static void RemoteControlInitIfNeeded(void) {
  */
 static void CalcOffsetAngle(void) {
 #if DEMO_VIRTUAL_GIMBAL
-  if (ins == NULL || rc_data == NULL) return;
+  if (ins == NULL || rc_data == NULL || !RemoteControlIsOnline()) return;
 
   // ---- 阶段 1: 上电后先在采样窗口内累加求平均, 定出虚拟云台 0 点 ----
   if (!boot_yaw_valid) {
@@ -415,6 +421,7 @@ static void RemoteControlSet(void) {
     chassis_ctrl_cmd->vx = 0.0f;
     chassis_ctrl_cmd->vy = 0.0f;
     chassis_ctrl_cmd->wz = 0.0f;
+    chassis_ctrl_cmd->SuperCapBoost = 0U;
   } else if (switch_is_up(rc_data[TEMP].rc.switch_left)) {
     // 左上: 平移 + 自转 (虚拟云台【关】, 平移方向 = 车头方向)
     chassis_ctrl_cmd->chassis_mode = CHASSIS_FREE;
@@ -428,6 +435,10 @@ static void RemoteControlSet(void) {
     //       此时推前进 + 右摇杆满舵 = 一边自旋一边直行。
     chassis_ctrl_cmd->chassis_mode = CHASSIS_FREE;
     chassis_ctrl_cmd->wz = wz;
+  }
+  // 右上请求超电加速；右中按常规功率运行，右下急停并关闭 DCDC。
+  if (chassis_ctrl_cmd->chassis_mode != CHASSIS_POWER_OFF) {
+    chassis_ctrl_cmd->SuperCapBoost = switch_is_up(rc_data[TEMP].rc.switch_right) ? 1U : 0U;
   }
 #endif
 }
@@ -449,6 +460,7 @@ static void EmergencyHandler(void) {
     chassis_ctrl_cmd->vy = 0.0f;
     chassis_ctrl_cmd->wz = 0.0f;
     chassis_ctrl_cmd->offset_angle = 0.0f;
+    chassis_ctrl_cmd->SuperCapBoost = 0U;
   }
 #endif
 }
@@ -474,7 +486,7 @@ void RobotInit() {
     }
   }
 
-  // 无裁判系统时组件的功率上限退回这个设定值(默认 80W)。
+  // 裁判系统尚未提供有效值时，底盘与 HKUST 超电都使用这个兜底功率。
   // @attention 若这里传 0, 组件的功率环会把四个轮电流削到 0, 轮子完全不动。
   ChassisSetPowerLimit(DEMO_CHASSIS_POWER_LIMIT);
 
@@ -521,7 +533,9 @@ void RobotInit() {
           DEMO_WHEEL_ID_LB, DEMO_WHEEL_ID_RB, DEMO_WHEEL_ID_RF);
   LOGINFO("[demo] remote use=%d vx_max=%d vy_max=%d wz_max=%d", (int)DEMO_USE_REMOTE, (int)DEMO_RC_MAX_VX,
           (int)DEMO_RC_MAX_VY, (int)DEMO_RC_MAX_WZ);
-  LOGINFO("[demo] chassis: super_cap=%d rudder_ready=%d power_limit=%dW", robot->chassis->super_cap == NULL ? 0 : 1,
+  Chassis_SuperCap_State_s cap_state;
+  ChassisGetSuperCapState(&cap_state);
+  LOGINFO("[demo] chassis: hkust_cap=%d rudder_ready=%d power_limit=%dW", (int)cap_state.configured,
           (int)ChassisIsRudderReady(), (int)ChassisGetPowerLimit());
 
   /**

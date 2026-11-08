@@ -1,5 +1,6 @@
 # 四舵轮 demo: 只使用舵轮底盘组件, 不引入云台/发射机构
 set(CHASSIS_TYPE chassis_steering)
+add_compile_definitions(CHASSIS_STEERING_HKUST)
 # 云台与发射暂不使用, 因此不设置 GIMBAL_TYPE / SHOOT_TYPE,
 # 也就不会把 gimbal_standard / shoot_standard 的源码加入编译.
 # 后续需要云台时取消下面两行的注释, 并在 robot.h 中按需包含对应头文件.

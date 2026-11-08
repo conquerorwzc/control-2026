@@ -28,6 +28,7 @@ static void SuperCapOfflineCallback()
 static void DecodeSuperCap(CANInstance *_instance)
 {
     memcpy(&super_cap_instance->cap_msg, _instance->rx_buff, sizeof(super_cap_instance->cap_msg));
+    super_cap_instance->has_feedback = 1U;
     // 重载daemon，表示正常接收到数据
     DaemonReload(supercap_daemon_instance);
 }
@@ -46,6 +47,7 @@ SuperCapInstance *SuperCapInit(SuperCap_Init_Config_s *supercap_config)
       .reload_count = 5, // 50ms
     };; // daemon配置
     supercap_daemon_instance = DaemonRegister(&daemon_config);
+    super_cap_instance->daemon = supercap_daemon_instance;
 
     return super_cap_instance;
 }

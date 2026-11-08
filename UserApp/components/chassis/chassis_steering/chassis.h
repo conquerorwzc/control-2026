@@ -15,7 +15,11 @@
 
 #include "dji_motor.h"
 #include "general_def.h"
+#ifdef CHASSIS_STEERING_HKUST
+#include "super_cap_HKUST.h"
+#else
 #include "super_cap.h"
+#endif
 
 #define DEG2R(x) ((x) * PI / 180.0f)
 
@@ -155,6 +159,18 @@ typedef struct
     SuperCapMode super_cap_mode;
 } ChassisInstance;
 
+typedef struct
+{
+    uint8_t configured;
+    uint8_t online;
+    uint8_t error_code;
+    uint8_t energy;
+    uint16_t reported_power_limit;
+} Chassis_SuperCap_State_s;
+
+/** @brief 读取 HKUST 超电状态；未配置或使用旧协议时，未知字段返回 0。 */
+void ChassisGetSuperCapState(Chassis_SuperCap_State_s *out);
+
 /**
  * @brief 初始化舵轮底盘电机、跟随 PID、裁判系统指针和超电模块。
  *
@@ -219,8 +235,8 @@ uint8_t ChassisIsRudderReady(void);
 /**
  * @brief 设定底盘功率上限(W)。
  *
- * 仅在【没有裁判系统且没有超电】时作为兜底值生效；一旦裁判系统接入，功率预算
- * 就由裁判系统上报值(或超电状态机)决定，本设定值不再影响控制。
+ * 裁判系统尚未提供有效功率值时作为兜底值；HKUST 超电也会收到这个兜底值。
+ * 旧协议超电的电压状态机仍按原有规则决定功率预算。
  *
  * 典型用法：台架调试时给一个安全的固定值；有裁判系统的整车上不用调用。
  */
@@ -229,7 +245,8 @@ void ChassisSetPowerLimit(uint16_t power_limit);
 /**
  * @brief 当前生效的底盘功率上限(W)。
  *
- * 无裁判系统、无超电时返回 ChassisSetPowerLimit() 设定的值(默认 80W)，
+ * 无有效裁判系统功率值、且没有可用的 HKUST 回传时返回
+ * ChassisSetPowerLimit() 设定的值(默认 80W)，
  * 而不是 0 —— 否则轮电机会被功率环削到没有电流。
  */
 uint16_t ChassisGetPowerLimit(void);

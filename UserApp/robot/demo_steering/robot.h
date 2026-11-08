@@ -1,7 +1,6 @@
 //
 // 四舵轮 demo 机器人定义
-// 阶段 A: 单个轮组(CAN1 上 ID=4 的 M3508)连通性自检
-// 底盘组件使用 dev 分支的 chassis_steering 版本(2026/1/1 重写版)
+// robot 层负责遥控、虚拟云台和急停；底盘组件负责电机及 HKUST 超电。
 //
 #pragma once
 
@@ -9,7 +8,7 @@
 #include "remote_control.h"
 
 typedef struct {
-  RC_ctrl_t *rc_data;         // 遥控器数据, 阶段 A 未初始化, 为 NULL
+  RC_ctrl_t *rc_data;         // 遥控器未启用时为 NULL
   ChassisInstance *chassis;   // 舵轮底盘实例
 } RobotInstance;
 

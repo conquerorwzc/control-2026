@@ -40,6 +40,7 @@
  * max_power 保持一致；若为 0，功率环会把四轮电流直接削到 0，表现为"轮子不动"。
  */
 #define CHASSIS_DEFAULT_NO_REFEREE_POWER 80U
+#define CHASSIS_DEFAULT_NO_REFEREE_BUFFER 50U
 
 /**
  * @brief 单个舵轮模块的目标地面速度向量。
@@ -205,33 +206,24 @@ static float NormalizeAngle180(float angle)
 }
 
 /**
- * @brief 将角度归一化到 [0, 360)，单位：度。
- */
-static float NormalizeAngle360(float angle)
-{
-    angle = fmodf(angle, 360.0f);
-    if (angle < 0.0f)
-    {
-        angle += 360.0f;
-    }
-    return angle;
-}
-
-/**
  * @brief 带下限保护地扣除功率降额，避免无符号数下溢。
  */
+#ifndef CHASSIS_STEERING_HKUST
 static uint16_t PowerLimitMinus(uint16_t limit, uint16_t margin)
 {
     return limit > margin ? (uint16_t)(limit - margin) : 0U;
 }
+#endif
 
 /**
  * @brief 将裁判系统功率上限裁剪到超电协议字段可表示范围。
  */
+#ifndef CHASSIS_STEERING_HKUST
 static int16_t ClampPowerForSuperCap(uint16_t power_limit)
 {
     return (int16_t)(power_limit > UINT8_MAX ? UINT8_MAX : power_limit);
 }
+#endif
 
 /**
  * @brief 裁判系统上报的底盘功率上限; 读到 0 视为"没有可用的功率预算"。
@@ -916,6 +908,25 @@ static void UpdateSuperCapMode(void)
         return;
     }
 
+#ifdef CHASSIS_STEERING_HKUST
+    // HKUST 回传的是可用功率而非电容电压，不能运行旧协议的电压状态机。
+    chassis_power_limit = (referee_power_limit > 0U) ? referee_power_limit : chassis_set_power_limit;
+    if (chassis->super_cap->has_feedback && DaemonIsOnline(chassis->super_cap->daemon) &&
+        chassis->super_cap->cap_msg.errorCode == 0U &&
+        chassis->super_cap->cap_msg.chassisPowerLimit > 0U)
+    {
+        uint16_t cap_limit = chassis->super_cap->cap_msg.chassisPowerLimit;
+        if (chassis_ctrl_cmd->SuperCapBoost & 1U)
+        {
+            chassis_power_limit = cap_limit;
+        }
+        else if (cap_limit < chassis_power_limit)
+        {
+            chassis_power_limit = cap_limit;
+        }
+    }
+#else
+
     float cap_voltage = chassis->super_cap->cap_msg.cap_v;
 
     switch (chassis->super_cap_mode)
@@ -981,6 +992,7 @@ static void UpdateSuperCapMode(void)
         chassis_power_limit = SUPERCAP_SAFE_POWER;
         break;
     }
+#endif
 }
 
 /**
@@ -1071,9 +1083,41 @@ static void SendSuperCapCommand(void)
         return;
     }
 
+#ifdef CHASSIS_STEERING_HKUST
+    static uint32_t last_send_ms;
+    static uint8_t first_send = 1U;
+    static uint8_t last_enable;
+    uint32_t now_ms = (uint32_t)DWT_GetTimeline_ms();
+    uint16_t referee_limit = RefereePowerLimit();
+    uint8_t enable = chassis_ctrl_cmd->chassis_mode != CHASSIS_POWER_OFF;
+    // bit7 仅表示 DCDC 未使能，必须允许发送使能命令才能退出此状态。
+    // 其余故障位仍阻止使能；功率预算要等 errorCode 清零后才使用超电回传值。
+    if (chassis->super_cap->has_feedback && DaemonIsOnline(chassis->super_cap->daemon) &&
+        (chassis->super_cap->cap_msg.errorCode & (uint8_t)~kSuperCapDcdcDisabled) != 0U)
+    {
+        enable = 0U;
+    }
+    // 100 Hz 周期发送；使能状态变化立即发送，确保急停不会被周期节流延迟。
+    if (!first_send && enable == last_enable && (uint32_t)(now_ms - last_send_ms) < 10U)
+    {
+        return;
+    }
+    first_send = 0U;
+    last_enable = enable;
+    last_send_ms = now_ms;
+    uint16_t reported_limit = (referee_limit > 0U) ? referee_limit : chassis_set_power_limit;
+    if (reported_limit > INT16_MAX)
+    {
+        reported_limit = INT16_MAX;
+    }
+    uint16_t buffer = (referee_limit > 0U) ? referee_data->PowerHeatData.buffer_energy
+                                           : CHASSIS_DEFAULT_NO_REFEREE_BUFFER;
+    SuperCapSendMessage(enable, (int16_t)reported_limit, buffer);
+#else
     SuperCapSendMessage(chassis->super_cap, ClampPowerForSuperCap(RefereePowerLimit()),
                         referee_data->PowerHeatData.buffer_energy,
                         referee_data->GameRobotState.power_management_chassis_output);
+#endif
 }
 
 /**
@@ -1161,6 +1205,29 @@ void ChassisTask(void)
 
     SendSuperCapCommand();
     LimitChassisOutput();
+}
+
+void ChassisGetSuperCapState(Chassis_SuperCap_State_s *out)
+{
+    if (out == NULL)
+    {
+        return;
+    }
+    memset(out, 0, sizeof(*out));
+    if (chassis == NULL || chassis->super_cap == NULL)
+    {
+        return;
+    }
+    out->configured = 1U;
+#ifdef CHASSIS_STEERING_HKUST
+    out->online = chassis->super_cap->has_feedback && DaemonIsOnline(chassis->super_cap->daemon);
+    if (out->online)
+    {
+        out->error_code = chassis->super_cap->cap_msg.errorCode;
+        out->energy = chassis->super_cap->cap_msg.capEnergy;
+        out->reported_power_limit = chassis->super_cap->cap_msg.chassisPowerLimit;
+    }
+#endif
 }
 
 /* ==========================================================================================

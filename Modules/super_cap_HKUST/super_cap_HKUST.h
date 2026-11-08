@@ -5,11 +5,14 @@
  * @Date: 2022-12-02 21:32:47
  * @LastEditTime: 2022-12-05 15:25:46
  */
-#ifndef SUPER_CAP_H
-#define SUPER_CAP_H
+#ifndef SUPER_CAP_HKUST_H
+#define SUPER_CAP_HKUST_H
 
 #include "bsp_can.h"
 #include "daemon.h"
+
+// errorCode 的 bit7 表示 DCDC 未使能，是可通过使能命令解除的状态位。
+enum { kSuperCapDcdcDisabled = 0x80U };
 
 #pragma pack(1)
 typedef struct//发给超电的数据结构体
@@ -36,6 +39,7 @@ typedef struct
 {
   CANInstance *can_instance; // CAN实例
   DaemonInstance* daemon; //看门狗
+  uint8_t has_feedback; // 收到首帧前不使用回传功率
   RxData cap_msg; //超级电容信息
   TxData send_msg; //发送给电容的信息
 } SuperCapInstance;
@@ -65,4 +69,4 @@ SuperCapInstance *SuperCapInit(SuperCap_Init_Config_s *supercap_config);
  */
 void SuperCapSendMessage(uint8_t enable, int16_t powerlimit, uint16_t buffer);
 
-#endif // !SUPER_CAP_H
+#endif // SUPER_CAP_HKUST_H

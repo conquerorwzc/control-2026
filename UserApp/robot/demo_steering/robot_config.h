@@ -51,6 +51,13 @@
 // GM6020 舵电机挂在 CAN2, 阶段 A 不注册, 阶段 B 标定零偏后放开掩码.
 #define DEMO_RUDDER_CAN (&hcan2)
 
+// HKUST 超电协议: 主控发 0x61、接收 0x51。若未接超电，置 0 即不注册 CAN 实例。
+// 默认接 CAN1，与轮电机共线；上车前确认实际接线和总线负载。
+#define DEMO_USE_HKUST_CAP 1
+#define DEMO_CAP_CAN (&hcan1)
+#define DEMO_CAP_TX_ID 0x61U
+#define DEMO_CAP_RX_ID 0x51U
+
 // 电机 ID 数组, 下标顺序必须与底盘组件的 Chassis_Wheel_Index_e 一致: LF -> LB -> RB -> RF
 // 注意: 这里的 ID 是 C620 / GM6020 电调上的拨码 ID(1~8), 不是数组下标.
 // 单个轮组联调时, 若实际接的是别的轮组, 只需交换数组里的元素位置, 使能掩码同步调整即可.
@@ -77,8 +84,8 @@
  *     (轮电机不受影响), 可用 `ChassisIsRudderReady()` 查询;
  *   - 组件还会在使能后的第一次任务里用【舵机实测角】播种舵角参考, 避免四个舵机
  *     一起朝参考初值 0 度冲过去(那等于一次满舵动作);
- *   - 超电与裁判系统都是可选的: 超电未配置时不注册 CAN 实例、不做状态机;
- *     没有裁判系统时功率上限退回下面 DEMO_CHASSIS_POWER_LIMIT 的设定值。
+ *   - 超电与裁判系统都是可选的: 超电未配置时不注册 CAN 实例;
+ *     没有有效裁判系统功率值时退回 DEMO_CHASSIS_POWER_LIMIT。
  *
  * 若要恢复"单轮组调试"能力, 需要重新给组件加掩码 —— 但那正是之前把解算改坏的原因之一,
  * 建议不要再动, 单轮组阶段用原版组件 + 只接一个轮组的硬件即可。
@@ -241,10 +248,10 @@ static IMU_Init_Config_s imu_init_config = {.flag = 1,
 
 /* ========================== 四、遥控器与底盘手感 ========================== */
 
-// 底盘功率上限(W), 仅在【没有裁判系统且没有超电】时生效(台架调试即为此种情况)。
+// 底盘功率上限(W)，裁判系统尚未提供有效功率值时作为兜底值。
 // 组件内部默认值也是 80W, 这里显式写出来是为了让整车联调时可以一处调整。
 // @attention 若置 0, 组件的功率环会把四个轮电流削到 0, 表现为"轮子完全不动"。
-#define DEMO_CHASSIS_POWER_LIMIT 50U
+#define DEMO_CHASSIS_POWER_LIMIT 40U
 
 // 遥控器开关: 1 = 初始化遥控器并允许用拨杆驱动底盘.
 // 只做台架报文连通性测试时置 0, 此时底盘锁在断电状态, 但电机仍会持续上报反馈.
@@ -470,14 +477,11 @@ static Chassis_Init_Config_s chassis_init_config = {
                 },
         },
 
-    // @note 本 demo 不接超级电容: super_cap_config 全部留空(can_handle == NULL),
-    //       组件据此跳过超电注册与状态机, 功率上限改用 DEMO_CHASSIS_POWER_LIMIT。
-    //       将来要接超电, 只要把下面 .super_cap_config 的 can_config 补全即可, 组件会自动启用状态机:
-    //           .super_cap_config = { .can_config = { .can_handle = &hcan2,
-    //                                                 .tx_id = 0x302,   // 超电默认接收 id
-    //                                                 .rx_id = 0x301 } } // 超电默认发送 id
-    //       (tx/rx 在别人看来是反的, 照抄 infantry_steering 的注释即可)
-    //       注意超电会与舵电机共用 CAN2(@see DEMO_RUDDER_CAN), 接之前先确认总线负载。
+#if DEMO_USE_HKUST_CAP
+    .super_cap_config = {.can_config = {.can_handle = DEMO_CAP_CAN,
+                                       .tx_id = DEMO_CAP_TX_ID,
+                                       .rx_id = DEMO_CAP_RX_ID}},
+#endif
 
     // 轮电机: 顺序 LF -> LB -> RB -> RF
     .wheel_motor_config[LF] = WHEEL_MOTOR_CONFIG(DEMO_WHEEL_CAN, DEMO_WHEEL_ID_LF),
