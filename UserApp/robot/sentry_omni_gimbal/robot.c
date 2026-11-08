@@ -498,7 +498,7 @@ void Gimbal_CANCommSend()
 
   send_data->Spin_speed = rc_data->rc.dial + rc_data[TEMP].key[KEY_PRESS].q*300;
 
-  send_data->Yaw_motor_angle = (int16_t)robot->gimbal->yaw_motor->measure.angle_single_round;
+  send_data->Yaw_motor_angle = robot->gimbal->yaw_motor->measure.angle_single_round;  // 去掉 int16 截断, 保留 float 精度供底盘算相对角
 
   send_data->Switch_right = rc_data->rc.switch_right;
 
@@ -523,7 +523,7 @@ void Gimbal_CANCommSend()
 
   send_data_new->Spin_speed = vt13_rc_data->rc.dial - vt13_rc_data->mouse_key.keyboard.shift*700;
 
-  send_data_new->Yaw_motor_angle = (int16_t)robot->gimbal->yaw_motor->measure.angle_single_round;
+  send_data_new->Yaw_motor_angle = robot->gimbal->yaw_motor->measure.angle_single_round;
 
   send_data_new->Mode_switch = vt13_rc_data->rc.mode_switch;
 
@@ -538,22 +538,44 @@ void Gimbal_CANCommSend()
 
 
   }
+/**
+ * @brief yaw 电机单圈编码器角 -> 底盘相对云台的偏角 (chassis_to_gimbal_yaw)
+ * @param yaw_ecd_angle 本板 yaw 电机 angle_single_round, 单位度, 0~360
+ * @return (-180, 180] 度, 绕 +z 俯视逆时针为正:
+ *         以云台指向为 0 基准, 底盘车头相对它偏了多少度, 偏左(逆时针)为正
+ * @note   对齐位置由 YAW_CHASSIS_ALIGN_ECD 定义(云台与底盘同向)。
+ *         本板直接读编码器, 不经双板 CAN, 无传输延迟。
+ */
+static float ChassisToGimbalYaw(float yaw_ecd_angle) {
+  float delta = yaw_ecd_angle - YAW_ALIGN_ANGLE;
+  if (delta > 180.0f) delta -= 360.0f;
+  else if (delta <= -180.0f) delta += 360.0f;
+  return delta;
+}
+
+/* 底盘相对云台角: 本板编码器本地解算, 与双板链路是否在线无关 */
+static void FillNavAttitude() {
+  if (nav_send == NULL || robot->gimbal == NULL || robot->gimbal->yaw_motor == NULL) {
+    return;
+  }
+  nav_send->yaw = ChassisToGimbalYaw(robot->gimbal->yaw_motor->measure.angle_single_round);
+}
+
 static void DualBoardCtrlSet() {
   if (CANCommIsOnline(can_comm_instance)) {
     // 检查是否有新数据更新
     *RefereeData = *(Referee_Data*)CANCommGet(can_comm_instance);
-    // 导航 0x0010 反馈: 速度来自底盘观测器 fused, yaw 来自底盘 IMU
+    // 导航 0x0010 反馈: 速度来自底盘观测器 fused; yaw 由 FillNavAttitude() 本板给, 这里不碰
     if (nav_send != NULL) {
-      nav_send->vx  = RefereeData->fb_vx;
-      nav_send->vy  = RefereeData->fb_vy;
-      nav_send->wz  = RefereeData->fb_wz;
-      nav_send->yaw = RefereeData->fb_yaw;
+      nav_send->vx = RefereeData->fb_vx;
+      nav_send->vy = RefereeData->fb_vy;
+      nav_send->wz = RefereeData->fb_wz;
     }
     // 本板无裁判系统, 仅 robot_id 可从底盘板转发获得
     nav_referee.GameRobotState.robot_id = RefereeData->robot_id;
   } else if (nav_send != NULL) {
-    // 双板链路断开: 底盘板此时已急停(其 CAN2 daemon 100ms 超时), 反馈归零比沿用陈旧值更诚实
-    nav_send->vx = nav_send->vy = nav_send->wz = nav_send->yaw = 0.0f;
+    // 双板链路断开: 底盘板此时已急停(其 CAN2 daemon 100ms 超时), 速度反馈归零比沿用陈旧值更诚实
+    nav_send->vx = nav_send->vy = nav_send->wz = 0.0f;
   }
 }
 void RobotInit() {
@@ -612,6 +634,7 @@ void RobotCMDTask() {
     Gimbal_CANCommSend();
   }
   DualBoardCtrlSet();
+  FillNavAttitude();  // 底盘相对云台角: 本板编码器本地算, 不依赖双板链路
   shoot_ctrl_cmd->initial_speed = DecodeBulletSpeedFromU16(RefereeData->initial_speed);
   shoot_ctrl_cmd->shooter_barrel_heat=RefereeData->shooter_17mm_barrel_heat;
   RemoteControlSet();

@@ -41,11 +41,10 @@ typedef struct {
   uint8_t robot_id;  // 本机器人ID（红蓝阵营）
   // uint16_t shooter_barrel_heat_limit;    // 机器人射击热量上限
   // uint16_t shooter_barrel_cooling_value; // 机器人射击热量每秒冷却值
-  // 底盘速度观测反馈, 供导航 0x0010 帧使用
+  // 底盘速度观测反馈, 供导航 0x0010 帧的 vx/vy/wz
   float fb_vx;   // 底盘系融合速度 m/s
   float fb_vy;   // 底盘系融合速度 m/s
   float fb_wz;   // 底盘系融合角速度 rad/s
-  float fb_yaw;  // 底盘 IMU 偏航角, 度
 } Referee_Data;
 
 /* 云台板 -> 底盘板 */
@@ -84,7 +83,7 @@ typedef struct {
 #pragma pack()
 
 /* 线上长度必须双方一致; 与 can_comm 的 send/recv_data_len 配套 */
-_Static_assert(sizeof(Referee_Data) == 21, "下行包(底盘->云台)必须为 21 字节");
+_Static_assert(sizeof(Referee_Data) == 17, "下行包(底盘->云台)必须为 17 字节");
 #ifdef USE_DUAL_RC
 _Static_assert(sizeof(Send_Data_RC) == 29, "上行包(云台->底盘)必须为 29 字节");
 #define Send_Data_Up                                    Send_Data_RC

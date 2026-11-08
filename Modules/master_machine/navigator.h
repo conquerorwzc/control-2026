@@ -114,7 +114,7 @@ typedef struct {
     float vx;   // 底盘融合速度，m/s
     float vy;   // 底盘融合速度，m/s
     float wz;   // 底盘融合角速度，rad/s
-    float yaw;  // 底盘 IMU 偏航角，度
+    float yaw;  // 底盘相对云台的偏角 chassis_to_gimbal_yaw，度，逆时针为正，范围 ±180
 } navigator_send_t;
 
 #pragma pack(pop)

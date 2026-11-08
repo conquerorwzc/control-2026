@@ -64,6 +64,23 @@ uint8_t has_non_zero_data(const Vision_Receive_s *data)
     // 简化逻辑：只要任意字段非零，返回1；否则返回0
     return (data->gimbal_receive.pitch != 0) || (data->gimbal_receive.yaw != 0) || (data->shoot_receive.fire_flag != 0);
 }
+/**
+ * @brief yaw 电机单圈编码器角 -> 底盘相对云台的偏角 (chassis_to_gimbal_yaw)
+ * @param yaw_ecd_angle 云台板经 CAN2 0x210 上传的 yaw 电机 angle_single_round, 度, 0~360
+ * @return (-180, 180] 度, 绕 +z 俯视逆时针为正:
+ *         以云台指向为 0 基准, 底盘车头相对它偏了多少度, 偏左(逆时针)为正
+ * @note   推导: 原代码 offset_angle = -(ecd - YAW_ALIGN_ANGLE) 表示"云台相对底盘, 逆时针为正";
+ *         "底盘相对云台"就是它的相反数, 即 +(ecd - YAW_ALIGN_ANGLE)。
+ *         对齐位置由 YAW_CHASSIS_ALIGN_ECD 定义(云台与底盘同向)。
+ */
+static float ChassisToGimbalYaw(float yaw_ecd_angle)
+{
+    float delta = yaw_ecd_angle - YAW_ALIGN_ANGLE;
+    if (delta > 180.0f) delta -= 360.0f;
+    else if (delta <= -180.0f) delta += 360.0f;
+    return delta;
+}
+
 static void CalcOffsetAngle()
 {
 #ifdef USE_DUAL_RC
@@ -71,11 +88,9 @@ static void CalcOffsetAngle()
 #elifdef USE_DUAL_RC_NEW
     angle = rc_data_new->Yaw_motor_angle;
 #endif
-    float delta = angle - YAW_ALIGN_ANGLE;
-    if (delta > 180.0f) delta -= 360.0f;
-    else if (delta <= -180.0f)  delta += 360.0f;
     // 双板上传的是原始 yaw 编码器角；转换为云台相对底盘的逆时针正偏角。
-    chassis_ctrl_cmd->offset_angle = -delta;
+    // 与 ChassisToGimbalYaw() 互为相反数, 直接取负以保持原来的符号约定。
+    chassis_ctrl_cmd->offset_angle = -ChassisToGimbalYaw(angle);
 }
 
 static void SentryRefereeSend()
@@ -363,20 +378,19 @@ static void SuperCapControl()
                         robot->referee_data->PowerHeatData.buffer_energy,
                         robot->referee_data->GameRobotState.power_management_chassis_output);
 }
-/* 底盘速度观测反馈: 经 CAN2 0x211 交给云台板, 由它组装导航 0x0010 帧。
+/* 底盘速度观测反馈: 经 CAN2 0x211 交给云台板, 由它组装导航 0x0010 帧的 vx/vy/wz。
  * 只在观测器 kSpeedObserverValid(轮速反馈新鲜)时上报 fused, 否则显式写 0,
- * 避免把陈旧估计当成真实速度发给导航端。 */
+ * 避免把陈旧估计当成真实速度发给导航端。
+ * 注意: 0x0010 的第 4 个量(chassis_to_gimbal_yaw)已改为云台板本地从 yaw 编码器解算, 不再经本包传输。 */
 static void FillSpeedFeedback()
 {
     if (referee_data == NULL || robot->chassis == NULL)
         return;
     const SpeedObserverResult_s *speed = robot->chassis->speed;
     const uint8_t speed_ok = (speed != NULL) && ((speed->status & kSpeedObserverValid) != 0u);
-    const uint8_t imu_ok = (robot->chassis->chassis_IMU != NULL) && (robot->chassis->chassis_IMU->init != 0u);
     referee_data->fb_vx = speed_ok ? speed->fused.vx : 0.0f;
     referee_data->fb_vy = speed_ok ? speed->fused.vy : 0.0f;
     referee_data->fb_wz = speed_ok ? speed->fused.wz : 0.0f;
-    referee_data->fb_yaw = imu_ok ? robot->chassis->chassis_IMU->Yaw : 0.0f;
 }
 
 void Chassis_CANCommSend()
