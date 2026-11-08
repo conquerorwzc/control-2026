@@ -26,7 +26,9 @@ endif() # Debug Release RelWithDebInfo MinSizeRel
 # 其余已修复机器人预留配置；需要时取消对应一行的注释即可。
 #set(ROBOT_TYPE "infantry_mecanum")
 # set(ROBOT_TYPE "sentry_omni_chassis")
- set(ROBOT_TYPE "sentry_omni_gimbal")
+if (NOT DEFINED ROBOT_TYPE)
+    set(ROBOT_TYPE "sentry_omni_gimbal")
+endif ()
 # set(ROBOT_TYPE "infantry_wheel_legged_sjtu")
 
 set(ROBOT_CMAKE "${CMAKE_SOURCE_DIR}/UserApp/robot/${ROBOT_TYPE}/robot.cmake")
@@ -83,6 +85,11 @@ file(GLOB_RECURSE BASE_SOURCES
         "UserApp/os_task.c"
 )
 
+# 新轮腿目标由专用 500 Hz 任务调度；保留其他机器人原有任务。
+if (ROBOT_TYPE STREQUAL "wheel_leg_rl" OR ROBOT_TYPE STREQUAL "motor_sysid")
+    list(FILTER BASE_SOURCES EXCLUDE REGEX "UserApp/os_task[.]c$")
+endif ()
+
 # 合并后同时存在两套不兼容的 VT13 驱动，按机器人选择实际使用的一套。
 list(FILTER BASE_SOURCES EXCLUDE REGEX "[/\\\\](VT13[/\\\\]VT13|remote[/\\\\]new_RC_VT13)\\.c$")
 if (ROBOT_TYPE STREQUAL "infantry_wheel_legged_sjtu" OR ROBOT_TYPE STREQUAL "infantry_six_wheel")
@@ -129,6 +136,6 @@ add_custom_command(
         TARGET ${PROJECT_NAME}.elf POST_BUILD
         COMMAND ${CMAKE_OBJCOPY} -Oihex $<TARGET_FILE:${PROJECT_NAME}.elf> ${PROJECT_BINARY_DIR}/${PROJECT_NAME}.hex
         COMMAND ${CMAKE_OBJCOPY} -Obinary $<TARGET_FILE:${PROJECT_NAME}.elf> ${PROJECT_BINARY_DIR}/${PROJECT_NAME}.bin
-        COMMENT "Building hex & bin file...\nEXCUTABLE SIZE:"
+        COMMENT "Building hex and bin files; executable size:"
         COMMAND ${SIZE} ${PROJECT_NAME}.elf
 )
