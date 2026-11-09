@@ -86,7 +86,7 @@ file(GLOB_RECURSE BASE_SOURCES
 )
 
 # 新轮腿目标由专用 500 Hz 任务调度；保留其他机器人原有任务。
-if (ROBOT_TYPE STREQUAL "wheel_leg_rl" OR ROBOT_TYPE STREQUAL "motor_sysid")
+if (ROBOT_TYPE STREQUAL "wheel_leg_rl" OR ROBOT_TYPE STREQUAL "motor_sysid" OR ROBOT_TYPE STREQUAL "leg_length_demo")
     list(FILTER BASE_SOURCES EXCLUDE REGEX "UserApp/os_task[.]c$")
 endif ()
 
