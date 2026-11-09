@@ -53,7 +53,10 @@ static void WheelLegTask(void const *argument)
             // 超期后重新对齐；不连续补跑多个控制周期。
             last_wake = xTaskGetTickCount();
         }
-        vTaskDelayUntil(&last_wake, period_ticks);
+        last_wake += period_ticks;
+        const int32_t remaining = (int32_t)(last_wake - xTaskGetTickCount());
+        if (remaining > 0)
+            vTaskDelay((TickType_t)remaining);
     }
 }
 

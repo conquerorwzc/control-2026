@@ -9,7 +9,6 @@
 #define LEG_LENGTH_CALIBRATED 0
 #endif
 #define LEG_LENGTH_FEEDBACK_TIMEOUT_MS 20u
-#define LEG_LENGTH_ENABLE_TIMEOUT_MS 100u
 
 static const float kRemoteFullScale = 660.0f;
 static const float kHandoverSpeedMps = 0.05f;

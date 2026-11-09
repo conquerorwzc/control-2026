@@ -1,5 +1,6 @@
 #include "robot.h"
 #include "FreeRTOS.h"
+#include "cmsis_os.h"
 #include "message_center.h"
 #include "remote_control.h"
 #include "robot_config.h"
@@ -8,8 +9,7 @@
 typedef enum
 {
     LENGTH_STOPPED,
-    LENGTH_ENABLING,
-    LENGTH_ACTIVE,
+    LENGTH_ACTIVE = 2,
     LENGTH_FAULT
 } LengthMode;
 typedef struct
@@ -18,7 +18,6 @@ typedef struct
     bool disable_seen;
     float requested_m, target_m[2];
     LegLengthState leg[2];
-    uint32_t enable_start_ms;
     uint32_t control_cycles;
 } LengthDemoState;
 
@@ -27,11 +26,17 @@ LengthDemoState length_demo;
 static DMMotorInstance *joint[4];
 static RC_ctrl_t *rc;
 static Publisher_t *status_pub;
+static uint32_t feedback_counter[4], feedback_time_ms[4];
+static bool feedback_seen[4];
 
 static void StopJoints(void)
 {
+    // 原 DMMotorStop 是持续零力矩，不会发硬件失能帧。
     for (unsigned i = 0; i < 4; ++i)
-        DMMotorSetHardwareEnabled(joint[i], 0u);
+    {
+        DMMotorSetRef(joint[i], 0.0f);
+        DMMotorStop(joint[i]);
+    }
     for (unsigned side = 0; side < 2; ++side)
     {
         // 保留在线调整的增益，仅清控制器历史。
@@ -45,20 +50,30 @@ static void StopJoints(void)
 
 void RobotInit(void)
 {
-    for (unsigned i = 0; i < 4; ++i)
-        joint[i] = DMMotorInitSynchronous(&joint_config[i]);
-    for (unsigned i = 0; i < 2; ++i)
-        PIDInit(&length_demo.leg[i].pid, &length_config.pid);
     rc = RemoteControlInit(&huart5);
     status_pub = PubRegister("leg_length_status", 5u * sizeof(float));
-    StopJoints();
+    // 原驱动注册时发送使能帧；未标定时连电机注册也不执行。
+    if (!LEG_LENGTH_CALIBRATED)
+        return;
+    for (unsigned i = 0; i < 4; ++i)
+    {
+        joint[i] = DMMotorInit(&joint_config[i]);
+        DMMotorSetRef(joint[i], 0.0f);
+        DMMotorStop(joint[i]);
+        // 复用原发送函数；不调用旧 TaskInit 中四电机时会溢出的任务名拼接。
+        osThreadDef(lengthmotor, DMMotorTask, osPriorityBelowNormal, 0, 128);
+        configASSERT(osThreadCreate(osThread(lengthmotor), joint[i]) != NULL);
+    }
+    for (unsigned i = 0; i < 2; ++i)
+        PIDInit(&length_demo.leg[i].pid, &length_config.pid);
 }
 
 void RobotTask(void)
 {
+    if (!LEG_LENGTH_CALIBRATED)
+        return;
     DM_Motor_Measure_s measure[4];
-    uint32_t updated_ms[4];
-    bool received[4];
+    uint32_t counters[4];
     RC_ctrl_t remote;
     bool online;
     taskENTER_CRITICAL();
@@ -67,8 +82,7 @@ void RobotTask(void)
     for (unsigned i = 0; i < 4; ++i)
     {
         measure[i] = joint[i]->measure;
-        updated_ms[i] = joint[i]->last_feedback_ms;
-        received[i] = joint[i]->feedback_received != 0u;
+        counters[i] = joint[i]->feed_cnt;
     }
     taskEXIT_CRITICAL();
     const uint32_t now_ms = HAL_GetTick();
@@ -77,11 +91,18 @@ void RobotTask(void)
     bool fresh = true, normal = true, error = false;
     for (unsigned i = 0; i < 4; ++i)
     {
-        fresh &= received[i] && (uint32_t)(now_ms - updated_ms[i]) <= LEG_LENGTH_FEEDBACK_TIMEOUT_MS;
+        // 原驱动每次解码都更新 feed_cnt；在应用层记录观察到新帧的时刻。
+        if (counters[i] != feedback_counter[i])
+        {
+            feedback_counter[i] = counters[i];
+            feedback_time_ms[i] = now_ms;
+            feedback_seen[i] = true;
+        }
+        fresh &= feedback_seen[i] && (uint32_t)(now_ms - feedback_time_ms[i]) <= LEG_LENGTH_FEEDBACK_TIMEOUT_MS;
         normal &= measure[i].state == 1u;
         error |= measure[i].state > 1u;
     }
-    // 失能时也计算腿长，便于先核对反馈和零点；有效性只在进入输出链时使用。
+    // 零力矩停止时也计算腿长，便于核对反馈和零点；有效性只在进入输出链时使用。
     bool geometry_valid = fresh;
     for (unsigned side = 0; side < 2 && geometry_valid; ++side)
     {
@@ -100,25 +121,12 @@ void RobotTask(void)
                                    remote.rc.switch_right >= 1u && remote.rc.switch_right <= 3u &&
                                    (remote.rc.switch_left == 2u || remote.rc.switch_right == 2u);
     }
-    else if (length_demo.mode == LENGTH_STOPPED && length_demo.disable_seen && LEG_LENGTH_CALIBRATED)
+    else if (length_demo.mode == LENGTH_STOPPED && length_demo.disable_seen)
     {
         length_demo.disable_seen = false;
-        if (!geometry_valid || error)
+        if (!geometry_valid || !normal || error)
             length_demo.mode = LENGTH_FAULT;
         else
-        {
-            bool sent = true;
-            for (unsigned i = 0; i < 4; ++i)
-                sent &= DMMotorSetHardwareEnabled(joint[i], 1u) != 0u;
-            length_demo.enable_start_ms = now_ms;
-            length_demo.mode = sent ? LENGTH_ENABLING : LENGTH_FAULT;
-        }
-    }
-    if (length_demo.mode == LENGTH_ENABLING)
-    {
-        if (!fresh || error || (uint32_t)(now_ms - length_demo.enable_start_ms) > LEG_LENGTH_ENABLE_TIMEOUT_MS)
-            length_demo.mode = LENGTH_FAULT;
-        else if (normal)
         {
             for (unsigned side = 0; side < 2; ++side)
             {
@@ -126,7 +134,9 @@ void RobotTask(void)
                     fminf(fmaxf(length_demo.leg[side].length_m, length_config.minimum_m), length_config.maximum_m);
                 DWT_GetDeltaT(&length_demo.leg[side].pid.DWT_CNT);
             }
-            length_demo.mode = geometry_valid ? LENGTH_ACTIVE : LENGTH_FAULT;
+            for (unsigned i = 0; i < 4; ++i)
+                DMMotorEnable(joint[i]);
+            length_demo.mode = LENGTH_ACTIVE;
         }
     }
     if (length_demo.mode == LENGTH_ACTIVE)
@@ -144,17 +154,10 @@ void RobotTask(void)
     }
     if (length_demo.mode == LENGTH_FAULT)
         StopJoints();
-    bool sent = true;
     for (unsigned i = 0; i < 4; ++i)
     {
         const float torque = length_demo.mode == LENGTH_ACTIVE ? length_demo.leg[i / 2u].torque_nm[i % 2u] : 0.0f;
         DMMotorSetRef(joint[i], torque);
-        sent &= DMMotorControlStep(joint[i]) != 0u;
-    }
-    if (!sent)
-    {
-        length_demo.mode = LENGTH_FAULT;
-        StopJoints();
     }
     if (++length_demo.control_cycles % 5u == 0u)
     {

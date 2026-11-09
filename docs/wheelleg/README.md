@@ -7,7 +7,7 @@
 
 - `wheel_leg_rl` 与 `motor_sysid` 两个 H723 构建目标，不改变原默认机器人。
 - 两目标选择专用 `wheelleg_tasks.c`，替代旧的独立 motor/robot/DM 任务。
-- 绝对节拍 500 Hz + 100 Hz 策略调度槽；DWT 记录周期与超时；`wheelleg_timing` 经 message_center 发布。
+- 目标 500 Hz + 100 Hz 策略调度槽（用 vTaskDelay 等待剩余tick）；DWT 记录周期与超时；`wheelleg_timing` 经 message_center 发布。
 - 辨识正弦、线性扫频、平滑平台激励的数学内核和主机数值测试。
 - 从训练仓库生成的接口头：`WL_DEPLOYMENT_CONFIG_READY=0`。
 
@@ -51,9 +51,16 @@ gcc -std=c11 -O2 -Wall -Wextra -Werror -I UserApp/robot/motor_sysid tests/wheell
 - 原默认 `sentry_omni_gimbal` / F4 Debug 回归编译成功，FLASH 85,396 B，RAM 79,336 B。
 - 主机 C 测试通过：正弦、线性扫频相位、包络、边界、NaN 和 Nyquist 检查；使用 `-Wall -Wextra -Werror`。另以 `-Ofast -fno-fast-math` 验证了 NaN 检查。
 - 新 C 源没有直接定位到新增代码的编译警告；完整工程仍有既有警告（日志头多行注释、旧模块未使用变量、packed 对齐等），保留在 `build/<target>/build.log`。本轮未顺带清理。
-- 新目标在 FreeRTOSConfig.h 的 USER CODE 区按 `WHEELLEG_BOOTSTRAP` 开启 `vTaskDelayUntil`，其他目标保持原设置。
+- 历史实现曾在 FreeRTOSConfig.h 条件开启 vTaskDelayUntil；该改动已在31d6358回退。当前仅应用层使用原 vTaskDelay。
 - 修复了原根 CMake 的构建注释换行，否则 CMake 4.1 / Ninja 生成的 rules.ninja 无法解析。
 - 编译通过不代表硬件节拍、CAN 负载或安全联锁已实测。未连接硬件、未下载、未使能电机。
 
 当前用户授权直接使用 `wheelleg_RL`；优先于历史指南中从 master 新开 feature 的示例。
 原有 `.idea/`、未跟踪 `doc/` 与 `tuning/` 不属于此次提交。
+
+
+## 2026-11-09 应用接口适配
+
+底层保持回退后的5d86e5a内容。wheel_leg_rl/motor_sysid空跑调度已移除vTaskDelayUntil依赖，重新编译通过。
+遥控腿长独立目标 `leg_length_demo` 改回原DM异步驱动；说明和未解决的CAN/初始化行为见其README。
+本轮没有部署、烧录或使能硬件。

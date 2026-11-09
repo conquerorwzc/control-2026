@@ -23,18 +23,20 @@ static void LengthTask(void const *argument)
             ++leg_length_overruns;
             wake = xTaskGetTickCount();
         }
-        vTaskDelayUntil(&wake, period);
+        wake += period;
+        const int32_t remaining = (int32_t)(wake - xTaskGetTickCount());
+        if (remaining > 0)
+            vTaskDelay((TickType_t)remaining);
     }
 }
 
 static void LengthDaemonTask(void const *argument)
 {
     (void)argument;
-    TickType_t wake = xTaskGetTickCount();
     for (;;)
     {
         DaemonTask();
-        vTaskDelayUntil(&wake, pdMS_TO_TICKS(10));
+        osDelay(10);
     }
 }
 

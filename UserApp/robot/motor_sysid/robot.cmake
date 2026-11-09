@@ -1,5 +1,5 @@
 set(MCU_TYPE "stm32-h7")
-add_compile_definitions(CHASSIS_BOARD FRICTION_NUM=2 WHEELLEG_BOOTSTRAP)
+add_compile_definitions(CHASSIS_BOARD FRICTION_NUM=2)
 include_directories(${CMAKE_CURRENT_LIST_DIR})
 include_directories(${CMAKE_SOURCE_DIR}/UserApp/robot/wheel_leg_rl/generated)
 list(APPEND SOURCES
