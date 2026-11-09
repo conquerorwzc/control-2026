@@ -119,7 +119,7 @@ void navigator_send(UART_HandleTypeDef *instance, referee_info_t *referee_data, 
     robot_status.power_management_shooter_output = referee_data->GameRobotState.power_management_shooter_output;
     NavigatorTransmit(NAV_CMD_ID_ROBOT_STATUS, (const uint8_t *)&robot_status, sizeof(robot_status), tx_buffer[1]);
   } else {
-    /* cmd_id = 0x0010 机器人速度和 yaw, 数据段 16 字节 */
+    /* cmd_id = 0x0010 机器人速度与角速度, 数据段 20 字节 */
     navigator_send_t speed = *robot_speed  ; /* 假设 referee_info_t 中包含 navigator_send_t 类型的 Speed */
     NavigatorTransmit(NAV_CMD_ID_ROBOT_SPEED, (const uint8_t *)&speed, sizeof(speed), tx_buffer[2]);
   }

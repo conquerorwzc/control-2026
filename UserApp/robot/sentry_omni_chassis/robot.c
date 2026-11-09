@@ -130,7 +130,8 @@ static void NavigatorControlSet(float nav_vx, float nav_vy, float nav_wz, uint8_
     }
     else
         offline_logged = 0;
-    chassis_ctrl_cmd->cmd_frame = CHASSIS_CMD_CHASSIS_FRAME;
+    // 导航指令按云台系解释: 以云台当前指向为 +x; 由 ChassisTask 用 offset_angle 旋转到底盘系
+    chassis_ctrl_cmd->cmd_frame = CHASSIS_CMD_GIMBAL_FRAME;
     // 无效时显式下发零速; 云台板 FillNavCmd 已清零, 这里再兜一次, 防止双板链路半死时沿用陈旧值
     chassis_ctrl_cmd->vx = nav_cmd_valid ? nav_vx : 0.0f;
     chassis_ctrl_cmd->vy = nav_cmd_valid ? nav_vy : 0.0f;
@@ -381,6 +382,7 @@ static void SuperCapControl()
 /* 底盘速度观测反馈: 经 CAN2 0x211 交给云台板, 由它组装导航 0x0010 帧的 vx/vy/wz。
  * 只在观测器 kSpeedObserverValid(轮速反馈新鲜)时上报 fused, 否则显式写 0,
  * 避免把陈旧估计当成真实速度发给导航端。
+ * vx/vy 由底盘系旋转到云台系, 与导航下发的指令坐标系保持一致; wz 与坐标系选择无关, 直接透传。
  * 注意: 0x0010 的第 4 个量(chassis_to_gimbal_yaw)已改为云台板本地从 yaw 编码器解算, 不再经本包传输。 */
 static void FillSpeedFeedback()
 {
@@ -388,9 +390,24 @@ static void FillSpeedFeedback()
         return;
     const SpeedObserverResult_s *speed = robot->chassis->speed;
     const uint8_t speed_ok = (speed != NULL) && ((speed->status & kSpeedObserverValid) != 0u);
-    referee_data->fb_vx = speed_ok ? speed->fused.vx : 0.0f;
-    referee_data->fb_vy = speed_ok ? speed->fused.vy : 0.0f;
-    referee_data->fb_wz = speed_ok ? speed->fused.wz : 0.0f;
+    if (!speed_ok)
+    {
+        referee_data->fb_vx = 0.0f;
+        referee_data->fb_vy = 0.0f;
+        referee_data->fb_wz = 0.0f;
+        return;
+    }
+    /* chassis.c 里命令侧是 v_body = R(offset_angle) * v_gimbal,
+     * 观测侧反过来就是 v_gimbal = R(-offset_angle) * v_body:
+     *   vx_g =  vx_b*cos + vy_b*sin
+     *   vy_g = -vx_b*sin + vy_b*cos
+     * offset_angle 由 CalcOffsetAngle() 每周期从 yaw 编码器更新, 与命令侧用的是同一个量。 */
+    const float theta = chassis_ctrl_cmd->offset_angle * DEGREE_2_RAD;
+    const float cos_t = cosf(theta);
+    const float sin_t = sinf(theta);
+    referee_data->fb_vx = speed->fused.vx * cos_t + speed->fused.vy * sin_t;
+    referee_data->fb_vy = -speed->fused.vx * sin_t + speed->fused.vy * cos_t;
+    referee_data->fb_wz = speed->fused.wz;
 }
 
 void Chassis_CANCommSend()

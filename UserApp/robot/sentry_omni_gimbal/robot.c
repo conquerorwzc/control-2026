@@ -553,12 +553,18 @@ static float ChassisToGimbalYaw(float yaw_ecd_angle) {
   return delta;
 }
 
-/* 底盘相对云台角: 本板编码器本地解算, 与双板链路是否在线无关 */
+/* 云台板本地的姿态量: 底盘相对云台角 + 陀螺仪 yaw 角速度。
+ * 全部直接读本板传感器, 与双板链路是否在线无关。 */
 static void FillNavAttitude() {
-  if (nav_send == NULL || robot->gimbal == NULL || robot->gimbal->yaw_motor == NULL) {
+  if (nav_send == NULL || robot->gimbal == NULL) {
     return;
   }
-  nav_send->yaw = ChassisToGimbalYaw(robot->gimbal->yaw_motor->measure.angle_single_round);
+  if (robot->gimbal->yaw_motor != NULL) {
+    nav_send->yaw = ChassisToGimbalYaw(robot->gimbal->yaw_motor->measure.angle_single_round);
+  }
+  if (robot->gimbal->gimbal_IMU_data != NULL) {
+    nav_send->gimbal_gyro_wz = robot->gimbal->gimbal_IMU_data->Gyro[2];  // IMU 机体系 z 轴角速度, rad/s
+  }
 }
 
 static void DualBoardCtrlSet() {

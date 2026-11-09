@@ -25,8 +25,10 @@
  *   [5..16]  vx, vy, wz (float32 LE)
  *   [17..18] crc16 = CRC16(byte[0..16], init 0xFFFF, poly 0x8408), 低字节在前
  *
- * 速度坐标约定: 底盘机体系右手系，+vx 向前、+vy 向左、+z 向上，+wz 俯视逆时针。
- * sentry_omni_chassis 的 vx/vy 与协议同轴，单位 m/s，直接进入运动学，无 10000 倍缩放。
+ * 速度坐标约定: 上 -> 下的 vx/vy 按【云台系】解释 —— 以云台当前指向为 +x、+y 向左,
+ *               下位机按 offset_angle 旋转到底盘系后再做运动学; +wz 俯视逆时针, 与坐标系无关。
+ *               单位 m/s, 直接进入运动学, 无 10000 倍缩放。
+ *               下 -> 上 0x0010 的 vx/vy 同样已旋转到云台系, 两端坐标系一致。
  *
  *
  * 下 -> 上 (9 + data_length B, 帧头之后多一个 2 B 的 cmd_id):
@@ -37,8 +39,9 @@
  *   [5..6]   cmd_id (uint16 LE)
  *   [7..]    data (data_length 字节)
  *   [末 2]   crc16 = CRC16(byte[0 .. 7+len-1], init 0xFFFF), 低字节在前, 含 cmd_id
- *   cmd_id = 0x0001 比赛状态(11 B) / 0x000B 机器人状态(13 B) / 0x0010 机器人速度和 yaw(16 B)
- *   每个包独立成帧; 0x0010 数据顺序为 vx/vy/wz/yaw, 单位依次为 m/s、m/s、rad/s、度
+ *   cmd_id = 0x0001 比赛状态(11 B) / 0x000B 机器人状态(13 B) / 0x0010 机器人速度和角速度(20 B)
+ *   每个包独立成帧; 0x0010 数据顺序为 vx/vy/wz/chassis_to_gimbal_yaw/gimbal_yaw_rate_imu,
+ *   单位依次为 m/s、m/s、rad/s、度、rad/s, 整帧 9+20 = 29 B
  *
  * 自检: CRC8("123456789") = 0x0B, CRC16("123456789") = 0x6F91
  * =========================================================================== */
@@ -62,7 +65,7 @@
 #define NAV_CMD_ID_ROBOT_SPEED   0x0010u /* 机器人速度 */
 #define NAV_GAME_STATUS_DATA_LEN  11
 #define NAV_ROBOT_STATUS_DATA_LEN 13
-#define NAV_ROBOT_SPEED_DATA_LEN  16
+#define NAV_ROBOT_SPEED_DATA_LEN  20
 
 /* 时序参数 */
 #define NAV_CMD_TIMEOUT_MS      500 /* 看门狗: 超过该时间未收到有效帧 -> 速度归零(协议 §6.1.7) */
@@ -111,10 +114,12 @@ typedef struct {
 } __attribute__((__packed__)) nav_robot_status_t;
 
 typedef struct {
-    float vx;   // 底盘融合速度，m/s
-    float vy;   // 底盘融合速度，m/s
-    float wz;   // 底盘融合角速度，rad/s
+    float vx;   // 云台系速度，m/s（以云台指向为 +x）
+    float vy;   // 云台系速度，m/s（+y 向左）
+    float wz;   // 底盘融合角速度，rad/s（与坐标系选择无关）
     float yaw;  // 底盘相对云台的偏角 chassis_to_gimbal_yaw，度，逆时针为正，范围 ±180
+    // 云台板本地量: 云台陀螺仪解算的 Yaw 轴角速度, 俯视逆时针为正
+    float gimbal_gyro_wz;  // rad/s (IMU 机体系 z 轴)
 } navigator_send_t;
 
 #pragma pack(pop)
@@ -124,7 +129,7 @@ _Static_assert(sizeof(HeaderFrame) == PROTOCOL_HEADER_LEN, "HeaderFrame 必须�
 _Static_assert(sizeof(robot_cmd_t) == NAV_CMD_DATA_LEN, "上->下数据段必须为 12 字节");
 _Static_assert(sizeof(nav_game_status_t) == NAV_GAME_STATUS_DATA_LEN, "0x0001 数据段必须为 11 字节");
 _Static_assert(sizeof(nav_robot_status_t) == NAV_ROBOT_STATUS_DATA_LEN, "0x000B 数据段必须为 13 字节");
-_Static_assert(sizeof(navigator_send_t) == NAV_ROBOT_SPEED_DATA_LEN, "0x0010 数据段必须为 16 字节");
+_Static_assert(sizeof(navigator_send_t) == NAV_ROBOT_SPEED_DATA_LEN, "0x0010 数据段必须为 20 字节");
 
 /* 模块运行时状态(不是线上帧结构, 保持自然对齐) */
 typedef struct {

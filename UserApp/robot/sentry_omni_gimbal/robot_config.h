@@ -36,7 +36,7 @@
 #define RC_LEFT_STICK_DEADZONE 200
 
 // 云台参数
-#define YAW_CHASSIS_ALIGN_ECD 3845 // 云台和底盘对齐指向相同方向时的电机编码器值,若对云台有机械改动需要修改
+#define YAW_CHASSIS_ALIGN_ECD 4098 // 云台和底盘对齐指向相同方向时的电机编码器值,若对云台有机械改动需要修改
 #define PITCH_HORIZON_ECD 2900     // 云台处于水平位置时编码器值,若对云台有机械改动需要修改
 #define PITCH_MAX_ANGLE 165.0f     // 云台竖直方向最大角度 (注意是电机角度)
 #define PITCH_MIN_ANGLE 100.0f     // 云台竖直方向最小角度 (注意是电机角度)

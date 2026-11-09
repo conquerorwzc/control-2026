@@ -40,10 +40,10 @@ typedef struct {
   uint8_t robot_id;  // 本机器人ID（红蓝阵营）
   // uint16_t shooter_barrel_heat_limit;//机器人射击热量上限
   // uint16_t shooter_barrel_cooling_value;//机器人射击热量每秒冷却值
-  // 底盘速度观测反馈, 供导航 0x0010 帧的 vx/vy/wz
-  float fb_vx;   // 底盘系融合速度 m/s
-  float fb_vy;   // 底盘系融合速度 m/s
-  float fb_wz;   // 底盘系融合角速度 rad/s
+  // 底盘速度观测反馈, 已旋转到云台系, 供导航 0x0010 帧的 vx/vy/wz
+  float fb_vx;   // 云台系融合速度 m/s (以云台指向为 +x)
+  float fb_vy;   // 云台系融合速度 m/s (+y 向左)
+  float fb_wz;   // 底盘系融合角速度 rad/s (绕 z 与坐标系无关)
 } Referee_Data;
 
 /* 云台板 -> 底盘板 */
