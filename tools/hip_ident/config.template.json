@@ -1,0 +1,12 @@
+{
+  "model": null,
+  "joints": ["left_front", "left_rear", "right_front", "right_rear"],
+  "initial_keyframe": null,
+  "spring_installed": false,
+  "train_csv": null,
+  "validation_csv": null,
+  "bounds": null,
+  "seed": 0,
+  "trials": 200,
+  "output": "runs/hip_ident"
+}
