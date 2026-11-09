@@ -7,7 +7,6 @@
 #include "memory.h"
 #include "stdlib.h"
 #include "string.h"
-#include <math.h>
 #include "user_lib.h"
 
 static uint8_t idx;
@@ -26,10 +25,10 @@ static float uint_to_float(int x_int, float x_min, float x_max, int bits) {
   return ((float)x_int) * span / ((float)((1 << bits) - 1)) + offset;
 }
 
-static uint8_t DMMotorSetMode(DMMotor_Mode_e cmd, DMMotorInstance* motor) {
+static void DMMotorSetMode(DMMotor_Mode_e cmd, DMMotorInstance* motor) {
   memset(motor->motor_can_instance->tx_buff, 0xff, 7);   // 发送电机指令的时候前面7bytes都是0xff
   motor->motor_can_instance->tx_buff[7] = (uint8_t)cmd;  // 最后一位是命令id
-  return CANTransmit(motor->motor_can_instance, motor->synchronous ? 0.0f : 1.0f);
+  CANTransmit(motor->motor_can_instance, 1);
 }
 
 static void DMMotorDecode(CANInstance* motor_can) {
@@ -99,20 +98,13 @@ static void DMMotorDecode(CANInstance* motor_can) {
     measure->total_round++;
   measure->total_angle = measure->total_round * 2.0f * 12.5f + measure->position;
 
-  motor->feedback_received = 1u;
-  motor->last_feedback_ms = HAL_GetTick();
-  if (motor->synchronous || measure->state != 0) {
+  if (measure->state != 0) {
     DaemonReload(motor->daemon);
   }
 }
 
 // todo: 会跟控制抢，有概率控不了电机
 static void DMMotorLostCallback(void* motor_ptr) {
-  DMMotorInstance* motor = motor_ptr;
-  if (motor->synchronous) {
-    DMMotorStop(motor);
-    return;
-  }
   DMMotorSetMode(DM_CMD_MOTOR_MODE, motor_ptr);
   osDelay(100);
   // DWT_Delay(0.0001f);
@@ -123,10 +115,9 @@ void DMMotorCaliEncoder(DMMotorInstance* motor) {
   DWT_Delay(0.3);
 }
 
-static DMMotorInstance* DMMotorCreate(Motor_Init_Config_s* config, uint8_t synchronous) {
+DMMotorInstance* DMMotorInit(Motor_Init_Config_s* config) {
   DMMotorInstance* motor = (DMMotorInstance*)malloc(sizeof(DMMotorInstance));
   memset(motor, 0, sizeof(DMMotorInstance));
-  motor->synchronous = synchronous;
   motor->motor_type = config->motor_type;
   motor->motor_settings = config->controller_setting_init_config;
 
@@ -148,32 +139,11 @@ static DMMotorInstance* DMMotorCreate(Motor_Init_Config_s* config, uint8_t synch
   };
   motor->daemon = DaemonRegister(&conf);
 
-  if (synchronous) {
-    DMMotorStop(motor);
-    DMMotorSetMode(DM_CMD_RESET_MODE, motor);
-  } else {
-    DMMotorEnable(motor);
-    DMMotorSetMode(DM_CMD_MOTOR_MODE, motor);
-    DWT_Delay(0.1);
-  }
+  DMMotorEnable(motor);
+  DMMotorSetMode(DM_CMD_MOTOR_MODE, motor);
+  DWT_Delay(0.1);
   dm_motor_instance[idx++] = motor;
   return motor;
-}
-
-DMMotorInstance* DMMotorInit(Motor_Init_Config_s* config) { return DMMotorCreate(config, 0u); }
-DMMotorInstance* DMMotorInitSynchronous(Motor_Init_Config_s* config) { return DMMotorCreate(config, 1u); }
-
-uint8_t DMMotorSetHardwareEnabled(DMMotorInstance* motor, uint8_t enabled) {
-  if (!enabled) {
-    const uint8_t was_enabled = motor->stop_flag == MOTOR_ENALBED;
-    motor->motor_controller.final_output = 0.0f;
-    DMMotorStop(motor);
-    return was_enabled ? DMMotorSetMode(DM_CMD_RESET_MODE, motor) : 1u;
-  }
-  motor->motor_controller.final_output = 0.0f;
-  if (!DMMotorSetMode(DM_CMD_MOTOR_MODE, motor)) return 0u;
-  DMMotorEnable(motor);
-  return 1u;
 }
 
 void DMMotorSetRef(DMMotorInstance* motor, float ref) { motor->motor_controller.final_output = ref; }
@@ -234,19 +204,14 @@ void DMMotorSetPIDRef(DMMotorInstance* motor, float ref) {
 }
 
 //@Todo: 目前只实现了力控，更多位控PID等请自行添加
-uint8_t DMMotorControlStep(DMMotorInstance* motor) {
+__attribute__((noreturn)) void DMMotorTask(void const* argument) {
   float set;
+  DMMotorInstance* motor = (DMMotorInstance*)argument;
   Motor_Control_Setting_s* setting = &motor->motor_settings;
-  DM_Motor_Send_s motor_send_mailbox = {0};
+  DM_Motor_Send_s motor_send_mailbox;
 
-  if (motor->synchronous && motor->stop_flag == MOTOR_STOP)
-    return DMMotorSetMode(DM_CMD_RESET_MODE, motor);
-  {
+  while (1) {
     set = motor->motor_controller.final_output;
-    if (motor->synchronous && !isfinite(set)) {
-      DMMotorSetHardwareEnabled(motor, 0u);
-      return 0u;
-    }
 
     if (setting->motor_reverse_flag == MOTOR_DIRECTION_REVERSE) set *= -1;
     switch (motor->motor_type) {
@@ -275,7 +240,7 @@ uint8_t DMMotorControlStep(DMMotorInstance* motor) {
           motor_send_mailbox.torque_des = float_to_uint(0, DM_T_MIN_J8009P, DM_T_MAX_J8009P, 12);
         break;
       default:
-        return 0u;
+        break;
     }
     motor_send_mailbox.Kp = 0;
     motor_send_mailbox.Kd = 0;
@@ -290,14 +255,7 @@ uint8_t DMMotorControlStep(DMMotorInstance* motor) {
     motor->motor_can_instance->tx_buff[6] =
         (uint8_t)(((motor_send_mailbox.Kd & 0xF) << 4) | (motor_send_mailbox.torque_des >> 8));
     motor->motor_can_instance->tx_buff[7] = (uint8_t)(motor_send_mailbox.torque_des);
-    return CANTransmit(motor->motor_can_instance, motor->synchronous ? 0.0f : 1.0f);
-  }
-}
-
-__attribute__((noreturn)) void DMMotorTask(void const* argument) {
-  DMMotorInstance* motor = (DMMotorInstance*)argument;
-  while (1) {
-    DMMotorControlStep(motor);
+    CANTransmit(motor->motor_can_instance, 1);
     osDelay(1);
   }
 }
@@ -307,7 +265,6 @@ void DMMotorTaskInit() {
   // 遍历所有电机实例,创建任务
   if (!idx) return;
   for (size_t i = 0; i < idx; i++) {
-    if (dm_motor_instance[i]->synchronous) continue;
     char dm_id_buff[2] = {0};
     __itoa(i, dm_id_buff, 10);
     strcat(dm_task_name, dm_id_buff);

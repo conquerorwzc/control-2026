@@ -70,9 +70,6 @@ typedef struct {
   DaemonInstance* daemon;
   uint32_t feed_cnt;
   float dt;
-  uint8_t synchronous;
-  uint8_t feedback_received;
-  uint32_t last_feedback_ms;
 } DMMotorInstance;
 
 typedef enum {
@@ -83,11 +80,6 @@ typedef enum {
 } DMMotor_Mode_e;
 
 DMMotorInstance* DMMotorInit(Motor_Init_Config_s* config);
-// 显式同步模式：初始化不使能、不创建电机任务；应用在固定周期调用 ControlStep。
-DMMotorInstance* DMMotorInitSynchronous(Motor_Init_Config_s* config);
-uint8_t DMMotorControlStep(DMMotorInstance* motor);
-uint8_t DMMotorSetHardwareEnabled(DMMotorInstance* motor, uint8_t enabled);
-
 
 void DMMotorSetRef(DMMotorInstance* motor, float ref);
 

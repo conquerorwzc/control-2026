@@ -54,11 +54,7 @@ void MX_FDCAN1_Init(void)
   hfdcan1.Init.DataTimeSeg1 = 29;
   hfdcan1.Init.DataTimeSeg2 = 10;
   hfdcan1.Init.MessageRAMOffset = 0x0;
-#ifdef WHEELLEG_LENGTH_DEMO
-  hfdcan1.Init.StdFiltersNbr = 2;
-#else
   hfdcan1.Init.StdFiltersNbr = 1;
-#endif
   hfdcan1.Init.ExtFiltersNbr = 0;
   hfdcan1.Init.RxFifo0ElmtsNbr = 8;
   hfdcan1.Init.RxFifo0ElmtSize = FDCAN_DATA_BYTES_8;
@@ -106,11 +102,7 @@ void MX_FDCAN2_Init(void)
   hfdcan2.Init.DataTimeSeg1 = 29;
   hfdcan2.Init.DataTimeSeg2 = 10;
   hfdcan2.Init.MessageRAMOffset = 0x854;
-#ifdef WHEELLEG_LENGTH_DEMO
-  hfdcan2.Init.StdFiltersNbr = 2;
-#else
   hfdcan2.Init.StdFiltersNbr = 1;
-#endif
   hfdcan2.Init.ExtFiltersNbr = 0;
   hfdcan2.Init.RxFifo0ElmtsNbr = 8;
   hfdcan2.Init.RxFifo0ElmtSize = FDCAN_DATA_BYTES_8;
