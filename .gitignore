@@ -108,3 +108,20 @@ cmake-build-debug/
 *.jdebug
 
 *.log
+
+# Assistant-created tests: local only
+/tests/wheelleg/test_sysid_signal.c
+/tests/leg_length_demo/run.py
+/tests/leg_length_demo/stubs/arm_math.h
+/tests/leg_length_demo/stubs/bsp_dwt.h
+/tests/leg_length_demo/stubs/main.h
+/tests/leg_length_demo/test_length.c
+/tests/leg_length_demo/test_app.c
+/tests/leg_length_demo/app_stubs/FreeRTOS.h
+/tests/leg_length_demo/app_stubs/cmsis_os.h
+/tests/leg_length_demo/app_stubs/dmmotor.h
+/tests/leg_length_demo/app_stubs/message_center.h
+/tests/leg_length_demo/app_stubs/remote_control.h
+/tests/leg_length_demo/app_stubs/task.h
+/tests/leg_length_demo/app_stubs/test_platform.h
+/tests/leg_length_demo/app_stubs/usart.h
