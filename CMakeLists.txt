@@ -27,7 +27,7 @@ endif() # Debug Release RelWithDebInfo MinSizeRel
 #set(ROBOT_TYPE "infantry_mecanum")
 # set(ROBOT_TYPE "sentry_omni_chassis")
 if (NOT DEFINED ROBOT_TYPE)
-    set(ROBOT_TYPE "sentry_omni_gimbal")
+    set(ROBOT_TYPE "leg_length_demo")
 endif ()
 # set(ROBOT_TYPE "infantry_wheel_legged_sjtu")
 
