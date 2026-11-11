@@ -147,7 +147,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                     .speed_PID =
                         {
                             .Kp = 0.7f,              // N*m/(rad/s)，速度误差到力矩的比例增益
-                            .Ki = 3.0f,              // N*m/rad，速度误差积分增益
+                            .Ki = 2.25f,              // N*m/rad，速度误差积分增益
                             .Kd = 0.0f,              // N*m/(rad/s^2)，速度误差微分增益
                             .DeadBand = 0.0f,        // rad/s，速度误差死区
                             .MaxOut = 7.0f,          // N*m，速度环输出力矩限幅,4310额定3，峰值7
@@ -156,7 +156,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                         },
                     .angle_PID =
                         {
-                            .Kp = 50.0f,            // (rad/s)/rad = 1/s，角度误差到目标速度的比例增益
+                            .Kp = 90.0f,            // (rad/s)/rad = 1/s，角度误差到目标速度的比例增益
                             .Ki = 0.1f,             // (rad/s)/(rad*s) = 1/s^2，角度误差积分增益
                             .Kd = 0.0f,             // (rad/s)/(rad/s)，无量纲，角度误差微分增益；启用微分先行
                             .DeadBand = 0.001f,      // rad，约 0.573 deg，角度误差死区
@@ -182,8 +182,8 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .speed_PID =
                         {
-                            .Kp = 0.6f,              // N*m/(rad/s)，速度误差到力矩的比例增益
-                            .Ki = 2.0f,              // N*m/rad，速度误差积分增益
+                            .Kp = 0.5f,              // N*m/(rad/s)，速度误差到力矩的比例增益
+                            .Ki = 1.8f,              // N*m/rad，速度误差积分增益
                             .Kd = 0.0f,              // N*m/(rad/s^2)，速度误差微分增益
                             .DeadBand = 0.0f,        // rad/s，速度误差死区
                             .MaxOut = 7.0f,          // N*m，速度环输出力矩限幅
@@ -192,11 +192,11 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                         },
                     .angle_PID =
                         {
-                            .Kp = 0.7f,        // (rad/s)/deg，IMU 角度误差到目标速度的比例增益
+                            .Kp = 0.6f,        // (rad/s)/deg，IMU 角度误差到目标速度的比例增益
                             .Ki = 0.0f,         // (rad/s)/(deg*s)，角度误差积分增益
                             .Kd = 0.0f,         // (rad/s)/(deg/s)，角度误差微分增益
                             .DeadBand = 0.01f,  // deg，IMU 角度误差死区
-                            .MaxOut = 8.0f,     // rad/s，目标速度限幅；0.05 rad、2.5 Hz 的理想速度峰值为 0.785 rad/s
+                            .MaxOut = 5.0f,     // rad/s，目标速度限幅；0.05 rad、2.5 Hz 的理想速度峰值为 0.785 rad/s
                             .IntegralLimit = 0.0f,        // rad/s，积分输出限幅
                             .Improve = PID_IMPROVE_NONE,  // 无量纲，优化功能位标志
                         },
@@ -272,6 +272,8 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                         },
                 },
         },
+    // 连发期间独立抬升力矩首轮试验值；经方向映射后叠加到速度PID输出。
+    .burst_config = {.big_pitch_nm = 0.5f, .small_pitch_nm = 0.05f},
     .gravity_config =
         {
             .big_pitch_scale_nm = 1.35f,    // N*m，大轴近端重力矩系数，不含小轴末端偏心项

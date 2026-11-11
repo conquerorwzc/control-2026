@@ -28,6 +28,7 @@ typedef struct {
     float chassis_rotate_wz;  // 底盘旋转角速度前馈，使用前须与速度环反馈统一单位和方向
     Gimbal_Big_Pitch_Pose_e big_pitch_pose;  // 大 Pitch 目标姿态，不表示已经到位
     Gimbal_Mode_e gimbal_mode;
+    uint8_t burst_feedforward_enabled;  // 连发指令有效期间置1，不代表已实际出弹
 } Gimbal_Ctrl_Cmd_s;
 /* 重力补偿极性定义
  *      o--------o---------Δ
@@ -54,6 +55,12 @@ typedef struct {
 } GravityFeedforwardInstance;
 
 typedef struct {
+    // 正值沿各关节物理抬升方向；经gravity_config方向映射及电机反向转换到PID坐标。
+    float big_pitch_nm;
+    float small_pitch_nm;
+} BurstFeedforward_Init_Config_s;
+
+typedef struct {
     Motor_Init_Config_s big_yaw_motor_config;      // DM-J4310
     Motor_Init_Config_s small_yaw_motor_config;    // DM-J4310
     Motor_Init_Config_s big_pitch_motor_config;    // DM-J4310
@@ -61,6 +68,7 @@ typedef struct {
     PID_Init_Config_s Yaw_Follow_PID;
     IMU_Init_Config_s imu_init_config;  // IMU 安装在枪口/小 Pitch 上，用于绝对姿态反馈
     GravityFeedforward_Init_Config_s gravity_config;  // 串联双 Pitch 重力补偿配置
+    BurstFeedforward_Init_Config_s burst_config;
 } Gimbal_Init_Config_s;
 
 typedef struct {
@@ -72,6 +80,11 @@ typedef struct {
     PIDInstance yaw_follow;
     INS_t* gimbal_IMU_data;  // 枪口 IMU 数据；电机编码器用于关节相对角度和机械限位
     GravityFeedforwardInstance gravity_feedforward;
+    BurstFeedforward_Init_Config_s burst_config;
+    float big_pitch_burst_feedforward;    // PID坐标，N*m
+    float small_pitch_burst_feedforward;  // PID坐标，N*m
+    float big_pitch_total_feedforward;    // 重力+连发，供驱动读取
+    float small_pitch_total_feedforward;
 } GimbalInstance;
 /**
  * @brief 初始化云台,会被RobotInit()调用

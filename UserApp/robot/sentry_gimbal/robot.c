@@ -6,6 +6,18 @@
 static RobotInstance robot_instance;
 static RobotInstance *robot = &robot_instance;
 
+static uint8_t UpdateBurstSelection(uint8_t left, int16_t dial, uint8_t control_enabled)
+{
+    static uint8_t burst_selected;
+    if (!control_enabled || !switch_is_up(left))
+        burst_selected = 0;
+    else if (dial < -100)
+        burst_selected = 0;
+    else if (dial > 100)
+        burst_selected = 1;
+    return burst_selected;
+}
+
 static void RemoteControlSet(void)
 {
     Gimbal_Ctrl_Cmd_s *gimbal_cmd = &robot->gimbal->gimbal_ctrl_cmd;
@@ -16,9 +28,11 @@ static void RemoteControlSet(void)
     */
     robot->robot_mode = ROBOT_POWER_OFF;
     gimbal_cmd->gimbal_mode = GIMBAL_POWER_OFF;
+    gimbal_cmd->burst_feedforward_enabled = 0;
     if (robot->rc_data == NULL || !RemoteControlIsOnline())
     {
         // load_period_ms = LOADER_STEP_PERIOD_MID_MS;
+        UpdateBurstSelection(0, 0, 0);
         return;
     }
 
@@ -27,6 +41,7 @@ static void RemoteControlSet(void)
     if (switch_is_off(left) || switch_is_off(right))
     {
         // load_period_ms = LOADER_STEP_PERIOD_MID_MS;
+        UpdateBurstSelection(0, 0, 0);
         return;
     }
 
@@ -55,9 +70,15 @@ static void RemoteControlSet(void)
     */
     // 右中水平、右上垂直；两档均使能云台，右下关闭云台。
     if (!(switch_is_mid(right) || switch_is_up(right)))
+    {
+        UpdateBurstSelection(0, 0, 0);
         return;
+    }
     robot->robot_mode = ROBOT_POWER_ON;
     gimbal_cmd->gimbal_mode = GIMBAL_ON;
+    // 发射由另一块板控制；镜像原遥控锁存语义，仅用于云台连发补偿。
+    gimbal_cmd->burst_feedforward_enabled = UpdateBurstSelection(
+        left, robot->rc_data[TEMP].rc.dial, 1);
     gimbal_cmd->big_pitch_pose = switch_is_up(right) ? GIMBAL_BIG_PITCH_HORIZONTAL : GIMBAL_BIG_PITCH_VERTICAL;
 
     // 同步新版四轴：小 Yaw 改为 J4310，IMU 目标仍为 deg；暂不启用大 Yaw 跟随。

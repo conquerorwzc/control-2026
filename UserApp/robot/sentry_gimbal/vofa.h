@@ -35,6 +35,8 @@ void VofaTick(void); // 采样并发送一帧DMA JustFloat；RobotTask末尾调�
 // 21-23  IMU 安装修正及杆臂补偿后的 Accel[0..2] m/s^2（不是去重力加速度）
 // 24     右摇杆竖直原值，验证目标是否因残余输入持续累加
 // 力矩指令均为驱动 motor_reverse_flag 处理前的 PID 坐标；小 Pitch 发送时整体取反。
+// 9/18含重力及连发前馈，11/20仍只表示重力；连发期间分解PID输出还需扣除连发项。
+// 连发项可观察gimbal的big_pitch_burst_feedforward/small_pitch_burst_feedforward；当前各+0.03 N*m。
 // 关闭时 PID 状态会清零，角度 Ref 不表示下一次使能目标；目标误差只统计使能稳定段。
 // 本布局不采集电机反馈力矩；保留积分及前馈以区分控制输出来源。
 #define VOFA_CHANNEL_NUM 25U

@@ -12,6 +12,22 @@ static GimbalInstance *gimbal; //云台实例
 static Gimbal_Ctrl_Cmd_s *gimbal_ctrl_cmd; // 声明但不初始化
 static uint8_t gimbal_enabled;  //使能标志位，上电保持原有姿态有关
 
+static float PitchTorqueToPID(const DMMotorInstance *motor, float direction, float torque_nm)
+{
+    float output = direction * torque_nm;
+    return motor->motor_settings.motor_reverse_flag == MOTOR_DIRECTION_REVERSE ? -output : output;
+}
+
+static void ClearPitchFeedforward(void)
+{
+    gimbal->gravity_feedforward.big_pitch_feedforward = 0.0f;
+    gimbal->gravity_feedforward.small_pitch_feedforward = 0.0f;
+    gimbal->big_pitch_burst_feedforward = 0.0f;
+    gimbal->small_pitch_burst_feedforward = 0.0f;
+    gimbal->big_pitch_total_feedforward = 0.0f;
+    gimbal->small_pitch_total_feedforward = 0.0f;
+}
+
 static int UpdateGimbalGravity(void)
 {
     DMMotorInstance *big_motor = gimbal->big_pitch_motor;
@@ -58,6 +74,27 @@ static int UpdateGimbalGravity(void)
     instance->small_pitch_feedforward = small_feedforward;
     return 1;
 }
+
+static void UpdatePitchFeedforward(void)
+{
+    if (!UpdateGimbalGravity()) {
+        ClearPitchFeedforward();
+        return;
+    }
+    const GravityFeedforward_Init_Config_s *config = &gimbal->gravity_feedforward.config;
+    // 与重力补偿相同：物理关节方向 -> 编码器坐标 -> PID坐标。
+    // 连发补偿是独立恒定力矩，不乘姿态余弦，不随控制周期累加。
+    gimbal->big_pitch_burst_feedforward = gimbal_ctrl_cmd->burst_feedforward_enabled ?
+        PitchTorqueToPID(gimbal->big_pitch_motor, config->big_pitch_direction,
+                         gimbal->burst_config.big_pitch_nm) : 0.0f;
+    gimbal->small_pitch_burst_feedforward = gimbal_ctrl_cmd->burst_feedforward_enabled ?
+        PitchTorqueToPID(gimbal->small_pitch_motor, config->small_pitch_direction,
+                         gimbal->burst_config.small_pitch_nm) : 0.0f;
+    gimbal->big_pitch_total_feedforward = gimbal->gravity_feedforward.big_pitch_feedforward +
+        gimbal->big_pitch_burst_feedforward;
+    gimbal->small_pitch_total_feedforward = gimbal->gravity_feedforward.small_pitch_feedforward +
+        gimbal->small_pitch_burst_feedforward;
+}
 static void ResetController(Motor_Controller_s *controller)
 {
     PIDClear(&controller->angle_PID);
@@ -69,8 +106,7 @@ static void ResetController(Motor_Controller_s *controller)
 
 static void StopGimbal(void)
 {
-    gimbal->gravity_feedforward.big_pitch_feedforward = 0.0f;
-    gimbal->gravity_feedforward.small_pitch_feedforward = 0.0f;
+    ClearPitchFeedforward();
     DMMotorStop(gimbal->big_pitch_motor);
     DMMotorStop(gimbal->small_pitch_motor);
     DMMotorStop(gimbal->big_yaw_motor);
@@ -94,6 +130,7 @@ GimbalInstance *GimbalInit(Gimbal_Init_Config_s *gimbal_init_config)
     gimbal->gimbal_IMU_data = INS_Init(&gimbal_init_config->imu_init_config);
 
     gimbal->gravity_feedforward.config = gimbal_init_config->gravity_config;
+    gimbal->burst_config = gimbal_init_config->burst_config;
 
     Motor_Init_Config_s *small_pitch_config = &gimbal_init_config->small_pitch_motor_config;
     small_pitch_config->controller_param_init_config.other_angle_feedback_ptr = &gimbal->gimbal_IMU_data->Pitch;
@@ -132,13 +169,13 @@ GimbalInstance *GimbalInit(Gimbal_Init_Config_s *gimbal_init_config)
     gimbal->small_pitch_motor = DMMotorInit(small_pitch_config);
     DMMotorStop(gimbal->small_pitch_motor);
 
-    // 重力补偿前馈指针绑定
+    // 重力+连发补偿前馈指针绑定；重力单独保留供原VOFA通道观察。
     // CURRENT_FEEDFORWARD 在速度 PID 后叠加 N*m；SPEED_FEEDFORWARD 的单位是 rad/s。
     gimbal->big_pitch_motor->motor_controller.current_feedforward_ptr =
-        &gimbal->gravity_feedforward.big_pitch_feedforward;
+        &gimbal->big_pitch_total_feedforward;
     gimbal->big_pitch_motor->motor_settings.feedforward_flag |= CURRENT_FEEDFORWARD;
     gimbal->small_pitch_motor->motor_controller.current_feedforward_ptr =
-        &gimbal->gravity_feedforward.small_pitch_feedforward;
+        &gimbal->small_pitch_total_feedforward;
     gimbal->small_pitch_motor->motor_settings.feedforward_flag |= CURRENT_FEEDFORWARD;
 
     gimbal->big_yaw_motor = DMMotorInit(big_yaw_config);
@@ -168,7 +205,7 @@ void GimbalTask(void)
         return;
     }
     // 必须先更新前馈，再计算两轴 PID。
-    UpdateGimbalGravity();
+    UpdatePitchFeedforward();
     // 小轴角度反馈为 deg，速度反馈为 rad/s；角度 PID 的输出须按 rad/s 整定。
     DMMotorSetPIDRef(gimbal->small_yaw_motor, gimbal_ctrl_cmd->yaw);
     DMMotorSetPIDRef(gimbal->small_pitch_motor, gimbal_ctrl_cmd->pitch);
