@@ -26,9 +26,12 @@ endif() # Debug Release RelWithDebInfo MinSizeRel
 # 其余已修复机器人预留配置；需要时取消对应一行的注释即可。
 #set(ROBOT_TYPE "infantry_mecanum")
 # set(ROBOT_TYPE "sentry_omni_chassis")
- set(ROBOT_TYPE "sentry_omni_gimbal")
+# set(ROBOT_TYPE "sentry_omni_gimbal")
+# set(ROBOT_TYPE "sentry_gimbal_demo")
 # set(ROBOT_TYPE "infantry_wheel_legged_sjtu")
-
+# set(ROBOT_TYPE "loader_test")
+# set(ROBOT_TYPE "sentry_friction")
+set(ROBOT_TYPE "sentry_gimbal")
 set(ROBOT_CMAKE "${CMAKE_SOURCE_DIR}/UserApp/robot/${ROBOT_TYPE}/robot.cmake")
 if (NOT EXISTS "${ROBOT_CMAKE}")
     message(FATAL_ERROR "Unknown ROBOT_TYPE '${ROBOT_TYPE}': ${ROBOT_CMAKE} does not exist")
