@@ -1,8 +1,9 @@
 /**
- * @file dart_launcher.h
- * @brief dart 发射架执行层: 5 个执行器(1xM2006 yaw + 2xM3508 同步带 + 1xM3508 扳机丝杆 + 1xPWM 舵机)的状态机与闭环控制
+ * @file shoot.h
+ * @brief dart 发射机构(shoot_dart): 2xM3508 同步带 + 1xM3508 扳机丝杆 + 1xPWM 舵机的状态机与闭环控制
  *
- * 扳机子系统含两个执行器:
+ * 执行器(发射架 yaw 已拆到 components/gimbal/gimbal_dart, 本模块不再涉及):
+ *   - 同步带(M3508 x2, 位置环串级): 水平对置驱动挡块, 把发射平台向后拉(储能)/复位(释放);
  *   - 扳机丝杆(M3508, 位置环串级): 扳机整体在丝杆上的位置, 决定卡住发射平台时拉簧的拉伸量(射力, 可调);
  *   - 扳机舵机(PWM, 50Hz 占空比->角度, 开环): 扳机的发射动作, 卡位角扣住发射平台 / 释放角放开发射。
  *
@@ -14,6 +15,9 @@
  *      (扳机锁定态是单向通道, 平台会滑过扳机, 不会堵转) -> 限速复位到释放位置;
  *   3. 就绪(READY)后可随时调射力(丝杆位置);
  *   4. 发射命令: 舵机转到释放角放开发射平台, 随后自动回卡位角待下一发。
+ *
+ * 蜂鸣器提示(dart_buzzer.c/h, 同目录): 校准/储能/发射/命令拒绝等事件由本模块直接调用;
+ * 遥控失联、调试档、使能沿等机器人级提示由 robot.c 调用。
  */
 #pragma once
 
@@ -22,7 +26,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* 发射架状态 */
+/* 发射机构状态 */
 typedef enum {
   DART_STATE_IDLE = 0,   // 待机: 挡块在回缩位, 扳机在卡位, 未储能(或刚发射完)
   DART_STATE_CALIBRATING,  // 释放方向零位校准中
@@ -70,9 +74,8 @@ typedef struct {
   uint32_t start_ms;  // 开始累计的时刻
 } StallDetector_s;
 
-/* 发射架实例 */
+/* 发射机构实例 */
 typedef struct {
-  DJIMotorInstance* yaw_motor;      // M2006 发射架 yaw
   DJIMotorInstance* belt_motor[2];  // M3508 同步带电机 [0]左 [1]右, 同一位置目标严格同步
   DJIMotorInstance* screw_motor;    // M3508 扳机丝杆: 扳机整体位置(拉簧拉伸量=射力)
   PWMInstance* servo_pwm;           // PWM 舵机: 扳机发射动作(卡位角/释放角)
@@ -87,14 +90,11 @@ typedef struct {
   // 逻辑坐标零点
   float belt_zero_offset[2];  // 同步带: 释放方向硬限位处的 total_angle
   float screw_zero_offset;    // 丝杆: 零点处的 total_angle(不自动校零时为 0, 即开机位置)
-  float yaw_boot_angle;       // yaw 开机角度
 
   // 控制目标(逻辑坐标)
   float belt_pos_target;    // 同步带目标 (deg, 正=储能方向)
-  float yaw_angle_target;   // yaw 目标角 (deg, 相对开机)
   float screw_pos_deg;      // 扳机丝杆位置(射力, 可调, deg 相对丝杆零点)
   float servo_angle_deg;    // 舵机当前目标角 (deg)
-  float yaw_rate_cmd_dps;   // yaw 角速度指令 (deg/s)
 
   // 序列子步骤与计时
   Dart_Cali_Step_e cali_step;
@@ -103,7 +103,7 @@ typedef struct {
   Dart_Cmd_e pending_cmd;
   uint32_t step_start_ms;
   uint32_t cali_start_ms;
-  uint32_t last_ms;       // 上次任务时间戳, 用于 yaw 积分
+  uint32_t last_ms;       // 上次任务时间戳, 用于计算任务周期 dt(调试点动积分)
   uint32_t sync_warn_ms;  // 同步偏差告警限频
   uint32_t cali_log_ms;   // 校准进度日志限频
 
@@ -137,45 +137,40 @@ typedef struct {
   float debug_belt_rate_last;   // 上周期点动速率(松手沿检测: 松手瞬间收回目标, 防"松手后飘一段")
   float debug_screw_rate_last;
   uint32_t debug_log_ms;        // 调试档状态日志限频
-} DartLauncherInstance;
+} ShootDartInstance;
 
 /**
- * @brief 初始化发射架: 注册电机/PWM 舵机并复位状态机
+ * @brief 初始化发射机构: 注册同步带/丝杆电机与 PWM 舵机并复位状态机
  */
-DartLauncherInstance* DartLauncherInit(void);
+ShootDartInstance* ShootDartInit(void);
 
 /**
- * @brief 使能/失能发射架; 失能立即停机并中止进行中的序列;
- *        重新使能时会重同步 yaw 目标并清 PID(防失能期间被手推动后跳变);
+ * @brief 使能/失能发射机构; 失能立即停机并中止进行中的序列;
+ *        重新使能时会重同步目标并清 PID(防失能期间被手推动后跳变);
  *        auto_cali = true 且未校准时自动开始零位校准, 调试档传 false(先点动验方向, 手动校准)
  */
-void DartLauncherSetEnable(DartLauncherInstance* inst, bool enable, bool auto_cali);
+void ShootDartSetEnable(ShootDartInstance* inst, bool enable, bool auto_cali);
 
 /**
  * @brief 下发一次性命令(校准/储能/发射), 非法状态下忽略
  */
-void DartLauncherSetCommand(DartLauncherInstance* inst, Dart_Cmd_e cmd);
+void ShootDartSetCommand(ShootDartInstance* inst, Dart_Cmd_e cmd);
 
 /**
  * @brief 扳机丝杆位置(射力)微调, 自动限幅, **仅 IDLE 生效**
  *        (READY 时平台被扳机锁住、拉簧带载, 动丝杆=带载推棘爪, 有误释放/卡滞风险)
  */
-void DartLauncherAdjustScrewPos(DartLauncherInstance* inst, float delta_deg);
+void ShootDartAdjustScrewPos(ShootDartInstance* inst, float delta_deg);
 
 /**
  * @brief 直接设定舵机角度(自动限幅), 用于标定卡位角/释放角
  */
-void DartLauncherSetServoAngle(DartLauncherInstance* inst, float angle_deg);
+void ShootDartSetServoAngle(ShootDartInstance* inst, float angle_deg);
 
 /**
  * @brief 舵机角度增量(自动限幅), 调试档用: 松手即停, 防止绝对映射松手跳变误触发
  */
-void DartLauncherAdjustServoAngle(DartLauncherInstance* inst, float delta_deg);
-
-/**
- * @brief 设置 yaw 角速度指令, 由状态机积分成角度目标
- */
-void DartLauncherSetYawRate(DartLauncherInstance* inst, float rate_dps);
+void ShootDartAdjustServoAngle(ShootDartInstance* inst, float delta_deg);
 
 /**
  * @brief 调试点动(IDLE/READY 生效; READY 只动同步带——平台被扳机锁住, 丝杆锁定):
@@ -185,9 +180,9 @@ void DartLauncherSetYawRate(DartLauncherInstance* inst, float rate_dps);
  * @param screw_speed_dps 丝杆点动速率(deg/s): 与同步带同机制积分出虚拟位置目标,
  *                       0 = 目标保持(位置环顶住不滑走), 顶限位时暂停积分不持续出力
  */
-void DartLauncherSetDebugJog(DartLauncherInstance* inst, bool enable, float belt_speed_dps, float screw_speed_dps);
+void ShootDartSetDebugJog(ShootDartInstance* inst, bool enable, float belt_speed_dps, float screw_speed_dps);
 
 /**
- * @brief 发射架周期任务, 由 RobotTask 以 ~1kHz 调用
+ * @brief 发射机构周期任务, 由 RobotTask 以 ~1kHz 调用
  */
-void DartLauncherTask(DartLauncherInstance* inst);
+void ShootDartTask(ShootDartInstance* inst);

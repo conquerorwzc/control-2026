@@ -8,6 +8,10 @@
  *   - screw:  M3508 x1, 扳机丝杆, 控制扳机整体位置(决定拉簧拉伸量=射力, 可调)
  *   - servo:  PWM 舵机 x1, 扳机的发射动作(卡位角扣住/释放角放开), 50Hz 占空比->角度
  *
+ * 执行层拆分(UserApp/components, 由 robot.cmake 的 GIMBAL_TYPE/SHOOT_TYPE 选择):
+ *   - shoot_dart : 同步带 x2 + 扳机丝杆 + 扳机舵机(状态机/校准/储能/发射);
+ *   - gimbal_dart: 发射架 yaw(角速度指令积分 + 角度环)。
+ *
  * 坐标约定:
  *   - 同步带逻辑坐标: 0 = 释放方向硬限位(堵转校准得到), 正方向 = 储能方向
  *   - 丝杆逻辑坐标:   0 = 丝杆零点(校准顶到的硬限位), 数值越大射力越大(方向按实机标定)
@@ -67,7 +71,7 @@
 /* ================= 零位校准参数 =================
  * 上电使能后自动执行一次, **只做同步带**: 顶释放方向硬限位(两侧零点同步) -> 回撤到释放位置;
  * 全程严格限制电机力矩, 完成后才允许储能/发射。
- * 扳机丝杆**不参与自动校准**(dart_launcher.c 里丝杆校准代码已 #if 0 停用),
+ * 扳机丝杆**不参与自动校准**(shoot_dart/shoot.c 里丝杆校准代码已 #if 0 停用),
  * 丝杆零点直接取"开机位置", 因此 DART_SCREW_POS_* 是相对开机位置的角度。 */
 #define DART_BELT_CALI_SPEED_DPS 1000.0f          // 同步带顶硬限位速度 (deg/s)
 #define DART_BELT_CALI_DIRECTION (-1.0f)       // 同步带释放方向符号(零点取这一端); 实机相反时改 +1.0f
@@ -84,7 +88,7 @@
  * 扳机锁定状态下是单向通道: 发射平台会滑过扳机继续被向后拉, 因此储能时同步带不会堵转,
  * 储能只按位置行程推进(拉到位 -> 限速复位到释放位置), 不依赖堵转判完成;
  * 仅当超过滑台行程等异常顶死时, 由堵转看门狗直接判故障停机(两侧同时转不动才算顶死)。
- * 双带控制采用**共模/差模解耦**(dart_launcher.c BeltSyncUpdate):
+ * 双带控制采用**共模/差模解耦**(shoot_dart/shoot.c BeltSyncUpdate):
  *   - 共模环: 两侧平均位置跟目标, 两电机得到**完全相同**的速度给定 -> 出力均担(real_current 不再一大一小);
  *   - 差模环: 主动把两侧位置差收敛到基准 -> 不同步自动纠正, **只纠偏不停机**;
  *   各阶段限速通过共模环 MaxOut 实现, 最终不超过 DART_BELT_MAX_SPEED_DPS(电机级硬上限) */
@@ -152,7 +156,7 @@
  * 丝杆位置决定卡住发射平台时拉簧的拉伸量, 直接影响发射力量和速度(可调)。
  * 逻辑坐标零点 = 开机位置(不做自动校零), 数值越大射力越大(方向按实机标定)。
  * @note 每次上电的开机位置不同, 所以射力位置只在上电后相对可重复;
- *       需要跨上电绝对重复, 就恢复 dart_launcher.c 里的丝杆零位校准(#if 0 那段)。 */
+ *       需要跨上电绝对重复, 就恢复 shoot_dart/shoot.c 里的丝杆零位校准(#if 0 那段)。 */
 #define DART_SCREW_POS_DEFAULT_DEG 30.0f   // 默认射力位置(相对开机位置, deg)
 #define DART_SCREW_POS_MIN_DEG 10.0f       // 射力位置下限(相对开机位置, deg)
 #define DART_SCREW_POS_MAX_DEG 90.0f       // 射力位置上限(相对开机位置, 须 < 丝杆可走行程)
@@ -164,7 +168,7 @@
 #define DART_SCREW_SETTLE_TIMEOUT_MS 2000  // 储能前丝杆就位超时 (ms)
 
 /* 扳机丝杆零位校准参数: **[已停用]** 自动校准不再执行丝杆校零, 这些宏当前无引用,
- * 仅保留供恢复 dart_launcher.c 里 #if 0 那段丝杆校准代码时使用 */
+ * 仅保留供恢复 shoot_dart/shoot.c 里 #if 0 那段丝杆校准代码时使用 */
 #define DART_SCREW_CALI_SPEED_DPS 3600.0f        // 顶硬限位速度 (deg/s)
 #define DART_SCREW_CALI_DIRECTION (-1.0f)     // 顶限位方向(零点取这一端); 实机零点在另一端时改 +1.0f
 #define DART_SCREW_CALI_MAX_OUT 3000.0f       // 校准严格限流 (M3508 满量程 16384)
@@ -189,7 +193,8 @@
 #define DART_SERVO_SETTLE_MS 300                // 舵机动作等待时间 (ms, 开环无反馈)
 #define DART_FIRE_DWELL_MS 500                  // 发射时释放角保持时间 (ms)
 
-/* ================= yaw 参数 ================= */
+/* ================= yaw(云台)参数 =================
+ * 由 components/gimbal/gimbal_dart 使用: 摇杆给角速度, 云台积分成角度目标后角度环跟踪 */
 #define DART_YAW_SENSITIVITY_DPS 80000.0f   // 满杆 yaw 角速度 (deg/s)
 #define DART_YAW_SOFT_LIMIT_DEG 200000.0f   // 相对开机位置的软限位 (deg)
 #define DART_YAW_LEAD_LIMIT_DEG 100000.0f    // 目标角超前反馈的限幅, 防目标跑飞 (deg)
@@ -233,7 +238,7 @@
 #define DART_SYNC_WARN_PERIOD_MS 1000  // 同步偏差告警的最小打印间隔
 
 /**
- * @brief yaw 电机(M2006)配置: 角度环串级速度环
+ * @brief yaw 电机(M2006)配置: 角度环串级速度环(gimbal_dart 使用)
  */
 #define DART_YAW_MOTOR_CONFIG(can_h, _id)                                      \
   {                                                                            \

@@ -1,11 +1,16 @@
 /**
  * @file robot.h
  * @brief dart 发射架机器人入口: 实例定义与任务接口
+ *
+ * 执行层按机构拆分(见 UserApp/components):
+ *   - shoot  (shoot/shoot_dart):  同步带 x2 + 扳机丝杆 + 扳机舵机的状态机;
+ *   - gimbal (gimbal/gimbal_dart): 发射架 yaw。
  */
 #pragma once
 
-#include "dart_launcher.h"
+#include "gimbal.h"
 #include "remote_control.h"
+#include "shoot.h"
 
 /* 机器人模式 */
 typedef enum {
@@ -15,8 +20,9 @@ typedef enum {
 
 /* 机器人主实例 */
 typedef struct {
-  DartLauncherInstance* launcher;  // 发射架执行层
-  RC_ctrl_t* rc_data;              // DR16 遥控器
+  ShootDartInstance* shoot;    // 发射机构: 同步带/扳机丝杆/扳机舵机
+  GimbalDartInstance* gimbal;  // 云台: 发射架 yaw
+  RC_ctrl_t* rc_data;          // DR16 遥控器
   Robot_Mode_e robot_mode;
 } RobotInstance;
 

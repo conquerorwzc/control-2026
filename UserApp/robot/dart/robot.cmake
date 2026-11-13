@@ -1,7 +1,18 @@
-include_directories(${CMAKE_CURRENT_LIST_DIR})
+# Set the type of gimbal and shooter modules for dart robot
+set(GIMBAL_TYPE gimbal_dart)
+set(SHOOT_TYPE shoot_dart)
 
+# Include directories for header file searching
+include_sub_directories_recursively(${CMAKE_CURRENT_LIST_DIR})
+include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/UserApp/components/shoot/${SHOOT_TYPE})
+include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/UserApp/components/gimbal/${GIMBAL_TYPE})
+
+# Define source files for the robot application
 file(GLOB ROBOT_SOURCES
         "${CMAKE_CURRENT_LIST_DIR}/*.c"
+        "${CMAKE_SOURCE_DIR}/UserApp/components/gimbal/${GIMBAL_TYPE}/*.c"
+        "${CMAKE_SOURCE_DIR}/UserApp/components/shoot/${SHOOT_TYPE}/*.c"
 )
 
+# Add the robot source files to the global SOURCES list
 list(APPEND SOURCES ${ROBOT_SOURCES})

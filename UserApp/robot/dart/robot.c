@@ -2,18 +2,26 @@
  * @file robot.c
  * @brief dart 发射架机器人入口: DR16 遥控器解析、使能/急停安全逻辑与命令分发
  *
+ * 执行层按机构拆分:
+ *   - shoot  (components/shoot/shoot_dart):  同步带/扳机丝杆/扳机舵机状态机;
+ *   - gimbal (components/gimbal/gimbal_dart): 发射架 yaw。
+ * 本文件只做遥控器解析、安全逻辑与命令分发, 具体闭环在各组件内。
+ *
  * 操作映射见 robot_config.h 底部说明。
  */
 #include "robot.h"
 
 #include "bsp_log.h"
 #include "dart_buzzer.h"
+#include "gimbal.h"
 #include "main.h"
 #include "robot_config.h"
+#include "shoot.h"
 #include "user_lib.h"
 
 static RobotInstance* robot = NULL;
-static DartLauncherInstance* launcher = NULL;
+static ShootDartInstance* shoot = NULL;
+static GimbalDartInstance* gimbal = NULL;
 static RC_ctrl_t* rc_data = NULL;
 static bool rc_was_online = true;   // 用于失联/恢复边沿提示
 static bool was_debug_mode = false; // 用于进入调试档边沿提示
@@ -41,7 +49,10 @@ static void SafetyUpdate(void) {
   bool sw_valid = (sw_right == RC_SW_UP) || (sw_right == RC_SW_MID) || (sw_right == RC_SW_DOWN);
   bool debug = switch_is_up(sw_right);
   bool enable = online && sw_valid && !switch_is_down(sw_right);
-  DartLauncherSetEnable(launcher, enable, !debug);
+  ShootDartSetEnable(shoot, enable, !debug);
+  // 故障(FAULT)时 yaw 断力矩(无弹簧负载), 用状态门控使能:
+  // 这样故障期间不会被本函数反复重新使能, 只有离开 FAULT(重新校准)后 yaw 才自动恢复
+  GimbalDartSetEnable(gimbal, enable && shoot->state != DART_STATE_FAULT);
   robot->robot_mode = enable ? ROBOT_POWER_ON : ROBOT_EMERGENCY_STOP;
 
   // 失联/恢复边沿提示(持续指示由 dart_buzzer 维护)
@@ -65,7 +76,7 @@ static void RCCommandUpdate(void) {
   RC_ctrl_t* rc = &rc_data[TEMP];
 
   // 左摇杆水平 -> yaw 角速度(两档一致)
-  DartLauncherSetYawRate(launcher, StickToNorm(rc->rc.rocker_l_) * DART_YAW_SENSITIVITY_DPS);
+  GimbalDartSetYawRate(gimbal, StickToNorm(rc->rc.rocker_l_) * DART_YAW_SENSITIVITY_DPS);
 
   // 右摇杆竖直 -> 扳机丝杆(两档同轴): 正常档 = 射力微调; 调试档 = 点动
   float screw_stick = StickToNorm(rc->rc.rocker_r1);
@@ -76,16 +87,16 @@ static void RCCommandUpdate(void) {
     // 右摇杆水平 = 舵机角度增量(松手即停, 防松手跳变误触发)
     float servo_stick = StickToNorm(rc->rc.rocker_r_);
     if (servo_stick != 0.0f) {
-      DartLauncherAdjustServoAngle(launcher, servo_stick * DART_SERVO_ADJ_DPS * DART_TASK_DT_S);
+      ShootDartAdjustServoAngle(shoot, servo_stick * DART_SERVO_ADJ_DPS * DART_TASK_DT_S);
     }
     // 左摇杆竖直 = 同步带点动(上推=储能方向); 右摇杆竖直 = 丝杆点动(上推=射力增大)
-    DartLauncherSetDebugJog(launcher, true, StickToNorm(rc->rc.rocker_l1) * DART_DEBUG_BELT_MAX_SPEED_DPS,
-                            screw_stick * DART_DEBUG_SCREW_MAX_SPEED_DPS);
+    ShootDartSetDebugJog(shoot, true, StickToNorm(rc->rc.rocker_l1) * DART_DEBUG_BELT_MAX_SPEED_DPS,
+                         screw_stick * DART_DEBUG_SCREW_MAX_SPEED_DPS);
   } else {
-    DartLauncherSetDebugJog(launcher, false, 0.0f, 0.0f);
-    // 右摇杆竖直 -> 射力(丝杆位置)微调, 仅 IDLE 生效(launcher 内部约束: READY 时扳机带载锁着平台)
+    ShootDartSetDebugJog(shoot, false, 0.0f, 0.0f);
+    // 右摇杆竖直 -> 射力(丝杆位置)微调, 仅 IDLE 生效(shoot 内部约束: READY 时扳机带载锁着平台)
     if (screw_stick != 0.0f) {
-      DartLauncherAdjustScrewPos(launcher, screw_stick * DART_SCREW_ADJ_DPS * DART_TASK_DT_S);
+      ShootDartAdjustScrewPos(shoot, screw_stick * DART_SCREW_ADJ_DPS * DART_TASK_DT_S);
     }
   }
 
@@ -98,13 +109,13 @@ static void RCCommandUpdate(void) {
   sw_left_last = sw;
   if (sw != sw_last && !switch_is_off(sw) && !switch_is_off(sw_last)) {
     if (switch_is_mid(sw) || (switch_is_up(sw) && switch_is_down(sw_last))) {
-      if (launcher->state == DART_STATE_FAULT || !launcher->is_calibrated) {
-        DartLauncherSetCommand(launcher, DART_CMD_CALIBRATE);
+      if (shoot->state == DART_STATE_FAULT || !shoot->is_calibrated) {
+        ShootDartSetCommand(shoot, DART_CMD_CALIBRATE);
       } else {
-        DartLauncherSetCommand(launcher, DART_CMD_CHARGE);
+        ShootDartSetCommand(shoot, DART_CMD_CHARGE);
       }
     } else if (switch_is_up(sw) && switch_is_mid(sw_last)) {
-      DartLauncherSetCommand(launcher, DART_CMD_FIRE);
+      ShootDartSetCommand(shoot, DART_CMD_FIRE);
     }
   }
 }
@@ -115,18 +126,27 @@ void RobotInit(void) {
   rc_data = RemoteControlInit(DART_RC_UART);
   robot->rc_data = rc_data;
 
-  launcher = DartLauncherInit();
-  robot->launcher = launcher;
+  gimbal = GimbalDartInit();
+  shoot = ShootDartInit();
+  robot->gimbal = gimbal;
+  robot->shoot = shoot;
 
   robot->robot_mode = ROBOT_POWER_ON;
   LOGINFO("[dart] robot init done");
 }
 
 void RobotTask(void) {
-  if (robot == NULL || launcher == NULL || rc_data == NULL) return;
+  if (robot == NULL || shoot == NULL || gimbal == NULL || rc_data == NULL) return;
 
   DartBuzzerService();  // 校准 BGM 分段补队(组曲长, 须周期调用)
   SafetyUpdate();  // 失能/急停优先于一切控制
-  if (launcher->enabled) RCCommandUpdate();
-  DartLauncherTask(launcher);
+  if (shoot->enabled) RCCommandUpdate();
+
+  ShootDartTask(shoot);
+  // 故障保持时 shoot 不断同步带/丝杆力矩(见 EnterFault 注释), 但 yaw 无弹簧负载 -> 断力矩
+  if (shoot->state == DART_STATE_FAULT) {
+    GimbalDartStop(gimbal);
+  } else {
+    GimbalDartTask(gimbal);
+  }
 }
