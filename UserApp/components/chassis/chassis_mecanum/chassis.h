@@ -38,12 +38,19 @@ typedef enum {
   CHASSIS_HOLD,              // 航向保持模式
 } Chassis_Mode_e;
 
+/* 控制量 vx/vy 所在的坐标系 */
+typedef enum {
+  CHASSIS_CMD_GIMBAL_FRAME = 0,  // 云台系: 以云台当前指向为 +x, 按 offset_angle 旋转到底盘系(默认, 遥控器指令)
+  CHASSIS_CMD_CHASSIS_FRAME,     // 底盘系: 以底盘正前方为 +x, 直接使用, 不随云台旋转(导航/上位机指令)
+} Chassis_Cmd_Frame_e;
+
 typedef struct {
   // 控制部分
   float vx;            // 前进方向速度
   float vy;            // 横移方向速度
   float wz;            // 旋转速度
   Chassis_Mode_e chassis_mode;
+  Chassis_Cmd_Frame_e cmd_frame;  // vx/vy 所在的坐标系, 默认云台系
   float offset_angle;  // 底盘和归中位置的夹角
   float yaw_hold_ref;  // 航向保持目标角度
   int chassis_speed_buff;

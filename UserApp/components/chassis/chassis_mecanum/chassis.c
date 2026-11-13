@@ -259,15 +259,20 @@ void ChassisTask() {
     default:
       break;
   }
-  // 根据云台和底盘的角度offset将控制量映射到底盘坐标系上
-  // 底盘逆时针旋转为角度正方向;云台命令的方向以云台指向的方向为x,采用右手系(x指向正北时y在正东)
-  static float sin_theta, cos_theta;
-  cos_theta = arm_cos_f32(chassis_ctrl_cmd->offset_angle * DEGREE_2_RAD);
-  sin_theta = arm_sin_f32(chassis_ctrl_cmd->offset_angle * DEGREE_2_RAD);
-  chassis_vx = chassis_ctrl_cmd->vx * cos_theta +chassis_ctrl_cmd->vy * sin_theta;
-  chassis_vy = -chassis_ctrl_cmd->vx * sin_theta + chassis_ctrl_cmd->vy * cos_theta;
-  // chassis_vx = chassis_ctrl_cmd->vx;
-  // chassis_vy = chassis_ctrl_cmd->vy;
+  // 根据控制量所在的坐标系决定是否需要映射:
+  //  - 云台系(遥控器指令): 指令以云台指向为 x, 按 offset_angle 旋转到底盘坐标系
+  //  - 底盘系(导航/上位机指令): 指令已经是底盘正前方为 x, 直接使用, 不随云台旋转
+  if (chassis_ctrl_cmd->cmd_frame == CHASSIS_CMD_CHASSIS_FRAME) {
+    chassis_vx = chassis_ctrl_cmd->vx;
+    chassis_vy = chassis_ctrl_cmd->vy;
+  } else {
+    // 底盘逆时针旋转为角度正方向;云台命令的方向以云台指向的方向为x,采用右手系(x指向正北时y在正东)
+    static float sin_theta, cos_theta;
+    cos_theta = arm_cos_f32(chassis_ctrl_cmd->offset_angle * DEGREE_2_RAD);
+    sin_theta = arm_sin_f32(chassis_ctrl_cmd->offset_angle * DEGREE_2_RAD);
+    chassis_vx = chassis_ctrl_cmd->vx * cos_theta + chassis_ctrl_cmd->vy * sin_theta;
+    chassis_vy = -chassis_ctrl_cmd->vx * sin_theta + chassis_ctrl_cmd->vy * cos_theta;
+  }
 
   // 根据电机的反馈速度和IMU(如果有)计算真实速度
   EstimateSpeed();
