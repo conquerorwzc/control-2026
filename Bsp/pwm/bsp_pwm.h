@@ -8,79 +8,95 @@
  *
  */
 
-#ifndef BSP_PWM_H
-#define BSP_PWM_H
+#pragma once
 
-#include "stdint.h"
+#include <stdint.h>
+
 #include "tim.h"
-#define PWM_DEVICE_CNT 16  // 最大支持的PWM实例数量
+#define PWM_DEVICE_CNT 16
 
-/* pwm实例结构体 */
 typedef struct pwm_ins_temp {
-  TIM_HandleTypeDef *htim;                  // TIM句柄
-  uint32_t channel;                         // 通道
-  uint32_t tclk;                            // 时钟频率
-  float period;                             // 周期
-  float dutyratio;                          // 占空比
-  void (*callback)(struct pwm_ins_temp *);  // DMA传输完成回调函数
-  void *id;                                 // 实例ID
+    TIM_HandleTypeDef *htim;
+    uint32_t channel;
+    uint32_t tclk;
+    float period;
+    float dutyratio;
+    void (*callback)(struct pwm_ins_temp *);
+    void *id;
 } PWMInstance;
 
 typedef struct {
-  TIM_HandleTypeDef *htim;          // TIM句柄
-  uint32_t channel;                 // 通道
-  float period;                     // 周期
-  float dutyratio;                  // 占空比
-  void (*callback)(PWMInstance *);  // DMA传输完成回调函数
-  void *id;                         // 实例ID
+    TIM_HandleTypeDef *htim;
+    uint32_t channel;
+    float period;
+    float dutyratio;
+    void (*callback)(PWMInstance *);
+    void *id;
 } PWM_Init_Config_s;
 
-/**
- * @brief 注册一个pwm实例
- *
- * @param config 初始化配置
- * @return PWMInstance*
- */
+typedef enum {
+    PWM_OK = 0,
+    PWM_INVALID_ARGUMENT,
+    PWM_NOT_READY,
+    PWM_NO_RESOURCE,
+    PWM_RESOURCE_CONFLICT,
+    PWM_BUSY,
+    PWM_OUTPUT_LATCHED,
+    PWM_UNSUPPORTED,
+    PWM_HAL_ERROR,
+} PWMResult_e;
+
+typedef enum { PWM_OUTPUT_PWM1 = 0, PWM_OUTPUT_INACTIVE, PWM_OUTPUT_ACTIVE } PWMOutputMode_e;
+
+typedef struct {
+    TIM_HandleTypeDef *htim;
+    uint32_t channel;
+    uint32_t frequency_millihz;
+    uint32_t counter_hz;
+    uint16_t duty_permille;
+    uint8_t exclusive_timer;
+    void (*callback)(PWMInstance *);
+    void *id;
+} PWM_Ext_Init_Config_s;
+
+typedef struct {
+    PWMInstance *instance;
+    uint32_t generation;
+    uint32_t auto_reload;
+    uint32_t compare;
+    PWMOutputMode_e mode;
+    float period;
+    float duty_ratio;
+} PWM_Output_s;
+
+typedef struct {
+    uint8_t initialized;
+    uint8_t started;
+    uint8_t dma_active;
+    uint8_t output_latched;
+    uint8_t exclusive_timer;
+    uint32_t timer_clock_hz;
+    uint32_t counter_hz;
+    uint32_t prescaler;
+    uint32_t auto_reload;
+    uint32_t compare;
+    uint64_t frequency_millihz;
+    uint16_t duty_permille;
+    PWMOutputMode_e mode;
+    PWMResult_e last_result;
+} PWM_Status_s;
+
 PWMInstance *PWMRegister(PWM_Init_Config_s *config);
-
-/**
- * @brief 启动pwm
- *
- * @param pwm pwm实例
- */
 void PWMStart(PWMInstance *pwm);
-/**
- * @brief 设置pwm占空比
- *
- * @param pwm pwm实例
- * @param dutyratio 占空比 0~1
- */
-
-void PWMSetDutyRatio(PWMInstance *pwm, float dutyratio);
-/**
- * @brief 停止pwm
- *
- * @param pwm pwm实例
- */
 void PWMStop(PWMInstance *pwm);
-
-/**
- * @brief 设置pwm周期
- *
- * @param pwm pwm实例
- * @param period 周期 单位 s
- */
 void PWMSetPeriod(PWMInstance *pwm, float period);
+void PWMSetDutyRatio(PWMInstance *pwm, float dutyratio);
+void PWMStartDMA(PWMInstance *pwm, uint32_t *buffer, uint32_t size);
 
-/**
- * @brief 启动pwm dma传输
- *
- * @param pwm pwm实例
- * @param pData 数据首地址指针,注意数据的位数必须和CubeMX配置的DMA传输位数(字长)一致
- * @param Size 数据长度
- * @note 如果使用此函数,则需要在CubeMX中配置DMA传输位数为对应位数
- *       例如:使用16位数据,则需要配置DMA传输位数为16位(half word),配置错误会导致指针越界或数据错误
- */
-void PWMStartDMA(PWMInstance *pwm, uint32_t *pData, uint32_t Size);
-
-#endif  // BSP_PWM_H
+PWMResult_e PWMRegisterEx(const PWM_Ext_Init_Config_s *config, PWMInstance **instance);
+PWMResult_e PWMPrepareOutput(PWMInstance *instance, uint32_t frequency_millihz, uint16_t duty_permille,
+                             PWM_Output_s *frame);
+PWMResult_e PWMApplyOutput(PWMInstance *instance, const PWM_Output_s *frame);
+PWMResult_e PWMSetOutput(PWMInstance *instance, uint32_t frequency_millihz, uint16_t duty_permille);
+PWMResult_e PWMLatchOutput(PWMInstance *instance, const PWM_Output_s *frame);
+PWMResult_e PWMGetStatus(PWMInstance *instance, PWM_Status_s *status);
