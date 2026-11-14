@@ -11,7 +11,7 @@
 void SpringLoaderInit(void);
 
 /**
- * @brief 上电后驱动两侧找零，回零完成后接收左摇杆指令并执行下拉和回程。
+ * @brief 处理上电找零、左摇杆上簧和手动回位。
  */
 void SpringLoaderTask(void);
 

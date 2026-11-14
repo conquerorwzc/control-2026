@@ -1,7 +1,8 @@
-#include "robot_cmd.h"
+#include <stdlib.h>
 
 #include "message_center.h"
 #include "remote_control.h"
+#include "robot_cmd.h"
 #include "robot_config.h"
 #include "usart.h"
 
@@ -9,12 +10,12 @@ static RC_ctrl_t *rc;
 static Publisher_t *launcher_cmd_pub; // 保存动作指令话题的发布者
 
 /**
- * @brief 检测单根摇杆的一次上推，摇杆回中后才允许再次触发。
- * @param stick 本轮读到的摇杆通道值。
- * @param[in,out] centered 该摇杆是否已经回中并可以触发。
- * @return 本轮触发时为 true，其余情况为 false。
+ * @brief 检测一次过阈值事件，摇杆回中后才允许再次触发。
+ * @param stick 用于判断的通道值。左摇杆传入绝对值，右摇杆传入原值。
+ * @param[in,out] centered 是否已回中并允许再次触发。
+ * @return 本轮首次越过触发阈值时返回 true。
  */
-static bool StickUpOnce(int16_t stick, bool *centered)
+static bool StickOnce(int16_t stick, bool *centered)
 {
     if (stick >= -100 && stick <= 100) // 摇杆进入中位区间
     {
@@ -41,9 +42,9 @@ void RobotCmdInit(void)
 }
 
 /**
- * @brief 将左右摇杆的单次上推转换为上簧和击发请求。
- * @details 两根摇杆独立检测回中和上推。左摇杆产生上簧请求，右摇杆产生击发请求。
- *          遥控器离线时清除回中标记，重新连接后先回中才能触发。
+ * @brief 发布左摇杆上推上簧、下拨回位及右摇杆上推击发的请求。
+ * @details 左右摇杆分别记录回中状态，每次拨动只触发一次。
+ *          遥控器离线时清除回中标记，恢复后需先回中才能触发。
  */
 void RobotCmdTask(void)
 {
@@ -59,15 +60,20 @@ void RobotCmdTask(void)
         return;
     }
 
-    // 生成本轮的动作消息
-    LauncherCommand command = {
-        .load = StickUpOnce(rc->rc.rocker_l1, &left_centered),
-        .release = StickUpOnce(rc->rc.rocker_r1, &right_centered),
+    const int16_t left_stick = rc->rc.rocker_l1;
+    const bool left_triggered = StickOnce(abs(left_stick), &left_centered);
+
+    // 组装本轮检测到的动作请求
+    LauncherCommand command =
+    {
+        .load = left_triggered && left_stick > 0,                // 左摇杆上推，启动上簧
+        .return_requested = left_triggered && left_stick < 0,    // 左摇杆下拨，手动回位
+        .release = StickOnce(rc->rc.rocker_r1, &right_centered), // 右摇杆上推，触发击发
     };
 
-    // 至少有一个摇杆在本轮触发
-    if (command.load || command.release)
+    // 本轮有动作才发布
+    if (command.load || command.return_requested || command.release)
     {
-        PubPushMessage(launcher_cmd_pub, &command);
+        PubPushMessage(launcher_cmd_pub, &command);              // 将本轮请求发给执行模块
     }
 }

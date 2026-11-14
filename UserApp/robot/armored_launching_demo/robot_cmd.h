@@ -1,6 +1,3 @@
-//
-// Created by CX330y on 2026/11/11.
-//
 
 #ifndef CONTROL_2026_ROBOT_CMD_H
 #define CONTROL_2026_ROBOT_CMD_H
@@ -11,7 +8,7 @@
 void RobotCmdInit(void);
 
 /**
- * @brief 读取左右摇杆的竖直通道，在检测到一次上推时发布对应的动作请求。
+ * @brief 发布左摇杆上推上簧、下拨回位及右摇杆上推击发的请求。
  */
 void RobotCmdTask(void);
 
