@@ -309,7 +309,7 @@ static void RemoteControlSet() {
   shoot_ctrl_cmd->auto_vision_mode =
       switch_is_up(rc_data[TEMP].rc.switch_right) ? 1 : 0;
 
-  // 左拨杆：下停止，中开启摩擦轮，上开启摩擦轮并连续拨弹
+  // 左拨杆：下停止，中开启摩擦轮，上开启摩擦轮并由视觉 fire_flag 触发拨弹
   shoot_ctrl_cmd->shoot_mode = SHOOT_OFF;
   shoot_ctrl_cmd->friction_mode = FRICTION_OFF;
   shoot_ctrl_cmd->load_mode = LOAD_STOP;
@@ -321,7 +321,7 @@ static void RemoteControlSet() {
   else if (switch_is_up(rc_data[TEMP].rc.switch_left)) {
     shoot_ctrl_cmd->shoot_mode = SHOOT_ON;
     shoot_ctrl_cmd->friction_mode = FRICTION_ON;
-    shoot_ctrl_cmd->load_mode = LOAD_STOP;
+    // 左上只负责开摩擦轮,是否拨弹完全由视觉的 fire_flag 决定
     if (vision_recv_data->shoot_receive.fire_flag) {
       shoot_ctrl_cmd->load_mode = LOAD_BURSTFIRE;
     }
