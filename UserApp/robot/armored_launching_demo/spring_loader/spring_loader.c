@@ -151,7 +151,7 @@ static void HomeOneMotor(DJIMotorInstance *motor, HomeAxis *axis, float speed_re
 }
 
 static const float kStandbyDeg = -2000.0f;       // 上电待机、手动回位和自动回位共用的目标
-static const float kLatchDeg = 9340.0f;          // 两侧实际角度都要超过的锁扣阈值
+static const float kLatchDeg = 9200.0f;          // 两侧实际角度都要超过的锁扣阈值
 static volatile int position_request;            // 0 停机，1 上簧下拉，2 回位，3 上电慢速待机
 static volatile float pull_target_deg = 10000.0f; // 下拉目标，单位为电机转子角度，已完成实测
 static volatile float left_down_deg;             // 左侧相对顶部的角度，向下为正
@@ -267,9 +267,11 @@ static void RunLoadingCycle(bool feedback_ready, float now_ms)
 void SpringLoaderTask(void)
 {
     const float now_ms = DWT_GetTimeline_ms(); // 读取本轮时间，单位 ms
-    const bool feedback_ready = motor_l->feed_cnt != 0 && motor_r->feed_cnt != 0 && DaemonIsOnline(motor_l->daemon) &&
-                                DaemonIsOnline(motor_r->daemon);
-    // 准备就绪判定：两侧都收到过反馈 且 两侧反馈都未超时
+    const bool feedback_ready = motor_l->feed_cnt != 0
+                                && motor_r->feed_cnt != 0
+                                && DaemonIsOnline(motor_l->daemon)
+                                && DaemonIsOnline(motor_r->daemon);
+                                // 准备就绪判定：两侧都收到过反馈 且 两侧反馈都未超时
 
     LauncherCommand command = {0};             // 先清零，队列为空时两个请求都是 false
     SubGetMessage(launcher_cmd_sub, &command); // 有新消息就取走，回零期间的消息也在本轮消费
@@ -304,7 +306,7 @@ void SpringLoaderTask(void)
             return;
         } // 本次上电机会已用掉，或两路反馈还没到齐，结束本轮
 
-        home_pending = false; // 两路反馈都到齐，现在才消费本次上电请求
+        home_pending = false;                          // 两路反馈都到齐，现在才消费本次上电请求
         home_l = (HomeAxis){.last_moving_ms = now_ms};
         home_r = (HomeAxis){.last_moving_ms = now_ms}; // 重置左右侧状态
         home_start_ms = now_ms;                        // 从这一刻开始计算整次回零的耗时
