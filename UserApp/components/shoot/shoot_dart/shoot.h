@@ -12,7 +12,7 @@
  *
  * 蜂鸣器提示由本模块直接调用 dart_buzzer; 遥控失联/调试档/使能沿等机器人级提示由 robot.c 调用。
  *
- * 实例字段按子组件分层: belt(同步带) / screw(丝杆) / servo(舵机) / cali / charge / fire / jog(调试点动),
+ * 实例字段按子组件分层: belt(同步带) / screw(丝杆) / servo(舵机) / cali / charge / fire / debug(调试档点动),
  * 顶层的 state/enabled/is_calibrated 等是整机状态机字段。
  */
 #pragma once
@@ -133,7 +133,7 @@ typedef struct {
   float belt_rate_last;    // 上周期速率(松手沿检测)
   float screw_rate_last;   // 同上(丝杆)
   uint32_t log_ms;         // 状态日志限频
-} DartJog_t;
+} DartDebug_t;
 
 /* ================= 发射机构实例 ================= */
 
@@ -144,7 +144,7 @@ typedef struct {
   DartCali_t cali;     // 校准流程
   DartCharge_t charge; // 储能流程
   DartFire_t fire;     // 发射流程
-  DartJog_t jog;       // 调试档点动
+  DartDebug_t debug;   // 调试档点动
 
   // 整体状态机与任务
   Dart_State_e state;          // 当前状态
@@ -172,8 +172,8 @@ void ShootDartAdjustScrewPos(ShootDartInstance* inst, float delta_deg);
 /** @brief 舵机角度增量(调试档用, 松手即停), 自动限幅 */
 void ShootDartAdjustServoAngle(ShootDartInstance* inst, float delta_deg);
 
-/** @brief 调试点动(IDLE/READY 生效): 同步带按摇杆速率点动 + 丝杆点动(READY 只动同步带) */
-void ShootDartSetDebugJog(ShootDartInstance* inst, bool enable, float belt_speed_dps, float screw_speed_dps);
+/** @brief 设置调试档点动速率(IDLE/READY 生效): 同步带按摇杆速率点动 + 丝杆点动(READY 只动同步带) */
+void ShootDartSetDebug(ShootDartInstance* inst, bool enable, float belt_speed_dps, float screw_speed_dps);
 
 /** @brief 周期任务, 由 RobotTask 以 ~1kHz 调用 */
 void ShootDartTask(ShootDartInstance* inst);

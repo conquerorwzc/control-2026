@@ -90,10 +90,10 @@ static void RCCommandUpdate(void) {
       ShootDartAdjustServoAngle(shoot, servo_stick * DART_SERVO_ADJ_DPS * DART_TASK_DT_S);
     }
     // 左摇杆竖直 = 同步带点动(上推=储能方向); 右摇杆竖直 = 丝杆点动(上推=射力增大)
-    ShootDartSetDebugJog(shoot, true, StickToNorm(rc->rc.rocker_l1) * DART_DEBUG_BELT_MAX_SPEED_DPS,
+    ShootDartSetDebug(shoot, true, StickToNorm(rc->rc.rocker_l1) * DART_DEBUG_BELT_MAX_SPEED_DPS,
                          screw_stick * DART_DEBUG_SCREW_MAX_SPEED_DPS);
   } else {
-    ShootDartSetDebugJog(shoot, false, 0.0f, 0.0f);
+    ShootDartSetDebug(shoot, false, 0.0f, 0.0f);
     // 右摇杆竖直 -> 射力(丝杆位置)微调, 仅 IDLE 生效(shoot 内部约束: READY 时扳机带载锁着平台)
     if (screw_stick != 0.0f) {
       ShootDartAdjustScrewPos(shoot, screw_stick * DART_SCREW_ADJ_DPS * DART_TASK_DT_S);

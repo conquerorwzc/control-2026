@@ -412,7 +412,7 @@ static void HandleCommand(ShootDartInstance* inst, uint32_t now) {
 
   switch (cmd) {
     case DART_CMD_CALIBRATE:
-      if (inst->jog.enabled) {
+      if (inst->debug.enabled) {
         LOGWARNING("[dart] calibrate command ignored in debug mode (switch to normal mode)");
         DartBuzzerCmdRejected();
       } else if (inst->state == DART_STATE_IDLE || inst->state == DART_STATE_FAULT) {
@@ -424,7 +424,7 @@ static void HandleCommand(ShootDartInstance* inst, uint32_t now) {
       break;
 
     case DART_CMD_CHARGE:
-      if (inst->jog.enabled) {
+      if (inst->debug.enabled) {
         LOGWARNING("[dart] charge command ignored in debug mode (switch to normal mode)");
         DartBuzzerCmdRejected();
       } else if (inst->state == DART_STATE_IDLE && inst->is_calibrated && !inst->recovery_retract) {
@@ -446,7 +446,7 @@ static void HandleCommand(ShootDartInstance* inst, uint32_t now) {
       break;
 
     case DART_CMD_FIRE:
-      if (inst->jog.enabled) {
+      if (inst->debug.enabled) {
         LOGWARNING("[dart] fire command ignored in debug mode (switch to normal mode)");
         DartBuzzerCmdRejected();
       } else if (inst->state == DART_STATE_READY) {
@@ -492,63 +492,63 @@ static void MonitorBeltSync(ShootDartInstance* inst, uint32_t now) {
 /* 调试点动: 摇杆速率积分出两侧共用的虚拟位置目标, 共模给两侧同一速度给定, 差模自动纠偏
  * @note 反向打杆/松手时目标重同步到实际位置, 避免"先回绕误差"/"松手后飘一段";
  *       目标超前实测超过 MAX_ERR 时暂停积分, 顶到机械限位不跑飞 */
-static void ApplyDebugJog(ShootDartInstance* inst, float dt_s, uint32_t now) {
+static void ApplyDebugMove(ShootDartInstance* inst, float dt_s, uint32_t now) {
   DJIMotorInstance* belt_l = inst->belt.motor[0];
   DJIMotorInstance* belt_r = inst->belt.motor[1];
 
-  if (!inst->jog.belt_synced) {
+  if (!inst->debug.belt_synced) {
     // 进入点动: 目标取两侧当前位置平均, 以当前位置差为张力差基准, 同步环状态就地重置
-    inst->jog.belt_target = 0.5f * (belt_l->measure.total_angle + belt_r->measure.total_angle);
-    inst->jog.belt_dev_base = belt_l->measure.total_angle - belt_r->measure.total_angle;
-    inst->belt.diff_base = inst->jog.belt_dev_base;
-    inst->belt.dev_f = inst->jog.belt_dev_base;
+    inst->debug.belt_target = 0.5f * (belt_l->measure.total_angle + belt_r->measure.total_angle);
+    inst->debug.belt_dev_base = belt_l->measure.total_angle - belt_r->measure.total_angle;
+    inst->belt.diff_base = inst->debug.belt_dev_base;
+    inst->belt.dev_f = inst->debug.belt_dev_base;
     inst->belt.sync_i = 0.0f;
     inst->belt.sync_u = 0.0f;
     inst->belt.add_current[0] = 0.0f;
     inst->belt.add_current[1] = 0.0f;
     inst->belt.ff_dps = 0.0f;
-    inst->jog.belt_synced = true;
+    inst->debug.belt_synced = true;
   }
-  if (!inst->jog.screw_synced) {
-    inst->jog.screw_target = inst->screw.motor->measure.total_angle;
-    inst->jog.screw_synced = true;
+  if (!inst->debug.screw_synced) {
+    inst->debug.screw_target = inst->screw.motor->measure.total_angle;
+    inst->debug.screw_synced = true;
   }
 
   // ---- 同步带: 摇杆速率 -> 双侧共用虚拟位置目标 ----
   float actual = 0.5f * (belt_l->measure.total_angle + belt_r->measure.total_angle);
-  float rate = inst->jog.belt_speed_dps;
-  float follow_err = inst->jog.belt_target - actual;
+  float rate = inst->debug.belt_speed_dps;
+  float follow_err = inst->debug.belt_target - actual;
   if (rate != 0.0f && follow_err != 0.0f && ((rate > 0.0f) != (follow_err > 0.0f))) {
-    inst->jog.belt_target = actual;  // 反向: 先重同步目标, 否则要先"回绕"滞后误差
+    inst->debug.belt_target = actual;  // 反向: 先重同步目标, 否则要先"回绕"滞后误差
     follow_err = 0.0f;
   }
-  if (rate == 0.0f && inst->jog.belt_rate_last != 0.0f) {
-    inst->jog.belt_target = actual;  // 松手: 收回目标领跑量, 立即停住
+  if (rate == 0.0f && inst->debug.belt_rate_last != 0.0f) {
+    inst->debug.belt_target = actual;  // 松手: 收回目标领跑量, 立即停住
     follow_err = 0.0f;
   }
-  inst->jog.belt_rate_last = rate;
-  if (fabsf(follow_err) < DART_DEBUG_BELT_MAX_ERR_DEG) inst->jog.belt_target += rate * dt_s;
+  inst->debug.belt_rate_last = rate;
+  if (fabsf(follow_err) < DART_DEBUG_BELT_MAX_ERR_DEG) inst->debug.belt_target += rate * dt_s;
   float limit = fabsf(rate);
   if (limit < DART_DEBUG_BELT_SYNC_SPEED_DPS) limit = DART_DEBUG_BELT_SYNC_SPEED_DPS;
   inst->belt.common_pid.MaxOut = limit;
-  inst->belt.common_ref = inst->jog.belt_target;
+  inst->belt.common_ref = inst->debug.belt_target;
   BeltSyncUpdate(inst, rate, DART_BELT_MAX_SPEED_DPS);  // 点动速度前馈 = 摇杆速率
 
   // ---- 丝杆: 速度前馈 + P 跟踪虚拟位置目标; READY 时平台被扳机锁住, 禁止动丝杆 ----
   if (inst->state != DART_STATE_READY) {
     float s_actual = inst->screw.motor->measure.total_angle;
-    float s_rate = inst->jog.screw_speed_dps;
-    float s_follow_err = inst->jog.screw_target - s_actual;
+    float s_rate = inst->debug.screw_speed_dps;
+    float s_follow_err = inst->debug.screw_target - s_actual;
     if (s_rate != 0.0f && s_follow_err != 0.0f && ((s_rate > 0.0f) != (s_follow_err > 0.0f))) {
-      inst->jog.screw_target = s_actual;
+      inst->debug.screw_target = s_actual;
       s_follow_err = 0.0f;
     }
-    if (s_rate == 0.0f && inst->jog.screw_rate_last != 0.0f) {
-      inst->jog.screw_target = s_actual;
+    if (s_rate == 0.0f && inst->debug.screw_rate_last != 0.0f) {
+      inst->debug.screw_target = s_actual;
       s_follow_err = 0.0f;
     }
-    inst->jog.screw_rate_last = s_rate;
-    if (fabsf(s_follow_err) < DART_DEBUG_SCREW_MAX_ERR_DEG) inst->jog.screw_target += s_rate * dt_s;
+    inst->debug.screw_rate_last = s_rate;
+    if (fabsf(s_follow_err) < DART_DEBUG_SCREW_MAX_ERR_DEG) inst->debug.screw_target += s_rate * dt_s;
     float s_v_cmd = s_rate + DART_DEBUG_SCREW_KP * s_follow_err;
     float s_cap = (s_rate == 0.0f) ? DART_DEBUG_SCREW_HOLD_SPEED_DPS : DART_SCREW_MAX_SPEED_DPS;
     VAL_LIMIT(s_v_cmd, -s_cap, s_cap);
@@ -559,18 +559,18 @@ static void ApplyDebugJog(ShootDartInstance* inst, float dt_s, uint32_t now) {
   }
 
   // ---- 状态日志(500ms): dev 偏差大时告警, 否则正常状态 ----
-  float dev = (belt_l->measure.total_angle - belt_r->measure.total_angle) - inst->jog.belt_dev_base;
-  if (now - inst->jog.log_ms >= DART_DEBUG_LOG_PERIOD_MS) {
-    inst->jog.log_ms = now;
+  float dev = (belt_l->measure.total_angle - belt_r->measure.total_angle) - inst->debug.belt_dev_base;
+  if (now - inst->debug.log_ms >= DART_DEBUG_LOG_PERIOD_MS) {
+    inst->debug.log_ms = now;
     if (fabsf(dev) > DART_DEBUG_BELT_SYNC_WARN_DEG) {
-      LOGERROR("[dart] debug jog belt sync dev %d deg (L %d, R %d, tgt %d)", (int)dev,
-               (int)belt_l->measure.total_angle, (int)belt_r->measure.total_angle, (int)inst->jog.belt_target);
+      LOGERROR("[dart] debug belt sync dev %d deg (L %d, R %d, tgt %d)", (int)dev,
+               (int)belt_l->measure.total_angle, (int)belt_r->measure.total_angle, (int)inst->debug.belt_target);
     } else {
-      LOGINFO("[dart] debug jog spd %d/%d pos %d/%d dev %d err %d cur %d/%d iout %d", (int)belt_l->measure.speed_aps,
+      LOGINFO("[dart] debug spd %d/%d pos %d/%d dev %d err %d cur %d/%d iout %d", (int)belt_l->measure.speed_aps,
               (int)belt_r->measure.speed_aps, (int)belt_l->measure.total_angle, (int)belt_r->measure.total_angle,
               (int)dev, (int)follow_err, (int)belt_l->measure.real_current, (int)belt_r->measure.real_current,
               (int)belt_l->motor_controller.speed_PID.Iout);
-      LOGINFO("[dart] jog sync ff %d v %d devf %d base %d u %d si %d add %d/%d relv %d", (int)inst->belt.v_ff_dps,
+      LOGINFO("[dart] debug sync ff %d v %d devf %d base %d u %d si %d add %d/%d relv %d", (int)inst->belt.v_ff_dps,
               (int)inst->belt.v_common_dps, (int)inst->belt.dev_f, (int)inst->belt.diff_base, (int)inst->belt.sync_u,
               (int)inst->belt.sync_i, (int)inst->belt.add_current[0], (int)inst->belt.add_current[1],
               (int)(belt_l->measure.speed_aps - belt_r->measure.speed_aps));
@@ -692,10 +692,10 @@ void ShootDartAdjustServoAngle(ShootDartInstance* inst, float delta_deg) {
   SetServoAngle(inst, inst->servo.angle_deg + delta_deg);
 }
 
-void ShootDartSetDebugJog(ShootDartInstance* inst, bool enable, float belt_speed_dps, float screw_speed_dps) {
-  inst->jog.enabled = enable;
-  inst->jog.belt_speed_dps = belt_speed_dps;
-  inst->jog.screw_speed_dps = screw_speed_dps;
+void ShootDartSetDebug(ShootDartInstance* inst, bool enable, float belt_speed_dps, float screw_speed_dps) {
+  inst->debug.enabled = enable;
+  inst->debug.belt_speed_dps = belt_speed_dps;
+  inst->debug.screw_speed_dps = screw_speed_dps;
 }
 
 void ShootDartTask(ShootDartInstance* inst) {
@@ -729,20 +729,20 @@ void ShootDartTask(ShootDartInstance* inst) {
   }
 
   // 调试档 = 纯手动: 拨到调试档时正在进行的自动校准/储能立即中止, 机构交还手动点动
-  if (inst->jog.enabled && (inst->state == DART_STATE_CALIBRATING || inst->state == DART_STATE_CHARGING)) {
+  if (inst->debug.enabled && (inst->state == DART_STATE_CALIBRATING || inst->state == DART_STATE_CHARGING)) {
     if (inst->state == DART_STATE_CALIBRATING) {
       inst->is_calibrated = false;
       inst->belt.zero_valid = false;
       DartBuzzerCaliBgmStop();
-      LOGWARNING("[dart] auto calibration aborted: debug mode (jog only, commands rejected in debug)");
+      LOGWARNING("[dart] auto calibration aborted: debug mode (manual move only, commands rejected)");
     } else {
       if (inst->is_calibrated && inst->charge.step != CHARGE_STEP_PREP_SCREW) inst->recovery_retract = true;
       inst->charge.step = CHARGE_STEP_PREP_SCREW;
       LOGWARNING("[dart] charge sequence aborted: debug mode");
     }
     inst->state = DART_STATE_IDLE;
-    inst->jog.belt_synced = false;
-    inst->jog.screw_synced = false;
+    inst->debug.belt_synced = false;
+    inst->debug.screw_synced = false;
   }
 
   // 失能中止储能后的复位: 优先于点动和 IDLE 保持(调试档会跳过 HandleIdle, 否则标志永不清)
@@ -752,11 +752,11 @@ void ShootDartTask(ShootDartInstance* inst) {
       inst->recovery_retract = false;
       LOGINFO("[dart] recovery retract done (block back at release position)");
     }
-  } else if (inst->jog.enabled && (inst->state == DART_STATE_IDLE || inst->state == DART_STATE_READY)) {
-    ApplyDebugJog(inst, dt_s, now);  // IDLE 全部可动; READY 只动同步带
+  } else if (inst->debug.enabled && (inst->state == DART_STATE_IDLE || inst->state == DART_STATE_READY)) {
+    ApplyDebugMove(inst, dt_s, now);  // IDLE 全部可动; READY 只动同步带
   } else {
-    inst->jog.belt_synced = false;  // 点动结束/状态机接管: 下次点动重新同步虚拟目标
-    inst->jog.screw_synced = false;
+    inst->debug.belt_synced = false;  // 点动结束/状态机接管: 下次点动重新同步虚拟目标
+    inst->debug.screw_synced = false;
     switch (inst->state) {
       case DART_STATE_IDLE:
       case DART_STATE_READY:
