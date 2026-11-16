@@ -523,8 +523,8 @@ static void HandleCommand(ShootDartInstance* inst, uint32_t now) {
  * @note 校准中不检查(回撤时零点刚建立, 两侧起步有先后, 报偏差没有意义) */
 static void MonitorBeltSync(ShootDartInstance* inst, uint32_t now) {
   if (!inst->belt.zero_valid || inst->state == DART_STATE_CALIBRATING) return;
-  float pos0 = inst->belt.motor[0]->measure.total_angle - inst->belt.zero_offset[0];
-  float pos1 = inst->belt.motor[1]->measure.total_angle - inst->belt.zero_offset[1];
+  float pos0 = inst->belt.pos_rel[0];
+  float pos1 = inst->belt.pos_rel[1];
   if (fabsf(pos0 - pos1) > DART_BELT_SYNC_WARN_DEG && now - inst->belt.sync_warn_ms > DART_SYNC_WARN_PERIOD_MS) {
     inst->belt.sync_warn_ms = now;
     LOGERROR("[dart] belt motors sync deviation exceeded: %d deg (L %d, R %d, thr %d)", (int)(pos0 - pos1),
@@ -619,8 +619,11 @@ static void ApplyDebugMove(ShootDartInstance* inst, float dt_s, uint32_t now) {
       LOGERROR("[dart] debug belt sync posdiff %d deg (L %d, R %d, tgt %d)", (int)pos_diff,
                (int)belt_l->measure.total_angle, (int)belt_r->measure.total_angle, (int)inst->debug.belt_target);
     } else {
+      // pos: 已校准时=相对零点的位置(0=释放方向硬限位); 未校准(调试档直接上电)=上电累计原始角
+      int pos_l = (int)(inst->belt.zero_valid ? inst->belt.pos_rel[0] : belt_l->measure.total_angle);
+      int pos_r = (int)(inst->belt.zero_valid ? inst->belt.pos_rel[1] : belt_r->measure.total_angle);
       LOGINFO("[dart] debug spd %d/%d pos %d/%d posdiff %d err %d cur %d/%d iout %d", (int)belt_l->measure.speed_aps,
-              (int)belt_r->measure.speed_aps, (int)belt_l->measure.total_angle, (int)belt_r->measure.total_angle,
+              (int)belt_r->measure.speed_aps, pos_l, pos_r,
               (int)pos_diff, (int)follow_err, (int)belt_l->measure.real_current, (int)belt_r->measure.real_current,
               (int)belt_l->motor_controller.speed_PID.Iout);
       LOGINFO("[dart] debug sync ff %d v %d posdiff %d ref %d u %d si %d add %d/%d rel_speed %d", (int)inst->belt.v_ff_dps,
@@ -759,6 +762,11 @@ void ShootDartTask(ShootDartInstance* inst) {
   if (dt_s <= 0.0f || dt_s > 0.05f) dt_s = DART_TASK_DT_S;
   inst->last_ms = now;
   inst->task_dt_s = dt_s;
+  // 两侧相对零点的位置(0=释放方向硬限位, 正=储能方向); 未校准时为 0
+  for (int i = 0; i < 2; i++) {
+    inst->belt.pos_rel[i] = inst->belt.zero_valid ? inst->belt.motor[i]->measure.total_angle - inst->belt.zero_offset[i]
+                                                  : 0.0f;
+  }
 
   // 校准完成前严格限制同步带/丝杆力矩(所有模式生效), 防止卡死损坏
   float belt_max = inst->is_calibrated ? DART_BELT_MAX_OUT : DART_BELT_CALI_MAX_OUT;

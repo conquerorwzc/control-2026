@@ -74,6 +74,7 @@ typedef struct {
   DJIMotorInstance* motor[2]; // [0]左 [1]右
   PIDInstance common_pid;     // 共模位置环: 两侧平均位置 -> 速度给定(纯 P)
   float zero_offset[2];       // 释放方向硬限位处的 total_angle(校准得到)
+  float pos_rel[2];           // 两侧相对零点的位置(deg): 0=释放方向硬限位, 校准后每周期更新
   bool zero_valid;            // 零点是否有效(有效才允许位置闭环)
   float common_ref;           // 共模目标(两侧平均位置, total_angle 坐标)
   float diff_ref;             // 位置差基准 = 两零点之差, 即两侧"应有"的位置差
