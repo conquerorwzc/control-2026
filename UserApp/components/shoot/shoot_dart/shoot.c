@@ -59,6 +59,8 @@ static void ClearBeltControl(ShootDartInstance* inst) {
   inst->belt.add_current[0] = 0.0f;
   inst->belt.add_current[1] = 0.0f;
   inst->belt.pos_diff = inst->belt.motor[0]->measure.total_angle - inst->belt.motor[1]->measure.total_angle;
+  inst->belt.tension_trim = 0.0f;
+  inst->belt.i_diff_filt = 0.0f;
   inst->belt.ff_dps = 0.0f;
   inst->belt.v_ff_dps = 0.0f;
   inst->belt.v_common_dps = 0.0f;
@@ -158,7 +160,20 @@ static void BeltSyncUpdate(ShootDartInstance* inst, float v_ff, float v_total_li
   sp0->Iout += DART_BELT_INTEGRAL_BLEND * (shared - sp0->Iout);
   sp1->Iout += DART_BELT_INTEGRAL_BLEND * (shared - sp1->Iout);
 
-  // 2) 差模(张力差)环: 目标是保持位置差在标定基准上, 而不是让它 -> 0
+  // 2) 均张力(出力均衡)慢外环: 用两侧电流差微调位置差目标, 让两侧电流/出力趋于一致
+  //    差模环只保证"位置一致"; 机械不对称时等张力对应的 dev ≠ 标定基准, 差模环会一直维持
+  //    一个张力差 -> 一侧电流很小甚至不出力。外环很慢(秒级), 且限幅, 不会和位置差环抢。
+  float i_diff = belt_l->measure.real_current - belt_r->measure.real_current;
+  inst->belt.i_diff_filt += (i_diff - inst->belt.i_diff_filt) * (dt / (DART_BELT_TENSION_TRIM_LPF_TAU_S + dt));
+  if (inst->belt.i_diff_filt > DART_BELT_TENSION_TRIM_DEADBAND ||
+      inst->belt.i_diff_filt < -DART_BELT_TENSION_TRIM_DEADBAND) {
+    // 机0 电流大 -> 把位置差目标往下调, 差模环就会加机1减机0
+    inst->belt.tension_trim -= DART_BELT_TENSION_TRIM_KP * inst->belt.i_diff_filt * dt;
+    VAL_LIMIT(inst->belt.tension_trim, -DART_BELT_TENSION_TRIM_LIMIT_DEG, DART_BELT_TENSION_TRIM_LIMIT_DEG);
+  }
+  inst->belt.diff_ref = inst->belt.diff_base + inst->belt.tension_trim;
+
+  // 3) 差模(张力差)环: 目标是保持位置差在实际目标(标定基准 + 均张力修正)上
   inst->belt.pos_diff += (p0 - p1 - inst->belt.pos_diff) * (dt / (DART_BELT_SYNC_DIFF_LPF_TAU_S + dt));
   float err = inst->belt.pos_diff - inst->belt.diff_ref;
   if (fabsf(err) < DART_BELT_SYNC_DEADBAND_DEG) err = 0.0f;  // 跨过减速箱回差/皮带齿隙造成的假误差
@@ -235,7 +250,7 @@ static void SetBeltPosition(ShootDartInstance* inst, float pos_deg, float speed_
   }
   float limit = speed_limit_dps < DART_BELT_MAX_SPEED_DPS ? speed_limit_dps : DART_BELT_MAX_SPEED_DPS;
   inst->belt.common_ref = 0.5f * (inst->belt.zero_offset[0] + inst->belt.zero_offset[1]) + pos_deg;
-  inst->belt.diff_ref = inst->belt.zero_offset[0] - inst->belt.zero_offset[1];
+  inst->belt.diff_base = inst->belt.zero_offset[0] - inst->belt.zero_offset[1];
   inst->belt.common_pid.MaxOut = DART_BELT_TRACK_P_CORR_DPS;  // P 只做小误差修正, 稳态速度由前馈给
   float pos_err = inst->belt.common_ref -
                   0.5f * (inst->belt.motor[0]->measure.total_angle + inst->belt.motor[1]->measure.total_angle);
@@ -568,9 +583,10 @@ static void MonitorBeltSync(ShootDartInstance* inst, uint32_t now) {
   if (fabsf(inst->belt.v_common_dps) > DART_BELT_SYNC_LOG_MIN_SPEED_DPS &&
       now - inst->belt.sync_log_ms >= DART_SYNC_WARN_PERIOD_MS) {
     inst->belt.sync_log_ms = now;
-    LOGINFO("[dart] belt sync ff %d v %d posdiff %d err %d u %d si %d cur %d/%d spd %d/%d", (int)inst->belt.v_ff_dps,
-            (int)inst->belt.v_common_dps, (int)(pos0 - pos1), (int)(inst->belt.pos_diff - inst->belt.diff_ref),
-            (int)inst->belt.sync_u, (int)inst->belt.sync_i, (int)inst->belt.motor[0]->measure.real_current,
+    LOGINFO("[dart] belt sync ff %d v %d posdiff %d err %d u %d si %d trim %d cur %d/%d spd %d/%d",
+            (int)inst->belt.v_ff_dps, (int)inst->belt.v_common_dps, (int)(pos0 - pos1),
+            (int)(inst->belt.pos_diff - inst->belt.diff_ref), (int)inst->belt.sync_u, (int)inst->belt.sync_i,
+            (int)inst->belt.tension_trim, (int)inst->belt.motor[0]->measure.real_current,
             (int)inst->belt.motor[1]->measure.real_current, (int)inst->belt.motor[0]->measure.speed_aps,
             (int)inst->belt.motor[1]->measure.speed_aps);
   }
@@ -587,8 +603,11 @@ static void ApplyDebugMove(ShootDartInstance* inst, float dt_s, uint32_t now) {
     // 进入点动: 目标取两侧当前位置平均, 以当前位置差为张力差基准, 同步环状态就地重置
     inst->debug.belt_target = 0.5f * (belt_l->measure.total_angle + belt_r->measure.total_angle);
     inst->debug.belt_diff_base = belt_l->measure.total_angle - belt_r->measure.total_angle;
+    inst->belt.diff_base = inst->debug.belt_diff_base;
     inst->belt.diff_ref = inst->debug.belt_diff_base;
     inst->belt.pos_diff = inst->debug.belt_diff_base;
+    inst->belt.tension_trim = 0.0f;
+    inst->belt.i_diff_filt = 0.0f;
     inst->belt.sync_i = 0.0f;
     inst->belt.sync_u = 0.0f;
     inst->belt.add_current[0] = 0.0f;

@@ -130,6 +130,16 @@
 #define DART_BELT_SYNC_DIFF_LPF_TAU_S 0.008f // 位置差低通时间常数 (s): 抑制两机 CAN 帧不同时到达的假误差
 #define DART_BELT_SYNC_DEADBAND_DEG 5.0f    // 位置差死区 (转子度): 跨过减速箱回差/齿隙
 #define DART_BELT_INTEGRAL_BLEND 0.05f      // 速度环积分互融系数(0~1/周期): 只做纯均值慢互融
+
+/* ---- 均张力(出力均衡)慢外环 ----
+ * 差模环只保证"位置差"在标定基准上; 机械不对称(皮带自由长度/摩擦/对中)时, 等张力对应的
+ * 位置差 ≠ 标定基准, 差模环会一直维持一个张力差 -> 一侧电机电流很小、几乎不出力。
+ * 本外环用两侧电流差(低通)慢调位置差目标: 实际目标 = diff_base + tension_trim,
+ * 直到两侧出力接近一致。速率慢(秒级)且 trim 限幅, 不会和位置差环抢, 也不会让一侧皮带松掉。 */
+#define DART_BELT_TENSION_TRIM_KP 0.1f           // 修正速率 (deg/s)/电流单位: 电流差 1000 -> 100°/s
+#define DART_BELT_TENSION_TRIM_LPF_TAU_S 0.2f    // 电流差低通时间常数 (s)
+#define DART_BELT_TENSION_TRIM_DEADBAND 100.0f   // 电流差死区 (raw): 小于此值不修正
+#define DART_BELT_TENSION_TRIM_LIMIT_DEG 2000.0f // trim 限幅 (deg, ≈31mm): dev 允许偏离标定基准的最大量
 #define DART_BELT_SYNC_WARN_DEG 200.0f      // 两侧位置差告警阈值 (deg, 只提示不停机)
 #define DART_BELT_SYNC_LOG_MIN_SPEED_DPS 1000.0f  // 同步状态日志的速度门限(°/s): 静止不刷屏
 #define DART_BELT_TRACK_ACC_DPS2 150000.0f   // 自动动作前馈加速度限幅 (°/s², ≈772mm/s²):
@@ -282,8 +292,8 @@
               .current_feedforward_ptr = (_ff_ptr),                                     \
               .speed_PID =                                                              \
                   {                                                                     \
-                      .Kp = 1.2f,                                                       \
-                      .Ki = 0.3f,                                                       \
+                      .Kp = 1.0f,                                                       \
+                      .Ki = 0.5f,                                                       \
                       .Kd = 0.0f,                                                       \
                       .MaxOut = DART_BELT_MAX_OUT,                                      \
                       .IntegralLimit = DART_BELT_INTEGRAL_LIMIT,                        \

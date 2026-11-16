@@ -77,7 +77,10 @@ typedef struct {
   float pos_rel[2];           // 两侧相对零点的位置(deg): 0=释放方向硬限位, 校准后每周期更新
   bool zero_valid;            // 零点是否有效(有效才允许位置闭环)
   float common_ref;           // 共模目标(两侧平均位置, total_angle 坐标)
-  float diff_ref;             // 位置差基准 = 两零点之差, 即两侧"应有"的位置差
+  float diff_base;            // 位置差标定基准 = 两零点之差(校准得到的"两侧应有位置差")
+  float diff_ref;             // 位置差实际目标 = diff_base + tension_trim
+  float tension_trim;         // 均张力慢外环修正(deg): 用两侧电流差微调位置差目标, 让出力一致
+  float i_diff_filt;          // 两侧电流差低通值(raw): 均张力外环的输入
   float pos_diff;             // 两侧位置差(低通后, ∝ 两侧张力差)
   float sync_i;               // 差模积分(独立记忆, 不受速度环积分限幅影响)
   float sync_u;               // 差模输出(电流偏置): 机0 前馈 −u / 机1 +u
