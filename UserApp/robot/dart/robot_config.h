@@ -1,35 +1,21 @@
 /**
  * @file robot_config.h
- * @brief dart 发射架机器人全部硬件接线、机械参数与控制参数
+ * @brief dart 发射架全部硬件接线、机械参数与控制参数
  *
- * 电机布局(默认全部挂 hcan1):
- *   - yaw:    M2006 x1, 角度环串级 PID 控制发射架 yaw
- *   - belt:   M3508 x2, 水平对置驱动同步带挡块, 位置环串级 PID, 严格同步
- *   - screw:  M3508 x1, 扳机丝杆, 控制扳机整体位置(决定拉簧拉伸量=射力, 可调)
- *   - servo:  PWM 舵机 x1, 扳机的发射动作(卡位角扣住/释放角放开), 50Hz 占空比->角度
+ * 执行器(默认全部挂 hcan1):
+ *   - yaw:   M2006 x1, 角度环串级 PID(components/gimbal/gimbal_dart)
+ *   - belt:  M3508 x2, 对置驱动同步带挡块, 共模/差模解耦 + 速度前馈(shoot_dart)
+ *   - screw: M3508 x1, 扳机丝杆位置(决定拉簧拉伸量 = 射力, 可调)
+ *   - servo: PWM 舵机 x1, 扳机发射动作(卡位角扣住 / 释放角放开), 50Hz 占空比 -> 角度
  *
- * 执行层拆分(UserApp/components, 由 robot.cmake 的 GIMBAL_TYPE/SHOOT_TYPE 选择):
- *   - shoot_dart : 同步带 x2 + 扳机丝杆 + 扳机舵机(状态机/校准/储能/发射);
- *   - gimbal_dart: 发射架 yaw(角速度指令积分 + 角度环)。
+ * 坐标约定(均为转子侧, 编码器在减速箱前):
+ *   - 同步带: 0 = 释放方向硬限位(校准得到), 正方向 = 储能方向;
+ *     行程换算: 带轮周长 ~105.62mm, 减速比 19 -> 转子角度 ≈ 行程(mm) * 64.76
+ *   - 丝杆:   0 = 开机位置(不自动校零), 数值越大射力越大
+ *   - yaw:    0 = 开机位置
  *
- * 坐标约定:
- *   - 同步带逻辑坐标: 0 = 释放方向硬限位(堵转校准得到), 正方向 = 储能方向
- *   - 丝杆逻辑坐标:   0 = 丝杆零点(校准顶到的硬限位), 数值越大射力越大(方向按实机标定)
- *   - yaw 逻辑坐标:   0 = 开机位置
- *   - 舵机: 直接给角度, 映射到脉宽见 DART_SERVO_* 宏
- *   - 所有电机角度均为转子侧(编码器在减速箱前): 3508(P19) 输出轴角度 = 总角度/19,
- *     2006 输出轴角度 = 总角度/36
- *   - 同步带行程换算(带轮直径 33.62mm, 周长 ~105.62mm, 减速比 19):
- *       转子角度 = 行程(mm) / 105.62 * 360 * 19 ≈ 行程(mm) * 64.76
- *       行程(mm) = 转子角度 / 64.76
- *     满行程约 1m ≈ 64760° 转子侧; 丝杆行程由导程决定, 需另测, 勿用带轮公式
- *
- * @attention 所有行程/角度/力矩参数均为占位初值, 必须按实机机械结构标定;
- *            电机方向不对时只翻转对应 DART_XXX_REVERSE 宏;
- *            舵机换定时器/通道只改 DART_SERVO_PWM_TIM / DART_SERVO_PWM_CHANNEL 两行。
- * @warning 上电使能会自动执行校准(同步带与丝杆都会低速顶硬限位):
- *          若上次断电时发射平台仍被扳机锁住且拉簧处于储能状态, 丝杆校准移动扳机有意外释放风险,
- *          上电前务必确认已卸压(已发射完/平台未被卡住)。
+ * @warning 上电使能会自动执行同步带零位校准(低速顶释放方向硬限位)。若上次断电时发射平台仍被
+ *          扳机锁住且拉簧处于储能状态, 上电前务必确认已卸压(已发射完/平台未被卡住)。
  */
 #pragma once
 
@@ -43,22 +29,10 @@
 #error "只能定义一个板型宏: ONE_BOARD / CHASSIS_BOARD / GIMBAL_BOARD"
 #endif
 
-/* =====================================================================================
- * 实验开关总览（**不需要任何编译选项**：直接改下面的数字，然后在 CLion 里正常 Build 即可）
- * -------------------------------------------------------------------------------------
- * 当前默认：
- *   DART_BELT_SYNC_V2       = 1  新同步环(硬基准 + dev 低通/死区 + 速度差阻尼 + 电流前馈偏置 + 独立积分)
- *   DART_BELT_FF_V2         = 1  **点动速度前馈**：摇杆速率直接送速度环 -> 充分利用电机速度、最跟手
- *   DART_BELT_TRACK_FF_V2   = 1  **自动动作也用梯形规划**（加速度限幅 50000°/s² + 末端减速曲线）；
- *                                 嫌软就把 DART_BELT_TRACK_ACC_DPS2 继续加大，或改 0 回 P0 纯 P 环
- *   DART_BELT_SYNC_GATE_V2  = 0  不加静止门控(=P0 原样；=1 只改"两台都静止"时的积分 windup)
- *   改哪个数字就重新编译即可，四者互不影响。
- * ===================================================================================== */
-
 /* ================= 硬件接线(CAN ID / 串口) ================= */
-#define DART_YAW_CAN (&hcan1)     // yaw 电机总线
-#define DART_BELT_CAN (&hcan1)    // 同步带电机总线
-#define DART_SCREW_CAN (&hcan1)   // 扳机丝杆电机总线
+#define DART_YAW_CAN (&hcan1)    // yaw 电机总线
+#define DART_BELT_CAN (&hcan1)   // 同步带电机总线
+#define DART_SCREW_CAN (&hcan1)  // 扳机丝杆电机总线
 
 #define DART_YAW_CAN_ID 1     // M2006 yaw
 #define DART_BELT_L_CAN_ID 4  // M3508 同步带电机(左)
@@ -73,290 +47,138 @@
 #endif
 
 /* ================= 电机方向 =================
- * 两个同步带电机镜像安装, 配置使得逻辑正方向均为储能方向;
- * 若实机转向与定义相反, 翻转对应宏即可。 */
+ * 两个同步带电机镜像安装, 配置使逻辑正方向均为储能方向; 实机转向相反时翻转对应宏。 */
 #define DART_YAW_REVERSE MOTOR_DIRECTION_NORMAL
 #define DART_BELT_L_REVERSE MOTOR_DIRECTION_REVERSE
-#define DART_BELT_R_REVERSE MOTOR_DIRECTION_NORMAL  // 对置安装, 需反转
+#define DART_BELT_R_REVERSE MOTOR_DIRECTION_NORMAL
 #define DART_SCREW_REVERSE MOTOR_DIRECTION_NORMAL
 
-/* ================= 零位校准参数 =================
- * 上电使能后自动执行一次, **只做同步带**: 顶释放方向硬限位(两侧零点同步) -> 回撤到释放位置;
- * 全程严格限制电机力矩, 完成后才允许储能/发射。
- * 扳机丝杆**不参与自动校准**(shoot_dart/shoot.c 里丝杆校准代码已 #if 0 停用),
- * 丝杆零点直接取"开机位置", 因此 DART_SCREW_POS_* 是相对开机位置的角度。 */
-#define DART_BELT_CALI_SPEED_DPS 1000.0f          // 同步带顶硬限位速度 (deg/s)
-#define DART_BELT_CALI_DIRECTION (-1.0f)       // 同步带释放方向符号(零点取这一端); 实机相反时改 +1.0f
-#define DART_BELT_CALI_MAX_OUT 1000.0f         // 同步带校准严格限流 (M3508 满量程 16384)
-#define DART_BELT_CALI_INTEGRAL_LIMIT 1000.0f  // 同步带校准积分限幅(速度给定0时保持力矩只来自积分, 太小会锁不住往下漂)
-#define DART_BELT_CALI_TIMEOUT_MS 75000        // 顶限位步超时 (ms): 最坏从储能底出发 49000°/1000°/s≈49s, ×1.5
-#define DART_BELT_CALI_BACKOFF_DEG 300.0f       // 顶到限位后回撤距离, 即释放位置(回缩位) (deg)
-#define DART_BELT_CALI_BACKOFF_SPEED_DPS 1000.0f // 顶到限位后回撤限速 (deg/s, 顶死后必须慢速退开)
-#define DART_CALI_STALL_SPEED_DPS 100.0f         // 堵转判定(同步带/丝杆共用): 速度阈值 (deg/s)
-#define DART_CALI_STALL_MS 500                 // 堵转判定(同步带/丝杆共用): 持续时间 (ms)
-#define DART_CALI_START_GRACE_MS 500           // 顶限位起步宽限: 进入步骤后先忽略堵转判定, 防起步误判
+/* ================= 零位校准(只做同步带) =================
+ * 上电使能后自动执行: 双带以低力矩顶释放方向硬限位(堵转判据=速度阈值, 两侧都堵转才算到)
+ * -> 各记两侧编码器零点 -> 回撤到释放位置。全程严格限流, 完成后才允许储能/发射。 */
+#define DART_BELT_CALI_SPEED_DPS 1000.0f           // 顶硬限位速度 (deg/s)
+#define DART_BELT_CALI_DIRECTION (-1.0f)           // 释放方向符号(零点取这一端); 实机相反改 +1.0f
+#define DART_BELT_CALI_MAX_OUT 1000.0f             // 校准严格限流 (M3508 满量程 16384)
+#define DART_BELT_CALI_INTEGRAL_LIMIT 1000.0f      // 校准积分限幅(给定 0 时的保持力矩只来自积分)
+#define DART_BELT_CALI_TIMEOUT_MS 75000            // 顶限位步超时 (ms): 最坏 ~49000°/1000°/s≈49s, ×1.5
+#define DART_BELT_CALI_BACKOFF_DEG 300.0f          // 顶到限位后回撤距离 = 释放位(挡块退离平台活动范围)
+#define DART_BELT_CALI_BACKOFF_SPEED_DPS 1000.0f   // 回撤限速 (deg/s, 顶死后必须慢速退开)
+#define DART_CALI_STALL_SPEED_DPS 100.0f           // 堵转判据: 实测速度阈值 (deg/s)
+#define DART_CALI_STALL_MS 500                     // 堵转判据: 持续时间 (ms)
+#define DART_CALI_START_GRACE_MS 500               // 起步宽限: 进入步骤后先忽略堵转判定
 
-/* ================= 同步带(储能)参数 =================
- * 扳机锁定状态下是单向通道: 发射平台会滑过扳机继续被向后拉, 因此储能时同步带不会堵转,
- * 储能只按位置行程推进(拉到位 -> 限速复位到释放位置), 不依赖堵转判完成;
- * 仅当超过滑台行程等异常顶死时, 由堵转看门狗直接判故障停机(两侧同时转不动才算顶死)。
- * 双带控制采用**共模/差模解耦**(shoot_dart/shoot.c BeltSyncUpdate):
- *   - 共模环: 两侧平均位置跟目标, 两电机得到**完全相同**的速度给定 -> 出力均担(real_current 不再一大一小);
- *   - 差模环: 主动把两侧位置差收敛到基准 -> 不同步自动纠正, **只纠偏不停机**;
- *   各阶段限速通过共模环 MaxOut 实现, 最终不超过 DART_BELT_MAX_SPEED_DPS(电机级硬上限) */
-#define DART_BELT_HOME_DEG DART_BELT_CALI_BACKOFF_DEG  // 释放位置(回缩位): 挡块退出发射平台活动范围
-/* 储能行程: 零位(释放方向硬限位)起沿储能方向的电机轴角度。
- * 实测(调试档点动, 转子侧): 释放到底(硬限位)→储能到底 全程 ≈ 49000°(≈757mm);
- * 目标取 48000°(≈741mm), 留 ~1000°(≈15mm)余量 —— 目标顶死在机械末端会让到位容差判不过/
- * 触发储能堵转看门狗误报故障。余量按手感调整, 但务必 < 49000° */
-#define DART_BELT_CHARGE_DEG 47000.0f
-/* 位置到位容差: 30° ≈ 0.46 mm。校准时电流被严格限流, 位置环会停在摩擦平衡点
- * (实测稳定残差 ≈4 转子度), 容差若小于该残差就会永远判"没到位" -> 校准/储能超时 */
-#define DART_BELT_POS_TOL_DEG 30.0f
-/* "拉到底"容差(储能拉拽专用): 两侧同时顶死且离目标 < 此值 -> 视为拉到机械末端, **正常完成**;
- * 离目标还很远就顶死 -> 真卡滞/超行程 -> 故障。
- * (踩过: 目标恰好落在机械末端时, 到位容差永远判不到 -> 误判堵转故障 -> 断力矩被拉簧带飞) */
-#define DART_BELT_END_TOL_DEG 5000.0f
-#define DART_BELT_MAX_OUT 12000.0f                 // 正常工作电流限幅
-#define DART_BELT_INTEGRAL_LIMIT 8000.0f          // 正常工作积分限幅(速度给定0时的保持力矩来源; f_Integral_Limit 会把 Iout 硬钳在这里)
-#define DART_BELT_MAX_SPEED_DPS 40000.0f            // 速度给定硬上限 (共模/差模合成后再钳一次)
-#define DART_BELT_HOME_SPEED_DPS 25000.0f           // 复位到释放位置/挡块回撤限速 (deg/s)
-#define DART_BELT_CHARGE_SPEED_DPS 10000.0f         // 储能拉拽限速 (deg/s)
-/* ================= 共模/差模解耦参数 (V1 与 V2 共用部分) =================
- * 共模 = 原每电机角度环参数; 下面的 DART_BELT_SYNC_* / BLEND / LOAD_* 一组是
- * **V1(DART_BELT_SYNC_V2=0)专用**, V2 用后文 DART_BELT_SYNC_V2_* 一组。 */
-#define DART_BELT_POS_KP 40.0f          // 共模位置环 Kp (V1/V2 共用)
-#define DART_BELT_POS_KI 0.0f           // 共模位置环 Ki (V1/V2 共用)
-/* 位置误差死区(°, V1/V2 共用): 误差进死区后共模 P(以及 P1 的前馈目标)归零, 不再给速度指令。
- * **默认 0 = P0 原值(手感优先)**: 实车对比表明任何 >0 的死区都会让低速跟随变"钝"。
- * 只有在"静止保持时共模电流持续爬(速度环 windup)"成为主要问题时才开(实测静差 4° -> 取 5°)。
- * 储能/复位/回撤的到位容差是 DART_BELT_POS_TOL_DEG(30°), 5° 死区不影响到位判定。 */
-#define DART_BELT_POS_DEADBAND_DEG 0.0f
-/* ---- 以下为 V1 专用参数(仅 DART_BELT_SYNC_V2=0 时编译进 V1 路径) ---- */
-#define DART_BELT_SYNC_KP 120.0f        // [V1] 差模 Kp(力矩/°): 虚拟"弹簧"强度, 管偏差**值**
-#define DART_BELT_SYNC_KI 6.0f          // 差模 Ki(力矩/(°·s))
-#define DART_BELT_SYNC_KD 0.1f          // 差模 Kd(力矩/(°/s)): 虚拟"阻尼器", 管两侧**相对速度**(修"一快一慢")
-#define DART_BELT_SYNC_KD_LPF_RC 0.02f  // 差模微分低通时间常数(s), 抑制编码器微分噪声
-#define DART_BELT_SYNC_KI_LIMIT 1000.0f  // 差模**积分**限幅(必须远小于输出上限!): 积分只做小幅稳态补偿。
-                                        // 踩坑: 积分限幅=输出上限时, 瞬态把积分灌满卡死, 持续注入上千偏置 ->
-                                        // 电流差几千、位置被拖着走、静止才慢慢回(积分反向才退出)
-#define DART_BELT_SYNC_TORQUE_MAX 3000.0f  // 差模力矩偏置**输出**上限(M3508 满量程 16384): 需覆盖运动中的负载不对称,
-                                        // 否则动态中纠不住偏差(偏差越跑越远, 停下来才收敛)
-/* 软基准时间常数(s), 仅"力矩同步"模式生效: 差模基准以该时间常数跟随实际偏差。
- * 两侧负载路径不对称/运动学换算差会让偏差慢漂, 硬锁基准=持续较劲=电流差;
- * 软基准放行慢漂移, 只纠"变化快于 TAU"的窜动/振荡。
- * 均流优先调小(0.2~0.5); 窜动纠得慢就调大(1~2); 0 = 两种模式都用硬基准 */
-#define DART_BELT_SYNC_BASELINE_TAU_S 0.5f
-/* 负载感知模式切换(带方向差防抖), 判据 = 两台 real_current 绝对值之和:
- *   > LOAD_ON  -> 力矩同步(带载拉拽/保持): 均流优先, 软基准放行变形差
- *   < LOAD_OFF -> 位置同步(空载移动): 位置优先, 硬基准锁死偏差, 两侧走位齐
- *   ON/OFF 之间保持原模式。切换点按实机噪声调整, 两者差 15~25% 为宜 */
-#define DART_BELT_SYNC_LOAD_ON 3000.0f
-#define DART_BELT_SYNC_LOAD_OFF 2400.0f
-#define DART_BELT_SYNC_LOAD_LPF_TAU_S 0.3f  // 切换判据低通时间常数(s): real_current 噪声大, 不滤会在阈值附近反复横跳
-#define DART_BELT_SYNC_MODE_DWELL_MS 500    // 模式最短驻留(ms): 切换本身有扰动(清差模积分/基准跳变), 防连续翻转
-/* 速度环积分互融系数(0~1): 两台带电机速度环积分(Iout)每周期互相靠拢。
- * 稳态力矩 u = P + I: 共模已保证 P 项相同, 若积分各自为政, 摩擦差异/起动不对称会被积分
- * "记住"并固化成力矩差(real_current 一大一小); 互融后积分收敛为共享的一份, 稳态出力均分。
- * 1.0 = 完全互融(推荐); 0 = 禁用; 若两侧较劲发热可适当调小 */
-#define DART_BELT_INTEGRAL_BLEND 1.0f
-#define DART_BELT_SYNC_WARN_DEG 200.0f             // 双电机位置偏差告警阈值 (deg≈3mm, 只提示不停机; 差模环会自动纠偏)
+/* ================= 同步带(储能)行程/限速/力矩 =================
+ * 扳机锁定态是单向通道: 平台滑过扳机后被继续后拉, 储能不会堵转 -> 按行程判完成;
+ * 仅超行程等异常顶死时由堵转看门狗(两侧同时转不动)判故障。 */
+#define DART_BELT_HOME_DEG DART_BELT_CALI_BACKOFF_DEG  // 释放位: 挡块退出发射平台活动范围
+#define DART_BELT_CHARGE_DEG 47000.0f                  // 储能拉拽行程(相对零点, 正=储能方向);
+                                                       // 实测全程 ≈49000°, 留 ~1000° 余量防顶死误报
+#define DART_BELT_POS_TOL_DEG 30.0f                    // 到位容差(按两侧平均位置判) ≈0.46mm;
+                                                       // 校准限流下位置环稳态残差 ≈4°, 容差必须更大
+#define DART_BELT_END_TOL_DEG 5000.0f                  // "拉到底"容差: 两侧顶死且离目标 < 此值 = 拉到机械末端(正常完成)
+#define DART_BELT_MAX_OUT 12000.0f                     // 正常工作电流限幅
+#define DART_BELT_INTEGRAL_LIMIT 8000.0f               // 正常工作积分限幅(速度给定 0 时的保持力矩来源)
+#define DART_BELT_MAX_SPEED_DPS 40000.0f               // 速度给定硬上限(共模/差模合成后再钳一次)
+#define DART_BELT_HOME_SPEED_DPS 25000.0f              // 复位/回撤到释放位限速 (deg/s)
+#define DART_BELT_CHARGE_SPEED_DPS 10000.0f            // 储能拉拽限速 (deg/s)
 
-/* ================= 双带同步环 V2 =================
- * 改造动机与完整分析见 UserApp/robot/dart/同步带同步问题_结构审查与改造方案.md。
- * 机构事实: 两根带并联驱动同一滑块, 编码器位置差 dev = θ0−θ1 正比于两侧皮带**张力差**
- *   (dev = ΔT/(k·r), 1° 转子 ≈ 0.0154 mm 皮带行程差), 所以"位置一致"与"拉力一致"是同一个量,
- *   目标是**把 dev 保持在标定基准 belt_diff_base 上**, 而不是让 dev→0。
- *
- * V1(旧, 见下)的四个结构性问题:
- *   R2 负载感知模式: 判据=|I|+|I|>3000(≈每台9%电流), 高速/加速/拉簧必然超过 -> 长期处于"力矩同步",
- *      而该模式软基准(BASELINE_TAU)跟随实际 dev -> **主动放弃稳态张力差纠正**, 速度越高越不同步;
- *   R3 差模刚弹簧 Kp=120 的固有频率远高于 500Hz 力矩更新率(见下) -> 实际在极限环抖振;
- *   R4 力矩偏置写进速度环积分 Iout, 会被 IntegralLimit 单边钳掉(shared±bias 一侧超限);
- *   R6 dev 微分噪声大(两机 CAN 反馈帧不同步), 阻尼不可用。
- * V2 对应改法:
- *   ① 删模式切换, **恒用硬基准**;
- *   ② dev 先低通(抑制帧偏斜假误差) + 死区(跨过减速箱回差/齿隙);
- *   ③ 阻尼改用**实测相对速度** speed_aps 差, 不对位置求导;
- *   ④ 偏置走**电流前馈**(DART_BELT_MOTOR_CONFIG 的 _ff_ptr)叠加在速度环输出之后,
- *      不再碰 Iout; 速度环积分互融退化为"纯均值慢互融", 只负责均载;
- *   ⑤ 所有滤波器用实测任务周期 dt, 不再用常量 DART_TASK_DT_S。
- * @note 执行链事实: 串级 PID 在 RobotTask(~1kHz)算, CAN 力矩更新在 MotorControlTask(osDelay(2)≈500Hz),
- *       回路纯滞后 3~4ms -> 同步环带宽必须远低于此, 故 V2 增益比 V1 低一个量级。
- * @note 回滚: DART_BELT_SYNC_V2 置 0 即回到 V1 原路径(源码保留, 未删除)。 */
-/* 回滚/A-B 用: 可在编译命令加 -DDART_BELT_SYNC_V2=0 走 V1 旧路径(无需改源码) */
-#ifndef DART_BELT_SYNC_V2
-#define DART_BELT_SYNC_V2 1
-#endif
+/* ================= 同步带共模/差模控制 =================
+ * 两根带并联驱动同一滑块 -> 编码器位置差 dev = θ0−θ1 正比于两侧皮带**张力差**
+ * (1° 转子 ≈ 0.015mm 皮带行程差), 因此"位置一致"与"拉力一致"是同一个量:
+ *   目标是**把 dev 保持在标定基准 belt_diff_base 上**, 而不是让 dev->0。
+ * - 差模环: dev 低通+死区后 PD+I -> 输出电流偏置 u(机0 −u / 机1 +u), 经电流前馈叠加在
+ *   速度环输出之后(不写速度环积分, 不会被积分限幅单边裁掉); 只纠偏不停机。
+ * - 共模环: v = 速度前馈 + 位置修正 P(只补小误差), 两台同一速度给定 -> 出力均担。
+ *   点动前馈 = 摇杆速率; 自动动作前馈 = 梯形规划(加速度限幅 + 末端减速曲线)。
+ * - 均流: 两台速度环积分向均值互融, 摩擦差异不被积分固化成力矩差。
+ * @note 执行链实际是 PID 在 RobotTask(~1kHz) 算、CAN 力矩在 MotorControlTask(~500Hz) 更新,
+ *       回路纯滞后 ms 级 -> 差模环带宽不能高, 以下增益是实车调出来的, 不要为"静止不抖"收紧。 */
+#define DART_BELT_POS_KP 40.0f           // 共模位置修正 P (速度/(°))
+#define DART_BELT_SYNC_KP 40.0f          // 差模 P (电流/°): 管位置差(张力差)偏差
+#define DART_BELT_SYNC_KI 3.0f           // 差模 I (电流/(°·s)): 提供稳态张力差记忆
+#define DART_BELT_SYNC_KI_LIMIT 2000.0f  // 差模积分限幅 (电流)
+#define DART_BELT_SYNC_KD_VEL 1.0f       // 差模阻尼 (电流/(°/s)): 直接作用于两台实测速度差
+#define DART_BELT_SYNC_TORQUE_MAX 6000.0f // 差模电流偏置总限幅 (电流)
+#define DART_BELT_SYNC_DEV_LPF_TAU_S 0.008f // dev 低通时间常数 (s): 抑制两机 CAN 帧不同时到达的假误差
+#define DART_BELT_SYNC_DEADBAND_DEG 5.0f    // dev 死区 (转子度): 跨过减速箱回差/齿隙
+#define DART_BELT_INTEGRAL_BLEND 0.05f      // 速度环积分互融系数(0~1/周期): 只做纯均值慢互融
+#define DART_BELT_SYNC_WARN_DEG 200.0f      // 两侧位置差告警阈值 (deg, 只提示不停机)
+#define DART_BELT_SYNC_LOG_MIN_SPEED_DPS 1000.0f  // 同步状态日志的速度门限(°/s): 静止不刷屏
+#define DART_BELT_TRACK_ACC_DPS2 50000.0f   // 自动动作前馈加速度限幅 (°/s², ≈772mm/s²):
+                                            // 起步时间 = 限速/a: 储能 10000 -> 200ms, 归位 25000 -> 500ms
+#define DART_BELT_TRACK_P_CORR_DPS 800.0f   // 自动动作位置修正 P 上限 (°/s)
+#define DART_BELT_TRACK_FF_V0_DPS 200.0f    // 减速曲线近端线性化速度 (°/s): v=sqrt(2a|e|+v0²)−v0
 
-#if DART_BELT_SYNC_V2
-/* 差模(同步)环: u = clamp(KP*dev_err) + KD*(v0−v1) + I  ->  机0 电流前馈 −u, 机1 +u
- * u>0 表示"机0 超前/更快", 需要减机0 电流、加机1 电流, dev 才会回落。
- * @note 静止保持实测(调试档高速点动后摇杆回中): devf=-213 base=-163 -> err=-50°, 机构被静摩擦卡住
- *   位置纹丝不动, 但 P=40*50=2000 + 积分 150/s 持续累积 -> u=-2534 且 si 继续往限幅爬,
- *   两机实测电流 4885/1057(差 3828) —— **纠偏没有权限, 却在纯 windup = 发热 + 两机对顶**。
- *   修法: 只在**真正静止**时冻结纠偏/泄积分(见 DART_BELT_SYNC_GATE_V2), 运动段参数保持 P0 原值。
- * @warning P0.5 曾把运动段参数一起收紧(死区 20°、P 限幅 2000、KI_LIMIT 1000) -> 高速同步反而明显变差,
- *          已全部恢复为 P0 原值。调参时**不要**用"为了不抖"去限制运动段权限。 */
-#define DART_BELT_SYNC_V2_KP 40.0f             // 位置差 P (电流/°): 比 V1(120) 低, 匹配 500Hz 执行链
-#define DART_BELT_SYNC_V2_KI 3.0f              // 位置差 I (电流/(°·s))
-#define DART_BELT_SYNC_V2_KI_LIMIT 2000.0f     // 位置差积分限幅 (电流): 独立于速度环积分限幅
-#define DART_BELT_SYNC_V2_KD_VEL 1.0f          // 相对速度阻尼 (电流/(°/s)): 直接作用于 speed_aps 差
-#define DART_BELT_SYNC_V2_TORQUE_MAX 6000.0f   // 偏置总限幅 (电流): 比 V1(3000) 大, 高速段需要纠偏权限
-#define DART_BELT_SYNC_V2_DEV_LPF_TAU_S 0.008f // dev 低通时间常数 (s): 两机反馈帧不同时到达, 高速时 raw dev 有假误差
-#define DART_BELT_SYNC_V2_DEADBAND_DEG 5.0f    // dev 死区 (转子度): 跨过回差/齿隙, **不要**为了静止不抖放大(会牺牲运动同步)
-#define DART_BELT_INTEGRAL_BLEND_V2 0.05f      // 均流互融系数(0~1/周期): 纯均值慢互融(τ≈20ms), 不再掺差模偏置
-#endif
+/* ================= 储能序列超时 =================
+ * 储能/回撤过程中的堵转看门狗复用上面的 DART_CALI_STALL_* 阈值(两侧同时转不动才判故障)。 */
+#define DART_CHARGE_TIMEOUT_MS 60000  // 储能拉到位超时 (ms) -> 故障
+#define DART_RETRACT_TIMEOUT_MS 60000 // 回撤到释放位超时 (ms) -> 故障
 
-/* ===== 静止门控（P0.5 实验项, 默认关闭 = 与 P0 完全一致）=====
- * 只处理"机构动不了却还在纠偏"的 windup: 判据=两台实测速度都 < MOVE_SPEED -> 认为静止,
- * 此时差模误差归零 + 积分按 LEAK_TAU 泄回 0。**运动段行为不变**。
- * 实测依据: 静止时 devf-base=-50° 却位置不动, P0 逻辑仍 u=-2534 持续对顶、电流差 3828。
- * 用法: 把下面的 0 改成 1 重新编译即可(不需要任何编译选项); 想回到 P0 就改回 0。 */
-#ifndef DART_BELT_SYNC_GATE_V2
-#define DART_BELT_SYNC_GATE_V2 0
-#endif
-#if DART_BELT_SYNC_V2 && DART_BELT_SYNC_GATE_V2
-#define DART_BELT_SYNC_V2_MOVE_SPEED_DPS 200.0f // "机构真的在动"的实测速度门限(°/s, ≈3mm/s)
-#define DART_BELT_SYNC_V2_SI_LEAK_TAU_S 0.5f   // 静止时积分泄回 0 的时间常数(s)
-#endif
-#define DART_BELT_SYNC_LOG_MIN_SPEED_DPS 1000.0f // 通用同步日志的速度门限(°/s): 只在运动时打印, 静止不刷屏
+/* ================= 扳机丝杆(射力) =================
+ * 扳机整体装在丝杆上, 丝杆位置决定卡住平台时拉簧的拉伸量 -> 射力。
+ * 零点 = 开机位置(不做自动校零), 因此射力位置只在上电后相对可重复。 */
+#define DART_SCREW_POS_MIN_DEG 10.0f        // 射力位置下限 (deg, 相对开机位置)
+#define DART_SCREW_POS_MAX_DEG 90.0f        // 射力位置上限 (deg, 须 < 丝杆可走行程)
+#define DART_SCREW_POS_TOL_DEG 20.0f        // 到位容差 (deg)
+#define DART_SCREW_MAX_OUT 6000.0f          // 正常工作电流限幅
+#define DART_SCREW_INTEGRAL_LIMIT 2000.0f   // 正常工作积分限幅
+#define DART_SCREW_CALI_MAX_OUT 3000.0f     // 校准完成前(同步带未校准)的限流
+#define DART_SCREW_CALI_INTEGRAL_LIMIT 800.0f // 校准完成前的积分限幅
+#define DART_SCREW_MAX_SPEED_DPS 30000.0f   // 序列内位置环输出限幅 = 最大速度
+#define DART_SCREW_ADJ_DPS 30000.0f         // 正常档右摇杆竖直满杆射力微调速度 (deg/s)
+#define DART_SCREW_SETTLE_TIMEOUT_MS 2000   // 储能前丝杆就位超时 (ms)
 
-/* ================= 共模速度前馈 P1（拆成两个开关：点动 / 自动动作）=================
- * 背景(见结构审查文档 R1): 共模位置环原本是**纯 P**(v = Kp*err), "用误差换速度":
- *   稳态滞后 = rate/Kp; 速度被 Kp×DART_DEBUG_BELT_MAX_ERR_DEG(40×500=20000°/s) 钉死, 摇杆后半程是空行程。
- * 前馈改法: v_common = **速度前馈 v_ff** + 位置修正 P(只负责小误差), 把摇杆/目标速率直接送进速度环。
- *
- * ★ 实车结论（2026-11）：
- *   ① **点动(摇杆)前馈：最好**（DART_BELT_FF_V2=1）—— 充分用上电机速度、跟手。
- *   ② **自动动作的梯形规划：逻辑正确，但加速度限幅太保守会"软/顿挫"** —— 把 a 从 30000 提到 50000
- *      （15000°/s 的爬升 0.5s -> 0.3s，3600°/s 的 0.12s -> 72ms）。嫌软继续加 a，不必退回 P0。
- *   之前误判成"P1 点动不跟手"才把前馈整个关掉；实际是自动动作的 a 太小。现已拆成两个开关分别调。
- * @note 两个开关都在本文件改数字即可(不需要编译选项)。 */
-#ifndef DART_BELT_FF_V2
-#define DART_BELT_FF_V2 1
-#endif
-/* 自动动作(储能拉拽/归位/校准回撤/故障保持)是否走"梯形前馈规划"：
- *   1 = 梯形规划（加速度限幅 + 末端 sqrt 减速曲线）← **默认（逻辑更正确：有明确的加速/减速段，不过冲）**
- *   0 = P0 纯 P 环（位置误差直接给本段限速，起步是速度阶跃）—— 作为对照/回退保留
- * @note 之前默认 0 是因为 a=30000°/s² 太保守让自动动作"软/顿挫"；现已按实车建议把 a 提到 50000，
- *       储能到 3600°/s 只需 ~72ms、归位到 15000°/s 需 ~300ms。若归位仍嫌软: 继续加 ACC(见下)。 */
-#ifndef DART_BELT_TRACK_FF_V2
-#define DART_BELT_TRACK_FF_V2 1
-#endif
+/* ================= 扳机舵机(PWM 发射动作) =================
+ * 50Hz PWM, 角度线性映射到脉宽; 换定时器/通道只改下面两行(定时器需在 CubeMX 配好 PWM)。 */
+#define DART_SERVO_PWM_TIM (&htim1)            // 舵机 PWM 定时器
+#define DART_SERVO_PWM_CHANNEL (TIM_CHANNEL_1) // 舵机 PWM 通道
+#define DART_SERVO_PWM_PERIOD_S (0.02f)        // 50Hz (s)
+#define DART_SERVO_PULSE_MIN_US 500.0f         // 角度下限对应脉宽 (us)
+#define DART_SERVO_PULSE_MAX_US 2500.0f        // 角度上限对应脉宽 (us)
+#define DART_SERVO_ANGLE_MIN_DEG 0.0f          // 舵机机械角度下限 (deg)
+#define DART_SERVO_ANGLE_MAX_DEG 270.0f        // 舵机机械角度上限 (deg, 实车 270° 舵机; 180° 舵机改 180)
+#define DART_SERVO_CATCH_DEG 135.0f            // 卡位角: 扣住发射平台(待发/上电默认)
+#define DART_SERVO_RELEASE_DEG 140.0f          // 释放角: 放开发射平台
+#define DART_SERVO_ADJ_DPS 60.0f               // 调试档舵机角度增量速度 (deg/s)
+#define DART_SERVO_SETTLE_MS 1200              // 舵机动作等待时间 (ms, 开环无反馈)
+#define DART_FIRE_DWELL_MS 500                 // 发射时释放角额外保持时间 (ms)
 
-#if DART_BELT_FF_V2 && DART_BELT_TRACK_FF_V2
-/* 加速度限幅（°/s²）。换算: 64.76 °/mm -> 50000 °/s² ≈ 772 mm/s²。
- * 起步时间 = 限速/a: 储能 3600 -> 72ms; 归位 15000 -> 300ms; 校准回撤 1000 -> 20ms。
- * 嫌自动动作软就先加这个(100000 -> 150ms / 200000 -> 75ms), 仍比 P0 的"阶跃到限速"柔和;
- * 注意别大到让皮带/滑台起停拍打; 末端减速距离 = v²/(2a)。 */
-#define DART_BELT_TRACK_ACC_DPS2 50000.0f
-/* 位置修正(P)输出上限(°/s)。前馈负责稳态速度, P 只补残差; 800°/s ≈ 12 mm/s。
- * 起步阶段前馈还没建立时, P 是唯一的速度来源(所以它太小会让起步"发木")。 */
-#define DART_BELT_TRACK_P_CORR_DPS 800.0f
-#define DART_BELT_TRACK_FF_V0_DPS 200.0f     // 减速曲线近端线性化速度 (°/s): v=sqrt(2a|e|+v0²)−v0,
-                                             // 防纯 sqrt 在 0 附近抖(极限环≈1 编码器计数); 越小近端越"软"
-#endif
-
-#define DART_CHARGE_STALL_SPEED_DPS 30.0f          // 储能堵转看门狗速度阈值 (deg/s, 超滑台行程会顶死)
-#define DART_CHARGE_STALL_MS 300                  // 储能堵转看门狗持续时间 (ms)
-#define DART_CHARGE_TIMEOUT_MS 60000               // 储能拉到位超时 (ms) -> 故障: 48000°/1200°/s=40s, ×1.5
-#define DART_RETRACT_TIMEOUT_MS 60000              // 复位到释放位置超时 (ms) -> 故障: 同上量级
-
-/* ================= 扳机丝杆(射力)参数 =================
- * 扳机整体装在丝杆上, 由 M3508 位置环控制;
- * 丝杆位置决定卡住发射平台时拉簧的拉伸量, 直接影响发射力量和速度(可调)。
- * 逻辑坐标零点 = 开机位置(不做自动校零), 数值越大射力越大(方向按实机标定)。
- * @note 每次上电的开机位置不同, 所以射力位置只在上电后相对可重复;
- *       需要跨上电绝对重复, 就恢复 shoot_dart/shoot.c 里的丝杆零位校准(#if 0 那段)。 */
-#define DART_SCREW_POS_DEFAULT_DEG 30.0f   // 默认射力位置(相对开机位置, deg)
-#define DART_SCREW_POS_MIN_DEG 10.0f       // 射力位置下限(相对开机位置, deg)
-#define DART_SCREW_POS_MAX_DEG 90.0f       // 射力位置上限(相对开机位置, 须 < 丝杆可走行程)
-#define DART_SCREW_POS_TOL_DEG 20.0f        // 位置到位容差 (deg)
-#define DART_SCREW_MAX_OUT 6000.0f         // 正常工作电流限幅
-#define DART_SCREW_INTEGRAL_LIMIT 2000.0f  // 正常工作积分限幅
-#define DART_SCREW_MAX_SPEED_DPS 30000.0f    // 位置环输出限幅 = 最大速度
-#define DART_SCREW_ADJ_DPS 30000.0f           // 右摇杆竖直满行程时射力调节速度 (deg/s)
-#define DART_SCREW_SETTLE_TIMEOUT_MS 2000  // 储能前丝杆就位超时 (ms)
-
-/* 扳机丝杆零位校准参数: **[已停用]** 自动校准不再执行丝杆校零, 这些宏当前无引用,
- * 仅保留供恢复 shoot_dart/shoot.c 里 #if 0 那段丝杆校准代码时使用 */
-#define DART_SCREW_CALI_SPEED_DPS 3600.0f        // 顶硬限位速度 (deg/s)
-#define DART_SCREW_CALI_DIRECTION (-1.0f)     // 顶限位方向(零点取这一端); 实机零点在另一端时改 +1.0f
-#define DART_SCREW_CALI_MAX_OUT 3000.0f       // 校准严格限流 (M3508 满量程 16384)
-#define DART_SCREW_CALI_INTEGRAL_LIMIT 800.0f // 校准积分限幅
-#define DART_SCREW_CALI_TIMEOUT_MS 8000       // 顶限位/退开单步超时 (ms)
-#define DART_SCREW_CALI_BACKOFF_DEG 5.0f      // 找到零点后至少退开距离 (deg)
-
-/* ================= 扳机舵机(PWM 发射动作)参数 =================
- * 舵机通过 50Hz PWM 占空比控制角度: 脉宽线性映射到 [ANGLE_MIN, ANGLE_MAX]。
- * 换定时器/通道只改下面两行(所选定时器需在 CubeMX 配好对应通道的 PWM,
- * 建议预分频使计数 tick = 1us, 便于按脉宽微秒数计算)。 */
-#define DART_SERVO_PWM_TIM (&htim1)             // ← 舵机 PWM 定时器(待定, 按实际接线改)
-#define DART_SERVO_PWM_CHANNEL (TIM_CHANNEL_1)  // ← 舵机 PWM 通道
-#define DART_SERVO_PWM_PERIOD_S (0.02f)         // 50Hz PWM 周期 (s)
-#define DART_SERVO_PULSE_MIN_US 500.0f          // 0° 对应脉宽 (us, 实车 270° 舵机)
-#define DART_SERVO_PULSE_MAX_US 2500.0f         // 行程上限对应脉宽 (us, 实车 270° 舵机)
-#define DART_SERVO_ANGLE_MIN_DEG 0.0f           // 舵机机械角度下限 (deg)
-#define DART_SERVO_ANGLE_MAX_DEG 270.0f         // 舵机机械角度上限 (deg, 实车 270° 舵机; 180° 舵机改 180)
-#define DART_SERVO_CATCH_DEG 135.0f             // 卡位角: 扣住发射平台(待发/上电默认), 行程中点
-#define DART_SERVO_RELEASE_DEG 140.0f             // 释放角: 放开发射平台(发射)
-#define DART_SERVO_ADJ_DPS 60.0f                // 调试档舵机角度增量速度 (deg/s, 摇杆松手即停, 防误触发)
-#define DART_SERVO_SETTLE_MS 1200                // 舵机动作等待时间 (ms, 开环无反馈)
-#define DART_FIRE_DWELL_MS 500                  // 发射时释放角保持时间 (ms)
-
-/* ================= yaw(云台)参数 =================
- * 由 components/gimbal/gimbal_dart 使用: 摇杆给角速度, 云台积分成角度目标后角度环跟踪 */
-#define DART_YAW_SENSITIVITY_DPS 100000.0f   // 满杆 yaw 角速度 (deg/s)
+/* ================= yaw(云台) =================
+ * components/gimbal/gimbal_dart: 摇杆给角速度, 积分成角度目标后角度环跟踪 */
+#define DART_YAW_SENSITIVITY_DPS 100000.0f  // 满杆 yaw 角速度 (deg/s)
 #define DART_YAW_SOFT_LIMIT_DEG 400000.0f   // 相对开机位置的软限位 (deg)
-#define DART_YAW_LEAD_LIMIT_DEG 100000.0f    // 目标角超前反馈的限幅, 防目标跑飞 (deg)
-#define DART_YAW_MAX_OUT 10000.0f         // 电流限幅 (M2006/C610 满量程 10000)
-#define DART_YAW_INTEGRAL_LIMIT 5500.0f  // 积分限幅
+#define DART_YAW_LEAD_LIMIT_DEG 100000.0f   // 目标角超前反馈的限幅, 防目标跑飞
+#define DART_YAW_MAX_OUT 10000.0f           // 电流限幅 (M2006/C610 满量程 10000)
+#define DART_YAW_INTEGRAL_LIMIT 5500.0f     // 积分限幅
 
-/* ================= 遥控器参数 ================= */
-#define DART_RC_DEADZONE 20      // 摇杆/拨轮死区
-#define DART_STICK_FULL 660      // 摇杆满行程
-#define DART_TASK_DT_S 0.001f    // RobotTask 标称周期 (s)
+/* ================= 遥控器 =================
+ * DR16 操作映射(侧边拨轮已弃用):
+ *   左摇杆水平 = yaw; 左摇杆竖直 = 调试档同步带点动(上推=储能方向)
+ *   右摇杆竖直 = 扳机丝杆(正常档=射力微调, 调试档=点动); 右摇杆水平 = 调试档舵机角度增量
+ *   右开关: 下=安全停机, 中=使能(首次自动校准), 上=使能+调试点动(不自动校准)
+ *   左开关: 下=待机, 中(上升沿)=储能(故障/未校准=重新校准), 上(上升沿)=发射(须经中档, 两段式防误发) */
+#define DART_RC_DEADZONE 20   // 摇杆死区
+#define DART_STICK_FULL 660   // 摇杆满行程
+#define DART_TASK_DT_S 0.001f // RobotTask 标称周期 (s)
 
-/* DR16 操作映射(侧边拨轮已弃用: 实车拨轮损坏):
- *   分组原则: **左摇杆 = 同步带 + yaw, 右摇杆 = 扳机(丝杆 + 舵机)**, 拉同步带时手不会碰到扳机轴;
- *   同一执行器在正常/调试档保持同一摇杆轴, 切换档位不换手。
- *   右开关: 下 = 安全停机(全部电机停); 中 = 使能(首次使能自动校准); 上 = 使能+调试点动(不自动校准)
- *   左开关: 下 = 待机; 中(上升沿) = 储能命令(故障/未校准时为重新校准); 上(上升沿) = 发射命令
- *   左摇杆水平: yaw 增量式角度目标(两档一致)
- *   左摇杆竖直: 调试档 = 双同步带电机同速点动(上推=储能方向); 正常档不使用
- *   右摇杆竖直: 扳机丝杆, 两档同轴 —— 正常档 = 射力(丝杆位置)微调(仅 IDLE 生效, READY 扳机带载禁调),
- *                调试档 = 丝杆点动(上推=射力增大)
- *   右摇杆水平: 调试档 = 舵机角度增量(松手即停, 标定卡位角/释放角用); 正常档不使用
- *   调试流程: 上电右开关拨上档(不自动校准) -> 点动验方向/扫舵机角度 -> 拨回中档,
- *             动一下左开关(下->中)开始自动校准 -> 之后正常操作 */
+/* ================= 调试档点动 =================
+ * 摇杆给速率 -> 积分出虚拟位置目标(两侧共用), 共模给两侧同一速度给定(均载), 差模自动纠偏。
+ * 顶到机械限位/跟不上时暂停目标积分, 反向打杆先重同步目标, 松手收回目标领跑量(松手即停)。 */
+#define DART_DEBUG_BELT_MAX_SPEED_DPS DART_BELT_MAX_SPEED_DPS // 同步带点动满杆速率 = 电机速度上限
+#define DART_DEBUG_SCREW_MAX_SPEED_DPS 50000.0f  // 丝杆点动满杆速度 (deg/s)
+#define DART_DEBUG_SCREW_KP 30.0f                // 丝杆点动跟踪 P(速度前馈 + P): 误差 1° 补 30°/s
+#define DART_DEBUG_BELT_SYNC_SPEED_DPS 300.0f    // 摇杆回中后的两侧偏差收敛限速 (deg/s)
+#define DART_DEBUG_BELT_SYNC_WARN_DEG 200.0f     // 点动偏差告警阈值(相对进入点动时的基准)
+#define DART_DEBUG_BELT_MAX_ERR_DEG 500.0f       // 同步带目标超前实测上限: 超过暂停积分(不跑飞)
+#define DART_DEBUG_SCREW_MAX_ERR_DEG 200.0f      // 丝杆目标超前实测上限: 超过暂停积分
+#define DART_DEBUG_SCREW_HOLD_SPEED_DPS 500.0f   // 丝杆松手后收敛到虚拟目标的限速 (deg/s)
+#define DART_DEBUG_LOG_PERIOD_MS 500             // 调试档状态日志周期 (ms)
 
-/* ================= 调试点动参数 ================= */
-/* 调试点动速度(转子侧), 均为满杆对应值, 实际随摇杆线性缩放.
- * 同步带与丝杆点动均采用"虚拟位置目标 + 位置环": 摇杆给速率, 目标积分推进;
- * 顶到机械限位/跟不上时暂停目标积分(DART_DEBUG_*_MAX_ERR_DEG), 反向打杆先重同步目标,
- * 松手后目标保持、位置环顶住不滑走. 同步带走共模/差模(两侧同一目标+自动纠偏), 丝杆单电机只走位置环. */
-/* 同步带点动满杆速率(摇杆满杆时**目标积分**的速率)。
- * - 点动前馈打开(DART_BELT_FF_V2=1, 默认)时: 摇杆速率**直接作为速度前馈** -> 满杆实际速度 = 此值
- *   (再被 DART_BELT_MAX_SPEED_DPS 钳一次)。取 = MAX_SPEED 时摇杆全程线性有效(实测手感最好)。
- * - 点动前馈关闭(=0)时: 实际速度 = Kp×误差, 被 DART_DEBUG_BELT_MAX_ERR_DEG 卡在 ≈20000°/s,
- *   此值只决定"多少行程顶到 20000"(取 50000 时约 40% 行程)。
- * @note 两种模式都保证：点动满杆 ≈ 电机可用速度，中段不"肉"。 */
-#define DART_DEBUG_BELT_MAX_SPEED_DPS DART_BELT_MAX_SPEED_DPS  // 同步带点动满杆速率 (deg/s)
-#define DART_DEBUG_SCREW_MAX_SPEED_DPS 50000.0f // 扳机丝杆点动满杆速度 (deg/s)
-#define DART_DEBUG_SCREW_KP 30.0f // 丝杆点动跟踪P(速度前馈+P): 误差1°补30°/s; 纯位置环追杆上限=角度环Kp×误差上限, 故改前馈
-#define DART_DEBUG_BELT_SYNC_SPEED_DPS 300.0f  // 摇杆回中后的两侧偏差收敛限速 (deg/s)
-#define DART_DEBUG_BELT_SYNC_WARN_DEG 200.0f   // 点动偏差告警阈值(相对进入点动时的基准, 转子侧 ≈3mm)
-#define DART_DEBUG_BELT_MAX_ERR_DEG 500.0f     // 同步带目标超前实测上限: 超过暂停积分(顶限位/跟不上不跑飞)
-#define DART_DEBUG_SCREW_MAX_ERR_DEG 200.0f    // 丝杆目标超前实测上限: 超过暂停积分(顶到丝杆机械限位不再持续出力)
-#define DART_DEBUG_SCREW_HOLD_SPEED_DPS 500.0f // 丝杆松手后回到虚拟目标的收敛限速 (deg/s)
-#define DART_DEBUG_LOG_PERIOD_MS 500           // 调试档状态日志周期 (ms)
-
-/* ================= 任务周期 ================= */
-#define DART_SYNC_WARN_PERIOD_MS 1000  // 同步偏差告警的最小打印间隔
+/* ================= 日志周期 ================= */
+#define DART_SYNC_WARN_PERIOD_MS 1000  // 同步偏差/同步状态日志的最小打印间隔 (ms)
 
 /**
- * @brief yaw 电机(M2006)配置: 角度环串级速度环(gimbal_dart 使用)
+ * @brief yaw 电机(M2006)配置: 角度环串级速度环
  */
 #define DART_YAW_MOTOR_CONFIG(can_h, _id)                                      \
   {                                                                            \
@@ -398,11 +220,9 @@
   }
 
 /**
- * @brief 同步带电机(M3508)配置: 位置环串级速度环
- * @note 速度环**不启用** PID_ErrorHandle: 堵转判据改用速度阈值(DART_CALI_STALL_*),
- *       PID 堵转标志位置位后不手动清会一直挂着, 会把已过去的堵转带到后续阶段造成误故障
- * @param _ff_ptr 电流前馈注入指针(极性和单位=电机电流指令, 逻辑方向), 见 DART_BELT_SYNC_V2:
- *       差模同步偏置从这里叠加到速度环输出之后, **不再写速度环积分 Iout**(避免被积分限幅单边裁掉)
+ * @brief 同步带电机(M3508)配置: 速度环 + 电流前馈(差模偏置注入)
+ * @param _ff_ptr 差模电流偏置指针(叠加在速度环输出之后, 不写速度环积分)
+ * @note 速度环不启用 PID_ErrorHandle 堵转标志位(置位后需手动清, 会把已过去的堵转带进后续阶段)
  */
 #define DART_BELT_MOTOR_CONFIG(can_h, _id, _reverse, _ff_ptr)                           \
   {                                                                                     \
@@ -447,7 +267,6 @@
 
 /**
  * @brief 扳机丝杆电机(M3508)配置: 位置环串级速度环
- * @note 速度环**不启用** PID_ErrorHandle: 丝杆校零(当前 #if 0 停用)恢复后用的是速度阈值判据
  */
 #define DART_SCREW_MOTOR_CONFIG(can_h, _id, _reverse)                            \
   {                                                                              \
