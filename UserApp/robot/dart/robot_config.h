@@ -71,16 +71,27 @@
  * 扳机锁定态是单向通道: 平台滑过扳机后被继续后拉, 储能不会堵转 -> 按行程判完成;
  * 仅超行程等异常顶死时由堵转看门狗(两侧同时转不动)判故障。 */
 #define DART_BELT_HOME_DEG DART_BELT_CALI_BACKOFF_DEG  // 释放位: 挡块退出发射平台活动范围
-#define DART_BELT_CHARGE_DEG 27000.0f                  // 储能拉拽行程(相对零点, 正=储能方向);
+#define DART_BELT_CHARGE_DEG 33000.0f                  // 储能拉拽行程(相对零点, 正=储能方向);
                                                        // 实测全程 ≈49000°, 留 ~1000° 余量防顶死误报
 #define DART_BELT_POS_TOL_DEG 30.0f                    // 到位容差(按两侧平均位置判) ≈0.46mm;
                                                        // 校准限流下位置环稳态残差 ≈4°, 容差必须更大
-#define DART_BELT_END_TOL_DEG 8000.0f                  // "拉到底"容差: 两侧顶死且离目标 < 此值 = 拉到机械末端(正常完成)
+#define DART_BELT_END_TOL_DEG 5000.0f                  // "拉到底"容差: 两侧顶死且离目标 < 此值 = 拉到机械末端(正常完成)
 #define DART_BELT_MAX_OUT 12000.0f                     // 正常工作电流限幅
 #define DART_BELT_INTEGRAL_LIMIT 8000.0f               // 正常工作积分限幅(速度给定 0 时的保持力矩来源)
 #define DART_BELT_MAX_SPEED_DPS 40000.0f               // 速度给定硬上限(共模/差模合成后再钳一次)
 #define DART_BELT_HOME_SPEED_DPS 40000.0f              // 复位/回撤到释放位限速 (deg/s)
 #define DART_BELT_CHARGE_SPEED_DPS 30000.0f            // 储能拉拽限速 (deg/s)
+
+/* ---- 储能拉拽"推块咬住滑台"关键区限速 ----
+ * 推块在 8000°(相对零点)附近咬住滑台: 从释放位高速通过这段时咬合瞬间接近撞击, 有损坏风险。
+ * 所以该区间(±HALF_DEG)限速到 ENGAGE_SPEED, 并且进入区间前就按 DART_BELT_TRACK_ACC_DPS2
+ * 的同一减速度曲线提前减速(不能等进了区间才刹, 那样已经撞上了); 咬合完成后恢复正常储能速度。
+ * => 以后继续提高 DART_BELT_CHARGE_SPEED_DPS 只加快"咬合之后"的行程, 咬合过程始终安全。 */
+#define DART_BELT_CHARGE_ENGAGE_POS_DEG 8000.0f     // 咬合位置 (deg, 相对零点)
+#define DART_BELT_CHARGE_ENGAGE_HALF_DEG 500.0f     // 关键区半宽 (deg): 7500~8500 限速
+#define DART_BELT_CHARGE_ENGAGE_SPEED_DPS 10000.0f  // 关键区速度上限 (deg/s, ≈154mm/s)
+#define DART_BELT_CHARGE_ENGAGE_MARGIN_DEG 1000.0f  // 提前减速余量 (deg, ≈15mm): 补偿控制链滞后,
+                                                   // 让实际速度到区间口前就降到上限; 实车到点还偏高就加大
 
 /* ---- 回撤到释放位(靠近行程极限)的末段斜坡规划 ----
  * 释放位离行程硬限位只有 DART_BELT_CALI_BACKOFF_DEG(当前 300° ≈ 4.6mm): 从储能端高速回撤时,
@@ -135,8 +146,8 @@
 #define DART_BELT_CHARGE_TOL_DEG 150.0f     // 储能到位容差 (deg, ≈2.3mm): 平台已被扳机锁住, 略差一点不影响射力
 #define DART_CHARGE_STALL_SPEED_DPS 150.0f  // 储能"拉到底"堵转速度阈值 (deg/s)
 #define DART_CHARGE_STALL_MS 150            // 储能"拉到底"堵转确认时间 (ms): 越短回撤越早, 太短易误判
-#define DART_CHARGE_TIMEOUT_MS 60000        // 储能拉到位超时 (ms) -> 故障
-#define DART_RETRACT_TIMEOUT_MS 60000       // 回撤到释放位超时 (ms) -> 故障
+#define DART_CHARGE_TIMEOUT_MS 6000        // 储能拉到位超时 (ms) -> 故障
+#define DART_RETRACT_TIMEOUT_MS 6000       // 回撤到释放位超时 (ms) -> 故障
 
 /* ================= 扳机丝杆(射力) =================
  * 扳机整体装在丝杆上, 丝杆位置决定卡住平台时拉簧的拉伸量 -> 射力。

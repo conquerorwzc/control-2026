@@ -72,6 +72,13 @@ static void ResetStallState(ShootDartInstance* inst) {
   }
 }
 
+/* 同步带位置移动的类型: 决定共模速度前馈用哪种规划 */
+typedef enum {
+  BELT_MOVE_NORMAL = 0, // 普通移动(故障保持等): 正常梯形规划
+  BELT_MOVE_HOME,       // 回撤到释放位: 靠近行程极限, 末段提前减速 + 低速爬行
+  BELT_MOVE_CHARGE,     // 储能拉拽: 经过"推块咬合区"时限速, 避免高速撞击
+} Dart_Belt_Move_e;
+
 /* 前馈目标速度 -> 按加速度限幅平滑输出(梯形规划的"斜坡"环节)
  * 规划状态跨周期保留: 起步不阶跃、换目标/换向时自然经过 0 过渡。 */
 static float BeltRampSpeed(ShootDartInstance* inst, float v_target) {
@@ -194,10 +201,34 @@ static void SetBeltSpeed(ShootDartInstance* inst, float speed_dps) {
   }
 }
 
+/* 储能拉拽"推块咬合区"的位置限速(返回该位置允许的最大速度, 同时用于前馈与总给定钳制)
+ * 推块在 DART_BELT_CHARGE_ENGAGE_POS_DEG(当前 8000°)附近咬住滑台: 从释放位高速冲过来时,
+ * 咬合瞬间接近撞击, 有损坏风险 -> 该区间(±HALF_DEG)限速到 ENGAGE_SPEED;
+ * 并且提前 MARGIN_DEG 就开始按减速度曲线减速, 补偿控制链滞后, 保证到区间口时实际速度已降下来
+ * (不能等进了区间才刹, 那样已经撞上了)。咬合完成(过了区间)后恢复正常储能速度。
+ * @note 只作用于沿储能方向(正方向)运动; 回撤反向经过该区间不受影响(此时推块已脱离滑台)。 */
+static float BeltChargeSpeedLimit(ShootDartInstance* inst, float v_lim) {
+  float pos = 0.5f * (inst->belt.pos_rel[0] + inst->belt.pos_rel[1]);  // 两侧相对零点的平均位置
+  float brake_start = DART_BELT_CHARGE_ENGAGE_POS_DEG - DART_BELT_CHARGE_ENGAGE_HALF_DEG -
+                      DART_BELT_CHARGE_ENGAGE_MARGIN_DEG;
+  float zone_hi = DART_BELT_CHARGE_ENGAGE_POS_DEG + DART_BELT_CHARGE_ENGAGE_HALF_DEG;
+  float cap;
+  if (pos < brake_start) {
+    // 区间之前: 按"能在 brake_start 处降到 ENGAGE_SPEED"的减速曲线提前限速
+    cap = sqrtf(DART_BELT_CHARGE_ENGAGE_SPEED_DPS * DART_BELT_CHARGE_ENGAGE_SPEED_DPS +
+                2.0f * DART_BELT_TRACK_ACC_DPS2 * (brake_start - pos));
+  } else if (pos <= zone_hi) {
+    cap = DART_BELT_CHARGE_ENGAGE_SPEED_DPS;  // 咬合区: 限速
+  } else {
+    cap = v_lim;  // 咬合完成: 恢复正常储能速度
+  }
+  return cap < v_lim ? cap : v_lim;
+}
+
 /* 同步带位置目标(逻辑坐标): 差模基准=两零点之差, 共模=平均零点+目标; 速度前馈按梯形规划
- * @param near_limit 目标是否靠近行程极限(释放位): 从储能端朝它运动时走"提前减速+末段爬行"
- *                   的保守规划(BeltHomeFeedforward), 避免冲过头撞同步带轮/硬限位 */
-static void SetBeltPosition(ShootDartInstance* inst, float pos_deg, float speed_limit_dps, bool near_limit) {
+ * @param move 移动类型: HOME=回撤到释放位(末段提前减速+爬行, 靠近行程极限),
+ *             CHARGE=储能拉拽(经过推块咬合区时限速), NORMAL=普通梯形规划 */
+static void SetBeltPosition(ShootDartInstance* inst, float pos_deg, float speed_limit_dps, Dart_Belt_Move_e move) {
   if (!inst->belt.zero_valid) {
     SetBeltSpeed(inst, 0.0f);  // 零点无效: 只能速度环抱死, 禁止位置闭环
     return;
@@ -208,13 +239,16 @@ static void SetBeltPosition(ShootDartInstance* inst, float pos_deg, float speed_
   inst->belt.common_pid.MaxOut = DART_BELT_TRACK_P_CORR_DPS;  // P 只做小误差修正, 稳态速度由前馈给
   float pos_err = inst->belt.common_ref -
                   0.5f * (inst->belt.motor[0]->measure.total_angle + inst->belt.motor[1]->measure.total_angle);
+  // 储能拉拽沿正方向经过"推块咬合区"时, 本段速度上限由位置决定(提前减速 + 区间限速)
+  float v_limit = limit;
+  if (move == BELT_MOVE_CHARGE && pos_err > 0.0f) v_limit = BeltChargeSpeedLimit(inst, limit);
   float v_ff;
-  if (near_limit && pos_err < 0.0f) {
+  if (move == BELT_MOVE_HOME && pos_err < 0.0f) {
     v_ff = BeltHomeFeedforward(inst, pos_err, limit);  // 朝释放位方向(也是朝硬限位方向): 提前减速
   } else {
-    v_ff = BeltTrackFeedforward(inst, pos_err, limit);
+    v_ff = BeltTrackFeedforward(inst, pos_err, v_limit);
   }
-  BeltSyncUpdate(inst, v_ff, limit);
+  BeltSyncUpdate(inst, v_ff, v_limit);
 }
 
 /* 是否到达逻辑目标: 以两侧平均位置判(挡块位置); 单侧只留宽松健全性上限 END_TOL
@@ -305,7 +339,7 @@ static void HandleCalibrating(ShootDartInstance* inst, uint32_t now) {
 
     case CALI_STEP_BELT_BACKOFF: {
       ApplyScrewPosition(inst);
-      SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_BELT_CALI_BACKOFF_SPEED_DPS, true);
+      SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_BELT_CALI_BACKOFF_SPEED_DPS, BELT_MOVE_HOME);
       // 超时按"回撤距离/回撤限速 + 4s 余量"算(不能用顶限位步的超时, 否则必误报)
       uint32_t budget_ms = (uint32_t)(DART_BELT_CALI_BACKOFF_DEG / DART_BELT_CALI_BACKOFF_SPEED_DPS * 1000.0f) + 4000u;
       if (BeltPositionReached(inst, DART_BELT_HOME_DEG, DART_BELT_POS_TOL_DEG)) {
@@ -345,7 +379,7 @@ static void HandleCharging(ShootDartInstance* inst, uint32_t now) {
   switch (inst->charge.step) {
     case CHARGE_STEP_PREP_SCREW: {
       // 拉伸量由丝杆位置(射力)决定, 必须先就位再拉拽
-      SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_BELT_HOME_SPEED_DPS, true);
+      SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_BELT_HOME_SPEED_DPS, BELT_MOVE_HOME);
       float screw_err = inst->screw.pos_deg - inst->screw.motor->measure.total_angle;
       if (fabsf(screw_err) < DART_SCREW_POS_TOL_DEG) {
         ResetStallState(inst);
@@ -361,7 +395,7 @@ static void HandleCharging(ShootDartInstance* inst, uint32_t now) {
 
     case CHARGE_STEP_DRIVE: {
       // 扳机锁定态是单向通道: 平台会滑过扳机继续被后拉, 储能不会堵转, 按行程判完成
-      SetBeltPosition(inst, DART_BELT_CHARGE_DEG, DART_BELT_CHARGE_SPEED_DPS, false);
+      SetBeltPosition(inst, DART_BELT_CHARGE_DEG, DART_BELT_CHARGE_SPEED_DPS, BELT_MOVE_CHARGE);
       if (BeltPositionReached(inst, DART_BELT_CHARGE_DEG, DART_BELT_CHARGE_TOL_DEG)) {
         uint32_t elapsed_ms = now - inst->step_start_ms;
         inst->charge.step = CHARGE_STEP_RETRACT;
@@ -405,7 +439,7 @@ static void HandleCharging(ShootDartInstance* inst, uint32_t now) {
     }
 
     case CHARGE_STEP_RETRACT:
-      SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_BELT_HOME_SPEED_DPS, true);
+      SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_BELT_HOME_SPEED_DPS, BELT_MOVE_HOME);
       if (BeltPositionReached(inst, DART_BELT_HOME_DEG, DART_BELT_POS_TOL_DEG)) {
         inst->state = DART_STATE_READY;
         DartBuzzerChargeDone();
@@ -424,7 +458,7 @@ static void HandleCharging(ShootDartInstance* inst, uint32_t now) {
 
 static void HandleFiring(ShootDartInstance* inst, uint32_t now) {
   // 发射只动舵机, 但同步带必须主动保持在释放位(不调 SetPIDRef 会冻结上一拍电流指令 -> 可能漂移)
-  SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_BELT_HOME_SPEED_DPS, true);
+  SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_BELT_HOME_SPEED_DPS, BELT_MOVE_HOME);
   switch (inst->fire.step) {
     case FIRE_STEP_RELEASE:
       SetServoAngle(inst, DART_SERVO_RELEASE_DEG);
@@ -784,7 +818,7 @@ void ShootDartTask(ShootDartInstance* inst) {
 
   if (inst->state == DART_STATE_FAULT) {
     // 故障保持(不断力矩): 双带保持故障位置, 丝杆保持; yaw 由 RobotTask 断力矩
-    SetBeltPosition(inst, inst->belt.hold_pos, DART_BELT_HOME_SPEED_DPS, false);
+    SetBeltPosition(inst, inst->belt.hold_pos, DART_BELT_HOME_SPEED_DPS, BELT_MOVE_NORMAL);
     ApplyScrewPosition(inst);
     return;
   }
@@ -808,7 +842,7 @@ void ShootDartTask(ShootDartInstance* inst) {
 
   // 失能中止储能后的复位: 优先于点动和 IDLE 保持(调试档会跳过 HandleIdle, 否则标志永不清)
   if (inst->state == DART_STATE_IDLE && inst->recovery_retract) {
-    SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_BELT_HOME_SPEED_DPS, true);
+    SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_BELT_HOME_SPEED_DPS, BELT_MOVE_HOME);
     if (BeltPositionReached(inst, DART_BELT_HOME_DEG, DART_BELT_POS_TOL_DEG)) {
       inst->recovery_retract = false;
       LOGINFO("[dart] recovery retract done (block back at release position)");
@@ -821,7 +855,7 @@ void ShootDartTask(ShootDartInstance* inst) {
     switch (inst->state) {
       case DART_STATE_IDLE:
       case DART_STATE_READY:
-        SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_BELT_HOME_SPEED_DPS, true);
+        SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_BELT_HOME_SPEED_DPS, BELT_MOVE_HOME);
         break;
       case DART_STATE_CALIBRATING:
         HandleCalibrating(inst, now);
