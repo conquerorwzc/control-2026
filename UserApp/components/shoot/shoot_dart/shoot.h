@@ -69,15 +69,15 @@ typedef struct {
 
 /* ================= 子组件 ================= */
 
-/* 同步带(2xM3508): 共模/差模解耦 + 速度前馈; 位置差 dev = θ0−θ1 ∝ 两侧皮带张力差 */
+/* 同步带(2xM3508): 共模/差模解耦 + 速度前馈; 两侧位置差 θ0−θ1 ∝ 两侧皮带张力差 */
 typedef struct {
   DJIMotorInstance* motor[2]; // [0]左 [1]右
   PIDInstance common_pid;     // 共模位置环: 两侧平均位置 -> 速度给定(纯 P)
   float zero_offset[2];       // 释放方向硬限位处的 total_angle(校准得到)
   bool zero_valid;            // 零点是否有效(有效才允许位置闭环)
   float common_ref;           // 共模目标(两侧平均位置, total_angle 坐标)
-  float diff_base;            // 差模基准 = 两零点之差, 即两侧"应有"的位置差
-  float dev_f;                // 两侧位置差低通值(抑制两机 CAN 帧不同时到达的假误差)
+  float diff_ref;             // 位置差基准 = 两零点之差, 即两侧"应有"的位置差
+  float pos_diff;             // 两侧位置差(低通后, ∝ 两侧张力差)
   float sync_i;               // 差模积分(独立记忆, 不受速度环积分限幅影响)
   float sync_u;               // 差模输出(电流偏置): 机0 前馈 −u / 机1 +u
   float add_current[2];       // 电流前馈(电机配置的 current_feedforward_ptr 指向这里)
@@ -127,7 +127,7 @@ typedef struct {
   float screw_speed_dps;   // 丝杆点动速率(摇杆缩放)
   float belt_target;       // 同步带虚拟位置目标(两侧共用)
   float screw_target;      // 丝杆虚拟位置目标
-  float belt_dev_base;     // 进入点动时的两侧位置差基准
+  float belt_diff_base;    // 进入点动时的两侧位置差基准
   bool belt_synced;        // 本次点动是否已把目标同步到实际位置
   bool screw_synced;       // 同上(丝杆)
   float belt_rate_last;    // 上周期速率(松手沿检测)

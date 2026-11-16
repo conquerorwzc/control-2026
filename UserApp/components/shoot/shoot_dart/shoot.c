@@ -55,7 +55,7 @@ static void ClearBeltControl(ShootDartInstance* inst) {
   inst->belt.sync_u = 0.0f;
   inst->belt.add_current[0] = 0.0f;
   inst->belt.add_current[1] = 0.0f;
-  inst->belt.dev_f = inst->belt.motor[0]->measure.total_angle - inst->belt.motor[1]->measure.total_angle;
+  inst->belt.pos_diff = inst->belt.motor[0]->measure.total_angle - inst->belt.motor[1]->measure.total_angle;
   inst->belt.ff_dps = 0.0f;
   inst->belt.v_ff_dps = 0.0f;
   inst->belt.v_common_dps = 0.0f;
@@ -93,7 +93,7 @@ static float BeltTrackFeedforward(ShootDartInstance* inst, float pos_err, float 
 }
 
 /* 同步带共模/差模控制(每周期唯一出口)
- *   差模: dev = θ0−θ1 ∝ 两侧皮带张力差(见 robot_config.h), 低通+死区后 PD+I,
+ *   差模: 两侧位置差 θ0−θ1 ∝ 两侧皮带张力差(见 robot_config.h), 低通+死区后 PD+I,
  *         输出电流偏置 u -> 机0 前馈 −u / 机1 前馈 +u(叠加在速度环输出之后, 不写速度环积分,
  *         因此不会被积分限幅单边裁掉); 阻尼取实测相对速度, 不对位置求导。
  *   共模: v_common = 速度前馈 v_ff + 位置修正 P(只补小误差), 两台同一速度给定 -> 出力均担。
@@ -114,9 +114,9 @@ static void BeltSyncUpdate(ShootDartInstance* inst, float v_ff, float v_total_li
   sp0->Iout += DART_BELT_INTEGRAL_BLEND * (shared - sp0->Iout);
   sp1->Iout += DART_BELT_INTEGRAL_BLEND * (shared - sp1->Iout);
 
-  // 2) 差模(张力差)环: 目标是保持 dev 在标定基准上, 而不是让 dev -> 0
-  inst->belt.dev_f += (p0 - p1 - inst->belt.dev_f) * (dt / (DART_BELT_SYNC_DEV_LPF_TAU_S + dt));
-  float err = inst->belt.dev_f - inst->belt.diff_base;
+  // 2) 差模(张力差)环: 目标是保持位置差在标定基准上, 而不是让它 -> 0
+  inst->belt.pos_diff += (p0 - p1 - inst->belt.pos_diff) * (dt / (DART_BELT_SYNC_DIFF_LPF_TAU_S + dt));
+  float err = inst->belt.pos_diff - inst->belt.diff_ref;
   if (fabsf(err) < DART_BELT_SYNC_DEADBAND_DEG) err = 0.0f;  // 跨过减速箱回差/皮带齿隙造成的假误差
   float rel_speed = belt_l->measure.speed_aps - belt_r->measure.speed_aps;
   inst->belt.sync_i += DART_BELT_SYNC_KI * err * dt;
@@ -165,7 +165,7 @@ static void SetBeltPosition(ShootDartInstance* inst, float pos_deg, float speed_
   }
   float limit = speed_limit_dps < DART_BELT_MAX_SPEED_DPS ? speed_limit_dps : DART_BELT_MAX_SPEED_DPS;
   inst->belt.common_ref = 0.5f * (inst->belt.zero_offset[0] + inst->belt.zero_offset[1]) + pos_deg;
-  inst->belt.diff_base = inst->belt.zero_offset[0] - inst->belt.zero_offset[1];
+  inst->belt.diff_ref = inst->belt.zero_offset[0] - inst->belt.zero_offset[1];
   inst->belt.common_pid.MaxOut = DART_BELT_TRACK_P_CORR_DPS;  // P 只做小误差修正, 稳态速度由前馈给
   float pos_err = inst->belt.common_ref -
                   0.5f * (inst->belt.motor[0]->measure.total_angle + inst->belt.motor[1]->measure.total_angle);
@@ -477,12 +477,12 @@ static void MonitorBeltSync(ShootDartInstance* inst, uint32_t now) {
     LOGERROR("[dart] belt motors sync deviation exceeded: %d deg (L %d, R %d, thr %d)", (int)(pos0 - pos1),
              (int)pos0, (int)pos1, (int)DART_BELT_SYNC_WARN_DEG);
   }
-  // 运动时 1Hz 打同步状态: ff/v=前馈与共模给定, dev=扣零点位置差(∝张力差), err/u/si=差模环
+  // 运动时 1Hz 打同步状态: ff/v=前馈与共模给定, posdiff=扣零点位置差(∝张力差), err/u/si=差模环
   if (fabsf(inst->belt.v_common_dps) > DART_BELT_SYNC_LOG_MIN_SPEED_DPS &&
       now - inst->belt.sync_log_ms >= DART_SYNC_WARN_PERIOD_MS) {
     inst->belt.sync_log_ms = now;
-    LOGINFO("[dart] belt sync ff %d v %d dev %d err %d u %d si %d cur %d/%d spd %d/%d", (int)inst->belt.v_ff_dps,
-            (int)inst->belt.v_common_dps, (int)(pos0 - pos1), (int)(inst->belt.dev_f - inst->belt.diff_base),
+    LOGINFO("[dart] belt sync ff %d v %d posdiff %d err %d u %d si %d cur %d/%d spd %d/%d", (int)inst->belt.v_ff_dps,
+            (int)inst->belt.v_common_dps, (int)(pos0 - pos1), (int)(inst->belt.pos_diff - inst->belt.diff_ref),
             (int)inst->belt.sync_u, (int)inst->belt.sync_i, (int)inst->belt.motor[0]->measure.real_current,
             (int)inst->belt.motor[1]->measure.real_current, (int)inst->belt.motor[0]->measure.speed_aps,
             (int)inst->belt.motor[1]->measure.speed_aps);
@@ -499,9 +499,9 @@ static void ApplyDebugMove(ShootDartInstance* inst, float dt_s, uint32_t now) {
   if (!inst->debug.belt_synced) {
     // 进入点动: 目标取两侧当前位置平均, 以当前位置差为张力差基准, 同步环状态就地重置
     inst->debug.belt_target = 0.5f * (belt_l->measure.total_angle + belt_r->measure.total_angle);
-    inst->debug.belt_dev_base = belt_l->measure.total_angle - belt_r->measure.total_angle;
-    inst->belt.diff_base = inst->debug.belt_dev_base;
-    inst->belt.dev_f = inst->debug.belt_dev_base;
+    inst->debug.belt_diff_base = belt_l->measure.total_angle - belt_r->measure.total_angle;
+    inst->belt.diff_ref = inst->debug.belt_diff_base;
+    inst->belt.pos_diff = inst->debug.belt_diff_base;
     inst->belt.sync_i = 0.0f;
     inst->belt.sync_u = 0.0f;
     inst->belt.add_current[0] = 0.0f;
@@ -558,20 +558,20 @@ static void ApplyDebugMove(ShootDartInstance* inst, float dt_s, uint32_t now) {
     ApplyScrewPosition(inst);  // 保持射力位置不动
   }
 
-  // ---- 状态日志(500ms): dev 偏差大时告警, 否则正常状态 ----
-  float dev = (belt_l->measure.total_angle - belt_r->measure.total_angle) - inst->debug.belt_dev_base;
+  // ---- 状态日志(500ms): 位置差偏差大时告警, 否则正常状态 ----
+  float pos_diff = (belt_l->measure.total_angle - belt_r->measure.total_angle) - inst->debug.belt_diff_base;
   if (now - inst->debug.log_ms >= DART_DEBUG_LOG_PERIOD_MS) {
     inst->debug.log_ms = now;
-    if (fabsf(dev) > DART_DEBUG_BELT_SYNC_WARN_DEG) {
-      LOGERROR("[dart] debug belt sync dev %d deg (L %d, R %d, tgt %d)", (int)dev,
+    if (fabsf(pos_diff) > DART_DEBUG_BELT_SYNC_WARN_DEG) {
+      LOGERROR("[dart] debug belt sync posdiff %d deg (L %d, R %d, tgt %d)", (int)pos_diff,
                (int)belt_l->measure.total_angle, (int)belt_r->measure.total_angle, (int)inst->debug.belt_target);
     } else {
-      LOGINFO("[dart] debug spd %d/%d pos %d/%d dev %d err %d cur %d/%d iout %d", (int)belt_l->measure.speed_aps,
+      LOGINFO("[dart] debug spd %d/%d pos %d/%d posdiff %d err %d cur %d/%d iout %d", (int)belt_l->measure.speed_aps,
               (int)belt_r->measure.speed_aps, (int)belt_l->measure.total_angle, (int)belt_r->measure.total_angle,
-              (int)dev, (int)follow_err, (int)belt_l->measure.real_current, (int)belt_r->measure.real_current,
+              (int)pos_diff, (int)follow_err, (int)belt_l->measure.real_current, (int)belt_r->measure.real_current,
               (int)belt_l->motor_controller.speed_PID.Iout);
-      LOGINFO("[dart] debug sync ff %d v %d devf %d base %d u %d si %d add %d/%d relv %d", (int)inst->belt.v_ff_dps,
-              (int)inst->belt.v_common_dps, (int)inst->belt.dev_f, (int)inst->belt.diff_base, (int)inst->belt.sync_u,
+      LOGINFO("[dart] debug sync ff %d v %d posdiff %d ref %d u %d si %d add %d/%d rel_speed %d", (int)inst->belt.v_ff_dps,
+              (int)inst->belt.v_common_dps, (int)inst->belt.pos_diff, (int)inst->belt.diff_ref, (int)inst->belt.sync_u,
               (int)inst->belt.sync_i, (int)inst->belt.add_current[0], (int)inst->belt.add_current[1],
               (int)(belt_l->measure.speed_aps - belt_r->measure.speed_aps));
     }

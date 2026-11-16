@@ -83,10 +83,10 @@
 #define DART_BELT_CHARGE_SPEED_DPS 10000.0f            // 储能拉拽限速 (deg/s)
 
 /* ================= 同步带共模/差模控制 =================
- * 两根带并联驱动同一滑块 -> 编码器位置差 dev = θ0−θ1 正比于两侧皮带**张力差**
+ * 两根带并联驱动同一滑块 -> 编码器位置差 θ0−θ1 正比于两侧皮带**张力差**
  * (1° 转子 ≈ 0.015mm 皮带行程差), 因此"位置一致"与"拉力一致"是同一个量:
- *   目标是**把 dev 保持在标定基准 belt_diff_base 上**, 而不是让 dev->0。
- * - 差模环: dev 低通+死区后 PD+I -> 输出电流偏置 u(机0 −u / 机1 +u), 经电流前馈叠加在
+ *   目标是**把位置差保持在标定基准 diff_ref 上**, 而不是让它->0。
+ * - 差模环: 位置差低通+死区后 PD+I -> 输出电流偏置 u(机0 −u / 机1 +u), 经电流前馈叠加在
  *   速度环输出之后(不写速度环积分, 不会被积分限幅单边裁掉); 只纠偏不停机。
  * - 共模环: v = 速度前馈 + 位置修正 P(只补小误差), 两台同一速度给定 -> 出力均担。
  *   点动前馈 = 摇杆速率; 自动动作前馈 = 梯形规划(加速度限幅 + 末端减速曲线)。
@@ -99,8 +99,8 @@
 #define DART_BELT_SYNC_KI_LIMIT 2000.0f  // 差模积分限幅 (电流)
 #define DART_BELT_SYNC_KD_VEL 1.0f       // 差模阻尼 (电流/(°/s)): 直接作用于两台实测速度差
 #define DART_BELT_SYNC_TORQUE_MAX 6000.0f // 差模电流偏置总限幅 (电流)
-#define DART_BELT_SYNC_DEV_LPF_TAU_S 0.008f // dev 低通时间常数 (s): 抑制两机 CAN 帧不同时到达的假误差
-#define DART_BELT_SYNC_DEADBAND_DEG 5.0f    // dev 死区 (转子度): 跨过减速箱回差/齿隙
+#define DART_BELT_SYNC_DIFF_LPF_TAU_S 0.008f // 位置差低通时间常数 (s): 抑制两机 CAN 帧不同时到达的假误差
+#define DART_BELT_SYNC_DEADBAND_DEG 5.0f    // 位置差死区 (转子度): 跨过减速箱回差/齿隙
 #define DART_BELT_INTEGRAL_BLEND 0.05f      // 速度环积分互融系数(0~1/周期): 只做纯均值慢互融
 #define DART_BELT_SYNC_WARN_DEG 200.0f      // 两侧位置差告警阈值 (deg, 只提示不停机)
 #define DART_BELT_SYNC_LOG_MIN_SPEED_DPS 1000.0f  // 同步状态日志的速度门限(°/s): 静止不刷屏
