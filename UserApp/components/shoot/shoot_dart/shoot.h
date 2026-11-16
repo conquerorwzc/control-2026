@@ -11,6 +11,9 @@
  *       -> 储能(丝杆到射力位 -> 双带拉平台 -> 回撤到释放位) -> 发射(舵机释放 -> 回卡位)。
  *
  * 蜂鸣器提示由本模块直接调用 dart_buzzer; 遥控失联/调试档/使能沿等机器人级提示由 robot.c 调用。
+ *
+ * 实例字段按子组件分层: belt(同步带) / screw(丝杆) / servo(舵机) / cali / charge / fire / jog(调试点动),
+ * 顶层的 state/enabled/is_calibrated 等是整机状态机字段。
  */
 #pragma once
 
@@ -64,67 +67,94 @@ typedef struct {
   uint32_t start_ms;
 } StallDetector_s;
 
-/* 发射机构实例 */
+/* ================= 子组件 ================= */
+
+/* 同步带(2xM3508): 共模/差模解耦 + 速度前馈; 位置差 dev = θ0−θ1 ∝ 两侧皮带张力差 */
 typedef struct {
-  // 执行器
-  DJIMotorInstance* belt_motor[2]; // 同步带 [0]左 [1]右
-  DJIMotorInstance* screw_motor;   // 扳机丝杆
-  PWMInstance* servo_pwm;          // 扳机舵机
+  DJIMotorInstance* motor[2]; // [0]左 [1]右
+  PIDInstance common_pid;     // 共模位置环: 两侧平均位置 -> 速度给定(纯 P)
+  float zero_offset[2];       // 释放方向硬限位处的 total_angle(校准得到)
+  bool zero_valid;            // 零点是否有效(有效才允许位置闭环)
+  float common_ref;           // 共模目标(两侧平均位置, total_angle 坐标)
+  float diff_base;            // 差模基准 = 两零点之差, 即两侧"应有"的位置差
+  float dev_f;                // 两侧位置差低通值(抑制两机 CAN 帧不同时到达的假误差)
+  float sync_i;               // 差模积分(独立记忆, 不受速度环积分限幅影响)
+  float sync_u;               // 差模输出(电流偏置): 机0 前馈 −u / 机1 +u
+  float add_current[2];       // 电流前馈(电机配置的 current_feedforward_ptr 指向这里)
+  float ff_dps;               // 自动动作速度规划状态(加速度限幅后的前馈速度)
+  float v_ff_dps;             // 本周期前馈(点动=摇杆速率, 自动动作=规划器输出)
+  float v_common_dps;         // 本周期共模速度给定(前馈+P, 已限幅), 供日志用
+  float hold_pos;             // 故障保持目标(逻辑坐标)
+  StallDetector_s stall[2];   // 堵转检测器(速度阈值判据)
+  bool stalled[2];            // 顶限位记录(两侧都置位才算找到零点)
+  uint32_t sync_warn_ms;      // 同步偏差告警限频
+  uint32_t sync_log_ms;       // 同步状态日志限频
+} DartBelt_t;
 
-  // 状态
-  Dart_State_e state;
-  bool enabled;          // 遥控器使能(失能即全部停机)
-  bool is_calibrated;    // 本次上电同步带校准已完成(校准前力矩被严格限制)
-  bool belt_zero_valid;  // 同步带零点有效(顶到释放方向硬限位后置位)
-  bool recovery_retract; // 储能被中止后, 重新使能须先回撤挡块
+/* 扳机丝杆(M3508): 扳机整体位置 -> 拉簧拉伸量 = 射力 */
+typedef struct {
+  DJIMotorInstance* motor; // M3508
+  float pos_deg;           // 射力位置(相对开机位置)
+} DartScrew_t;
 
-  // 逻辑坐标
-  float belt_zero_offset[2]; // 同步带: 释放方向硬限位处的 total_angle
-  float belt_common_ref;     // 共模目标(两侧平均位置, total_angle 坐标)
-  float belt_diff_base;      // 差模基准 = 两零点之差, 两侧"应有"的位置差(∝张力差基准)
-  float belt_dev_f;          // 两侧位置差低通值(抑制两机 CAN 帧不同时到达的假误差)
-  float fault_hold_pos;      // 故障保持目标(逻辑坐标)
-  float screw_pos_deg;       // 丝杆位置(射力, 相对开机位置)
-  float servo_angle_deg;     // 舵机当前目标角
+/* 扳机舵机(PWM, 开环): 卡位角扣住平台 / 释放角放开 */
+typedef struct {
+  PWMInstance* pwm; // PWM 通道句柄
+  float angle_deg;  // 当前目标角
+} DartServo_t;
 
-  // 同步带控制状态
-  PIDInstance belt_common_pid; // 共模位置环: 两侧平均位置 -> 速度给定
-  float belt_sync_i;           // 差模积分(独立记忆, 不受速度环积分限幅影响)
-  float belt_sync_u;           // 差模输出(电流偏置): 机0 前馈 −u / 机1 +u
-  float belt_add_current[2];   // 电流前馈(电机配置的 current_feedforward_ptr 指向这里)
-  float belt_ff_dps;           // 自动动作速度规划状态(梯形: 加速度限幅后的前馈速度)
-  float belt_v_ff_dps;         // 本周期前馈(点动=摇杆速率, 自动动作=规划器输出)
-  float belt_v_common_dps;     // 本周期共模速度给定(前馈+P, 已限幅), 供日志用
+/* 校准流程(只做同步带) */
+typedef struct {
+  Dart_Cali_Step_e step; // 当前子步骤
+  uint32_t start_ms;     // 顶限位步起始时刻(超时判据)
+  uint32_t log_ms;       // 进度日志限频
+} DartCali_t;
 
-  // 序列子步骤与计时
-  Dart_Cali_Step_e cali_step;
-  Dart_Charge_Step_e charge_step;
-  Dart_Fire_Step_e fire_step;
-  Dart_Cmd_e pending_cmd;
-  uint32_t step_start_ms;
-  uint32_t cali_start_ms;
-  uint32_t cali_log_ms;
-  uint32_t last_ms;
-  uint32_t sync_warn_ms;
-  uint32_t sync_log_ms;
-  float task_dt_s; // 实测任务周期(所有滤波器用它)
+/* 储能流程 */
+typedef struct {
+  Dart_Charge_Step_e step; // 当前子步骤
+} DartCharge_t;
 
-  // 堵转判据(速度阈值)
-  StallDetector_s stall[2];
-  bool stalled_flag[2];
+/* 发射流程(舵机开环, 按时间推进) */
+typedef struct {
+  Dart_Fire_Step_e step; // 当前子步骤
+} DartFire_t;
 
-  // 调试点动(右开关上档)
-  bool debug_jog;
-  float debug_belt_speed_dps;
-  float debug_screw_speed_dps;
-  float debug_belt_target;
-  bool debug_belt_synced;
-  float debug_belt_dev_base;
-  float debug_screw_target;
-  bool debug_screw_synced;
-  float debug_belt_rate_last;
-  float debug_screw_rate_last;
-  uint32_t debug_log_ms;
+/* 调试档点动(右开关上档): 摇杆给速率 -> 虚拟位置目标, 同步带/丝杆各一套 */
+typedef struct {
+  bool enabled;            // 是否处于调试点动
+  float belt_speed_dps;    // 同步带点动速率(摇杆缩放)
+  float screw_speed_dps;   // 丝杆点动速率(摇杆缩放)
+  float belt_target;       // 同步带虚拟位置目标(两侧共用)
+  float screw_target;      // 丝杆虚拟位置目标
+  float belt_dev_base;     // 进入点动时的两侧位置差基准
+  bool belt_synced;        // 本次点动是否已把目标同步到实际位置
+  bool screw_synced;       // 同上(丝杆)
+  float belt_rate_last;    // 上周期速率(松手沿检测)
+  float screw_rate_last;   // 同上(丝杆)
+  uint32_t log_ms;         // 状态日志限频
+} DartJog_t;
+
+/* ================= 发射机构实例 ================= */
+
+typedef struct {
+  DartBelt_t belt;     // 同步带
+  DartScrew_t screw;   // 扳机丝杆
+  DartServo_t servo;   // 扳机舵机
+  DartCali_t cali;     // 校准流程
+  DartCharge_t charge; // 储能流程
+  DartFire_t fire;     // 发射流程
+  DartJog_t jog;       // 调试档点动
+
+  // 整体状态机与任务
+  Dart_State_e state;          // 当前状态
+  Dart_Cmd_e pending_cmd;      // 待处理的一次性命令
+  uint32_t step_start_ms;      // 当前序列子步骤起始时刻(序列共用)
+  uint32_t last_ms;            // 上次任务时刻(用于计算 dt)
+  float task_dt_s;             // 实测任务周期(所有滤波器用它)
+  bool enabled;                // 遥控器使能(失能即全部停机)
+  bool is_calibrated;          // 本次上电同步带校准已完成(校准前力矩被严格限制)
+  bool recovery_retract;       // 储能被中止后, 重新使能须先回撤挡块
 } ShootDartInstance;
 
 /** @brief 初始化: 注册同步带/丝杆电机与 PWM 舵机, 复位状态机 */
