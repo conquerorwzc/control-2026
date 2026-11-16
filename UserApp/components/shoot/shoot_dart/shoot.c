@@ -30,9 +30,12 @@ static void SetServoAngle(ShootDartInstance* inst, float angle_deg) {
   PWMSetDutyRatio(inst->servo.pwm, ServoAngleToDuty(angle_deg));
 }
 
-/* 堵转判据: 实测角速度持续低于阈值 DART_CALI_STALL_SPEED_DPS 达 DART_CALI_STALL_MS 即判堵转 */
-static bool CheckStall(StallDetector_s* det, DJIMotorInstance* motor, uint32_t now) {
-  if (fabsf(motor->measure.speed_aps) > DART_CALI_STALL_SPEED_DPS) {
+/* 堵转判据: 实测角速度持续低于阈值(deg/s)达 stall_ms 即判堵转
+ * @param speed_thr 速度阈值, @param stall_ms 持续时间; 校准与储能"拉到底"用不同参数
+ * (校准要慢判防误判, 储能拉到底后要尽快确认以缩短等待) */
+static bool CheckStall(StallDetector_s* det, DJIMotorInstance* motor, uint32_t now, float speed_thr,
+                       uint32_t stall_ms) {
+  if (fabsf(motor->measure.speed_aps) > speed_thr) {
     det->tracking = false;
     return false;
   }
@@ -41,7 +44,7 @@ static bool CheckStall(StallDetector_s* det, DJIMotorInstance* motor, uint32_t n
     det->start_ms = now;
     return false;
   }
-  return (now - det->start_ms) >= DART_CALI_STALL_MS;
+  return (now - det->start_ms) >= stall_ms;
 }
 
 /* 清同步带控制状态(校准/使能/零点重建后调用): 清 PID 与差模积分/偏置, 避免残留造成初始偏置 */
@@ -216,11 +219,11 @@ static void SetBeltPosition(ShootDartInstance* inst, float pos_deg, float speed_
 
 /* 是否到达逻辑目标: 以两侧平均位置判(挡块位置); 单侧只留宽松健全性上限 END_TOL
  * @warning 不能按单侧各自容差判: 差模有意放行两侧变形差, 单侧误差可上千度, 按单侧判会永远"没到位" */
-static bool BeltPositionReached(ShootDartInstance* inst, float pos_deg) {
+static bool BeltPositionReached(ShootDartInstance* inst, float pos_deg, float tol_deg) {
   if (!inst->belt.zero_valid) return false;
   float e0 = (inst->belt.zero_offset[0] + pos_deg) - inst->belt.motor[0]->measure.total_angle;
   float e1 = (inst->belt.zero_offset[1] + pos_deg) - inst->belt.motor[1]->measure.total_angle;
-  if (fabsf(0.5f * (e0 + e1)) > DART_BELT_POS_TOL_DEG) return false;
+  if (fabsf(0.5f * (e0 + e1)) > tol_deg) return false;
   if (fabsf(e0) > DART_BELT_END_TOL_DEG || fabsf(e1) > DART_BELT_END_TOL_DEG) return false;
   return true;
 }
@@ -278,7 +281,9 @@ static void HandleCalibrating(ShootDartInstance* inst, uint32_t now) {
       SetBeltSpeed(inst, DART_BELT_CALI_DIRECTION * DART_BELT_CALI_SPEED_DPS);
       if (now - inst->step_start_ms > DART_CALI_START_GRACE_MS) {  // 起步宽限, 防速度没上来就误判
         for (int i = 0; i < 2; i++) {
-          if (CheckStall(&inst->belt.stall[i], inst->belt.motor[i], now)) inst->belt.stalled[i] = true;
+          if (CheckStall(&inst->belt.stall[i], inst->belt.motor[i], now, DART_CALI_STALL_SPEED_DPS,
+                        DART_CALI_STALL_MS))
+            inst->belt.stalled[i] = true;
         }
       }
       if (inst->belt.stalled[0] && inst->belt.stalled[1]) {
@@ -303,7 +308,7 @@ static void HandleCalibrating(ShootDartInstance* inst, uint32_t now) {
       SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_BELT_CALI_BACKOFF_SPEED_DPS, true);
       // 超时按"回撤距离/回撤限速 + 4s 余量"算(不能用顶限位步的超时, 否则必误报)
       uint32_t budget_ms = (uint32_t)(DART_BELT_CALI_BACKOFF_DEG / DART_BELT_CALI_BACKOFF_SPEED_DPS * 1000.0f) + 4000u;
-      if (BeltPositionReached(inst, DART_BELT_HOME_DEG)) {
+      if (BeltPositionReached(inst, DART_BELT_HOME_DEG, DART_BELT_POS_TOL_DEG)) {
         ResetStallState(inst);
         PIDClear(&inst->screw.motor->motor_controller.speed_PID);
         PIDClear(&inst->screw.motor->motor_controller.angle_PID);
@@ -357,17 +362,20 @@ static void HandleCharging(ShootDartInstance* inst, uint32_t now) {
     case CHARGE_STEP_DRIVE: {
       // 扳机锁定态是单向通道: 平台会滑过扳机继续被后拉, 储能不会堵转, 按行程判完成
       SetBeltPosition(inst, DART_BELT_CHARGE_DEG, DART_BELT_CHARGE_SPEED_DPS, false);
-      if (BeltPositionReached(inst, DART_BELT_CHARGE_DEG)) {
+      if (BeltPositionReached(inst, DART_BELT_CHARGE_DEG, DART_BELT_CHARGE_TOL_DEG)) {
+        uint32_t elapsed_ms = now - inst->step_start_ms;
         inst->charge.step = CHARGE_STEP_RETRACT;
         inst->step_start_ms = now;
-        LOGINFO("[dart] charge stroke done, reset to release position");
+        LOGINFO("[dart] charge stroke done in %d ms (moving), reset to release position", (int)elapsed_ms);
       } else {
         // 堵转看门狗: 两侧同时转不动才算顶死; 单侧慢由差模环自动纠偏(不停机不故障)
         bool stalled = false;
         if (now - inst->step_start_ms > DART_CALI_START_GRACE_MS) {
           stalled = true;
           for (int i = 0; i < 2; i++) {
-            if (!CheckStall(&inst->belt.stall[i], inst->belt.motor[i], now)) stalled = false;
+            if (!CheckStall(&inst->belt.stall[i], inst->belt.motor[i], now, DART_CHARGE_STALL_SPEED_DPS,
+                            DART_CHARGE_STALL_MS))
+              stalled = false;
           }
         }
         if (stalled) {
@@ -376,10 +384,13 @@ static void HandleCharging(ShootDartInstance* inst, uint32_t now) {
           float err1 = fabsf((inst->belt.zero_offset[1] + DART_BELT_CHARGE_DEG) - inst->belt.motor[1]->measure.total_angle);
           float err_max = err0 > err1 ? err0 : err1;
           if (err_max < DART_BELT_END_TOL_DEG) {
+            uint32_t elapsed_ms = now - inst->step_start_ms;
             ResetStallState(inst);
             inst->charge.step = CHARGE_STEP_RETRACT;
             inst->step_start_ms = now;
-            LOGINFO("[dart] charge stroke done at hard stop (err %d deg), reset to release position", (int)err_max);
+            inst->belt.ff_dps = 0.0f;  // 同上: 顶死后立即开始回撤, 不从前馈高值慢慢降
+            LOGINFO("[dart] charge stroke done at hard stop (err %d deg) in %d ms, reset to release position",
+                    (int)err_max, (int)elapsed_ms);
           } else {
             LOGERROR("[dart] fault: belt stalled during charge far from target (err %d deg, check charge travel)",
                      (int)err_max);
@@ -395,7 +406,7 @@ static void HandleCharging(ShootDartInstance* inst, uint32_t now) {
 
     case CHARGE_STEP_RETRACT:
       SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_BELT_HOME_SPEED_DPS, true);
-      if (BeltPositionReached(inst, DART_BELT_HOME_DEG)) {
+      if (BeltPositionReached(inst, DART_BELT_HOME_DEG, DART_BELT_POS_TOL_DEG)) {
         inst->state = DART_STATE_READY;
         DartBuzzerChargeDone();
         LOGINFO("[dart] charged, ready to fire");
@@ -790,7 +801,7 @@ void ShootDartTask(ShootDartInstance* inst) {
   // 失能中止储能后的复位: 优先于点动和 IDLE 保持(调试档会跳过 HandleIdle, 否则标志永不清)
   if (inst->state == DART_STATE_IDLE && inst->recovery_retract) {
     SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_BELT_HOME_SPEED_DPS, true);
-    if (BeltPositionReached(inst, DART_BELT_HOME_DEG)) {
+    if (BeltPositionReached(inst, DART_BELT_HOME_DEG, DART_BELT_POS_TOL_DEG)) {
       inst->recovery_retract = false;
       LOGINFO("[dart] recovery retract done (block back at release position)");
     }
