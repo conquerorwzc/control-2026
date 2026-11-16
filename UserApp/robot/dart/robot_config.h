@@ -71,16 +71,16 @@
  * 扳机锁定态是单向通道: 平台滑过扳机后被继续后拉, 储能不会堵转 -> 按行程判完成;
  * 仅超行程等异常顶死时由堵转看门狗(两侧同时转不动)判故障。 */
 #define DART_BELT_HOME_DEG DART_BELT_CALI_BACKOFF_DEG  // 释放位: 挡块退出发射平台活动范围
-#define DART_BELT_CHARGE_DEG 45000.0f                  // 储能拉拽行程(相对零点, 正=储能方向);
+#define DART_BELT_CHARGE_DEG 35000.0f                  // 储能拉拽行程(相对零点, 正=储能方向);
                                                        // 实测全程 ≈49000°, 留 ~1000° 余量防顶死误报
 #define DART_BELT_POS_TOL_DEG 30.0f                    // 到位容差(按两侧平均位置判) ≈0.46mm;
                                                        // 校准限流下位置环稳态残差 ≈4°, 容差必须更大
 #define DART_BELT_END_TOL_DEG 5000.0f                  // "拉到底"容差: 两侧顶死且离目标 < 此值 = 拉到机械末端(正常完成)
 #define DART_BELT_MAX_OUT 12000.0f                     // 正常工作电流限幅
-#define DART_BELT_INTEGRAL_LIMIT 8000.0f               // 正常工作积分限幅(速度给定 0 时的保持力矩来源)
+#define DART_BELT_INTEGRAL_LIMIT 4000.0f               // 正常工作积分限幅(速度给定 0 时的保持力矩来源)
 #define DART_BELT_MAX_SPEED_DPS 54000.0f               // 速度给定硬上限(共模/差模合成后再钳一次)
-#define DART_BELT_HOME_SPEED_DPS 54000.0f              // 复位/回撤到释放位限速 (deg/s)
-#define DART_BELT_CHARGE_SPEED_DPS 54000.0f            // 储能拉拽限速 (deg/s)
+#define DART_BELT_HOME_SPEED_DPS 34000.0f              // 复位/回撤到释放位限速 (deg/s)
+#define DART_BELT_CHARGE_SPEED_DPS 34000.0f            // 储能拉拽限速 (deg/s)
 
 /* ---- 储能拉拽"推块咬住滑台"关键区限速 ----
  * 推块在 8000°(相对零点)附近咬住滑台: 从释放位高速通过这段时咬合瞬间接近撞击, 有损坏风险。
@@ -102,7 +102,7 @@
  * 只影响"回撤到释放位"这一段(校准回撤/储能回撤/就绪保持/故障保持/发射期间保持),
  * 不影响储能拉拽与点动。嫌回撤太慢就加大 APPROACH_SPEED / APPROACH_DECEL, 但必须保证
  * 末段速度足够低(CREEP_SPEED ≤ ~1000°/s), 否则又会冲过头。 */
-#define DART_BELT_HOME_APPROACH_DIST_DEG 10000.0f   // 进入回撤末段的距离 (deg, ≈185mm)
+#define DART_BELT_HOME_APPROACH_DIST_DEG 12000.0f   // 进入回撤末段的距离 (deg, ≈185mm)
 #define DART_BELT_HOME_APPROACH_SPEED_DPS 12000.0f   // 回撤末段巡航限速 (deg/s, ≈124mm/s)
 #define DART_BELT_HOME_APPROACH_DECEL_DPS2 800000.0f // 回撤末段减速曲线用的减速度 (deg/s², ≈185mm/s²)
 #define DART_BELT_HOME_CREEP_DIST_DEG 700.0f        // 末段爬行距离 (deg, ≈6.2mm)
@@ -136,13 +136,18 @@
  * 位置差 ≠ 标定基准, 差模环会一直维持一个张力差 -> 一侧电机电流很小、几乎不出力。
  * 本外环用两侧电流差(低通)慢调位置差目标: 实际目标 = diff_base + tension_trim,
  * 直到两侧出力接近一致。速率慢(秒级)且 trim 限幅, 不会和位置差环抢, 也不会让一侧皮带松掉。 */
-#define DART_BELT_TENSION_TRIM_KP 0.1f           // 修正速率 (deg/s)/电流单位: 电流差 1000 -> 100°/s
-#define DART_BELT_TENSION_TRIM_LPF_TAU_S 0.2f    // 电流差低通时间常数 (s)
+#define DART_BELT_BALANCE_KP 0.01f               // 快速均流增益 (deg/电流单位): 电流差 1000 -> 等效误差 10°,
+                                                 // 经差模环(40倍)毫秒级压电流差; 环路增益≈2*40*Kb=0.8(<1 不振荡)。
+                                                 // 想更狠可试 0.02~0.03, 出现高频抖动就降回来
+#define DART_BELT_BALANCE_LPF_TAU_S 0.02f        // 快速均流用的电流差低通 (s): 滤 PWM/反馈噪声, 别太大(否则不快)
+#define DART_BELT_BALANCE_MAX_DEG 1000.0f        // 快速均流项对差模误差的最大贡献 (deg): 防大电流差瞬间顶死差模环
+#define DART_BELT_TENSION_TRIM_KP 0.3f           // 慢外环修正速率 (deg/s)/电流单位: 电流差 1000 -> 300°/s
+#define DART_BELT_TENSION_TRIM_LPF_TAU_S 0.1f    // 慢外环电流差低通时间常数 (s)
 #define DART_BELT_TENSION_TRIM_DEADBAND 100.0f   // 电流差死区 (raw): 小于此值不修正
 #define DART_BELT_TENSION_TRIM_LIMIT_DEG 2000.0f // trim 限幅 (deg, ≈31mm): dev 允许偏离标定基准的最大量
 #define DART_BELT_SYNC_WARN_DEG 200.0f      // 两侧位置差告警阈值 (deg, 只提示不停机)
 #define DART_BELT_SYNC_LOG_MIN_SPEED_DPS 1000.0f  // 同步状态日志的速度门限(°/s): 静止不刷屏
-#define DART_BELT_TRACK_ACC_DPS2 150000.0f   // 自动动作前馈加速度限幅 (°/s², ≈772mm/s²):
+#define DART_BELT_TRACK_ACC_DPS2 200000.0f   // 自动动作前馈加速度限幅 (°/s², ≈772mm/s²):
                                             // 起步时间 = 限速/a: 储能 10000 -> 200ms, 归位 25000 -> 500ms
 #define DART_BELT_TRACK_P_CORR_DPS 800.0f   // 自动动作位置修正 P 上限 (°/s)
 #define DART_BELT_TRACK_FF_V0_DPS 200.0f    // 减速曲线近端线性化速度 (°/s): v=sqrt(2a|e|+v0²)−v0

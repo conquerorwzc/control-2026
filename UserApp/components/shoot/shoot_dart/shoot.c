@@ -61,6 +61,7 @@ static void ClearBeltControl(ShootDartInstance* inst) {
   inst->belt.pos_diff = inst->belt.motor[0]->measure.total_angle - inst->belt.motor[1]->measure.total_angle;
   inst->belt.tension_trim = 0.0f;
   inst->belt.i_diff_filt = 0.0f;
+  inst->belt.i_diff_fast = 0.0f;
   inst->belt.ff_dps = 0.0f;
   inst->belt.v_ff_dps = 0.0f;
   inst->belt.v_common_dps = 0.0f;
@@ -160,10 +161,11 @@ static void BeltSyncUpdate(ShootDartInstance* inst, float v_ff, float v_total_li
   sp0->Iout += DART_BELT_INTEGRAL_BLEND * (shared - sp0->Iout);
   sp1->Iout += DART_BELT_INTEGRAL_BLEND * (shared - sp1->Iout);
 
-  // 2) 均张力(出力均衡)慢外环: 用两侧电流差微调位置差目标, 让两侧电流/出力趋于一致
-  //    差模环只保证"位置一致"; 机械不对称时等张力对应的 dev ≠ 标定基准, 差模环会一直维持
-  //    一个张力差 -> 一侧电流很小甚至不出力。外环很慢(秒级), 且限幅, 不会和位置差环抢。
+  // 2) 均张力(出力均衡)两个环节, 一个快一个慢:
+  //    ① 快速均流: 两侧电流差直接并入差模误差(毫秒级), 让电流差立刻被压下去;
+  //    ② 慢外环: 用电流差慢调位置差目标(秒级), 消除稳态残差(机械不对称的等张力点偏移)。
   float i_diff = belt_l->measure.real_current - belt_r->measure.real_current;
+  inst->belt.i_diff_fast += (i_diff - inst->belt.i_diff_fast) * (dt / (DART_BELT_BALANCE_LPF_TAU_S + dt));
   inst->belt.i_diff_filt += (i_diff - inst->belt.i_diff_filt) * (dt / (DART_BELT_TENSION_TRIM_LPF_TAU_S + dt));
   if (inst->belt.i_diff_filt > DART_BELT_TENSION_TRIM_DEADBAND ||
       inst->belt.i_diff_filt < -DART_BELT_TENSION_TRIM_DEADBAND) {
@@ -173,9 +175,13 @@ static void BeltSyncUpdate(ShootDartInstance* inst, float v_ff, float v_total_li
   }
   inst->belt.diff_ref = inst->belt.diff_base + inst->belt.tension_trim;
 
-  // 3) 差模(张力差)环: 目标是保持位置差在实际目标(标定基准 + 均张力修正)上
+  // 3) 差模(张力差)环: 目标是保持位置差在实际目标(标定基准 + 均张力修正)上;
+  //    误差上再叠加快速均流项(机0电流大 -> 等效误差增大 -> 差模输出加机1减机0)。
   inst->belt.pos_diff += (p0 - p1 - inst->belt.pos_diff) * (dt / (DART_BELT_SYNC_DIFF_LPF_TAU_S + dt));
   float err = inst->belt.pos_diff - inst->belt.diff_ref;
+  inst->belt.balance_deg = DART_BELT_BALANCE_KP * inst->belt.i_diff_fast;
+  VAL_LIMIT(inst->belt.balance_deg, -DART_BELT_BALANCE_MAX_DEG, DART_BELT_BALANCE_MAX_DEG);
+  err += inst->belt.balance_deg;
   if (fabsf(err) < DART_BELT_SYNC_DEADBAND_DEG) err = 0.0f;  // 跨过减速箱回差/皮带齿隙造成的假误差
   float rel_speed = belt_l->measure.speed_aps - belt_r->measure.speed_aps;
   inst->belt.sync_i += DART_BELT_SYNC_KI * err * dt;
@@ -583,10 +589,10 @@ static void MonitorBeltSync(ShootDartInstance* inst, uint32_t now) {
   if (fabsf(inst->belt.v_common_dps) > DART_BELT_SYNC_LOG_MIN_SPEED_DPS &&
       now - inst->belt.sync_log_ms >= DART_SYNC_WARN_PERIOD_MS) {
     inst->belt.sync_log_ms = now;
-    LOGINFO("[dart] belt sync ff %d v %d posdiff %d err %d u %d si %d trim %d cur %d/%d spd %d/%d",
+    LOGINFO("[dart] belt sync ff %d v %d posdiff %d err %d bal %d u %d si %d trim %d cur %d/%d spd %d/%d",
             (int)inst->belt.v_ff_dps, (int)inst->belt.v_common_dps, (int)(pos0 - pos1),
-            (int)(inst->belt.pos_diff - inst->belt.diff_ref), (int)inst->belt.sync_u, (int)inst->belt.sync_i,
-            (int)inst->belt.tension_trim, (int)inst->belt.motor[0]->measure.real_current,
+            (int)(inst->belt.pos_diff - inst->belt.diff_ref), (int)inst->belt.balance_deg, (int)inst->belt.sync_u,
+            (int)inst->belt.sync_i, (int)inst->belt.tension_trim, (int)inst->belt.motor[0]->measure.real_current,
             (int)inst->belt.motor[1]->measure.real_current, (int)inst->belt.motor[0]->measure.speed_aps,
             (int)inst->belt.motor[1]->measure.speed_aps);
   }
