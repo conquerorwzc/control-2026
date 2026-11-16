@@ -150,7 +150,7 @@ static void HomeOneMotor(DJIMotorInstance *motor, HomeAxis *axis, float speed_re
     DJIMotorEnable(motor);
 }
 
-static const float kStandbyDeg = -2000.0f;       // 上电待机、手动回位和自动回位共用的目标
+static const float kStandbyDeg = -3500.0f;       // 上电待机、手动回位和自动回位共用的目标
 static const float kLatchDeg = 9200.0f;          // 两侧实际角度都要超过的锁扣阈值
 static volatile int position_request;            // 0 停机，1 上簧下拉，2 回位，3 上电慢速待机
 static volatile float pull_target_deg = 10000.0f; // 下拉目标，单位为电机转子角度，已完成实测
@@ -218,7 +218,7 @@ static void RunLoadingCycle(bool feedback_ready, float now_ms)
     const bool latch_held = at_latch_since_ms >= 0.0f && now_ms - at_latch_since_ms >= 100.0f;
 
     // 到位满 100 ms 或下拉达到 3 s
-    if (request == 1 && (latch_held || now_ms - pull_start_ms >= 3000.0f))
+    if (request == 1 && (latch_held || now_ms - pull_start_ms >= 1800.0f))
     {
         request = 2; // 到位满 100 ms 或下拉超时，本轮撤掉前馈并回位
         position_request = 2;
