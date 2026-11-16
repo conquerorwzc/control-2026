@@ -82,6 +82,23 @@
 #define DART_BELT_HOME_SPEED_DPS 25000.0f              // 复位/回撤到释放位限速 (deg/s)
 #define DART_BELT_CHARGE_SPEED_DPS 10000.0f            // 储能拉拽限速 (deg/s)
 
+/* ---- 回撤到释放位(靠近行程极限)的末段斜坡规划 ----
+ * 释放位离行程硬限位只有 DART_BELT_CALI_BACKOFF_DEG(当前 300° ≈ 4.6mm): 从储能端高速回撤时,
+ * 机构/控制链滞后会让滑台冲过释放位, 撞到同步带轮或硬限位。所以回撤末段按下面参数提前减速:
+ *   距目标 APPROACH_DIST 内: 巡航限速降到 APPROACH_SPEED
+ *   减速曲线用 APPROACH_DECEL(比 DART_BELT_TRACK_ACC_DPS2 小 = 刹车更早)
+ *   最后 CREEP_DIST 内: 以 CREEP_SPEED 低速爬行到位
+ * 只影响"回撤到释放位"这一段(校准回撤/储能回撤/就绪保持/故障保持/发射期间保持),
+ * 不影响储能拉拽与点动。嫌回撤太慢就加大 APPROACH_SPEED / APPROACH_DECEL, 但必须保证
+ * 末段速度足够低(CREEP_SPEED ≤ ~1000°/s), 否则又会冲过头。 */
+#define DART_BELT_HOME_APPROACH_DIST_DEG 12000.0f   // 进入回撤末段的距离 (deg, ≈185mm)
+#define DART_BELT_HOME_APPROACH_SPEED_DPS 8000.0f   // 回撤末段巡航限速 (deg/s, ≈124mm/s)
+#define DART_BELT_HOME_APPROACH_DECEL_DPS2 12000.0f // 回撤末段减速曲线用的减速度 (deg/s², ≈185mm/s²)
+#define DART_BELT_HOME_CREEP_DIST_DEG 400.0f        // 末段爬行距离 (deg, ≈6.2mm)
+#define DART_BELT_HOME_CREEP_SPEED_DPS 800.0f      // 末段爬行速度 (deg/s, ≈12mm/s)
+#define DART_BELT_HOME_CREEP_TAPER_DEG 100.0f      // 爬行速度随剩余距离线性收敛的参考距离 (deg, ≈1.5mm):
+                                                   // 离目标越近速度越低, 到点速度≈0, 不会在释放位附近来回过冲
+
 /* ================= 同步带共模/差模控制 =================
  * 两根带并联驱动同一滑块 -> 编码器位置差 θ0−θ1 正比于两侧皮带**张力差**
  * (1° 转子 ≈ 0.015mm 皮带行程差), 因此"位置一致"与"拉力一致"是同一个量:
