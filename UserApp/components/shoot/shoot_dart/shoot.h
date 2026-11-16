@@ -105,7 +105,9 @@ typedef struct {
   uint32_t cali_start_ms;
   uint32_t last_ms;       // 上次任务时间戳, 用于计算任务周期 dt(调试点动积分)
   uint32_t sync_warn_ms;  // 同步偏差告警限频
+  uint32_t sync_log_ms;   // [V2] 通用同步状态日志限频
   uint32_t cali_log_ms;   // 校准进度日志限频
+  float task_dt_s;        // 实测任务周期(s): 所有同步环滤波器用它, 不再用常量 DART_TASK_DT_S
 
   // 堵转判据: 速度阈值(DART_CALI_STALL_SPEED_DPS/MS), 不用 PID 堵转标志位
   StallDetector_s stall[2];      // 两个同步带电机
@@ -113,17 +115,29 @@ typedef struct {
   bool stalled_flag[2];          // 同步带两侧顶限位记录(两侧都置位才算找到零点)
 
   // 双带共模/差模解耦(均载 + 自动纠偏): 共模让两侧平均位置跟目标, 两电机得到**完全相同**的速度给定
-  // (P 项一致, 稳态出力均担); 差模把两侧位置差收敛到基准, 输出为**力矩偏置**(经积分互融注入, 有上限)
+  // (P 项一致, 稳态出力均担); 差模把两侧位置差收敛到基准(位置差∝张力差, 见 robot_config.h)
   PIDInstance belt_common_pid;  // 共模位置环: measure=两侧平均位置, ref=belt_common_ref -> 速度给定
-  PIDInstance belt_diff_pid;    // 差模纠偏环: measure=两侧位置差, ref=belt_diff_ref -> 力矩偏置
+  PIDInstance belt_diff_pid;    // [V1] 差模纠偏环: measure=两侧位置差, ref=belt_diff_ref -> 力矩偏置
   float belt_common_ref;        // 共模目标 (转子侧 total_angle 坐标)
   float fault_hold_pos;         // 故障保持目标(逻辑坐标): 故障不断力矩, 保持当前位置防拉簧带飞
   float belt_diff_base;         // 差模基准(硬): 校准后=两零点之差, 点动=进入点动时的位置差
-  float belt_diff_ref;          // 差模基准(当前): 位置同步模式=硬基准; 力矩同步模式=以 TAU 跟随实际偏差
-  bool belt_torque_sync;        // 当前模式: true=力矩同步(带载, 软基准均流), false=位置同步(空载, 硬基准锁偏差)
-  float belt_load_filt;         // 负载判据滤波值(两台 |real_current| 之和的低通)
-  uint32_t belt_mode_switch_ms; // 上次模式切换时刻(最短驻留防翻转)
-  float belt_diff_torque;       // 差模力矩偏置(±, DART_BELT_SYNC_TORQUE_MAX 钳幅), 由 BlendBeltIntegrals 注入
+  float belt_diff_ref;          // 差模基准(当前): [V1] 位置同步=硬基准, 力矩同步=以 TAU 跟随实际偏差; [V2] 恒=硬基准
+  bool belt_torque_sync;        // [V1] 当前模式: true=力矩同步(带载, 软基准均流), false=位置同步(空载, 硬基准)
+  float belt_load_filt;         // [V1] 负载判据滤波值(两台 |real_current| 之和的低通)
+  uint32_t belt_mode_switch_ms; // [V1] 上次模式切换时刻(最短驻留防翻转)
+  float belt_diff_torque;       // [V1] 差模力矩偏置(±, DART_BELT_SYNC_TORQUE_MAX 钳幅), 由 BlendBeltIntegrals 注入
+
+  // [V2] 同步环状态: dev 低通 + 独立积分器 + 电流前馈偏置
+  // dev = total_angle[0] − total_angle[1], 正比于两侧皮带张力差(1°≈0.015mm 皮带行程差)
+  float belt_dev_f;             // dev 低通值(抑制两机 CAN 反馈帧不同时到达造成的假误差)
+  float belt_sync_i;            // 位置差积分器(独立记忆, 不受速度环 IntegralLimit 影响)
+  float belt_sync_u;            // 同步环输出 u = KP*err + KD*相对速度 + I (电流); 机0 −u / 机1 +u
+  float belt_add_current[2];    // 注入两台速度环输出的电流前馈(电机配置的 current_feedforward_ptr 指向这里)
+
+  // [P1] 共模速度前馈: v_common = v_ff(前馈) + P(位置修正); 解决高速段纯 P 环饱和(R1)
+  float belt_ff_dps;            // 状态机移动的速度规划状态(减速曲线 + 加速度限幅后的前馈速度)
+  float belt_v_ff_dps;          // 本周期实际施加的前馈速度(点动=摇杆速率, 移动=规划器输出)
+  float belt_v_common_dps;      // 本周期共模速度给定(前馈+P, 已限幅), 供日志/监测用
 
   // 调试点动(右开关上档)
   bool debug_jog;

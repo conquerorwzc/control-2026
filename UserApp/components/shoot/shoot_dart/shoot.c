@@ -34,25 +34,44 @@ static void ApplyScrewTorqueLimit(ShootDartInstance* inst) {
   inst->screw_motor->motor_controller.speed_PID.IntegralLimit = integral;
 }
 
-/* 双带速度环积分互融 + 差模力矩偏置注入(每周期)
- *   shared = (I0+I1)/2 —— 差模偏置在求和中抵消, 即"共模积分";
- *   两台 Iout 向 shared ± belt_diff_torque 靠拢(系数 DART_BELT_INTEGRAL_BLEND):
- *   - 互融: 摩擦差异/起动不对称不再被各自积分"记住"固化(修稳态力矩差);
- *   - 差模: 位置纠偏以力矩偏置 ±Ib 注入, 两台速度给定保持相同 -> P 项一致, 电流差只剩 2*Ib(有上限)。 */
+/* 双带速度环积分互融(每周期一次): 只做"均流", 不再掺差模偏置
+ *   V2: 两台速度环积分 Iout 以 DART_BELT_INTEGRAL_BLEND_V2 的系数向均值慢互融(τ≈20ms):
+ *       摩擦差异/起动不对称不再被各自积分固化成力矩差, 稳态出力均分; 差模偏置改走
+ *       current_feedforward(见 BeltSyncUpdate), 不再写 Iout -> 不会被 IntegralLimit 单边裁掉。
+ *   V1(保留): shared ± belt_diff_torque 硬覆盖 Iout(blend=1.0), 偏置与均流共用一个状态。 */
 static void BlendBeltIntegrals(ShootDartInstance* inst) {
   PIDInstance* pid0 = &inst->belt_motor[0]->motor_controller.speed_PID;
   PIDInstance* pid1 = &inst->belt_motor[1]->motor_controller.speed_PID;
   float shared = 0.5f * (pid0->Iout + pid1->Iout);
+#if DART_BELT_SYNC_V2
+  float blend = DART_BELT_INTEGRAL_BLEND_V2;
+  pid0->Iout += blend * (shared - pid0->Iout);
+  pid1->Iout += blend * (shared - pid1->Iout);
+#else
   float bias = inst->belt_zero_valid ? inst->belt_diff_torque : 0.0f;
   float blend = DART_BELT_INTEGRAL_BLEND;
   float target0 = shared + bias;
   float target1 = shared - bias;
   pid0->Iout += blend * (target0 - pid0->Iout);
   pid1->Iout += blend * (target1 - pid1->Iout);
+#endif
 }
 
 /* 双同步带电机同速控制(速度环), 逻辑正方向 = 储能方向 */
 static void SetBeltSpeed(ShootDartInstance* inst, float speed_dps) {
+#if DART_BELT_SYNC_V2
+  // 纯速度控制阶段(校准顶限位/零点无效): 清同步环偏置与积分, 否则残留偏置会让两台电流不对称
+  inst->belt_sync_i = 0.0f;
+  inst->belt_sync_u = 0.0f;
+  inst->belt_add_current[0] = 0.0f;
+  inst->belt_add_current[1] = 0.0f;
+#endif
+#if DART_BELT_FF_V2
+  // 本路径不经 BeltSyncUpdate: 前馈/共模给定清零, 避免日志与监测读到上一阶段的陈旧值
+  inst->belt_ff_dps = 0.0f;
+  inst->belt_v_ff_dps = 0.0f;
+  inst->belt_v_common_dps = 0.0f;
+#endif
   for (int i = 0; i < 2; i++) {
     DJIMotorOuterLoop(inst->belt_motor[i], SPEED_LOOP);
     DJIMotorSetPIDRef(inst->belt_motor[i], speed_dps);
@@ -60,15 +79,79 @@ static void SetBeltSpeed(ShootDartInstance* inst, float speed_dps) {
 }
 
 /* 双带共模/差模解耦(每周期一次, 同步带位置控制的唯一出口) —— 差模在**力矩级**
- *   共模: 两侧平均位置跟目标 -> 速度给定 v_common, 两台**完全相同**(P 项一致, 稳态出力均分)
- *   差模: 位置差收敛到基准 -> 输出**力矩偏置**(经积分互融注入两台速度环 Iout, ±Ib, 有上限)
- *   @note 差模不能走速度给定: v_ref 差经速度环 Kp 放大成 P 项差(2*Kp_s*v_diff),
+ *   共模(P1): v_common = **速度前馈 v_ff** + 位置修正 P(只负责小误差), 两台**完全相同**
+ *             (P 项一致, 稳态出力均分)。纯 P 环"用误差换速度", 高速段稳态滞后 = rate/Kp 会
+ *             撞满目标推进门限、位置环饱和失去纠偏能力 -> 由调用方给前馈(点动=摇杆速率,
+ *             状态机移动=减速曲线规划)后, 高速段 err≈0, P 环保留全部权限。
+ *   差模(V2): dev = θ0−θ1 正比于两侧皮带张力差(见 robot_config.h), 低通+死区后 PD+I,
+ *             输出**电流偏置** u -> 机0 前馈 −u / 机1 前馈 +u(经 current_feedforward 叠加在速度环之后,
+ *             不写 Iout); 阻尼取实测相对速度 speed_aps 差, 不对 dev 求导; 基准恒为硬基准。
+ *   差模(V1, 保留): 负载感知双模式 + 软基准 + 力矩偏置注入速度环 Iout。
+ *   @note 差模不走速度给定: v_ref 差经速度环 Kp 放大成 P 项差(2*Kp_s*v_diff),
  *         会持续制造几千的 real_current 差 —— 积分互融压不掉 P 项。力矩级注入后,
- *         稳态电流差 = 2*Ib, 仅在需要对齐时存在且被 DART_BELT_SYNC_TORQUE_MAX 钳幅。 */
-static void BeltSyncUpdate(ShootDartInstance* inst) {
+ *         稳态电流差 = 2*Ib, 仅在需要对齐时存在且被限幅钳住。
+ * @param v_ff        本周期速度前馈(°/s): 点动=摇杆速率, 状态机移动=规划器输出, 0=纯 P
+ * @param v_total_limit 速度给定总限幅(°/s): 前馈叠加后也不许超过(段落限速/机器硬上限) */
+static void BeltSyncUpdate(ShootDartInstance* inst, float v_ff, float v_total_limit) {
   float p0 = inst->belt_motor[0]->measure.total_angle;
   float p1 = inst->belt_motor[1]->measure.total_angle;
   float dev = p0 - p1;
+  inst->belt_v_ff_dps = v_ff;
+#if DART_BELT_SYNC_V2
+  float dt = inst->task_dt_s > 0.0f ? inst->task_dt_s : DART_TASK_DT_S;
+  /* ① 硬基准: 校准后=两零点之差, 点动=进入点动时的两侧位置差。
+   *    不再做"软基准跟随"(V1 的 BASELINE_TAU): 那会在带载/高速时主动放弃稳态张力差纠正,
+   *    恰恰是高速不同步的主因之一。 */
+  inst->belt_diff_ref = inst->belt_diff_base;
+  /* ② dev 低通: 两台电机 CAN 反馈帧不同时到达, 高速时 raw dev 含帧偏斜假误差(40000°/s 时 0.3ms≈12°) */
+  inst->belt_dev_f += (dev - inst->belt_dev_f) * (dt / (DART_BELT_SYNC_V2_DEV_LPF_TAU_S + dt));
+  float err = inst->belt_dev_f - inst->belt_diff_ref;
+  /* ③ 死区: 跨过减速箱回差/皮带齿隙造成的假误差, 只纠真正的张力差 */
+  if (fabsf(err) < DART_BELT_SYNC_V2_DEADBAND_DEG) err = 0.0f;
+  /* ④ 阻尼用实测相对速度(= dev 的导数), 不做位置微分 */
+  float rel_speed = inst->belt_motor[0]->measure.speed_aps - inst->belt_motor[1]->measure.speed_aps;
+  /* ⑤ 积分: 运动段与 P0 完全一致(始终累积, KI_LIMIT 2000)。
+   *    仅 [静止门控] 打开时额外处理"机构动不了"的 windup: 实测静止时 dev 偏 50° 但位置不动,
+   *    旧逻辑仍用 u=-2534 让两机对顶(电流差 3828)。门控只在**两台实测速度都近 0**时生效,
+   *    运动段行为不变; 可用 -DDART_BELT_SYNC_GATE_V2=0 一键回滚。 */
+#if DART_BELT_SYNC_GATE_V2
+  bool moving = (fabsf(inst->belt_motor[0]->measure.speed_aps) > DART_BELT_SYNC_V2_MOVE_SPEED_DPS) ||
+                (fabsf(inst->belt_motor[1]->measure.speed_aps) > DART_BELT_SYNC_V2_MOVE_SPEED_DPS);
+  if (moving) {
+    inst->belt_sync_i += DART_BELT_SYNC_V2_KI * err * dt;
+    VAL_LIMIT(inst->belt_sync_i, -DART_BELT_SYNC_V2_KI_LIMIT, DART_BELT_SYNC_V2_KI_LIMIT);
+  } else {
+    err = 0.0f;  // 静止不纠偏: 到不了就别一直用力
+    inst->belt_sync_i -= inst->belt_sync_i * (dt / (DART_BELT_SYNC_V2_SI_LEAK_TAU_S + dt));
+  }
+#else
+  inst->belt_sync_i += DART_BELT_SYNC_V2_KI * err * dt;
+  VAL_LIMIT(inst->belt_sync_i, -DART_BELT_SYNC_V2_KI_LIMIT, DART_BELT_SYNC_V2_KI_LIMIT);
+#endif
+  /* ⑥ 差模输出 = P + 相对速度阻尼 + 积分, 只做总限幅 —— 与 P0 公式完全一致
+   * (P0.5 曾额外加"P 项单独限幅", 实测会削弱高速同步, 已删除) */
+  float u = DART_BELT_SYNC_V2_KP * err + DART_BELT_SYNC_V2_KD_VEL * rel_speed + inst->belt_sync_i;
+  VAL_LIMIT(u, -DART_BELT_SYNC_V2_TORQUE_MAX, DART_BELT_SYNC_V2_TORQUE_MAX);
+  inst->belt_sync_u = u;
+  /* u>0 = 机0 超前/更快 -> 减机0 电流、加机1 电流(逻辑方向; 电流前馈在电机反转前注入) */
+  inst->belt_add_current[0] = -u;
+  inst->belt_add_current[1] = u;
+
+  /* P1 共模: 前馈 + 位置修正(P 限幅 = 正比于本段限速, 见调用方); 前馈叠加后仍受本段限速和机器硬上限双重钳制 */
+  float v_common = PIDCalculate(&inst->belt_common_pid, 0.5f * (p0 + p1), inst->belt_common_ref) + v_ff;
+  VAL_LIMIT(v_common, -DART_BELT_MAX_SPEED_DPS, DART_BELT_MAX_SPEED_DPS);
+  VAL_LIMIT(v_common, -v_total_limit, v_total_limit);
+  inst->belt_v_common_dps = v_common;
+  for (int i = 0; i < 2; i++) {
+    DJIMotorOuterLoop(inst->belt_motor[i], SPEED_LOOP);
+    DJIMotorSetPIDRef(inst->belt_motor[i], v_common);  // 两机同一速度给定
+    /* 前馈叠加后总电流仍对称钳在工作电流限幅(校准前=低限幅): 与 V1 的总输出上限一致,
+     * 偏置权限 = 剩余电流裕量, 不会让某台超出限幅 */
+    float lim = inst->belt_motor[i]->motor_controller.speed_PID.MaxOut;
+    VAL_LIMIT(inst->belt_motor[i]->motor_controller.final_output, -lim, lim);
+  }
+#else
+  inst->belt_dev_f = dev;  // [V1] 无低通, 仅作通用日志镜像(字段与 V2 共用)
   /* 负载感知模式切换(判据滤波 + 回差 + 最短驻留三重防抖), 判据 = 两台 real_current **绝对值之和**:
    *   > DART_BELT_SYNC_LOAD_ON  -> **力矩同步**(带载: 拉拽/保持): 负载路径不对称(皮带张紧/摩擦)是
    *     机械事实, 硬锁偏差=持续较劲=电流差; 软基准放行慢漂移, 只纠窜动 -> 均流;
@@ -100,18 +183,56 @@ static void BeltSyncUpdate(ShootDartInstance* inst) {
   } else {
     inst->belt_diff_ref = inst->belt_diff_base;
   }
-  float v_common = PIDCalculate(&inst->belt_common_pid, 0.5f * (p0 + p1), inst->belt_common_ref);
+  float v_common = PIDCalculate(&inst->belt_common_pid, 0.5f * (p0 + p1), inst->belt_common_ref) + v_ff;
   inst->belt_diff_torque = PIDCalculate(&inst->belt_diff_pid, dev - inst->belt_diff_ref, 0.0f);
   VAL_LIMIT(inst->belt_diff_torque, -DART_BELT_SYNC_TORQUE_MAX, DART_BELT_SYNC_TORQUE_MAX);
   VAL_LIMIT(v_common, -DART_BELT_MAX_SPEED_DPS, DART_BELT_MAX_SPEED_DPS);
+  VAL_LIMIT(v_common, -v_total_limit, v_total_limit);
+  inst->belt_v_common_dps = v_common;
   for (int i = 0; i < 2; i++) {
     DJIMotorOuterLoop(inst->belt_motor[i], SPEED_LOOP);
     DJIMotorSetPIDRef(inst->belt_motor[i], v_common);  // 两机同一速度给定
   }
+#endif
 }
 
+#if DART_BELT_FF_V2 && DART_BELT_TRACK_FF_V2
+/* [P1-自动动作] 状态机位置移动的速度前馈: 减速曲线 + 加速度限幅(梯形规划)
+ *   剩余距离大 -> 给 v_lim 巡航; 接近目标 -> sqrt 减速曲线(保证按 a 平稳停住);
+ *   前馈速度本身再按 a*dt 限加速度, 避免"从 0 阶跃到 v_lim"造成起步冲击/皮带拍打。
+ * @note 近目标处把 sqrt 曲线线性化(v = sqrt(2a|e|+v0²) − v0): 纯 sqrt 在 e→0 处斜率无穷,
+ *       离散下每周期 v*dt > e 会在 0 附近抖(~1 编码器计数); 线性化后近端速度 ∝ 误差, 静止保持不颤。
+ * @note 规划状态 belt_ff_dps 跨周期保留, 换阶段/换目标时从当前速度平滑过渡(自然经过 0 反向);
+ *       ClearBeltPid()(校准/使能)会清零, 防止失能期间被推动后残留前馈。 */
+static float BeltTrackFeedforward(ShootDartInstance* inst, float pos_err, float v_lim) {
+  float a = DART_BELT_TRACK_ACC_DPS2;
+  float v0 = DART_BELT_TRACK_FF_V0_DPS;
+  float v_brake = sqrtf(2.0f * a * fabsf(pos_err) + v0 * v0) - v0;  // 按加速度 a 能在剩余距离内停住的速度
+  if (v_brake > v_lim) v_brake = v_lim;                             // 远距离 = 巡航限速
+  /* 位置死区: 误差进死区后目标前馈归 0(规划器再按加速度限幅平滑收尾)。
+   * 否则近零误差时线性化前馈仍有 v≈(a/v0)·e(4° 就有 ~330°/s), 静止保持会一直给速度指令 ->
+   * 速度环积分 windup(实测 154/s 持续爬)。 */
+  if (fabsf(pos_err) < DART_BELT_POS_DEADBAND_DEG) v_brake = 0.0f;
+  float v_target = (pos_err >= 0.0f) ? v_brake : -v_brake;
+  float dt = inst->task_dt_s > 0.0f ? inst->task_dt_s : DART_TASK_DT_S;
+  float dv = a * dt;  // 每周期允许的速度变化
+  float v = inst->belt_ff_dps;
+  if (v_target > v + dv) {
+    v += dv;
+  } else if (v_target < v - dv) {
+    v -= dv;
+  } else {
+    v = v_target;
+  }
+  inst->belt_ff_dps = v;
+  return v;
+}
+#endif
+
 /* 双同步带电机同一逻辑位置目标(共模/差模解耦), 保证均载与严格同步
- * speed_limit_dps: 本阶段限速, 通过共模环 MaxOut 实现, 再被 DART_BELT_MAX_SPEED_DPS 钳一次 */
+ * speed_limit_dps: 本阶段限速, 超出 DART_BELT_MAX_SPEED_DPS 按硬上限钳
+ * [P1] 共模改"前馈 + 位置修正": 前馈=梯形规划速度, P 输出限到 DART_BELT_TRACK_P_CORR_DPS,
+ *      总给定(前馈+P)再按本阶段限速钳 —— 高速段不再靠稳态滞后换速度, 位置环保留纠偏权限。 */
 static void SetBeltPosition(ShootDartInstance* inst, float pos_deg, float speed_limit_dps) {
   inst->belt_pos_target = pos_deg;
   if (!inst->belt_zero_valid) {
@@ -119,11 +240,21 @@ static void SetBeltPosition(ShootDartInstance* inst, float pos_deg, float speed_
     return;
   }
   float limit = speed_limit_dps < DART_BELT_MAX_SPEED_DPS ? speed_limit_dps : DART_BELT_MAX_SPEED_DPS;
-  inst->belt_common_pid.MaxOut = limit;
   // 共模目标 = 逻辑目标折算到两侧平均坐标; 差模基准 = 两侧"应有"的位置差(零点之差, 即逻辑差为 0)
   inst->belt_common_ref = 0.5f * (inst->belt_zero_offset[0] + inst->belt_zero_offset[1]) + pos_deg;
   inst->belt_diff_base = inst->belt_zero_offset[0] - inst->belt_zero_offset[1];
-  BeltSyncUpdate(inst);
+#if DART_BELT_FF_V2 && DART_BELT_TRACK_FF_V2
+  inst->belt_common_pid.MaxOut = DART_BELT_TRACK_P_CORR_DPS;  // P 只做小误差修正, 稳态速度由前馈给
+  float pos_err = inst->belt_common_ref -
+                  0.5f * (inst->belt_motor[0]->measure.total_angle + inst->belt_motor[1]->measure.total_angle);
+  float v_ff = BeltTrackFeedforward(inst, pos_err, limit);
+  BeltSyncUpdate(inst, v_ff, limit);
+#else
+  /* 自动动作默认走这里(P0 行为): 位置误差 -> 本段限速，起步/定位响应最快。
+   * 实测"梯形前馈规划"会让储能拉拽/归位明显变慢(见 robot_config.h DART_BELT_TRACK_FF_V2 注释)。 */
+  inst->belt_common_pid.MaxOut = limit;
+  BeltSyncUpdate(inst, 0.0f, limit);
+#endif
 }
 
 /* 双带是否到达逻辑目标位置: 以**两侧平均位置**判到位(挡块位置 ≈ 两侧平均)。
@@ -223,6 +354,20 @@ static void ClearBeltPid(ShootDartInstance* inst) {
   }
   PIDClear(&inst->belt_common_pid);
   PIDClear(&inst->belt_diff_pid);
+#if DART_BELT_SYNC_V2
+  /* 同步环状态一并复位: 校准/使能/零点重建后旧的张力差积分与偏置已无意义, 残留会造成初始偏置 */
+  inst->belt_sync_i = 0.0f;
+  inst->belt_sync_u = 0.0f;
+  inst->belt_add_current[0] = 0.0f;
+  inst->belt_add_current[1] = 0.0f;
+  inst->belt_dev_f = inst->belt_motor[0]->measure.total_angle - inst->belt_motor[1]->measure.total_angle;
+#endif
+#if DART_BELT_FF_V2
+  /* [P1] 前馈规划状态清零: 失能/校准期间机构可能被推动, 残留前馈会在重新使能时"自己走一段" */
+  inst->belt_ff_dps = 0.0f;
+  inst->belt_v_ff_dps = 0.0f;
+  inst->belt_v_common_dps = 0.0f;
+#endif
 }
 
 static void ClearScrewPid(ShootDartInstance* inst) {
@@ -246,6 +391,12 @@ static void EnterFault(ShootDartInstance* inst) {
   } else {
     inst->fault_hold_pos = 0.0f;
   }
+#if DART_BELT_FF_V2
+  /* [P1] 前馈规划状态清零: 故障=保持当前位置。若保留故障前的运动前馈, 它会以 a*dt 慢慢衰减,
+   * 机构会在故障后还"滑一段"(几十~上百 mm), 可能撞限位; P 环(限 DART_BELT_TRACK_P_CORR_DPS)
+   * 仍会把位置拉回 fault_hold_pos。 */
+  inst->belt_ff_dps = 0.0f;
+#endif
   DartBuzzerFault();
 }
 
@@ -480,6 +631,10 @@ static void HandleReady(ShootDartInstance* inst, uint32_t now) {
 }
 
 static void HandleFiring(ShootDartInstance* inst, uint32_t now) {
+  /* 发射序列只动舵机; 但同步带必须**主动**保持在释放位置, 不能"不调用就冻结"：
+   * 不调 DJIMotorSetPIDRef 时电机保持的是上一拍的 final_output(恒定电流指令), 若进入发射那一刻
+   * 同步带还在回位运动, 这个小电流会让它继续漂(可能顶到平台活动范围)。P1 前馈下回位更快, 更容易踩到。 */
+  SetBeltPosition(inst, DART_BELT_HOME_DEG, DART_BELT_HOME_SPEED_DPS);
   // 舵机无位置反馈, 发射序列全部按时间推进
   switch (inst->fire_step) {
     case FIRE_STEP_RELEASE:
@@ -594,6 +749,20 @@ static void MonitorBeltSync(ShootDartInstance* inst, uint32_t now) {
     LOGERROR("[dart] belt motors sync deviation exceeded: %d deg (L %d, R %d, thr %d)",
              (int)(pos0 - pos1), (int)pos0, (int)pos1, (int)DART_BELT_SYNC_WARN_DEG);
   }
+  /* 通用共模/同步状态日志: 只在同步带明显运动时打印(静止不刷屏), 覆盖储能/复位/就绪等非点动阶段。
+   * 字段: ff=速度前馈(点动=摇杆速率/移动=规划器), v=共模速度给定(前馈+P),
+   *       devz=扣零点后的位置差(=张力差偏差原始值), devf=低通原始位置差, base=硬基准,
+   *       err=低通误差(过死区前), u=同步偏置, si=同步积分, cur/spd=两侧实测 */
+  if (fabsf(inst->belt_v_common_dps) > DART_BELT_SYNC_LOG_MIN_SPEED_DPS &&
+      now - inst->sync_log_ms >= DART_SYNC_WARN_PERIOD_MS) {
+    inst->sync_log_ms = now;
+    float err = inst->belt_dev_f - inst->belt_diff_ref;
+    LOGINFO("[dart] belt sync ff %d v %d devz %d devf %d base %d err %d u %d si %d cur %d/%d spd %d/%d",
+            (int)inst->belt_v_ff_dps, (int)inst->belt_v_common_dps, (int)(pos0 - pos1), (int)inst->belt_dev_f,
+            (int)inst->belt_diff_ref, (int)err, (int)inst->belt_sync_u, (int)inst->belt_sync_i,
+            (int)inst->belt_motor[0]->measure.real_current, (int)inst->belt_motor[1]->measure.real_current,
+            (int)inst->belt_motor[0]->measure.speed_aps, (int)inst->belt_motor[1]->measure.speed_aps);
+  }
 }
 
 /* 调试点动: 同步带走共模/差模(两侧共用虚拟目标 + 均载 + 自动纠偏), 丝杆走虚拟位置目标 + 位置环
@@ -610,6 +779,17 @@ static void ApplyDebugJog(ShootDartInstance* inst, float dt_s, uint32_t now) {
     inst->debug_belt_dev_base = belt_l->measure.total_angle - belt_r->measure.total_angle;
     inst->belt_diff_base = inst->debug_belt_dev_base;
     inst->belt_diff_ref = inst->debug_belt_dev_base;
+#if DART_BELT_SYNC_V2
+    // 同步环就地重置: 以进入点动时的位置差为"张力差=0"基准, 旧积分/偏置不能沿用
+    inst->belt_dev_f = inst->debug_belt_dev_base;
+    inst->belt_sync_i = 0.0f;
+    inst->belt_sync_u = 0.0f;
+    inst->belt_add_current[0] = 0.0f;
+    inst->belt_add_current[1] = 0.0f;
+#endif
+#if DART_BELT_FF_V2
+    inst->belt_ff_dps = 0.0f;  // 点动前馈直接用摇杆速率, 规划器状态清零(退出点动回状态机时从 0 起步)
+#endif
     inst->debug_belt_synced = true;
   }
   if (!inst->debug_screw_synced) {
@@ -638,12 +818,19 @@ static void ApplyDebugJog(ShootDartInstance* inst, float dt_s, uint32_t now) {
   if (fabsf(follow_err) < DART_DEBUG_BELT_MAX_ERR_DEG) {
     inst->debug_belt_target += rate * dt_s;
   }
-  // 共模/差模: 限速放共模环(摇杆回中后仍保留较小限速用于收敛); 差模基准由 BeltSyncUpdate 软基准维护
+  // 共模/差模: 限速放共模环(摇杆回中后仍保留较小限速用于收敛); 差模基准由 BeltSyncUpdate 硬基准维护
   float limit = fabsf(inst->debug_belt_speed_dps);
   if (limit < DART_DEBUG_BELT_SYNC_SPEED_DPS) limit = DART_DEBUG_BELT_SYNC_SPEED_DPS;
   inst->belt_common_pid.MaxOut = limit;
   inst->belt_common_ref = inst->debug_belt_target;
-  BeltSyncUpdate(inst);
+#if DART_BELT_FF_V2
+  /* P1: 点动前馈 = 摇杆速率(速率本来就已知, 不必再靠"稳态滞后"换速度)。
+   * 总给定 = 摇杆速率 + P 修正, 钳到机器硬上限 -> 高速段 err≈0、位置环不饱和、
+   * DART_DEBUG_BELT_MAX_ERR_DEG 退化为纯安全钳(顶限位/跟不上才触发)。 */
+  BeltSyncUpdate(inst, rate, DART_BELT_MAX_SPEED_DPS);
+#else
+  BeltSyncUpdate(inst, 0.0f, DART_BELT_MAX_SPEED_DPS);
+#endif
 
   // ---- 丝杆: 速度前馈 + P 跟踪(虚拟位置目标) ----
   // 纯位置环追杆的速度上限 = 角度环Kp × 跟踪误差上限(15×200°=3000°/s), 带载更慢 -> 点动发肉;
@@ -691,6 +878,17 @@ static void ApplyDebugJog(ShootDartInstance* inst, float dt_s, uint32_t now) {
               (int)belt_r->measure.speed_aps, (int)belt_l->measure.total_angle, (int)belt_r->measure.total_angle,
               (int)dev, (int)follow_err, (int)belt_l->measure.real_current, (int)belt_r->measure.real_current,
               (int)belt_l->motor_controller.speed_PID.Iout);
+#if DART_BELT_SYNC_V2
+      // [V2] 同步环状态: devf=低通后的原始位置差(≈张力差), base=硬基准, u=同步偏置(机0取−u),
+      // si=同步积分, add=实际注入两台的电流前馈, relv=两台速度差; 判读见结构审查文档第 5 节
+      LOGINFO("[dart] jog sync ff %d v %d devf %d base %d u %d si %d add %d/%d relv %d", (int)inst->belt_v_ff_dps,
+              (int)inst->belt_v_common_dps, (int)inst->belt_dev_f, (int)inst->belt_diff_ref, (int)inst->belt_sync_u,
+              (int)inst->belt_sync_i, (int)inst->belt_add_current[0], (int)inst->belt_add_current[1],
+              (int)(belt_l->measure.speed_aps - belt_r->measure.speed_aps));
+#else
+      // [P1] 共模前馈/总给定(V1 同步环时也有效)
+      LOGINFO("[dart] jog ff %d v %d", (int)inst->belt_v_ff_dps, (int)inst->belt_v_common_dps);
+#endif
     }
   }
 }
@@ -700,10 +898,15 @@ static void ApplyDebugJog(ShootDartInstance* inst, float dt_s, uint32_t now) {
 ShootDartInstance* ShootDartInit(void) {
   ShootDartInstance* inst = (ShootDartInstance*)zmalloc(sizeof(ShootDartInstance));
 
-  Motor_Init_Config_s belt_l_conf = DART_BELT_MOTOR_CONFIG(DART_BELT_CAN, DART_BELT_L_CAN_ID, DART_BELT_L_REVERSE);
+  // 电流前馈指针指向实例内的 belt_add_current[]: 同步环偏置从这里叠加到速度环输出之后(见 BeltSyncUpdate)
+  Motor_Init_Config_s belt_l_conf = DART_BELT_MOTOR_CONFIG(DART_BELT_CAN, DART_BELT_L_CAN_ID, DART_BELT_L_REVERSE,
+                                                          &inst->belt_add_current[0]);
   inst->belt_motor[0] = DJIMotorInit(&belt_l_conf);
-  Motor_Init_Config_s belt_r_conf = DART_BELT_MOTOR_CONFIG(DART_BELT_CAN, DART_BELT_R_CAN_ID, DART_BELT_R_REVERSE);
+  Motor_Init_Config_s belt_r_conf = DART_BELT_MOTOR_CONFIG(DART_BELT_CAN, DART_BELT_R_CAN_ID, DART_BELT_R_REVERSE,
+                                                          &inst->belt_add_current[1]);
   inst->belt_motor[1] = DJIMotorInit(&belt_r_conf);
+  // [V2] 同步环状态初值: dev 低通从实测差起步(电机还没收到反馈时均为 0), 积分/偏置为 0
+  inst->belt_dev_f = inst->belt_motor[0]->measure.total_angle - inst->belt_motor[1]->measure.total_angle;
 
   Motor_Init_Config_s screw_conf = DART_SCREW_MOTOR_CONFIG(DART_SCREW_CAN, DART_SCREW_CAN_ID, DART_SCREW_REVERSE);
   inst->screw_motor = DJIMotorInit(&screw_conf);
@@ -737,7 +940,9 @@ ShootDartInstance* ShootDartInit(void) {
       .Kd = 0.0f,
       .MaxOut = DART_BELT_MAX_SPEED_DPS,
       .IntegralLimit = 0.0f,
-      .DeadBand = 0.0f,
+      /* 位置死区: 残差在死区内不输出速度修正。机构被静摩擦卡住时残差消不掉(实测 4°),
+       * 无死区会一直给 ~192°/s 速度指令 -> 速度环积分持续 windup、两台电机持续顶死。 */
+      .DeadBand = DART_BELT_POS_DEADBAND_DEG,
       .Improve = PID_Integral_Limit | PID_Trapezoid_Intergral,
   };
   PIDInit(&inst->belt_common_pid, &belt_common_cfg);
@@ -845,6 +1050,7 @@ void ShootDartTask(ShootDartInstance* inst) {
   float dt_s = (float)(now - inst->last_ms) * 0.001f;
   if (dt_s <= 0.0f || dt_s > 0.05f) dt_s = DART_TASK_DT_S;
   inst->last_ms = now;
+  inst->task_dt_s = dt_s;  // [V2] 同步环滤波器用实测周期, 不再用常量 DART_TASK_DT_S
 
   // 校准完成前严格限制同步带/丝杆力矩(所有模式生效)
   ApplyBeltTorqueLimit(inst);
