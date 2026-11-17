@@ -125,7 +125,6 @@ static uint32_t tick_remainder;
 static uint8_t initialized;
 static volatile uint8_t panic_latched;
 static PWMInstance *pwm_instance;
-static PWM_Output_s panic_output;
 static uint8_t initializing;
 static uint8_t service_busy;
 static uint8_t music_paused;
@@ -295,10 +294,9 @@ void BuzzerInit(void) {
 #endif
         .frequency_millihz = 1000000,
         .counter_hz = 1000000,
-        .exclusive_timer = 1,
     };
     PWMResult_e result = pwm_instance ? PWM_OK : PWMRegisterEx(&hardware, &pwm_instance);
-    uint8_t ready = result == PWM_OK && PWMPrepareOutput(pwm_instance, 2000000, 500, &panic_output) == PWM_OK;
+    uint8_t ready = result == PWM_OK;
     TickType_t now = xTaskGetTickCount();
     interrupt_mask = BuzzerLock();
     if (ready) {
@@ -681,7 +679,7 @@ BuzzerResult_e BuzzerPanicTone(void) {
     if (!initialized) return BUZZER_NOT_READY;
     panic_latched = 1;
     __DMB();
-    return PWMLatchOutput(pwm_instance, &panic_output) == PWM_OK ? BUZZER_OK : BUZZER_NOT_READY;
+    return PWMLatchOutput(pwm_instance, 2000000, 500) == PWM_OK ? BUZZER_OK : BUZZER_NOT_READY;
 }
 
 static void BuzzerSnapshot(BuzzerOwner_s owner) {
@@ -992,7 +990,6 @@ void BuzzerTask(void) {
     current_owner = selected;
     if (selected.kind == OWNER_REQUEST) requests[selected.index].started = 1;
     BuzzerSnapshot(selected);
-    uint32_t epoch = change_epoch;
     uint16_t local_strength = strength;
     uint8_t local_muted = muted;
     BuzzerUnlock(interrupt_mask);
@@ -1001,14 +998,11 @@ void BuzzerTask(void) {
     uint16_t duty;
     BuzzerRender(speed, &frequency, &duty);
     if (selected.kind == OWNER_REQUEST) duty = local_muted ? 0 : (uint16_t)((uint32_t)duty * local_strength / 1000);
-    PWM_Output_s output;
-    PWMResult_e prepared = PWMPrepareOutput(pwm_instance, frequency, duty, &output);
+    uint8_t applied = !panic_latched && PWMSetOutput(pwm_instance, frequency, duty) == PWM_OK;
     interrupt_mask = BuzzerLock();
-    if (prepared == PWM_OK && change_epoch == epoch && !panic_latched) {
-        if (PWMApplyOutput(pwm_instance, &output) == PWM_OK) {
-            output_frequency = frequency;
-            output_duty = duty;
-        }
+    if (applied) {
+        output_frequency = frequency;
+        output_duty = duty;
     }
     service_busy = 0;
     BuzzerUnlock(interrupt_mask);
