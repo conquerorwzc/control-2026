@@ -21,7 +21,18 @@ typedef enum {
   NAVIGATOR_MODE,    // 自动控制
 } Control_Mode_e;
 
+/* ===========================================================================
+ * 双板 CAN2 载荷 (chassis 与 gimbal 两份定义必须逐字节一致, 见文末静态断言)
+ *
+ *   0x210  云台板 -> 底盘板  Send_Data_RC : 遥控通道 + 导航速度指令
+ *   0x211  底盘板 -> 云台板  Referee_Data : 发射机构转发 + 底盘速度观测反馈
+ *
+ * 导航小电脑接在云台板 USART1, 因此导航指令由云台板解出后经 0x210 转给底盘板;
+ * 底盘观测到的融合速度经 0x211 回传, 由云台板组装成 0x0010 反馈包发出。
+ * =========================================================================== */
 #pragma pack(1)
+
+/* 底盘板 -> 云台板 */
 typedef struct {
   // uint16_t projectile_allowance_17mm;//17mm弹丸允许发弹量
   uint16_t initial_speed; // 弹速
@@ -29,10 +40,13 @@ typedef struct {
   uint8_t robot_id;  // 本机器人ID（红蓝阵营）
   // uint16_t shooter_barrel_heat_limit;//机器人射击热量上限
   // uint16_t shooter_barrel_cooling_value;//机器人射击热量每秒冷却值
+  // 底盘速度观测反馈, 已旋转到云台系, 供导航 0x0010 帧的 vx/vy/wz
+  float fb_vx;   // 云台系融合速度 m/s (以云台指向为 +x)
+  float fb_vy;   // 云台系融合速度 m/s (+y 向左)
+  float fb_wz;   // 底盘系融合角速度 rad/s (绕 z 与坐标系无关)
 } Referee_Data;
-#pragma pack()
 
-#pragma pack(1)
+/* 云台板 -> 底盘板 */
 #ifdef USE_DUAL_RC
 typedef struct {
   int16_t Rc_vx;
@@ -42,6 +56,11 @@ typedef struct {
   float Yaw_motor_angle;
   uint8_t Switch_right;
   uint8_t Switch_left;
+  // 导航速度指令, 由云台板 USART1 收包后转发; 底盘板在 NAVIGATOR_MODE 下使用
+  float nav_vx;    // m/s
+  float nav_vy;    // m/s
+  float nav_wz;    // rad/s
+  uint8_t nav_valid;  // 1: 500ms 看门狗内收到过有效帧; 0: 导航离线, 底盘按零速处理
 } Send_Data_RC;
 #elifdef USE_DUAL_RC_NEW
 typedef struct {
@@ -53,9 +72,23 @@ typedef struct {
   uint8_t Mode_switch;
   uint8_t Control_mode;
   uint8_t Pause_flag;
+  float nav_vx;
+  float nav_vy;
+  float nav_wz;
+  uint8_t nav_valid;
 } Send_Data_RC_NEW;
 #endif
 #pragma pack()
+
+/* 线上长度必须双方一致; 与 can_comm 的 send/recv_data_len 配套 */
+_Static_assert(sizeof(Referee_Data) == 17, "下行包(底盘->云台)必须为 17 字节");
+#ifdef USE_DUAL_RC
+_Static_assert(sizeof(Send_Data_RC) == 29, "上行包(云台->底盘)必须为 29 字节");
+#define Send_Data_Up                                    Send_Data_RC
+#elifdef USE_DUAL_RC_NEW
+_Static_assert(sizeof(Send_Data_RC_NEW) == 30, "上行包(云台->底盘)必须为 30 字节");
+#define Send_Data_Up                                    Send_Data_RC_NEW
+#endif
 
 #pragma pack(1)
 typedef union{
@@ -129,8 +162,8 @@ typedef struct {
   #endif
   referee_info_t* referee_data;     // 用于获取裁判系统的数据
   Vision_Receive_s* vision_recv_data;
-  navigator_recv_t* navigator_data;    //从导航获取的控制指令
-
+  // 导航小电脑接在云台板 USART1, 底盘板不再直接持有导航串口实例;
+  // 导航速度指令经 CAN2 0x210 的 nav_vx/nav_vy/nav_wz/nav_valid 字段获取。
   SuperCapInstance* super_cap;
   ChassisInstance* chassis;
   GimbalInstance* gimbal;
