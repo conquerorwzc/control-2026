@@ -165,7 +165,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                         },
                     .angle_PID =
                         {
-                            .Kp = 90.0f,            // (rad/s)/rad = 1/s，角度误差到目标速度的比例增益
+                            .Kp = 20.0f,            // (rad/s)/rad = 1/s，角度误差到目标速度的比例增益
                             .Ki = 0.1f,             // (rad/s)/(rad*s) = 1/s^2，角度误差积分增益
                             .Kd = 0.0f,             // (rad/s)/(rad/s)，无量纲，角度误差微分增益；启用微分先行
                             .DeadBand = 0.001f,      // rad，约 0.573 deg，角度误差死区
