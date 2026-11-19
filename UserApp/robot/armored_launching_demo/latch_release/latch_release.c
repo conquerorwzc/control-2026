@@ -17,6 +17,7 @@ static float release_zero_rotor_deg; // 上电零点，单位为转子角度
 static volatile int release_request;               // 0 停机，1 击发一次
 static volatile float release_target_deg = -45.0f; // 带方向的输出轴目标角度
 static volatile float release_angle_deg;           // 输出轴相对零点的实际角度
+static volatile float release_return_deg = 10.0f;
 
 /**
  * @brief 初始化击发机构的 M2006 串级位置环。
@@ -124,7 +125,7 @@ void LatchReleaseTask(void)
         return;
     }
 
-    const float target_rotor_deg = release_zero_rotor_deg + release_target_deg * 36.0f;
+    const float target_rotor_deg = release_return_deg + release_target_deg * 36.0f;
 
     DJIMotorSetPIDRef(latch_motor, target_rotor_deg);
     DJIMotorEnable(latch_motor);
