@@ -3,7 +3,9 @@
 本目录说明 `wheelleg_RL` 分支的新增内容。强化学习仓库为 `D:/WHEEL_LEG_RL/SRM_Wheelleg_Rltrain`。
 部署、采集、扫频、电机/气弹簧辨识与分析工具都在本队内仓库开发。
 
-## 目前已实现
+**2026-11-21 更新：** `motor_sysid` 已在 robot 层接入遥控档位、DWT 计时的参考角空跑和 USART1 / VOFA+ JustFloat。当前无电机注册和真实输出；不改 OSTask 或底层驱动。操作和帧布局见[辨识目标说明](../../UserApp/robot/motor_sysid/README.md)，导出后的检查见[离线工具](../../tools/hip_ident/README.md)。下文为早期 FW0 记录。
+
+## FW0 初版已实现
 
 - `wheel_leg_rl` 与 `motor_sysid` 两个 H723 构建目标，不改变原默认机器人。
 - 两目标选择专用 `wheelleg_tasks.c`，替代旧的独立 motor/robot/DM 任务。
