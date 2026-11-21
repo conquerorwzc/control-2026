@@ -6,7 +6,8 @@ list(APPEND SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/robot.c"
     "${CMAKE_CURRENT_LIST_DIR}/sysid_signal.c"
     "${CMAKE_CURRENT_LIST_DIR}/sysid_runner.c"
+    "${CMAKE_CURRENT_LIST_DIR}/sysid_hip.c"
     "${CMAKE_SOURCE_DIR}/UserApp/components/wheelleg_bootstrap/wheelleg_tasks.c"
 )
 # 输入边界需要可靠地拒绝 NaN/Inf，不能被根工程 -Ofast 的假设消除。
-set_source_files_properties(${CMAKE_CURRENT_LIST_DIR}/sysid_signal.c ${CMAKE_CURRENT_LIST_DIR}/sysid_runner.c PROPERTIES COMPILE_OPTIONS "-fno-fast-math")
+set_source_files_properties(${CMAKE_CURRENT_LIST_DIR}/robot.c ${CMAKE_CURRENT_LIST_DIR}/sysid_hip.c ${CMAKE_CURRENT_LIST_DIR}/sysid_signal.c ${CMAKE_CURRENT_LIST_DIR}/sysid_runner.c PROPERTIES COMPILE_OPTIONS "-fno-fast-math")
