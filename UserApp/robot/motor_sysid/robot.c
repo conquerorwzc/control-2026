@@ -41,7 +41,7 @@ static DMMotorInstance *hips[SYSID_HIP_COUNT];
 static SysIdHipInstance hip_control;
 static uint32_t last_feed[SYSID_HIP_COUNT];
 static uint64_t last_fresh_us[SYSID_HIP_COUNT], previous_tick_us;
-static bool observed[SYSID_HIP_COUNT], registered, registration_stop_seen;
+static bool observed[SYSID_HIP_COUNT], registered;
 enum
 {
     SYSID_BOOT_OK,
@@ -122,7 +122,7 @@ static void WriteHips(const SysIdHipOutput *out)
 
 static bool RegisterHips(void)
 {
-    // DMMotorInit 本身会发一次硬件使能。此函数只能在校验后由人工下→中触发一次。
+    // DMMotorInit 本身会发一次硬件使能。仅在实机配置通过校验后由 RobotInit 调用一次。
     for (unsigned i = 0; i < SYSID_HIP_COUNT; ++i)
     {
         if (!Installed(i))
@@ -189,8 +189,17 @@ void RobotInit(void)
         return;
     VOFAInit(SYSID_VOFA_PORT);
     remote = RemoteControlInit(SYSID_RC_PORT);
-    last_daemon_us = DWT_GetTimeline_us();
-    ready = remote != NULL;
+    if (remote == NULL)
+        return;
+    if (SYSID_REAL_HIPS && !inhibit)
+    {
+        registered = RegisterHips();
+        if (!registered)
+            inhibit = SYSID_SENDER_ERROR;
+        WriteHips(NULL); // 所有已注册实例均置零，包括注册中途失败时
+    }
+    last_daemon_us = previous_tick_us = DWT_GetTimeline_us();
+    ready = true;
 }
 
 void RobotTask(void)
@@ -216,22 +225,6 @@ void RobotTask(void)
     in.left = DecodeSwitch(remote[TEMP].rc.switch_left);
     in.right = DecodeSwitch(remote[TEMP].rc.switch_right);
     taskEXIT_CRITICAL();
-
-    if (SYSID_REAL_HIPS && !registered && !inhibit)
-    {
-        if (registration_stop_seen && in.remote_online && in.left == SYSID_SWITCH_MIDDLE &&
-            in.right != SYSID_SWITCH_INVALID)
-        {
-            registered = RegisterHips(); // 阻塞式初始化期间所有命令均为零
-            if (!registered)
-                inhibit = SYSID_SENDER_ERROR;
-            registration_stop_seen = false;
-            last_daemon_us = DWT_GetTimeline_us();
-            WriteHips(NULL);
-            return; // 注册期间的老遥控/反馈不得进入本次试验
-        }
-        registration_stop_seen = in.remote_online && in.left == SYSID_SWITCH_DOWN && in.right != SYSID_SWITCH_INVALID;
-    }
 
     SysIdHipInput hi = {.side = kTestSide};
     unsigned flags = 0;
