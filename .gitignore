@@ -103,7 +103,7 @@ JLinkLog.txt
 .DS_Store
 
 # cmake build directory
-cmake-build-debug/
+cmake-build-*/
 doc
 *.jdebug.user
 *.jdebug

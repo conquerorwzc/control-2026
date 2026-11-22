@@ -16,7 +16,7 @@
 #endif
 
 /* 开发板类型定义,烧录时注意不要弄错对应功能;修改定义后需要重新编译,只能存在一个定义! */
-#define ONE_BOARD  // 单板控制整车
+#define CHASSIS_BOARD  // 底盘板
 
 // 检查是否出现主控板定义冲突,只允许一个开发板定义存在,否则编译会自动报错
 #if (defined(ONE_BOARD) && defined(CHASSIS_BOARD)) || (defined(ONE_BOARD) && defined(GIMBAL_BOARD)) || \
@@ -169,10 +169,15 @@ static Chassis_Init_Config_s chassis_init_config = {
         .IntegralLimit = 1000.0f,
         .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
         .MaxOut = 40000.0f,
-      .DeadBand = 0.0f,
-
+        .DeadBand = 0.0f,
     },
-
+    .super_cap_config = {
+        .can_config = {
+            .can_handle = &hcan2,   // 待确认:按实物接线
+            .tx_id = 0x302,         // 【待确认】我们发:超电的接收 id
+            .rx_id = 0x301,         // 【待确认】我们收:超电的发送 id
+        },
+    },
 };
 
 // static Gimbal_Init_Config_s gimbal_init_config = {
@@ -341,7 +346,7 @@ static Chassis_Init_Config_s chassis_init_config = {
 static CANComm_Init_Config_s comm_config = {
   .recv_data_len = 24,        // 接收数据长度，根据实际需求调整
   .send_data_len = 24,        // 发送数据长度，根据实际需求调整
-  .daemon_count = 10,      // 看门狗重载计数，根据实际需求调整
+  .daemon_count = 100,     // 看门狗重载计数，根据实际需求调整
   .can_config = {
     .can_handle = &hcan1,  // 假设使用CAN1，根据实际使用的CAN句柄调整
     .tx_id = BOARD_TX_ID,        // 发送ID，根据实际需求调整

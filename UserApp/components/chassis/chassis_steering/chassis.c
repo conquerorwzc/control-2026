@@ -14,7 +14,7 @@
 #include <math.h>
 
 #include "arm_math.h"
-#include "rm_referee.h"
+#include "referee.h"
 #include "user_lib.h"
 
 #define SQRT2_OVER_2 0.7071067811865476f
@@ -45,6 +45,20 @@ typedef struct
     float y;
 } WheelVector_s;
 
+//约定右手系
+typedef struct
+{
+    float rx;  // 前为正
+    float ry;  // 左为正
+} WheelPos_t;
+
+static const WheelPos_t k_wheel_pos[WHEEL_COUNT] = {
+    [LF] = {.rx = +SQRT2_OVER_2, .ry = +SQRT2_OVER_2},
+    [RF] = {.rx = +SQRT2_OVER_2, .ry = -SQRT2_OVER_2},
+    [LB] = {.rx = -SQRT2_OVER_2, .ry = +SQRT2_OVER_2},
+    [RB] = {.rx = -SQRT2_OVER_2, .ry = -SQRT2_OVER_2},
+};
+
 static referee_info_t *referee_data;
 static ChassisInstance *chassis;
 static Chassis_Ctrl_Cmd_s *chassis_ctrl_cmd;
@@ -67,7 +81,6 @@ float FK_Wz;
 float initial_rudder_total_power = 0.0f;
 float initial_rudder_give_power[WHEEL_COUNT] = {0.0f};
 
-/* 小型数学 helper 用来提高功率模型公式的可读性。 */
 static float Square(float value)
 {
     return value * value;
@@ -227,21 +240,32 @@ static void ConfigureRudderMotor(Motor_Init_Config_s *config)
  */
 static void ForwardKinematicCal(void)
 {
+    float sum_wx = 0.0f;
+    float sum_wy = 0.0f;
+    float sum_cross = 0.0f;  // Σ(rx*wy - ry*wx)
+    float sum_r2 = 0.0f;     // Σ(rx^2 + ry^2)
+
     for (uint8_t i = 0; i < WHEEL_COUNT; ++i)
     {
         float rudder_angle = chassis->rudder_motor[i]->measure.angle_single_round -
                              (float)chassis->rudder_offset[i] * ECD_ANGLE_COEF_DJI;
         rudder_angle = NormalizeAngle360(rudder_angle) * DEGREE_2_RAD;
 
-        omega_x[i] = chassis->wheel_motor[i]->measure.speed_aps * arm_sin_f32(rudder_angle);
-        omega_y[i] = chassis->wheel_motor[i]->measure.speed_aps * arm_cos_f32(rudder_angle);
-    }
+        omega_x[i] = chassis->wheel_motor[i]->measure.speed_aps * arm_cos_f32(rudder_angle);
+        omega_y[i] = chassis->wheel_motor[i]->measure.speed_aps * arm_sin_f32(rudder_angle);
 
-    FK_Vx = (omega_x[LF] + omega_x[RF] + omega_x[LB] + omega_x[RB]) / 4.0f;
-    FK_Vy = (omega_y[LF] + omega_y[RF] + omega_y[LB] + omega_y[RB]) / 4.0f;
-    FK_Wz = (+omega_x[LF] - omega_y[LF] + omega_x[RF] + omega_y[RF] - omega_x[LB] + omega_y[LB] -
-             omega_x[RB] - omega_y[RB]) *
-            SQRT2_OVER_2 / 4.0f;
+        const float rx = k_wheel_pos[i].rx;
+        const float ry = k_wheel_pos[i].ry;
+
+        sum_wx += omega_x[i];
+        sum_wy += omega_y[i];
+        sum_cross += rx * omega_y[i] - ry * omega_x[i];
+        sum_r2 += Square(rx) + Square(ry);
+    }
+    FK_Vx = sum_wx / (float)WHEEL_COUNT;
+    FK_Vy = sum_wy / (float)WHEEL_COUNT;
+    // 自转分量：wz = Σ(rx*wy - ry*wx) / Σ(rx^2 + ry^2)
+    FK_Wz = (sum_r2 > 1.0e-6f) ? (sum_cross / sum_r2) : 0.0f;
 }
 
 /**
@@ -287,19 +311,14 @@ static void LimitTranslationForSpin(void)
         return;
     }
 
-    const WheelVector_s rotation[WHEEL_COUNT] = {
-        [LF] = {.x = +wz * SQRT2_OVER_2, .y = -wz * SQRT2_OVER_2},
-        [LB] = {.x = +wz * SQRT2_OVER_2, .y = +wz * SQRT2_OVER_2},
-        [RB] = {.x = -wz * SQRT2_OVER_2, .y = +wz * SQRT2_OVER_2},
-        [RF] = {.x = -wz * SQRT2_OVER_2, .y = -wz * SQRT2_OVER_2},
-    };
-
     for (uint8_t i = 0; i < WHEEL_COUNT; ++i)
     {
-        // |alpha * translation + rotation_i|^2 <= MAX_WHEEL_SPEED^2
-        const float b = 2.0f * (chassis_vx * rotation[i].x +
-                                chassis_vy * rotation[i].y);
-        const float c = Square(rotation[i].x) + Square(rotation[i].y) - limit_sq;
+        const float rot_x = -wz * k_wheel_pos[i].ry;
+        const float rot_y = +wz * k_wheel_pos[i].rx;
+
+        // |alpha * T + R_i|^2 <= MAX_WHEEL_SPEED^2 T是平移矢量，R是自转矢量
+        const float b = 2.0f * (chassis_vx * rot_x + chassis_vy * rot_y);
+        const float c = Square(rot_x) + Square(rot_y) - limit_sq;
 
         // 纯自转已经超过轮速能力，平移无法解决。
         if (c > 0.0f)
@@ -552,21 +571,20 @@ static void LimitChassisOutput(void)
  * @brief 计算四个舵轮模块的逆运动学。
  *
  * 每个模块先由底盘 vx/vy/wz 得到目标速度向量，再转换为舵角和轮速；
+ * 轮心速度 v0 = (vx - wz*ry,  vy + wz*rx)
+ *   轮速   |v0| = sqrt(v0.x^2 + v0.y^2)
+ *   舵角   theta = atan2(v0.y, v0.x)
  * 必要时通过轮向反转把舵角约束到短弧路径。
  */
 static void SteeringCalculate(void)
 {
     LimitTranslationForSpin();
-    WheelVector_s wheel_vector[WHEEL_COUNT] = {
-        [LF] = {.x = chassis_vx + chassis_ctrl_cmd->wz * SQRT2_OVER_2,
-                .y = chassis_vy - chassis_ctrl_cmd->wz * SQRT2_OVER_2},
-        [LB] = {.x = chassis_vx + chassis_ctrl_cmd->wz * SQRT2_OVER_2,
-                .y = chassis_vy + chassis_ctrl_cmd->wz * SQRT2_OVER_2},
-        [RB] = {.x = chassis_vx - chassis_ctrl_cmd->wz * SQRT2_OVER_2,
-                .y = chassis_vy + chassis_ctrl_cmd->wz * SQRT2_OVER_2},
-        [RF] = {.x = chassis_vx - chassis_ctrl_cmd->wz * SQRT2_OVER_2,
-                .y = chassis_vy - chassis_ctrl_cmd->wz * SQRT2_OVER_2},
-    };
+    WheelVector_s wheel_vector[WHEEL_COUNT];
+    for (uint8_t i = 0; i < WHEEL_COUNT; ++i)
+    {
+        wheel_vector[i].x = chassis_vx - chassis_ctrl_cmd->wz * k_wheel_pos[i].ry;
+        wheel_vector[i].y = chassis_vy + chassis_ctrl_cmd->wz * k_wheel_pos[i].rx;
+    }
 
     for (uint8_t i = 0; i < WHEEL_COUNT; ++i)
     {
@@ -609,6 +627,9 @@ static void SteeringCalculate(void)
 static void UpdateSuperCapMode(void)
 {
     uint16_t referee_power_limit = referee_data->GameRobotState.chassis_power_limit;
+    if (referee_power_limit == 0) {
+        referee_power_limit = 80;
+    }
     float cap_voltage = chassis->super_cap->cap_msg.cap_v;
 
     switch (chassis->super_cap_mode)
@@ -727,11 +748,17 @@ static void ApplyChassisMode(void)
  */
 static void TransformCommandToChassisFrame(void)
 {
-    float cos_theta = arm_cos_f32(-chassis_ctrl_cmd->offset_angle * DEGREE_2_RAD);
-    float sin_theta = arm_sin_f32(-chassis_ctrl_cmd->offset_angle * DEGREE_2_RAD);
+    /* 云台系 -> 底盘系：把指令矢量绕 z 轴旋转 -offset_angle
+     *   x' =  x*cos + y*sin
+     *   y' = -x*sin + y*cos
+     * 原实现把负号揉进 cos/sin 的入参与 vx 的系数里（等价于"标准旋转后
+     * 再整体取负"），无法单独调方向；此处恢复标准形式，方向差异交由
+     * motor_reverse_flag 处理。 */
+    const float cos_theta = arm_cos_f32(chassis_ctrl_cmd->offset_angle * DEGREE_2_RAD);
+    const float sin_theta = arm_sin_f32(chassis_ctrl_cmd->offset_angle * DEGREE_2_RAD);
 
-    chassis_vx = -chassis_ctrl_cmd->vx * cos_theta + chassis_ctrl_cmd->vy * sin_theta;
-    chassis_vy = -chassis_ctrl_cmd->vx * sin_theta - chassis_ctrl_cmd->vy * cos_theta;
+    chassis_vx = chassis_ctrl_cmd->vx * cos_theta + chassis_ctrl_cmd->vy * sin_theta;
+    chassis_vy = -chassis_ctrl_cmd->vx * sin_theta + chassis_ctrl_cmd->vy * cos_theta;
 }
 
 /**

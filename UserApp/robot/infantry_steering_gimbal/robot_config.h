@@ -1,6 +1,7 @@
 #ifndef CONTROL_2026_ROBOT_CONFIG_H
 #define CONTROL_2026_ROBOT_CONFIG_H
 
+#include "can_comm.h"
 #include "gimbal.h"
 #include "shoot.h"
 

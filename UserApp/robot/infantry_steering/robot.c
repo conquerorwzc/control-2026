@@ -1,7 +1,10 @@
 #include "robot.h"
 
+#include "board_protocol.h"
 #include "can_comm.h"
+#include "components/chassis/chassis_steering/chassis.h"
 #include "general_def.h"
+#include "referee.h"
 #include "robot_config.h"
 #include "user_lib.h"
 #define USECANREMOTE 1  // 是否使用云台板的遥控数据
@@ -19,14 +22,10 @@ static RC_ctrl_t *rc_data_last;  // 遥控器数据,初始化时返回
 /* Intermediate variables calculated by private functions */
 static float trigger_time = 0;  // 触发时间
 static float angle = 0;
-uint8_t *received_data = NULL;
 CANCommInstance *can_comm_instance = NULL;
-typedef union {
-  int16_t value16[32];
-  uint16_t valueu16[32];
-  uint8_t bytes[64];
-} int16_t_bytes;
-int16_t_bytes CanData = {0};  // 底盘板can接收的遥控数据
+static const GimbalToChassis_s *rx = NULL;
+static ChassisToGimbal_s tx;
+static float last_send = 0.0f;
 // static  DJIMotorInstance* debug_motor;
 
 /**
@@ -35,7 +34,7 @@ int16_t_bytes CanData = {0};  // 底盘板can接收的遥控数据
  *
  */
 static void CalcOffsetAngle() {
-  angle = (uint16_t)CanData.valueu16[4];
+  angle = (float)rx->gimbal_yaw_angle;
   float delta = angle - YAW_ALIGN_ANGLE;
   if (delta > 180.0f) {
     delta -= 360.0f;
@@ -118,40 +117,26 @@ static void RemoteControlSet() {
         (float)rc_data[TEMP]
             .rc.rocker_r_;  // 主动跟随量，todo：但是感觉一个变量拆成两段写好像有点抽象，这里有一段，chassis还有另一段
   }
-  // 发射参数
-
-  // 射频控制,固定每秒1发,后续可以根据左侧拨轮的值大小切换射频,
-  shoot_ctrl_cmd->shoot_rate = 8;
 
   *rc_data_last = *rc_data;
 }
 // 解析底盘板收到的遥控数据
 static void DualBoardCtrlSet() {
-  // chassis_ctrl_cmd->wz=0;
-  if (CANCommIsOnline(can_comm_instance)) {
-    // 检查是否有新数据更新
-    received_data = (uint8_t *)CANCommGet(can_comm_instance);
-    // 如果收到数据，可以在这里处理
-    if (received_data != NULL) {
-      // 解析接收到的数据到全局变量
-      // memcpy(board_can_comm_data.rx_buff, received_data, 16);
-
-      for (int i = 0; i < 24; i++) CanData.bytes[i] = received_data[i];
-      chassis_ctrl_cmd->vx = 60.0f * CanData.value16[0];  // todo:后面chassis改改把负号去掉
-      chassis_ctrl_cmd->vy = 60.0f * CanData.value16[1];
-      // if (CanData.value16[2]>=0)
-      //  chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)-CanData.value16[2]/50.0f))*CanData.value16[2];
-      //  else chassis_ctrl_cmd->wz=(45.0f-(45.0f-20.0f)*expf((float)CanData.value16[2]/50.0f))*CanData.value16[2];
-      chassis_ctrl_cmd->wz = 42.0f * CanData.value16[2];
-      if (switch_is_mid(CanData.bytes[10])) {
-        // gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;
-        if (CanData.value16[3] > 20) {
-          chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
-        } else
-          chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
-      }
+  if (!CANCommIsOnline(can_comm_instance)) {
+    return;
+  }
+  CANCommGet(can_comm_instance);
+  chassis_ctrl_cmd->vx = 60.0f * (float)rx->vx_stick;
+  chassis_ctrl_cmd->vy = 60.0f * (float)rx->vy_stick;
+  chassis_ctrl_cmd->wz = 42.0f * (float)rx->wz_stick;
+  if (switch_is_mid(rx->switch_right)) {
+    if (rx->dial > 20) {
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_ROTATE;
+    } else {
+      chassis_ctrl_cmd->chassis_mode = CHASSIS_FOLLOW;
     }
   }
+  chassis_ctrl_cmd->SuperCapBoost = rx->super_cap_boost;
 }
 
 #if 0
@@ -274,7 +259,7 @@ static void EmergencyHandler() {
       break;
     case 1:
 
-      if (switch_is_down(CanData.bytes[10]))  // 底盘失能
+      if (switch_is_down(rx->switch_right))  // 底盘失能
       {
         chassis_ctrl_cmd->chassis_mode = CHASSIS_POWER_OFF;
       }
@@ -288,6 +273,7 @@ void RobotInit() {
   vTaskDelay(CAN_COMM_TASK_INIT_TIME);
   // 初始化CAN接收
   can_comm_instance = CANCommInit(&comm_config);
+  rx = (const GimbalToChassis_s *)CANCommGet(can_comm_instance);
   robot = (RobotInstance *)zmalloc(sizeof(RobotInstance));
 
 #ifdef STM32F407xx
@@ -312,7 +298,6 @@ void RobotInit() {
 
   // 初始化控制命令指针
   chassis_ctrl_cmd = &robot->chassis->chassis_ctrl_cmd;
-  chassis_ctrl_cmd->max_power = 80;  // 随便给一个初始功率，后面应该要从裁判系统获取
   gimbal_ctrl_cmd = &robot->gimbal->gimbal_ctrl_cmd;
   shoot_ctrl_cmd = &robot->shoot->shoot_ctrl_cmd;
   rc_data = robot->rc_data;
@@ -326,6 +311,18 @@ void RobotCMDTask() {
   DualBoardCtrlSet();
   // MouseKeySet();
   EmergencyHandler();  // 处理模块离线和遥控器急停等紧急情况
+}
+
+static void Chassis_CANCommSend() {
+  referee_info_t *ref = GetReferee();
+  tx.chassis_power_limit = ref->GameRobotState.chassis_power_limit;
+  tx.buffer_energy = ref->PowerHeatData.buffer_energy;
+  tx.shooter_heat = ref->PowerHeatData.shooter_17mm_barrel_heat;
+  tx.heat_limit = ref->GameRobotState.shooter_barrel_heat_limit;
+  tx.super_cap_voltage_x100 = (uint16_t)(robot->chassis->super_cap->cap_msg.cap_v * 100.0f);
+  tx.robot_id = (uint8_t)ref->GameRobotState.robot_id;
+  tx.super_cap_mode = (uint8_t)robot->chassis->super_cap_mode;
+  CANCommSend(can_comm_instance, (uint8_t *)&tx);
 }
 
 void RobotTask() {
@@ -350,6 +347,10 @@ void RobotTask() {
     // GimbalTask();
     // ShootTask();
     ChassisTask();
+    if (DWT_GetTimeline_s() - last_send >= 0.01f) {
+      last_send = DWT_GetTimeline_s();
+      Chassis_CANCommSend();
+    }
     // 将原本motortask的can发送改到这里，和pid计算同频，减少无用发送
     // DJIMotorCANTransmit();
   }
