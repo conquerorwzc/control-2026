@@ -57,6 +57,9 @@ void IMU_QuaternionEKF_Init(float* init_quaternion,float process_noise1, float p
     QEKF_INS.ConvergeFlag = 0;
     QEKF_INS.ErrorCount = 0;
     QEKF_INS.UpdateCount = 0;
+    QEKF_INS.PitchTotalAngle = 0.0f;
+    QEKF_INS.PitchAngleLast = 0.0f;
+    QEKF_INS.PitchRoundCount = 0;
     if (lambda > 1)
     {
         lambda = 1;
@@ -213,6 +216,18 @@ void IMU_QuaternionEKF_Update(float gx, float gy, float gz, float ax, float ay, 
     }
     QEKF_INS.YawTotalAngle = 360.0f * QEKF_INS.YawRoundCount + QEKF_INS.Yaw;
     QEKF_INS.YawAngleLast = QEKF_INS.Yaw;
+
+    if (QEKF_INS.Pitch - QEKF_INS.PitchAngleLast > 180.0f)
+    {
+        QEKF_INS.PitchRoundCount--;
+    }
+    else if (QEKF_INS.Pitch - QEKF_INS.PitchAngleLast < -180.0f)
+    {
+        QEKF_INS.PitchRoundCount++;
+    }
+    QEKF_INS.PitchTotalAngle = 360.0f * QEKF_INS.PitchRoundCount + QEKF_INS.Pitch;
+    QEKF_INS.PitchAngleLast = QEKF_INS.Pitch;
+
     QEKF_INS.UpdateCount++; // 初始化低通滤波用,计数测试用
 }
 

@@ -286,6 +286,7 @@ void INS_Task(void) {
 
     INS.Yaw = QEKF_INS.Yaw;
     INS.Pitch = QEKF_INS.Pitch;
+    INS.PitchTotalAngle = QEKF_INS.PitchTotalAngle;
     INS.Roll = QEKF_INS.Roll;
     INS.YawTotalAngle = QEKF_INS.YawTotalAngle;
     // VisionSetAltitude(INS.Yaw, INS.Pitch, INS.Roll);
@@ -451,6 +452,7 @@ uint8_t INS_GetAttitude(attitude_t *attitude) {
   // 复制姿态数据
   attitude->Yaw = INS.Yaw;
   attitude->Pitch = INS.Pitch;
+  attitude->PitchTotalAngle = INS.PitchTotalAngle;
   attitude->Roll = INS.Roll;
   attitude->YawTotalAngle = INS.YawTotalAngle;
   // 如果需要角速度数据也可以复制

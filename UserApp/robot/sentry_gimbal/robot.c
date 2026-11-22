@@ -82,8 +82,8 @@ static void RemoteControlSet(void)
     gimbal_cmd->burst_feedforward_enabled = UpdateBurstSelection(
         left, robot->rc_data[TEMP].rc.dial, 1);
 
-    //之前代码实现的是上水平中垂直，与前文注释不符合
-    gimbal_cmd->big_pitch_pose = switch_is_mid(right) ? GIMBAL_BIG_PITCH_HORIZONTAL : GIMBAL_BIG_PITCH_VERTICAL;
+    //右上水平，右中垂直
+    gimbal_cmd->big_pitch_pose = switch_is_mid(right) ?  GIMBAL_BIG_PITCH_VERTICAL :GIMBAL_BIG_PITCH_HORIZONTAL ;
 
     // 同步新版四轴：小 Yaw 改为 J4310，IMU 目标仍为 deg；暂不启用大 Yaw 跟随。
     gimbal_cmd->yaw -= 0.0002f * (float)robot->rc_data[TEMP].rc.rocker_r_;

@@ -64,6 +64,10 @@ typedef struct
     int16_t YawRoundCount;
 
     float YawAngleLast;
+
+    float PitchTotalAngle;
+    float PitchAngleLast;
+    int16_t PitchRoundCount;
 } QEKF_INS_t;
 
 extern QEKF_INS_t QEKF_INS;

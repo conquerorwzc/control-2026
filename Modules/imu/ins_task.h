@@ -32,6 +32,7 @@ typedef struct {
 
   float Roll;           // 横滚角(绕X轴旋转) 单位: °
   float Pitch;          // 俯仰角(绕Y轴旋转) 单位: °
+  float PitchTotalAngle;  // Pitch轴累计转过的总角度 单位: °
   float Yaw;            // 偏航角(绕Z轴旋转) 单位: °
   float YawTotalAngle;  // Yaw轴累计转过的总角度，可用于多圈控制 单位: °
 } attitude_t;  // 最终解算得到的角度,以及yaw转动的总角度(方便多圈控制)。姿态信息包括三轴角速度、三轴加速度和欧拉角姿态
@@ -60,6 +61,7 @@ typedef struct {
   // 姿态解算结果
   float Roll;           // 解算得到的横滚角 单位: °
   float Pitch;          // 解算得到的俯仰角 单位: °
+  float PitchTotalAngle;  // Pitch轴累计转过的总角度 单位: °
   float Yaw;            // 解算得到的偏航角 单位: °
   float YawTotalAngle;  // Yaw轴累计转过的总角度 单位: °
 

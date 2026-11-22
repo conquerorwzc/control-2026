@@ -179,7 +179,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
     .small_pitch_motor_config =
         {
             .controller_setting_init_config =
-                {.motor_reverse_flag = MOTOR_DIRECTION_REVERSE},
+                {.motor_reverse_flag = MOTOR_DIRECTION_NORMAL},
             .motor_type = J4310,
             .can_init_config =
                 {

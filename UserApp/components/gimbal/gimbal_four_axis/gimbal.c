@@ -133,7 +133,8 @@ GimbalInstance *GimbalInit(Gimbal_Init_Config_s *gimbal_init_config)
     gimbal->burst_config = gimbal_init_config->burst_config;
 
     Motor_Init_Config_s *small_pitch_config = &gimbal_init_config->small_pitch_motor_config;
-    small_pitch_config->controller_param_init_config.other_angle_feedback_ptr = &gimbal->gimbal_IMU_data->Pitch;
+    small_pitch_config->controller_param_init_config.other_angle_feedback_ptr =
+        &gimbal->gimbal_IMU_data->PitchTotalAngle;
     small_pitch_config->controller_param_init_config.other_speed_feedback_ptr = &gimbal->gimbal_IMU_data->Gyro[0];
     small_pitch_config->controller_setting_init_config.angle_feedback_source = OTHER_FEED;
     small_pitch_config->controller_setting_init_config.speed_feedback_source = OTHER_FEED;
@@ -199,7 +200,7 @@ void GimbalTask(void)
         ResetController(&gimbal->big_yaw_motor->motor_controller);
         ResetController(&gimbal->small_yaw_motor->motor_controller);
         gimbal_ctrl_cmd->yaw = gimbal->gimbal_IMU_data->YawTotalAngle;
-        gimbal_ctrl_cmd->pitch = gimbal->gimbal_IMU_data->Pitch;
+        gimbal_ctrl_cmd->pitch = gimbal->gimbal_IMU_data->PitchTotalAngle;
         gimbal_ctrl_cmd->big_yaw = gimbal->big_yaw_motor->measure.total_angle / DEGREE_2_RAD;
         gimbal_enabled = 1;
         return;
