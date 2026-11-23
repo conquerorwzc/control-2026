@@ -3,7 +3,7 @@
 set(GIMBAL_TYPE gimbal_standard)
 #set(GIMBAL_TYPE gimbal_steering_infantry)
 set(SHOOT_TYPE shoot_standard)
-add_compile_definitions(FRICTION_NUM=2)
+add_compile_definitions(FRICTION_NUM=3)
 
 # Include directories for header file searching
 include_sub_directories_recursively(${CMAKE_CURRENT_LIST_DIR})
