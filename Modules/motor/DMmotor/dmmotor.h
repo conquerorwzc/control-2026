@@ -7,7 +7,7 @@
 #include "daemon.h"
 #include "motor_def.h"
 
-#define DM_MOTOR_CNT 6
+#define DM_MOTOR_CNT 8
 
 #define DM_P_MIN_J4310 (-12.5f)
 #define DM_P_MAX_J4310 12.5f
@@ -80,6 +80,8 @@ typedef enum {
 } DMMotor_Mode_e;
 
 DMMotorInstance* DMMotorInit(Motor_Init_Config_s* config);
+
+void DMMotorSetMode(DMMotor_Mode_e cmd, DMMotorInstance* motor);  // 原 static, 公有化以支持上电使能握手
 
 void DMMotorSetRef(DMMotorInstance* motor, float ref);
 
