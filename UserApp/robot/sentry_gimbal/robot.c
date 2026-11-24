@@ -3,6 +3,7 @@
 #include "robot_config.h"
 #include "vofa.h"
 
+
 static RobotInstance robot_instance;
 static RobotInstance *robot = &robot_instance;
 
@@ -86,8 +87,8 @@ static void RemoteControlSet(void)
     gimbal_cmd->big_pitch_pose = switch_is_mid(right) ?  GIMBAL_BIG_PITCH_VERTICAL :GIMBAL_BIG_PITCH_HORIZONTAL ;
 
     // 同步新版四轴：小 Yaw 改为 J4310，IMU 目标仍为 deg；暂不启用大 Yaw 跟随。
-    gimbal_cmd->yaw -= 0.0002f * (float)robot->rc_data[TEMP].rc.rocker_r_;
-    gimbal_cmd->pitch += 0.0005f * (float)robot->rc_data[TEMP].rc.rocker_r1;
+    gimbal_cmd->yaw += REMOTE_YAW_DIRECTION * 0.0002f * (float)robot->rc_data[TEMP].rc.rocker_r_;
+    gimbal_cmd->pitch += REMOTE_PITCH_DIRECTION * 0.0005f * (float)robot->rc_data[TEMP].rc.rocker_r1;
 }
 
 void RobotInit(void)

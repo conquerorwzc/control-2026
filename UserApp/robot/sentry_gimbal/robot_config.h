@@ -54,6 +54,10 @@
 #define FRICTION_SPEED_UP_APS 15000.0f
 #define LOADER_STEP_PERIOD_MID_MS 1000U
 #define LOADER_STEP_PERIOD_UP_MS 50U // 20 Hz；改为 40U 即 25 Hz，无需增加遥控档位。
+//遥控器方向
+#define REMOTE_YAW_DIRECTION (-1.0f)
+#define REMOTE_PITCH_DIRECTION (-1.0f)
+
 
 static Shoot_Init_Config_s shoot_init_config = {
     .friction_motor_config = {
@@ -299,9 +303,9 @@ static Gimbal_Init_Config_s gimbal_init_config = {
             .offset_flag = 1,
             .scale = {1.0f, 1.0f, 1.0f},
             .Yaw = -90.0f,
-            .Pitch = 0.0f,
+            .Pitch = 180.0f,
             .Roll = 0.0f,
-            .GyroOffset = {-0.00187805097f, -0.00366833573f, 0.000690503919f},
+            .GyroOffset = {0.00375441322f, -0.00453697331f, -0.00205552462f},
         },
     // Follow 输出直接累加到大 Yaw 目标，单位 deg/次，当前实现未在累加处乘 dt。
     .Yaw_Follow_PID =
