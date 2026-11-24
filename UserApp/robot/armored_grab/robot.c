@@ -12,7 +12,7 @@
 
 /* =====================================================================
  *   EmergencyHandler : 读遥控, 写 grab_ctrl_cmd->grab_mode (ESTOP / 恢复仪式)
- *   CmdMap/Swing/Square : 在 RUN 态写 grab_ctrl_cmd->cmd_angle
+ *   CmdMap/Swing : 在 RUN 态写 grab_ctrl_cmd->cmd_angle
  *   GrabTask (组件)  : 按 grab_mode 执行握手/回零/下发
  * ===================================================================== */
 
@@ -28,8 +28,6 @@ Grab_Ctrl_Cmd_s *grab_ctrl_cmd;
 // 测试信号幅值 (watch 同上, 保留全局符号)
 float swing_amp[GRAB_MOTOR_NUM] = {SWING_AMP_0, SWING_AMP_1, SWING_AMP_2,
                                    SWING_AMP_3, SWING_AMP_4, SWING_AMP_5, SWING_AMP_6};
-float square_amp[GRAB_MOTOR_NUM] = {SQUARE_AMP_0, SQUARE_AMP_1, SQUARE_AMP_2,
-                                    SQUARE_AMP_3, SQUARE_AMP_4, SQUARE_AMP_5, SQUARE_AMP_6};
 
 static GPIOInstance *gpio_24V_R_EN;
 static GPIO_Init_Config_s gpio_init_config_24v = {
@@ -82,74 +80,44 @@ static void SwingUpdate(void)
 }
 #endif
 
-#if SQUARE_TEST
-static uint32_t square_t0_ms = 0;
-static uint8_t square_first_call = 1;
-
 /**
- * @brief 方波时间基重锚, 与 SwingReset 同职责: RUN 首周期开始计时.
+ * @brief 摇杆→单轴增量: raw 偏离回中 = 目标以 rate rad/s 移动
+ *        target 限幅 ±limit(=CMD_ANGLE_MAX_x, 行程边界).
  */
-static void SquareReset(void)
+static float AxisStep(float target, int16_t raw, float rate, float limit, float dt)
 {
-    square_first_call = 1;
-}
-
-/**
- * @brief 方波阶跃测试: cmd_angle 在 ±AMP 之间翻转, 翻转频率 SQUARE_FREQ_HZ.
- *        与摆动不同, 阶跃本身就是被测对象: 进 RUN 的第一拍就是一次完整阶跃(0→+AMP), 这是有意的;
- *        homing 先把起点带到已知的 0, 阶跃才有干净的参考基准.
- *        注意每个沿的实际阶跃幅度是 2×AMP(从 +AMP 跳到 -AMP), 算超调百分比时别除错分母.
- *        观测: RV 叠画 cmd_angle 与 measure.total_angle, 读上升时间/超调/调节时间(±2%带).
- */
-static void SquareUpdate(void)
-{
-    if (square_first_call)
-    {
-        square_t0_ms = DWT_GetTimeline_ms();
-        square_first_call = 0;
-    }
-    float t_s = (DWT_GetTimeline_ms() - square_t0_ms) / 1000.0f;
-    uint32_t half = (uint32_t)(t_s * SQUARE_FREQ_HZ * 2.0f);  // 第几个半周期, 定符号不受调度抖动影响
-    float sign = (half & 1u) ? -1.0f : 1.0f;
-#if defined(TUNE_MOTOR_IDX)
-    grab_ctrl_cmd->cmd_angle[TUNE_MOTOR_IDX] = square_amp[TUNE_MOTOR_IDX] * sign;  // 调参态: 只驱动目标台
-#else
-    for (uint8_t i = 0; i < GRAB_MOTOR_NUM; i++)  // 写满命令层; 组件按 motor_num 下发
-        grab_ctrl_cmd->cmd_angle[i] = square_amp[i] * sign;
-#endif
-}
-#endif
-
-/**
- * @brief 摇杆→目标角度, 绝对映射: 回中=0, 满量程(±660)=±angle_max.
- */
-static float AxisMap(int16_t raw, float angle_max)
-{
-    if (raw > -ROCKER_DEADZONE && raw < ROCKER_DEADZONE) return 0.0f;
-    return (float)raw / 660.0f * angle_max;
+    if (raw > -ROCKER_DEADZONE && raw < ROCKER_DEADZONE) return target;
+    target += (float)raw / 660.0f * rate * dt;
+    LIMIT_MIN_MAX(target, -limit, limit);
+    return target;
 }
 
 /**
  * @brief 映射表: 左sw上档驱动0~3号, 中档驱动4~6号, DOWN 不映射(急停职责).
- *        不活跃组不写: 绝对位置映射下保持上一目标, 换档瞬间无跳变.
  *        上档: 左摇杆上下=0, 左摇杆左右=1, 右摇杆上下=2, 右摇杆左右=3.
  *        中档: 镜像上档轴位, 左摇杆上下=4, 左摇杆左右=5, 右摇杆上下=6; rocker_r_ 中档不映射.
+ *        速率/限幅见 robot_config.h CMD_RATE_x / CMD_ANGLE_MAX_x.
  */
 static void CmdMap(void)
 {
+    // 增量映射的积分步长
+    static uint32_t cmd_dt_cnt = 0;
+    float dt = DWT_GetDeltaT(&cmd_dt_cnt);
+    if (dt > 0.05f) dt = 0.05f;  // 首调(时间戳=0)/长时间未进RUN: 不允许 dt 放大步长
+
     uint8_t sw = rc_data->rc.switch_left;
     if (switch_is_up(sw))
     {
-        grab_ctrl_cmd->cmd_angle[0] = AxisMap(rc_data->rc.rocker_l1, CMD_ANGLE_MAX_0);
-        grab_ctrl_cmd->cmd_angle[1] = AxisMap(rc_data->rc.rocker_l_, CMD_ANGLE_MAX_1);
-        grab_ctrl_cmd->cmd_angle[2] = AxisMap(rc_data->rc.rocker_r1, CMD_ANGLE_MAX_2);
-        grab_ctrl_cmd->cmd_angle[3] = AxisMap(rc_data->rc.rocker_r_, CMD_ANGLE_MAX_3);
+        grab_ctrl_cmd->cmd_angle[0] = AxisStep(grab_ctrl_cmd->cmd_angle[0], rc_data->rc.rocker_l1, CMD_RATE_0, CMD_ANGLE_MAX_0, dt);
+        grab_ctrl_cmd->cmd_angle[1] = AxisStep(grab_ctrl_cmd->cmd_angle[1], rc_data->rc.rocker_l_, CMD_RATE_1, CMD_ANGLE_MAX_1, dt);
+        grab_ctrl_cmd->cmd_angle[2] = AxisStep(grab_ctrl_cmd->cmd_angle[2], rc_data->rc.rocker_r1, CMD_RATE_2, CMD_ANGLE_MAX_2, dt);
+        grab_ctrl_cmd->cmd_angle[3] = AxisStep(grab_ctrl_cmd->cmd_angle[3], rc_data->rc.rocker_r_, CMD_RATE_3, CMD_ANGLE_MAX_3, dt);
     }
     else if (switch_is_mid(sw))
     {
-        grab_ctrl_cmd->cmd_angle[4] = AxisMap(rc_data->rc.rocker_l1, CMD_ANGLE_MAX_4);
-        grab_ctrl_cmd->cmd_angle[5] = AxisMap(rc_data->rc.rocker_l_, CMD_ANGLE_MAX_5);
-        grab_ctrl_cmd->cmd_angle[6] = AxisMap(rc_data->rc.rocker_r1, CMD_ANGLE_MAX_6);
+        grab_ctrl_cmd->cmd_angle[4] = AxisStep(grab_ctrl_cmd->cmd_angle[4], rc_data->rc.rocker_l1, CMD_RATE_4, CMD_ANGLE_MAX_4, dt);
+        grab_ctrl_cmd->cmd_angle[5] = AxisStep(grab_ctrl_cmd->cmd_angle[5], rc_data->rc.rocker_l_, CMD_RATE_5, CMD_ANGLE_MAX_5, dt);
+        grab_ctrl_cmd->cmd_angle[6] = AxisStep(grab_ctrl_cmd->cmd_angle[6], rc_data->rc.rocker_r1, CMD_RATE_6, CMD_ANGLE_MAX_6, dt);
     }
 }
 
@@ -189,8 +157,6 @@ static void EmergencyHandler(void)
     {
 #if SWING_TEST
         SwingReset();  // 测试信号时间基重锚(原 HomingEntry 内职责, 输入侧自管)
-#elif SQUARE_TEST
-        SquareReset();
 #endif
         GrabHomingEntry();  // 锚定+清积分(组件公有入口), 紧挨下面的状态赋值
         grab_ctrl_cmd->grab_mode = GRAB_HOMING;
@@ -219,8 +185,6 @@ void RobotTask()
     {
 #if SWING_TEST
         SwingUpdate();
-#elif SQUARE_TEST
-        SquareUpdate();
 #else
         CmdMap();
 #endif
