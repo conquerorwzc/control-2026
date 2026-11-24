@@ -27,8 +27,8 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 3.0f,
-                            .Ki = 1.0f,
+                            .Kp = 1.0f,
+                            .Ki = 0.0f,
                             .Kd = 0.0f,
                             .DeadBand = 0.0f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
@@ -37,7 +37,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                         },
                     .speed_PID =
                         {
-                            .Kp = 1400.0f,
+                            .Kp = 1200.0f,
                             .Ki = 0.0f,
                             .Kd = 0.0f,
                             .DeadBand = 0.0f,
@@ -69,7 +69,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                     .angle_PID =
                         {
                             .Kp = 3.0f,
-                            .Ki = 1.0f,
+                            .Ki = 0.0f,
                             .Kd = 0.0f,
                             .DeadBand = 0.0f,
                             .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
@@ -78,7 +78,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
                         },
                     .speed_PID =
                         {
-                            .Kp = 1400.0f,
+                            .Kp = 1200.0f,
                             .Ki = 0.0f,
                             .Kd = 0.0f,
                             .DeadBand = 0.0f,
@@ -105,58 +105,72 @@ static Gimbal_Init_Config_s gimbal_init_config = {
         },
   .imu_init_config = {
       .flag = 1,
+      .offset_flag=1,
       .scale = {1.0f, 1.0f, 1.0f},
       .Yaw = 90.0f,
       .Pitch = 0.0f,
-      .Roll = 0.0f
+      .Roll = 0.0f,
+      .GyroOffset = {0.00142297475f,0.00189829199f,-0.0019042585f},
     },
   .pitch_feedforward_scale = 0.0f,
 };
 
 #define FRICTION_MOTOR_CONFIG(handle, id, direction) \
-((Motor_Init_Config_s) { \
-.controller_param_init_config = { \
-.speed_PID = { \
-.Kp = 1.8f, \
-.Ki = 0.00f, \
-.Kd = 0.05f, \
-.Improve = PID_Integral_Limit, \
-.IntegralLimit = 10000.0f, \
-.MaxOut = 15000.0f, \
-}, \
-}, \
-.controller_setting_init_config ={\
-.angle_feedback_source = MOTOR_FEED,\
-.speed_feedback_source = MOTOR_FEED,\
-.outer_loop_type = SPEED_LOOP,\
-.close_loop_type = SPEED_LOOP,\
-.motor_reverse_flag = direction,\
-.feedback_reverse_flag = direction,\
-},\
-.motor_type = M3508, \
-.can_init_config = { \
-.can_handle = handle, \
-.tx_id = id, \
-}, \
-})
+  ((Motor_Init_Config_s){                            \
+      .controller_param_init_config =                \
+          {                                          \
+              .speed_PID =                           \
+                  {                                  \
+                      .Kp = 2.0f,                    \
+                      .Ki = 0.05f,                   \
+                      .Kd = 0.01f,                   \
+                      .Improve = PID_Integral_Limit, \
+                      .IntegralLimit = 10000.0f,     \
+                      .MaxOut = 15000.0f,            \
+                  },                                 \
+          },                                         \
+      .controller_setting_init_config =              \
+          {                                          \
+              .angle_feedback_source = MOTOR_FEED,   \
+              .speed_feedback_source = MOTOR_FEED,   \
+              .outer_loop_type = SPEED_LOOP,         \
+              .close_loop_type = SPEED_LOOP,         \
+              .motor_reverse_flag = direction,       \
+              .feedback_reverse_flag = direction,    \
+          },                                         \
+      .motor_type = M3508,                           \
+      .can_init_config =                             \
+          {                                          \
+              .can_handle = handle,                  \
+              .tx_id = id,                           \
+          },                                         \
+  })
 
 static Shoot_Init_Config_s shoot_init_config = {
     .shoot_param =
         {
-            .one_bullet_delta_angle = 90.0f,          // 发射一发弹丸拨盘转动的距离,由机械设计图纸给出60
-            .reduction_ratio_loader = 36.0f,         // 3508拨盘电机的减速比,舵轮
-            .num_per_circle = 10,                      // 拨盘一圈的装载量6
-            .loader_direction = 1,                    // 拨盘旋转方向,1为正向，-1为反向
-            .friction_num = 2,                        //摩擦轮数量
-            .friction_speed = 38000.0f,               //摩擦轮速度
-            .friction_coefficients = {1.0f, -1.0f}, //摩擦轮速度比例系数
-            .deadtime_burstfire = 100,
-            .deadtime_onebullet = 250,               //弹丸发射间隔
-            .target_speed = 0.0f,
-            .bullet_speed_adjustment = 10.0f,
+            .one_bullet_delta_angle = 60.0f,              // 一发弹丸拨盘转动角度(输出侧)
+            .reduction_ratio_loader = 100.0f,             // 3508 拨盘减速比
+            .num_per_circle = 6,                          // 拨盘一圈装载量(模块不读, 仅注释)
+            .loader_direction = -1,                       // 拨盘方向, 1 正 -1 反
+            .friction_num = 3,                            // 摩擦轮数量(模块不读, 以 FRICTION_NUM 为准)
+            .friction_speed = 5000.0f,                    // ★★ 首次调试先用 5000, 确认方向后改 26500
+            .friction_speed_min = 4000.0f,                // ★★ 必须设! 否则 LimitFrictionSpeedAbs 限成 0
+            .friction_speed_max = 55000.0f,               // ★★ 26500 调试通后这里放宽即可
+            .friction_coefficients = {1.0f, -1.0f, 1.1f}, // 三轮: 第2个反向, 第3个快10%配平
+            .deadtime_burstfire = 500,                    // 连发间隔 2 发/秒
+            .deadtime_onebullet = 1000,                   // 单发间隔 1 发/秒
+            .target_speed = 11.5f,                        // 目标弹速(注意: 闭环门槛写死 16 m/s, 见说明)
+            .bullet_speed_deadband = 0.3f,                // (模块写死 0.4, 此字段无效)
+            .bullet_speed_adjustment = 400.0f,            // 弹速误差 → 转速增益 aps/(m/s)
+            .one_barrel_heat_value = 100,                 // 一发消耗热量
+            .shooter_barrel_cooling_value = 24,           // 每秒冷却
+            .shooter_barrel_heat_limit = 200,             // 热量上限
         },
-    .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan1, 8, MOTOR_DIRECTION_NORMAL),
-    .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan1, 6, MOTOR_DIRECTION_NORMAL),
+    /* 三轮全部挂在 CAN2 (PB5/PB6), ID 1/2/4 空闲 */
+    .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan2, 1, MOTOR_DIRECTION_NORMAL),
+    .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan2, 2, MOTOR_DIRECTION_NORMAL),
+    .friction_motor_config[2] = FRICTION_MOTOR_CONFIG(&hcan2, 4, MOTOR_DIRECTION_NORMAL),
 
     .loader_motor_config =
         {
@@ -164,29 +178,29 @@ static Shoot_Init_Config_s shoot_init_config = {
                 {
                     .angle_PID =
                         {
-                            .Kp = 25.0f,   //40
+                            .Kp = 35.0f,
                             .Ki = 0.0f,
-                            .Kd = 0.0f,    //0.0
-                            .MaxOut = 30000.0f,   //50000
+                            .Kd = 0.008f,
+                            .MaxOut = 40000.0f,       // 角度环输出=速度环目标上限(aps)
                         },
                     .speed_PID =
                         {
-                            .Kp = 2.0f,
-                            .Ki = 0.4f,
+                            .Kp = 1.8f,
+                            .Ki = 0.0f,
                             .Kd = 0.0f,
-                            .Improve = PID_Integral_Limit | PID_ErrorHandle,
-                            .IntegralLimit = 5000.0f,    //7000
-                            .MaxOut = 10000.0f,   //16000
+                            .Improve = PID_Integral_Limit | PID_ErrorHandle,  // ErrorHandle: 卡弹自动反转
+                            .IntegralLimit = 7000.0f,
+                            .MaxOut = 15000.0f,       // 电流指令上限(<16384 满量程)
                         },
                 },
-            .motor_type = M2006,
+            .motor_type = M3508,                      // ★ 拨盘是 M3508(不是 M2006)
             .can_init_config =
                 {
-                    .can_handle = &hcan1,
-                    .tx_id = 7,
+                    .can_handle = &hcan1,             // 拨盘挂 CAN1
+                    .tx_id = 5,                       // ★ 5 空闲(云台 yaw=6, pitch=2)
                 },
             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
-            // .controller_setting_init_config.feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+            .controller_setting_init_config.feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
             .controller_setting_init_config.angle_feedback_source = MOTOR_FEED,
             .controller_setting_init_config.speed_feedback_source = MOTOR_FEED,
             .controller_setting_init_config.outer_loop_type = ANGLE_LOOP,
