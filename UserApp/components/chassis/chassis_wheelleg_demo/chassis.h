@@ -13,7 +13,11 @@ enum
     CHASSIS_LEG_COUNT,
     CHASSIS_FRONT = 0,
     CHASSIS_REAR,
-    CHASSIS_JOINT_COUNT = 4
+    CHASSIS_LEFT_FRONT = 0,
+    CHASSIS_LEFT_REAR,
+    CHASSIS_RIGHT_FRONT,
+    CHASSIS_RIGHT_REAR,
+    CHASSIS_JOINT_COUNT
 };
 
 typedef struct
@@ -26,36 +30,42 @@ typedef struct
 
 typedef struct
 {
-    unsigned joint_mask; // order LF, LR, RF, RR; each configured leg requires both joints
-    unsigned wheel_mask; // order left, right; wheels can be registered independently
+    Motor_Init_Config_s motor_config;
+    float zero_rad;
+    float direction;
+    float center_rad, min_rad, max_rad;
+    float kp_nm_per_rad, kd_nm_per_rad_s;
+    float max_torque_nm;
+} HipMotor_Init_Config_s;
+
+typedef struct
+{
+    Motor_Init_Config_s motor_config;
+    float direction;
+    float reduction;
+    float kp_a_per_rad_s;
+    float max_speed_rad_s;
+    float max_current_a;
+} WheelMotor_Init_Config_s;
+
+typedef struct
+{
+    unsigned joint_mask; // 左前、左后、右前、右后。
+    unsigned wheel_mask; // 左轮、右轮。
     uint32_t feedback_timeout_ms;
-    Motor_Init_Config_s joint[CHASSIS_JOINT_COUNT];
-    Motor_Init_Config_s wheel[CHASSIS_LEG_COUNT];
-    uint8_t joint_feedback_id[CHASSIS_JOINT_COUNT]; // expected DM payload ID (low nibble)
-    float joint_zero_rad[CHASSIS_JOINT_COUNT];
-    float joint_direction[CHASSIS_JOINT_COUNT]; // +1 or -1 relative to driver feedback/command
-    float motor_per_joint[CHASSIS_JOINT_COUNT]; // motor rad per joint rad
-    float joint_kp_nm_per_rad[CHASSIS_JOINT_COUNT];
-    float joint_kd_nm_per_rad_s[CHASSIS_JOINT_COUNT];
-    float joint_max_torque_nm[CHASSIS_JOINT_COUNT];
-    float wheel_direction[CHASSIS_LEG_COUNT]; // +1 or -1 relative to raw C620 frame
-    float motor_per_wheel[CHASSIS_LEG_COUNT];
-    float wheel_kp_a_per_rad_s[CHASSIS_LEG_COUNT];
-    float wheel_max_current_a[CHASSIS_LEG_COUNT];
+    HipMotor_Init_Config_s hip[CHASSIS_JOINT_COUNT];
+    WheelMotor_Init_Config_s wheel[CHASSIS_LEG_COUNT];
     ChassisGeometryConfig geometry;
 } Chassis_Init_Config_s;
 
 typedef struct
 {
-    unsigned joint_enable_mask;
-    unsigned wheel_enable_mask;
-    unsigned joint_direct_torque_mask; // enabled joints using a matched holding torque instead of PD
-    unsigned wheel_current_mode_mask;  // enabled wheels using direct current, including zero-current coast
-    float q_ref_rad[CHASSIS_JOINT_COUNT];
-    float joint_torque_ref_nm[CHASSIS_JOINT_COUNT];
-    float joint_torque_offset_nm[CHASSIS_JOINT_COUNT]; // added to the PD or direct torque before clipping
-    float wheel_speed_ref_rad_s[CHASSIS_LEG_COUNT];
-    float wheel_current_ref_a[CHASSIS_LEG_COUNT];
+    bool enabled;
+    bool wheel_current_mode;
+    unsigned hip_torque_mask; // 选中的髋轴使用力矩参考，其余使用位置参考。
+    float hip_position_rad[CHASSIS_JOINT_COUNT];
+    float hip_torque_nm[CHASSIS_JOINT_COUNT];
+    float wheel_reference[CHASSIS_LEG_COUNT]; // 轮速 rad/s 或直接电流 A。
 } ChassisRequest;
 
 typedef struct
@@ -103,11 +113,9 @@ typedef struct
 typedef struct
 {
     Chassis_Init_Config_s *config;
-    unsigned joint_enabled_mask;
-    unsigned wheel_enabled_mask;
+    bool enabled;
     ChassisLeg legs[CHASSIS_LEG_COUNT];
     uint64_t command_time_us;
-    bool fault;
     bool clipped;
 } ChassisInstance;
 

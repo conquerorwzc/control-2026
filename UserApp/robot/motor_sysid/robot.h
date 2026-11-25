@@ -66,35 +66,13 @@ typedef enum
     SYSID_HIP_BOTH_ANTI_PHASE
 } SysIdHipPattern;
 
-typedef enum
-{
-    SYSID_FAULT_NONE,
-    SYSID_FAULT_CONFIG,
-    SYSID_FAULT_REMOTE,
-    SYSID_FAULT_FEEDBACK = 4,
-    SYSID_FAULT_START,
-    SYSID_FAULT_CHASSIS
-} SysIdFault;
-
 typedef struct
 {
     ChassisInstance *chassis;
-    RC_ctrl_t *remote;
-    ChassisRequest request;
-    uint64_t now_us;
-    uint64_t start_us;
+    RC_ctrl_t *rc_data;
     SysIdState state;
     SysIdMode mode;
-    SysIdTrial trial;
-    SysIdHipPattern hip_pattern;
-    SysIdFault fault;
     SysIdPhase phase;
-    int direction;
-    float center_rad[CHASSIS_JOINT_COUNT];
-    float selected_parameter; // logical rad, rad/s, A/s or Nm/s depending on the trial
-    bool remote_online;
-    bool real_hardware;
-    bool config_valid;
 } RobotInstance;
 
 void RobotInit(void);

@@ -5,6 +5,7 @@
 #include "FreeRTOS.h"
 #include "bsp_dwt.h"
 #include "task.h"
+#include "user_lib.h"
 
 static const float kRpmToRadPerSec = 0.1047197551f;
 static const float kC620MaxCurrentA = 20.0f;
@@ -20,10 +21,10 @@ static bool PrepareCanFilters(const Chassis_Init_Config_s *config)
     {
         FDCAN_HandleTypeDef *can = buses[bus];
         for (unsigned i = 0; i < CHASSIS_JOINT_COUNT; ++i)
-            if ((config->joint_mask & (1u << i)) && config->joint[i].can_init_config.can_handle == can)
+            if ((config->joint_mask & (1u << i)) && config->hip[i].motor_config.can_init_config.can_handle == can)
                 ++needed[bus];
         for (unsigned i = 0; i < CHASSIS_LEG_COUNT; ++i)
-            if ((config->wheel_mask & (1u << i)) && config->wheel[i].can_init_config.can_handle == can)
+            if ((config->wheel_mask & (1u << i)) && config->wheel[i].motor_config.can_init_config.can_handle == can)
                 ++needed[bus];
         if (needed[bus] <= can->Init.StdFiltersNbr)
             continue;
@@ -72,17 +73,17 @@ ChassisInstance *ChassisInit(Chassis_Init_Config_s *config)
         const unsigned rear = 2u * side + CHASSIS_REAR;
         if (config->joint_mask & (1u << front))
         {
-            leg->front_motor = DMMotorInit(&config->joint[front]);
+            leg->front_motor = DMMotorInit(&config->hip[front].motor_config);
             DMMotorStop(leg->front_motor);
         }
         if (config->joint_mask & (1u << rear))
         {
-            leg->rear_motor = DMMotorInit(&config->joint[rear]);
+            leg->rear_motor = DMMotorInit(&config->hip[rear].motor_config);
             DMMotorStop(leg->rear_motor);
         }
         if (config->wheel_mask & (1u << side))
         {
-            leg->wheel_motor = DJIMotorInit(&config->wheel[side]);
+            leg->wheel_motor = DJIMotorInit(&config->wheel[side].motor_config);
             DJIMotorStop(leg->wheel_motor);
         }
     }
@@ -111,7 +112,7 @@ static bool FeedbackFresh(uint32_t counter, float timeout_s, uint32_t *previous,
     return *seen;
 }
 
-static void UpdateJoint(const DMMotorInstance *motor, const Chassis_Init_Config_s *config, unsigned i,
+static void UpdateJoint(const DMMotorInstance *motor, const HipMotor_Init_Config_s *config,
                         ChassisJointFeedback *feedback, float timeout_s)
 {
     DM_Motor_Measure_s measure;
@@ -127,17 +128,16 @@ static void UpdateJoint(const DMMotorInstance *motor, const Chassis_Init_Config_
     taskEXIT_CRITICAL();
     const bool fresh = FeedbackFresh(counter, timeout_s, &feedback->feed_counter, &feedback->seen, &feedback->updated,
                                      &feedback->feedback_time_us);
-    const float transmission = config->joint_direction[i] / config->motor_per_joint[i];
-    feedback->q_rad = (measure.total_angle - config->joint_zero_rad[i]) * transmission;
-    feedback->qd_rad_s = measure.velocity * transmission;
-    feedback->tau_nm = measure.torque * config->joint_direction[i] * config->motor_per_joint[i];
+    feedback->q_rad = (measure.total_angle - config->zero_rad) * config->direction;
+    feedback->qd_rad_s = measure.velocity * config->direction;
+    feedback->tau_nm = measure.torque * config->direction;
     feedback->torque_raw = torque_raw;
     feedback->temperature_c = fmaxf(measure.T_Mos, measure.T_Rotor);
-    feedback->valid = fresh && dlc == 8u && measure.state == 1u && measure.id == config->joint_feedback_id[i] &&
-                      isfinite(feedback->q_rad) && isfinite(feedback->qd_rad_s) && isfinite(feedback->tau_nm);
+    // The CAN driver already dispatches by bus and Master ID.
+    feedback->valid = fresh && dlc == 8u && measure.state == 1u;
 }
 
-static void UpdateWheel(const DJIMotorInstance *motor, const Chassis_Init_Config_s *config, unsigned i,
+static void UpdateWheel(const DJIMotorInstance *motor, const WheelMotor_Init_Config_s *config,
                         ChassisWheelFeedback *feedback, float timeout_s)
 {
     uint32_t counter;
@@ -157,12 +157,11 @@ static void UpdateWheel(const DJIMotorInstance *motor, const Chassis_Init_Config
                                      &feedback->feedback_time_us);
 
     // The driver smooths both fields. Use the original frame for identification.
-    feedback->speed_rad_s =
-        (float)rotor_rpm * kRpmToRadPerSec * config->wheel_direction[i] / config->motor_per_wheel[i];
+    feedback->speed_rad_s = (float)rotor_rpm * kRpmToRadPerSec * config->direction / config->reduction;
     // The C620 manual specifies A/count for commands only.
-    feedback->current_raw = (float)current_counts * config->wheel_direction[i];
+    feedback->current_raw = (float)current_counts * config->direction;
     feedback->temperature_c = temperature;
-    feedback->valid = fresh && dlc == 8u && isfinite(feedback->speed_rad_s);
+    feedback->valid = fresh && dlc == 8u;
 }
 
 static void UpdateGeometry(ChassisLeg *leg, const ChassisGeometryConfig *geometry)
@@ -208,109 +207,97 @@ void ChassisFeedbackUpdate(ChassisInstance *chassis)
     {
         ChassisLeg *leg = &chassis->legs[side];
         if (leg->front_motor)
-            UpdateJoint(leg->front_motor, config, 2u * side + CHASSIS_FRONT, &leg->joint[CHASSIS_FRONT], timeout_s);
+            UpdateJoint(leg->front_motor, &config->hip[2u * side + CHASSIS_FRONT], &leg->joint[CHASSIS_FRONT],
+                        timeout_s);
         if (leg->rear_motor)
-            UpdateJoint(leg->rear_motor, config, 2u * side + CHASSIS_REAR, &leg->joint[CHASSIS_REAR], timeout_s);
+            UpdateJoint(leg->rear_motor, &config->hip[2u * side + CHASSIS_REAR], &leg->joint[CHASSIS_REAR], timeout_s);
         UpdateGeometry(leg, &config->geometry);
         if (leg->wheel_motor)
-            UpdateWheel(leg->wheel_motor, config, side, &leg->wheel_feedback, timeout_s);
+            UpdateWheel(leg->wheel_motor, &config->wheel[side], &leg->wheel_feedback, timeout_s);
     }
-}
-
-static float Clip(float value, float limit, bool *clipped)
-{
-    *clipped |= fabsf(value) > limit;
-    return fmaxf(-limit, fminf(limit, value));
 }
 
 void ChassisTask(ChassisInstance *chassis, const ChassisRequest *request)
 {
     const Chassis_Init_Config_s *config = chassis->config;
-    float torque[CHASSIS_JOINT_COUNT] = {0};
-    float torque_preclip[CHASSIS_JOINT_COUNT] = {0};
-    int16_t current_counts[CHASSIS_LEG_COUNT] = {0};
-    float current_preclip[CHASSIS_LEG_COUNT] = {0};
+    bool enabled = request->enabled;
     bool clipped = false;
-    bool fault = false;
 
-    for (unsigned side = 0; side < CHASSIS_LEG_COUNT && !fault; ++side)
+    for (unsigned side = 0; side < CHASSIS_LEG_COUNT; ++side)
     {
-        const ChassisLeg *leg = &chassis->legs[side];
-        for (unsigned joint = 0; joint < 2 && !fault; ++joint)
+        ChassisLeg *leg = &chassis->legs[side];
+        for (unsigned joint = 0; joint < 2u; ++joint)
         {
+            ChassisJointFeedback *fb = &leg->joint[joint];
+            fb->command_torque_preclip_nm = fb->command_torque_nm = 0.0f;
             const unsigned i = 2u * side + joint;
-            if (!(request->joint_enable_mask & (1u << i)))
+            if (!request->enabled || !(config->joint_mask & (1u << i)))
                 continue;
-            const ChassisJointFeedback *feedback = &leg->joint[joint];
-            const bool direct = request->joint_direct_torque_mask & (1u << i);
-            const float reference = direct ? request->joint_torque_ref_nm[i] : request->q_ref_rad[i];
-            const float base = direct ? reference
-                                      : config->joint_kp_nm_per_rad[i] * (reference - feedback->q_rad) -
-                                            config->joint_kd_nm_per_rad_s[i] * feedback->qd_rad_s;
-            const float output = base + request->joint_torque_offset_nm[i];
-            fault = !feedback->valid || !isfinite(output);
-            if (!fault)
+
+            const HipMotor_Init_Config_s *hip = &config->hip[i];
+            const float q_ref = request->hip_position_rad[i];
+            const float output = (request->hip_torque_mask & (1u << i))
+                                     ? request->hip_torque_nm[i]
+                                     : hip->kp_nm_per_rad * (q_ref - fb->q_rad) - hip->kd_nm_per_rad_s * fb->qd_rad_s;
+            if (!fb->valid || fb->q_rad < hip->min_rad || fb->q_rad > hip->max_rad || q_ref < hip->min_rad ||
+                q_ref > hip->max_rad || !isfinite(output))
             {
-                torque_preclip[i] = output;
-                const float motor_limit = DM_T_MAX_J8009P * config->motor_per_joint[i];
-                torque[i] = Clip(output, fminf(config->joint_max_torque_nm[i], motor_limit), &clipped);
+                enabled = false;
+                continue;
             }
+            const float limit = fminf(hip->max_torque_nm, DM_T_MAX_J8009P);
+            fb->command_torque_preclip_nm = output;
+            fb->command_torque_nm = float_constrain(output, -limit, limit);
+            clipped |= output != fb->command_torque_nm;
         }
-        if (!fault && (request->wheel_enable_mask & (1u << side)))
+
+        ChassisWheelFeedback *fb = &leg->wheel_feedback;
+        fb->command_current_preclip_a = fb->command_current_a = 0.0f;
+        if (!request->enabled || !leg->wheel_motor)
+            continue;
+        const WheelMotor_Init_Config_s *wheel = &config->wheel[side];
+        const float ref = request->wheel_reference[side];
+        const float output = request->wheel_current_mode ? ref : wheel->kp_a_per_rad_s * (ref - fb->speed_rad_s);
+        if (!fb->valid || fabsf(fb->speed_rad_s) > wheel->max_speed_rad_s ||
+            (!request->wheel_current_mode && fabsf(ref) > wheel->max_speed_rad_s) || !isfinite(output))
         {
-            const bool direct = request->wheel_current_mode_mask & (1u << side);
-            const float output = direct ? request->wheel_current_ref_a[side]
-                                        : config->wheel_kp_a_per_rad_s[side] *
-                                              (request->wheel_speed_ref_rad_s[side] - leg->wheel_feedback.speed_rad_s);
-            fault = !leg->wheel_feedback.valid || !isfinite(output);
-            if (!fault)
-            {
-                current_preclip[side] = output;
-                const float limited =
-                    Clip(output, fminf(config->wheel_max_current_a[side], kC620MaxCurrentA), &clipped);
-                current_counts[side] = (int16_t)(limited * kC620CurrentCountsPerAmp);
-            }
+            enabled = false;
+            continue;
         }
+        const float limit = fminf(wheel->max_current_a, kC620MaxCurrentA);
+        fb->command_current_preclip_a = output;
+        fb->command_current_a = float_constrain(output, -limit, limit);
+        clipped |= output != fb->command_current_a;
     }
 
-    chassis->fault = fault;
-    chassis->clipped = clipped && !fault;
-    chassis->joint_enabled_mask = fault ? 0u : request->joint_enable_mask;
-    chassis->wheel_enabled_mask = fault ? 0u : request->wheel_enable_mask;
+    chassis->enabled = enabled;
+    chassis->clipped = enabled && clipped;
     taskENTER_CRITICAL();
     chassis->command_time_us = DWT_GetTimeline_us();
     for (unsigned side = 0; side < CHASSIS_LEG_COUNT; ++side)
     {
         ChassisLeg *leg = &chassis->legs[side];
-        DMMotorInstance *motors[2] = {leg->front_motor, leg->rear_motor};
-        for (unsigned joint = 0; joint < 2; ++joint)
+        DMMotorInstance *motors[] = {leg->front_motor, leg->rear_motor};
+        for (unsigned joint = 0; joint < 2u; ++joint)
         {
             if (!motors[joint])
                 continue;
-            const unsigned i = 2u * side + joint;
-            const bool enable = chassis->joint_enabled_mask & (1u << i);
-            const float applied = enable ? torque[i] : 0.0f;
-            leg->joint[joint].command_torque_preclip_nm = torque_preclip[i];
-            leg->joint[joint].command_torque_nm = applied;
-            if (enable)
-            {
-                DMMotorSetRef(motors[joint], applied * config->joint_direction[i] / config->motor_per_joint[i]);
+            ChassisJointFeedback *fb = &leg->joint[joint];
+            if (!enabled)
+                fb->command_torque_nm = 0.0f;
+            DMMotorSetRef(motors[joint], fb->command_torque_nm * config->hip[2u * side + joint].direction);
+            if (enabled)
                 DMMotorEnable(motors[joint]);
-            }
             else
-            {
-                DMMotorSetRef(motors[joint], 0.0f);
                 DMMotorStop(motors[joint]);
-            }
         }
         if (leg->wheel_motor)
         {
-            const bool enable = chassis->wheel_enabled_mask & (1u << side);
-            const int16_t applied = enable ? current_counts[side] : 0;
-            leg->wheel_feedback.command_current_preclip_a = current_preclip[side];
-            leg->wheel_feedback.command_current_a = (float)applied / kC620CurrentCountsPerAmp;
-            DJIMotorSetRef(leg->wheel_motor, (float)applied * config->wheel_direction[side]);
-            if (enable)
+            ChassisWheelFeedback *fb = &leg->wheel_feedback;
+            const int16_t counts = enabled ? (int16_t)(fb->command_current_a * kC620CurrentCountsPerAmp) : 0;
+            fb->command_current_a = (float)counts / kC620CurrentCountsPerAmp;
+            DJIMotorSetRef(leg->wheel_motor, (float)counts * config->wheel[side].direction);
+            if (enabled)
                 DJIMotorEnable(leg->wheel_motor);
             else
                 DJIMotorStop(leg->wheel_motor);
