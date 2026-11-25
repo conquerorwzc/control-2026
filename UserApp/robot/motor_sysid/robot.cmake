@@ -1,7 +1,7 @@
 set(MCU_TYPE "stm32-h7")
 set(CHASSIS_DIR "${CMAKE_SOURCE_DIR}/UserApp/components/chassis/chassis_wheelleg_demo")
 include_directories(BEFORE "${CMAKE_CURRENT_LIST_DIR}" "${CHASSIS_DIR}")
-add_compile_definitions(CHASSIS_BOARD FRICTION_NUM=2 ROBOT_MOTOR_SYSID)
+add_compile_definitions(CHASSIS_BOARD FRICTION_NUM=2)
 set(SYSID_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/robot.c"
     "${CMAKE_CURRENT_LIST_DIR}/vofa_watch.c"
@@ -9,3 +9,6 @@ set(SYSID_SOURCES
 )
 list(APPEND SOURCES ${SYSID_SOURCES})
 set_source_files_properties(${SYSID_SOURCES} PROPERTIES COMPILE_OPTIONS "-fno-fast-math")
+
+# Four-DM registration needs a target-local workaround for the legacy task-name buffer.
+add_link_options(-Wl,--wrap=DMMotorTaskInit)

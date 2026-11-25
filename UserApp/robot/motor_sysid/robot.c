@@ -4,6 +4,7 @@
 
 #include "FreeRTOS.h"
 #include "bsp_dwt.h"
+#include "cmsis_os.h"
 #include "robot_config.h"
 #include "task.h"
 #include "vofa_watch.h"
@@ -652,8 +653,40 @@ RobotInstance *RobotGetInstance(void)
     return &robot;
 }
 
+// 仅 motor_sysid 链接这个入口。普通工况使用队内原初始化；四髋避免旧驱动追加任务名越界。
+void __real_DMMotorTaskInit(void);
+void __wrap_DMMotorTaskInit(void)
+{
+    if (robot.chassis == NULL || robot.chassis->config.joint_mask != kAllJoints)
+    {
+        __real_DMMotorTaskInit();
+        return;
+    }
+
+    osThreadDef(hip_tx, DMMotorTask, osPriorityNormal, 0, 128);
+    for (unsigned side = 0; side < CHASSIS_LEG_COUNT; ++side)
+    {
+        const ChassisLeg *leg = &robot.chassis->legs[side];
+        DMMotorInstance *motors[] = {leg->front_motor, leg->rear_motor};
+        for (unsigned joint = 0; joint < 2u; ++joint)
+        {
+            osThreadId handle = osThreadCreate(osThread(hip_tx), motors[joint]);
+            configASSERT(handle != NULL);
+        }
+    }
+}
+
 void RobotTask(void)
 {
+    // 队内任务每 tick 唤醒一次，扫频和 VOFA 以 2 tick 为一拍。错过的采样不补发。
+    _Static_assert(configTICK_RATE_HZ % SYSID_CONTROL_HZ == 0, "SysID period must align with RTOS ticks");
+    static TickType_t last_tick;
+    const TickType_t period = configTICK_RATE_HZ / SYSID_CONTROL_HZ;
+    const TickType_t tick = xTaskGetTickCount();
+    const TickType_t elapsed = tick - last_tick;
+    if (elapsed < period)
+        return;
+    last_tick = tick - (elapsed % period);
     const uint64_t previous_us = robot.now_us;
     robot.now_us = DWT_GetTimeline_us();
     robot.request = (ChassisRequest){0};

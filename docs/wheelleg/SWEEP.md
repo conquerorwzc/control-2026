@@ -1,6 +1,6 @@
 # motor_sysid 台架扫频
 
-实验按 SHU-Train/docs/SWEEP_IDENT.md §4、§6 执行。入口是 UserApp/robot/motor_sysid/robot.c，参数在同目录 robot_config.h。机器人层选工作点、处理遥控和生成参考轨迹。chassis_wheelleg_demo 调用队内 DMMotor 和 DJIMotor，读取反馈、解算髋到轮轴的腿长和腿角并下发指令。vofa_watch 使用已有 VOFAJustFloatSend。测量时间来自 DWT，共用机器人任务以 500 Hz 调度。发送器异步运行，记录的命令时间是发布给驱动的时刻。
+实验按 SHU-Train/docs/SWEEP_IDENT.md §4、§6 执行。入口是 UserApp/robot/motor_sysid/robot.c，参数在同目录 robot_config.h。机器人层选工作点、处理遥控和生成参考轨迹。chassis_wheelleg_demo 调用队内 DMMotor 和 DJIMotor，读取反馈、解算髋到轮轴的腿长和腿角并下发指令。vofa_watch 使用已有 VOFAJustFloatSend。测量时间来自 DWT，队内机器人任务按原周期调用 RobotTask，扫频目标每 2 个 RTOS tick 执行一拍（标称 500 Hz）。发送器异步运行，记录的命令时间是发布给驱动的时刻。
 
 ## 如何做一组实验
 
@@ -31,7 +31,7 @@
 | 左前 OK / 左后 OA | CAN1 | 0x01/0x11、0x02/0x12 |
 | 右前 / 右后 | CAN2 | 0x03/0x13、0x04/0x14 |
 
-C620 左轮为 CAN1 ID 1，右轮为 CAN2 ID 2，减速比 15.76。髋实验仅注册指定侧的髋电机，轮实验仅注册指定轮。H723 底盘在首次 CANRegister 前核对 HAL 状态和 Message RAM 布局，按所选实例通过 HAL 初始化所需的标准过滤槽。机器人/DM/DJI/daemon 的任务归队内 os_task 调度。
+C620 左轮为 CAN1 ID 1，右轮为 CAN2 ID 2，减速比 15.76。髋实验仅注册指定侧的髋电机，轮实验仅注册指定轮。H723 底盘在首次 CANRegister 前核对 HAL 状态和 Message RAM 布局，按所选实例通过 HAL 初始化所需的标准过滤槽。单腿和轮试验使用队内原任务初始化。四髋实机时，旧 DM 初始化函数的 5 字节任务名缓冲区会越界；扫频目标单独链接一个初始化入口，复用原 DMMotorTask 为四台电机创建发送任务。
 
 调试器可查看 robot.chassis->legs[0/1].length_m 和 angle_rad，分别为虚拟腿长（m）和相对机身向下轴的腿角（rad）。单轮工况没有髋反馈，geometry_valid 区分是否可用。轮速度取 C620 接收帧的转子 RPM，换算为轮端 rad/s。C620 实际下发电流以 A 记录，反馈保留逻辑方向的原始计数，换算为反馈 A 需有独立依据。
 
