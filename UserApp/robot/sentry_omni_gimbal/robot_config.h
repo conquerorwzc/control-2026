@@ -29,8 +29,14 @@
 #define BOARD_TX_ID 0x210
 #define BOARD_RX_ID 0x211
 
+// 遥控器左摇杆(平移)死区, 单位为摇杆原始值, 满量程约 ±660(200 约对应 30% 行程)
+// 遥控器插在云台板上, 所以在云台板转发 CAN 给底盘之前就把死区内的摇杆量归零, 底盘板拿到的就是干净数据,
+// 底盘板 app 侧不需要再判一次; 手感偏钝就调小, 漂移没消掉就调大
+// 注意: 只作用于摇杆本身, 键盘 WASD 叠加的 ±660 不受影响
+#define RC_LEFT_STICK_DEADZONE 200
+
 // 云台参数
-#define YAW_CHASSIS_ALIGN_ECD 3845 // 云台和底盘对齐指向相同方向时的电机编码器值,若对云台有机械改动需要修改
+#define YAW_CHASSIS_ALIGN_ECD 4098 // 云台和底盘对齐指向相同方向时的电机编码器值,若对云台有机械改动需要修改
 #define PITCH_HORIZON_ECD 2900     // 云台处于水平位置时编码器值,若对云台有机械改动需要修改
 #define PITCH_MAX_ANGLE 165.0f     // 云台竖直方向最大角度 (注意是电机角度)
 #define PITCH_MIN_ANGLE 100.0f     // 云台竖直方向最小角度 (注意是电机角度)
@@ -158,7 +164,7 @@ static Shoot_Init_Config_s shoot_init_config = {
             .num_per_circle = 10,            // 拨盘一圈的装载量
             .loader_direction = 1,           // 拨盘旋转方向,1为正向，-1为反向
             .friction_num = 2,               // 摩擦轮数量
-            .friction_speed = 7500.0f,       // 摩擦轮速度
+            .friction_speed = 32000.0f,       // 摩擦轮速度
             .friction_speed_max = 40000.0f,
             .friction_speed_min = 5000,
             .feedforward = 200.0f,
@@ -210,15 +216,17 @@ static Shoot_Init_Config_s shoot_init_config = {
             .controller_setting_init_config.close_loop_type = SPEED_LOOP | ANGLE_LOOP,
         },
 };
-static CANComm_Init_Config_s comm_config = {.recv_data_len = 30,  // 接收数据长度，根据实际需求调整
-                                            .send_data_len = 30,  // 发送数据长度，根据实际需求调整
-                                            .daemon_count = 1000, // 看门狗重载计数，根据实际需求调整
-                                            .can_config = {
-                                                .can_handle = &hcan2, // 假设使用CAN2，根据实际使用的CAN句柄调整
-                                                .tx_id = BOARD_TX_ID, // 发送ID，根据实际需求调整
-                                                .rx_id = BOARD_RX_ID, // 接收ID，根据实际需求调整
-                                                .id = NULL            // 将在CANCommInit中设置
-                                            }};
+static CANComm_Init_Config_s comm_config = {
+    // 长度必须与对端(chassis)的 send/recv_data_len 一一对应, 用 sizeof 直接绑定结构体
+    .recv_data_len = (uint8_t)sizeof(Referee_Data),  // 底盘板 -> 云台板: 发射转发 + 速度反馈
+    .send_data_len = (uint8_t)sizeof(Send_Data_Up),  // 云台板 -> 底盘板: 遥控通道 + 导航指令
+    .daemon_count = 1000, // 10s 才判离线; 底盘板失联时不打断云台/发射
+    .can_config = {
+        .can_handle = &hcan2, // 双板通信走 CAN2
+        .tx_id = BOARD_TX_ID, // 发送ID，根据实际需求调整
+        .rx_id = BOARD_RX_ID, // 接收ID，根据实际需求调整
+        .id = NULL            // 将在CANCommInit中设置
+    }};
 
 // CAN实例配置（用于数据存储）
 static CANInstance board_can_comm_data = {.can_handle = &hcan2,

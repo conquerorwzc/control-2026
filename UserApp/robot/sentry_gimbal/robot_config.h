@@ -1,0 +1,320 @@
+#pragma once
+
+#include "gimbal.h"
+#include "shoot.h"
+#include "general_def.h"
+
+// 云台板统一控制四轴云台、J4310 拨弹盘和三只 M2006 摩擦轮。
+#define GIMBAL_BOARD
+
+#if (defined(ONE_BOARD) + defined(CHASSIS_BOARD) + defined(GIMBAL_BOARD)) != 1
+#error "Select exactly one board type."
+#endif
+
+// DJI 驱动把反馈 rpm 转为 °/s，速度目标也必须乘以 6。
+#define FRICTION_SPEED_MIN_RPM 0.0f
+#define FRICTION_SPEED_MAX_RPM 16000.0f
+
+// 初版 PI：误差单位 °/s，输出为 C610 电流指令，1000 对应约 1A。
+// 三个轮子使用相同增益；8A 输出上限和 1.5A 积分上限均为初调值。
+// 电流前馈按单发/连发选择，三轮共用，参数见 shoot_init_config；指令单位同上。
+// 由驱动叠加在速度环输出之后（dji_motor.c，不占 PID 限幅），指针在 ShootInit 中绑定。
+// 数值取 vofa 通道 7-9 的稳态 Iout；注意与 MaxOut 之和别超过 C610 的 ±10000。
+// 电机停止时发送缓冲被驱动清零，前馈不会漏出；置 0 等价关闭。
+#define FRICTION_MOTOR_CONFIG(id)                                      \
+    {                                                                \
+        .controller_param_init_config = {                            \
+            .speed_PID = {                                           \
+                .Kp = 1.7f,                                         \
+                .Ki = 0.08f,                                         \
+                .Kd = 0.0f,                                          \
+                .MaxOut = 8000.0f,                                   \
+                .IntegralLimit = 1500.0f,                            \
+                .Improve = PID_Integral_Limit,                       \
+            },                                                       \
+        },                                                           \
+        .controller_setting_init_config = {                          \
+            .outer_loop_type = SPEED_LOOP,                           \
+            .close_loop_type = SPEED_LOOP,                           \
+            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,            \
+            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,      \
+            .angle_feedback_source = MOTOR_FEED,                     \
+            .speed_feedback_source = MOTOR_FEED,                     \
+            .feedforward_flag = CURRENT_FEEDFORWARD,                 \
+        },                                                           \
+        .motor_type = M2006,                                         \
+        .can_init_config = {                                        \
+            .can_handle = &hcan1,                                    \
+            .tx_id = (id),                                          \
+        },                                                           \
+    }
+
+// 保留当前遥控速度，单位为转子侧 °/s，不是 rpm。
+#define FRICTION_SPEED_MID_APS 55000.0f
+#define FRICTION_SPEED_UP_APS 15000.0f
+#define LOADER_STEP_PERIOD_MID_MS 1000U
+#define LOADER_STEP_PERIOD_UP_MS 50U // 20 Hz；改为 40U 即 25 Hz，无需增加遥控档位。
+
+static Shoot_Init_Config_s shoot_init_config = {
+    .friction_motor_config = {
+        FRICTION_MOTOR_CONFIG(5),
+        FRICTION_MOTOR_CONFIG(6),
+        FRICTION_MOTOR_CONFIG(7),
+    },
+    // 暂不区分轮序，同速同向；实际装配需要反转时修改对应系数的符号。
+    .friction_coefficients = {1.0f, 1.0f, 1.0f},
+    // 仅作为摩擦轮限幅，实际目标由遥控命令指定。
+    .friction_speed_min = FRICTION_SPEED_MIN_RPM * 6.0f,
+    .friction_speed_max = FRICTION_SPEED_MAX_RPM * 6.0f,
+    .friction_single_current_ff = 350.0f, // 单发及仅开摩擦轮；置 0 关闭对应前馈。
+    .friction_burst_current_ff = 1100.0f,  // 连发；先沿用原值，实机分别调参。
+    .loader_step_angle = 30.0f * DEGREE_2_RAD,
+    .loader_angle_tolerance = 0.03f, // 同时决定到位判定、力矩前馈门控与卡弹检测的“推进中”；放宽会让前馈提前退出、假到位并漂移齿相位。
+    .loader_contact_angle = 7.7135977f,
+    .loader_burst_pid = {
+        .Kp = 0.16f,
+        .Ki = 0.3f,
+        .Kd = 0.0f,
+        // N*m，同时用作 PI 输出限幅和 PI + 阻力前馈的总输出限幅。
+        .MaxOut = 7.0f,
+        .DeadBand = 0.0f, // 禁用死区；PID 库已修复零误差时丢失积分输出的问题。
+        .IntegralLimit = 2.0f, // N*m，较原方案 ±1 放宽；复用现有库，不增加抗饱和包装。
+        .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit,
+    },
+    // 沿用 loader_test 已配置的 J4310 总线、ID、方向和串级 PID；角度单位 rad。
+    .loader_motor_config = {
+        .controller_param_init_config = {
+            .angle_PID = {
+                .Kp = 18.0f,
+                .Ki = 0.0f,
+                .Kd = 0.0f,
+                .MaxOut = 6.0f, // 位置环分量限幅；推进段另有相位力矩前馈不经此限幅。
+                .DeadBand = 0.0f,
+            },
+            .speed_PID = {
+                .Kp = 0.6f,
+                .Ki = 0.1f,
+                .Kd = 0.0f,
+                .MaxOut = 7.0f,
+                .DeadBand = 0.0f,
+                .IntegralLimit = 5.0f,
+                .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit,
+            },
+        },
+        .controller_setting_init_config = {
+            .outer_loop_type = ANGLE_LOOP,
+            .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
+            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
+            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+            .angle_feedback_source = MOTOR_FEED,
+            .speed_feedback_source = MOTOR_FEED,
+        },
+        .motor_type = J4310,
+        .can_init_config = {
+            .can_handle = &hcan1,
+            .tx_id = 0x01,
+            .rx_id = 0x00,
+        },
+    },
+};
+
+// ID 5/6/7：控制帧 0x1FF 的字节 0..5，反馈分别为 0x205/0x206/0x207。
+// 请勿与同一 CAN1 上使用这些反馈 ID 的设备重复注册。
+
+// 四轴参数同步自 3e3c6aa8；大 Yaw 按联合运行约定保留 0x04/0x14。
+#define ALIGN_DEG (-173.0f)  // deg，小 Yaw 机械对齐零位
+/*
+| 对象 | 角度反馈 | 速度反馈 | 速度环输出 |
+| 大 Yaw：DM-J4310 | 电机累计角度，rad | 电机速度，rad/s | DM 力矩指令 |
+| 大 Pitch：DM-J4310 | 电机累计角度，rad | 电机速度，rad/s | DM 力矩指令 |
+| 小 Yaw：DM-J4310 | IMU 累计 Yaw，° | `Gyro[2]`，rad/s | DM 力矩指令，N*m |
+| 小 Pitch：DM-J4310 | IMU Pitch，° | `Gyro[0]`，rad/s | DM 力矩指令 |
+ *
+ */
+/*todo:现在四轴云台发射后低头可能诊断原因
+1.后坐力太大导致加速度计超量程，导致imu的速度和角度一定程度回传不准
+2.结构强度问题（这个等加工件出来会好很多）
+todo：1.四轴云台在上了实际负载之后可以重新调参（速位双环都要调，用vofa接无线烧录器回传数据，让ai去分析数据调参，尽量贴近真实工况调参，不懂的来问dqc）
+todo：考虑不用imu作为回传值，而是通过标定水平点，根据大小pitch的编码器组合值来判断枪口朝向作为小pitch位置环，速度也可以用电机速度（4310应该还算准），不保证一定有用但是可以试试
+todo: 2.大小pitch可以做前馈，根据单发连发给不同的值（注意做一下限幅，现在驱动层好像没限幅住速度环前馈）
+todo：3.发射也要重新调参+前馈逻辑（单发连发两套参数+逻辑，可以试试辨识一下单发从拨弹盘到位到摩擦轮掉速的相位差之类的然后精准补偿或者其他思路）
+todo：！！！！！！多和ai对话探讨思路
+*/
+#if 1 // 启用云台初始化配置。
+static Gimbal_Init_Config_s gimbal_init_config = {
+    .big_pitch_motor_config =
+        {
+            .motor_type = J4310,
+            .can_init_config =
+                {
+                    .can_handle = &hcan1,
+                    .tx_id = 0x02,
+                    .rx_id = 0x12,
+                },
+            .controller_param_init_config =
+                {
+                    .speed_PID =
+                        {
+                            .Kp = 0.7f,              // N*m/(rad/s)，速度误差到力矩的比例增益
+                            .Ki = 2.25f,              // N*m/rad，速度误差积分增益
+                            .Kd = 0.0f,              // N*m/(rad/s^2)，速度误差微分增益
+                            .DeadBand = 0.0f,        // rad/s，速度误差死区
+                            .MaxOut = 7.0f,          // N*m，速度环输出力矩限幅,4310额定3，峰值7
+                            .IntegralLimit = 0.35f,  // N*m，积分输出限幅
+                            .Improve = PID_Integral_Limit | PID_Trapezoid_Intergral,  // 无量纲，优化功能位标志
+                        },
+                    .angle_PID =
+                        {
+                            .Kp = 90.0f,            // (rad/s)/rad = 1/s，角度误差到目标速度的比例增益
+                            .Ki = 0.1f,             // (rad/s)/(rad*s) = 1/s^2，角度误差积分增益
+                            .Kd = 0.0f,             // (rad/s)/(rad/s)，无量纲，角度误差微分增益；启用微分先行
+                            .DeadBand = 0.001f,      // rad，约 0.573 deg，角度误差死区
+                            .MaxOut = 8.0f,         // rad/s，目标速度限幅；可减小以抑制目标切换时的速度尖峰
+                            //todo：lsy要求速度还要再快一点，思考一下怎么调参，因为两个角度直接切换目标突变太大导致会有一个尖峰，建议对速度规划/加一个斜坡去优化
+                            .IntegralLimit = 0.5f,  // rad/s，积分输出限幅
+                            .Improve = PID_Integral_Limit | PID_Derivative_On_Measurement,
+                        },
+                },
+        },
+    .small_pitch_motor_config =
+        {
+            .controller_setting_init_config =
+                {.motor_reverse_flag = MOTOR_DIRECTION_REVERSE},
+            .motor_type = J4310,
+            .can_init_config =
+                {
+                    .can_handle = &hcan1,
+                    .tx_id = 0x07,
+                    .rx_id = 0x06,
+                },
+            .controller_param_init_config =
+                {
+                    .speed_PID =
+                        {
+                            .Kp = 0.5f,              // N*m/(rad/s)，速度误差到力矩的比例增益
+                            .Ki = 1.8f,              // N*m/rad，速度误差积分增益
+                            .Kd = 0.0f,              // N*m/(rad/s^2)，速度误差微分增益
+                            .DeadBand = 0.0f,        // rad/s，速度误差死区
+                            .MaxOut = 7.0f,          // N*m，速度环输出力矩限幅
+                            .IntegralLimit = 0.65f,  // N*m，积分输出限幅
+                            .Improve = PID_Integral_Limit | PID_Trapezoid_Intergral,  // 无量纲，优化功能位标志
+                        },
+                    .angle_PID =
+                        {
+                            .Kp = 0.6f,        // (rad/s)/deg，IMU 角度误差到目标速度的比例增益
+                            .Ki = 0.0f,         // (rad/s)/(deg*s)，角度误差积分增益
+                            .Kd = 0.0f,         // (rad/s)/(deg/s)，角度误差微分增益
+                            .DeadBand = 0.01f,  // deg，IMU 角度误差死区
+                            .MaxOut = 5.0f,     // rad/s，目标速度限幅；0.05 rad、2.5 Hz 的理想速度峰值为 0.785 rad/s
+                            .IntegralLimit = 0.0f,        // rad/s，积分输出限幅
+                            .Improve = PID_IMPROVE_NONE,  // 无量纲，优化功能位标志
+                        },
+                },
+        },
+    .big_yaw_motor_config =
+        {
+
+            .motor_type = J4310,
+            .can_init_config =
+                {
+                    .can_handle = &hcan1,
+                    .tx_id = 0x04, // 联合运行保留原硬件 CAN ID，避免反馈与拨弹盘重叠。
+                    .rx_id = 0x14,
+                },
+            .controller_param_init_config =
+                {
+
+                    .speed_PID =
+                        {
+                            .Kp = 0.81f,             // N*m/(rad/s)，速度误差到力矩的比例增益
+                            .Ki = 4.63f,             // N*m/rad，速度误差积分增益
+                            .Kd = 0.00f,             // N*m/(rad/s^2)，速度误差微分增益
+                            .DeadBand = 0.0f,        // rad/s，速度误差死区
+                            .MaxOut = 7.0f,          // N*m，速度环输出力矩限幅
+                            .IntegralLimit = 0.35f,  // N*m，积分输出限幅
+                            .Improve = PID_Integral_Limit | PID_Trapezoid_Intergral,  // 无量纲，优化功能位标志
+                        },
+                    .angle_PID =
+                        {
+                            .Kp = 20.0f,                    // (rad/s)/rad = 1/s，角度误差到目标速度的比例增益
+                            .Kd = 0.0f,                     // (rad/s)/(rad/s)，无量纲，角度误差微分增益
+                            .Ki = 0.0f,                     // (rad/s)/(rad*s) = 1/s^2，角度误差积分增益
+                            .DeadBand = 0.0f,              // rad，角度误差死区
+                            .MaxOut = 25.0f,                // rad/s，目标速度限幅
+                            .IntegralLimit = 0.05f,         // rad/s，积分输出限幅
+                            .Improve = PID_Integral_Limit,  // 无量纲，优化功能位标志
+                        },
+                },
+        },
+    .small_yaw_motor_config =
+        {
+            .controller_setting_init_config =
+                {.motor_reverse_flag = 1},
+            .motor_type = J4310,
+            .can_init_config =
+                {
+                    .can_handle = &hcan1,
+                    .tx_id = 0X0B,
+                    .rx_id = 0X0A
+                },
+            .controller_param_init_config =
+                {
+                    .speed_PID =
+                        {
+                            .Kp = 0.4f,                // N*m/(rad/s)，数值复用大 Pitch 速度环
+                            .Ki = 3.5f,                // N*m/rad，数值复用大 Pitch 速度环
+                            .Kd = 0.0f,                // N*m/(rad/s^2)，速度误差微分增益
+                            .DeadBand = 0.0f,          // rad/s，速度误差死区
+                            .MaxOut = 7.0f,           // N*m，数值复用大 Pitch 速度环
+                            .IntegralLimit = 0.35f,   // N*m，数值复用大 Pitch 速度环
+                            .Improve = PID_Integral_Limit | PID_Trapezoid_Intergral,
+                        },
+                    .angle_PID =
+                        {
+                            .Kp = 0.7f,                   // (rad/s)/deg，保留原小 Yaw IMU 角度环参数
+                            .Ki = 0.0f,                   // (rad/s)/(deg*s)
+                            .Kd = 0.0f,                   // (rad/s)/(deg/s)
+                            .DeadBand = 0.15f,            // deg，IMU 角度误差死区
+                            .MaxOut = 6.0f,               // rad/s，目标速度限幅
+                            .IntegralLimit = 0.0f,        // rad/s，积分输出限幅
+                            .Improve = PID_IMPROVE_NONE,
+                        },
+                },
+        },
+    // 连发期间独立抬升力矩首轮试验值；经方向映射后叠加到速度PID输出。
+    .burst_config = {.big_pitch_nm = 0.5f, .small_pitch_nm = 0.05f},
+    .gravity_config =
+        {
+            .big_pitch_scale_nm = 1.35f,    // N*m，大轴近端重力矩系数，不含小轴末端偏心项
+            .small_pitch_scale_nm = 0.15f,   //0.3f,  // N*m，末端偏心重力矩系数，同时计入大 Pitch
+            .big_pitch_zero_rad = -0.077f,     // rad，两轴连线水平时的大轴反馈角
+            .small_pitch_zero_rad = 0.87f,   // rad，大轴处于上述零位时末端重心方向水平的小轴反馈角
+            .big_pitch_direction = 1.0f,   // 无量纲，正向直连为 1，反向直连为 -1
+            .small_pitch_direction = -1.0f,  // 无量纲，正向直连为 1，反向直连为 -1
+        },
+    .imu_init_config =
+        {
+
+            .flag = 1,
+            .offset_flag = 1,
+            .scale = {1.0f, 1.0f, 1.0f},
+            .Yaw = -90.0f,
+            .Pitch = 0.0f,
+            .Roll = 0.0f,
+            .GyroOffset = {-0.00187805097f, -0.00366833573f, 0.000690503919f},
+        },
+    // Follow 输出直接累加到大 Yaw 目标，单位 deg/次，当前实现未在累加处乘 dt。
+    .Yaw_Follow_PID =
+        {
+            .Kp = 0.0035f,          // (deg/次)/deg，偏角到每次目标角度增量的比例增益
+            .Ki = 0.000f,           // (deg/次)/(deg*s)，偏角积分增益
+            .Kd = 0.000f,           // (deg/次)/(deg/s)，偏角微分增益；启用微分先行
+            .DeadBand = 0.3f,     // deg，小 Yaw 相对偏角死区
+            //todo：陀螺仪零飘有点大没擦好导致follow环死区不开大大yaw会1hz左右来回0.几度动，建议重新擦一下零飘或者在线擦？
+            .MaxOut = 10.0f,        // deg/次，每次目标角度增量限幅
+            .IntegralLimit = 1.0f,  // deg/次，积分输出限幅
+            .Improve =
+                PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,  // 无量纲，优化功能位标志
+        },
+};
+#endif

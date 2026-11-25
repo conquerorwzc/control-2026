@@ -61,7 +61,7 @@ typedef struct
     float Ki;
     float Kd;
     float MaxOut;
-    float DeadBand;
+    float DeadBand; // 0 禁用死区；正值时区内输出零并暂停积分，保留累计 Iout。
 
     // improve parameter
     PID_Improvement_e Improve;
@@ -104,7 +104,7 @@ typedef struct // config parameter
     float Ki;
     float Kd;
     float MaxOut;   // 输出限幅
-    float DeadBand; // 死区
+    float DeadBand; // 死区，0 表示禁用（包括误差恰为零时）。
 
     // improve parameter
     PID_Improvement_e Improve;

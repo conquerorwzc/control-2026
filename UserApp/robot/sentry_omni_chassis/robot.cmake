@@ -1,5 +1,5 @@
 # Set the type of chassis, gimbal and shooter modules for infantry robot
-set(CHASSIS_TYPE chassis_mecanum)
+set(CHASSIS_TYPE chassis_omni)
 set(GIMBAL_TYPE gimbal_standard)
 set(SHOOT_TYPE shoot_standard)
 add_compile_definitions(FRICTION_NUM=2)
@@ -21,6 +21,7 @@ include_sub_directories_recursively(${CMAKE_SOURCE_DIR}/UserApp/components/chass
 file(GLOB ROBOT_SOURCES
         "${CMAKE_CURRENT_LIST_DIR}/*.c"
         "${CMAKE_SOURCE_DIR}/UserApp/components/chassis/${CHASSIS_TYPE}/*.c"
+        "${CMAKE_SOURCE_DIR}/UserApp/components/chassis/${CHASSIS_TYPE}/speed_observer/*.c"
         "${CMAKE_SOURCE_DIR}/UserApp/components/gimbal/${GIMBAL_TYPE}/*.c"
         "${CMAKE_SOURCE_DIR}/UserApp/components/shoot/${SHOOT_TYPE}/*.c"
 )

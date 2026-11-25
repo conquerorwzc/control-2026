@@ -23,7 +23,7 @@ static DJIMotorInstance* dji_motor_instance[DJI_MOTOR_CNT] = {NULL};  // 会在c
  * fdcan2: [3]:0x1FF,[4]:0x200,[5]:0x2FF
  */
 #ifdef STM32F407xx
-static CANInstance sender_assignment[6] = {
+static CANInstance sender_assignment[10] = {
     [0] = {.can_handle = &hcan1,
            .txconf.StdId = 0x1ff,
            .txconf.IDE = CAN_ID_STD,
@@ -60,6 +60,30 @@ static CANInstance sender_assignment[6] = {
            .txconf.RTR = CAN_RTR_DATA,
            .txconf.DLC = 0x08,
            .tx_buff = {0}},
+    [6] = {.can_handle = &hcan1,
+          .txconf.StdId = 0x1FE,
+          .txconf.IDE = CAN_ID_STD,
+          .txconf.RTR = CAN_RTR_DATA,
+          .txconf.DLC = 8,
+          .tx_buff = {0}},
+   [7] = {.can_handle = &hcan1,
+          .txconf.StdId = 0x2FE,
+          .txconf.IDE = CAN_ID_STD,
+          .txconf.RTR = CAN_RTR_DATA,
+          .txconf.DLC = 8,
+          .tx_buff = {0}},
+   [8] = {.can_handle = &hcan2,
+          .txconf.StdId = 0x1FE,
+          .txconf.IDE = CAN_ID_STD,
+          .txconf.RTR = CAN_RTR_DATA,
+          .txconf.DLC = 8,
+          .tx_buff = {0}},
+   [9] = {.can_handle = &hcan2,
+          .txconf.StdId = 0x2FE,
+          .txconf.IDE = CAN_ID_STD,
+          .txconf.RTR = CAN_RTR_DATA,
+          .txconf.DLC = 8,
+          .tx_buff = {0}},
 };
 #elifdef STM32H723xx
 #define FDCAN_INSTANCE_INIT(fdcan_handle, tx_id)                               \
@@ -75,12 +99,15 @@ static CANInstance sender_assignment[6] = {
                                      .MessageMarker = 0},                      \
    .tx_buff = {0}}
 
-static CANInstance sender_assignment[9] = {
+static CANInstance sender_assignment[15] = {
     [0] = FDCAN_INSTANCE_INIT(&hfdcan1, 0x1FF), [1] = FDCAN_INSTANCE_INIT(&hfdcan1, 0x200),
     [2] = FDCAN_INSTANCE_INIT(&hfdcan1, 0x2FF), [3] = FDCAN_INSTANCE_INIT(&hfdcan2, 0x1FF),
     [4] = FDCAN_INSTANCE_INIT(&hfdcan2, 0x200), [5] = FDCAN_INSTANCE_INIT(&hfdcan2, 0x2FF),
     [6] = FDCAN_INSTANCE_INIT(&hfdcan3, 0x1FF), [7] = FDCAN_INSTANCE_INIT(&hfdcan3, 0x200),
-    [8] = FDCAN_INSTANCE_INIT(&hfdcan3, 0x2FF),
+    [8] = FDCAN_INSTANCE_INIT(&hfdcan3, 0x2FF), [9]  = FDCAN_INSTANCE_INIT(&hfdcan1, 0x1FE),
+    [10] = FDCAN_INSTANCE_INIT(&hfdcan1, 0x2FE),[11] = FDCAN_INSTANCE_INIT(&hfdcan2, 0x1FE),
+    [12] = FDCAN_INSTANCE_INIT(&hfdcan2, 0x2FE),[13] = FDCAN_INSTANCE_INIT(&hfdcan3, 0x1FE),
+    [14] = FDCAN_INSTANCE_INIT(&hfdcan3, 0x2FE),
 };
 
 #endif
@@ -89,7 +116,12 @@ static CANInstance sender_assignment[9] = {
  * @brief 9个用于确认是否有电机注册到sender_assignment中的标志位,防止发送空帧,此变量将在DJIMotorControl()使用
  *        flag的初始化在 MotorSenderGrouping()中进行
  */
-static uint8_t sender_enable_flag[9] = {0};
+enum {
+    kDjiSenderGroupCount =
+        sizeof(sender_assignment) / sizeof(sender_assignment[0]),
+};
+
+static uint8_t sender_enable_flag[kDjiSenderGroupCount] = {0};
 
 /**
  * @brief 根据电调/拨码开关上的ID,根据说明书的默认id分配方式计算发送ID和接收ID,
@@ -148,7 +180,11 @@ static void MotorSenderGrouping(DJIMotorInstance* motor, CAN_Init_Config_s* conf
         motor_send_num = motor_id - 4;
         motor_grouping = config->can_handle == &hcan1 ? 2 : 5;
       }
-
+      if (motor->motor_settings.gm6020_control_mode ==
+    GM6020_CURRENT_CONTROL) {
+          uint8_t group_base = config->can_handle == &hcan1 ? 6 : 8;
+          motor_grouping = group_base + (motor_id >= 4);
+    }
       config->rx_id = 0x204 + motor_id + 1;  // 把ID+1,进行分组设置
       sender_enable_flag[motor_grouping] =
           1;  // 只要有电机注册到这个分组,置为1;在发送函数中会通过此标志判断是否有电机注册
@@ -223,7 +259,15 @@ static void MotorSenderGrouping(DJIMotorInstance* motor, CAN_Init_Config_s* conf
         motor_send_num = motor_id - 4;
         motor_grouping = config->can_handle == &hcan1 ? 2 : (config->can_handle == &hcan2 ? 5 : 8);
       }
+      if (motor->motor_settings.gm6020_control_mode ==
+    GM6020_CURRENT_CONTROL) {
+          uint8_t group_base =
+              config->can_handle == &hfdcan1
+                  ? 9
+                  : (config->can_handle == &hfdcan2 ? 11 : 13);
 
+          motor_grouping = group_base + (motor_id >= 4);
+    }
       config->rx_id = 0x204 + motor_id + 1;  // 把ID+1,进行分组设置
       sender_enable_flag[motor_grouping] =
           1;  // 只要有电机注册到这个分组,置为1;在发送函数中会通过此标志判断是否有电机注册
@@ -270,10 +314,17 @@ static void DecodeDJIMotor(CANInstance* _instance) {
   measure->last_ecd = measure->ecd;
   measure->ecd = ((uint16_t)rxbuff[0]) << 8 | rxbuff[1];
   measure->angle_single_round = ECD_ANGLE_COEF_DJI * (float)measure->ecd;
+  float speed_aps = RPM_2_ANGLE_PER_SEC * (float)((int16_t)(rxbuff[2] << 8 | rxbuff[3]));
+  float real_current = (float)((int16_t)(rxbuff[4] << 8 | rxbuff[5]));
+  // 先统一反馈方向，再滤波，确保本次采样与历史滤波值使用相同的方向约定。
+  if (motor->motor_settings.feedback_reverse_flag == FEEDBACK_DIRECTION_REVERSE) {
+    speed_aps = -speed_aps;
+    real_current = -real_current;
+  }
   measure->speed_aps = (1.0f - SPEED_SMOOTH_COEF) * measure->speed_aps +
-                          RPM_2_ANGLE_PER_SEC * SPEED_SMOOTH_COEF * (float)((int16_t)(rxbuff[2] << 8 | rxbuff[3]));
+                          SPEED_SMOOTH_COEF * speed_aps;
   measure->real_current = (1.0f - CURRENT_SMOOTH_COEF) * measure->real_current +
-                          CURRENT_SMOOTH_COEF * (float)((int16_t)(rxbuff[4] << 8 | rxbuff[5]));
+                          CURRENT_SMOOTH_COEF * real_current;
   measure->temperature = rxbuff[6];
 
   // 多圈角度计算,前提是假设两次采样间电机转过的角度小于180°,自己画个图就清楚计算过程了
@@ -284,8 +335,6 @@ static void DecodeDJIMotor(CANInstance* _instance) {
   measure->total_angle = measure->total_round * 360 + measure->angle_single_round;
 
   if (motor->motor_settings.feedback_reverse_flag == FEEDBACK_DIRECTION_REVERSE) {
-    measure->speed_aps = -measure->speed_aps;
-    measure->real_current = -measure->real_current;
     measure->total_angle = -measure->total_angle;
   }
 }
@@ -471,16 +520,20 @@ void DJIMotorTask() {
     group = motor->sender_group;
     num = motor->message_num;
     set = (int16_t)motor->motor_controller.final_output;
+      if (motor->motor_type == GM6020 && motor->motor_settings.gm6020_control_mode == GM6020_CURRENT_CONTROL)
+      {
+          LIMIT_MIN_MAX(set, -16384.0f, 16384.0f);
+      }
     if (motor->motor_settings.motor_reverse_flag == MOTOR_DIRECTION_REVERSE) set *= -1.0f;  // 设置反转
 
-    sender_assignment[group].tx_buff[2 * num] = (uint8_t)(set >> 8);          // 低八位
-    sender_assignment[group].tx_buff[2 * num + 1] = (uint8_t)(set & 0x00ff);  // 高八位
+    sender_assignment[group].tx_buff[2 * num] = (uint8_t)(set >> 8);          // 高八位
+    sender_assignment[group].tx_buff[2 * num + 1] = (uint8_t)(set & 0x00ff);  // 低八位
 
     // 若该电机处于停止状态,直接将buff置零
     if (motor->stop_flag == MOTOR_STOP)
       memset(sender_assignment[group].tx_buff + 2 * num, 0, sizeof(uint16_t));
   }
-  for (size_t i = 0; i < 9; ++i) {
+  for (size_t i = 0; i < kDjiSenderGroupCount; ++i) {
     if (sender_enable_flag[i]) {
       CANTransmit(&sender_assignment[i], 1);
     }
