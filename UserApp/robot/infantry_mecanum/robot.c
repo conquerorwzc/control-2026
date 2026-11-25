@@ -30,6 +30,10 @@ static float vx_initial;   //x轴输入控制量
 static float vy_initial;   //y轴输入控制量
 static float angle;
 static float last_yaw;
+static volatile float k_acc_yaw = 11.0f;    // 视觉加速度前馈系数
+static volatile float k_acc_pitch = 5.0f;
+static volatile float k_vel_yaw = 1.0f;    //视觉速度前馈系数
+static volatile float k_vel_pitch = 1.0f;
 static BuzzzerInstance *robot_buzzer;
 
 /**
@@ -294,11 +298,20 @@ static void RemoteControlSet() {
         0.0003f * (float)rc_data[TEMP].rc.rocker_r1;
   }
   else if (switch_is_up(rc_data[TEMP].rc.switch_right)) {
-    gimbal_ctrl_cmd->gimbal_mode = GIMBAL_VISION;
+    if (has_non_zero_data(vision_recv_data) == 1) {
+      gimbal_ctrl_cmd->gimbal_mode = GIMBAL_VISION;
 
-    if (vision_recv_data != NULL) {
       gimbal_ctrl_cmd->yaw = vision_recv_data->gimbal_receive.yaw;
       gimbal_ctrl_cmd->pitch = vision_recv_data->gimbal_receive.pitch;
+
+      // 视觉速度/加速度前馈
+      gimbal_ctrl_cmd->yaw_vel_ff = k_vel_yaw * vision_recv_data->gimbal_vel.yaw_vel * DEGREE_2_RAD;
+      gimbal_ctrl_cmd->pitch_vel_ff =
+          k_vel_pitch * vision_recv_data->gimbal_vel.pitch_vel * DEGREE_2_RAD;
+      gimbal_ctrl_cmd->yaw_acc_ff = k_acc_yaw * vision_recv_data->gimbal_acc.yaw_acc;
+      gimbal_ctrl_cmd->pitch_acc_ff = k_acc_pitch * vision_recv_data->gimbal_acc.pitch_acc;
+    } else {
+      gimbal_ctrl_cmd->gimbal_mode = GIMBAL_ON;  // 无目标,交回手动
     }
   }
   else {
@@ -332,6 +345,14 @@ static void RemoteControlSet() {
     gimbal_ctrl_cmd->pitch = PITCH_MAX_ANGLE;
   } else if (gimbal_ctrl_cmd->pitch < PITCH_MIN_ANGLE) {
     gimbal_ctrl_cmd->pitch = PITCH_MIN_ANGLE;
+  }
+
+  // 切换到非视觉模式时清空前馈,避免残留
+  if (gimbal_ctrl_cmd->gimbal_mode != GIMBAL_VISION) {
+    gimbal_ctrl_cmd->yaw_vel_ff = 0.0f;
+    gimbal_ctrl_cmd->pitch_vel_ff = 0.0f;
+    gimbal_ctrl_cmd->yaw_acc_ff = 0.0f;
+    gimbal_ctrl_cmd->pitch_acc_ff = 0.0f;
   }
 }
 static void MouseKeySet() {

@@ -5,7 +5,7 @@
 #include "ins_task.h"
 #include "seasky_protocol.h"
 
-#define VISION_RECV_SIZE 18u // 当前为固定值,36字节
+#define VISION_RECV_SIZE 38u // 当前为固定值,38字节
 #define VISION_SEND_SIZE 36u
 
 #pragma pack(1)
@@ -49,9 +49,22 @@ typedef struct
 
 typedef struct
 {
+  float yaw_vel;   // 度/秒
+  float pitch_vel;
+} Gimbal_Vel_s;
+
+typedef struct
+{
+  float yaw_acc;   // 度/秒²
+  float pitch_acc;
+} Gimbal_Acc_s;
+
+typedef struct
+{
   Gimbal_Receive_s gimbal_receive;
   Shoot_Receive_s shoot_receive;
-
+  Gimbal_Vel_s gimbal_vel;
+  Gimbal_Acc_s gimbal_acc;
 } Vision_Receive_s;
 
 typedef struct {

@@ -16,6 +16,8 @@ typedef struct {
   float pitch;
   float chassis_rotate_wz;
   Gimbal_Mode_e gimbal_mode;
+  float yaw_vel_ff, pitch_vel_ff;   // 视觉速度前馈，rad/s
+  float yaw_acc_ff, pitch_acc_ff;   // 视觉加速度前馈，电流指令
 } Gimbal_Ctrl_Cmd_s;
 
 typedef struct {

@@ -67,6 +67,21 @@ GimbalInstance* GimbalInit(Gimbal_Init_Config_s* gimbal_init_config) {
   gimbal_init_config->pitch_motor_config.controller_setting_init_config.outer_loop_type = ANGLE_LOOP;
   gimbal_init_config->pitch_motor_config.controller_setting_init_config.close_loop_type = SPEED_LOOP | ANGLE_LOOP;
 
+  // 视觉前馈指针绑定
+  gimbal_init_config->yaw_motor_config.controller_param_init_config.speed_feedforward_ptr =
+      &gimbal_instance->gimbal_ctrl_cmd.yaw_vel_ff;
+  gimbal_init_config->yaw_motor_config.controller_param_init_config.current_feedforward_ptr =
+      &gimbal_instance->gimbal_ctrl_cmd.yaw_acc_ff;
+  gimbal_init_config->yaw_motor_config.controller_setting_init_config.feedforward_flag |=
+      SPEED_FEEDFORWARD | CURRENT_FEEDFORWARD;
+
+  gimbal_init_config->pitch_motor_config.controller_param_init_config.speed_feedforward_ptr =
+      &gimbal_instance->gimbal_ctrl_cmd.pitch_vel_ff;
+  gimbal_init_config->pitch_motor_config.controller_param_init_config.current_feedforward_ptr =
+      &gimbal_instance->gimbal_ctrl_cmd.pitch_acc_ff;
+  gimbal_init_config->pitch_motor_config.controller_setting_init_config.feedforward_flag |=
+      SPEED_FEEDFORWARD | CURRENT_FEEDFORWARD;
+
   gimbal_instance->yaw_motor = DJIMotorInit(&gimbal_init_config->yaw_motor_config);
   gimbal_instance->pitch_motor = DJIMotorInit(&gimbal_init_config->pitch_motor_config);
 

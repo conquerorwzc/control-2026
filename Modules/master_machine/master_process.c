@@ -44,6 +44,8 @@ void InitParam(void) {
 
   RIGISTER_ID(receive, 1, recv_data.gimbal_receive);
   RIGISTER_ID(receive, 2, recv_data.shoot_receive);
+  RIGISTER_ID(receive, 3, recv_data.gimbal_vel);
+  RIGISTER_ID(receive, 4, recv_data.gimbal_acc);
 
   RIGISTER_ID(send, 1, send_data.gimbal_send);
   RIGISTER_ID(send, 2, send_data.shoot_send);
