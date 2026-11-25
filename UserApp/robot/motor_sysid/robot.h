@@ -10,8 +10,7 @@ typedef enum
     SYSID_STATE_NEED_ESTOP,
     SYSID_STATE_ESTOP,
     SYSID_STATE_READY,
-    SYSID_STATE_STARTING,
-    SYSID_STATE_RUNNING,
+    SYSID_STATE_RUNNING = 4,
     SYSID_STATE_FINISHED,
     SYSID_STATE_FAULT,
     SYSID_STATE_DRY_RUNNING
@@ -47,6 +46,9 @@ typedef enum
     SYSID_WHEEL_COAST
 } SysIdTrial;
 
+#define SYSID_IS_HIP(trial)                                                                                            \
+    ((trial) == SYSID_HIP || (trial) == SYSID_HIP_STEP || (trial) == SYSID_HIP_RAMP || (trial) == SYSID_HIP_TRIANGLE)
+
 typedef enum
 {
     SYSID_PHASE_NONE,
@@ -69,8 +71,7 @@ typedef enum
     SYSID_FAULT_NONE,
     SYSID_FAULT_CONFIG,
     SYSID_FAULT_REMOTE,
-    SYSID_FAULT_TIMING,
-    SYSID_FAULT_FEEDBACK,
+    SYSID_FAULT_FEEDBACK = 4,
     SYSID_FAULT_START,
     SYSID_FAULT_CHASSIS
 } SysIdFault;
@@ -88,7 +89,6 @@ typedef struct
     SysIdHipPattern hip_pattern;
     SysIdFault fault;
     SysIdPhase phase;
-    unsigned workpoint_id;
     int direction;
     float center_rad[CHASSIS_JOINT_COUNT];
     float selected_parameter; // logical rad, rad/s, A/s or Nm/s depending on the trial
@@ -99,4 +99,4 @@ typedef struct
 
 void RobotInit(void);
 void RobotTask(void);
-RobotInstance *RobotGetInstance(void);
+RobotInstance *RobotGet(void);

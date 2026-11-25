@@ -11,17 +11,17 @@ CSV：time_s，以及每个逻辑关节的 <joint>_q_rad、<joint>_qd_rad_s、<j
 
 ## VOFA+ 导出 CSV：现行 25 通道
 
-用 VOFA+ 的 JustFloat 录制 `CH0` 到 `CH24`。每帧 104 字节，500 Hz、8N1 占用 520 kbit/s，默认串口为 1 Mbaud。进 READY 后保持当前选档至少 8 个成功发送的采样周期，以便记录一轮配置页，再进入运行。保留原始录制。仅在转换时选择实机运行段，行号从 1 开始且不计表头。
+用 VOFA+ 的 JustFloat 录制 `CH0` 到 `CH24`。每帧 104 字节，500 Hz、8N1 占用 520 kbit/s，默认串口为 1 Mbaud。保留原始录制、编译所用的 robot_config.h 和覆盖的编译宏，用于关联本轮的工作点和增益。仅在转换时选择实机运行段，行号从 1 开始且不计表头。
 
 ```powershell
 # 单腿双髋，保留全部反馈/命令时间与原始反馈字段
-python tools/hip_ident/vofa_csv.py hip_vofa.csv --format sysid-hip --start-row 201 --end-row 5200 --output hip.csv --metadata-output hip.json
+python tools/hip_ident/vofa_csv.py hip_vofa.csv --format sysid-hip --start-row 201 --end-row 5200 --output hip.csv
 
 # C620 双轮或单轮离地采集
-python tools/hip_ident/vofa_csv.py wheel_vofa.csv --format sysid-wheel --start-row 201 --end-row 5200 --output wheel.csv --metadata-output wheel.json
+python tools/hip_ident/vofa_csv.py wheel_vofa.csv --format sysid-wheel --start-row 201 --end-row 5200 --output wheel.csv
 
 # 确保实际四路执行，并按旧四髋拟合器要求检查 500 Hz 时间步
-python tools/hip_ident/vofa_csv.py four_hips_vofa.csv --format sysid-hip --required-mask 0xf --start-row 201 --end-row 5200 --output train.csv --metadata-output train.json
+python tools/hip_ident/vofa_csv.py four_hips_vofa.csv --format sysid-hip --required-mask 0xf --start-row 201 --end-row 5200 --output train.csv
 ```
 
 默认按通道名找列。自定义表头可用 `--channel-map` 传入按通道号排序的 25 个实际列名。转换保留时间间隔实际值、诊断位和固件字段。双髋单腿和轮工况在反馈仍有效时允许某拍没有新反馈，且报告时间步偏差，供后续按实际时间戳对齐。控制拍序号中断、倒退、故障、无效反馈、执行未开放和段内工况切换会拒绝导出；同一工况内的阶段变化可以导出。四髋回放须通过 `--required-mask 0xf` 施加旧拟合器的严格时间步及反馈检查。
@@ -47,7 +47,7 @@ python tools/hip_ident/vofa_csv.py four_hips_vofa.csv --format sysid-hip --requi
 
 四髋布局 CH6–21 保留四路同拍角度、速度、下发扭矩、反馈扭矩，CH22–23 固定为左前、左后参考，右侧可用已保存的工作点、方向和激励配置还原。CH24 依 `seq % 4` 轮换四髋温度，转换时追加 `hip_temperature_joint`。这组布局仅保留统一控制拍时间，以及反馈有效和更新位。需要每髋反馈时刻、限幅前扭矩、原始反馈和每拍温度时，用单腿布局录制。
 
-配置布局在 READY 中发送。CH6 为页号，CH7 起按下列顺序记录。JSON 取选段前最近一组与工况对应的已收到配置页，带原始 CSV 的数据行号。缺失的页和没有装配的电机都不会填入虚构增益。
+以下配置页用于旧版 25 通道录制的解码。读取含配置页的旧录制时可使用 --metadata-output 导出 JSON，结果包含选段前收到的匹配页及原始 CSV 行号。
 
 | 页号 | 内容 |
 | --- | --- |

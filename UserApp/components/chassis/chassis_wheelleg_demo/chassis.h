@@ -18,27 +18,6 @@ enum
 
 typedef struct
 {
-    Motor_Init_Config_s motor;
-    uint8_t feedback_id; // expected DM payload ID (low nibble)
-    float zero_rad;
-    float direction;       // +1 or -1, relative to the driver feedback/command
-    float motor_per_joint; // motor rad per logical joint rad
-    float kp_nm_per_rad;
-    float kd_nm_per_rad_s;
-    float max_torque_nm;
-} ChassisJointConfig;
-
-typedef struct
-{
-    Motor_Init_Config_s motor;
-    float direction; // +1 or -1, relative to the driver feedback/command
-    float motor_per_wheel;
-    float kp_a_per_rad_s;
-    float max_current_a;
-} ChassisWheelConfig;
-
-typedef struct
-{
     float first_m;
     float second_m;
     float virtual_second_m;
@@ -50,12 +29,20 @@ typedef struct
     unsigned joint_mask; // order LF, LR, RF, RR; each configured leg requires both joints
     unsigned wheel_mask; // order left, right; wheels can be registered independently
     uint32_t feedback_timeout_ms;
-    ChassisJointConfig joint[CHASSIS_JOINT_COUNT];
-    ChassisWheelConfig wheel[CHASSIS_LEG_COUNT];
+    Motor_Init_Config_s joint[CHASSIS_JOINT_COUNT];
+    Motor_Init_Config_s wheel[CHASSIS_LEG_COUNT];
+    uint8_t joint_feedback_id[CHASSIS_JOINT_COUNT]; // expected DM payload ID (low nibble)
+    float joint_zero_rad[CHASSIS_JOINT_COUNT];
+    float joint_direction[CHASSIS_JOINT_COUNT]; // +1 or -1 relative to driver feedback/command
+    float motor_per_joint[CHASSIS_JOINT_COUNT]; // motor rad per joint rad
+    float joint_kp_nm_per_rad[CHASSIS_JOINT_COUNT];
+    float joint_kd_nm_per_rad_s[CHASSIS_JOINT_COUNT];
+    float joint_max_torque_nm[CHASSIS_JOINT_COUNT];
+    float wheel_direction[CHASSIS_LEG_COUNT]; // +1 or -1 relative to raw C620 frame
+    float motor_per_wheel[CHASSIS_LEG_COUNT];
+    float wheel_kp_a_per_rad_s[CHASSIS_LEG_COUNT];
+    float wheel_max_current_a[CHASSIS_LEG_COUNT];
     ChassisGeometryConfig geometry;
-#if defined(STM32H723xx)
-    unsigned reserved_std_filters[3]; // already registered on FDCAN1, 2, 3
-#endif
 } Chassis_Init_Config_s;
 
 typedef struct
@@ -109,24 +96,23 @@ typedef struct
     ChassisJointFeedback joint[2];
     ChassisWheelFeedback wheel_feedback;
     bool geometry_valid;
-    bool geometry_updated;
     float length_m;
     float angle_rad;
 } ChassisLeg;
 
 typedef struct
 {
-    Chassis_Init_Config_s config;
-    ChassisRequest request;
-    ChassisRequest applied_request;
+    Chassis_Init_Config_s *config;
+    unsigned joint_enabled_mask;
+    unsigned wheel_enabled_mask;
     ChassisLeg legs[CHASSIS_LEG_COUNT];
     uint64_t command_time_us;
     bool fault;
     bool clipped;
 } ChassisInstance;
 
-// Returns NULL on invalid configuration or insufficient CAN receive filters, before registering motors.
-ChassisInstance *ChassisInit(const Chassis_Init_Config_s *config);
-// Call first each control tick, then set request and apply it with ChassisTask.
+// Config must outlive the chassis. Motor init fills callbacks in its motor entries.
+ChassisInstance *ChassisInit(Chassis_Init_Config_s *config);
+// 机器人先读本拍反馈，再给底盘参考指令。
 void ChassisFeedbackUpdate(ChassisInstance *chassis);
-void ChassisTask(ChassisInstance *chassis);
+void ChassisTask(ChassisInstance *chassis, const ChassisRequest *request);

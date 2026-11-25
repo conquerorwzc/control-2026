@@ -1,6 +1,6 @@
 #pragma once
 
-#include "robot.h"
+#include <stdbool.h>
 
-bool SysIdVofaInit(void);
-void SysIdVofaSend(const RobotInstance *robot);
+bool VofaInit(void);
+void VofaTick(unsigned configured_joints);

@@ -9,6 +9,3 @@ set(SYSID_SOURCES
 )
 list(APPEND SOURCES ${SYSID_SOURCES})
 set_source_files_properties(${SYSID_SOURCES} PROPERTIES COMPILE_OPTIONS "-fno-fast-math")
-
-# Four-DM registration needs a target-local workaround for the legacy task-name buffer.
-add_link_options(-Wl,--wrap=DMMotorTaskInit)
