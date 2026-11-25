@@ -3,7 +3,7 @@
 本目录说明 `wheelleg_RL` 分支的新增内容。强化学习仓库为 `D:/WHEEL_LEG_RL/SRM_Wheelleg_Rltrain`。
 部署、采集、扫频、电机/气弹簧辨识与分析工具都在本队内仓库开发。
 
-**2026-11-21 更新：** `motor_sysid` 已在 robot 层接入遥控档位、DWT 计时的参考角空跑和 USART1 / VOFA+ JustFloat。默认仍为空跑；已增加独立机器人自己的髋电机注册、原驱动发送器及实机 PD 路径，须先标定并通过总线容量/安全检查，未上板验证。不改 OSTask 或底层驱动。操作和帧布局见[辨识目标说明](../../UserApp/robot/motor_sysid/README.md)，导出后的检查见[离线工具](../../tools/hip_ident/README.md)。下文为早期 FW0 记录。
+当前轮电机与髋关节辨识使用独立机器人目标 motor_sysid，底盘组件为 chassis_wheelleg_demo。试验选择、工作点、接线和记录方法见[扫频操作说明](SWEEP.md)，VOFA CSV 和元数据导出见[离线工具说明](../../tools/hip_ident/README.md)。以下 FW0 章节记录早期实现。
 
 ## FW0 初版已实现
 
@@ -27,13 +27,6 @@ cmake --build build/motor_sysid
 ```
 
 确保 `cmake`、`ninja`、`arm-none-eabi-gcc` 在 PATH 中。不烧录，不自动使能。
-
-主机测试（MinGW GCC）：
-
-```powershell
-gcc -std=c11 -O2 -Wall -Wextra -Werror -I UserApp/robot/motor_sysid tests/wheelleg/test_sysid_signal.c UserApp/robot/motor_sysid/sysid_signal.c -lm -o build/test_sysid_signal.exe
-./build/test_sysid_signal.exe
-```
 
 ## 下一批依赖
 

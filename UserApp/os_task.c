@@ -88,7 +88,27 @@ __attribute__((noreturn)) void StartROBOTTASK(void const *argument) {
   static float robot_dt;
   static float robot_start;
   RobotInit();
+#ifdef ROBOT_MOTOR_SYSID
+  // 此版本 DMMotorTaskInit 累加任务名，四髋时越界。沿用原 DMMotorTask 和已注册实例。
+  ChassisInstance *chassis = RobotGetInstance()->chassis;
+  if (chassis != NULL) {
+    osThreadDef(hip_tx, DMMotorTask, osPriorityBelowNormal, 0, 128);
+    for (unsigned i = 0; i < CHASSIS_LEG_COUNT; ++i) {
+      DMMotorInstance *motors[] = {chassis->legs[i].front_motor, chassis->legs[i].rear_motor};
+      for (unsigned j = 0; j < 2; ++j) {
+        if (motors[j] != NULL) {
+          osThreadId tx = osThreadCreate(osThread(hip_tx), motors[j]);
+          configASSERT(tx != NULL);
+        }
+      }
+    }
+  }
+  _Static_assert(configTICK_RATE_HZ % SYSID_CONTROL_HZ == 0, "SysID control period must align with RTOS ticks");
+  const TickType_t period = configTICK_RATE_HZ / SYSID_CONTROL_HZ;
+  TickType_t wake = xTaskGetTickCount();
+#else
   DMMotorTaskInit();
+#endif
   LOGINFO("[freeRTOS] ROBOT core Task Start");
   // 200Hz-500Hz,若有额外的控制任务如平衡步兵可能需要提升至1kHz
   for (;;) {
@@ -96,6 +116,14 @@ __attribute__((noreturn)) void StartROBOTTASK(void const *argument) {
     RobotTask();
     robot_dt = DWT_GetTimeline_ms() - robot_start;
     if (robot_dt > 1) LOGERROR("[freeRTOS] ROBOT core Task is being DELAY! dt = [%f]", &robot_dt);
+#ifdef ROBOT_MOTOR_SYSID
+    TickType_t now = xTaskGetTickCount();
+    if (now - wake >= period) wake = now;
+    wake += period;
+    const int32_t remaining = (int32_t)(wake - xTaskGetTickCount());
+    if (remaining > 0) vTaskDelay((TickType_t)remaining);
+#else
     osDelay(1);
+#endif
   }
 }
