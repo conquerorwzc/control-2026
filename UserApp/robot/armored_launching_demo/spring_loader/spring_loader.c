@@ -37,7 +37,7 @@ void SpringLoaderInit(void)
                 .close_loop_type = ANGLE_AND_SPEED_LOOP, // 配置位置环和速度环
                 .speed_feedback_source = MOTOR_FEED,
                 .angle_feedback_source = MOTOR_FEED, // 位置环读取电机多圈角度
-                .feedforward_flag = CURRENT_FEEDFORWARD,
+                // .feedforward_flag = CURRENT_FEEDFORWARD,
             },
         .controller_param_init_config =
             {
@@ -76,7 +76,7 @@ void SpringLoaderInit(void)
                 .close_loop_type = ANGLE_AND_SPEED_LOOP, // 配置位置环和速度环
                 .speed_feedback_source = MOTOR_FEED,
                 .angle_feedback_source = MOTOR_FEED, // 位置环读取电机多圈角度
-                .feedforward_flag = CURRENT_FEEDFORWARD,
+                // .feedforward_flag = CURRENT_FEEDFORWARD,
             },
         .controller_param_init_config =
             {
@@ -150,12 +150,10 @@ static void HomeOneMotor(DJIMotorInstance *motor, HomeAxis *axis, float speed_re
     DJIMotorEnable(motor);
 }
 
-
-
-static const float kStandbyDeg = -3500.0f;       // 上电待机、手动回位和自动回位共用的目标
-static const float kLatchDeg = 8800.0f;          // 两侧实际角度都要超过的锁扣阈值
+static const float kStandbyDeg = -2600.0f;       // 上电待机、手动回位和自动回位共用的目标
+static const float kLatchDeg = 9200.0f;          // 两侧实际角度都要超过的锁扣阈值
 static volatile int position_request;            // 0 停机，1 上簧下拉，2 回位，3 上电慢速待机
-static volatile float pull_target_deg = 10000.0f; // 下拉目标，单位为电机转子角度，已完成实测
+static volatile float pull_target_deg = 11000.0f; // 下拉目标，单位为电机转子角度，已完成实测
 static volatile float left_down_deg;             // 左侧相对顶部的角度，向下为正
 static volatile float right_down_deg;            // 右侧相对顶部的角度，向下为正
 

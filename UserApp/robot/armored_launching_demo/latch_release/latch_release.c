@@ -15,9 +15,10 @@ static bool release_zero_ready;      // 标记是否已经记录上电零点
 static float release_zero_rotor_deg; // 上电零点，单位为转子角度
 
 static volatile int release_request;               // 0 停机，1 击发一次
+ // static volatile int release_request; // 0停止，1击发，2回位保持
 static volatile float release_target_deg = -45.0f; // 带方向的输出轴目标角度
 static volatile float release_angle_deg;           // 输出轴相对零点的实际角度
-static volatile float release_return_deg = 10.0f;
+static volatile float release_return_deg = 15.0f;
 
 /**
  * @brief 初始化击发机构的 M2006 串级位置环。
@@ -95,37 +96,86 @@ void LatchReleaseTask(void)
     // 停机后仍更新角度，Ozone 可以看到弹簧把拨臂弹回哪里。
     release_angle_deg = (rotor_deg - release_zero_rotor_deg) / 36.0f;
 
-    // 右摇杆本轮触发
-    if (command.release && !releasing)
-    {
-        release_request = 1; // 右摇杆上推一次
-    }
-
-    if (release_request != 1)
-    {
-        releasing = false;
-        DJIMotorStop(latch_motor);
-        return;
-    }
-
+    // // 右摇杆本轮触发
+    // if (command.release && !releasing)
+    // {
+    //     release_request = 1; // 右摇杆上推一次
+    // }
+    //
+    // if (release_request != 1)
+    // {
+    //     releasing = false;
+    //     DJIMotorStop(latch_motor);
+    //     return;
+    // }
+    //
+    // const float now_ms = DWT_GetTimeline_ms();
+    // if (!releasing)
+    // {
+    //     release_start_ms = now_ms; // 收到本次指令时只记一次起点
+    //     releasing = true;
+    //     PIDClear(&latch_motor->motor_controller.angle_PID);
+    //     PIDClear(&latch_motor->motor_controller.speed_PID);
+    // }
+    //
+    // if (now_ms - release_start_ms >= 800.0f)
+    // {
+    //     release_request = 0; // 清掉指令，等待下次手动写 1
+    //     releasing = false;
+    //     DJIMotorStop(latch_motor); // 给零电流，由结构弹簧带回拨臂
+    //     return;
+    // }
+    //
+    // const float target_rotor_deg = release_return_deg + release_target_deg * 36.0f;
+    //
+    // DJIMotorSetPIDRef(latch_motor, target_rotor_deg);
+    // DJIMotorEnable(latch_motor);
     const float now_ms = DWT_GetTimeline_ms();
-    if (!releasing)
+
+    if (command.release && release_request != 1)
     {
-        release_start_ms = now_ms; // 收到本次指令时只记一次起点
-        releasing = true;
+        release_request = 1;
+        release_start_ms = now_ms;
+
         PIDClear(&latch_motor->motor_controller.angle_PID);
         PIDClear(&latch_motor->motor_controller.speed_PID);
     }
 
-    if (now_ms - release_start_ms >= 800.0f)
+    if (release_request == 0)
     {
-        release_request = 0; // 清掉指令，等待下次手动写 1
-        releasing = false;
-        DJIMotorStop(latch_motor); // 给零电流，由结构弹簧带回拨臂
+        DJIMotorStop(latch_motor);
         return;
     }
 
-    const float target_rotor_deg = release_return_deg + release_target_deg * 36.0f;
+    float target_output_deg =
+        (release_request == 1)
+            ? release_target_deg
+            : release_return_deg;
+
+    if (release_request == 1 &&
+        now_ms - release_start_ms >= 800.0f)
+    {
+        release_request = 2;
+        release_start_ms = now_ms;
+        target_output_deg = release_return_deg;
+
+        PIDClear(&latch_motor->motor_controller.angle_PID);
+        PIDClear(&latch_motor->motor_controller.speed_PID);
+    }
+
+    if (release_request == 2 &&(release_angle_deg >= release_return_deg-1  ||
+        now_ms - release_start_ms >= 500.0f))
+    {
+        release_request = 0;
+        DJIMotorStop(latch_motor);
+
+        PIDClear(&latch_motor->motor_controller.angle_PID);
+        PIDClear(&latch_motor->motor_controller.speed_PID);
+        return;
+    }
+
+    const float target_rotor_deg =
+        release_zero_rotor_deg + target_output_deg * 36.0f;
 
     DJIMotorSetPIDRef(latch_motor, target_rotor_deg);
     DJIMotorEnable(latch_motor);

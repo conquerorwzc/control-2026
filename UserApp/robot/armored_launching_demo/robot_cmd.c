@@ -57,6 +57,9 @@ void RobotCmdTask(void)
         // 离线或尚未收到有效帧。恢复后，两根摇杆各自回中才能触发。
         left_centered = false;
         right_centered = false;
+        LauncherCommand command = {0};
+        command.return_requested = true;
+        PubPushMessage(launcher_cmd_pub, &command);
         return;
     }
 
@@ -67,13 +70,11 @@ void RobotCmdTask(void)
     LauncherCommand command =
     {
         .load = left_triggered && left_stick > 0,                // 左摇杆上推，启动上簧
-        .return_requested = left_triggered && left_stick < 0,    // 左摇杆下拨，手动回位
-        .release = StickOnce(rc->rc.rocker_r1, &right_centered), // 右摇杆上推，触发击发
+        .return_requested = left_triggered && left_stick < 0 ,    // 左摇杆下拨，手动回位
+        .release = StickOnce(rc->rc.rocker_r1, &right_centered) , // 右摇杆上推，触发击发
+
     };
 
-    // 本轮有动作才发布
-    if (command.load || command.return_requested || command.release)
-    {
-        PubPushMessage(launcher_cmd_pub, &command);              // 将本轮请求发给执行模块
-    }
+    //每轮都发布
+    PubPushMessage(launcher_cmd_pub, &command);              // 将本轮请求发给执行模块
 }
