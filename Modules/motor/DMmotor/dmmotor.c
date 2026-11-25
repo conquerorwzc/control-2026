@@ -75,6 +75,16 @@ static void DMMotorDecode(CANInstance* motor_can) {
       tmp = (uint16_t)(((rxbuff[4] & 0x0f) << 8) | rxbuff[5]);
       measure->torque = uint_to_float(tmp, DM_T_MIN_J8009P, DM_T_MAX_J8009P, 12);
       break;
+  case J4340:
+      tmp = (uint16_t)((rxbuff[1] << 8) | rxbuff[2]);
+      measure->position = uint_to_float(tmp, DM_P_MIN_J4340, DM_P_MAX_J4340, 16);
+
+      tmp = (uint16_t)((rxbuff[3] << 4) | (rxbuff[4] >> 4));
+      measure->velocity = uint_to_float(tmp, DM_V_MIN_J4340, DM_V_MAX_J4340, 12);
+
+      tmp = (uint16_t)(((rxbuff[4] & 0x0f) << 8) | rxbuff[5]);
+      measure->torque = uint_to_float(tmp, DM_T_MIN_J4340, DM_T_MAX_J4340, 12);
+      break;
     default:
       break;
   }
@@ -239,8 +249,23 @@ __attribute__((noreturn)) void DMMotorTask(void const* argument) {
         if (motor->stop_flag == MOTOR_STOP)
           motor_send_mailbox.torque_des = float_to_uint(0, DM_T_MIN_J8009P, DM_T_MAX_J8009P, 12);
         break;
-      default:
+      case J4340:
+        if (motor->stop_flag == MOTOR_STOP) {
+            set = 0.0f;
+        }
+
+        LIMIT_MIN_MAX(set, DM_T_MIN_J4340, DM_T_MAX_J4340);
+        motor_send_mailbox.position_des =
+            float_to_uint(0.0f, DM_P_MIN_J4340, DM_P_MAX_J4340, 16);
+        motor_send_mailbox.velocity_des =
+            float_to_uint(0.0f, DM_V_MIN_J4340, DM_V_MAX_J4340, 12);
+        motor_send_mailbox.torque_des =
+            float_to_uint(set, DM_T_MIN_J4340, DM_T_MAX_J4340, 12);
         break;
+
+    default:
+        osDelay(1);
+        continue;
     }
     motor_send_mailbox.Kp = 0;
     motor_send_mailbox.Kd = 0;
@@ -256,7 +281,7 @@ __attribute__((noreturn)) void DMMotorTask(void const* argument) {
         (uint8_t)(((motor_send_mailbox.Kd & 0xF) << 4) | (motor_send_mailbox.torque_des >> 8));
     motor->motor_can_instance->tx_buff[7] = (uint8_t)(motor_send_mailbox.torque_des);
     CANTransmit(motor->motor_can_instance, 1);
-    osDelay(1);
+    osDelay(4);
   }
 }
 
