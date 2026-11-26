@@ -23,11 +23,11 @@ typedef enum
 // 机器人层只填写命令；摩擦轮为转子侧 °/s，拨弹盘为 rad。
 typedef struct
 {
-    Shoot_Mode_e shoot_mode;
-    Friction_Mode_e friction_mode;
-    float friction_speed;
-    Load_Mode_e load_mode;
-    uint32_t load_period_ms; // 单发逐颗调度周期；连发换算为速度；拨弹时须为正值，单位 ms。
+    Shoot_Mode_e shoot_mode;        //发射组件的总使能命令
+    Friction_Mode_e friction_mode;  //摩擦轮的独立开关，shoot_mode同时打开才能运行
+    float friction_speed;           //摩擦电机的目标转速，单位是转子侧 °/s。
+    Load_Mode_e load_mode;          //拨弹盘的工作模式，分为停止、位置步进和连续转动。
+    uint32_t load_period_ms;        //单发逐颗调度周期；连发换算为速度；拨弹时须为正值，单位 ms。
 } Shoot_Ctrl_Cmd_s;
 
 typedef struct

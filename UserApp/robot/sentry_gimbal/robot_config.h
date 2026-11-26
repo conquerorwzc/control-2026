@@ -44,7 +44,7 @@
         },                                                           \
         .motor_type = M2006,                                         \
         .can_init_config = {                                        \
-            .can_handle = &hcan1,                                    \
+            .can_handle = &hcan2,                                    \
             .tx_id = (id),                                          \
         },                                                           \
     }
@@ -56,13 +56,13 @@
 #define LOADER_STEP_PERIOD_UP_MS 50U // 20 Hz；改为 40U 即 25 Hz，无需增加遥控档位。
 //遥控器方向
 #define REMOTE_YAW_DIRECTION (-1.0f)
-#define REMOTE_PITCH_DIRECTION (-1.0f)
+#define REMOTE_PITCH_DIRECTION (+1.0f)
 
 
 static Shoot_Init_Config_s shoot_init_config = {
     .friction_motor_config = {
         FRICTION_MOTOR_CONFIG(5),
-        FRICTION_MOTOR_CONFIG(6),
+        FRICTION_MOTOR_CONFIG(8),
         FRICTION_MOTOR_CONFIG(7),
     },
     // 暂不区分轮序，同速同向；实际装配需要反转时修改对应系数的符号。
@@ -108,8 +108,8 @@ static Shoot_Init_Config_s shoot_init_config = {
         .controller_setting_init_config = {
             .outer_loop_type = ANGLE_LOOP,
             .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
-            .motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
-            .feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
+            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
             .angle_feedback_source = MOTOR_FEED,
             .speed_feedback_source = MOTOR_FEED,
         },
@@ -183,7 +183,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
     .small_pitch_motor_config =
         {
             .controller_setting_init_config =
-                {.motor_reverse_flag = MOTOR_DIRECTION_NORMAL},
+                {.motor_reverse_flag = MOTOR_DIRECTION_REVERSE},
             .motor_type = J4310,
             .can_init_config =
                 {
@@ -257,9 +257,9 @@ static Gimbal_Init_Config_s gimbal_init_config = {
             .motor_type = J4310,
             .can_init_config =
                 {
-                    .can_handle = &hcan1,
-                    .tx_id = 0X0B,
-                    .rx_id = 0X0A
+                    .can_handle = &hcan2,
+                    .tx_id = 0X0D,
+                    .rx_id = 0X0C
                 },
             .controller_param_init_config =
                 {
@@ -305,7 +305,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
             .Yaw = -90.0f,
             .Pitch = 180.0f,
             .Roll = 0.0f,
-            .GyroOffset = {0.00375441322f, -0.00453697331f, -0.00205552462f},
+            .GyroOffset = {-0.00164795644f, -0.00277691358f, 0.000660890015f},
         },
     // Follow 输出直接累加到大 Yaw 目标，单位 deg/次，当前实现未在累加处乘 dt。
     .Yaw_Follow_PID =

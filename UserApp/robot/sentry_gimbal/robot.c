@@ -23,11 +23,11 @@ static uint8_t UpdateBurstSelection(uint8_t left, int16_t dial, uint8_t control_
 static void RemoteControlSet(void)
 {
     Gimbal_Ctrl_Cmd_s *gimbal_cmd = &robot->gimbal->gimbal_ctrl_cmd;
-    /* 摩擦轮与拨弹盘控制暂时停用。
+
     static uint32_t load_period_ms = LOADER_STEP_PERIOD_MID_MS;
     Shoot_Ctrl_Cmd_s *shoot_cmd = &robot->shoot->shoot_ctrl_cmd;
     *shoot_cmd = (Shoot_Ctrl_Cmd_s){0};
-    */
+
     robot->robot_mode = ROBOT_POWER_OFF;
     gimbal_cmd->gimbal_mode = GIMBAL_POWER_OFF;
     gimbal_cmd->burst_feedforward_enabled = 0;          //连发前馈
@@ -47,7 +47,7 @@ static void RemoteControlSet(void)
         return;
     }
 
-    /* 摩擦轮与拨弹盘控制暂时停用。
+
     // 左中只开摩擦轮，左上拨弹；拨轮负向选 700 ms 位置步进，正向选 20 Hz 速度连发。
     if (switch_is_mid(left) || switch_is_up(left))
     {
@@ -69,7 +69,6 @@ static void RemoteControlSet(void)
     else
         load_period_ms = LOADER_STEP_PERIOD_MID_MS;
 
-    */
     // 右中水平、右上垂直；两档均使能云台，右下关闭云台。
     if (!(switch_is_mid(right) || switch_is_up(right)))
     {
@@ -96,7 +95,7 @@ void RobotInit(void)
     robot->robot_mode = ROBOT_POWER_OFF;
     robot->rc_data = RemoteControlInit(&huart3);
     robot->gimbal = GimbalInit(&gimbal_init_config);
-    // robot->shoot = ShootInit(&shoot_init_config);
+    robot->shoot = ShootInit(&shoot_init_config);
     VofaInit();
 }
 
@@ -109,7 +108,7 @@ void RobotTask(void)
 {
     RobotCMDTask();
     GimbalTask();
-    // ShootTask();
+    ShootTask();
     VofaTick();
 }
 
