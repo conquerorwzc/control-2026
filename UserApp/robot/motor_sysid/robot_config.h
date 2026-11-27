@@ -114,7 +114,7 @@ static Chassis_Init_Config_s chassis_init_config = {
                     .can_init_config = {.can_handle = &hcan1, .tx_id = 0x03u, .rx_id = 0x13u},
                 },
             .zero_rad = 0.945361238f,
-            .direction = 1.0f, // 按镜像长端和 demo 的反馈方向换算，待实机核对。
+            .direction = 1.0f, // 实测向车头转动时，编码器角度增大。
             .center_rad = -0.428652864f,
             .kp_nm_per_rad = 10.0f,
             .kd_nm_per_rad_s = 0.5f,
@@ -128,7 +128,7 @@ static Chassis_Init_Config_s chassis_init_config = {
                     .can_init_config = {.can_handle = &hcan1, .tx_id = 0x04u, .rx_id = 0x14u},
                 },
             .zero_rad = 2.210682934f,
-            .direction = 1.0f, // 按镜像长端和 demo 的反馈方向换算，待实机核对。
+            .direction = 1.0f, // 实测向车头转动时，编码器角度增大。
             .center_rad = 1.011069236f,
             .kp_nm_per_rad = 10.0f,
             .kd_nm_per_rad_s = 0.5f,
