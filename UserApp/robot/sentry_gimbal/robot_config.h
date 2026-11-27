@@ -50,7 +50,7 @@
     }
 
 // 保留当前遥控速度，单位为转子侧 °/s，不是 rpm。
-#define FRICTION_SPEED_MID_APS 55000.0f
+#define FRICTION_SPEED_MID_APS 55000.0f         //55000
 #define FRICTION_SPEED_UP_APS 15000.0f
 #define LOADER_STEP_PERIOD_MID_MS 1000U
 #define LOADER_STEP_PERIOD_UP_MS 50U // 20 Hz；改为 40U 即 25 Hz，无需增加遥控档位。
@@ -125,8 +125,6 @@ static Shoot_Init_Config_s shoot_init_config = {
 // ID 5/6/7：控制帧 0x1FF 的字节 0..5，反馈分别为 0x205/0x206/0x207。
 // 请勿与同一 CAN1 上使用这些反馈 ID 的设备重复注册。
 
-// 四轴参数同步自 3e3c6aa8；大 Yaw 按联合运行约定保留 0x04/0x14。
-#define ALIGN_DEG (-173.0f)  // deg，小 Yaw 机械对齐零位
 /*
 | 对象 | 角度反馈 | 速度反馈 | 速度环输出 |
 | 大 Yaw：DM-J4310 | 电机累计角度，rad | 电机速度，rad/s | DM 力矩指令 |
@@ -253,7 +251,7 @@ static Gimbal_Init_Config_s gimbal_init_config = {
     .small_yaw_motor_config =
         {
             .controller_setting_init_config =
-                {.motor_reverse_flag = 1},
+                {.motor_reverse_flag = MOTOR_DIRECTION_REVERSE},
             .motor_type = J4310,
             .can_init_config =
                 {

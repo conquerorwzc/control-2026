@@ -7,7 +7,43 @@
 #define PI 3.14159265358979f
 #endif
 #define UP_ANGLE (0.00f)
-#define DOWN_ANGLE 0.60f
+#define DOWN_ANGLE (0.60f)
+
+// 各轴编码器 total_angle 的直接限位，单位 rad。
+// 标定：云台 POWER_OFF（电机零力矩）后手动拨到两个机械极限，
+//       读取对应电机 measure.total_angle 填入；按数值排序（MIN < MAX），
+//       并各留 3~5°（约 0.05~0.09 rad）机械余量。
+#define SMALL_YAW_MIN_RAD          (-1.2f)  // TODO: 填实测编码器值
+#define SMALL_YAW_MAX_RAD          ( 0.0f)  // TODO: 填实测编码器值
+#define SMALL_YAW_FAULT_MARGIN_RAD ( 0.10f) // 约 5.7°，超软限位多少判定硬故障
+
+#define SMALL_PITCH_MIN_RAD          (-PI)  // TODO: 填实测编码器值
+#define SMALL_PITCH_MAX_RAD          ( PI)  // TODO: 填实测编码器值
+#define SMALL_PITCH_FAULT_MARGIN_RAD ( 0.10f)
+
+// UP_ANGLE/DOWN_ANGLE 必须落在 [BIG_PITCH_MIN_RAD, BIG_PITCH_MAX_RAD] 内。
+#define BIG_PITCH_MIN_RAD          (-0.10f) // TODO: 填实测编码器值
+#define BIG_PITCH_MAX_RAD          ( 0.70f) // TODO: 填实测编码器值
+#define BIG_PITCH_FAULT_MARGIN_RAD ( 0.10f)
+
+
+// 硬限位状态。锁存标志只使用 AXIS_LIMIT_OK / AXIS_LIMIT_FAULT 两态；
+// AXIS_LIMIT_RECOVERED 仅作为 ApplyAxisLimit() 的当周期返回值。
+typedef enum {
+    AXIS_LIMIT_OK = 0,     // 未达到硬限位；目标已按需夹紧
+    AXIS_LIMIT_FAULT,      // 已达到硬限位，锁存零力矩
+    AXIS_LIMIT_RECOVERED,  // 刚从硬限位恢复到软限位内
+} AxisLimit_State_e;
+
+// 单轴限位参数；不涉及电机/BSP 层定义。
+typedef struct {
+    float direction;   // 编码器 total_angle 增大时，指令域角度的变化方向，+1 同向、-1 反向
+    float min_rad;     // 编码器软限位下限，单位 rad
+    float max_rad;     // 编码器软限位上限，单位 rad
+    float margin_rad;  // 超出软限位多少后判硬故障，单位 rad
+} AxisLimit_Config_s;
+
+
 typedef enum {
     GIMBAL_POWER_OFF = 0,  // 电机零输出，不代表承重机构保持当前位置
     GIMBAL_ON,
@@ -85,6 +121,13 @@ typedef struct {
     float small_pitch_burst_feedforward;  // PID坐标，N*m
     float big_pitch_total_feedforward;    // 重力+连发，供驱动读取
     float small_pitch_total_feedforward;
+    // 编码器限位参数与锁存标志；参数在 GimbalInit() 中按 gimbal.h 的宏初始化。
+    AxisLimit_Config_s small_yaw_limit;
+    AxisLimit_Config_s small_pitch_limit;
+    AxisLimit_Config_s big_pitch_limit;
+    AxisLimit_State_e small_yaw_hard_fault;
+    AxisLimit_State_e small_pitch_hard_fault;
+    AxisLimit_State_e big_pitch_hard_fault;
 } GimbalInstance;
 /**
  * @brief 初始化云台,会被RobotInit()调用
