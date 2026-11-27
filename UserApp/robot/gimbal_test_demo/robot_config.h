@@ -150,13 +150,13 @@ static Shoot_Init_Config_s shoot_init_config = {
     .shoot_param =
         {
             .one_bullet_delta_angle = 60.0f,              // 一发弹丸拨盘转动角度(输出侧)
-            .reduction_ratio_loader = 100.0f,             // 3508 拨盘减速比
+            .reduction_ratio_loader = 36.0f,             //  拨盘减速比
             .num_per_circle = 6,                          // 拨盘一圈装载量(模块不读, 仅注释)
             .loader_direction = -1,                       // 拨盘方向, 1 正 -1 反
             .friction_num = 3,                            // 摩擦轮数量(模块不读, 以 FRICTION_NUM 为准)
-            .friction_speed = 5000.0f,                    // ★★ 首次调试先用 5000, 确认方向后改 26500
-            .friction_speed_min = 4000.0f,                // ★★ 必须设! 否则 LimitFrictionSpeedAbs 限成 0
-            .friction_speed_max = 55000.0f,               // ★★ 26500 调试通后这里放宽即可
+            .friction_speed = 5000.0f,                    //  首次调试先用 5000, 确认方向后改 26500
+            .friction_speed_min = 4000.0f,                //
+            .friction_speed_max = 55000.0f,               //
             .friction_coefficients = {1.0f, -1.0f, 1.1f}, // 三轮: 第2个反向, 第3个快10%配平
             .deadtime_burstfire = 500,                    // 连发间隔 2 发/秒
             .deadtime_onebullet = 1000,                   // 单发间隔 1 发/秒
@@ -168,8 +168,8 @@ static Shoot_Init_Config_s shoot_init_config = {
             .shooter_barrel_heat_limit = 200,             // 热量上限
         },
     /* 三轮全部挂在 CAN2 (PB5/PB6), ID 1/2/4 空闲 */
-    .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan2, 1, MOTOR_DIRECTION_NORMAL),
-    .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan2, 2, MOTOR_DIRECTION_NORMAL),
+    .friction_motor_config[0] = FRICTION_MOTOR_CONFIG(&hcan1, 4, MOTOR_DIRECTION_NORMAL),
+    .friction_motor_config[1] = FRICTION_MOTOR_CONFIG(&hcan1, 5, MOTOR_DIRECTION_NORMAL),
     .friction_motor_config[2] = FRICTION_MOTOR_CONFIG(&hcan2, 4, MOTOR_DIRECTION_NORMAL),
 
     .loader_motor_config =
@@ -193,11 +193,11 @@ static Shoot_Init_Config_s shoot_init_config = {
                             .MaxOut = 15000.0f,       // 电流指令上限(<16384 满量程)
                         },
                 },
-            .motor_type = M3508,                      // ★ 拨盘是 M3508(不是 M2006)
+            .motor_type = M2006,
             .can_init_config =
                 {
-                    .can_handle = &hcan1,             // 拨盘挂 CAN1
-                    .tx_id = 5,                       // ★ 5 空闲(云台 yaw=6, pitch=2)
+                    .can_handle = &hcan1,
+                    .tx_id = 3,
                 },
             .controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_NORMAL,
             .controller_setting_init_config.feedback_reverse_flag = FEEDBACK_DIRECTION_NORMAL,
