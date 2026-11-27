@@ -18,7 +18,7 @@
 #define SYSID_HIP_PATTERN SYSID_HIP_FRONT
 #endif
 #ifndef SYSID_TEST_SIDES
-#define SYSID_TEST_SIDES (2u << CHASSIS_LEFT) // 左=1，右=2，双侧=3。
+#define SYSID_TEST_SIDES (1u << CHASSIS_LEFT) // 左=1，右=2，双侧=3。
 #endif
 #ifndef SYSID_TRIAL_DIRECTION
 #define SYSID_TRIAL_DIRECTION 1
@@ -83,7 +83,7 @@ static Chassis_Init_Config_s chassis_init_config = {
             .motor_config =
                 {
                     .motor_type = J8009P,
-                    .can_init_config = {.can_handle = &hcan1, .tx_id = 0x01u, .rx_id = 0x11u},
+                    .can_init_config = {.can_handle = &hcan2, .tx_id = 0x01u, .rx_id = 0x11u},
                 },
             .zero_rad = -1.818558794f,
             .direction = -1.0f,
@@ -97,7 +97,7 @@ static Chassis_Init_Config_s chassis_init_config = {
             .motor_config =
                 {
                     .motor_type = J8009P,
-                    .can_init_config = {.can_handle = &hcan1, .tx_id = 0x02u, .rx_id = 0x12u},
+                    .can_init_config = {.can_handle = &hcan2, .tx_id = 0x02u, .rx_id = 0x12u},
                 },
             .zero_rad = 0.859433112f,
             .direction = -1.0f,
@@ -111,7 +111,7 @@ static Chassis_Init_Config_s chassis_init_config = {
             .motor_config =
                 {
                     .motor_type = J8009P,
-                    .can_init_config = {.can_handle = &hcan1, .tx_id = 0x03u, .rx_id = 0x13u},
+                    .can_init_config = {.can_handle = &hcan2, .tx_id = 0x03u, .rx_id = 0x13u},
                 },
             .zero_rad = 0.945361238f,
             .direction = 1.0f, // 实测向车头转动时，编码器角度增大。
@@ -125,7 +125,7 @@ static Chassis_Init_Config_s chassis_init_config = {
             .motor_config =
                 {
                     .motor_type = J8009P,
-                    .can_init_config = {.can_handle = &hcan1, .tx_id = 0x04u, .rx_id = 0x14u},
+                    .can_init_config = {.can_handle = &hcan2, .tx_id = 0x04u, .rx_id = 0x14u},
                 },
             .zero_rad = 2.210682934f,
             .direction = 1.0f, // 实测向车头转动时，编码器角度增大。
