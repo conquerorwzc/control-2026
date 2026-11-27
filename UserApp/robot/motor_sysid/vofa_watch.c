@@ -25,10 +25,10 @@ static bool vofa_ready;
 
 bool VofaInit(void)
 {
-    huart1.Init.BaudRate = kBaudRate;
-    if (HAL_UART_Init(&huart1) != HAL_OK)
+    huart7.Init.BaudRate = kBaudRate;
+    if (HAL_UART_Init(&huart7) != HAL_OK)
         return false;
-    VOFAInit(&huart1);
+    VOFAInit(&huart7);
     vofa_ready = true;
     return true;
 }
@@ -47,7 +47,7 @@ void VofaTick(const ChassisRequest *command, uint64_t now_us, bool online, unsig
     static uint16_t frame_seq;
     // DMA 共用发送缓冲，忙时只推进序号，避免覆盖正在发送的帧。
     const uint16_t seq = frame_seq++;
-    if (!vofa_ready || huart1.gState != HAL_UART_STATE_READY)
+    if (!vofa_ready || huart7.gState != HAL_UART_STATE_READY)
         return;
 
     const RobotInstance *robot = RobotGet();
