@@ -56,7 +56,6 @@
 
 static const float kWheelStepRadS[] = {10.0f, 30.0f, 60.0f};
 static const float kTriangleSpeedRadS[] = {0.2f, 0.5f, 1.0f};
-static const float kHipStartToleranceRad = 0.0f; // TODO(待确认): 接管姿态允许偏差。
 static const float kRemoteDialFullScale = 660.0f;
 
 // 拨轮目标范围。机械止挡的平面腿长实测为 160.08～364.86 mm。
@@ -114,9 +113,9 @@ static Chassis_Init_Config_s chassis_init_config = {
                     .motor_type = J8009P,
                     .can_init_config = {.can_handle = &hcan2, .tx_id = 0x03u, .rx_id = 0x13u},
                 },
-            .zero_rad = NAN,
-            .direction = 0.0f, // TODO(待确认): 右前零位及方向。
-            .center_rad = NAN,
+            .zero_rad = 0.945361238f,
+            .direction = 1.0f, // 按镜像长端和 demo 的反馈方向换算，待实机核对。
+            .center_rad = -0.428652864f,
             .kp_nm_per_rad = 10.0f,
             .kd_nm_per_rad_s = 0.5f,
             .max_torque_nm = 40.0f,
@@ -128,9 +127,9 @@ static Chassis_Init_Config_s chassis_init_config = {
                     .motor_type = J8009P,
                     .can_init_config = {.can_handle = &hcan2, .tx_id = 0x04u, .rx_id = 0x14u},
                 },
-            .zero_rad = NAN,
-            .direction = 0.0f, // TODO(待确认): 右后零位及方向。
-            .center_rad = NAN,
+            .zero_rad = 2.210682934f,
+            .direction = 1.0f, // 按镜像长端和 demo 的反馈方向换算，待实机核对。
+            .center_rad = 1.011069236f,
             .kp_nm_per_rad = 10.0f,
             .kd_nm_per_rad_s = 0.5f,
             .max_torque_nm = 40.0f,

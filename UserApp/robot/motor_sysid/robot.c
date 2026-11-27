@@ -24,18 +24,9 @@ _Static_assert(SYSID_TRIAL_DIRECTION == 1 || SYSID_TRIAL_DIRECTION == -1, "Selec
 _Static_assert(SYSID_EXPERIMENT <= SYSID_WHEEL_COAST && SYSID_HIP_PATTERN <= SYSID_HIP_BOTH_ANTI_PHASE,
                "Select a valid trial and hip pattern");
 
-static bool HardwareConfigured(void)
+static bool WheelsConfigured(void)
 {
     const Chassis_Init_Config_s *c = &chassis_init_config;
-    for (unsigned i = 0; i < CHASSIS_JOINT_COUNT; ++i)
-    {
-        if (!(c->joint_mask & (1u << i)))
-            continue;
-        // 缺少标定的轴不能注册。DMMotorInit 会发送硬件使能。
-        if (!isfinite(c->hip[i].zero_rad) || fabsf(c->hip[i].direction) != 1.0f || !isfinite(c->hip[i].center_rad) ||
-            !(c->hip[i].max_torque_nm > 0.0f))
-            return false;
-    }
     for (unsigned side = 0; side < CHASSIS_LEG_COUNT; ++side)
     {
         if (!(c->wheel_mask & (1u << side)))
@@ -141,16 +132,13 @@ static bool TrialCanStart(float parameter)
 
     if (!robot.chassis || !SYSID_IS_HIP(SYSID_EXPERIMENT))
         return true;
-    if (!(kHipStartToleranceRad > 0.0f))
-        return false;
 
     for (unsigned i = 0; i < CHASSIS_JOINT_COUNT; ++i)
     {
         if (!(SYSID_JOINT_MASK & (1u << i)))
             continue;
         const ChassisJointFeedback *fb = &robot.chassis->legs[i / 2u].joint[i % 2u];
-        const float error = remainderf(fb->q_rad - chassis_init_config.hip[i].center_rad, 2.0f * PI);
-        if (!fb->valid || !(fabsf(error) <= kHipStartToleranceRad))
+        if (!fb->valid)
             return false;
     }
     return true;
@@ -161,12 +149,7 @@ static void BuildHipRequest(ChassisRequest *request, float position)
     request->enabled = SYSID_REAL_HARDWARE;
     for (unsigned i = 0; i < CHASSIS_JOINT_COUNT; ++i)
         if (SYSID_JOINT_MASK & (1u << i))
-        {
-            const float center = chassis_init_config.hip[i].center_rad;
-            // 空跑可预览还没有标定中心的轴。
-            request->hip_position_rad[i] =
-                (!SYSID_REAL_HARDWARE && !isfinite(center) ? 0.0f : center) + JointPhase(i) * position;
-        }
+            request->hip_position_rad[i] = chassis_init_config.hip[i].center_rad + JointPhase(i) * position;
 }
 
 static void BuildWheelRequest(ChassisRequest *request, float reference, bool current_mode)
@@ -219,8 +202,7 @@ static void RecordHoldingTorque(uint64_t now_us)
         if (!(mask & (1u << i)))
             continue;
         const ChassisJointFeedback *fb = &robot.chassis->legs[i / 2u].joint[i % 2u];
-        const float error = remainderf(fb->q_rad - chassis_init_config.hip[i].center_rad, 2.0f * PI);
-        if (!(fabsf(error) <= kHipStartToleranceRad) || fabsf(fb->qd_rad_s) >= HIP_MOTION_RAD_S)
+        if (!fb->valid || fabsf(fb->qd_rad_s) >= HIP_MOTION_RAD_S)
             stable = false;
     }
     if (!stable)
@@ -451,26 +433,31 @@ void RobotInit(void)
 {
     robot.rc_data = RemoteControlInit(SYSID_RC_PORT);
     if (!VofaInit())
-    {
         LOGERROR("[motor_sysid] VOFA init failed");
+    if (!SYSID_REAL_HARDWARE)
+        return;
+
+    if (!WheelsConfigured())
+    {
+        LOGERROR("[motor_sysid] Check wheel configuration");
         return;
     }
-    if (SYSID_REAL_HARDWARE)
+
+    robot.chassis = ChassisInit(&chassis_init_config);
+    if (!robot.chassis)
     {
-        if (HardwareConfigured())
-            robot.chassis = ChassisInit(&chassis_init_config);
-        if (!robot.chassis)
-            LOGERROR("[motor_sysid] Check motor configuration and CAN filter slots");
-        if (SYSID_EXPERIMENT == SYSID_HIP && robot.chassis)
-        {
-            const ChassisGeometryConfig *geometry = &chassis_init_config.geometry;
-            length_pid_config.first_m = geometry->first_m;
-            length_pid_config.second_m = geometry->second_m;
-            length_pid_config.virtual_second_m = geometry->virtual_second_m;
-            length_pid_config.epsilon = geometry->singular_epsilon_m;
-            for (unsigned side = 0; side < CHASSIS_LEG_COUNT; ++side)
-                PIDInit(&length_state[side].pid, &length_pid_config.pid);
-        }
+        LOGERROR("[motor_sysid] Chassis init failed: check CAN filter slots");
+        return;
+    }
+    if (SYSID_EXPERIMENT == SYSID_HIP)
+    {
+        const ChassisGeometryConfig *geometry = &chassis_init_config.geometry;
+        length_pid_config.first_m = geometry->first_m;
+        length_pid_config.second_m = geometry->second_m;
+        length_pid_config.virtual_second_m = geometry->virtual_second_m;
+        length_pid_config.epsilon = geometry->singular_epsilon_m;
+        for (unsigned side = 0; side < CHASSIS_LEG_COUNT; ++side)
+            PIDInit(&length_state[side].pid, &length_pid_config.pid);
     }
 }
 

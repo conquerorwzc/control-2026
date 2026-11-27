@@ -6,7 +6,7 @@
 
 1. 在 robot_config.h 选 SYSID_EXPERIMENT、SYSID_TEST_SIDES、SYSID_TRIAL_DIRECTION。方向分别取 +1 和 −1。髋实验另选 SYSID_HIP_PATTERN 和各髋电机的 center_rad。默认选择左腿，SYSID_REAL_HARDWARE=0 可先看参考轨迹。
 2. 做髋试验时固定机身、保留整条闭链腿、轮子离地。按指南先完成力矩读数标定，拆气弹簧做多工作点辨识，装回后用独立工况验证。做轮试验时轮子离地自由转动。分别记录左右轮、母线电压、温度及轮胎/机械装配。
-3. 在 robot_config.h 填写本次工作点、轨迹幅值和台架限值。髋电机块包含中心角、增益与力矩上限，当前每台髋电机的指令限幅为 ±40 N·m。髋扫频采用周期角度误差，不设运行角度限位。起始姿态允许偏差 kHipStartToleranceRad 仍需填写。髋位置 PD 的 10/0.5 来自 SWEEP_IDENT §4.4 的建议起点。左髋已填写实测零偏和方向，右髋零位、方向及两轮方向待标定。轮电机块包含减速比、增益、轮速与电流上限。完成所选工况的配置后编译 SYSID_REAL_HARDWARE=1。
+3. 在 robot_config.h 填写本次工作点、轨迹幅值和台架限值。髋电机块包含中心角、增益与力矩上限，当前每台髋电机的指令限幅为 ±40 N·m。髋扫频采用周期角度误差。髋位置 PD 的 10/0.5 来自 SWEEP_IDENT §4.4 的建议起点。左髋已填写实测零偏和方向，右髋按镜像长端和 demo 的反馈方向暂定，待实机核对。轮电机块包含减速比、增益、轮速与电流上限。完成所选工况的配置后编译 SYSID_REAL_HARDWARE=1。
 4. UART5 接 DT7，USART1 以 1 Mbaud、8N1 接 VOFA+，协议选 JustFloat、录制 CH0..CH24。在线左下复位，左中准备并用右拨杆选档，再左上执行。完成、取消或故障后重新左下准备。软件停机向驱动写零，DM 注册本身会使能。实机先确认支撑、独立断电与工作域。
 5. 完整录制后按试验开始、结束的有效段导出 CSV。保存构建使用的 robot_config.h 和覆盖的编译宏，记录台架工作点。保存一次未参与拟合的独立姿态或方向作为留出数据。检查序号、实际反馈时戳、限幅标志和各电机温度。固件记录温度，台架试验期间由操作员监看。
 
@@ -34,6 +34,8 @@
 | 右前 / 右后 | CAN2 | 0x03/0x13、0x04/0x14 |
 
 C620 左轮为 CAN1 ID 1，右轮为 CAN2 ID 2，减速比 15.76。髋实验仅注册指定侧的髋电机，轮实验仅注册指定轮。H723 的 CAN1、CAN2 生成配置各有一个标准滤波槽。底盘在注册电机前核对 Message RAM 空间，再按实际启用的电机数调用现有 HAL 初始化滤波槽。队内 OSTaskInit 和新版 DMMotorTaskInit 负责启动任务。
+
+实机直接注册选定侧的髋电机，上电默认发送零力矩。两髋反馈有效后立即更新腿长和腿角。`SYSID_TEST_SIDES=2` 只注册右腿，调试器可直接读 `robot.chassis->legs[1].front_motor->measure.total_angle` 和 `robot.chassis->legs[1].rear_motor->measure.total_angle`。
 
 调试器可查看 robot.chassis->legs[0/1].length_m 和 angle_rad，分别为虚拟腿长（m）和相对机身向下轴的腿角（rad）。单轮工况没有髋反馈，geometry_valid 区分是否可用。轮速度取 C620 接收帧的转子 RPM，换算为轮端 rad/s。C620 实际下发电流以 A 记录，反馈保留逻辑方向的原始计数，换算为反馈 A 需有独立依据。
 
