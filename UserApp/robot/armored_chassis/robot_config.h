@@ -1,6 +1,6 @@
 /**
  * @file robot_config.h
- * @brief 重装底盘各电机的型号、CAN 配置、反馈方向与 PID 参数。
+ * @brief 重装底盘的电机型号、CAN 配置、反馈方向、PID 参数和抬升行程。
  */
 
 #pragma once
@@ -123,10 +123,9 @@ static Motor_Init_Config_s guide_right_config = {
     .controller_param_init_config.speed_PID = {.MaxOut = 10000.0f},
 };
 
-// CAN2：前抬升 4340P，后抬升 4340
-// 4340 和 4340P 使用 J4340 驱动配置，tx_id 为电机 ID，rx_id 为 Master ID。
-// 位置环给出角速度目标，单位为 rad/s。速度环给出力矩指令，单位为 N·m。
-// 右前和左后的输出与反馈同时反向，使四个齿条的正位移都对应抬升。
+// CAN2 上的四路抬升统一使用 J4340 驱动配置。tx_id 为电机 ID，rx_id 为反馈帧的 Master ID。
+// 位置外环输出角速度目标，单位 rad/s。速度内环输出力矩指令，单位 N·m。
+// 右前和左后的输出与反馈同时反向，使四轴的正方向统一为齿条向上收回。
 /// 左前抬升电机配置，对应 30 齿小齿轮。
 static Motor_Init_Config_s lift_lf_config = {
     .motor_type = J4340,
@@ -235,10 +234,16 @@ static Motor_Init_Config_s lift_rr_config = {
         .MaxOut = 28.0f,
     },
 };
+
+/// 以上挡块为 0 mm，向下伸出为负。四路共用的下限按最短实测行程留出余量。
 static const float kLiftMinTargetMm = -280.0f;
 
-// 按四台电机和挡块实测填写。0 表示尚未配置。
+// 回零力矩数组按左前、右前、左后、右后排列，单位 N·m。
+// 每轴须满足 0 < 触顶阈值 < 回零力矩上限 ≤ 正常速度环输出上限。
+/// 搜索上挡块时用于限制速度环输出的力矩上限。
 static const float kLiftHomeTorqueLimitNm[4] = {2.0f, 2.0f, 2.0f, 2.0f};
+
+/// 齿条接近静止时，用于判定该轴触顶的正向反馈力矩阈值。
 static const float kLiftHomeContactTorqueNm[4] = {0.50f, 0.50f, 0.80f, 0.80f};
 
 // 侧边接头机构采用位置外环和速度内环。下方各配置按实际接线指定 CAN1 或 CAN2。

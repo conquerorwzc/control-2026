@@ -27,20 +27,20 @@ static DMMotorInstance *lift_rf;
 static DMMotorInstance *lift_lr;
 static DMMotorInstance *lift_rr;
 
-// 抬升数组顺序为左前、右前、左后、右后。模数为 2，前侧 30 齿，后侧 50 齿。
+// 抬升数组按左前、右前、左后、右后排列。分度圆半径为模数 × 齿数 / 2，单位 mm。
 static const float kLiftPitchRadiusMm[4] = {30.0f, 30.0f, 50.0f, 50.0f};
-static const float kLiftSpeedMmS = 50.0f;  // 共用位移轨迹的速度，单位 mm/s
-static const float kLiftSyncGain = 2.0f;   // 由位移误差换算纠偏速度，单位 1/s
+static const float kLiftSpeedMmS = 50.0f;  // 回零和正常升降共用的齿条轨迹速度，单位 mm/s
+static const float kLiftSyncGain = 2.0f;   // 将各轴相对平均位移的偏差换算为纠偏速度，单位 1/s
 static const float kLiftMaxSyncMmS = 1.0f; // 单轴纠偏速度的幅值上限，单位 mm/s
 
-static volatile float lift_target_mm;      // Ozone 写入的目标位移，相对本次使能起点
-static volatile float lift_ref_mm;         // 四路共用的当前位移参考
-static volatile float lift_position_mm[4]; // 各齿条相对起点的实测位移，由编码器角度换算
-static float lift_start_angle_rad[4];      // 同一次使能时记录的四个角度起点
-static float lift_speed_ff_rad_s[4];       // 叠加到各轴速度环参考值的角速度前馈
+static volatile float lift_target_mm;      // 松杆后的保持目标，可在摇杆回中时由 Ozone 写入
+static volatile float lift_ref_mm;         // 四路共用的轨迹参考，回零后以上挡块为 0 mm
+static volatile float lift_position_mm[4]; // 各齿条相对上挡块的实测位移，回零后更新
+static float lift_start_angle_rad[4];      // 回零时保存搜索起始角，触顶后改存各轴零位角
+static float lift_speed_ff_rad_s[4];       // 叠加到各轴速度环参考值的角速度前馈，单位 rad/s
 
-static bool lift_reference_ready; // 四个角度起点已采集
-static bool lift_home_started;
+static bool lift_reference_ready; // 四路上挡块零位已建立
+static bool lift_home_started;    // 本次回零搜索已初始化
 
 static RC_ctrl_t *remote_data;
 static bool motors_enabled; // 记录 DJI 电机的输出状态，便于在挡位切换时更新
@@ -48,7 +48,8 @@ static float rotate_command;
 
 /**
  * @brief 注册四个麦轮、六个引导和侧边机构电机、四个抬升电机，并初始化遥控接收。
- * @details 各电机注册后将软件输出置为停止。遥控接收使用 UART5 的 DBUS 接口。
+ * @details 注册后停止各电机的控制输出，等待周期任务根据遥控状态开放输出。
+ *          遥控接收使用 UART5 的 DBUS 接口。
  */
 void RobotInit(void)
 {
@@ -88,7 +89,7 @@ void RobotInit(void)
 }
 
 /**
- * @brief 对居中的遥控通道应用死区并归一化。
+ * @brief 对已减去中位偏置的遥控通道应用死区并归一化。
  * @param[in] input 遥控通道原始值，正常范围为 -660 到 660。
  * @return 死区 [-10, 10] 内返回 0，其余返回按 660 归一化的有符号输入。
  */
@@ -128,7 +129,8 @@ static void SetDjiMotorsEnabled(bool enabled)
 /**
  * @brief 根据左摇杆和拨轮输入解算四个麦轮的速度目标并更新速度环。
  * @param[in] remote 当前有效的遥控数据。
- * @details 车体前进、左移和逆时针旋转为正。四轮速度目标采用电机转子角速度，单位为 °/s。
+ * @details 左摇杆竖直控制前后，水平控制横移，左拨轮控制自转。横移通道按实车方向直接取值。
+ *          解算采用前进、左移和逆时针为正，四轮速度目标为电机转子角速度，单位为 °/s。
  */
 static void WheelTask(const RC_ctrl_t *remote)
 {
@@ -153,18 +155,19 @@ static void WheelTask(const RC_ctrl_t *remote)
 }
 
 /**
- * @brief 使用共用上行轨迹寻找机械上挡块。
- * @param[in] motors 左前、右前、左后、右后的电机实例。
- * @param[in] dt 控制周期，单位为 s。
- * @return 回零可继续或已完成时返回 true，本次回零失败时返回 false。
+ * @brief 以共用上行轨迹寻找机械上挡块，建立四路各自的零位。
+ * @param[in,out] motors 按左前、右前、左后、右后排列的抬升电机实例。
+ * @param[in] dt 相邻两次任务调用的实际时间间隔，单位为 s。
+ * @return 正在回零或本周期完成回零时返回 true。力矩配置无效或达到搜索行程上限时返回 false，由调用方停止输出。
+ * @pre 调用方已确认允许抬升输出，且四路驱动反馈有效。
  */
 static bool LiftHomeTask(DMMotorInstance *const motors[4], float dt)
 {
-
     static float all_stopped_s;
 
     if (!lift_home_started)
     {
+        // 用各轴当前角度作为搜索起点，同时绑定后续共用的速度前馈。
         for (unsigned int i = 0; i < 4; ++i)
         {
             DMMotorInstance *motor = motors[i];
@@ -181,12 +184,12 @@ static bool LiftHomeTask(DMMotorInstance *const motors[4], float dt)
         }
 
         lift_ref_mm = 0.0f;
-
         all_stopped_s = 0.0f;
         lift_home_started = true;
         return true;
     }
 
+    // 用齿条线速度统一判断前后轴是否停住，再检查向上的反馈力矩。
     bool all_at_stop = true;
     for (unsigned int i = 0; i < 4; ++i)
     {
@@ -199,13 +202,16 @@ static bool LiftHomeTask(DMMotorInstance *const motors[4], float dt)
         all_at_stop &= at_stop;
     }
 
+    // 四轴须同时持续满足条件，任一轴未满足就重新计时。
     all_stopped_s = all_at_stop ? all_stopped_s + dt : 0.0f;
 
+    // 搜索上限按共用参考位移判断，避免找不到上挡块时继续推进指令。
     if (lift_ref_mm >= 310.0f)
         return false;
 
     if (all_stopped_s >= 0.10f)
     {
+        // 以各轴此刻的实测角度建立 0 mm，并撤掉本周期的触顶力矩。
         for (unsigned int i = 0; i < 4; ++i)
         {
             lift_start_angle_rad[i] = motors[i]->measure.total_angle;
@@ -219,7 +225,7 @@ static bool LiftHomeTask(DMMotorInstance *const motors[4], float dt)
         return true;
     }
 
-
+    // 在毫米坐标推进，再按各自的齿轮半径换算成角度目标和角速度前馈。
     lift_ref_mm = fminf(310.0f, lift_ref_mm + kLiftSpeedMmS * dt);
 
     for (unsigned int i = 0; i < 4; ++i)
@@ -230,6 +236,7 @@ static bool LiftHomeTask(DMMotorInstance *const motors[4], float dt)
         const float normal_max_out = speed_pid->MaxOut;
 
         lift_speed_ff_rad_s[i] = kLiftSpeedMmS / radius_mm;
+        // DMMotorSetPIDRef 会立即计算力矩，因此仅在本次计算期间使用回零上限。
         speed_pid->MaxOut = kLiftHomeTorqueLimitNm[i];
         DMMotorSetPIDRef(motor, lift_start_angle_rad[i] + lift_ref_mm / radius_mm);
         speed_pid->MaxOut = normal_max_out;
@@ -240,16 +247,16 @@ static bool LiftHomeTask(DMMotorInstance *const motors[4], float dt)
 }
 
 /**
- * @brief 将共用齿条位移指令换算为四个抬升电机的角度目标，并补偿各轴的位移差。
+ * @brief 管理四路抬升回零、遥控升降和齿条同步。
  * @param[in] enabled 整机是否允许抬升电机输出。
- * @details 四路反馈均有效后采集各轴当前角度作为位移起点，清零旧位移指令。
- *          每周期在毫米坐标下推进共用轨迹，再换算为各轴的角度目标和速度前馈。
- *          失能或任一路反馈不可用时，四路均停止力矩输出并清除起点状态。
+ * @param[in] lift_stick 应用死区后的右摇杆竖直输入。正值伸出齿条，负值收回，零值保持位置目标。
+ * @details 四路反馈有效时先完成机械回零。回零后，四轴以上挡块为 0 mm，向下伸出为负位移。
+ *          四轴跟随同一条位移轨迹，以各轴相对平均位移的偏差修正速度前馈。
+ *          失能或反馈不可用时停止四路力矩输出，并重置尚未完成的回零搜索。
  */
 static void LiftTask(bool enabled, float lift_stick)
 {
     DMMotorInstance *const motors[] = {lift_lf, lift_rf, lift_lr, lift_rr};
-
 
     // 记录相邻两次调用的实际时间间隔，单位为秒。
     static uint32_t last_tick;
@@ -282,7 +289,7 @@ static void LiftTask(bool enabled, float lift_stick)
         return;
     }
 
-    // 先更新共用位移参考，再为四路分别计算角度目标。
+    // 摇杆回中时采用保持目标或 Ozone 指令，推杆时向对应行程端点推进。
     float target_mm = fmaxf(kLiftMinTargetMm, fminf(0.0f, lift_target_mm));
 
     if (lift_stick > 0.0f)
@@ -307,12 +314,13 @@ static void LiftTask(bool enabled, float lift_stick)
         lift_ref_mm += ref_speed_mm_s * dt;
     }
 
+    // 记下这一周期到达的轨迹位置，供松杆后保持。
     if (lift_stick != 0.0f)
     {
         lift_target_mm = lift_ref_mm;
     }
 
-    // 齿条位移等于相对起点的转角乘以分度圆半径。
+    // 齿条位移等于相对零位的转角乘以分度圆半径。
     float sum_mm = 0.0f;
     for (unsigned int i = 0; i < 4; ++i)
     {
@@ -325,7 +333,7 @@ static void LiftTask(bool enabled, float lift_stick)
     {
         const float radius_mm = kLiftPitchRadiusMm[i];
 
-        // 由各轴相对平均位移的偏差计算速度纠偏，再换算为 rad/s。
+        // 纠偏量叠加在齿条速度前馈上，角度目标仍取自同一位移轨迹。
         const float sync_mm_s = kLiftSyncGain * (average_mm - lift_position_mm[i]);
         const float correction_mm_s = fmaxf(-kLiftMaxSyncMmS, fminf(kLiftMaxSyncMmS, sync_mm_s));
 
@@ -339,8 +347,8 @@ static void LiftTask(bool enabled, float lift_stick)
 
 /**
  * @brief 周期处理遥控状态，并调度麦轮速度控制与四路抬升。
- * @details 遥控在线且右拨杆处于中位时允许控制。其他状态下停止电机输出并清除旋转指令。
- *          恢复控制时，先更新本周期的运动目标，再开放 DJI 电机输出。
+ * @details 遥控在线且右拨杆居中时，左摇杆和拨轮控制麦轮，右摇杆竖直通道控制抬升。
+ *          撤销使能时停止电机输出并清除旋转滤波状态。恢复使能时先更新目标，再开放 DJI 电机输出。
  */
 void RobotTask(void)
 {

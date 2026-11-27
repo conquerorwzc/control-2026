@@ -11,13 +11,14 @@
 #define CONTROL_2026_ROBOT_H
 
 /**
- * @brief 初始化重装底盘的电机与遥控接收。
+ * @brief 注册重装底盘电机并初始化 DBUS 遥控接收，电机控制输出初始为停止。
  * @note 由框架在周期调用 RobotTask() 之前执行一次。
  */
 void RobotInit(void);
 
 /**
- * @brief 处理遥控使能状态并更新麦轮和抬升控制。
+ * @brief 按遥控使能状态更新麦轮和四路抬升控制。
+ * @details 首次允许抬升输出且四路反馈有效时，先完成机械回零，再响应右摇杆。
  * @note 由框架在 RobotInit() 完成后周期调用。
  */
 void RobotTask(void);
