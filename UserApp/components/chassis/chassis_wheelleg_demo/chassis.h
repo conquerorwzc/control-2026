@@ -33,7 +33,7 @@ typedef struct
     Motor_Init_Config_s motor_config;
     float zero_rad;
     float direction;
-    float center_rad, min_rad, max_rad;
+    float center_rad;
     float kp_nm_per_rad, kd_nm_per_rad_s;
     float max_torque_nm;
 } HipMotor_Init_Config_s;
@@ -106,6 +106,7 @@ typedef struct
     ChassisJointFeedback joint[2];
     ChassisWheelFeedback wheel_feedback;
     bool geometry_valid;
+    float hip_delta_rad; // 前髋减后髋，按标定姿态对齐装配分支。
     float length_m;
     float angle_rad;
 } ChassisLeg;

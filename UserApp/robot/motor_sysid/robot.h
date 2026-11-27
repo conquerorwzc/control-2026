@@ -30,7 +30,8 @@ typedef enum
     SYSID_MODE_HIP_TRIANGLE_02,
     SYSID_MODE_HIP_TRIANGLE_05,
     SYSID_MODE_HIP_TRIANGLE_10,
-    SYSID_MODE_WHEEL_CURRENT_RAMP
+    SYSID_MODE_WHEEL_CURRENT_RAMP,
+    SYSID_MODE_LEG_LENGTH
 } SysIdMode;
 
 typedef enum
@@ -73,6 +74,7 @@ typedef struct
     SysIdState state;
     SysIdMode mode;
     SysIdPhase phase;
+    float length_target_m;
 } RobotInstance;
 
 void RobotInit(void);

@@ -11,6 +11,7 @@
 #include "vofa_watch.h"
 
 static RobotInstance robot;
+static LegLengthState length_state[CHASSIS_LEG_COUNT];
 static float hold_sum_nm[CHASSIS_JOINT_COUNT];
 static unsigned hold_samples;
 static unsigned moving_mask;
@@ -31,8 +32,7 @@ static bool HardwareConfigured(void)
         if (!(c->joint_mask & (1u << i)))
             continue;
         // 缺少标定的轴不能注册。DMMotorInit 会发送硬件使能。
-        if (!isfinite(c->hip[i].zero_rad) || fabsf(c->hip[i].direction) != 1.0f ||
-            !(c->hip[i].min_rad < c->hip[i].center_rad && c->hip[i].center_rad < c->hip[i].max_rad) ||
+        if (!isfinite(c->hip[i].zero_rad) || fabsf(c->hip[i].direction) != 1.0f || !isfinite(c->hip[i].center_rad) ||
             !(c->hip[i].max_torque_nm > 0.0f))
             return false;
     }
@@ -57,6 +57,8 @@ static SysIdMode SelectMode(uint8_t right)
             return SYSID_MODE_HIP_IN_PHASE;
         if (switch_is_mid(right) && SYSID_JOINT_MASK == kAllJoints)
             return SYSID_MODE_HIP_ANTI_PHASE;
+        if (switch_is_down(right))
+            return SYSID_MODE_LEG_LENGTH;
         break;
     case SYSID_HIP_STEP:
         return switch_is_mid(right) ? SYSID_MODE_HIP_STEP : SYSID_MODE_NONE;
@@ -112,6 +114,7 @@ static float TrialParameter(SysIdMode mode)
     case SYSID_MODE_WHEEL_CURRENT_RAMP:
         return WHEEL_RAMP_A_S;
     case SYSID_MODE_NONE:
+    case SYSID_MODE_LEG_LENGTH:
         return 0.0f;
     }
     return 0.0f;
@@ -146,7 +149,8 @@ static bool TrialCanStart(float parameter)
         if (!(SYSID_JOINT_MASK & (1u << i)))
             continue;
         const ChassisJointFeedback *fb = &robot.chassis->legs[i / 2u].joint[i % 2u];
-        if (!fb->valid || !(fabsf(fb->q_rad - chassis_init_config.hip[i].center_rad) <= kHipStartToleranceRad))
+        const float error = remainderf(fb->q_rad - chassis_init_config.hip[i].center_rad, 2.0f * PI);
+        if (!fb->valid || !(fabsf(error) <= kHipStartToleranceRad))
             return false;
     }
     return true;
@@ -174,6 +178,36 @@ static void BuildWheelRequest(ChassisRequest *request, float reference, bool cur
             request->wheel_reference[side] = reference;
 }
 
+static void RunLegLength(ChassisRequest *request, float dial)
+{
+    robot.length_target_m = LegLengthTarget(dial, kRemoteDialFullScale, &length_pid_config);
+    if (!SYSID_REAL_HARDWARE)
+        return;
+
+    for (unsigned side = 0; side < CHASSIS_LEG_COUNT; ++side)
+    {
+        const unsigned first = 2u * side;
+        if (!(SYSID_JOINT_MASK & (3u << first)))
+            continue;
+
+        const ChassisLeg *leg = &robot.chassis->legs[side];
+        LegLengthState *state = &length_state[side];
+        // 腿长和长度雅可比只依赖角差，使用底盘对齐过的装配分支。
+        const float q[2] = {leg->hip_delta_rad, 0.0f};
+        const float qd[2] = {leg->joint[CHASSIS_FRONT].qd_rad_s, leg->joint[CHASSIS_REAR].qd_rad_s};
+        if (!leg->geometry_valid || !LegLengthGeometry(&length_pid_config, q, qd, state) ||
+            !LegLengthStep(&length_pid_config, robot.length_target_m, state))
+        {
+            robot.state = SYSID_STATE_FAULT;
+            return;
+        }
+        request->hip_torque_nm[first] = state->torque_nm[CHASSIS_FRONT];
+        request->hip_torque_nm[first + 1u] = state->torque_nm[CHASSIS_REAR];
+    }
+    request->hip_torque_mask = SYSID_JOINT_MASK;
+    request->enabled = true;
+}
+
 static void RecordHoldingTorque(uint64_t now_us)
 {
     if (!SYSID_REAL_HARDWARE)
@@ -185,8 +219,8 @@ static void RecordHoldingTorque(uint64_t now_us)
         if (!(mask & (1u << i)))
             continue;
         const ChassisJointFeedback *fb = &robot.chassis->legs[i / 2u].joint[i % 2u];
-        if (fabsf(fb->q_rad - chassis_init_config.hip[i].center_rad) > kHipStartToleranceRad ||
-            fabsf(fb->qd_rad_s) >= HIP_MOTION_RAD_S)
+        const float error = remainderf(fb->q_rad - chassis_init_config.hip[i].center_rad, 2.0f * PI);
+        if (!(fabsf(error) <= kHipStartToleranceRad) || fabsf(fb->qd_rad_s) >= HIP_MOTION_RAD_S)
             stable = false;
     }
     if (!stable)
@@ -359,7 +393,7 @@ static void RunTrajectory(ChassisRequest *request, float parameter, uint64_t now
     robot.state = SYSID_STATE_FINISHED;
 }
 
-static void RobotCMDTask(ChassisRequest *request, uint8_t left, SysIdMode selected, uint64_t now_us)
+static void RobotCMDTask(ChassisRequest *request, uint8_t left, SysIdMode selected, float dial, uint64_t now_us)
 {
     if (switch_is_down(left))
     {
@@ -387,10 +421,11 @@ static void RobotCMDTask(ChassisRequest *request, uint8_t left, SysIdMode select
         return;
     }
 
+    const bool length_mode = SYSID_EXPERIMENT == SYSID_HIP && selected == SYSID_MODE_LEG_LENGTH;
     const float parameter = TrialParameter(selected);
     if (robot.state == SYSID_STATE_READY)
     {
-        if (!TrialCanStart(parameter))
+        if (!length_mode && !TrialCanStart(parameter))
         {
             robot.state = SYSID_STATE_FAULT;
             return;
@@ -401,9 +436,15 @@ static void RobotCMDTask(ChassisRequest *request, uint8_t left, SysIdMode select
         stable_since_us = moving_since_us = 0u;
         for (unsigned i = 0; i < CHASSIS_JOINT_COUNT; ++i)
             hold_sum_nm[i] = 0.0f;
+        if (length_mode && SYSID_REAL_HARDWARE)
+            for (unsigned side = 0; side < CHASSIS_LEG_COUNT; ++side)
+                PIDClear(&length_state[side].pid);
         robot.state = SYSID_REAL_HARDWARE ? SYSID_STATE_RUNNING : SYSID_STATE_DRY_RUNNING;
     }
-    RunTrajectory(request, parameter, now_us);
+    if (length_mode)
+        RunLegLength(request, dial);
+    else
+        RunTrajectory(request, parameter, now_us);
 }
 
 void RobotInit(void)
@@ -420,6 +461,16 @@ void RobotInit(void)
             robot.chassis = ChassisInit(&chassis_init_config);
         if (!robot.chassis)
             LOGERROR("[motor_sysid] Check motor configuration and CAN filter slots");
+        if (SYSID_EXPERIMENT == SYSID_HIP && robot.chassis)
+        {
+            const ChassisGeometryConfig *geometry = &chassis_init_config.geometry;
+            length_pid_config.first_m = geometry->first_m;
+            length_pid_config.second_m = geometry->second_m;
+            length_pid_config.virtual_second_m = geometry->virtual_second_m;
+            length_pid_config.epsilon = geometry->singular_epsilon_m;
+            for (unsigned side = 0; side < CHASSIS_LEG_COUNT; ++side)
+                PIDInit(&length_state[side].pid, &length_pid_config.pid);
+        }
     }
 }
 
@@ -448,6 +499,7 @@ void RobotTask(void)
     const bool online = RemoteControlIsOnline();
     const uint8_t left = online ? robot.rc_data[TEMP].rc.switch_left : RC_SW_OFF;
     const uint8_t right = online ? robot.rc_data[TEMP].rc.switch_right : RC_SW_OFF;
+    const float dial = online ? (float)robot.rc_data[TEMP].rc.dial : 0.0f;
     taskEXIT_CRITICAL();
 
     if (SYSID_REAL_HARDWARE && !robot.chassis)
@@ -458,7 +510,7 @@ void RobotTask(void)
         robot.phase = SYSID_PHASE_NONE;
     }
     else
-        RobotCMDTask(&command, left, SelectMode(right), now_us);
+        RobotCMDTask(&command, left, SelectMode(right), dial, now_us);
 
     if (robot.chassis)
     {

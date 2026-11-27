@@ -31,7 +31,7 @@ static LegLengthConfig length_config = {
             .IntegralLimit = 0.0f},
 };
 
-// 保留 SHU 的四关节 ID、左右方向。内部传动 direction=1, reduction_ratio=1。
+// CAN 与 ID 按轮腿 RL 执行手册配置。保留源 SHU 的左右方向。
 #define LENGTH_MOTOR(bus, tx, rx, reverse, feedback_reverse)                                                           \
     {                                                                                                                  \
         .motor_type = J8009P, .can_init_config = {.can_handle = (bus), .tx_id = (tx), .rx_id = (rx)},                  \
@@ -41,9 +41,9 @@ static LegLengthConfig length_config = {
         }                                                                                                              \
     }
 static Motor_Init_Config_s joint_config[4] = {
-    LENGTH_MOTOR(&hcan1, 0x0Bu, 0x0Au, MOTOR_DIRECTION_NORMAL, FEEDBACK_DIRECTION_NORMAL),
-    LENGTH_MOTOR(&hcan1, 0x09u, 0x08u, MOTOR_DIRECTION_NORMAL, FEEDBACK_DIRECTION_NORMAL),
-    LENGTH_MOTOR(&hcan2, 0x07u, 0x06u, MOTOR_DIRECTION_REVERSE, FEEDBACK_DIRECTION_REVERSE),
-    LENGTH_MOTOR(&hcan2, 0x05u, 0x04u, MOTOR_DIRECTION_REVERSE, FEEDBACK_DIRECTION_REVERSE),
+    LENGTH_MOTOR(&hcan1, 0x01u, 0x11u, MOTOR_DIRECTION_NORMAL, FEEDBACK_DIRECTION_NORMAL),
+    LENGTH_MOTOR(&hcan1, 0x02u, 0x12u, MOTOR_DIRECTION_NORMAL, FEEDBACK_DIRECTION_NORMAL),
+    LENGTH_MOTOR(&hcan2, 0x03u, 0x13u, MOTOR_DIRECTION_REVERSE, FEEDBACK_DIRECTION_REVERSE),
+    LENGTH_MOTOR(&hcan2, 0x04u, 0x14u, MOTOR_DIRECTION_REVERSE, FEEDBACK_DIRECTION_REVERSE),
 };
 #undef LENGTH_MOTOR

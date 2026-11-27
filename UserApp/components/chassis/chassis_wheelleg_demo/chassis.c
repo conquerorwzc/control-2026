@@ -164,7 +164,7 @@ static void UpdateWheel(const DJIMotorInstance *motor, const WheelMotor_Init_Con
     feedback->valid = fresh && dlc == 8u;
 }
 
-static void UpdateGeometry(ChassisLeg *leg, const ChassisGeometryConfig *geometry)
+static void UpdateGeometry(ChassisLeg *leg, const ChassisGeometryConfig *geometry, float center_delta)
 {
     leg->geometry_valid = false;
     if (!leg->joint[CHASSIS_FRONT].valid || !leg->joint[CHASSIS_REAR].valid)
@@ -175,7 +175,8 @@ static void UpdateGeometry(ChassisLeg *leg, const ChassisGeometryConfig *geometr
     const float rear = leg->joint[CHASSIS_REAR].q_rad;
     const float scale = geometry->virtual_second_m / geometry->second_m;
     const float active = scale * geometry->first_m;
-    const float half_diff = 0.5f * (front - rear);
+    leg->hip_delta_rad = center_delta + remainderf(front - rear - center_delta, 2.0f * PI);
+    const float half_diff = 0.5f * leg->hip_delta_rad;
     const float normal = active * sinf(half_diff);
     const float discriminant = geometry->virtual_second_m * geometry->virtual_second_m - normal * normal;
     const float epsilon = geometry->singular_epsilon_m;
@@ -189,7 +190,7 @@ static void UpdateGeometry(ChassisLeg *leg, const ChassisGeometryConfig *geometr
         return;
 
     const float length = radius / scale;
-    const float mean = 0.5f * (front + rear);
+    const float mean = remainderf(rear, 2.0f * PI) + half_diff;
     const float angle = atan2f(-cosf(mean), sinf(mean));
     if (isfinite(length) && isfinite(angle))
     {
@@ -211,7 +212,9 @@ void ChassisFeedbackUpdate(ChassisInstance *chassis)
                         timeout_s);
         if (leg->rear_motor)
             UpdateJoint(leg->rear_motor, &config->hip[2u * side + CHASSIS_REAR], &leg->joint[CHASSIS_REAR], timeout_s);
-        UpdateGeometry(leg, &config->geometry);
+        const float center_delta =
+            config->hip[2u * side + CHASSIS_FRONT].center_rad - config->hip[2u * side + CHASSIS_REAR].center_rad;
+        UpdateGeometry(leg, &config->geometry, center_delta);
         if (leg->wheel_motor)
             UpdateWheel(leg->wheel_motor, &config->wheel[side], &leg->wheel_feedback, timeout_s);
     }
@@ -235,12 +238,11 @@ void ChassisTask(ChassisInstance *chassis, const ChassisRequest *request)
                 continue;
 
             const HipMotor_Init_Config_s *hip = &config->hip[i];
-            const float q_ref = request->hip_position_rad[i];
+            const float error = remainderf(request->hip_position_rad[i] - fb->q_rad, 2.0f * PI);
             const float output = (request->hip_torque_mask & (1u << i))
                                      ? request->hip_torque_nm[i]
-                                     : hip->kp_nm_per_rad * (q_ref - fb->q_rad) - hip->kd_nm_per_rad_s * fb->qd_rad_s;
-            if (!fb->valid || fb->q_rad < hip->min_rad || fb->q_rad > hip->max_rad || q_ref < hip->min_rad ||
-                q_ref > hip->max_rad || !isfinite(output))
+                                     : hip->kp_nm_per_rad * error - hip->kd_nm_per_rad_s * fb->qd_rad_s;
+            if (!fb->valid || !isfinite(output))
             {
                 enabled = false;
                 continue;

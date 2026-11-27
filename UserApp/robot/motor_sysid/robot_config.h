@@ -2,13 +2,14 @@
 
 #include <math.h>
 
+#include "length_control.h"
 #include "robot.h"
 #include "usart.h"
 
 #define SYSID_RC_PORT (&huart5)
 
 #ifndef SYSID_REAL_HARDWARE
-#define SYSID_REAL_HARDWARE 0
+#define SYSID_REAL_HARDWARE 1
 #endif
 #ifndef SYSID_EXPERIMENT
 #define SYSID_EXPERIMENT SYSID_HIP
@@ -56,6 +57,22 @@
 static const float kWheelStepRadS[] = {10.0f, 30.0f, 60.0f};
 static const float kTriangleSpeedRadS[] = {0.2f, 0.5f, 1.0f};
 static const float kHipStartToleranceRad = 0.0f; // TODO(待确认): 接管姿态允许偏差。
+static const float kRemoteDialFullScale = 660.0f;
+
+// 拨轮目标范围。机械止挡的平面腿长实测为 160.08～364.86 mm。
+static LegLengthConfig length_pid_config = {
+    .minimum_m = 0.158f,
+    .maximum_m = 0.325f,
+    .damping = 5.0f,
+    .torque_limit_nm = DM_T_MAX_J8009P, // 最终限幅使用各髋电机的 max_torque_nm。
+    .pid = {.Kp = 800.0f,
+            .Ki = 0.0f,
+            .Kd = 0.0f,
+            .MaxOut = 40.0f,
+            .DeadBand = 0.0f,
+            .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit,
+            .IntegralLimit = 0.0f},
+};
 
 // 髋电机反馈以输出轴为基准。位置 PD 和轮速比例环在底盘计算，驱动收纯力矩/电流指令。
 static Chassis_Init_Config_s chassis_init_config = {
@@ -69,14 +86,12 @@ static Chassis_Init_Config_s chassis_init_config = {
                     .motor_type = J8009P,
                     .can_init_config = {.can_handle = &hcan1, .tx_id = 0x01u, .rx_id = 0x11u},
                 },
-            .zero_rad = -1.731753157f,
+            .zero_rad = -1.818558794f,
             .direction = -1.0f,
-            .center_rad = -0.50282936f, // OK 长臂参考姿态。
-            .min_rad = NAN,
-            .max_rad = NAN, // TODO(待确认): 实测行程。
+            .center_rad = -0.428652864f, // OK 长端标定角，-24.56°。
             .kp_nm_per_rad = 10.0f,
             .kd_nm_per_rad_s = 0.5f,
-            .max_torque_nm = 0.0f, // TODO(待确认): 台架输出上限。
+            .max_torque_nm = 40.0f,
         },
     .hip[CHASSIS_LEFT_REAR] =
         {
@@ -85,14 +100,12 @@ static Chassis_Init_Config_s chassis_init_config = {
                     .motor_type = J8009P,
                     .can_init_config = {.can_handle = &hcan1, .tx_id = 0x02u, .rx_id = 0x12u},
                 },
-            .zero_rad = 1.106499972f,
+            .zero_rad = 0.859433112f,
             .direction = -1.0f,
-            .center_rad = 1.39661247f, // OA 短臂参考姿态。
-            .min_rad = NAN,
-            .max_rad = NAN,
+            .center_rad = 1.011069236f, // OA 长端标定角，57.93°。
             .kp_nm_per_rad = 10.0f,
             .kd_nm_per_rad_s = 0.5f,
-            .max_torque_nm = 0.0f,
+            .max_torque_nm = 40.0f,
         },
     .hip[CHASSIS_RIGHT_FRONT] =
         {
@@ -104,11 +117,9 @@ static Chassis_Init_Config_s chassis_init_config = {
             .zero_rad = NAN,
             .direction = 0.0f, // TODO(待确认): 右前零位及方向。
             .center_rad = NAN,
-            .min_rad = NAN,
-            .max_rad = NAN,
             .kp_nm_per_rad = 10.0f,
             .kd_nm_per_rad_s = 0.5f,
-            .max_torque_nm = 0.0f,
+            .max_torque_nm = 40.0f,
         },
     .hip[CHASSIS_RIGHT_REAR] =
         {
@@ -120,11 +131,9 @@ static Chassis_Init_Config_s chassis_init_config = {
             .zero_rad = NAN,
             .direction = 0.0f, // TODO(待确认): 右后零位及方向。
             .center_rad = NAN,
-            .min_rad = NAN,
-            .max_rad = NAN,
             .kp_nm_per_rad = 10.0f,
             .kd_nm_per_rad_s = 0.5f,
-            .max_torque_nm = 0.0f,
+            .max_torque_nm = 40.0f,
         },
     .wheel[CHASSIS_LEFT] =
         {
@@ -155,8 +164,8 @@ static Chassis_Init_Config_s chassis_init_config = {
     .geometry =
         {
             .first_m = 0.210f,
-            .second_m = 0.24625f,
-            .virtual_second_m = 0.13351f, // OK、KW、CD。
+            .second_m = 0.248f,
+            .virtual_second_m = 0.135f, // OK、KW、CD。
             .singular_epsilon_m = 1.0e-6f,
         },
 };
