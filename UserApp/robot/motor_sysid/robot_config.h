@@ -60,8 +60,8 @@ static const float kRemoteDialFullScale = 660.0f;
 
 // 拨轮目标范围。机械止挡的平面腿长实测为 160.08～364.86 mm。
 static LegLengthConfig length_pid_config = {
-    .minimum_m = 0.158f,
-    .maximum_m = 0.325f,
+    .minimum_m = 0.160f,
+    .maximum_m = 0.3648f,
     .damping = 5.0f,
     .torque_limit_nm = DM_T_MAX_J8009P, // 最终限幅使用各髋电机的 max_torque_nm。
     .pid = {.Kp = 800.0f,

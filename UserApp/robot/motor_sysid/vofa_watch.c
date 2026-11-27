@@ -5,7 +5,7 @@
 
 enum
 {
-    kBaudRate = 1000000u,
+    kBaudRate = 961200u,
     kChannelCount = 25,
     kFormatVersion = 3,
     kFourHips = 0,
