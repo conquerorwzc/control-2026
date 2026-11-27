@@ -18,7 +18,7 @@
 #define SYSID_HIP_PATTERN SYSID_HIP_FRONT
 #endif
 #ifndef SYSID_TEST_SIDES
-#define SYSID_TEST_SIDES (1u << CHASSIS_LEFT) // 左=1，右=2，双侧=3。
+#define SYSID_TEST_SIDES (2u << CHASSIS_LEFT) // 左=1，右=2，双侧=3。
 #endif
 #ifndef SYSID_TRIAL_DIRECTION
 #define SYSID_TRIAL_DIRECTION 1
@@ -111,7 +111,7 @@ static Chassis_Init_Config_s chassis_init_config = {
             .motor_config =
                 {
                     .motor_type = J8009P,
-                    .can_init_config = {.can_handle = &hcan2, .tx_id = 0x03u, .rx_id = 0x13u},
+                    .can_init_config = {.can_handle = &hcan1, .tx_id = 0x03u, .rx_id = 0x13u},
                 },
             .zero_rad = 0.945361238f,
             .direction = 1.0f, // 按镜像长端和 demo 的反馈方向换算，待实机核对。
@@ -125,7 +125,7 @@ static Chassis_Init_Config_s chassis_init_config = {
             .motor_config =
                 {
                     .motor_type = J8009P,
-                    .can_init_config = {.can_handle = &hcan2, .tx_id = 0x04u, .rx_id = 0x14u},
+                    .can_init_config = {.can_handle = &hcan1, .tx_id = 0x04u, .rx_id = 0x14u},
                 },
             .zero_rad = 2.210682934f,
             .direction = 1.0f, // 按镜像长端和 demo 的反馈方向换算，待实机核对。
@@ -139,7 +139,7 @@ static Chassis_Init_Config_s chassis_init_config = {
             .motor_config =
                 {
                     .motor_type = M3508,
-                    .can_init_config = {.can_handle = &hcan1, .tx_id = 1u},
+                    .can_init_config = {.can_handle = &hcan2, .tx_id = 1u},
                 },
             .direction = 0.0f, // TODO(待确认): 轮方向、增益和台架限值。
             .reduction = 15.76f,
