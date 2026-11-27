@@ -11,9 +11,6 @@
 
 static DJIMotorInstance *motor_l;
 static DJIMotorInstance *motor_r;
-static float left_pull_ff;  // 左电机本轮的前馈电流指令，正值驱动皮带向下
-static float right_pull_ff; // 右电机本轮的前馈电流指令，负值驱动皮带向下
-static const float kPullFeedforward = (1.0f / 0.3f) * (16384.0f / 20.0f);  // 每侧约 1 N·m ，计算得对应的电流指令幅值
 static Subscriber_t *launcher_cmd_sub;
 
 /**
@@ -37,11 +34,9 @@ void SpringLoaderInit(void)
                 .close_loop_type = ANGLE_AND_SPEED_LOOP, // 配置位置环和速度环
                 .speed_feedback_source = MOTOR_FEED,
                 .angle_feedback_source = MOTOR_FEED, // 位置环读取电机多圈角度
-                // .feedforward_flag = CURRENT_FEEDFORWARD,
             },
         .controller_param_init_config =
             {
-                .current_feedforward_ptr = &left_pull_ff,
                 .speed_PID =
                     {
                         .Kp = 0.70f,
@@ -76,11 +71,9 @@ void SpringLoaderInit(void)
                 .close_loop_type = ANGLE_AND_SPEED_LOOP, // 配置位置环和速度环
                 .speed_feedback_source = MOTOR_FEED,
                 .angle_feedback_source = MOTOR_FEED, // 位置环读取电机多圈角度
-                // .feedforward_flag = CURRENT_FEEDFORWARD,
             },
         .controller_param_init_config =
             {
-                .current_feedforward_ptr = &right_pull_ff,
                 .speed_PID =
                     {
                         .Kp = 1.10f,
@@ -176,9 +169,6 @@ static void RunLoadingCycle(bool feedback_ready, float now_ms)
     if (!feedback_ready || (request != 1 && request != 2 && request != 3))
     {
         position_request = 0;
-        // 停机时撤掉前馈
-        left_pull_ff = 0.0f;
-        right_pull_ff = 0.0f;
         // 清除本次连续到位计时
         at_latch_since_ms = -1.0f;
         previous_request = 0;
@@ -236,11 +226,7 @@ static void RunLoadingCycle(bool feedback_ready, float now_ms)
         PIDClear(&motor_r->motor_controller.angle_PID);
         previous_request = request;
     }
-
-    // 下拉越过 -300° 后加前馈
-    left_pull_ff = (request == 1 && left_down_deg > -300.0f) ? kPullFeedforward : 0.0f;
-    right_pull_ff = (request == 1 && right_down_deg > -300.0f) ? -kPullFeedforward : 0.0f;
-
+    
     // 下拉用上簧目标，回位和上电待机用同一待机目标
     const float down_deg = (request == 1) ? pull_target_deg : kStandbyDeg;
 
