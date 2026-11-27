@@ -122,7 +122,7 @@ void RobotTask(void)
 
     const float max_wheel_speed_deg_s = 55536.0f;
     const float forward = RemoteAxis(remote->rc.rocker_l1);
-    const float left = -RemoteAxis(remote->rc.rocker_l_);
+    const float left = RemoteAxis(remote->rc.rocker_l_);
     const float dial = RemoteAxis(remote->rc.dial);
     const float rotate_target = -0.50f * dial * fabsf(dial);
 
