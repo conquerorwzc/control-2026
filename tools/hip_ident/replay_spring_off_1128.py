@@ -31,7 +31,7 @@ def write_rows(path, rows):
         writer.writerows(rows)
 
 
-def locate(folder, side):
+def locate(folder, side, trials=(0, 3)):
     segments = []
     if side == "left":
         for r in records(folder / "1739_25项结果.csv"):
@@ -47,7 +47,7 @@ def locate(folder, side):
                 )
             )
         for r in records(folder / "1841_合并92项.csv"):
-            if int(r["trial"]) not in (0, 3):
+            if int(r["trial"]) not in trials:
                 continue
             segments.append(
                 tuple(
@@ -60,7 +60,7 @@ def locate(folder, side):
             segments.append(
                 (1939, *(int(r[k]) for k in ("start_row", "end_row", "pose", "trial", "axis", "direction")))
             )
-    return sorted(s for s in segments if s[4] in (0, 3))
+    return sorted(s for s in segments if s[4] in trials)
 
 
 def geometry(model, side):
@@ -103,9 +103,9 @@ def static_check(folder, model, side, joints, zero):
     )
 
 
-def read_segments(folder, side):
+def read_segments(folder, side, trials=(0, 3)):
     mask = 3 if side == "left" else 12
-    for source, group in itertools.groupby(locate(folder, side), key=lambda s: s[0]):
+    for source, group in itertools.groupby(locate(folder, side, trials), key=lambda s: s[0]):
         with (folder / f"{source}.csv").open("rb") as file:
             cursor = 1
             for _, first, last, pose, trial, axis, direction in group:
