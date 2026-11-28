@@ -59,9 +59,7 @@
 // 空跑使用预览幅值。真实起动、三角往返和轮扫频的参数按台架填写。
 #define HIP_TRIANGLE_RAD 0.10f
 #define HIP_RAMP_NM_S 0.10f
-#define HIP_RAMP_MAX_NM 0.50f // 相对保持力矩的增量。
 #define HIP_BATCH_RAMP_NM_S 0.5f
-#define HIP_BATCH_RAMP_MAX_NM 3.0f // 单段最多 6 秒，相对本段配平力矩。
 #define HIP_MOTION_RAD_S 0.08f // 初测阈值，约 3.6 个反馈速度量化步。
 #define HIP_GRID_SHORT_M 0.190f
 #define HIP_GRID_LONG_M 0.335f

@@ -198,8 +198,7 @@ static bool TrialCanStart(float parameter)
     if (!(parameter > 0.0f) || (SYSID_EXPERIMENT == SYSID_HIP_TRIANGLE && !(HIP_TRIANGLE_RAD > 0.0f)))
         return false;
 
-    if (SYSID_EXPERIMENT == SYSID_HIP_RAMP &&
-        (HIP_RAMP_MAX_NM <= 0.0f || (SYSID_REAL_HARDWARE && HIP_MOTION_RAD_S <= 0.0f)))
+    if (SYSID_EXPERIMENT == SYSID_HIP_RAMP && SYSID_REAL_HARDWARE && HIP_MOTION_RAD_S <= 0.0f)
         return false;
     if (SYSID_EXPERIMENT == SYSID_WHEEL_CURRENT_RAMP &&
         (WHEEL_RAMP_MAX_A <= 0.0f || (SYSID_REAL_HARDWARE && WHEEL_MOTION_RAD_S <= 0.0f)))
@@ -452,18 +451,37 @@ static void RunRamp(ChassisRequest *request, float parameter, float elapsed_s, u
         return;
     }
 
-    const float magnitude = parameter * ramp_s;
-    const float hip_limit = SYSID_EXPERIMENT == SYSID_HIP_BATCH ? HIP_BATCH_RAMP_MAX_NM : HIP_RAMP_MAX_NM;
-    if (magnitude > (hip ? hip_limit : WHEEL_RAMP_MAX_A))
-    {
-        robot.state = SYSID_STATE_FINISHED;
-        return;
-    }
+    float magnitude = parameter * ramp_s;
     if (!hip)
     {
+        if (magnitude > WHEEL_RAMP_MAX_A)
+        {
+            robot.state = SYSID_STATE_FINISHED;
+            return;
+        }
         BuildWheelRequest(request, direction * magnitude, true);
         return;
     }
+
+    // Signed headroom from this run's holding command to each active motor's absolute limit.
+    float headroom_nm = INFINITY;
+    for (unsigned i = 0; i < CHASSIS_JOINT_COUNT; ++i)
+    {
+        const int sign = JointPhase(i) * direction;
+        if ((SYSID_JOINT_MASK & (1u << i)) && sign)
+        {
+            const float limit_nm = fminf(chassis_init_config.hip[i].max_torque_nm, DM_T_MAX_J8009P);
+            headroom_nm = fminf(headroom_nm, limit_nm - sign * hold_sum_nm[i]);
+        }
+    }
+    headroom_nm = fmaxf(0.0f, headroom_nm);
+    if (magnitude > headroom_nm + parameter * MOTION_CONFIRMATION_S)
+    {
+        robot.phase = SYSID_PHASE_TORQUE_LIMIT;
+        robot.state = SYSID_STATE_FINISHED;
+        return;
+    }
+    magnitude = fminf(magnitude, headroom_nm);
     BuildHipRequest(request, 0.0f);
     for (unsigned i = 0; i < CHASSIS_JOINT_COUNT; ++i)
     {
@@ -705,12 +723,13 @@ static void RunHipBatch(ChassisRequest *request, uint64_t now_us)
         if (robot.state == SYSID_STATE_FINISHED)
         {
             robot.state = SYSID_REAL_HARDWARE ? SYSID_STATE_RUNNING : SYSID_STATE_DRY_RUNNING;
-            if (robot.phase != SYSID_PHASE_MOTION_DETECTED && robot.phase != SYSID_PHASE_UNSETTLED)
+            if (robot.phase != SYSID_PHASE_MOTION_DETECTED && robot.phase != SYSID_PHASE_UNSETTLED &&
+                robot.phase != SYSID_PHASE_TORQUE_LIMIT)
                 robot.phase = SYSID_PHASE_RECOVERY;
             batch_recover_until_us = now_us + 1000000u;
         }
     }
-    else if (robot.phase != SYSID_PHASE_UNSETTLED)
+    else if (robot.phase != SYSID_PHASE_UNSETTLED && robot.phase != SYSID_PHASE_TORQUE_LIMIT)
         robot.phase = SYSID_PHASE_RECOVERY;
     if (batch_recover_until_us)
         BuildHipRequest(request, 0.0f);

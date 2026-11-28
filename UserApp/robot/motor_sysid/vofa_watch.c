@@ -18,7 +18,7 @@ _Static_assert(sizeof(float) == 4 && kChannelCount <= VOFA_MAX_CHANNELS, "JustFl
 _Static_assert((kChannelCount + 1u) * 4u * 10u * SYSID_CONTROL_HZ <= kBaudRate && kBaudRate <= 1000000u,
                "SysID exceeds the 8N1 serial link budget");
 _Static_assert(SYSID_STATE_DRY_RUNNING < 16 && SYSID_WHEEL_COAST < 16 && SYSID_HIP_BOTH_ANTI_PHASE < 4 &&
-                   SYSID_PHASE_UNSETTLED < 8,
+                   SYSID_PHASE_TORQUE_LIMIT < 8,
                "SysID telemetry metadata fields overflow");
 
 static bool vofa_ready;
