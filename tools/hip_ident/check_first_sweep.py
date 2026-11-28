@@ -69,6 +69,7 @@ def run(
     front_pd=(40.0, 2.0),
     delay_ticks=0,
     rear_pd=(40.0, 2.0),
+    positioning_pd=(40.0, 2.0),
 ):
     joints = ["left_front", "left_rear"]
     qi = [model.joint(j + "_sprocket_joint").qposadr[0] for j in joints]
@@ -108,7 +109,7 @@ def run(
             settled_ticks = settled_ticks + 1 if settled else 0
             if settled_ticks >= 126:
                 begin = t
-        requested = bias + 10 * (ref - q) - 0.5 * v
+        requested = bias + positioning_pd[0] * (ref - q) - positioning_pd[1] * v
         if not positioning:
             kp, kd = front_pd
             requested[0] = bias[0] + kp * (ref[0] - q[0]) - kd * v[0]
@@ -160,8 +161,16 @@ if __name__ == "__main__":
     if model.neq != 8 or model.nu or not np.isclose(model.opt.timestep, 0.001):
         raise ValueError("expected the 1 ms spring-removed fixed rig")
     tilt = free_hanging_tilt(model)
-    run(model, 0.05, tilt, high_band=True, front_pd=(10.0, 0.5), rear_pd=(10.0, 0.5))
-    run(model, 0.05, tilt, high_band=True, rear_pd=(10.0, 0.5))
+    run(
+        model,
+        0.05,
+        tilt,
+        high_band=True,
+        front_pd=(10.0, 0.5),
+        rear_pd=(10.0, 0.5),
+        positioning_pd=(10.0, 0.5),
+    )
+    run(model, 0.05, tilt, high_band=True, rear_pd=(10.0, 0.5), positioning_pd=(10.0, 0.5))
     for delay_ticks in (6, 9):
         run(model, 0.05, tilt, high_band=True, delay_ticks=delay_ticks)
     print(f"CAD free-hanging equilibrium at the long stop: {tilt:+.2f} deg from wheel vertically below pivot")
