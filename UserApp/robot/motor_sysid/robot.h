@@ -47,12 +47,13 @@ typedef enum
     SYSID_WHEEL_CURRENT_RAMP,
     SYSID_WHEEL_STEADY,
     SYSID_WHEEL_COAST,
-    SYSID_HIP_STATIC
+    SYSID_HIP_STATIC,
+    SYSID_HIP_BATCH
 } SysIdTrial;
 
 #define SYSID_IS_HIP(trial)                                                                                            \
     ((trial) == SYSID_HIP || (trial) == SYSID_HIP_STEP || (trial) == SYSID_HIP_RAMP ||                                \
-     (trial) == SYSID_HIP_TRIANGLE || (trial) == SYSID_HIP_STATIC)
+     (trial) == SYSID_HIP_TRIANGLE || (trial) == SYSID_HIP_STATIC || (trial) == SYSID_HIP_BATCH)
 
 typedef enum
 {
@@ -61,7 +62,8 @@ typedef enum
     SYSID_PHASE_EXCITE,
     SYSID_PHASE_RECOVERY,
     SYSID_PHASE_MOTION_DETECTED,
-    SYSID_PHASE_POSITIONING
+    SYSID_PHASE_POSITIONING,
+    SYSID_PHASE_UNSETTLED
 } SysIdPhase;
 
 typedef enum

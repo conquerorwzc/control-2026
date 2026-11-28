@@ -21,10 +21,49 @@ static uint64_t start_us;
 static float sweep_half_delta_change;
 static float sweep_hold_bias_nm[2];
 static uint64_t sweep_bias_time_us;
+typedef struct
+{
+    SysIdTrial trial;
+    SysIdMode mode;
+    SysIdHipPattern axis;
+    int direction;
+} HipTest;
+
+// Each combination has a distinct experiment/mode/axis/direction tuple in VOFA.
+static const HipTest kHipTests[] = {
+    {SYSID_HIP_STATIC, SYSID_MODE_STATIC_GRID, SYSID_HIP_FRONT, 1},
+    {SYSID_HIP_RAMP, SYSID_MODE_HIP_RAMP, SYSID_HIP_FRONT, 1},
+    {SYSID_HIP_RAMP, SYSID_MODE_HIP_RAMP, SYSID_HIP_FRONT, -1},
+    {SYSID_HIP_RAMP, SYSID_MODE_HIP_RAMP, SYSID_HIP_REAR, 1},
+    {SYSID_HIP_RAMP, SYSID_MODE_HIP_RAMP, SYSID_HIP_REAR, -1},
+    {SYSID_HIP_TRIANGLE, SYSID_MODE_HIP_TRIANGLE_02, SYSID_HIP_FRONT, 1},
+    {SYSID_HIP_TRIANGLE, SYSID_MODE_HIP_TRIANGLE_05, SYSID_HIP_FRONT, 1},
+    {SYSID_HIP_TRIANGLE, SYSID_MODE_HIP_TRIANGLE_10, SYSID_HIP_FRONT, 1},
+    {SYSID_HIP_TRIANGLE, SYSID_MODE_HIP_TRIANGLE_02, SYSID_HIP_REAR, 1},
+    {SYSID_HIP_TRIANGLE, SYSID_MODE_HIP_TRIANGLE_05, SYSID_HIP_REAR, 1},
+    {SYSID_HIP_TRIANGLE, SYSID_MODE_HIP_TRIANGLE_10, SYSID_HIP_REAR, 1},
+    {SYSID_HIP_TRIANGLE, SYSID_MODE_HIP_TRIANGLE_02, SYSID_HIP_BOTH_IN_PHASE, 1},
+    {SYSID_HIP_TRIANGLE, SYSID_MODE_HIP_TRIANGLE_05, SYSID_HIP_BOTH_IN_PHASE, 1},
+    {SYSID_HIP_TRIANGLE, SYSID_MODE_HIP_TRIANGLE_10, SYSID_HIP_BOTH_IN_PHASE, 1},
+    {SYSID_HIP_TRIANGLE, SYSID_MODE_HIP_TRIANGLE_02, SYSID_HIP_BOTH_ANTI_PHASE, 1},
+    {SYSID_HIP_TRIANGLE, SYSID_MODE_HIP_TRIANGLE_05, SYSID_HIP_BOTH_ANTI_PHASE, 1},
+    {SYSID_HIP_TRIANGLE, SYSID_MODE_HIP_TRIANGLE_10, SYSID_HIP_BOTH_ANTI_PHASE, 1},
+    {SYSID_HIP, SYSID_MODE_HIP_IN_PHASE, SYSID_HIP_FRONT, 1},
+    {SYSID_HIP, SYSID_MODE_HIP_IN_PHASE, SYSID_HIP_REAR, 1},
+    {SYSID_HIP, SYSID_MODE_HIP_IN_PHASE, SYSID_HIP_BOTH_IN_PHASE, 1},
+    {SYSID_HIP, SYSID_MODE_HIP_IN_PHASE, SYSID_HIP_BOTH_ANTI_PHASE, 1},
+    {SYSID_HIP_STEP, SYSID_MODE_HIP_STEP, SYSID_HIP_FRONT, 1},
+    {SYSID_HIP_STEP, SYSID_MODE_HIP_STEP, SYSID_HIP_FRONT, -1},
+    {SYSID_HIP_STEP, SYSID_MODE_HIP_STEP, SYSID_HIP_REAR, 1},
+    {SYSID_HIP_STEP, SYSID_MODE_HIP_STEP, SYSID_HIP_REAR, -1},
+};
+static unsigned batch_index;
+static uint64_t batch_recover_until_us;
 static const unsigned kAllJoints = (1u << CHASSIS_JOINT_COUNT) - 1u;
 _Static_assert(SYSID_TEST_SIDES >= 1u && SYSID_TEST_SIDES <= 3u, "Select left, right or both legs");
 _Static_assert(SYSID_TRIAL_DIRECTION == 1 || SYSID_TRIAL_DIRECTION == -1, "Select a trial direction");
-_Static_assert(SYSID_EXPERIMENT <= SYSID_HIP_STATIC && SYSID_HIP_PATTERN <= SYSID_HIP_BOTH_ANTI_PHASE,
+_Static_assert(SYSID_EXPERIMENT != SYSID_HIP_BATCH || SYSID_TEST_SIDES != 3u, "Batch requires a single leg");
+_Static_assert(SYSID_EXPERIMENT <= SYSID_HIP_BATCH && SYSID_HIP_PATTERN <= SYSID_HIP_BOTH_ANTI_PHASE,
                "Select a valid trial and hip pattern");
 
 static bool WheelsConfigured(void)
@@ -46,6 +85,8 @@ static SysIdMode SelectMode(uint8_t right)
 {
     switch (SYSID_EXPERIMENT)
     {
+    case SYSID_HIP_BATCH:
+        return switch_is_up(right) ? SYSID_MODE_HIP_IN_PHASE : SYSID_MODE_NONE;
     case SYSID_HIP_STATIC:
         if (switch_is_up(right))
             return SYSID_MODE_STATIC_HOLD;
@@ -97,11 +138,13 @@ static float TrialParameter(SysIdMode mode)
         return 1.0f;
     case SYSID_MODE_HIP_IN_PHASE:
     case SYSID_MODE_HIP_ANTI_PHASE:
+        if (SYSID_EXPERIMENT == SYSID_HIP_BATCH)
+            return robot.hip_pattern == SYSID_HIP_BOTH_ANTI_PHASE ? 0.04f : 0.05f;
         return HIP_SWEEP_AMPLITUDE_RAD;
     case SYSID_MODE_HIP_STEP:
         return HIP_STEP_RAD;
     case SYSID_MODE_HIP_RAMP:
-        return HIP_RAMP_NM_S;
+        return SYSID_EXPERIMENT == SYSID_HIP_BATCH ? HIP_BATCH_RAMP_NM_S : HIP_RAMP_NM_S;
     case SYSID_MODE_HIP_TRIANGLE_02:
     case SYSID_MODE_HIP_TRIANGLE_05:
     case SYSID_MODE_HIP_TRIANGLE_10:
@@ -181,7 +224,8 @@ static bool TrialCanStart(float parameter)
             return false;
         robot.hip_workpoint_rad[i] = fb->q_rad;
     }
-    if (SYSID_REAL_HARDWARE && SYSID_EXPERIMENT == SYSID_HIP && SYSID_JOINT_MASK != kAllJoints)
+    if (SYSID_REAL_HARDWARE && (SYSID_EXPERIMENT == SYSID_HIP || SYSID_EXPERIMENT == SYSID_HIP_BATCH) &&
+        SYSID_JOINT_MASK != kAllJoints)
     {
         const unsigned side = SYSID_TEST_SIDES == 1u ? CHASSIS_LEFT : CHASSIS_RIGHT;
         const ChassisLeg *leg = &robot.chassis->legs[side];
@@ -217,7 +261,7 @@ static void BuildHipRequest(ChassisRequest *request, float position)
             request->hip_position_rad[i] = robot.hip_workpoint_rad[i] + JointPhase(i) * position;
 }
 
-static void PositionSingleLeg(ChassisRequest *request, uint64_t now_us, float amplitude)
+static void PositionSingleLeg(ChassisRequest *request, uint64_t now_us, float peak_amplitude)
 {
     const unsigned side = SYSID_TEST_SIDES == 1u ? CHASSIS_LEFT : CHASSIS_RIGHT;
     const unsigned first = 2u * side;
@@ -254,7 +298,7 @@ static void PositionSingleLeg(ChassisRequest *request, uint64_t now_us, float am
         stable_since_us = 0;
     else if (!stable_since_us)
         stable_since_us = now_us;
-    else if (now_us - stable_since_us >= 250000u && SweepFitsTravel(side, amplitude * HIP_SWEEP_HIGH_GAIN))
+    else if (now_us - stable_since_us >= 250000u && SweepFitsTravel(side, peak_amplitude))
     {
         robot.hip_workpoint_rad[first] = request->hip_position_rad[first];
         robot.hip_workpoint_rad[first + 1u] = request->hip_position_rad[first + 1u];
@@ -332,7 +376,7 @@ static void RecordHoldingTorque(uint64_t now_us)
             hold_sum_nm[i] += robot.chassis->legs[i / 2u].joint[i % 2u].command_torque_nm;
 }
 
-static bool MotionDetected(bool hip, uint64_t now_us)
+static bool MotionDetected(bool hip, int direction, uint64_t now_us)
 {
     if (!SYSID_REAL_HARDWARE)
         return false;
@@ -344,7 +388,7 @@ static bool MotionDetected(bool hip, uint64_t now_us)
             if (!(SYSID_JOINT_MASK & (1u << i)) || !JointPhase(i))
                 continue;
             const ChassisJointFeedback *fb = &robot.chassis->legs[i / 2u].joint[i % 2u];
-            if (fb->qd_rad_s * JointPhase(i) * SYSID_TRIAL_DIRECTION >= HIP_MOTION_RAD_S)
+            if (fb->qd_rad_s * JointPhase(i) * direction >= HIP_MOTION_RAD_S)
                 observed |= 1u << i;
         }
     }
@@ -352,7 +396,7 @@ static bool MotionDetected(bool hip, uint64_t now_us)
     {
         for (unsigned i = 0; i < CHASSIS_LEG_COUNT; ++i)
             if ((SYSID_WHEEL_MASK & (1u << i)) &&
-                robot.chassis->legs[i].wheel_feedback.speed_rad_s * SYSID_TRIAL_DIRECTION >= WHEEL_MOTION_RAD_S)
+                robot.chassis->legs[i].wheel_feedback.speed_rad_s * direction >= WHEEL_MOTION_RAD_S)
                 observed |= 1u << i;
     }
     if (!observed || !(moving_mask & observed))
@@ -365,9 +409,8 @@ static bool MotionDetected(bool hip, uint64_t now_us)
     return (float)(now_us - moving_since_us) * 1.0e-6f >= MOTION_CONFIRMATION_S;
 }
 
-static void RunRamp(ChassisRequest *request, float parameter, float elapsed_s, uint64_t now_us)
+static void RunRamp(ChassisRequest *request, float parameter, float elapsed_s, uint64_t now_us, bool hip, int direction)
 {
-    const bool hip = SYSID_EXPERIMENT == SYSID_HIP_RAMP;
     const float ramp_s = elapsed_s - STEP_BASELINE_S;
     if (ramp_s < 0.0f)
     {
@@ -389,14 +432,20 @@ static void RunRamp(ChassisRequest *request, float parameter, float elapsed_s, u
         RecordHoldingTorque(now_us);
         if (!hold_samples || (float)(now_us - stable_since_us) * 1.0e-6f < HIP_HOLD_AVERAGE_S)
         {
-            robot.state = SYSID_STATE_FAULT;
+            if (SYSID_EXPERIMENT == SYSID_HIP_BATCH)
+            {
+                robot.phase = SYSID_PHASE_UNSETTLED;
+                robot.state = SYSID_STATE_FINISHED;
+            }
+            else
+                robot.state = SYSID_STATE_FAULT;
             return;
         }
         for (unsigned i = 0; i < CHASSIS_JOINT_COUNT; ++i)
             hold_sum_nm[i] /= hold_samples;
     }
     robot.phase = SYSID_PHASE_EXCITE;
-    if (MotionDetected(hip, now_us))
+    if (MotionDetected(hip, direction, now_us))
     {
         robot.phase = SYSID_PHASE_MOTION_DETECTED;
         robot.state = SYSID_STATE_FINISHED;
@@ -404,14 +453,15 @@ static void RunRamp(ChassisRequest *request, float parameter, float elapsed_s, u
     }
 
     const float magnitude = parameter * ramp_s;
-    if (magnitude > (hip ? HIP_RAMP_MAX_NM : WHEEL_RAMP_MAX_A))
+    const float hip_limit = SYSID_EXPERIMENT == SYSID_HIP_BATCH ? HIP_BATCH_RAMP_MAX_NM : HIP_RAMP_MAX_NM;
+    if (magnitude > (hip ? hip_limit : WHEEL_RAMP_MAX_A))
     {
         robot.state = SYSID_STATE_FINISHED;
         return;
     }
     if (!hip)
     {
-        BuildWheelRequest(request, SYSID_TRIAL_DIRECTION * magnitude, true);
+        BuildWheelRequest(request, direction * magnitude, true);
         return;
     }
     BuildHipRequest(request, 0.0f);
@@ -420,7 +470,7 @@ static void RunRamp(ChassisRequest *request, float parameter, float elapsed_s, u
         if (!(SYSID_JOINT_MASK & (1u << i)) || !JointPhase(i))
             continue;
         request->hip_torque_mask |= 1u << i;
-        request->hip_torque_nm[i] = hold_sum_nm[i] + JointPhase(i) * SYSID_TRIAL_DIRECTION * magnitude;
+        request->hip_torque_nm[i] = hold_sum_nm[i] + JointPhase(i) * direction * magnitude;
     }
 }
 
@@ -443,9 +493,9 @@ static void GridPose(unsigned side, unsigned visit, bool approach, float target[
     target[1] = center[1] + swing - 0.5f * (delta - start_delta) - preload;
 }
 
-static void RunStatic(ChassisRequest *request, float elapsed_s)
+static void RunStatic(ChassisRequest *request, float elapsed_s, SysIdMode mode)
 {
-    if (robot.mode == SYSID_MODE_STATIC_HOLD)
+    if (mode == SYSID_MODE_STATIC_HOLD)
     {
         robot.phase = SYSID_PHASE_BASELINE;
         BuildHipRequest(request, 0.0f);
@@ -454,6 +504,20 @@ static void RunStatic(ChassisRequest *request, float elapsed_s)
     const unsigned visit = (unsigned)(elapsed_s / 5.0f);
     if (visit >= 200u)
     {
+        // Return from the last grid target to the batch workpoint before switching experiments.
+        if (SYSID_EXPERIMENT == SYSID_HIP_BATCH && elapsed_s < 1002.0f)
+        {
+            const unsigned s = SYSID_TEST_SIDES == 1u ? CHASSIS_LEFT : CHASSIS_RIGHT;
+            float last[2];
+            GridPose(s, 199u, false, last);
+            float u = (elapsed_s - 1000.0f) * 0.5f;
+            u = u*u*(3.0f - 2.0f*u);
+            BuildHipRequest(request, 0.0f);
+            for (unsigned j = 0; j < 2u; ++j)
+                request->hip_position_rad[2u*s+j] = last[j] + u*(robot.hip_workpoint_rad[2u*s+j] - last[j]);
+            robot.phase = SYSID_PHASE_RECOVERY;
+            return;
+        }
         robot.state = SYSID_STATE_FINISHED;
         return;
     }
@@ -482,28 +546,31 @@ static void RunStatic(ChassisRequest *request, float elapsed_s)
     }
 }
 
-static void RunTrajectory(ChassisRequest *request, float parameter, uint64_t now_us)
+static void RunTrajectory(ChassisRequest *request, float parameter, uint64_t now_us, SysIdTrial trial, int direction)
 {
     const float elapsed_s = (float)(now_us - start_us) * 1.0e-6f;
-    switch (SYSID_EXPERIMENT)
+    switch (trial)
     {
+    case SYSID_HIP_BATCH: // The batch runner dispatches individual trials.
+        robot.state = SYSID_STATE_FAULT;
+        return;
     case SYSID_HIP_STATIC:
-        RunStatic(request, elapsed_s);
+        RunStatic(request, elapsed_s, SYSID_EXPERIMENT == SYSID_HIP_BATCH ? kHipTests[batch_index].mode : robot.mode);
         return;
     case SYSID_HIP_RAMP:
     case SYSID_WHEEL_CURRENT_RAMP:
-        RunRamp(request, parameter, elapsed_s, now_us);
+        RunRamp(request, parameter, elapsed_s, now_us, trial == SYSID_HIP_RAMP, direction);
         return;
     case SYSID_HIP:
     case SYSID_WHEEL_SWEEP: {
         float sweep_s = elapsed_s;
-        if (SYSID_EXPERIMENT == SYSID_HIP)
+        if (trial == SYSID_HIP)
         {
-            if (SYSID_REAL_HARDWARE && SYSID_JOINT_MASK != kAllJoints)
+            if (SYSID_EXPERIMENT != SYSID_HIP_BATCH && SYSID_REAL_HARDWARE && SYSID_JOINT_MASK != kAllJoints)
             {
                 if (robot.phase == SYSID_PHASE_POSITIONING)
                 {
-                    PositionSingleLeg(request, now_us, parameter);
+                    PositionSingleLeg(request, now_us, parameter * HIP_SWEEP_HIGH_GAIN);
                     return;
                 }
                 const unsigned first = SYSID_TEST_SIDES == 1u ? CHASSIS_LEFT_FRONT : CHASSIS_RIGHT_FRONT;
@@ -527,23 +594,26 @@ static void RunTrajectory(ChassisRequest *request, float parameter, uint64_t now
         const float phase_rad = 2.0f * PI * sweep_s * (SWEEP_START_HZ + 0.5f * f_rate_hz_s * sweep_s);
         const float edge_s = fminf(sweep_s, SWEEP_DURATION_S - sweep_s);
         float amplitude = parameter;
-        if (SYSID_EXPERIMENT == SYSID_HIP && SYSID_JOINT_MASK != kAllJoints)
+        if (trial == SYSID_HIP && SYSID_JOINT_MASK != kAllJoints)
         {
             const float hz = SWEEP_START_HZ + f_rate_hz_s * sweep_s;
             const float u = float_constrain((hz - HIP_SWEEP_BOOST_START_HZ) /
                                             (SWEEP_END_HZ - HIP_SWEEP_BOOST_START_HZ), 0.0f, 1.0f);
-            amplitude *= 1.0f + (HIP_SWEEP_HIGH_GAIN - 1.0f) * u * u * (3.0f - 2.0f * u);
+            const float gain = SYSID_EXPERIMENT == SYSID_HIP_BATCH && robot.hip_pattern == SYSID_HIP_BOTH_ANTI_PHASE
+                                   ? 1.25f : HIP_SWEEP_HIGH_GAIN;
+            amplitude *= 1.0f + (gain - 1.0f) * u * u * (3.0f - 2.0f * u);
         }
         const float reference =
-            SYSID_TRIAL_DIRECTION * amplitude * float_constrain(edge_s / SWEEP_EDGE_S, 0.0f, 1.0f) * sinf(phase_rad);
-        if (SYSID_EXPERIMENT == SYSID_HIP)
+            direction * amplitude * float_constrain(edge_s / SWEEP_EDGE_S, 0.0f, 1.0f) * sinf(phase_rad);
+        if (trial == SYSID_HIP)
             BuildHipRequest(request, reference);
         else
             BuildWheelRequest(request, reference, false);
         return;
     }
     case SYSID_HIP_TRIANGLE: {
-        const float peak = HIP_TRIANGLE_RAD;
+        const float peak = robot.hip_pattern == SYSID_HIP_BOTH_ANTI_PHASE && SYSID_EXPERIMENT == SYSID_HIP_BATCH
+                               ? HIP_TRIANGLE_RAD * 0.5f : HIP_TRIANGLE_RAD;
         const float cycle_rad = 4.0f * peak;
         const float distance_rad = parameter * (elapsed_s - STEP_BASELINE_S);
         if (distance_rad >= TRIANGLE_CYCLES * cycle_rad)
@@ -551,7 +621,7 @@ static void RunTrajectory(ChassisRequest *request, float parameter, uint64_t now
         robot.phase = distance_rad < 0.0f ? SYSID_PHASE_BASELINE : SYSID_PHASE_EXCITE;
         const float within_cycle = fmodf(fmaxf(0.0f, distance_rad) + peak, cycle_rad);
         const float offset = within_cycle <= 2.0f * peak ? within_cycle - peak : 3.0f * peak - within_cycle;
-        BuildHipRequest(request, SYSID_TRIAL_DIRECTION * offset);
+        BuildHipRequest(request, direction * offset);
         return;
     }
     case SYSID_HIP_STEP:
@@ -559,8 +629,8 @@ static void RunTrajectory(ChassisRequest *request, float parameter, uint64_t now
     case SYSID_WHEEL_STEADY:
     case SYSID_WHEEL_COAST: {
         const float hold_s =
-            SYSID_EXPERIMENT == SYSID_HIP_STEP || SYSID_EXPERIMENT == SYSID_WHEEL_STEP ? STEP_HOLD_S : WHEEL_STEADY_S;
-        const bool coast = SYSID_EXPERIMENT == SYSID_WHEEL_COAST;
+            trial == SYSID_HIP_STEP || trial == SYSID_WHEEL_STEP ? STEP_HOLD_S : WHEEL_STEADY_S;
+        const bool coast = trial == SYSID_WHEEL_COAST;
         const float hold_end_s = STEP_BASELINE_S + hold_s;
         if (elapsed_s >= hold_end_s + (coast ? WHEEL_COAST_S : STEP_RECOVERY_S))
             break;
@@ -568,8 +638,8 @@ static void RunTrajectory(ChassisRequest *request, float parameter, uint64_t now
         robot.phase = moving                        ? SYSID_PHASE_EXCITE
                       : elapsed_s < STEP_BASELINE_S ? SYSID_PHASE_BASELINE
                                                     : SYSID_PHASE_RECOVERY;
-        const float reference = moving ? SYSID_TRIAL_DIRECTION * parameter : 0.0f;
-        if (SYSID_EXPERIMENT == SYSID_HIP_STEP)
+        const float reference = moving ? direction * parameter : 0.0f;
+        if (trial == SYSID_HIP_STEP)
             BuildHipRequest(request, reference);
         else
             BuildWheelRequest(request, reference, coast && robot.phase == SYSID_PHASE_RECOVERY);
@@ -579,9 +649,80 @@ static void RunTrajectory(ChassisRequest *request, float parameter, uint64_t now
     robot.state = SYSID_STATE_FINISHED;
 }
 
+static void ResetRampMeasurements(void)
+{
+    hold_samples = moving_mask = 0u;
+    stable_since_us = moving_since_us = 0u;
+    for (unsigned i = 0; i < CHASSIS_JOINT_COUNT; ++i)
+        hold_sum_nm[i] = 0.0f;
+}
+
+static void RunHipBatch(ChassisRequest *request, uint64_t now_us)
+{
+    const unsigned side = SYSID_TEST_SIDES == 1u ? CHASSIS_LEFT : CHASSIS_RIGHT;
+    const unsigned first = 2u * side;
+    const float span = fmaxf(HIP_TRIANGLE_RAD, HIP_STEP_RAD);
+    if (robot.phase == SYSID_PHASE_POSITIONING)
+    {
+        PositionSingleLeg(request, now_us, span);
+        return;
+    }
+    if (SYSID_REAL_HARDWARE)
+    {
+        const ChassisLeg *leg = &robot.chassis->legs[side];
+        if (!leg->geometry_valid || !leg->joint[0].valid || !leg->joint[1].valid ||
+            leg->length_m <= length_pid_config.minimum_m || leg->length_m >= length_pid_config.maximum_m)
+        {
+            robot.state = SYSID_STATE_FAULT;
+            return;
+        }
+    }
+    if (batch_recover_until_us && now_us >= batch_recover_until_us)
+    {
+        if (batch_index + 1u == sizeof(kHipTests) / sizeof(kHipTests[0]))
+        {
+            robot.state = SYSID_STATE_FINISHED;
+            return;
+        }
+        ++batch_index;
+        robot.hip_pattern = kHipTests[batch_index].axis;
+        batch_recover_until_us = 0;
+        start_us = now_us;
+        ResetRampMeasurements();
+        const float stage_span = robot.hip_pattern == SYSID_HIP_BOTH_ANTI_PHASE ? 0.5f * span : span;
+        if (SYSID_REAL_HARDWARE && !SweepFitsTravel(side, stage_span))
+        {
+            robot.state = SYSID_STATE_FAULT;
+            return;
+        }
+    }
+    if (!batch_recover_until_us)
+    {
+        const HipTest *test = &kHipTests[batch_index];
+        RunTrajectory(request, TrialParameter(test->mode), now_us, test->trial, test->direction);
+        if (robot.state == SYSID_STATE_FAULT)
+            return;
+        if (robot.state == SYSID_STATE_FINISHED)
+        {
+            robot.state = SYSID_REAL_HARDWARE ? SYSID_STATE_RUNNING : SYSID_STATE_DRY_RUNNING;
+            if (robot.phase != SYSID_PHASE_MOTION_DETECTED && robot.phase != SYSID_PHASE_UNSETTLED)
+                robot.phase = SYSID_PHASE_RECOVERY;
+            batch_recover_until_us = now_us + 1000000u;
+        }
+    }
+    else if (robot.phase != SYSID_PHASE_UNSETTLED)
+        robot.phase = SYSID_PHASE_RECOVERY;
+    if (batch_recover_until_us)
+        BuildHipRequest(request, 0.0f);
+    for (unsigned j = 0; j < 2u; ++j)
+        if (!(request->hip_torque_mask & (1u << (first + j))))
+            request->hip_torque_nm[first + j] += sweep_hold_bias_nm[j];
+}
+
 static void RobotCMDTask(ChassisRequest *request, uint8_t left, SysIdMode selected, float dial, uint64_t now_us)
 {
-    const bool single_leg_sweep = SYSID_EXPERIMENT == SYSID_HIP && SYSID_JOINT_MASK != kAllJoints;
+    const bool single_leg_sweep = (SYSID_EXPERIMENT == SYSID_HIP || SYSID_EXPERIMENT == SYSID_HIP_BATCH) &&
+                                  SYSID_JOINT_MASK != kAllJoints;
     if (single_leg_sweep)
     {
         // 离开双上就停止并准备下一次。上电或重连时已在双上，须先退出一次。
@@ -626,6 +767,12 @@ static void RobotCMDTask(ChassisRequest *request, uint8_t left, SysIdMode select
     if (robot.state == SYSID_STATE_READY)
     {
         robot.hip_pattern = SYSID_HIP_PATTERN;
+        if (SYSID_EXPERIMENT == SYSID_HIP_BATCH)
+        {
+            batch_index = 0;
+            batch_recover_until_us = 0;
+            robot.hip_pattern = kHipTests[0].axis;
+        }
         if (SYSID_EXPERIMENT == SYSID_HIP && !single_leg_sweep && !length_mode)
         {
             if (dial < -0.5f * kRemoteDialFullScale)
@@ -641,10 +788,7 @@ static void RobotCMDTask(ChassisRequest *request, uint8_t left, SysIdMode select
         start_us = now_us;
         sweep_bias_time_us = now_us;
         robot.phase = single_leg_sweep && SYSID_REAL_HARDWARE ? SYSID_PHASE_POSITIONING : SYSID_PHASE_NONE;
-        hold_samples = moving_mask = 0u;
-        stable_since_us = moving_since_us = 0u;
-        for (unsigned i = 0; i < CHASSIS_JOINT_COUNT; ++i)
-            hold_sum_nm[i] = 0.0f;
+        ResetRampMeasurements();
         if (length_mode && SYSID_REAL_HARDWARE)
             for (unsigned side = 0; side < CHASSIS_LEG_COUNT; ++side)
                 PIDClear(&length_state[side].pid);
@@ -652,8 +796,10 @@ static void RobotCMDTask(ChassisRequest *request, uint8_t left, SysIdMode select
     }
     if (length_mode)
         RunLegLength(request, dial);
+    else if (SYSID_EXPERIMENT == SYSID_HIP_BATCH)
+        RunHipBatch(request, now_us);
     else
-        RunTrajectory(request, parameter, now_us);
+        RunTrajectory(request, parameter, now_us, SYSID_EXPERIMENT, SYSID_TRIAL_DIRECTION);
 }
 
 void RobotInit(void)
@@ -732,5 +878,12 @@ void RobotTask(void)
         if (command.enabled && !robot.chassis->enabled)
             robot.state = SYSID_STATE_FAULT;
     }
-    VofaTick(&command, now_us, online, SYSID_JOINT_MASK, SYSID_EXPERIMENT, robot.hip_pattern, SYSID_TRIAL_DIRECTION);
+    if (SYSID_EXPERIMENT == SYSID_HIP_BATCH)
+    {
+        const HipTest *test = &kHipTests[batch_index];
+        VofaTick(&command, now_us, online, SYSID_JOINT_MASK, test->trial,
+                 robot.mode == SYSID_MODE_NONE ? SYSID_MODE_NONE : test->mode, test->axis, test->direction);
+    }
+    else
+        VofaTick(&command, now_us, online, SYSID_JOINT_MASK, SYSID_EXPERIMENT, robot.mode, robot.hip_pattern, SYSID_TRIAL_DIRECTION);
 }

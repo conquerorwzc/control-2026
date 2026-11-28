@@ -18,7 +18,7 @@ _Static_assert(sizeof(float) == 4 && kChannelCount <= VOFA_MAX_CHANNELS, "JustFl
 _Static_assert((kChannelCount + 1u) * 4u * 10u * SYSID_CONTROL_HZ <= kBaudRate && kBaudRate <= 1000000u,
                "SysID exceeds the 8N1 serial link budget");
 _Static_assert(SYSID_STATE_DRY_RUNNING < 16 && SYSID_WHEEL_COAST < 16 && SYSID_HIP_BOTH_ANTI_PHASE < 4 &&
-                   SYSID_PHASE_POSITIONING < 8,
+                   SYSID_PHASE_UNSETTLED < 8,
                "SysID telemetry metadata fields overflow");
 
 static bool vofa_ready;
@@ -42,7 +42,7 @@ static float TimeOffset(uint64_t event_us, uint64_t tick_us, bool valid)
 }
 
 void VofaTick(const ChassisRequest *command, uint64_t now_us, bool online, unsigned configured_joints, SysIdTrial trial,
-              SysIdHipPattern hip_pattern, int direction)
+              SysIdMode mode, SysIdHipPattern hip_pattern, int direction)
 {
     static uint16_t frame_seq;
     // DMA 共用发送缓冲，忙时只推进序号，避免覆盖正在发送的帧。
@@ -137,7 +137,7 @@ void VofaTick(const ChassisRequest *command, uint64_t now_us, bool online, unsig
     channel[3] = (float)((unsigned)robot->state | ((unsigned)trial << 4) | ((unsigned)hip_pattern << 8) |
                          ((unsigned)robot->phase << 10) | ((unsigned)(direction < 0) << 13) | ((unsigned)side << 14) |
                          (layout << 15) | (kFormatVersion << 17));
-    channel[4] = robot->mode;
+    channel[4] = mode;
     channel[5] = (float)(updated | ((unsigned)online << 6) | ((unsigned)(applied != 0u) << 7) |
                          ((unsigned)(chassis && chassis->clipped) << 8) |
                          ((unsigned)(robot->state == SYSID_STATE_FAULT) << 9) | (valid << 12) | (applied << 18));
