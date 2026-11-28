@@ -4,6 +4,7 @@ import csv
 import os
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 import unittest
 
 import numpy as np
@@ -12,6 +13,37 @@ try:
     import mujoco as mj
 except ImportError:
     mj = None
+
+
+class SweepQualityTest(unittest.TestCase):
+    def test_variable_amplitude_and_clipped_window(self):
+        from bench_data import sweep_tracking
+
+        for duration in (20, 24):
+            time = np.arange(-500, duration * 500 + 500) / 500
+            hz = 0.5 + 4.5 * time / duration
+            u = np.clip((hz - 3) / 2, 0, 1)
+            amp = 0.05 * (1 + u**2 * (3 - 2 * u))
+            angle = amp * np.sin(2 * np.pi * time * (0.5 + 2.25 * time / duration))
+            ref = np.column_stack([angle, np.zeros_like(angle)])
+            t = np.rint(time * 1e6).astype(int)
+            shot = SimpleNamespace(
+                t=t,
+                tx=t,
+                rx=np.column_stack([t, t]),
+                phase=np.where(time < 0, 1, np.where(time < duration, 2, 3)),
+                ref=ref,
+                q=ref * 0.5,
+                clipped=np.abs(hz - 2) < 0.015,
+                fresh=np.ones_like(ref, dtype=bool),
+                joints=["front", "rear"],
+            )
+            shot.q[time < 0] = 0
+            rows = {row["hz"]: row for row in sweep_tracking(shot)}
+            self.assertAlmostEqual(rows[4.6]["gain"], 0.5, places=5)
+            self.assertGreater(rows[4.6]["reference_amp_rad"], 1.8 * rows[1.0]["reference_amp_rad"])
+            self.assertTrue(rows[1.0]["usable_candidate"])
+            self.assertFalse(rows[2.0]["usable_candidate"])
 
 
 @unittest.skipUnless(mj and os.environ.get("WHEELLEG_CAD"), "requires MuJoCo and WHEELLEG_CAD")

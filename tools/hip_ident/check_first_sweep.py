@@ -8,6 +8,8 @@ import numpy as np
 
 from bench_model import set_pose
 
+HIP_TORQUE_LIMIT_NM = 40.0  # motor_sysid per-hip max_torque_nm
+
 
 def wheel_xz(data):
     return (data.body("left_drive_wheel").xpos - data.body("left_hip").xpos)[[0, 2]]
@@ -56,7 +58,7 @@ def free_hanging_tilt(model):
     return np.rad2deg((lo + hi) / 2)
 
 
-def run(model, amp, tilt_deg, freq_end=5.0, duration=24.0):
+def run(model, amp, tilt_deg, freq_end=5.0, duration=24.0, high_band=False):
     joints = ["left_front", "left_rear"]
     qi = [model.joint(j + "_sprocket_joint").qposadr[0] for j in joints]
     data = mj.MjData(model)
@@ -81,35 +83,40 @@ def run(model, amp, tilt_deg, freq_end=5.0, duration=24.0):
         rate = (freq_end - 0.5) / duration
         phase = 2 * np.pi * x * (0.5 + 0.5 * rate * x)
         edge = np.clip(min(x, duration - x), 0.0, 1.0)
-        ref[0] += amp * edge * np.sin(phase)
+        freq = 0.5 + rate * x
+        u_amp = np.clip((freq - 3.0) / 2.0, 0.0, 1.0) if high_band else 0.0
+        amplitude = amp * (1 + u_amp**2 * (3 - 2 * u_amp))
+        ref[0] += amplitude * edge * np.sin(phase)
         if begin is None:
             if t >= 10:
                 raise ValueError("simulated positioning timed out")
-            bias = np.clip(bias + 0.002 * 16 * (ref - q), -2.0, 2.0)
+            bias = np.clip(bias + 0.002 * 16 * (ref - q), -HIP_TORQUE_LIMIT_NM, HIP_TORQUE_LIMIT_NM)
             settled = u >= 1 and abs(length - 0.340) <= 0.007 and max(abs(v)) < 0.08 and not clipped
             settled_ticks = settled_ticks + 1 if settled else 0
             if settled_ticks >= 126:
                 begin = t
         requested = bias + 10 * (ref - q) - 0.5 * v
-        clipped = max(abs(requested)) > 2.0
-        data.qfrc_applied[vi] = np.clip(requested, -2.0, 2.0)
+        clipped = max(abs(requested)) > HIP_TORQUE_LIMIT_NM
+        data.qfrc_applied[vi] = np.clip(requested, -HIP_TORQUE_LIMIT_NM, HIP_TORQUE_LIMIT_NM)
         if 0 <= x < duration:
-            records.append((x, phase, q[0], length, max(abs(requested)), clipped))
+            records.append((x, phase, q[0], length, max(abs(requested)), clipped, ref[0], max(abs(v))))
         mj.mj_step(model, data, nstep=2)
     r = np.array(records)
-    gains = {}
+    response = {}
     for hz in (1.0, 2.0, 3.0, 4.0, 4.6):
         t_mid = (hz - 0.5) / rate
         sub = r[(abs(r[:, 0] - t_mid) < 1) & (r[:, 0] >= 1) & (r[:, 0] < duration - 1)]
         if len(sub) < 750:
             continue
         design = np.column_stack((np.sin(sub[:, 1]), np.cos(sub[:, 1]), np.ones(len(sub)), sub[:, 0] - t_mid))
-        gain = np.linalg.lstsq(design, sub[:, 2], rcond=None)[0][:2]
-        gains[hz] = round(float(np.linalg.norm(gain) / amp), 3)
+        coeff = np.linalg.lstsq(design, sub[:, [2, 6]], rcond=None)[0]
+        output_amp, input_amp = np.linalg.norm(coeff[:2], axis=0)
+        response[hz] = (round(float(output_amp), 4), round(float(output_amp / input_amp), 3))
     print(
-        f"A={amp:.3f} rad, tilt={tilt_deg:+g} deg, f_end={freq_end:g} Hz, positioning={begin:.2f} s, "
+        f"A={amp:.3f} rad, high_band={high_band}, tilt={tilt_deg:+g} deg, f_end={freq_end:g} Hz, positioning={begin:.2f} s, "
         f"requested_peak={max(r[:, 4]):.3f} Nm, clipped={100 * np.mean(r[:, 5]):.2f}%, "
-        f"OW={1000 * min(r[:, 3]):.1f}..{1000 * max(r[:, 3]):.1f} mm, gains={gains}"
+        f"OW={1000 * min(r[:, 3]):.1f}..{1000 * max(r[:, 3]):.1f} mm, peak_speed={max(r[:, 7]):.3f} rad/s, "
+        f"response_rad_and_gain={response}"
     )
 
 
@@ -122,10 +129,12 @@ if __name__ == "__main__":
         raise ValueError("expected the 1 ms spring-removed fixed rig")
     tilt = free_hanging_tilt(model)
     print(f"CAD free-hanging equilibrium at the long stop: {tilt:+.2f} deg from wheel vertically below pivot")
+    for angle in (tilt, -15, 0, 15):
+        run(model, 0.05, angle, high_band=True)
     for amplitude in (0.025, 0.05):
         run(model, amplitude, tilt)
     for amplitude in (0.025, 0.05, 0.1):
         run(model, amplitude, 0)
     for tilt in (-15, 15):
-        run(model, 0.025, tilt)
-    run(model, 0.025, 0, freq_end=3)
+        run(model, 0.05, tilt)
+    run(model, 0.05, 0, freq_end=3)

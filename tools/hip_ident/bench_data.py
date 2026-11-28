@@ -123,26 +123,51 @@ def sweep_tracking(shot):
     rate = (5.0 - 0.5) / duration_s
     rows = []
     for j in range(2):
+        baseline = (shot.phase == 1) & shot.fresh[:, j] & (shot.t >= t0 - 500000)
+        baseline_rms = float(np.std(shot.q[baseline, j])) if baseline.sum() >= 20 else None
         for hz in (1.0, 2.0, 3.0, 4.0, 4.6):
             center = (hz - 0.5) / rate
+            window = (shot.phase == 2) & (np.abs((shot.t - t0) * 1e-6 - center) <= 1.0)
+            if not window.any():
+                continue
+            clipped_fraction = float(np.mean(shot.clipped[window]))
 
-            def harmonic(times, signal, mask):
+            def harmonic(times, signal, mask=None):
                 t = (times - t0) * 1e-6
-                use = mask & (np.abs(t - center) <= 1.0) & (shot.phase == 2)
+                use = (np.abs(t - center) <= 1.0) & (shot.phase == 2)
+                if mask is not None:
+                    use &= mask
                 if use.sum() < 20 or np.ptp(t[use]) < 1.5:
                     return None
                 phase = 2 * np.pi * t[use] * (0.5 + 0.5 * rate * t[use])
                 design = np.column_stack((np.sin(phase), np.cos(phase), np.ones(len(phase)), t[use] - center))
                 coef = np.linalg.lstsq(design, signal[use], rcond=None)[0]
-                return complex(coef[0], coef[1])
+                residual = signal[use] - design @ coef
+                return complex(coef[0], coef[1]), float(np.sqrt(np.mean(residual**2)))
 
-            ref = harmonic(shot.tx, shot.ref[:, j], ~shot.clipped)
-            angle = harmonic(shot.rx[:, j], shot.q[:, j], shot.fresh[:, j] & ~shot.clipped)
-            if ref is None or angle is None or abs(ref) < 0.005:
+            ref = harmonic(shot.tx, shot.ref[:, j])
+            angle = harmonic(shot.rx[:, j], shot.q[:, j], shot.fresh[:, j])
+            if ref is None or angle is None or abs(ref[0]) < 0.005:
                 continue
-            gain = angle / ref
+            gain = angle[0] / ref[0]
+            output_rms = abs(angle[0]) / np.sqrt(2.0)
+            floor = max(baseline_rms, angle[1]) if baseline_rms is not None else None
+            # A quantized constant baseline is insufficient evidence for a numerical noise-floor estimate.
+            ratio_db = float(20 * np.log10(output_rms / floor)) if floor and output_rms > 0 else None
             rows.append(
-                dict(joint=shot.joints[j], hz=hz, gain=abs(gain), phase_deg=float(np.angle(gain, deg=True)))
+                dict(
+                    joint=shot.joints[j],
+                    hz=hz,
+                    gain=abs(gain),
+                    phase_deg=float(np.angle(gain, deg=True)),
+                    reference_amp_rad=abs(ref[0]),
+                    feedback_amp_rad=abs(angle[0]),
+                    baseline_rms_rad=baseline_rms,
+                    residual_rms_rad=angle[1],
+                    signal_to_floor_db=ratio_db,
+                    clipped_fraction=clipped_fraction,
+                    usable_candidate=clipped_fraction == 0 and ratio_db is not None and ratio_db >= 20,
+                )
             )
     return rows
 
