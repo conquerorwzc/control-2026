@@ -24,8 +24,6 @@ static uint64_t sweep_bias_time_us;
 static const unsigned kAllJoints = (1u << CHASSIS_JOINT_COUNT) - 1u;
 _Static_assert(SYSID_TEST_SIDES >= 1u && SYSID_TEST_SIDES <= 3u, "Select left, right or both legs");
 _Static_assert(SYSID_TRIAL_DIRECTION == 1 || SYSID_TRIAL_DIRECTION == -1, "Select a trial direction");
-_Static_assert(HIP_SWEEP_TORQUE_LIMIT_NM > 0.0f && HIP_SWEEP_TORQUE_LIMIT_NM <= DM_T_MAX_J8009P,
-               "Select a positive bench torque limit within the motor rating");
 _Static_assert(SYSID_EXPERIMENT <= SYSID_HIP_STATIC && SYSID_HIP_PATTERN <= SYSID_HIP_BOTH_ANTI_PHASE,
                "Select a valid trial and hip pattern");
 
@@ -244,8 +242,9 @@ static void PositionSingleLeg(ChassisRequest *request, uint64_t now_us, float am
         const float ref = robot.hip_workpoint_rad[first + j] + u * change;
         const ChassisJointFeedback *fb = &leg->joint[j];
         const float error = remainderf(ref - fb->q_rad, 2.0f * PI);
+        const float limit = chassis_init_config.hip[first + j].max_torque_nm;
         sweep_hold_bias_nm[j] = float_constrain(sweep_hold_bias_nm[j] + HIP_SWEEP_BIAS_GAIN * dt * error,
-                                                -HIP_SWEEP_TORQUE_LIMIT_NM, HIP_SWEEP_TORQUE_LIMIT_NM);
+                                                -limit, limit);
         request->hip_position_rad[first + j] = ref;
         request->hip_torque_nm[first + j] = sweep_hold_bias_nm[j];
         settled = settled && fabsf(fb->qd_rad_s) < HIP_MOTION_RAD_S;
@@ -255,7 +254,7 @@ static void PositionSingleLeg(ChassisRequest *request, uint64_t now_us, float am
         stable_since_us = 0;
     else if (!stable_since_us)
         stable_since_us = now_us;
-    else if (now_us - stable_since_us >= 250000u && SweepFitsTravel(side, amplitude))
+    else if (now_us - stable_since_us >= 250000u && SweepFitsTravel(side, amplitude * HIP_SWEEP_HIGH_GAIN))
     {
         robot.hip_workpoint_rad[first] = request->hip_position_rad[first];
         robot.hip_workpoint_rad[first + 1u] = request->hip_position_rad[first + 1u];
@@ -486,8 +485,6 @@ static void RunStatic(ChassisRequest *request, float elapsed_s)
 static void RunTrajectory(ChassisRequest *request, float parameter, uint64_t now_us)
 {
     const float elapsed_s = (float)(now_us - start_us) * 1.0e-6f;
-    if (SYSID_IS_HIP(SYSID_EXPERIMENT))
-        request->hip_torque_limit_nm = HIP_SWEEP_TORQUE_LIMIT_NM;
     switch (SYSID_EXPERIMENT)
     {
     case SYSID_HIP_STATIC:
@@ -529,8 +526,16 @@ static void RunTrajectory(ChassisRequest *request, float parameter, uint64_t now
         const float f_rate_hz_s = (SWEEP_END_HZ - SWEEP_START_HZ) / SWEEP_DURATION_S;
         const float phase_rad = 2.0f * PI * sweep_s * (SWEEP_START_HZ + 0.5f * f_rate_hz_s * sweep_s);
         const float edge_s = fminf(sweep_s, SWEEP_DURATION_S - sweep_s);
+        float amplitude = parameter;
+        if (SYSID_EXPERIMENT == SYSID_HIP && SYSID_JOINT_MASK != kAllJoints)
+        {
+            const float hz = SWEEP_START_HZ + f_rate_hz_s * sweep_s;
+            const float u = float_constrain((hz - HIP_SWEEP_BOOST_START_HZ) /
+                                            (SWEEP_END_HZ - HIP_SWEEP_BOOST_START_HZ), 0.0f, 1.0f);
+            amplitude *= 1.0f + (HIP_SWEEP_HIGH_GAIN - 1.0f) * u * u * (3.0f - 2.0f * u);
+        }
         const float reference =
-            SYSID_TRIAL_DIRECTION * parameter * float_constrain(edge_s / SWEEP_EDGE_S, 0.0f, 1.0f) * sinf(phase_rad);
+            SYSID_TRIAL_DIRECTION * amplitude * float_constrain(edge_s / SWEEP_EDGE_S, 0.0f, 1.0f) * sinf(phase_rad);
         if (SYSID_EXPERIMENT == SYSID_HIP)
             BuildHipRequest(request, reference);
         else
