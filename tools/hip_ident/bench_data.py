@@ -176,9 +176,13 @@ def breakaway(shot):
     if shot.trial != 4 or shot.pattern not in (0, 1):
         raise ValueError("expected a single-axis torque ramp")
     j = shot.pattern
+    if np.any(shot.phase == 6):
+        return dict(axis=shot.joints[j], direction=shot.direction, breakaway_increment_nm=None,
+                    reason="holding baseline did not settle; ramp skipped")
     baseline = np.flatnonzero((shot.phase == 1) & shot.fresh[:, j])
     if len(baseline) < 2:
-        raise ValueError("missing holding-torque baseline")
+        return dict(axis=shot.joints[j], direction=shot.direction, breakaway_increment_nm=None,
+                    reason="capture fragment without holding-torque baseline")
     baseline = baseline[shot.t[baseline] >= shot.t[baseline[-1]] - 250000]
     hold = float(np.median(shot.tau[baseline, j]))
     run = np.flatnonzero((shot.phase == 2) & shot.fresh[:, j])

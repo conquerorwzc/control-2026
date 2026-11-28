@@ -39,6 +39,35 @@ class VofaCsvTest(unittest.TestCase):
         times = ((0xffff, 0xffff, 0xfc18), (0, 0, 1000))
         return [[seq, hi, lo, state, mode, flags, *([0] * (width - 6))] for seq, hi, lo in times]
 
+    def test_batch_boundaries_and_missing_frames(self):
+        from extract_bench import extract
+
+        stages = [(9, 15, 0, 1)]
+        stages += [(4, 8, axis, direction) for axis in (0, 1) for direction in (1, -1)]
+        stages += [(5, mode, axis, 1) for axis in range(4) for mode in (9, 10, 11)]
+        stages += [(0, 1, axis, 1) for axis in range(4)]
+        stages += [(3, 3, axis, direction) for axis in (0, 1) for direction in (1, -1)]
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "batch.csv"
+            with src.open("w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow([f"I{i}" for i in range(25)])
+                seq = 0
+                for trial, mode, axis, direction in stages:
+                    for phase in (1, 1, 2, 2, 3, 3):
+                        if seq == 4:
+                            seq += 1
+                        packed = self.packed(1, trial, pattern=axis, phase=phase) | ((direction < 0) << 13)
+                        writer.writerow([seq, (2000*seq) >> 16, (2000*seq) & 65535, packed, mode,
+                                         0xc3 | (3<<12) | (3<<18), *([0]*19)])
+                        seq += 1
+            with contextlib.redirect_stderr(io.StringIO()):
+                result = extract(src, Path(tmp)/"out", "removed")
+            actual = [(s["experiment"], s["mode"], s["hip_pattern"], s["direction"]) for s in result["segments"]]
+            self.assertEqual(actual, [stages[0], *stages])
+            self.assertEqual(len(result["breaks"]), 1)
+            self.assertTrue(all("file" in seg for seg in result["segments"]))
+
     def test_legacy_four_hip_csv(self):
         code, _, rows = self.convert(self.rows(4, 2, 0xef, 24))
         self.assertEqual(code, 0)

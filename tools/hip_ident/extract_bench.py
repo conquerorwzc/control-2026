@@ -23,7 +23,10 @@ def extract(source, dest, spring):
         def finish():
             if not block:
                 return
-            info = {"start_row": first, "end_row": first + len(block) - 1}
+            frame = read_frame(block[0], idx, SYSID_FIELDS)
+            info = {"start_row": first, "end_row": first + len(block) - 1,
+                    "experiment": frame.experiment, "mode": frame.mode, "hip_pattern": (frame.state >> 8) & 3,
+                    "direction": -1 if frame.state & (1 << 13) else 1}
             try:
                 rows, _, fields, _ = scan(
                     iter(block), idx, len(header), 1, len(block), True, "sysid-hip", None
@@ -62,17 +65,13 @@ def extract(source, dest, spring):
                 and f.applied == mask
                 and f.valid & mask == mask
             )
-            if (
-                good
-                and prev
-                and (
-                    f.run_key != prev.run_key
-                    or (f.seq - prev.seq) % 65536 != 1
-                    or not 0 < (f.timestamp - prev.timestamp) % 2**32 <= 3000
-                )
-            ):
-                report["breaks"].append(dict(row=line, previous_seq=prev.seq, seq=f.seq))
-                finish()
+            if good and prev:
+                gap = ((f.seq - prev.seq) % 65536 != 1
+                       or not 0 < (f.timestamp - prev.timestamp) % 2**32 <= 3000)
+                if gap:
+                    report["breaks"].append(dict(row=line, previous_seq=prev.seq, seq=f.seq))
+                if gap or f.run_key != prev.run_key:
+                    finish()
             if not good:
                 finish()
                 prev = None
