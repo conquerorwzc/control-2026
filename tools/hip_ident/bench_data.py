@@ -179,6 +179,9 @@ def breakaway(shot):
     if np.any(shot.phase == 6):
         return dict(axis=shot.joints[j], direction=shot.direction, breakaway_increment_nm=None,
                     reason="holding baseline did not settle; ramp skipped")
+    if np.any(shot.phase == 7):
+        return dict(axis=shot.joints[j], direction=shot.direction, breakaway_increment_nm=None,
+                    reason="motor command reached its absolute torque limit without confirmed motion")
     baseline = np.flatnonzero((shot.phase == 1) & shot.fresh[:, j])
     if len(baseline) < 2:
         return dict(axis=shot.joints[j], direction=shot.direction, breakaway_increment_nm=None,
