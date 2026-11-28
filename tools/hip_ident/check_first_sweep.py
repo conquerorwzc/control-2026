@@ -1,6 +1,7 @@
 """Estimate reference tracking on the fixed, spring-removed 1127 rig. No hardware access."""
 
 import argparse
+from collections import deque
 from pathlib import Path
 
 import mujoco as mj
@@ -58,7 +59,9 @@ def free_hanging_tilt(model):
     return np.rad2deg((lo + hi) / 2)
 
 
-def run(model, amp, tilt_deg, freq_end=5.0, duration=24.0, high_band=False):
+def run(
+    model, amp, tilt_deg, freq_end=5.0, duration=24.0, high_band=False, front_pd=(40.0, 2.0), delay_ticks=0
+):
     joints = ["left_front", "left_rear"]
     qi = [model.joint(j + "_sprocket_joint").qposadr[0] for j in joints]
     data = mj.MjData(model)
@@ -71,6 +74,7 @@ def run(model, amp, tilt_deg, freq_end=5.0, duration=24.0, high_band=False):
     begin = None
     records = []
     clipped = False
+    command_history = deque(np.zeros(2) for _ in range(delay_ticks))
     for k in range(int((10 + duration + 2) * 500)):
         t = k / 500
         u = min(1.0, t / 3.0)
@@ -87,7 +91,8 @@ def run(model, amp, tilt_deg, freq_end=5.0, duration=24.0, high_band=False):
         u_amp = np.clip((freq - 3.0) / 2.0, 0.0, 1.0) if high_band else 0.0
         amplitude = amp * (1 + u_amp**2 * (3 - 2 * u_amp))
         ref[0] += amplitude * edge * np.sin(phase)
-        if begin is None:
+        positioning = begin is None
+        if positioning:
             if t >= 10:
                 raise ValueError("simulated positioning timed out")
             bias = np.clip(bias + 0.002 * 16 * (ref - q), -HIP_TORQUE_LIMIT_NM, HIP_TORQUE_LIMIT_NM)
@@ -96,8 +101,12 @@ def run(model, amp, tilt_deg, freq_end=5.0, duration=24.0, high_band=False):
             if settled_ticks >= 126:
                 begin = t
         requested = bias + 10 * (ref - q) - 0.5 * v
+        if not positioning:
+            kp, kd = front_pd
+            requested[0] = bias[0] + kp * (ref[0] - q[0]) - kd * v[0]
         clipped = max(abs(requested)) > HIP_TORQUE_LIMIT_NM
-        data.qfrc_applied[vi] = np.clip(requested, -HIP_TORQUE_LIMIT_NM, HIP_TORQUE_LIMIT_NM)
+        command_history.append(np.clip(requested, -HIP_TORQUE_LIMIT_NM, HIP_TORQUE_LIMIT_NM))
+        data.qfrc_applied[vi] = command_history.popleft()
         if 0 <= x < duration:
             records.append((x, phase, q[0], length, max(abs(requested)), clipped, ref[0], max(abs(v))))
         mj.mj_step(model, data, nstep=2)
@@ -113,7 +122,7 @@ def run(model, amp, tilt_deg, freq_end=5.0, duration=24.0, high_band=False):
         output_amp, input_amp = np.linalg.norm(coeff[:2], axis=0)
         response[hz] = (round(float(output_amp), 4), round(float(output_amp / input_amp), 3))
     print(
-        f"A={amp:.3f} rad, high_band={high_band}, tilt={tilt_deg:+g} deg, f_end={freq_end:g} Hz, positioning={begin:.2f} s, "
+        f"A={amp:.3f} rad, front_PD={front_pd}, delay_ms={2 * delay_ticks}, high_band={high_band}, tilt={tilt_deg:+g} deg, f_end={freq_end:g} Hz, positioning={begin:.2f} s, "
         f"requested_peak={max(r[:, 4]):.3f} Nm, clipped={100 * np.mean(r[:, 5]):.2f}%, "
         f"OW={1000 * min(r[:, 3]):.1f}..{1000 * max(r[:, 3]):.1f} mm, peak_speed={max(r[:, 7]):.3f} rad/s, "
         f"response_rad_and_gain={response}"
@@ -128,6 +137,9 @@ if __name__ == "__main__":
     if model.neq != 8 or model.nu or not np.isclose(model.opt.timestep, 0.001):
         raise ValueError("expected the 1 ms spring-removed fixed rig")
     tilt = free_hanging_tilt(model)
+    run(model, 0.05, tilt, high_band=True, front_pd=(10.0, 0.5))
+    for delay_ticks in (6, 9):
+        run(model, 0.05, tilt, high_band=True, delay_ticks=delay_ticks)
     print(f"CAD free-hanging equilibrium at the long stop: {tilt:+.2f} deg from wheel vertically below pivot")
     for angle in (tilt, -15, 0, 15):
         run(model, 0.05, angle, high_band=True)
