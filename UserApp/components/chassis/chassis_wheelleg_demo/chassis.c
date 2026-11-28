@@ -241,7 +241,12 @@ void ChassisTask(ChassisInstance *chassis, const ChassisRequest *request)
             const float error = remainderf(request->hip_position_rad[i] - fb->q_rad, 2.0f * PI);
             float output = request->hip_torque_nm[i];
             if (!(request->hip_torque_mask & (1u << i)))
-                output += hip->kp_nm_per_rad * error - hip->kd_nm_per_rad_s * fb->qd_rad_s;
+            {
+                const ChassisHipPD *pd = request->hip_pd[i];
+                const float kp = pd ? pd->kp_nm_per_rad : hip->kp_nm_per_rad;
+                const float kd = pd ? pd->kd_nm_per_rad_s : hip->kd_nm_per_rad_s;
+                output += kp * error - kd * fb->qd_rad_s;
+            }
             if (!fb->valid || !isfinite(output))
             {
                 enabled = false;

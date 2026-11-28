@@ -60,12 +60,19 @@ typedef struct
 
 typedef struct
 {
+    float kp_nm_per_rad;
+    float kd_nm_per_rad_s;
+} ChassisHipPD;
+
+typedef struct
+{
     bool enabled;
     bool wheel_current_mode;
     unsigned hip_torque_mask; // 选中的髋轴使用力矩参考，其余使用位置参考。
     float hip_position_rad[CHASSIS_JOINT_COUNT];
     float hip_torque_nm[CHASSIS_JOINT_COUNT]; // 力矩模式的指令，或位置模式的前馈力矩。
     float wheel_reference[CHASSIS_LEG_COUNT]; // 轮速 rad/s 或直接电流 A。
+    const ChassisHipPD *hip_pd[CHASSIS_JOINT_COUNT]; // NULL 使用关节配置中的位置 PD。
 } ChassisRequest;
 
 typedef struct

@@ -40,6 +40,7 @@
 #define HIP_SWEEP_POSITIONING_S 3.0f
 #define HIP_SWEEP_POSITION_TIMEOUT_US 10000000u
 #define HIP_SWEEP_BIAS_GAIN 16.0f // N m / (rad s)，仅在就位阶段积分
+static const ChassisHipPD kLeftFrontSweepPD = {.kp_nm_per_rad = 40.0f, .kd_nm_per_rad_s = 2.0f};
 #define HIP_STEP_RAD 0.1f
 #define SWEEP_START_HZ 0.5f
 #define SWEEP_END_HZ 5.0f

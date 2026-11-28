@@ -507,6 +507,8 @@ static void RunTrajectory(ChassisRequest *request, float parameter, uint64_t now
                     return;
                 }
                 const unsigned first = SYSID_TEST_SIDES == 1u ? CHASSIS_LEFT_FRONT : CHASSIS_RIGHT_FRONT;
+                if (first == CHASSIS_LEFT_FRONT && robot.hip_pattern == SYSID_HIP_FRONT)
+                    request->hip_pd[first] = &kLeftFrontSweepPD;
                 request->hip_torque_nm[first] = sweep_hold_bias_nm[0];
                 request->hip_torque_nm[first + 1u] = sweep_hold_bias_nm[1];
             }
