@@ -1,0 +1,122 @@
+"""Run with MuJoCo and the delivered CAD folder for an end-to-end numerical check."""
+
+import csv
+import os
+from pathlib import Path
+import tempfile
+import unittest
+
+import numpy as np
+
+try:
+    import mujoco as mj
+except ImportError:
+    mj = None
+
+
+@unittest.skipUnless(mj and os.environ.get("WHEELLEG_CAD"), "requires MuJoCo and WHEELLEG_CAD")
+class BenchTest(unittest.TestCase):
+    def test_fixed_models_and_replay(self):
+        from bench_model import prepare, set_pose, closure
+        from extract_bench import extract
+        from bench_replay import fit
+        from bench_data import plateau_summary, Shot
+
+        cad = Path(os.environ["WHEELLEG_CAD"])
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = Path(tmp)
+            for stage in ("removed", "installed"):
+                xml = dest / (stage + ".xml")
+                result = prepare(cad, xml, stage == "installed")
+                self.assertEqual(result["constraints"], 8 if stage == "removed" else 10)
+                m = mj.MjModel.from_xml_path(str(xml))
+                for side in ("left", "right"):
+                    d = mj.MjData(m)
+                    ids, b = set_pose(
+                        m, d, [side + "_front", side + "_rear"], np.array([-0.3, 0.35]), np.zeros(2)
+                    )
+                    self.assertLess(max(abs(closure(m, d)[0])), 1e-7)
+                    delta = (d.body(side + "_drive_wheel").xpos - d.body(side + "_hip").xpos)[[0, 2]]
+                    self.assertAlmostEqual(np.linalg.norm(delta), 0.251452, places=5)
+            model = mj.MjModel.from_xml_path(str(dest / "removed.xml"))
+            for j in ("left_hip", "left_crank", "left_front_sprocket", "left_rear_sprocket"):
+                model.dof_damping[model.joint(j + "_joint").dofadr[0]] = 0.0
+            paths = []
+            for idx in range(2):
+                raw = dest / f"trial{idx}.csv"
+                data = mj.MjData(model)
+                target = np.array([-0.3 - 0.02 * idx, 0.35])
+                vi, b = set_pose(model, data, ["left_front", "left_rear"], target, np.zeros(2))
+                qi = [model.joint(x + "_sprocket_joint").qposadr[0] for x in ("left_front", "left_rear")]
+                bias = b.T @ data.qfrc_bias
+                static_raw = dest / f"hold{idx}.csv"
+                with raw.open("w", newline="") as f, static_raw.open("w", newline="") as sf:
+                    w = csv.writer(f)
+                    sw = csv.writer(sf)
+                    for wr in (w, sw):
+                        wr.writerow([f"I{i}" for i in range(25)])
+                    for k in range(420):
+                        t = k * 2000
+                        phase = 1 if k < 70 else 2 if k < 320 else 3
+                        cmd = bias + (0.12 * np.sin(0.1 * k) if phase == 2 else 0)
+                        signals = []
+                        for j in range(2):
+                            signals.extend(
+                                [
+                                    target[j],
+                                    data.qpos[qi[j]],
+                                    data.qvel[vi[j]],
+                                    cmd[j],
+                                    cmd[j],
+                                    cmd[j],
+                                    2048,
+                                    28,
+                                    0,
+                                ]
+                            )
+                        flags = 3 | 0xC0 | (3 << 12) | (3 << 18)
+                        common = (3 << 17) | (1 << 15) | 4
+                        w.writerow([k, t >> 16, t & 65535, common | (phase << 10), 1, flags, 0, *signals])
+                        sw.writerow(
+                            [
+                                k,
+                                t >> 16,
+                                t & 65535,
+                                common | (9 << 4) | (1 << 10),
+                                14,
+                                flags,
+                                0,
+                                *([0, 0, 0, 0, 0, 0.3, 2048, 28, 0] * 2),
+                            ]
+                        )
+                        data.qfrc_applied[vi] = cmd
+                        mj.mj_step(model, data, nstep=2)
+
+                def subset(raw):
+                    directory = dest / (raw.stem + "_segments")
+                    reported = extract(raw, directory, "removed")
+                    return directory / reported["segments"][0]["file"]
+
+                paths.append(str(subset(raw)))
+                plateau = plateau_summary(Shot(subset(static_raw), "left"))
+                self.assertTrue(plateau[0]["accepted"])
+            cfg = dict(
+                side="left",
+                model="removed.xml",
+                spring_installed=False,
+                fw_rad_at_cad_zero=[0, 0],
+                cad_sign=[1, 1],
+                damping_nm_s_rad=[0, 0],
+                coulomb_nm=[0, 0],
+                armature_candidates_kg_m2=[[0], [0]],
+                train_csvs=paths[:1],
+                validation_csvs=paths[1:],
+                output="fit",
+            )
+            report = fit(cfg, dest)
+            self.assertEqual(len(report["runs"]), 2)
+            self.assertLess(max(report["runs"][1]["angle_rmse_rad"]), 0.005)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -23,7 +23,7 @@ SINGLE_HIP_SIGNALS = ("q_ref_rad", "q_rad", "qd_rad_s", "tau_preclip_nm", "tau_c
                       "tau_fb_raw", "temperature_c", "feedback_offset_us")
 WHEEL_SIGNALS = ("speed_ref_rad_s", "current_ref_a", "speed_rad_s", "current_preclip_a", "current_cmd_a",
                  "current_fb_raw", "temperature_c", "feedback_offset_us", "direct_current_mode")
-EXPERIMENT_MODES = ((1, 2, 3), (4, 5, 6), (7,), (3,), (8,), (9, 10, 11), (12,), (4, 5, 6), (4, 5, 6))
+EXPERIMENT_MODES = ((1, 2, 3), (4, 5, 6), (7,), (3,), (8,), (9, 10, 11), (12,), (4, 5, 6), (4, 5, 6), (14, 15))
 CONFIG_NAMES = (
     ("workpoint_hi", "workpoint_lo", "direction", "selected_parameter", "real_hardware", "config_valid",
      "joint_mask", "wheel_mask"),
@@ -88,6 +88,10 @@ def channel_indices(header, map_path, fields=FIELDS):
     header = [name.strip() for name in header]
     names = ([f"CH{i}" for i in range(len(fields))] if map_path is None
              else json.loads(map_path.read_text(encoding="utf-8-sig")))
+    if map_path is None and not any(name in header for name in names):
+        aliases = [f"I{i}" for i in range(len(fields))]
+        if all(name in header for name in aliases):
+            names = aliases
     if (not isinstance(names, list) or len(names) != len(fields)
             or any(not isinstance(name, str) or not name.strip() for name in names)):
         raise ValueError(f"channel map must contain {len(fields)} column names in channel order")
@@ -237,7 +241,7 @@ def scan(reader, indices, width, start, end, keep_rows, capture_format, required
             mask = 0
         else:
             hip = capture_format == "sysid-hip"
-            experiments = (0, 3, 4, 5) if hip else (1, 2, 6, 7, 8)
+            experiments = (0, 3, 4, 5, 9) if hip else (1, 2, 6, 7, 8)
             expected_layouts = (0, 1) if hip else (2,)
             if frame.version != 3 or frame.experiment not in experiments or frame.layout not in expected_layouts:
                 note("format-mismatch",

@@ -37,10 +37,12 @@ def replay(cfg, x, p):
     d.qpos[qi], d.qvel[vi] = x[0, 1:1+n], x[0, 1+n:1+2*n]
     mujoco.mj_forward(m, d)
     out = np.empty((len(x), n))
+    times_us = np.rint(x[:, 0] * 1e6).astype(np.int64)
+    indices = np.maximum(0, np.searchsorted(times_us, times_us - round(p[-1] * 1e6), side="right") - 1)
     for k, t in enumerate(x[:, 0]):
         out[k] = d.qpos[qi]
         # ZOH applied command delay. Initial history must be recorded at steady state.
-        idx = max(0, np.searchsorted(x[:, 0], t-p[-1], side="right")-1)
+        idx = indices[k]
         d.qfrc_applied[:] = 0
         d.qfrc_applied[vi] = x[idx, 1+2*n:] * p[3*n:4*n]
         if k+1 < len(x):
@@ -55,6 +57,10 @@ def main():
     ap.add_argument("config", type=Path)
     args = ap.parse_args()
     cfg = json.loads(args.config.read_text(encoding="utf-8"))
+    if "train_csvs" in cfg:
+        from bench_replay import fit
+        print(json.dumps(fit(cfg, args.config.resolve().parent), indent=2))
+        return
     if cfg["spring_installed"] is not False or len(cfg["joints"]) != 4:
         raise ValueError("This experiment requires four joints and no gas springs")
     bounds = np.asarray(cfg["bounds"], dtype=float)

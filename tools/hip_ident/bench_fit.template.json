@@ -1,0 +1,13 @@
+{
+  "spring_installed": false,
+  "side": "left",
+  "model": "bench_removed.xml",
+  "fw_rad_at_cad_zero": [null, null],
+  "cad_sign": [null, null],
+  "damping_nm_s_rad": [null, null],
+  "coulomb_nm": [null, null],
+  "armature_candidates_kg_m2": [[], []],
+  "train_csvs": [],
+  "validation_csvs": [],
+  "output": "removed_fit"
+}
