@@ -12,6 +12,9 @@ class Shot:
         a = np.atleast_1d(np.genfromtxt(path, delimiter=",", names=True, encoding="utf-8-sig"))
         self.side = side
         self.path = str(path)
+        self.workpoint = int(a["workpoint_id"][0]) if "workpoint_id" in a.dtype.names else 0
+        if "workpoint_id" in a.dtype.names and np.any(a["workpoint_id"] != self.workpoint):
+            raise ValueError(f"{path}: mixed workpoints")
         self.joints = [side + "_front", side + "_rear"]
 
         def matrix(name):
@@ -233,7 +236,7 @@ def sliding_friction(shots):
                 if abs(v[k]) < 0.08 or np.ptp(window) > 0.09 or min(window) * max(window) <= 0:
                     continue
                 # Do not pool distinct speeds, temperatures or the two directions.
-                group = (shot.mode, *np.rint(shot.q[i] / 0.025).astype(int), round(shot.temp[i, j] / 3))
+                group = (shot.workpoint, shot.mode, *np.rint(shot.q[i] / 0.025).astype(int), round(shot.temp[i, j] / 3))
                 bins.setdefault(group, [[], []])[int(v[k] > 0)].append((abs(v[k]), shot.tau[i, j]))
         pairs = []
         for neg, pos in bins.values():
@@ -280,7 +283,7 @@ def main():
     report = {"spring": args.spring, "side": args.side, "torque_feedback_scale": 1.0, "runs": []}
     for s in shots:
         row = dict(
-            source=s.path,
+            source=s.path, workpoint_id=s.workpoint,
             experiment=s.trial,
             mode=s.mode,
             pattern=s.pattern,
@@ -320,7 +323,13 @@ def main():
         for source, poses in grids.items()
     ]
     if args.spring == "removed":
-        report["moving_friction"] = sliding_friction(shots)
+        training = [s for s in shots if s.workpoint != 6]
+        if training:
+            report["moving_friction"] = sliding_friction(training)
+        report["moving_friction_by_workpoint"] = {
+            str(w): sliding_friction([s for s in training if s.workpoint == w])
+            for w in sorted({s.workpoint for s in training if s.trial == 5})
+        }
     with args.output.open("x", encoding="utf-8") as f:
         json.dump(report, f, indent=2, allow_nan=False)
 

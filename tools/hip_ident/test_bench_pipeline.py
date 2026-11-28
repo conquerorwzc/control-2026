@@ -1,6 +1,7 @@
 """Run with MuJoCo and the delivered CAD folder for an end-to-end numerical check."""
 
 import csv
+import json
 import os
 from pathlib import Path
 import tempfile
@@ -108,7 +109,8 @@ class BenchTest(unittest.TestCase):
                             )
                         flags = 3 | 0xC0 | (3 << 12) | (3 << 18)
                         common = (3 << 17) | (1 << 15) | 4
-                        w.writerow([k, t >> 16, t & 65535, common | (phase << 10), 1, flags, 0, *signals])
+                        pose_id = (1, 6)[idx]
+                        w.writerow([k, t >> 16, t & 65535, common | (phase << 10), 256*pose_id+1, flags, 0, *signals])
                         sw.writerow(
                             [
                                 k,
@@ -151,6 +153,15 @@ class BenchTest(unittest.TestCase):
             report = fit(cfg, dest)
             self.assertEqual(len(report["runs"]), 2)
             self.assertLess(max(report["runs"][1]["angle_rmse_rad"]), 0.005)
+            for path in map(Path, paths):
+                index = path.parent / "index.json"
+                record = json.loads(index.read_text(encoding="utf-8"))
+                record["source"] = str(dest / "same_capture.csv")
+                index.write_text(json.dumps(record), encoding="utf-8")
+            report = fit(dict(cfg, output="within_capture_holdout"), dest)
+            self.assertEqual([r["workpoint_id"] for r in report["runs"]], [1, 6])
+            with self.assertRaisesRegex(ValueError, "reserved for validation"):
+                fit(dict(cfg, train_csvs=paths[1:], validation_csvs=paths[:1]), dest)
 
 
 if __name__ == "__main__":

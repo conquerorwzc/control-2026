@@ -79,17 +79,21 @@ def fit(cfg, folder):
         if index.exists():
             record = json.loads(index.read_text(encoding="utf-8"))
             if record["spring"] != "removed" or not any(
-                seg.get("file") == path.name for seg in record["segments"]
+                seg.get("file") == path.name and seg.get("workpoint_id", 0) == s.workpoint
+                for seg in record["segments"]
             ):
                 raise ValueError(f"{path}: capture index or spring stage mismatch")
             origin = Path(record["source"]).resolve()
-        sources.append(origin)
+        if s.workpoint == 6 and path in train:
+            raise ValueError(f"{path}: workpoint 6 is reserved for validation")
+        sources.append((origin, s.workpoint))
         times, q, v, tau = aligned(s, zero, sign)
         data = mj.MjData(model)
         set_pose(model, data, joints, q[0], v[0])
         windows.append((data.qpos.copy(), data.qvel.copy(), times, q, v, tau))
-    if set(sources[: len(train)]) & set(sources[len(train) :]):
-        raise ValueError("use a separate original recording for validation")
+    for origin, pose in sources[len(train):]:
+        if any(p == origin and (pose != 6 or train_pose == 0) for p, train_pose in sources[:len(train)]):
+            raise ValueError("use a separate original recording or the preassigned held-out workpoint")
     initial = model.dof_armature[vi].copy()
     candidates = [np.asarray(x, dtype=float) for x in cfg["armature_candidates_kg_m2"]]
     if len(candidates) != 2 or any(
@@ -144,7 +148,7 @@ def fit(cfg, folder):
         p, y = replay(w, best[1])
         report["runs"].append(
             dict(
-                source=str(path),
+                source=str(path), workpoint_id=sources[i][1],
                 held_out=i >= len(train),
                 angle_rmse_rad=np.sqrt(np.mean((q - p) ** 2, axis=0)).tolist(),
                 velocity_rmse_rad_s=np.sqrt(np.mean((v - y) ** 2, axis=0)).tolist(),

@@ -49,6 +49,7 @@ class Frame(NamedTuple):
     mode: int
     flags: int
     signals: tuple
+    workpoint: int = 0
 
     @property
     def timestamp(self):
@@ -81,7 +82,7 @@ class Frame(NamedTuple):
     @property
     def run_key(self):
         # Phase may change within a run.
-        return (self.state & ~(7 << 10), self.mode)
+        return (self.state & ~(7 << 10), self.mode, self.workpoint)
 
 
 def channel_indices(header, map_path, fields=FIELDS):
@@ -126,7 +127,12 @@ def read_frame(row, indices, fields=FIELDS):
             if not math.isfinite(value):
                 raise ValueError(f"{name}: nonfinite value ({cell!r})")
             values.append(value)
-    return Frame(*values[:6], tuple(values[6:]))
+    workpoint = 0
+    if fields == SYSID_FIELDS:
+        workpoint, values[4] = divmod(values[4], 256)
+        if workpoint > 6:
+            raise ValueError(f"unknown workpoint {workpoint}")
+    return Frame(*values[:6], tuple(values[6:]), workpoint)
 
 
 class Report:
@@ -178,7 +184,7 @@ def sysid_output_fields(layout, side):
         names = SINGLE_HIP_SIGNALS if layout == 1 else WHEEL_SIGNALS
         signals = ("command_offset_us",) + tuple(f"{device}_{name}" for device in devices for name in names)
     metadata = ("state", "experiment", "hip_pattern", "phase", "direction", "fresh_mask", "valid_mask",
-                "applied_mask")
+                "applied_mask", "workpoint_id")
     return SYSID_FIELDS[:6] + signals + metadata + (("hip_temperature_joint",) if layout == 0 else ())
 
 
@@ -317,13 +323,15 @@ def scan(reader, indices, width, start, end, keep_rows, capture_format, required
                 capture_metadata = {"firmware": pages.copy() if key == ready_key else {}}
                 capture_metadata.update(experiment=frame.experiment, mode=frame.mode,
                                         first_selected_data_row=start)
+                if frame.workpoint:
+                    capture_metadata["workpoint_id"] = frame.workpoint
             if keep_rows and not config:
                 if legacy:
                     output.append((seconds(elapsed), *frame[:6], *frame.signals))
                 else:
                     metadata = (frame.state & 0xf, frame.experiment, (frame.state >> 8) & 3,
                                 (frame.state >> 10) & 7, -1 if frame.state & (1 << 13) else 1,
-                                frame.flags & 0x3f, frame.valid, frame.applied)
+                                frame.flags & 0x3f, frame.valid, frame.applied, frame.workpoint)
                     temperature = (ACTUATORS[frame.seq % 4],) if frame.layout == 0 else ()
                     output.append((seconds(elapsed), *frame[:6], *frame.signals, *metadata, *temperature))
         prev = frame

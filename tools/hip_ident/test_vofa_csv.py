@@ -68,6 +68,28 @@ class VofaCsvTest(unittest.TestCase):
             self.assertEqual(len(result["breaks"]), 1)
             self.assertTrue(all("file" in seg for seg in result["segments"]))
 
+    def test_multipose_stage_boundaries(self):
+        from extract_bench import extract
+
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "multipose.csv"
+            with src.open("w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow([f"I{i}" for i in range(25)])
+                for i, pose in enumerate((1, 1, 6, 6)):
+                    writer.writerow([i, 0, i*2000, self.packed(1, 0, phase=2), 256*pose+1,
+                                     0xc3 | (3<<12) | (3<<18), *([0]*19)])
+            out = Path(tmp) / "decoded"
+            with contextlib.redirect_stderr(io.StringIO()):
+                result = extract(src, out, "removed")
+            self.assertEqual(result["breaks"], [])
+            self.assertEqual([x["workpoint_id"] for x in result["segments"]], [1, 6])
+            for segment in result["segments"]:
+                with (out/segment["file"]).open(newline="") as f:
+                    rows = list(csv.DictReader(f))
+                self.assertEqual([int(r["workpoint_id"]) for r in rows], [segment["workpoint_id"]]*2)
+                self.assertTrue(all(r["mode"] == "1" for r in rows))
+
     def test_legacy_four_hip_csv(self):
         code, _, rows = self.convert(self.rows(4, 2, 0xef, 24))
         self.assertEqual(code, 0)
