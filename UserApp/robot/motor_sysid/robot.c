@@ -19,6 +19,7 @@ static uint64_t stable_since_us;
 static uint64_t moving_since_us;
 static uint64_t start_us;
 static float sweep_half_delta_change;
+static float sweep_mean_change;
 static float sweep_hold_bias_nm[2];
 static uint64_t sweep_bias_time_us;
 typedef struct
@@ -58,6 +59,34 @@ static const HipTest kHipTests[] = {
     {SYSID_HIP_STEP, SYSID_MODE_HIP_STEP, SYSID_HIP_REAR, -1},
 };
 static unsigned batch_index;
+typedef struct
+{
+    float length_m;
+    float swing_deg; // Same absolute body-frame convention as ChassisLeg.angle_rad.
+    bool measure_starting_friction;
+} HipWorkpoint;
+
+static const HipWorkpoint kDynamicPoses[] = {
+    {0.320f, 5.0f, false}, {0.260f, 5.0f, true}, {0.200f, 5.0f, true},
+    {0.200f, 20.0f, false}, {0.320f, 20.0f, false}, {0.260f, 20.0f, false}, // #6 held out
+};
+
+static bool IncludeBatchTest(unsigned index)
+{
+    if (!robot.workpoint_id)
+        return true;
+    const HipTest *test = &kHipTests[index];
+    if (test->trial == SYSID_HIP_STATIC)
+        return false;
+    if (test->trial == SYSID_HIP_RAMP)
+        return kDynamicPoses[robot.workpoint_id - 1u].measure_starting_friction;
+    return test->trial != SYSID_HIP_TRIANGLE || test->axis == SYSID_HIP_FRONT || test->axis == SYSID_HIP_REAR;
+}
+
+static float PositionLength(void)
+{
+    return robot.workpoint_id ? kDynamicPoses[robot.workpoint_id - 1u].length_m : HIP_SWEEP_WORK_LENGTH_M;
+}
 static uint64_t batch_recover_until_us;
 static const unsigned kAllJoints = (1u << CHASSIS_JOINT_COUNT) - 1u;
 _Static_assert(SYSID_TEST_SIDES >= 1u && SYSID_TEST_SIDES <= 3u, "Select left, right or both legs");
@@ -223,20 +252,39 @@ static bool TrialCanStart(float parameter)
             return false;
         robot.hip_workpoint_rad[i] = fb->q_rad;
     }
+    if (!SYSID_REAL_HARDWARE && robot.workpoint_id)
+    {
+        const unsigned first = SYSID_TEST_SIDES == 1u ? CHASSIS_LEFT_FRONT : CHASSIS_RIGHT_FRONT;
+        const float a = chassis_init_config.geometry.first_m, b = chassis_init_config.geometry.second_m;
+        const float length = PositionLength();
+        const float half_delta = -acosf((length * length + a * a - b * b) / (2.0f * length * a));
+        const float mean = (90.0f + kDynamicPoses[robot.workpoint_id - 1u].swing_deg) * (PI / 180.0f);
+        robot.hip_workpoint_rad[first] = mean + half_delta;
+        robot.hip_workpoint_rad[first + 1u] = mean - half_delta;
+        return isfinite(half_delta);
+    }
     if (SYSID_REAL_HARDWARE && (SYSID_EXPERIMENT == SYSID_HIP || SYSID_EXPERIMENT == SYSID_HIP_BATCH) &&
         SYSID_JOINT_MASK != kAllJoints)
     {
         const unsigned side = SYSID_TEST_SIDES == 1u ? CHASSIS_LEFT : CHASSIS_RIGHT;
         const ChassisLeg *leg = &robot.chassis->legs[side];
-        const float length = HIP_SWEEP_WORK_LENGTH_M;
+        const float length = PositionLength();
         const float a = length_pid_config.first_m, b = length_pid_config.second_m;
-        const float target_delta = -2.0f * acosf((length*length + a*a - b*b) / (2.0f * length * a));
+        const float target_delta = -2.0f * acosf((length * length + a * a - b * b) / (2.0f * length * a));
         if (!leg->geometry_valid || !isfinite(target_delta) || !isfinite(leg->hip_delta_rad) ||
             leg->hip_delta_rad >= 0.0f || leg->hip_delta_rad <= -PI ||
             !(leg->length_m >= length_pid_config.minimum_m - HIP_SWEEP_STOP_MARGIN_M &&
               leg->length_m <= length_pid_config.maximum_m + HIP_SWEEP_STOP_MARGIN_M))
             return false;
         sweep_half_delta_change = 0.5f * (target_delta - leg->hip_delta_rad);
+        sweep_mean_change = 0.0f;
+        if (robot.workpoint_id)
+        {
+            const float angle = kDynamicPoses[robot.workpoint_id - 1u].swing_deg * (PI / 180.0f);
+            if (!isfinite(leg->angle_rad))
+                return false;
+            sweep_mean_change = remainderf(angle - leg->angle_rad, 2.0f * PI);
+        }
         sweep_hold_bias_nm[0] = sweep_hold_bias_nm[1] = 0.0f;
         return true;
     }
@@ -277,12 +325,15 @@ static void PositionSingleLeg(ChassisRequest *request, uint64_t now_us, float pe
     u = u * u * (3.0f - 2.0f * u);
     const float dt = fminf((float)(now_us - sweep_bias_time_us) * 1e-6f, 2.0f / SYSID_CONTROL_HZ);
     sweep_bias_time_us = now_us;
-    bool settled = at_end && fabsf(leg->length_m - HIP_SWEEP_WORK_LENGTH_M) <= 0.007f &&
+    bool settled = at_end && fabsf(leg->length_m - PositionLength()) <= 0.007f &&
                    !robot.chassis->clipped;
+    if (robot.workpoint_id)
+        settled = settled && fabsf(remainderf(leg->angle_rad -
+            kDynamicPoses[robot.workpoint_id - 1u].swing_deg * (PI / 180.0f), 2.0f * PI)) <= 3.0f * (PI / 180.0f);
     for (unsigned j = 0; j < 2u; ++j)
     {
         const float change = j == CHASSIS_FRONT ? sweep_half_delta_change : -sweep_half_delta_change;
-        const float ref = robot.hip_workpoint_rad[first + j] + u * change;
+        const float ref = robot.hip_workpoint_rad[first + j] + u * (sweep_mean_change + change);
         const ChassisJointFeedback *fb = &leg->joint[j];
         const float error = remainderf(ref - fb->q_rad, 2.0f * PI);
         const float limit = chassis_init_config.hip[first + j].max_torque_nm;
@@ -697,16 +748,44 @@ static void RunHipBatch(ChassisRequest *request, uint64_t now_us)
     }
     if (batch_recover_until_us && now_us >= batch_recover_until_us)
     {
-        if (batch_index + 1u == sizeof(kHipTests) / sizeof(kHipTests[0]))
+        unsigned next = batch_index + 1u;
+        const unsigned count = sizeof(kHipTests) / sizeof(kHipTests[0]);
+        while (next < count && !IncludeBatchTest(next))
+            ++next;
+        bool reposition = false;
+        if (next == count)
         {
-            robot.state = SYSID_STATE_FINISHED;
-            return;
+            if (!robot.workpoint_id || robot.workpoint_id == sizeof(kDynamicPoses) / sizeof(kDynamicPoses[0]))
+            {
+                robot.state = SYSID_STATE_FINISHED;
+                return;
+            }
+            ++robot.workpoint_id;
+            next = 0;
+            while (next < count && !IncludeBatchTest(next))
+                ++next;
+            reposition = true;
         }
-        ++batch_index;
+        batch_index = next;
         robot.hip_pattern = kHipTests[batch_index].axis;
         batch_recover_until_us = 0;
         start_us = now_us;
         ResetRampMeasurements();
+        if (reposition)
+        {
+            if (!TrialCanStart(span))
+            {
+                robot.state = SYSID_STATE_FAULT;
+                return;
+            }
+            if (SYSID_REAL_HARDWARE)
+            {
+                sweep_bias_time_us = now_us;
+                robot.phase = SYSID_PHASE_POSITIONING;
+                PositionSingleLeg(request, now_us, span);
+                return;
+            }
+        }
         const float stage_span = robot.hip_pattern == SYSID_HIP_BOTH_ANTI_PHASE ? 0.5f * span : span;
         if (SYSID_REAL_HARDWARE && !SweepFitsTravel(side, stage_span))
         {
@@ -788,9 +867,12 @@ static void RobotCMDTask(ChassisRequest *request, uint8_t left, SysIdMode select
         robot.hip_pattern = SYSID_HIP_PATTERN;
         if (SYSID_EXPERIMENT == SYSID_HIP_BATCH)
         {
+            robot.workpoint_id = SYSID_MULTIPOSE ? 1u : 0u;
             batch_index = 0;
+            while (!IncludeBatchTest(batch_index))
+                ++batch_index;
             batch_recover_until_us = 0;
-            robot.hip_pattern = kHipTests[0].axis;
+            robot.hip_pattern = kHipTests[batch_index].axis;
         }
         if (SYSID_EXPERIMENT == SYSID_HIP && !single_leg_sweep && !length_mode)
         {

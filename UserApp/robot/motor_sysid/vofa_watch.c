@@ -137,7 +137,7 @@ void VofaTick(const ChassisRequest *command, uint64_t now_us, bool online, unsig
     channel[3] = (float)((unsigned)robot->state | ((unsigned)trial << 4) | ((unsigned)hip_pattern << 8) |
                          ((unsigned)robot->phase << 10) | ((unsigned)(direction < 0) << 13) | ((unsigned)side << 14) |
                          (layout << 15) | (kFormatVersion << 17));
-    channel[4] = mode;
+    channel[4] = (unsigned)mode | ((unsigned)robot->workpoint_id << 8);
     channel[5] = (float)(updated | ((unsigned)online << 6) | ((unsigned)(applied != 0u) << 7) |
                          ((unsigned)(chassis && chassis->clipped) << 8) |
                          ((unsigned)(robot->state == SYSID_STATE_FAULT) << 9) | (valid << 12) | (applied << 18));
