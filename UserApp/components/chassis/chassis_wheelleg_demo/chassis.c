@@ -239,9 +239,9 @@ void ChassisTask(ChassisInstance *chassis, const ChassisRequest *request)
 
             const HipMotor_Init_Config_s *hip = &config->hip[i];
             const float error = remainderf(request->hip_position_rad[i] - fb->q_rad, 2.0f * PI);
-            const float output = (request->hip_torque_mask & (1u << i))
-                                     ? request->hip_torque_nm[i]
-                                     : hip->kp_nm_per_rad * error - hip->kd_nm_per_rad_s * fb->qd_rad_s;
+            float output = request->hip_torque_nm[i];
+            if (!(request->hip_torque_mask & (1u << i)))
+                output += hip->kp_nm_per_rad * error - hip->kd_nm_per_rad_s * fb->qd_rad_s;
             if (!fb->valid || !isfinite(output))
             {
                 enabled = false;

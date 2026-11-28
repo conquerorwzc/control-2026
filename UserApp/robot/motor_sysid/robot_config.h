@@ -30,7 +30,7 @@
 #define SYSID_WHEEL_MASK (SYSID_IS_HIP(SYSID_EXPERIMENT) ? 0u : SYSID_TEST_SIDES)
 
 #ifndef HIP_SWEEP_AMPLITUDE_RAD
-#define HIP_SWEEP_AMPLITUDE_RAD 0.05f
+#define HIP_SWEEP_AMPLITUDE_RAD 0.025f
 #endif
 // 小幅架空试验从 length demo 的 2 N·m 开始，按台架验证结果单独调整。
 #ifndef HIP_SWEEP_TORQUE_LIMIT_NM
@@ -38,10 +38,14 @@
 #endif
 #define HIP_SWEEP_STOP_MARGIN_M 0.005f
 #define HIP_SWEEP_HOLD_S 1.0f
+#define HIP_SWEEP_WORK_LENGTH_M 0.340f
+#define HIP_SWEEP_POSITIONING_S 3.0f
+#define HIP_SWEEP_POSITION_TIMEOUT_US 10000000u
+#define HIP_SWEEP_BIAS_GAIN 16.0f // N m / (rad s)，仅在就位阶段积分
 #define HIP_STEP_RAD 0.1f
 #define SWEEP_START_HZ 0.5f
 #define SWEEP_END_HZ 5.0f
-#define SWEEP_DURATION_S 20.0f
+#define SWEEP_DURATION_S (SYSID_EXPERIMENT == SYSID_HIP ? 24.0f : 20.0f)
 #define SWEEP_EDGE_S 1.0f
 #define STEP_BASELINE_S 1.0f
 #define STEP_HOLD_S 3.0f

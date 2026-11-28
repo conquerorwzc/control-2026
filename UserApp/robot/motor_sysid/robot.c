@@ -18,6 +18,9 @@ static unsigned moving_mask;
 static uint64_t stable_since_us;
 static uint64_t moving_since_us;
 static uint64_t start_us;
+static float sweep_half_delta_change;
+static float sweep_hold_bias_nm[2];
+static uint64_t sweep_bias_time_us;
 static const unsigned kAllJoints = (1u << CHASSIS_JOINT_COUNT) - 1u;
 _Static_assert(SYSID_TEST_SIDES >= 1u && SYSID_TEST_SIDES <= 3u, "Select left, right or both legs");
 _Static_assert(SYSID_TRIAL_DIRECTION == 1 || SYSID_TRIAL_DIRECTION == -1, "Select a trial direction");
@@ -180,6 +183,22 @@ static bool TrialCanStart(float parameter)
             return false;
         robot.hip_workpoint_rad[i] = fb->q_rad;
     }
+    if (SYSID_REAL_HARDWARE && SYSID_EXPERIMENT == SYSID_HIP && SYSID_JOINT_MASK != kAllJoints)
+    {
+        const unsigned side = SYSID_TEST_SIDES == 1u ? CHASSIS_LEFT : CHASSIS_RIGHT;
+        const ChassisLeg *leg = &robot.chassis->legs[side];
+        const float length = HIP_SWEEP_WORK_LENGTH_M;
+        const float a = length_pid_config.first_m, b = length_pid_config.second_m;
+        const float target_delta = -2.0f * acosf((length*length + a*a - b*b) / (2.0f * length * a));
+        if (!leg->geometry_valid || !isfinite(target_delta) || !isfinite(leg->hip_delta_rad) ||
+            leg->hip_delta_rad >= 0.0f || leg->hip_delta_rad <= -PI ||
+            !(leg->length_m >= length_pid_config.minimum_m - HIP_SWEEP_STOP_MARGIN_M &&
+              leg->length_m <= length_pid_config.maximum_m + HIP_SWEEP_STOP_MARGIN_M))
+            return false;
+        sweep_half_delta_change = 0.5f * (target_delta - leg->hip_delta_rad);
+        sweep_hold_bias_nm[0] = sweep_hold_bias_nm[1] = 0.0f;
+        return true;
+    }
     if (SYSID_REAL_HARDWARE)
         for (unsigned side = 0; side < CHASSIS_LEG_COUNT; ++side)
         {
@@ -198,6 +217,51 @@ static void BuildHipRequest(ChassisRequest *request, float position)
     for (unsigned i = 0; i < CHASSIS_JOINT_COUNT; ++i)
         if (SYSID_JOINT_MASK & (1u << i))
             request->hip_position_rad[i] = robot.hip_workpoint_rad[i] + JointPhase(i) * position;
+}
+
+static void PositionSingleLeg(ChassisRequest *request, uint64_t now_us, float amplitude)
+{
+    const unsigned side = SYSID_TEST_SIDES == 1u ? CHASSIS_LEFT : CHASSIS_RIGHT;
+    const unsigned first = 2u * side;
+    const ChassisLeg *leg = &robot.chassis->legs[side];
+    const uint64_t elapsed = now_us - start_us;
+    if (!leg->geometry_valid || !leg->joint[0].valid || !leg->joint[1].valid ||
+        elapsed >= HIP_SWEEP_POSITION_TIMEOUT_US)
+    {
+        robot.state = SYSID_STATE_FAULT;
+        return;
+    }
+    float u = fminf((float)elapsed * 1e-6f / HIP_SWEEP_POSITIONING_S, 1.0f);
+    const bool at_end = u >= 1.0f;
+    u = u * u * (3.0f - 2.0f * u);
+    const float dt = fminf((float)(now_us - sweep_bias_time_us) * 1e-6f, 2.0f / SYSID_CONTROL_HZ);
+    sweep_bias_time_us = now_us;
+    bool settled = at_end && fabsf(leg->length_m - HIP_SWEEP_WORK_LENGTH_M) <= 0.007f &&
+                   !robot.chassis->clipped;
+    for (unsigned j = 0; j < 2u; ++j)
+    {
+        const float change = j == CHASSIS_FRONT ? sweep_half_delta_change : -sweep_half_delta_change;
+        const float ref = robot.hip_workpoint_rad[first + j] + u * change;
+        const ChassisJointFeedback *fb = &leg->joint[j];
+        const float error = remainderf(ref - fb->q_rad, 2.0f * PI);
+        sweep_hold_bias_nm[j] = float_constrain(sweep_hold_bias_nm[j] + HIP_SWEEP_BIAS_GAIN * dt * error,
+                                                -HIP_SWEEP_TORQUE_LIMIT_NM, HIP_SWEEP_TORQUE_LIMIT_NM);
+        request->hip_position_rad[first + j] = ref;
+        request->hip_torque_nm[first + j] = sweep_hold_bias_nm[j];
+        settled = settled && fabsf(fb->qd_rad_s) < HIP_MOTION_RAD_S;
+    }
+    request->enabled = true;
+    if (!settled)
+        stable_since_us = 0;
+    else if (!stable_since_us)
+        stable_since_us = now_us;
+    else if (now_us - stable_since_us >= 250000u && SweepFitsTravel(side, amplitude))
+    {
+        robot.hip_workpoint_rad[first] = request->hip_position_rad[first];
+        robot.hip_workpoint_rad[first + 1u] = request->hip_position_rad[first + 1u];
+        robot.phase = SYSID_PHASE_BASELINE;
+        start_us = now_us;
+    }
 }
 
 static void BuildWheelRequest(ChassisRequest *request, float reference, bool current_mode)
@@ -438,6 +502,17 @@ static void RunTrajectory(ChassisRequest *request, float parameter, uint64_t now
         float sweep_s = elapsed_s;
         if (SYSID_EXPERIMENT == SYSID_HIP)
         {
+            if (SYSID_REAL_HARDWARE && SYSID_JOINT_MASK != kAllJoints)
+            {
+                if (robot.phase == SYSID_PHASE_POSITIONING)
+                {
+                    PositionSingleLeg(request, now_us, parameter);
+                    return;
+                }
+                const unsigned first = SYSID_TEST_SIDES == 1u ? CHASSIS_LEFT_FRONT : CHASSIS_RIGHT_FRONT;
+                request->hip_torque_nm[first] = sweep_hold_bias_nm[0];
+                request->hip_torque_nm[first + 1u] = sweep_hold_bias_nm[1];
+            }
             sweep_s -= HIP_SWEEP_HOLD_S;
             if (sweep_s >= SWEEP_DURATION_S + HIP_SWEEP_HOLD_S)
                 break;
@@ -559,7 +634,8 @@ static void RobotCMDTask(ChassisRequest *request, uint8_t left, SysIdMode select
             return;
         }
         start_us = now_us;
-        robot.phase = SYSID_PHASE_NONE;
+        sweep_bias_time_us = now_us;
+        robot.phase = single_leg_sweep && SYSID_REAL_HARDWARE ? SYSID_PHASE_POSITIONING : SYSID_PHASE_NONE;
         hold_samples = moving_mask = 0u;
         stable_since_us = moving_since_us = 0u;
         for (unsigned i = 0; i < CHASSIS_JOINT_COUNT; ++i)
