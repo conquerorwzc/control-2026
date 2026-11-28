@@ -18,13 +18,13 @@
 #define SYSID_MULTIPOSE 1 // 0 restores the original single-workpoint batch with the static grid.
 #endif
 #ifndef SYSID_REPEAT_MISSING_1818
-#define SYSID_REPEAT_MISSING_1818 1 // Left-leg multipose: poses 1–3 and the missing part of pose 4.
+#define SYSID_REPEAT_MISSING_1818 0 // Set to 1 only to repeat the missing left-leg segments.
 #endif
 #ifndef SYSID_HIP_PATTERN
 #define SYSID_HIP_PATTERN (SYSID_EXPERIMENT == SYSID_HIP ? SYSID_HIP_BOTH_ANTI_PHASE : SYSID_HIP_FRONT)
 #endif
 #ifndef SYSID_TEST_SIDES
-#define SYSID_TEST_SIDES (1u << CHASSIS_LEFT) // 左=1，右=2，双侧=3。
+#define SYSID_TEST_SIDES (1u << CHASSIS_RIGHT) // 左=1，右=2，双侧=3。
 #endif
 #ifndef SYSID_TRIAL_DIRECTION
 #define SYSID_TRIAL_DIRECTION 1
