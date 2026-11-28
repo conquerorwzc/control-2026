@@ -73,6 +73,8 @@ static const HipWorkpoint kDynamicPoses[] = {
 
 static const bool kRepeatMissing1818 = SYSID_REPEAT_MISSING_1818 && SYSID_MULTIPOSE &&
                                        SYSID_EXPERIMENT == SYSID_HIP_BATCH && SYSID_TEST_SIDES == 1u;
+static const bool kRightBaselineFirst = SYSID_RIGHT_BASELINE_FIRST && SYSID_MULTIPOSE &&
+                                        SYSID_EXPERIMENT == SYSID_HIP_BATCH && SYSID_TEST_SIDES == 2u;
 
 static bool IncludeBatchTest(unsigned index)
 {
@@ -761,7 +763,7 @@ static void RunHipBatch(ChassisRequest *request, uint64_t now_us)
         if (next == count)
         {
             const unsigned last_pose = kRepeatMissing1818 ? 4u : sizeof(kDynamicPoses) / sizeof(kDynamicPoses[0]);
-            if (!robot.workpoint_id || robot.workpoint_id == last_pose)
+            if ((!robot.workpoint_id && !kRightBaselineFirst) || robot.workpoint_id == last_pose)
             {
                 robot.state = SYSID_STATE_FINISHED;
                 return;
@@ -873,7 +875,7 @@ static void RobotCMDTask(ChassisRequest *request, uint8_t left, SysIdMode select
         robot.hip_pattern = SYSID_HIP_PATTERN;
         if (SYSID_EXPERIMENT == SYSID_HIP_BATCH)
         {
-            robot.workpoint_id = SYSID_MULTIPOSE ? 1u : 0u;
+            robot.workpoint_id = SYSID_MULTIPOSE && !kRightBaselineFirst ? 1u : 0u;
             batch_index = 0;
             while (!IncludeBatchTest(batch_index))
                 ++batch_index;

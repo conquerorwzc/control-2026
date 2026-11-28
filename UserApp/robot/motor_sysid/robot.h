@@ -85,7 +85,7 @@ typedef struct
     SysIdHipPattern hip_pattern;
     float hip_workpoint_rad[CHASSIS_JOINT_COUNT];
     float length_target_m;
-    uint8_t workpoint_id; // 0 = legacy run. The multipose capture numbers its centers from 1.
+    uint8_t workpoint_id; // 0 = baseline batch, 1–6 = dynamic workpoints.
 } RobotInstance;
 
 void RobotInit(void);

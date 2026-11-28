@@ -20,6 +20,9 @@
 #ifndef SYSID_REPEAT_MISSING_1818
 #define SYSID_REPEAT_MISSING_1818 0 // Set to 1 only to repeat the missing left-leg segments.
 #endif
+#ifndef SYSID_RIGHT_BASELINE_FIRST
+#define SYSID_RIGHT_BASELINE_FIRST 1 // Start right-leg multipose capture with its spring-off baseline batch.
+#endif
 #ifndef SYSID_HIP_PATTERN
 #define SYSID_HIP_PATTERN (SYSID_EXPERIMENT == SYSID_HIP ? SYSID_HIP_BOTH_ANTI_PHASE : SYSID_HIP_FRONT)
 #endif
