@@ -76,6 +76,17 @@ static const bool kRepeatMissing1818 = SYSID_REPEAT_MISSING_1818 && SYSID_MULTIP
 static const bool kRightBaselineFirst = SYSID_RIGHT_BASELINE_FIRST && SYSID_MULTIPOSE &&
                                         SYSID_EXPERIMENT == SYSID_HIP_BATCH && SYSID_TEST_SIDES == 2u;
 
+static bool HasFixedSwing(void)
+{
+    return robot.workpoint_id || (kRightBaselineFirst && SYSID_REPEAT_RIGHT_1939);
+}
+
+static float WorkpointSwingRad(void)
+{
+    const float degrees = robot.workpoint_id ? kDynamicPoses[robot.workpoint_id - 1u].swing_deg : HIP_RIGHT_1939_SWING_DEG;
+    return degrees * (PI / 180.0f);
+}
+
 static bool IncludeBatchTest(unsigned index)
 {
     if (!robot.workpoint_id)
@@ -259,13 +270,13 @@ static bool TrialCanStart(float parameter)
             return false;
         robot.hip_workpoint_rad[i] = fb->q_rad;
     }
-    if (!SYSID_REAL_HARDWARE && robot.workpoint_id)
+    if (!SYSID_REAL_HARDWARE && HasFixedSwing())
     {
         const unsigned first = SYSID_TEST_SIDES == 1u ? CHASSIS_LEFT_FRONT : CHASSIS_RIGHT_FRONT;
         const float a = chassis_init_config.geometry.first_m, b = chassis_init_config.geometry.second_m;
         const float length = PositionLength();
         const float half_delta = -acosf((length * length + a * a - b * b) / (2.0f * length * a));
-        const float mean = (90.0f + kDynamicPoses[robot.workpoint_id - 1u].swing_deg) * (PI / 180.0f);
+        const float mean = PI * 0.5f + WorkpointSwingRad();
         robot.hip_workpoint_rad[first] = mean + half_delta;
         robot.hip_workpoint_rad[first + 1u] = mean - half_delta;
         return isfinite(half_delta);
@@ -285,9 +296,9 @@ static bool TrialCanStart(float parameter)
             return false;
         sweep_half_delta_change = 0.5f * (target_delta - leg->hip_delta_rad);
         sweep_mean_change = 0.0f;
-        if (robot.workpoint_id)
+        if (HasFixedSwing())
         {
-            const float angle = kDynamicPoses[robot.workpoint_id - 1u].swing_deg * (PI / 180.0f);
+            const float angle = WorkpointSwingRad();
             if (!isfinite(leg->angle_rad))
                 return false;
             sweep_mean_change = remainderf(angle - leg->angle_rad, 2.0f * PI);
@@ -334,9 +345,9 @@ static void PositionSingleLeg(ChassisRequest *request, uint64_t now_us, float pe
     sweep_bias_time_us = now_us;
     bool settled = at_end && fabsf(leg->length_m - PositionLength()) <= 0.007f &&
                    !robot.chassis->clipped;
-    if (robot.workpoint_id)
+    if (HasFixedSwing())
         settled = settled && fabsf(remainderf(leg->angle_rad -
-            kDynamicPoses[robot.workpoint_id - 1u].swing_deg * (PI / 180.0f), 2.0f * PI)) <= 3.0f * (PI / 180.0f);
+            WorkpointSwingRad(), 2.0f * PI)) <= 3.0f * (PI / 180.0f);
     for (unsigned j = 0; j < 2u; ++j)
     {
         const float change = j == CHASSIS_FRONT ? sweep_half_delta_change : -sweep_half_delta_change;

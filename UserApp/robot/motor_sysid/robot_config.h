@@ -23,6 +23,10 @@
 #ifndef SYSID_RIGHT_BASELINE_FIRST
 #define SYSID_RIGHT_BASELINE_FIRST 1 // Start right-leg multipose capture with its spring-off baseline batch.
 #endif
+#ifndef SYSID_REPEAT_RIGHT_1939
+#define SYSID_REPEAT_RIGHT_1939 1 // Repeat the spring-off right-leg grid at its recorded body-frame angle.
+#endif
+#define HIP_RIGHT_1939_SWING_DEG 27.54124f
 #ifndef SYSID_HIP_PATTERN
 #define SYSID_HIP_PATTERN (SYSID_EXPERIMENT == SYSID_HIP ? SYSID_HIP_BOTH_ANTI_PHASE : SYSID_HIP_FRONT)
 #endif
