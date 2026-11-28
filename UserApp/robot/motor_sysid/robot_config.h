@@ -29,7 +29,15 @@
                                     : 0u)
 #define SYSID_WHEEL_MASK (SYSID_IS_HIP(SYSID_EXPERIMENT) ? 0u : SYSID_TEST_SIDES)
 
+#ifndef HIP_SWEEP_AMPLITUDE_RAD
 #define HIP_SWEEP_AMPLITUDE_RAD 0.05f
+#endif
+// 小幅架空试验从 length demo 的 2 N·m 开始，按台架验证结果单独调整。
+#ifndef HIP_SWEEP_TORQUE_LIMIT_NM
+#define HIP_SWEEP_TORQUE_LIMIT_NM 2.0f
+#endif
+#define HIP_SWEEP_STOP_MARGIN_M 0.005f
+#define HIP_SWEEP_HOLD_S 1.0f
 #define HIP_STEP_RAD 0.1f
 #define SWEEP_START_HZ 0.5f
 #define SWEEP_END_HZ 5.0f
@@ -45,10 +53,13 @@
 #define TRIANGLE_CYCLES 3u
 
 // 空跑使用预览幅值。真实起动、三角往返和轮扫频的参数按台架填写。
-#define HIP_TRIANGLE_RAD (SYSID_REAL_HARDWARE ? 0.0f : 0.1f)
-#define HIP_RAMP_NM_S (SYSID_REAL_HARDWARE ? 0.0f : 0.1f)
-#define HIP_RAMP_MAX_NM (SYSID_REAL_HARDWARE ? 0.0f : 0.5f)
-#define HIP_MOTION_RAD_S 0.0f // TODO(待确认): 髋起动速度阈值。
+#define HIP_TRIANGLE_RAD 0.10f
+#define HIP_RAMP_NM_S 0.10f
+#define HIP_RAMP_MAX_NM 0.50f // 相对保持力矩的增量。
+#define HIP_MOTION_RAD_S 0.08f // 初测阈值，约 3.6 个反馈速度量化步。
+#define HIP_GRID_SHORT_M 0.190f
+#define HIP_GRID_LONG_M 0.335f
+#define HIP_GRID_SWING_RAD 0.18f
 #define WHEEL_SWEEP_RAD_S (SYSID_REAL_HARDWARE ? 0.0f : 10.0f)
 #define WHEEL_RAMP_A_S (SYSID_REAL_HARDWARE ? 0.0f : 0.2f)
 #define WHEEL_RAMP_MAX_A (SYSID_REAL_HARDWARE ? 0.0f : 1.0f)

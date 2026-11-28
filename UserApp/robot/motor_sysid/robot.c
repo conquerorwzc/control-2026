@@ -10,7 +10,7 @@
 #include "user_lib.h"
 #include "vofa_watch.h"
 
-static RobotInstance robot;
+static RobotInstance robot = {.hip_pattern = SYSID_HIP_PATTERN};
 static LegLengthState length_state[CHASSIS_LEG_COUNT];
 static float hold_sum_nm[CHASSIS_JOINT_COUNT];
 static unsigned hold_samples;
@@ -21,7 +21,9 @@ static uint64_t start_us;
 static const unsigned kAllJoints = (1u << CHASSIS_JOINT_COUNT) - 1u;
 _Static_assert(SYSID_TEST_SIDES >= 1u && SYSID_TEST_SIDES <= 3u, "Select left, right or both legs");
 _Static_assert(SYSID_TRIAL_DIRECTION == 1 || SYSID_TRIAL_DIRECTION == -1, "Select a trial direction");
-_Static_assert(SYSID_EXPERIMENT <= SYSID_WHEEL_COAST && SYSID_HIP_PATTERN <= SYSID_HIP_BOTH_ANTI_PHASE,
+_Static_assert(HIP_SWEEP_TORQUE_LIMIT_NM > 0.0f && HIP_SWEEP_TORQUE_LIMIT_NM <= DM_T_MAX_J8009P,
+               "Select a positive bench torque limit within the motor rating");
+_Static_assert(SYSID_EXPERIMENT <= SYSID_HIP_STATIC && SYSID_HIP_PATTERN <= SYSID_HIP_BOTH_ANTI_PHASE,
                "Select a valid trial and hip pattern");
 
 static bool WheelsConfigured(void)
@@ -43,6 +45,10 @@ static SysIdMode SelectMode(uint8_t right)
 {
     switch (SYSID_EXPERIMENT)
     {
+    case SYSID_HIP_STATIC:
+        if (switch_is_up(right))
+            return SYSID_MODE_STATIC_HOLD;
+        return switch_is_mid(right) ? SYSID_MODE_STATIC_GRID : SYSID_MODE_NONE;
     case SYSID_HIP:
         if (switch_is_up(right))
             return SYSID_MODE_HIP_IN_PHASE;
@@ -85,6 +91,9 @@ static float TrialParameter(SysIdMode mode)
 {
     switch (mode)
     {
+    case SYSID_MODE_STATIC_HOLD:
+    case SYSID_MODE_STATIC_GRID:
+        return 1.0f;
     case SYSID_MODE_HIP_IN_PHASE:
     case SYSID_MODE_HIP_ANTI_PHASE:
         return HIP_SWEEP_AMPLITUDE_RAD;
@@ -114,8 +123,30 @@ static float TrialParameter(SysIdMode mode)
 static int JointPhase(unsigned joint)
 {
     static const int signs[][2] = {{1, 0}, {0, 1}, {1, 1}, {1, -1}};
-    const int axis = signs[SYSID_HIP_PATTERN][joint % 2u];
+    const int axis = signs[robot.hip_pattern][joint % 2u];
     return joint >= 2u && robot.mode == SYSID_MODE_HIP_ANTI_PHASE ? -axis : axis;
+}
+
+// 台架只在启动时检查目标轨迹的相对角行程；整腿转动不改变这个角差。
+static bool SweepFitsTravel(unsigned side, float amplitude)
+{
+    const unsigned front = 2u * side;
+    const ChassisLeg *leg = &robot.chassis->legs[side];
+    const float excursion = amplitude * (JointPhase(front) - JointPhase(front + 1u));
+    const float lower = length_pid_config.minimum_m + HIP_SWEEP_STOP_MARGIN_M;
+    const float upper = length_pid_config.maximum_m - HIP_SWEEP_STOP_MARGIN_M;
+    const float zero_speed[2] = {0};
+    if (!leg->geometry_valid || !(leg->length_m > lower && leg->length_m < upper))
+        return false;
+    for (int sign = -1; sign <= 1; sign += 2)
+    {
+        const float q[2] = {leg->hip_delta_rad + sign * excursion, 0.0f};
+        LegLengthState endpoint;
+        if (!LegLengthGeometry(&length_pid_config, q, zero_speed, &endpoint) ||
+            !(endpoint.length_m > lower && endpoint.length_m < upper))
+            return false;
+    }
+    return true;
 }
 
 static bool TrialCanStart(float parameter)
@@ -130,17 +161,34 @@ static bool TrialCanStart(float parameter)
         (WHEEL_RAMP_MAX_A <= 0.0f || (SYSID_REAL_HARDWARE && WHEEL_MOTION_RAD_S <= 0.0f)))
         return false;
 
-    if (!robot.chassis || !SYSID_IS_HIP(SYSID_EXPERIMENT))
+    if (!SYSID_IS_HIP(SYSID_EXPERIMENT))
         return true;
 
     for (unsigned i = 0; i < CHASSIS_JOINT_COUNT; ++i)
     {
         if (!(SYSID_JOINT_MASK & (1u << i)))
             continue;
-        const ChassisJointFeedback *fb = &robot.chassis->legs[i / 2u].joint[i % 2u];
-        if (!fb->valid)
+        if (!SYSID_REAL_HARDWARE)
+        {
+            robot.hip_workpoint_rad[i] = chassis_init_config.hip[i].center_rad;
+            continue;
+        }
+        if (!robot.chassis)
             return false;
+        const ChassisJointFeedback *fb = &robot.chassis->legs[i / 2u].joint[i % 2u];
+        if (!fb->valid || !isfinite(fb->q_rad))
+            return false;
+        robot.hip_workpoint_rad[i] = fb->q_rad;
     }
+    if (SYSID_REAL_HARDWARE)
+        for (unsigned side = 0; side < CHASSIS_LEG_COUNT; ++side)
+        {
+            const float span = SYSID_EXPERIMENT == SYSID_HIP_TRIANGLE ? HIP_TRIANGLE_RAD :
+                               SYSID_EXPERIMENT == SYSID_HIP_STATIC || SYSID_EXPERIMENT == SYSID_HIP_RAMP ?
+                                   0.0f : parameter;
+            if ((SYSID_TEST_SIDES & (1u << side)) && !SweepFitsTravel(side, span))
+                return false;
+        }
     return true;
 }
 
@@ -149,7 +197,7 @@ static void BuildHipRequest(ChassisRequest *request, float position)
     request->enabled = SYSID_REAL_HARDWARE;
     for (unsigned i = 0; i < CHASSIS_JOINT_COUNT; ++i)
         if (SYSID_JOINT_MASK & (1u << i))
-            request->hip_position_rad[i] = chassis_init_config.hip[i].center_rad + JointPhase(i) * position;
+            request->hip_position_rad[i] = robot.hip_workpoint_rad[i] + JointPhase(i) * position;
 }
 
 static void BuildWheelRequest(ChassisRequest *request, float reference, bool current_mode)
@@ -313,23 +361,99 @@ static void RunRamp(ChassisRequest *request, float parameter, float elapsed_s, u
     }
 }
 
+// Each of 100 poses has two 2 s holds, approached from opposite relative-angle directions.
+static void GridPose(unsigned side, unsigned visit, bool approach, float target[2])
+{
+    const unsigned row = visit / 20u;
+    unsigned column = (visit / 2u) % 10u;
+    if (row % 2u)
+        column = 9u - column;
+    const float length = HIP_GRID_SHORT_M + (HIP_GRID_LONG_M - HIP_GRID_SHORT_M) * (float)row / 9.0f;
+    const float first = chassis_init_config.geometry.first_m, second = chassis_init_config.geometry.second_m;
+    const float delta = -2.0f * acosf((length * length + first * first - second * second) / (2.0f * length * first));
+    const float *center = &robot.hip_workpoint_rad[2u * side];
+    const float branch = chassis_init_config.hip[2u * side].center_rad - chassis_init_config.hip[2u * side+1u].center_rad;
+    const float start_delta = branch + remainderf(center[0] - center[1] - branch, 2.0f * PI);
+    const float swing = HIP_GRID_SWING_RAD * (2.0f * (float)column / 9.0f - 1.0f);
+    const float preload = approach ? (visit % 2u ? -0.02f : 0.02f) : 0.0f;
+    target[0] = center[0] + swing + 0.5f * (delta - start_delta) + preload;
+    target[1] = center[1] + swing - 0.5f * (delta - start_delta) - preload;
+}
+
+static void RunStatic(ChassisRequest *request, float elapsed_s)
+{
+    if (robot.mode == SYSID_MODE_STATIC_HOLD)
+    {
+        robot.phase = SYSID_PHASE_BASELINE;
+        BuildHipRequest(request, 0.0f);
+        return;
+    }
+    const unsigned visit = (unsigned)(elapsed_s / 5.0f);
+    if (visit >= 200u)
+    {
+        robot.state = SYSID_STATE_FINISHED;
+        return;
+    }
+    const float within = elapsed_s - 5.0f * (float)visit;
+    robot.phase = within < 3.0f ? SYSID_PHASE_EXCITE : SYSID_PHASE_BASELINE;
+    request->enabled = SYSID_REAL_HARDWARE;
+    for (unsigned s = 0; s < CHASSIS_LEG_COUNT; ++s)
+    {
+        if (!(SYSID_TEST_SIDES & (1u << s)))
+            continue;
+        float from[2], to[2];
+        if (within >= 2.0f)
+            GridPose(s, visit, true, from);
+        else if (visit)
+            GridPose(s, visit - 1u, false, from);
+        else
+        {
+            from[0] = robot.hip_workpoint_rad[2u*s];
+            from[1] = robot.hip_workpoint_rad[2u*s+1u];
+        }
+        GridPose(s, visit, within < 2.0f, to);
+        float u = within < 2.0f ? within * 0.5f : fminf(within - 2.0f, 1.0f);
+        u = u*u*(3.0f - 2.0f*u);
+        for (unsigned j = 0; j < 2u; ++j)
+            request->hip_position_rad[2u*s+j] = from[j] + u*(to[j] - from[j]);
+    }
+}
+
 static void RunTrajectory(ChassisRequest *request, float parameter, uint64_t now_us)
 {
     const float elapsed_s = (float)(now_us - start_us) * 1.0e-6f;
+    if (SYSID_IS_HIP(SYSID_EXPERIMENT))
+        request->hip_torque_limit_nm = HIP_SWEEP_TORQUE_LIMIT_NM;
     switch (SYSID_EXPERIMENT)
     {
+    case SYSID_HIP_STATIC:
+        RunStatic(request, elapsed_s);
+        return;
     case SYSID_HIP_RAMP:
     case SYSID_WHEEL_CURRENT_RAMP:
         RunRamp(request, parameter, elapsed_s, now_us);
         return;
     case SYSID_HIP:
     case SYSID_WHEEL_SWEEP: {
-        if (elapsed_s >= SWEEP_DURATION_S)
+        float sweep_s = elapsed_s;
+        if (SYSID_EXPERIMENT == SYSID_HIP)
+        {
+            sweep_s -= HIP_SWEEP_HOLD_S;
+            if (sweep_s >= SWEEP_DURATION_S + HIP_SWEEP_HOLD_S)
+                break;
+            if (sweep_s < 0.0f || sweep_s >= SWEEP_DURATION_S)
+            {
+                robot.phase = sweep_s < 0.0f ? SYSID_PHASE_BASELINE : SYSID_PHASE_RECOVERY;
+                BuildHipRequest(request, 0.0f);
+                return;
+            }
+        }
+        else if (sweep_s >= SWEEP_DURATION_S)
             break;
         robot.phase = SYSID_PHASE_EXCITE;
         const float f_rate_hz_s = (SWEEP_END_HZ - SWEEP_START_HZ) / SWEEP_DURATION_S;
-        const float phase_rad = 2.0f * PI * elapsed_s * (SWEEP_START_HZ + 0.5f * f_rate_hz_s * elapsed_s);
-        const float edge_s = fminf(elapsed_s, SWEEP_DURATION_S - elapsed_s);
+        const float phase_rad = 2.0f * PI * sweep_s * (SWEEP_START_HZ + 0.5f * f_rate_hz_s * sweep_s);
+        const float edge_s = fminf(sweep_s, SWEEP_DURATION_S - sweep_s);
         const float reference =
             SYSID_TRIAL_DIRECTION * parameter * float_constrain(edge_s / SWEEP_EDGE_S, 0.0f, 1.0f) * sinf(phase_rad);
         if (SYSID_EXPERIMENT == SYSID_HIP)
@@ -377,7 +501,21 @@ static void RunTrajectory(ChassisRequest *request, float parameter, uint64_t now
 
 static void RobotCMDTask(ChassisRequest *request, uint8_t left, SysIdMode selected, float dial, uint64_t now_us)
 {
-    if (switch_is_down(left))
+    const bool single_leg_sweep = SYSID_EXPERIMENT == SYSID_HIP && SYSID_JOINT_MASK != kAllJoints;
+    if (single_leg_sweep)
+    {
+        // 离开双上就停止并准备下一次。上电或重连时已在双上，须先退出一次。
+        if (!switch_is_up(left) || selected != SYSID_MODE_HIP_IN_PHASE)
+        {
+            robot.state = SYSID_STATE_READY;
+            robot.mode = SYSID_MODE_NONE;
+            robot.phase = SYSID_PHASE_NONE;
+            return;
+        }
+        if (robot.state == SYSID_STATE_READY)
+            robot.mode = selected;
+    }
+    else if (switch_is_down(left))
     {
         robot.state = SYSID_STATE_ESTOP;
         robot.mode = SYSID_MODE_NONE;
@@ -385,7 +523,7 @@ static void RobotCMDTask(ChassisRequest *request, uint8_t left, SysIdMode select
         return;
     }
 
-    if (switch_is_mid(left) && (robot.state == SYSID_STATE_ESTOP || robot.state == SYSID_STATE_READY))
+    else if (switch_is_mid(left) && (robot.state == SYSID_STATE_ESTOP || robot.state == SYSID_STATE_READY))
     {
         robot.state = SYSID_STATE_READY;
         robot.mode = selected;
@@ -407,6 +545,14 @@ static void RobotCMDTask(ChassisRequest *request, uint8_t left, SysIdMode select
     const float parameter = TrialParameter(selected);
     if (robot.state == SYSID_STATE_READY)
     {
+        robot.hip_pattern = SYSID_HIP_PATTERN;
+        if (SYSID_EXPERIMENT == SYSID_HIP && !single_leg_sweep && !length_mode)
+        {
+            if (dial < -0.5f * kRemoteDialFullScale)
+                robot.hip_pattern = SYSID_HIP_BOTH_IN_PHASE;
+            else if (dial > 0.5f * kRemoteDialFullScale)
+                robot.hip_pattern = SYSID_HIP_BOTH_ANTI_PHASE;
+        }
         if (!length_mode && !TrialCanStart(parameter))
         {
             robot.state = SYSID_STATE_FAULT;
@@ -449,7 +595,7 @@ void RobotInit(void)
         LOGERROR("[motor_sysid] Chassis init failed: check CAN filter slots");
         return;
     }
-    if (SYSID_EXPERIMENT == SYSID_HIP)
+    if (SYSID_IS_HIP(SYSID_EXPERIMENT))
     {
         const ChassisGeometryConfig *geometry = &chassis_init_config.geometry;
         length_pid_config.first_m = geometry->first_m;
@@ -505,5 +651,5 @@ void RobotTask(void)
         if (command.enabled && !robot.chassis->enabled)
             robot.state = SYSID_STATE_FAULT;
     }
-    VofaTick(&command, now_us, online, SYSID_JOINT_MASK, SYSID_EXPERIMENT, SYSID_HIP_PATTERN, SYSID_TRIAL_DIRECTION);
+    VofaTick(&command, now_us, online, SYSID_JOINT_MASK, SYSID_EXPERIMENT, robot.hip_pattern, SYSID_TRIAL_DIRECTION);
 }

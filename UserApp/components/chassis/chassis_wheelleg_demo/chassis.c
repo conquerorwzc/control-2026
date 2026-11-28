@@ -247,7 +247,9 @@ void ChassisTask(ChassisInstance *chassis, const ChassisRequest *request)
                 enabled = false;
                 continue;
             }
-            const float limit = fminf(hip->max_torque_nm, DM_T_MAX_J8009P);
+            float limit = fminf(hip->max_torque_nm, DM_T_MAX_J8009P);
+            if (request->hip_torque_limit_nm > 0.0f)
+                limit = fminf(limit, request->hip_torque_limit_nm);
             fb->command_torque_preclip_nm = output;
             fb->command_torque_nm = float_constrain(output, -limit, limit);
             clipped |= output != fb->command_torque_nm;

@@ -11,3 +11,8 @@ set(SYSID_SOURCES
 )
 list(APPEND SOURCES ${SYSID_SOURCES})
 set_source_files_properties(${SYSID_SOURCES} PROPERTIES COMPILE_OPTIONS "-fno-fast-math")
+foreach(setting SYSID_EXPERIMENT SYSID_TEST_SIDES SYSID_HIP_PATTERN SYSID_TRIAL_DIRECTION HIP_SWEEP_AMPLITUDE_RAD)
+    if(DEFINED ${setting})
+        set_property(SOURCE "${CMAKE_CURRENT_LIST_DIR}/robot.c" APPEND PROPERTY COMPILE_DEFINITIONS "${setting}=${${setting}}")
+    endif()
+endforeach()

@@ -31,7 +31,9 @@ typedef enum
     SYSID_MODE_HIP_TRIANGLE_05,
     SYSID_MODE_HIP_TRIANGLE_10,
     SYSID_MODE_WHEEL_CURRENT_RAMP,
-    SYSID_MODE_LEG_LENGTH
+    SYSID_MODE_LEG_LENGTH,
+    SYSID_MODE_STATIC_HOLD,
+    SYSID_MODE_STATIC_GRID
 } SysIdMode;
 
 typedef enum
@@ -44,11 +46,13 @@ typedef enum
     SYSID_HIP_TRIANGLE,
     SYSID_WHEEL_CURRENT_RAMP,
     SYSID_WHEEL_STEADY,
-    SYSID_WHEEL_COAST
+    SYSID_WHEEL_COAST,
+    SYSID_HIP_STATIC
 } SysIdTrial;
 
 #define SYSID_IS_HIP(trial)                                                                                            \
-    ((trial) == SYSID_HIP || (trial) == SYSID_HIP_STEP || (trial) == SYSID_HIP_RAMP || (trial) == SYSID_HIP_TRIANGLE)
+    ((trial) == SYSID_HIP || (trial) == SYSID_HIP_STEP || (trial) == SYSID_HIP_RAMP ||                                \
+     (trial) == SYSID_HIP_TRIANGLE || (trial) == SYSID_HIP_STATIC)
 
 typedef enum
 {
@@ -74,6 +78,8 @@ typedef struct
     SysIdState state;
     SysIdMode mode;
     SysIdPhase phase;
+    SysIdHipPattern hip_pattern;
+    float hip_workpoint_rad[CHASSIS_JOINT_COUNT];
     float length_target_m;
 } RobotInstance;
 
