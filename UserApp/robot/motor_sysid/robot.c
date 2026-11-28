@@ -71,11 +71,16 @@ static const HipWorkpoint kDynamicPoses[] = {
     {0.200f, 20.0f, false}, {0.320f, 20.0f, false}, {0.260f, 20.0f, false}, // #6 held out
 };
 
+static const bool kRepeatMissing1818 = SYSID_REPEAT_MISSING_1818 && SYSID_MULTIPOSE &&
+                                       SYSID_EXPERIMENT == SYSID_HIP_BATCH && SYSID_TEST_SIDES == 1u;
+
 static bool IncludeBatchTest(unsigned index)
 {
     if (!robot.workpoint_id)
         return true;
     const HipTest *test = &kHipTests[index];
+    if (kRepeatMissing1818 && robot.workpoint_id == 4u && test->trial == SYSID_HIP_STEP)
+        return false;
     if (test->trial == SYSID_HIP_STATIC)
         return false;
     if (test->trial == SYSID_HIP_RAMP)
@@ -755,7 +760,8 @@ static void RunHipBatch(ChassisRequest *request, uint64_t now_us)
         bool reposition = false;
         if (next == count)
         {
-            if (!robot.workpoint_id || robot.workpoint_id == sizeof(kDynamicPoses) / sizeof(kDynamicPoses[0]))
+            const unsigned last_pose = kRepeatMissing1818 ? 4u : sizeof(kDynamicPoses) / sizeof(kDynamicPoses[0]);
+            if (!robot.workpoint_id || robot.workpoint_id == last_pose)
             {
                 robot.state = SYSID_STATE_FINISHED;
                 return;

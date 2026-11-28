@@ -17,6 +17,9 @@
 #ifndef SYSID_MULTIPOSE
 #define SYSID_MULTIPOSE 1 // 0 restores the original single-workpoint batch with the static grid.
 #endif
+#ifndef SYSID_REPEAT_MISSING_1818
+#define SYSID_REPEAT_MISSING_1818 1 // Left-leg multipose: poses 1–3 and the missing part of pose 4.
+#endif
 #ifndef SYSID_HIP_PATTERN
 #define SYSID_HIP_PATTERN (SYSID_EXPERIMENT == SYSID_HIP ? SYSID_HIP_BOTH_ANTI_PHASE : SYSID_HIP_FRONT)
 #endif
