@@ -60,7 +60,15 @@ def free_hanging_tilt(model):
 
 
 def run(
-    model, amp, tilt_deg, freq_end=5.0, duration=24.0, high_band=False, front_pd=(40.0, 2.0), delay_ticks=0
+    model,
+    amp,
+    tilt_deg,
+    freq_end=5.0,
+    duration=24.0,
+    high_band=False,
+    front_pd=(40.0, 2.0),
+    delay_ticks=0,
+    rear_pd=(40.0, 2.0),
 ):
     joints = ["left_front", "left_rear"]
     qi = [model.joint(j + "_sprocket_joint").qposadr[0] for j in joints]
@@ -104,11 +112,25 @@ def run(
         if not positioning:
             kp, kd = front_pd
             requested[0] = bias[0] + kp * (ref[0] - q[0]) - kd * v[0]
+            kp, kd = rear_pd
+            requested[1] = bias[1] + kp * (ref[1] - q[1]) - kd * v[1]
         clipped = max(abs(requested)) > HIP_TORQUE_LIMIT_NM
         command_history.append(np.clip(requested, -HIP_TORQUE_LIMIT_NM, HIP_TORQUE_LIMIT_NM))
         data.qfrc_applied[vi] = command_history.popleft()
         if 0 <= x < duration:
-            records.append((x, phase, q[0], length, max(abs(requested)), clipped, ref[0], max(abs(v))))
+            records.append(
+                (
+                    x,
+                    phase,
+                    q[0],
+                    length,
+                    max(abs(requested)),
+                    clipped,
+                    ref[0],
+                    max(abs(v)),
+                    np.rad2deg(abs(ref[1] - q[1])),
+                )
+            )
         mj.mj_step(model, data, nstep=2)
     r = np.array(records)
     response = {}
@@ -124,6 +146,7 @@ def run(
     print(
         f"A={amp:.3f} rad, front_PD={front_pd}, delay_ms={2 * delay_ticks}, high_band={high_band}, tilt={tilt_deg:+g} deg, f_end={freq_end:g} Hz, positioning={begin:.2f} s, "
         f"requested_peak={max(r[:, 4]):.3f} Nm, clipped={100 * np.mean(r[:, 5]):.2f}%, "
+        f"rear_PD={rear_pd}, rear_peak_error_deg={max(r[:, 8]):.2f}, "
         f"OW={1000 * min(r[:, 3]):.1f}..{1000 * max(r[:, 3]):.1f} mm, peak_speed={max(r[:, 7]):.3f} rad/s, "
         f"response_rad_and_gain={response}"
     )
@@ -137,7 +160,8 @@ if __name__ == "__main__":
     if model.neq != 8 or model.nu or not np.isclose(model.opt.timestep, 0.001):
         raise ValueError("expected the 1 ms spring-removed fixed rig")
     tilt = free_hanging_tilt(model)
-    run(model, 0.05, tilt, high_band=True, front_pd=(10.0, 0.5))
+    run(model, 0.05, tilt, high_band=True, front_pd=(10.0, 0.5), rear_pd=(10.0, 0.5))
+    run(model, 0.05, tilt, high_band=True, rear_pd=(10.0, 0.5))
     for delay_ticks in (6, 9):
         run(model, 0.05, tilt, high_band=True, delay_ticks=delay_ticks)
     print(f"CAD free-hanging equilibrium at the long stop: {tilt:+.2f} deg from wheel vertically below pivot")
