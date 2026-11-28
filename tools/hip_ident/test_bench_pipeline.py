@@ -75,7 +75,7 @@ class BenchTest(unittest.TestCase):
             for j in ("left_hip", "left_crank", "left_front_sprocket", "left_rear_sprocket"):
                 model.dof_damping[model.joint(j + "_joint").dofadr[0]] = 0.0
             paths = []
-            for idx in range(2):
+            for idx, pose_id in enumerate((1, 6, 0)):
                 raw = dest / f"trial{idx}.csv"
                 data = mj.MjData(model)
                 target = np.array([-0.3 - 0.02 * idx, 0.35])
@@ -109,7 +109,6 @@ class BenchTest(unittest.TestCase):
                             )
                         flags = 3 | 0xC0 | (3 << 12) | (3 << 18)
                         common = (3 << 17) | (1 << 15) | 4
-                        pose_id = (1, 6)[idx]
                         w.writerow([k, t >> 16, t & 65535, common | (phase << 10), 256*pose_id+1, flags, 0, *signals])
                         sw.writerow(
                             [
@@ -147,7 +146,7 @@ class BenchTest(unittest.TestCase):
                 coulomb_nm=[0, 0],
                 armature_candidates_kg_m2=[[0], [0]],
                 train_csvs=paths[:1],
-                validation_csvs=paths[1:],
+                validation_csvs=[paths[1]],
                 output="fit",
             )
             report = fit(cfg, dest)
@@ -160,8 +159,12 @@ class BenchTest(unittest.TestCase):
                 index.write_text(json.dumps(record), encoding="utf-8")
             report = fit(dict(cfg, output="within_capture_holdout"), dest)
             self.assertEqual([r["workpoint_id"] for r in report["runs"]], [1, 6])
+            report = fit(dict(cfg, train_csvs=[paths[2], paths[0]], output="combined_capture"), dest)
+            self.assertEqual([r["workpoint_id"] for r in report["runs"]], [0, 1, 6])
+            with self.assertRaisesRegex(ValueError, "separate original recording"):
+                fit(dict(cfg, train_csvs=[paths[2]], validation_csvs=[paths[0]]), dest)
             with self.assertRaisesRegex(ValueError, "reserved for validation"):
-                fit(dict(cfg, train_csvs=paths[1:], validation_csvs=paths[:1]), dest)
+                fit(dict(cfg, train_csvs=[paths[1]], validation_csvs=paths[:1]), dest)
 
 
 if __name__ == "__main__":

@@ -92,7 +92,7 @@ def fit(cfg, folder):
         set_pose(model, data, joints, q[0], v[0])
         windows.append((data.qpos.copy(), data.qvel.copy(), times, q, v, tau))
     for origin, pose in sources[len(train):]:
-        if any(p == origin and (pose != 6 or train_pose == 0) for p, train_pose in sources[:len(train)]):
+        if pose != 6 and any(p == origin for p, _ in sources[:len(train)]):
             raise ValueError("use a separate original recording or the preassigned held-out workpoint")
     initial = model.dof_armature[vi].copy()
     candidates = [np.asarray(x, dtype=float) for x in cfg["armature_candidates_kg_m2"]]
