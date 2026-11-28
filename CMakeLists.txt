@@ -30,9 +30,11 @@ set(MCU_TYPE "stm32-f4")
 #set(ROBOT_TYPE "infantry_wheel_legged_demo")
 #set(ROBOT_TYPE "hero_mecanum")
 #set(ROBOT_TYPE "infantry_steering")
-set(ROBOT_TYPE "infantry_mecanum")
+#set(ROBOT_TYPE "infantry_mecanum")
 #set(ROBOT_TYPE "dart")
 #set(ROBOT_TYPE "debug")
+#set(ROBOT_TYPE "target_car")
+set(ROBOT_TYPE "target_conveyor")
 
 include(${CMAKE_SOURCE_DIR}/Hardware/${MCU_TYPE}/${MCU_TYPE}.cmake)
 

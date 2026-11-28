@@ -124,6 +124,13 @@ typedef struct // config parameter
 void PIDInit(PIDInstance *pid, PID_Init_Config_s *config);
 
 /**
+ * @brief 清除PID控制器的运行时状态，保留配置参数
+ *
+ * @param pid    PID实例指针
+ */
+void PIDClear(PIDInstance *pid);
+
+/**
  * @brief 计算PID输出
  *
  * @param pid     PID实例指针

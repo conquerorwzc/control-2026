@@ -20,7 +20,9 @@
 #include "daemon.h"
 #include "dmmotor.h"
 #include "ins_task.h"
+#if !defined(ROBOT_TARGET_CAR) && !defined(ROBOT_TARGET_CONVEYOR)
 #include "master_process.h"
+#endif
 #include "motor_task.h"
 // #include "referee_task.h"
 #include "robot.h"
@@ -28,7 +30,9 @@
 #include "dmmotor.h"
 // bsp
 #include "bsp_init.h"
+#if !defined(ROBOT_TARGET_CAR) && !defined(ROBOT_TARGET_CONVEYOR)
 #include "referee_task.h"
+#endif
 
 osThreadId motorTaskHandle;
 osThreadId daemonTaskHandle;
@@ -61,8 +65,10 @@ void OSTaskInit() {
   osThreadDef(robottask, StartROBOTTASK, osPriorityNormal, 0, 1024);
   robotTaskHandle = osThreadCreate(osThread(robottask), NULL);
 
+#if !defined(ROBOT_TARGET_CAR) && !defined(ROBOT_TARGET_CONVEYOR)
   osThreadDef(uitask, StartUITASK, osPriorityNormal, 0, 512);
   uiTaskHandle = osThreadCreate(osThread(uitask), NULL);
+#endif
 
   // 初始化完成,开启中断
   __enable_irq();
@@ -115,6 +121,7 @@ __attribute__((noreturn)) void StartROBOTTASK(void const *argument) {
 }
 
 // #if 0
+#if !defined(ROBOT_TARGET_CAR) && !defined(ROBOT_TARGET_CONVEYOR)
 __attribute__((noreturn)) void StartUITASK(void const *argument) {
   LOGINFO("[freeRTOS] UI Task Start");
   MyUIInit();
@@ -125,4 +132,5 @@ __attribute__((noreturn)) void StartUITASK(void const *argument) {
     osDelay(1);  // 即使没有任何UI需要刷新,也挂起一次,防止卡在UITask中无法切换
   }
 }
+#endif
 // #endif
