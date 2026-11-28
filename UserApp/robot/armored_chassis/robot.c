@@ -17,6 +17,7 @@ static DJIMotorInstance *wheel_lr;
 static DJIMotorInstance *wheel_rr;
 static DJIMotorInstance *guide_left;
 static DJIMotorInstance *guide_right;
+static volatile float guide_offset_deg[2]; // 左、右引导相对使能位置的转子角度
 static DJIMotorInstance *side_left_3508;
 static DJIMotorInstance *side_right_3508;
 static DJIMotorInstance *side_left_2006;
@@ -109,8 +110,12 @@ static float RemoteAxis(int16_t input)
 static void SetDjiMotorsEnabled(bool enabled)
 {
     DJIMotorInstance *const dji_motors[] = {
-        wheel_lf,    wheel_rf,       wheel_lr,        wheel_rr,       guide_left,
-        guide_right, side_left_3508, side_right_3508, side_left_2006, side_right_2006,
+        wheel_lf, wheel_rf,
+        wheel_lr, wheel_rr,
+        side_left_3508,
+        side_right_3508,
+        side_left_2006,
+        side_right_2006,
     };
 
     for (unsigned int i = 0; i < sizeof(dji_motors) / sizeof(dji_motors[0]); ++i)
@@ -193,11 +198,8 @@ static bool LiftHomeTask(DMMotorInstance *const motors[4], float dt)
     bool all_at_stop = true;
     for (unsigned int i = 0; i < 4; ++i)
     {
-        const float speed_mm_s =
-            motors[i]->measure.velocity * kLiftPitchRadiusMm[i];
-        const bool at_stop =
-            fabsf(speed_mm_s) <= 0.5f &&
-            motors[i]->measure.torque >= kLiftHomeContactTorqueNm[i];
+        const float speed_mm_s = motors[i]->measure.velocity * kLiftPitchRadiusMm[i];
+        const bool at_stop = fabsf(speed_mm_s) <= 0.5f && motors[i]->measure.torque >= kLiftHomeContactTorqueNm[i];
 
         all_at_stop &= at_stop;
     }
@@ -294,11 +296,11 @@ static void LiftTask(bool enabled, float lift_stick)
 
     if (lift_stick > 0.0f)
     {
-        target_mm = kLiftMinTargetMm;  // 上推，齿条向下伸出，车身抬高
+        target_mm = kLiftMinTargetMm; // 上推，齿条向下伸出，车身抬高
     }
     else if (lift_stick < 0.0f)
     {
-        target_mm = 0.0f;             // 下推，齿条向上收回
+        target_mm = 0.0f; // 下推，齿条向上收回
     }
 
     const float remaining_mm = target_mm - lift_ref_mm;
@@ -346,6 +348,41 @@ static void LiftTask(bool enabled, float lift_stick)
 }
 
 /**
+ * @brief 周期运行左右引导电机的位置环。
+ * @param[in] enabled 整机是否允许引导电机输出。
+ * @details 每轴收到有效反馈并使能后，以当前转子角度为起点。
+ *          guide_offset_deg 为相对起点的角度指令，单位为 °。
+ */
+static void GuideTask(bool enabled)
+{
+    DJIMotorInstance *const motors[] = {guide_left, guide_right};
+    static float start_angle_deg[2];
+    static bool reference_ready[2];
+
+    for (unsigned int i = 0; i < 2; ++i)
+    {
+        DJIMotorInstance *motor = motors[i];
+
+        if (!enabled || !DaemonIsOnline(motor->daemon) || motor->motor_can_instance->rx_len != 8u)
+        {
+            DJIMotorStop(motor);
+            reference_ready[i] = false;
+            continue;
+        }
+
+        if (!reference_ready[i])
+        {
+            start_angle_deg[i] = motor->measure.total_angle;
+            guide_offset_deg[i] = 0.0f;
+            reference_ready[i] = true;
+        }
+
+        DJIMotorSetPIDRef(motor, start_angle_deg[i] + guide_offset_deg[i]);
+        DJIMotorEnable(motor);
+    }
+}
+
+/**
  * @brief 周期处理遥控状态，并调度麦轮速度控制与四路抬升。
  * @details 遥控在线且右拨杆居中时，左摇杆和拨轮控制麦轮，右摇杆竖直通道控制抬升。
  *          撤销使能时停止电机输出并清除旋转滤波状态。恢复使能时先更新目标，再开放 DJI 电机输出。
@@ -357,6 +394,7 @@ void RobotTask(void)
     if (!RemoteControlIsOnline() || !switch_is_mid(remote->rc.switch_right))
     {
         LiftTask(false, 0.0f);
+        GuideTask(false);
 
         if (motors_enabled)
         {
@@ -370,6 +408,7 @@ void RobotTask(void)
 
     WheelTask(remote);
     LiftTask(true, RemoteAxis(remote->rc.rocker_r1));
+    GuideTask(true);
 
     if (!motors_enabled)
     {

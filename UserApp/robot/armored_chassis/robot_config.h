@@ -8,8 +8,6 @@
 #include "dji_motor.h"
 #include "dmmotor.h"
 
-
-
 // 四个麦轮在 CAN1 上使用 M3508。速度环的目标和反馈为转子角速度，输出为 C620 电流指令。
 // 左侧两个麦轮的输出与反馈都反向，使正速度目标统一对应车体前进。
 /// 左前麦轮配置。
@@ -104,8 +102,17 @@ static Motor_Init_Config_s guide_left_config = {
             .angle_feedback_source = MOTOR_FEED,
             .speed_feedback_source = MOTOR_FEED,
         },
-    .controller_param_init_config.angle_PID = {.MaxOut = 108000.0f},
-    .controller_param_init_config.speed_PID = {.MaxOut = 10000.0f},
+    .controller_param_init_config.angle_PID =
+        {
+            .Kp = 15.0f,
+            .Ki = 1.0f,
+            .MaxOut = 108000.0f, // 位置环输出的是转子角速度，单位 °/s
+        },
+    .controller_param_init_config.speed_PID =
+        {
+            .Kp = 1.9f,
+            .MaxOut = 10000.0f, // 台架初测的 C610 电流指令上限
+        },
 };
 
 /// 右引导电机配置。
@@ -118,9 +125,20 @@ static Motor_Init_Config_s guide_right_config = {
             .close_loop_type = ANGLE_LOOP | SPEED_LOOP,
             .angle_feedback_source = MOTOR_FEED,
             .speed_feedback_source = MOTOR_FEED,
+            .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
+            .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
         },
-    .controller_param_init_config.angle_PID = {.MaxOut = 108000.0f},
-    .controller_param_init_config.speed_PID = {.MaxOut = 10000.0f},
+    .controller_param_init_config.angle_PID =
+        {
+            .Kp = 15.0f,
+            .Ki = 1.0f,
+            .MaxOut = 108000.0f, // 位置环输出的是转子角速度，单位 °/s
+        },
+    .controller_param_init_config.speed_PID =
+        {
+            .Kp = 2.0f,
+            .MaxOut = 10000.0f, // 台架初测的 C610 电流指令上限
+        },
 };
 
 // CAN2 上的四路抬升统一使用 J4340 驱动配置。tx_id 为电机 ID，rx_id 为反馈帧的 Master ID。
@@ -142,14 +160,16 @@ static Motor_Init_Config_s lift_lf_config = {
             .angle_feedback_source = MOTOR_FEED,
             .speed_feedback_source = MOTOR_FEED,
         },
-    .controller_param_init_config.angle_PID = {
-        .Kp = 15.0f,
-        .MaxOut = 5.864306f,
-    },
-    .controller_param_init_config.speed_PID = {
-        .Kp = 5.0f,
-        .MaxOut = 28.0f,
-    },
+    .controller_param_init_config.angle_PID =
+        {
+            .Kp = 15.0f,
+            .MaxOut = 5.864306f,
+        },
+    .controller_param_init_config.speed_PID =
+        {
+            .Kp = 5.0f,
+            .MaxOut = 28.0f,
+        },
 };
 
 /// 右前抬升电机配置，对应 30 齿小齿轮。
@@ -171,14 +191,16 @@ static Motor_Init_Config_s lift_rf_config = {
             .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
             .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
         },
-    .controller_param_init_config.angle_PID = {
-        .Kp = 15.0f,
-        .MaxOut = 5.864306f,
-    },
-    .controller_param_init_config.speed_PID = {
-        .Kp = 5.0f,
-        .MaxOut = 28.0f,
-    },
+    .controller_param_init_config.angle_PID =
+        {
+            .Kp = 15.0f,
+            .MaxOut = 5.864306f,
+        },
+    .controller_param_init_config.speed_PID =
+        {
+            .Kp = 5.0f,
+            .MaxOut = 28.0f,
+        },
 };
 
 /// 左后抬升电机配置，对应 50 齿大齿轮。
@@ -199,14 +221,16 @@ static Motor_Init_Config_s lift_lr_config = {
             .motor_reverse_flag = MOTOR_DIRECTION_REVERSE,
             .feedback_reverse_flag = FEEDBACK_DIRECTION_REVERSE,
         },
-    .controller_param_init_config.angle_PID = {
-        .Kp = 17.0f,
-        .MaxOut = 5.864306f,
-    },
-    .controller_param_init_config.speed_PID = {
-        .Kp = 3.0f,
-        .MaxOut = 28.0f,
-    },
+    .controller_param_init_config.angle_PID =
+        {
+            .Kp = 17.0f,
+            .MaxOut = 5.864306f,
+        },
+    .controller_param_init_config.speed_PID =
+        {
+            .Kp = 3.0f,
+            .MaxOut = 28.0f,
+        },
 };
 
 /// 右后抬升电机配置，对应 50 齿大齿轮。
@@ -225,14 +249,16 @@ static Motor_Init_Config_s lift_rr_config = {
             .angle_feedback_source = MOTOR_FEED,
             .speed_feedback_source = MOTOR_FEED,
         },
-    .controller_param_init_config.angle_PID = {
-        .Kp = 19.0f,
-        .MaxOut = 5.864306f,
-    },
-    .controller_param_init_config.speed_PID = {
-        .Kp = 3.0f,
-        .MaxOut = 28.0f,
-    },
+    .controller_param_init_config.angle_PID =
+        {
+            .Kp = 19.0f,
+            .MaxOut = 5.864306f,
+        },
+    .controller_param_init_config.speed_PID =
+        {
+            .Kp = 3.0f,
+            .MaxOut = 28.0f,
+        },
 };
 
 /// 以上挡块为 0 mm，向下伸出为负。四路共用的下限按最短实测行程留出余量。
