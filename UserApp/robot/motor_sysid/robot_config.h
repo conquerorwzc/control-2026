@@ -40,8 +40,8 @@
 #define HIP_SWEEP_POSITIONING_S 3.0f
 #define HIP_SWEEP_POSITION_TIMEOUT_US 10000000u
 #define HIP_SWEEP_BIAS_GAIN 16.0f // N m / (rad s)，仅在就位阶段积分
-// 左腿前髋单轴扫频：就位后，前髋跟踪参考，后髋保持固定参考。
-static const ChassisHipPD kLeftLegSweepPD = {.kp_nm_per_rad = 40.0f, .kd_nm_per_rad_s = 2.0f};
+#define HIP_POSITION_KP_NM_PER_RAD 40.0f
+#define HIP_POSITION_KD_NM_PER_RAD_S 2.0f
 #define HIP_STEP_RAD 0.1f
 #define SWEEP_START_HZ 0.5f
 #define SWEEP_END_HZ 5.0f
@@ -103,8 +103,8 @@ static Chassis_Init_Config_s chassis_init_config = {
             .zero_rad = -1.818558794f,
             .direction = -1.0f,
             .center_rad = -0.428652864f, // OK 长端标定角，-24.56°。
-            .kp_nm_per_rad = 10.0f,
-            .kd_nm_per_rad_s = 0.5f,
+            .kp_nm_per_rad = HIP_POSITION_KP_NM_PER_RAD,
+            .kd_nm_per_rad_s = HIP_POSITION_KD_NM_PER_RAD_S,
             .max_torque_nm = 40.0f,
         },
     .hip[CHASSIS_LEFT_REAR] =
@@ -117,8 +117,8 @@ static Chassis_Init_Config_s chassis_init_config = {
             .zero_rad = 0.859433112f,
             .direction = -1.0f,
             .center_rad = 1.011069236f, // OA 长端标定角，57.93°。
-            .kp_nm_per_rad = 10.0f,
-            .kd_nm_per_rad_s = 0.5f,
+            .kp_nm_per_rad = HIP_POSITION_KP_NM_PER_RAD,
+            .kd_nm_per_rad_s = HIP_POSITION_KD_NM_PER_RAD_S,
             .max_torque_nm = 40.0f,
         },
     .hip[CHASSIS_RIGHT_FRONT] =
@@ -131,8 +131,8 @@ static Chassis_Init_Config_s chassis_init_config = {
             .zero_rad = 0.945361238f,
             .direction = 1.0f, // 实测向车头转动时，编码器角度增大。
             .center_rad = -0.428652864f,
-            .kp_nm_per_rad = 10.0f,
-            .kd_nm_per_rad_s = 0.5f,
+            .kp_nm_per_rad = HIP_POSITION_KP_NM_PER_RAD,
+            .kd_nm_per_rad_s = HIP_POSITION_KD_NM_PER_RAD_S,
             .max_torque_nm = 40.0f,
         },
     .hip[CHASSIS_RIGHT_REAR] =
@@ -145,8 +145,8 @@ static Chassis_Init_Config_s chassis_init_config = {
             .zero_rad = 2.210682934f,
             .direction = 1.0f, // 实测向车头转动时，编码器角度增大。
             .center_rad = 1.011069236f,
-            .kp_nm_per_rad = 10.0f,
-            .kd_nm_per_rad_s = 0.5f,
+            .kp_nm_per_rad = HIP_POSITION_KP_NM_PER_RAD,
+            .kd_nm_per_rad_s = HIP_POSITION_KD_NM_PER_RAD_S,
             .max_torque_nm = 40.0f,
         },
     .wheel[CHASSIS_LEFT] =
