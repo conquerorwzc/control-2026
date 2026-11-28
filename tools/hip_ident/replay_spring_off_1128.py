@@ -10,7 +10,7 @@ import mujoco as mj
 from mujoco import rollout
 import numpy as np
 
-from bench_model import prepare, set_pose
+from bench_model import prepare, set_armature, set_pose
 
 STEP = 0.001
 WINDOW = 200
@@ -226,7 +226,7 @@ def run(folder, output, model_path, side):
         return np.stack([w["initial"] for w in runs]), control
 
     def predict(batch_input, arm):
-        model.dof_armature[vi] = original + arm
+        set_armature(model, pool[0], vi, original + arm)
         state, _ = rollout.rollout(
             model, pool, batch_input[0], batch_input[1], control_spec=int(FORCE), persistent_pool=True
         )

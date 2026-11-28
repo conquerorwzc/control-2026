@@ -16,6 +16,20 @@ except ImportError:
     mj = None
 
 
+@unittest.skipUnless(mj, "requires MuJoCo")
+class ReflectedInertiaTest(unittest.TestCase):
+    def test_runtime_armature_uses_compiled_constraint_weights(self):
+        from bench_model import set_armature
+
+        xml = ('<mujoco><worldbody><body><inertial pos="0 0 0" mass="1" '
+               'diaginertia=".001 .001 .001"/><joint type="hinge" frictionloss="1" '
+               'armature="{}"/></body></worldbody></mujoco>')
+        runtime = mj.MjModel.from_xml_string(xml.format(0))
+        compiled = mj.MjModel.from_xml_string(xml.format(0.1))
+        set_armature(runtime, mj.MjData(runtime), [0], [0.1])
+        np.testing.assert_allclose(runtime.dof_invweight0, compiled.dof_invweight0)
+
+
 class SweepQualityTest(unittest.TestCase):
     def test_variable_amplitude_and_clipped_window(self):
         from bench_data import sweep_tracking

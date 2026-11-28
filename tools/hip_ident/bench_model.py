@@ -10,6 +10,12 @@ import mujoco as mj
 import numpy as np
 
 
+def set_armature(model, scratch, dofs, armature):
+    """Refresh mass-dependent constraint weights whenever reflected inertia changes."""
+    model.dof_armature[dofs] = armature
+    mj.mj_setConst(model, scratch)
+
+
 def prepare(folder, output, installed=False):
     source = folder / "wheel_leg_1127_battery.xml"
     urdf = folder / "wheel_leg_1127_battery.urdf"

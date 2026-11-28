@@ -6,7 +6,7 @@ import mujoco as mj
 import numpy as np
 
 from bench_data import Shot
-from bench_model import set_pose
+from bench_model import set_armature, set_pose
 
 
 def aligned(shot, zero, sign):
@@ -104,7 +104,7 @@ def fit(cfg, folder):
     def replay(w, arm):
         initq, initv, times, q, v, tau = w
         data = mj.MjData(model)
-        model.dof_armature[vi] = initial + arm
+        set_armature(model, data, vi, initial + arm)
         data.qpos[:], data.qvel[:] = initq, initv
         mj.mj_forward(model, data)
         pos, vel = np.empty_like(q), np.empty_like(v)
