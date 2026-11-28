@@ -57,7 +57,7 @@ class BenchTest(unittest.TestCase):
                         wr.writerow([f"I{i}" for i in range(25)])
                     for k in range(420):
                         t = k * 2000
-                        phase = 1 if k < 70 else 2 if k < 320 else 3
+                        phase = 5 if k < 2 else 1 if k < 70 else 2 if k < 320 else 3
                         cmd = bias + (0.12 * np.sin(0.1 * k) if phase == 2 else 0)
                         signals = []
                         for j in range(2):
@@ -89,8 +89,10 @@ class BenchTest(unittest.TestCase):
                                 *([0, 0, 0, 0, 0, 0.3, 2048, 28, 0] * 2),
                             ]
                         )
-                        data.qfrc_applied[vi] = cmd
-                        mj.mj_step(model, data, nstep=2)
+                        if phase != 5:
+                            # The fixture starts the simulated trial from its known closed baseline pose.
+                            data.qfrc_applied[vi] = cmd
+                            mj.mj_step(model, data, nstep=2)
 
                 def subset(raw):
                     directory = dest / (raw.stem + "_segments")
@@ -98,6 +100,7 @@ class BenchTest(unittest.TestCase):
                     return directory / reported["segments"][0]["file"]
 
                 paths.append(str(subset(raw)))
+                self.assertEqual(Shot(paths[-1], "left").phase[0], 1)
                 plateau = plateau_summary(Shot(subset(static_raw), "left"))
                 self.assertTrue(plateau[0]["accepted"])
             cfg = dict(

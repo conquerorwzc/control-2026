@@ -55,6 +55,7 @@ def extract(source, dest, spring):
                 f.version == 3
                 and f.layout == 1
                 and (f.state & 15) == 4
+                and ((f.state >> 10) & 7) != 5  # Pre-positioning is outside the sweep baseline.
                 and f.experiment in (0, 3, 4, 5, 9)
                 and f.mode in (1, 2, 3, 8, 9, 10, 11, 14, 15)
                 and (f.flags & 0x2C0) == 0xC0

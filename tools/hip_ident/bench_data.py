@@ -116,17 +116,22 @@ def sweep_tracking(shot):
     if not len(excite) or not np.any(shot.phase[: excite[0]] == 1):
         return []
     t0 = shot.t[excite[0]]
+    recovery = np.flatnonzero(shot.phase == 3)
+    if not len(recovery) or recovery[0] <= excite[-1]:
+        return []
+    duration_s = (shot.t[recovery[0]] - t0) * 1e-6
+    rate = (5.0 - 0.5) / duration_s
     rows = []
     for j in range(2):
         for hz in (1.0, 2.0, 3.0, 4.0, 4.6):
-            center = (hz - 0.5) / 0.225
+            center = (hz - 0.5) / rate
 
             def harmonic(times, signal, mask):
                 t = (times - t0) * 1e-6
                 use = mask & (np.abs(t - center) <= 1.0) & (shot.phase == 2)
                 if use.sum() < 20 or np.ptp(t[use]) < 1.5:
                     return None
-                phase = 2 * np.pi * t[use] * (0.5 + 0.1125 * t[use])
+                phase = 2 * np.pi * t[use] * (0.5 + 0.5 * rate * t[use])
                 design = np.column_stack((np.sin(phase), np.cos(phase), np.ones(len(phase)), t[use] - center))
                 coef = np.linalg.lstsq(design, signal[use], rcond=None)[0]
                 return complex(coef[0], coef[1])
